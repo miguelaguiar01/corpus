@@ -1,0 +1,14 @@
+services:
+  corpus:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      # Set a long random value before first start.
+      CORPUS_INVITE_SECRET: ${CORPUS_INVITE_SECRET:?set CORPUS_INVITE_SECRET}
+    volumes:
+      - corpus-data:/data
+    restart: unless-stopped
+
+volumes:
+  corpus-data:
