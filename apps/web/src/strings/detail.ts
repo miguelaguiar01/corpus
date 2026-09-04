@@ -2,7 +2,11 @@
 // the string, its type's declarations, per-language rows, the entities
 // its ref metadata points at, and the attributed edit history (§11).
 import { and, desc, eq, inArray } from "drizzle-orm";
-import type { FieldDeclaration, MetadataValue } from "@corpus/contract";
+import type {
+  Example,
+  FieldDeclaration,
+  MetadataValue,
+} from "@corpus/contract";
 import type { Db } from "@/db";
 import {
   edits,
@@ -23,7 +27,7 @@ export type StringDetail = {
     source: string;
     archived: boolean;
     metadata: Record<string, MetadataValue> | null;
-    examples: unknown[] | null;
+    examples: Example[] | null;
   };
   declarations: Record<string, FieldDeclaration>;
   translations: Record<

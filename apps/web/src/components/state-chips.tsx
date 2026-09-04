@@ -1,11 +1,6 @@
-import { t, type MessageKey } from "@/i18n";
+import { t } from "@/i18n";
 import type { LanguageState } from "@/catalogue/query";
-
-const STATE_KEY: Record<LanguageState["state"], MessageKey> = {
-  untranslated: "state.untranslated",
-  translated: "state.translated",
-  verified: "state.verified",
-};
+import { STATE_KEY } from "./state-label";
 
 const STATE_CLASS: Record<LanguageState["state"], string> = {
   untranslated: "bg-muted text-muted-foreground",

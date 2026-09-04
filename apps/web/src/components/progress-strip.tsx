@@ -1,5 +1,6 @@
 import type { Progress } from "@/catalogue/progress";
 import { t } from "@/i18n";
+import { ProgressBar } from "./progress-bar";
 
 // Per-language progress bar (§9.2). The full dashboard with queues is M2.
 export function ProgressStrip({ progress }: { progress: Progress }) {
@@ -9,7 +10,6 @@ export function ProgressStrip({ progress }: { progress: Progress }) {
     <div className="space-y-2">
       {languages.map((language) => {
         const p = progress.perLanguage[language]!;
-        const pct = (n: number) => (p.total ? (n / p.total) * 100 : 0);
         return (
           <div key={language} className="space-y-1">
             <div className="flex justify-between text-xs">
@@ -22,16 +22,7 @@ export function ProgressStrip({ progress }: { progress: Progress }) {
                 })}
               </span>
             </div>
-            <div className="flex h-2 overflow-hidden rounded-full bg-muted">
-              <span
-                className="bg-primary"
-                style={{ width: `${pct(p.verified)}%` }}
-              />
-              <span
-                className="bg-muted-foreground"
-                style={{ width: `${pct(p.translated)}%` }}
-              />
-            </div>
+            <ProgressBar p={p} label={language} className="h-2" />
           </div>
         );
       })}

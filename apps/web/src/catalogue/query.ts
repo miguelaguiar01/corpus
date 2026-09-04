@@ -2,7 +2,9 @@ import { and, asc, eq, exists, gt, inArray, sql, type SQL } from "drizzle-orm";
 import type { Db } from "@/db";
 import { strings, stringTranslations } from "@/db/schema";
 
-export type TranslationState = "untranslated" | "translated" | "verified";
+import type { TranslationState } from "@/translations/state";
+
+export type { TranslationState };
 export type LanguageState = { state: TranslationState; stale: boolean };
 
 export type CatalogueRow = {

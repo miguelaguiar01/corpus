@@ -1,8 +1,6 @@
 {
   "app.title": "Corpus",
   "app.tagline": "A translation workbench for structured text",
-  "home.heading": "Corpus",
-  "home.signedInAs": "Signed in as {name}",
   "home.projectsHeading": "Projects",
   "home.newProject": "New project",
   "home.noProjects": "No projects yet. Create one to get started.",

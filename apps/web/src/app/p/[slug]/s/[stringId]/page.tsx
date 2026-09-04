@@ -13,7 +13,6 @@ import { stringDetail } from "@/strings/detail";
 import { verifyString } from "@/translations/actions";
 import { t, type MessageKey } from "@/i18n";
 
-type Example = { values: Record<string, string>; rendered: string };
 type Query = {
   queue?: string;
   language?: string;
@@ -44,11 +43,13 @@ export default async function StringPage({
   if (!detail) notFound();
   const user = await currentUser();
   const { string, declarations, translations, entities, history } = detail;
-  const examples = (string.examples ?? []) as Example[];
+  const examples = string.examples ?? [];
 
   const queueKind = isQueueKind(query.queue) ? query.queue : undefined;
   const queue = queueKind ? queueItems(db, project.id, queueKind) : undefined;
   const language = query.language ?? project.sourceLanguage;
+  // M2 is source proofreading: verify always acts on the source row, whatever
+  // queue the reader arrived through. Target-row actions come with M3's editor.
   const source = translations[project.sourceLanguage];
   const canVerify =
     user?.maintainer === true &&

@@ -1,4 +1,8 @@
-import type { EntityTypeDeclaration, FieldDeclaration } from "@corpus/contract";
+import type {
+  EntityTypeDeclaration,
+  Example,
+  FieldDeclaration,
+} from "@corpus/contract";
 import {
   index,
   integer,
@@ -6,6 +10,7 @@ import {
   text,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
+import type { TranslationState } from "@/translations/state";
 
 // Users per spec §10: a display name and one flag. The first user created
 // on an instance becomes a maintainer (enforced in the auth layer, #15).
@@ -70,7 +75,7 @@ export const strings = sqliteTable(
     metadata: text("metadata", { mode: "json" }).$type<
       Record<string, unknown>
     >(),
-    examples: text("examples", { mode: "json" }).$type<unknown[]>(),
+    examples: text("examples", { mode: "json" }).$type<Example[]>(),
     archived: integer("archived", { mode: "boolean" }).notNull().default(false),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
@@ -98,11 +103,13 @@ export const entities = sqliteTable(
   ],
 );
 
+// The column enum mirrors the pure machine's type (§11); `satisfies`
+// keeps the two from drifting.
 export const TRANSLATION_STATES = [
   "untranslated",
   "translated",
   "verified",
-] as const;
+] as const satisfies readonly TranslationState[];
 
 // Per string × language row (§11): text, state, stale overlay. The state
 // machine transitions land in M2; this ticket is the row shape only.

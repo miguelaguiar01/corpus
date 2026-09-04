@@ -1,31 +1,6 @@
-import type { LanguageProgress, Progress } from "@/catalogue/progress";
+import type { Progress } from "@/catalogue/progress";
 import { t } from "@/i18n";
-
-function Bar({ label, p }: { label: string; p: LanguageProgress }) {
-  const done = p.verified + p.translated;
-  const pct = (n: number) => (p.total ? (n / p.total) * 100 : 0);
-  return (
-    <div className="flex items-center gap-3 text-sm">
-      <span className="w-28 shrink-0 truncate text-muted-foreground">
-        {label}
-      </span>
-      <div
-        role="meter"
-        aria-label={label}
-        aria-valuemin={0}
-        aria-valuemax={p.total}
-        aria-valuenow={done}
-        className="flex h-1.5 flex-1 overflow-hidden rounded-full bg-muted"
-      >
-        <span className="bg-primary" style={{ width: `${pct(p.verified)}%` }} />
-        <span
-          className="bg-muted-foreground"
-          style={{ width: `${pct(p.translated)}%` }}
-        />
-      </div>
-    </div>
-  );
-}
+import { ProgressBar } from "./progress-bar";
 
 // Per-language progress broken down by string type (§9.1). Verified fills
 // in the foreground tone, translated in the quieter one; the remainder is
@@ -52,7 +27,14 @@ export function ProgressByType({ progress }: { progress: Progress }) {
             </div>
             {types.map((type) => {
               const tp = progress.perType[type]?.[language];
-              return tp ? <Bar key={type} label={type} p={tp} /> : null;
+              return tp ? (
+                <div key={type} className="flex items-center gap-3 text-sm">
+                  <span className="w-28 shrink-0 truncate text-muted-foreground">
+                    {type}
+                  </span>
+                  <ProgressBar p={tp} label={type} className="h-1.5 flex-1" />
+                </div>
+              ) : null;
             })}
           </section>
         );
