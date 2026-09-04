@@ -11,6 +11,6 @@
   "invite.errorInvalid": "That invite secret or name was not accepted.",
   "invite.errorRateLimited": "Too many attempts. Wait a few minutes and try again.",
   "notFound.heading": "Page not found",
-  "notFound.description": "This page does not exist. Check the address or go back to the dashboard.",
+  "notFound.description": "This page does not exist. Check the address or go back home.",
   "notFound.backHome": "Back to home"
 }

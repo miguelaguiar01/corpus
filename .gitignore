@@ -6,8 +6,9 @@ dist/
 .next/
 *.tsbuildinfo
 
-# SQLite working data
-data/
+# SQLite working data (anchored: test fixtures may legitimately contain
+# nested data/ directories)
+/data/
 *.db
 *.db-journal
 *.db-wal
