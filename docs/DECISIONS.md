@@ -53,3 +53,15 @@ the adapter consumes it makes self-translation the two-line standard
 config instead of a special case.
 
 **Context:** owner decision on #13.
+
+## 2026-09-04 — Migrations carry descriptive names
+
+**Decision:** every drizzle migration is generated with an explicit name
+describing what it changes — `npx drizzle-kit generate --name=<what-it-does>`
+(e.g. `0000_users-and-sessions.sql`). Auto-generated whimsical names are
+not accepted in review.
+
+**Why:** migration filenames are the schema's changelog; "colorful_odin"
+tells a reader nothing (owner directive on #14/PR #24).
+
+**Context:** PR #24.
