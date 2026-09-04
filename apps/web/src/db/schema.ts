@@ -94,6 +94,12 @@ export const entities = sqliteTable(
   ],
 );
 
+export const TRANSLATION_STATES = [
+  "untranslated",
+  "translated",
+  "verified",
+] as const;
+
 // Per string × language row (§11): text, state, stale overlay. The state
 // machine transitions land in M2; this ticket is the row shape only.
 export const stringTranslations = sqliteTable(
@@ -105,9 +111,7 @@ export const stringTranslations = sqliteTable(
       .references(() => strings.id),
     language: text("language").notNull(),
     text: text("text"),
-    state: text("state", {
-      enum: ["untranslated", "translated", "verified"],
-    })
+    state: text("state", { enum: TRANSLATION_STATES })
       .notNull()
       .default("untranslated"),
     stale: integer("stale", { mode: "boolean" }).notNull().default(false),
@@ -119,4 +123,28 @@ export const stringTranslations = sqliteTable(
     uniqueIndex("translations_string_language").on(t.stringId, t.language),
     index("translations_state").on(t.state),
   ],
+);
+
+// Append-only edits log (§11): who, when, string, language, old → new
+// text/state. Written only by the transition service, never updated.
+export const edits = sqliteTable(
+  "edits",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    stringId: integer("string_id")
+      .notNull()
+      .references(() => strings.id),
+    language: text("language").notNull(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id),
+    at: integer("at", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    oldText: text("old_text"),
+    newText: text("new_text"),
+    oldState: text("old_state", { enum: TRANSLATION_STATES }).notNull(),
+    newState: text("new_state", { enum: TRANSLATION_STATES }).notNull(),
+  },
+  (t) => [index("edits_string_language").on(t.stringId, t.language)],
 );
