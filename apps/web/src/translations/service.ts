@@ -11,6 +11,7 @@ import {
   type TransitionError,
   type TranslationAction,
 } from "./state";
+import { changedSinceOpened } from "./version";
 
 export type TranslationRecord = typeof stringTranslations.$inferSelect;
 export type EditRecord = typeof edits.$inferSelect;
@@ -20,10 +21,13 @@ export type ApplyInput = {
   language: string;
   action: TranslationAction;
   actor: Actor & { id: number };
+  // The version token the editor opened with (see version.ts); optional,
+  // and never blocks the write.
+  openedVersion?: number;
 };
 
 export type ApplyResult =
-  | { row: TranslationRecord; edit: EditRecord }
+  | { row: TranslationRecord; edit: EditRecord; changedSinceOpened: boolean }
   | { error: TransitionError | "not-found" };
 
 export function applyTransition(db: Db, input: ApplyInput): ApplyResult {
@@ -78,6 +82,13 @@ export function applyTransition(db: Db, input: ApplyInput): ApplyResult {
       .returning()
       .all();
     if (!row || !edit) throw new Error("transition wrote no rows");
-    return { row, edit };
+    return {
+      row,
+      edit,
+      changedSinceOpened: changedSinceOpened(
+        input.openedVersion,
+        current.row.updatedAt,
+      ),
+    };
   });
 }

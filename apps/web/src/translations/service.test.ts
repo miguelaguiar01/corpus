@@ -10,6 +10,7 @@ import {
 } from "@/db/schema";
 import { memoryDb } from "@/db/test-helpers";
 import { applyTransition } from "./service";
+import { versionOf } from "./version";
 
 function seed(options: { archived?: boolean } = {}) {
   const db = memoryDb();
@@ -201,4 +202,52 @@ test("row update and edit insert are atomic: a failing log entry rolls back the 
   ).toThrow(/FOREIGN KEY/);
   expect(translation(db, string.id, "pt-PT")?.state).toBe("translated");
   expect(db.select().from(edits).all()).toHaveLength(0);
+});
+
+test("a current version token applies and reports no concurrent edit", () => {
+  const { db, string, maintainer } = seed();
+  const opened = versionOf(translation(db, string.id, "pt-PT")!);
+  const result = applyTransition(db, {
+    stringId: string.id,
+    language: "pt-PT",
+    action: { type: "verify" },
+    actor: maintainer,
+    openedVersion: opened,
+  });
+  expect(result).toMatchObject({
+    row: { state: "verified" },
+    changedSinceOpened: false,
+  });
+});
+
+test("a stale version token still applies (last write wins) but is flagged", () => {
+  const { db, string, translator } = seed();
+  const opened = versionOf(translation(db, string.id, "pt-PT")!);
+  db.update(stringTranslations)
+    .set({ updatedAt: new Date(opened + 60_000) })
+    .where(eq(stringTranslations.stringId, string.id))
+    .run();
+  const result = applyTransition(db, {
+    stringId: string.id,
+    language: "pt-PT",
+    action: { type: "save", text: "Foi visto à janela." },
+    actor: translator,
+    openedVersion: opened,
+  });
+  expect(result).toMatchObject({
+    row: { state: "translated", text: "Foi visto à janela." },
+    changedSinceOpened: true,
+  });
+  expect(translation(db, string.id, "pt-PT")?.text).toBe("Foi visto à janela.");
+});
+
+test("without a token the result never warns", () => {
+  const { db, string, maintainer } = seed();
+  const result = applyTransition(db, {
+    stringId: string.id,
+    language: "pt-PT",
+    action: { type: "verify" },
+    actor: maintainer,
+  });
+  expect(result).toMatchObject({ changedSinceOpened: false });
 });
