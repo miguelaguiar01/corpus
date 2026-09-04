@@ -1,0 +1,10 @@
+{
+  "name": "@corpus/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "dev": "echo 'apps/web is a placeholder until the Next.js scaffold lands (#12)'"
+  }
+}
