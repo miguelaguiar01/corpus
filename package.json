@@ -10,7 +10,7 @@
     "packages/*"
   ],
   "scripts": {
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck": "tsc --noEmit && npm run typecheck --workspaces --if-present",
     "lint": "eslint .",
     "format": "prettier --check .",
     "format:fix": "prettier --write .",
