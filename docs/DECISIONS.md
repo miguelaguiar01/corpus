@@ -78,3 +78,15 @@ strings and entities.
 versioning makes the addition backward-compatible.
 
 **Context:** #30.
+
+## 2026-09-04 — jiti loads the client's corpus.config.ts
+
+**Decision:** the CLI loads `corpus.config.ts` at runtime with jiti, a
+TypeScript/ESM loader, rather than requiring the client repo to compile
+its config first.
+
+**Why:** §3's config is authored in TS and imports `@corpus/contract`;
+jiti runs it directly with no build step in the client repo, keeping
+`corpus push` a single command. One small dependency, scoped to the CLI.
+
+**Context:** #42.
