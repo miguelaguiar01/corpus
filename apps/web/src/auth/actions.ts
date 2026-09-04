@@ -7,10 +7,19 @@ import { RateLimiter } from "./rate-limit";
 import { createSession, redeemInvite, SESSION_TTL_MS } from "./service";
 import { SESSION_COOKIE } from "./session";
 
-// 5 attempts per 15 minutes per client (§10: rate-limit the invite
-// endpoint). Module-level state survives across requests in the single
-// server process.
-const limiter = new RateLimiter({ max: 5, windowMs: 15 * 60 * 1000 });
+// Two layers (§10: rate-limit the invite endpoint; review finding on
+// PR #25): a per-client window for the friendly case, and a global cap
+// so a rotated/spoofed x-forwarded-for cannot buy fresh budgets — the
+// instance serves a handful of humans, so 30 attempts/15min across all
+// clients is generous. Module-level state survives across requests in
+// the single server process.
+const WINDOW_MS = 15 * 60 * 1000;
+const clientLimiter = new RateLimiter({
+  max: 5,
+  windowMs: WINDOW_MS,
+  maxKeys: 1000,
+});
+const globalLimiter = new RateLimiter({ max: 30, windowMs: WINDOW_MS });
 
 function clientKey(forwardedFor: string | null): string {
   return forwardedFor?.split(",")[0]?.trim() || "unknown";
@@ -18,7 +27,10 @@ function clientKey(forwardedFor: string | null): string {
 
 export async function submitInvite(formData: FormData): Promise<void> {
   const requestHeaders = await headers();
-  if (!limiter.allow(clientKey(requestHeaders.get("x-forwarded-for")))) {
+  const perClientOk = clientLimiter.allow(
+    clientKey(requestHeaders.get("x-forwarded-for")),
+  );
+  if (!globalLimiter.allow("invite") || !perClientOk) {
     redirect("/invite?error=rate-limited");
   }
 

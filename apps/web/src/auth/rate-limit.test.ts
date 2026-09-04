@@ -33,3 +33,23 @@ test("the window resets after windowMs", () => {
   expect(limiter.allow("1.2.3.4", t + 59_999)).toBe(false);
   expect(limiter.allow("1.2.3.4", t + 60_001)).toBe(true);
 });
+
+test("expired entries are evicted instead of accumulating", () => {
+  const limiter = new RateLimiter({ max: 1, windowMs: 60_000, maxKeys: 100 });
+  const t = 1_000_000;
+  limiter.allow("a", t);
+  limiter.allow("b", t);
+  limiter.allow("c", t);
+  expect(limiter.size).toBe(3);
+  limiter.allow("d", t + 60_001);
+  expect(limiter.size).toBe(1);
+});
+
+test("fails closed when the key table is full of live entries", () => {
+  const limiter = new RateLimiter({ max: 5, windowMs: 60_000, maxKeys: 2 });
+  const t = 1_000_000;
+  expect(limiter.allow("a", t)).toBe(true);
+  expect(limiter.allow("b", t + 1)).toBe(true);
+  expect(limiter.allow("c", t + 2)).toBe(false);
+  expect(limiter.allow("a", t + 3)).toBe(true);
+});
