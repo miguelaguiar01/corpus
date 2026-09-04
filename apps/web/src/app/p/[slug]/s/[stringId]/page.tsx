@@ -25,6 +25,7 @@ const ERROR_KEY: Record<string, MessageKey> = {
   "not-maintainer": "verify.errorNotMaintainer",
   "invalid-translation": "editor.errorInvalid",
   "empty-text": "editor.errorEmpty",
+  "source-row": "editor.errorSourceRow",
 };
 
 // Source verification surface (§9.3, M2): read the source with everything

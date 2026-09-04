@@ -241,3 +241,19 @@ test("verifyFlow is the source-language verify case of transitionFlow", () => {
     }),
   );
 });
+
+test("a save aimed at the source language is rejected server-side", () => {
+  const { db, p, rui } = pushed();
+  const result = transitionFlow(db, {
+    project: p,
+    user: rui,
+    key: KEYS[2]!,
+    language: "pt-PT",
+    action: { type: "save", text: "Continuar!" },
+  });
+  expect(result).toEqual({
+    kind: "redirect",
+    to: `/p/mm/s/${encodeURIComponent(KEYS[2]!)}?error=source-row`,
+  });
+  expect(stringDetail(db, p.id, KEYS[2]!)?.history).toHaveLength(0);
+});
