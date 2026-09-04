@@ -15,5 +15,12 @@ with itself — the standing demo and integration test.
 - **[`AGENTS.md`](AGENTS.md)** — workflow, non-negotiables, and the board.
 - **[`docs/DECISIONS.md`](docs/DECISIONS.md)** — architecture decisions log.
 
+## Configuration
+
+Environment variables are documented in [`.env.example`](.env.example).
+The SQLite database file location is set with `CORPUS_DB_PATH` (default
+`./data/corpus.db`); migrations apply automatically on first database
+access.
+
 > Under construction (milestone M0). The real README — with screenshots of
 > Corpus translating Corpus — lands with M4.
