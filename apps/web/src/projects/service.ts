@@ -67,3 +67,12 @@ export function findProjectByToken(db: Db, token: string): Project | undefined {
     .where(eq(projects.tokenHash, hashToken(token)))
     .get();
 }
+
+// Everyone sees all projects on the instance (§10).
+export function listProjects(db: Db): Project[] {
+  return db.select().from(projects).orderBy(projects.name).all();
+}
+
+export function getProjectBySlug(db: Db, slug: string): Project | undefined {
+  return db.select().from(projects).where(eq(projects.slug, slug)).get();
+}
