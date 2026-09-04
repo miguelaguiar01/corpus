@@ -5,7 +5,7 @@ import {
   stringEntrySchema,
 } from "./strings";
 
-// The §5 example entry, verbatim.
+// §5 example entry, verbatim.
 const SIGHTING_ENTRY = {
   id: "skin.seen-at-greenhouse-window",
   type: "clue-skin",
@@ -107,7 +107,6 @@ test("examples require values and rendered", () => {
   ).toBe(false);
 });
 
-// The five metadata primitives (§5) as field declarations.
 test.each([
   ["enum", { type: "enum", description: "d", values: ["sighting", "gossip"] }],
   ["flag", { type: "flag", description: "d" }],
