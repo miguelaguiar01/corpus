@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@corpus/contract": "*",
     "@radix-ui/react-slot": "^1.2.0",
     "better-sqlite3": "^13.0.3",
     "class-variance-authority": "^0.7.1",
