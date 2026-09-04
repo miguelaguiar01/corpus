@@ -115,3 +115,16 @@ never reads the client's config, so the snapshot is the only channel and
 the label has to survive between pushes.
 
 **Context:** #90.
+
+## 2026-09-04 — M5 post-MVP refinement milestone
+
+**Decision:** §16 gains an M5 after the MVP (M0–M4): refinement and
+polish driven by a design audit, a real-usage pass, and triage. Until M4
+closes, the M5 epic is only a landing zone for out-of-scope bugs and
+polish ideas; it is refined planning-first when M4 ends.
+
+**Why:** v1 scope was bounded on purpose (scope ratchet), which left no
+home for the refinement work an MVP always needs. Naming the milestone
+keeps that work planned and reviewed rather than drive-by.
+
+**Context:** owner decision on 2026-09-04, at the close of M2.

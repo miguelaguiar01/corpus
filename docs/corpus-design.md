@@ -314,4 +314,8 @@ Ship order (catalogue-first — source-verification value before translation):
 - **M3 — Translation + pull.** Editor with placeholder chips, branch view, previews from examples, validation both sides; `corpus pull`; seed-on-first-push; round-trip invariant test green. *Done when: a translator completes a queue item on a phone and `pull` writes correct files.*
 - **M4 — Dogfood + polish.** Corpus self-translation live in CI (§12), `corpus check`, entity browser, maintainer corner, Playwright smoke, README with self-translation screenshots. *Done when: §12's CI job is green and the README demo is real.*
 
+M0–M4 are the MVP. One milestone follows it:
+
+- **M5 — Post-MVP refinement.** Frontend and UX refinement of every surface, bugs found outside a milestone's scope, and functionality the owner wants sharpened. During M3 and M4 the epic is only a landing zone for such issues; it is refined when M4 closes, from a design audit against §9, a real-usage pass on a non-dogfood project, and a triage into must-fix and later. *Done when: the must-fix list is empty and the audit's findings are fixed or explicitly deferred.*
+
 Everything not listed here is §13 or a future issue.
