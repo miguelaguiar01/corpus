@@ -36,6 +36,11 @@ you just set and a display name. The first person to join becomes the
 instance maintainer. All data lives in the `corpus-data` volume; the
 container itself is disposable.
 
+To reach the instance from other devices, put it behind HTTPS (any
+reverse proxy or a PaaS like Coolify works): the session cookie is
+marked `Secure` in production, so browsers won't send it over plain
+http except on localhost.
+
 With Docker Compose (or a PaaS like Coolify that reads `compose.yaml`):
 
 ```sh

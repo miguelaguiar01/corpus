@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { eq } from "drizzle-orm";
 import { expect, test } from "vitest";
@@ -60,10 +63,18 @@ test("sessions enforce the user foreign key", () => {
 });
 
 test("migrations are idempotent on an existing database file", () => {
-  const db = memoryDb();
-  // openDb ran migrate() once; running it again must be a no-op, which is
-  // what a container restart does against the volume-mounted file.
-  expect(() => openDb(":memory:", MIGRATIONS)).not.toThrow();
-  db.insert(users).values({ name: "kept" }).run();
-  expect(db.select().from(users).all()).toHaveLength(1);
+  // A container restart re-runs migrate() against the volume-mounted
+  // file; it must be a no-op that preserves data (review note on #24).
+  const file = path.join(
+    fs.mkdtempSync(path.join(os.tmpdir(), "corpus-db-test-")),
+    "corpus.db",
+  );
+  try {
+    const first = openDb(file, MIGRATIONS);
+    first.insert(users).values({ name: "kept" }).run();
+    const reopened = openDb(file, MIGRATIONS);
+    expect(reopened.select().from(users).all()).toHaveLength(1);
+  } finally {
+    fs.rmSync(path.dirname(file), { recursive: true, force: true });
+  }
 });
