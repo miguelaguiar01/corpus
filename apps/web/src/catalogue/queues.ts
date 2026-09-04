@@ -6,7 +6,9 @@ import { projects, strings, stringTranslations } from "@/db/schema";
 // archived strings (§11). Items are ordered by string id then language so
 // next/previous is deterministic.
 export type QueueKind = "untranslated" | "stale" | "unverifiedSource";
-export type QueueItem = { stringId: number; language: string };
+// stringId is the internal row id; key is the client's snapshot id (§4),
+// which the string route uses.
+export type QueueItem = { stringId: number; key: string; language: string };
 export type Queue = {
   kind: QueueKind;
   count: number;
@@ -17,6 +19,7 @@ export type QueueCounts = Record<QueueKind, number>;
 
 type Row = {
   stringId: number;
+  key: string;
   language: string;
   state: string;
   stale: boolean;
@@ -33,6 +36,7 @@ function loadRows(db: Db, projectId: number): Row[] {
   return db
     .select({
       stringId: stringTranslations.stringId,
+      key: strings.stringId,
       language: stringTranslations.language,
       state: stringTranslations.state,
       stale: stringTranslations.stale,
@@ -50,11 +54,25 @@ function loadRows(db: Db, projectId: number): Row[] {
     }));
 }
 
-export function queueItems(db: Db, projectId: number, kind: QueueKind): Queue {
-  const items = loadRows(db, projectId)
+function pick(rows: Row[], kind: QueueKind): Queue {
+  const items = rows
     .filter(MATCHERS[kind])
-    .map(({ stringId, language }) => ({ stringId, language }));
+    .map(({ stringId, key, language }) => ({ stringId, key, language }));
   return { kind, count: items.length, first: items[0] ?? null, items };
+}
+
+export function queueItems(db: Db, projectId: number, kind: QueueKind): Queue {
+  return pick(loadRows(db, projectId), kind);
+}
+
+// All three queues from one load, for the dashboard (§9.1).
+export function allQueues(db: Db, projectId: number): Record<QueueKind, Queue> {
+  const rows = loadRows(db, projectId);
+  return {
+    untranslated: pick(rows, "untranslated"),
+    stale: pick(rows, "stale"),
+    unverifiedSource: pick(rows, "unverifiedSource"),
+  };
 }
 
 export function queueCounts(db: Db, projectId: number): QueueCounts {

@@ -28,7 +28,7 @@ export function ProgressStrip({ progress }: { progress: Progress }) {
                 style={{ width: `${pct(p.verified)}%` }}
               />
               <span
-                className="bg-secondary"
+                className="bg-muted-foreground"
                 style={{ width: `${pct(p.translated)}%` }}
               />
             </div>
