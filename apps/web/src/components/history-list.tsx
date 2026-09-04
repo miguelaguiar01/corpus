@@ -1,12 +1,6 @@
 import type { HistoryEntry } from "@/strings/detail";
-import type { TranslationState } from "@/translations/state";
-import { t, type MessageKey } from "@/i18n";
-
-const STATE_KEY: Record<TranslationState, MessageKey> = {
-  untranslated: "state.untranslated",
-  translated: "state.translated",
-  verified: "state.verified",
-};
+import { t } from "@/i18n";
+import { STATE_KEY } from "./state-label";
 
 // Rendered the same on server and client: no locale-dependent formatting.
 function stamp(at: Date): string {

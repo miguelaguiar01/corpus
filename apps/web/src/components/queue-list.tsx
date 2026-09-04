@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { QueueCounts, QueueItem, QueueKind } from "@/catalogue/queues";
+import { stringPath } from "@/strings/paths";
 import { t, type MessageKey } from "@/i18n";
 
 export const QUEUE_LABEL: Record<QueueKind, MessageKey> = {
@@ -43,7 +44,10 @@ export function QueueList({
           <li key={kind}>
             {count > 0 && item ? (
               <Link
-                href={`/p/${slug}/s/${encodeURIComponent(item.key)}?queue=${kind}&language=${encodeURIComponent(item.language)}`}
+                href={stringPath(slug, item.key, {
+                  queue: kind,
+                  language: item.language,
+                })}
                 className={`${rowClass} hover:bg-accent focus-visible:bg-accent focus-visible:outline-none`}
               >
                 {body}

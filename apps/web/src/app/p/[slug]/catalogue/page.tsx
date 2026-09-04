@@ -15,6 +15,7 @@ import { ProgressStrip } from "@/components/progress-strip";
 import { SearchBox } from "@/components/search-box";
 import { StateChips } from "@/components/state-chips";
 import { getProjectBySlug } from "@/projects/service";
+import { stringPath } from "@/strings/paths";
 import { t } from "@/i18n";
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -95,7 +96,7 @@ export default async function CataloguePage({
             {page.rows.map((row) => (
               <li key={row.stringId}>
                 <Link
-                  href={`/p/${slug}/s/${encodeURIComponent(row.stringId)}`}
+                  href={stringPath(slug, row.stringId)}
                   className="flex flex-col gap-1.5 py-3 hover:bg-accent/40"
                 >
                   <div className="flex items-center gap-2">

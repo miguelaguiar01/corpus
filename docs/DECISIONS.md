@@ -90,3 +90,28 @@ jiti runs it directly with no build step in the client repo, keeping
 `corpus push` a single command. One small dependency, scoped to the CLI.
 
 **Context:** #42.
+
+## 2026-09-04 — Version token is the row's `updated_at`, advisory only
+
+**Decision:** concurrent-edit detection (§11) uses the translation row's
+`updated_at` in milliseconds as the version token. The editor submits the
+token it opened with; the transition still applies (last write wins, no
+locking) and the result carries `changedSinceOpened` for a non-blocking
+warning.
+
+**Why:** the column already changes on every applied transition, so no
+extra counter or migration is needed; the warning is advisory by spec, so
+millisecond resolution is enough.
+
+**Context:** #87.
+
+## 2026-09-04 — Entity type labels are persisted on the project
+
+**Decision:** `projects.entity_types` stores the snapshot's `entityTypes`
+declarations, refreshed on every push like `string_types`.
+
+**Why:** entity cards render the type's declared label (§6) and the server
+never reads the client's config, so the snapshot is the only channel and
+the label has to survive between pushes.
+
+**Context:** #90.
