@@ -35,6 +35,9 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  const report = applySnapshot(db, auth.project.id, validation.snapshot);
-  return Response.json({ report });
+  const dryRun = new URL(request.url).searchParams.has("dryRun");
+  const report = applySnapshot(db, auth.project.id, validation.snapshot, {
+    dryRun,
+  });
+  return Response.json({ report, dryRun });
 }
