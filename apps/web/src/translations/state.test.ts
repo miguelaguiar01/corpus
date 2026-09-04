@@ -16,6 +16,7 @@ function row(
     stale: false,
     text: state === "untranslated" ? null : "Olá",
     archived: false,
+    isSource: false,
     ...overrides,
   };
 }
@@ -79,6 +80,29 @@ describe("save", () => {
       anyone,
     );
     expect(result).toEqual({ error: "empty-text" });
+  });
+});
+
+describe("the source row", () => {
+  test.each(STATES)(
+    "rejects save from %s: its text comes from the repo",
+    (state) => {
+      const result = transition(
+        row(state, { isSource: true }),
+        { type: "save", text: "x" },
+        maintainer,
+      );
+      expect(result).toEqual({ error: "source-row" });
+    },
+  );
+
+  test("still accepts verify by a maintainer", () => {
+    const result = transition(
+      row("translated", { isSource: true }),
+      { type: "verify" },
+      maintainer,
+    );
+    expect(result).toMatchObject({ row: { state: "verified" } });
   });
 });
 

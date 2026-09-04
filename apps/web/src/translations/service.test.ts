@@ -222,23 +222,23 @@ test("a current version token applies and reports no concurrent edit", () => {
 
 test("a stale version token still applies (last write wins) but is flagged", () => {
   const { db, string, translator } = seed();
-  const opened = versionOf(translation(db, string.id, "pt-PT")!);
+  const opened = versionOf(translation(db, string.id, "en")!);
   db.update(stringTranslations)
     .set({ updatedAt: new Date(opened + 60_000) })
     .where(eq(stringTranslations.stringId, string.id))
     .run();
   const result = applyTransition(db, {
     stringId: string.id,
-    language: "pt-PT",
-    action: { type: "save", text: "Foi visto à janela." },
+    language: "en",
+    action: { type: "save", text: "Seen at the window." },
     actor: translator,
     openedVersion: opened,
   });
   expect(result).toMatchObject({
-    row: { state: "translated", text: "Foi visto à janela." },
+    row: { state: "translated", text: "Seen at the window." },
     changedSinceOpened: true,
   });
-  expect(translation(db, string.id, "pt-PT")?.text).toBe("Foi visto à janela.");
+  expect(translation(db, string.id, "en")?.text).toBe("Seen at the window.");
 });
 
 test("without a token the result never warns", () => {
@@ -250,4 +250,18 @@ test("without a token the result never warns", () => {
     actor: maintainer,
   });
   expect(result).toMatchObject({ changedSinceOpened: false });
+});
+
+test("a save to the source-language row is rejected and writes nothing", () => {
+  const { db, string, maintainer } = seed();
+  const before = translation(db, string.id, "pt-PT");
+  const result = applyTransition(db, {
+    stringId: string.id,
+    language: "pt-PT",
+    action: { type: "save", text: "Foi visto." },
+    actor: maintainer,
+  });
+  expect(result).toEqual({ error: "source-row" });
+  expect(translation(db, string.id, "pt-PT")).toEqual(before);
+  expect(db.select().from(edits).all()).toHaveLength(0);
 });

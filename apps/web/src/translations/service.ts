@@ -4,7 +4,7 @@
 // I/O shell around it.
 import { and, eq } from "drizzle-orm";
 import type { Db } from "@/db";
-import { edits, strings, stringTranslations } from "@/db/schema";
+import { edits, projects, strings, stringTranslations } from "@/db/schema";
 import {
   transition,
   type Actor,
@@ -33,9 +33,14 @@ export type ApplyResult =
 export function applyTransition(db: Db, input: ApplyInput): ApplyResult {
   return db.transaction((tx) => {
     const current = tx
-      .select({ row: stringTranslations, archived: strings.archived })
+      .select({
+        row: stringTranslations,
+        archived: strings.archived,
+        sourceLanguage: projects.sourceLanguage,
+      })
       .from(stringTranslations)
       .innerJoin(strings, eq(strings.id, stringTranslations.stringId))
+      .innerJoin(projects, eq(projects.id, strings.projectId))
       .where(
         and(
           eq(stringTranslations.stringId, input.stringId),
@@ -51,6 +56,7 @@ export function applyTransition(db: Db, input: ApplyInput): ApplyResult {
         stale: current.row.stale,
         text: current.row.text,
         archived: current.archived,
+        isSource: input.language === current.sourceLanguage,
       },
       input.action,
       input.actor,
