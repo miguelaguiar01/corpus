@@ -28,6 +28,17 @@ openly beats pretending the rule applied before its tooling existed.
 
 **Context:** #6, #10, #11; epic #1.
 
+## 2026-09-04 — Vitest as the test runner
+
+**Decision:** vitest runs all tests, configured once at the monorepo root
+(`vitest.config.ts` globs every workspace's `src/**/*.test.ts`).
+
+**Why:** TypeScript-native (no transpile step to maintain), one config for
+all workspaces, and it will later host the component tests spec §15 asks
+for without switching runners.
+
+**Context:** #9.
+
 ## 2026-09-04 — Corpus chrome is authored in English, dogfood-first
 
 **Decision:** the UI chrome's source language is `en`, first target
