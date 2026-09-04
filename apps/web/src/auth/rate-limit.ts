@@ -1,0 +1,46 @@
+// Fixed-window in-memory rate limiter for the invite endpoint (§10).
+// Single-process state is sufficient: the deployment target is one
+// container (§2).
+//
+// The key (e.g. x-forwarded-for) is client-influenced, so the limiter
+// bounds its own memory: expired entries are evicted as new keys arrive,
+// and once maxKeys live entries exist, unknown keys are denied
+// (fail-closed). Callers must pair a per-client limiter with a
+// global-cap limiter so spoofed keys cannot buy extra attempts.
+export class RateLimiter {
+  private readonly max: number;
+  private readonly windowMs: number;
+  private readonly maxKeys: number;
+  private readonly hits = new Map<
+    string,
+    { windowStart: number; count: number }
+  >();
+
+  constructor(options: { max: number; windowMs: number; maxKeys?: number }) {
+    this.max = options.max;
+    this.windowMs = options.windowMs;
+    this.maxKeys = options.maxKeys ?? 10_000;
+  }
+
+  get size(): number {
+    return this.hits.size;
+  }
+
+  private evictExpired(now: number): void {
+    for (const [key, entry] of this.hits) {
+      if (now - entry.windowStart >= this.windowMs) this.hits.delete(key);
+    }
+  }
+
+  allow(key: string, now: number = Date.now()): boolean {
+    const entry = this.hits.get(key);
+    if (entry && now - entry.windowStart < this.windowMs) {
+      entry.count += 1;
+      return entry.count <= this.max;
+    }
+    this.evictExpired(now);
+    if (!entry && this.hits.size >= this.maxKeys) return false;
+    this.hits.set(key, { windowStart: now, count: 1 });
+    return true;
+  }
+}
