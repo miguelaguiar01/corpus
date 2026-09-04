@@ -34,4 +34,5 @@ export const snapshotSchema = z.looseObject({
 });
 
 export type Entity = z.infer<typeof entitySchema>;
+export type EntityTypeDeclaration = z.infer<typeof entityTypeDeclarationSchema>;
 export type Snapshot = z.infer<typeof snapshotSchema>;

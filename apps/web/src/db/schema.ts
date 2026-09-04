@@ -1,4 +1,4 @@
-import type { FieldDeclaration } from "@corpus/contract";
+import type { EntityTypeDeclaration, FieldDeclaration } from "@corpus/contract";
 import {
   index,
   integer,
@@ -45,6 +45,10 @@ export const projects = sqliteTable("projects", {
   // the catalogue can generate facets generically.
   stringTypes: text("string_types", { mode: "json" }).$type<
     Record<string, Record<string, FieldDeclaration>>
+  >(),
+  // Entity type labels (§6), refreshed on each push, for entity cards.
+  entityTypes: text("entity_types", { mode: "json" }).$type<
+    Record<string, EntityTypeDeclaration>
   >(),
   tokenHash: text("token_hash"),
   createdAt: integer("created_at", { mode: "timestamp_ms" })

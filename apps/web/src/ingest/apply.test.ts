@@ -137,3 +137,15 @@ test("a mid-apply failure rolls back the whole push (atomic, §8)", () => {
   expect(db.select().from(entities).all()).toHaveLength(0);
   expect(db.select().from(stringTranslations).all()).toHaveLength(0);
 });
+
+test("push persists the entity type labels alongside the string declarations", () => {
+  const { db, project } = seed();
+  applySnapshot(db, project.id, FIXTURE);
+  const row = db
+    .select()
+    .from(projects)
+    .where(eq(projects.id, project.id))
+    .get();
+  expect(row?.entityTypes).toEqual(FIXTURE.entityTypes);
+  expect(row?.stringTypes).toEqual(FIXTURE.stringTypes);
+});
