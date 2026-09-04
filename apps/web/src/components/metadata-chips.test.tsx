@@ -58,11 +58,11 @@ test("text fields render as a note, not a chip", () => {
   expect(note.tagName).toBe("P");
 });
 
-test("placeholder slots render as chips with their description", () => {
-  render(<MetadataChips declarations={declarations} metadata={{}} />);
-  expect(screen.getByTitle("Who was seen (subject)").textContent).toContain(
-    "person",
+test("placeholder declarations render nothing here; the source view shows them in context", () => {
+  const { container } = render(
+    <MetadataChips declarations={declarations} metadata={{}} />,
   );
+  expect(container.innerHTML).toBe("");
 });
 
 test("ref fields are left to the entity cards", () => {

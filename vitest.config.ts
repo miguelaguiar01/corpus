@@ -6,6 +6,11 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./apps/web/src", import.meta.url)),
+      // Workspace packages resolve through node conditions in the default
+      // environment but not under jsdom; point straight at the sources.
+      "@corpus/contract": fileURLToPath(
+        new URL("./packages/contract/src/index.ts", import.meta.url),
+      ),
     },
   },
   test: {
