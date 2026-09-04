@@ -49,6 +49,28 @@ describe("placeholders must survive", () => {
   });
 });
 
+describe("placeholders inside branches", () => {
+  test("a placeholder present in only one target branch still counts as surviving", () => {
+    // Whole-message sets, by design: the translator may legitimately drop a
+    // slot from one branch ("she left" vs "he left with {item}").
+    expect(
+      validateTranslation(
+        "{g, select, m {he took {item}} f {she took {item}}}",
+        "{g, select, m {he took {item}} f {she left}}",
+      ),
+    ).toEqual({ ok: true });
+  });
+
+  test("duplicate source selects on one argument union their keys", () => {
+    expect(
+      errorsOf(
+        "{g, select, m {he} f {she}} and {g, select, m {him} n {them}}",
+        "{g, select, m {he} f {she} n {they}}",
+      ),
+    ).toEqual([]);
+  });
+});
+
 describe("selects may collapse but not be malformed", () => {
   test("both source selects collapsed into plain text is fine", () => {
     const target =

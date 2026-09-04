@@ -31,8 +31,15 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
   const claimedTypes = new Set<string>();
   for (const source of config.sources) {
     if (source.adapter === "exec") continue;
+    if (!source.path.includes("{lang}")) {
+      // Source-only: nothing to write back, and its ids stay available to
+      // an exec importer rather than vanishing.
+      ctx.err(
+        `corpus: ${source.path} has no {lang}; its translations are not written`,
+      );
+      continue;
+    }
     claimedTypes.add(source.type);
-    if (!source.path.includes("{lang}")) continue; // source-only table
     const templatePath = source.path.replace("{lang}", config.sourceLanguage);
     const template = readRepoFile(ctx.cwd, templatePath);
     if (template === undefined) {
@@ -77,6 +84,22 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
       );
     }
     ctx.out(`ran ${source.importCommand}`);
+  }
+
+  const importers = config.sources.filter(
+    (s) => s.adapter === "exec" && s.importCommand,
+  ).length;
+  if (importers === 0) {
+    const dropped = new Set(
+      Object.values(payload.translations)
+        .flatMap((texts) => Object.keys(texts))
+        .filter((id) => !claimedTypes.has(payload.types[id] ?? "")),
+    );
+    if (dropped.size > 0) {
+      ctx.err(
+        `corpus: ${dropped.size} translation(s) belong to no writable source and were not written`,
+      );
+    }
   }
 
   for (const file of changed) ctx.out(file);

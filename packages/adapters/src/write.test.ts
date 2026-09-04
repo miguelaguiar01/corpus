@@ -99,6 +99,26 @@ describe("entriesToMessages", () => {
     });
   });
 
+  test("a literal where nesting would go falls back to a flat key", () => {
+    const out = entriesToMessages(`{\n  "ui": "Interface"\n}\n`, {
+      ui: "Interface",
+      "ui.back": "Voltar",
+    });
+    expect(JSON.parse(out)).toEqual({ ui: "Interface", "ui.back": "Voltar" });
+  });
+
+  test("an id that names a nested subtree is an error, not a silent overwrite", () => {
+    expect(() =>
+      entriesToMessages(NESTED, { ...textsOf(NESTED), ui: "Interface" }),
+    ).toThrow(/"ui" collides/);
+  });
+
+  test("an empty existing file takes the template's style", () => {
+    expect(entriesToMessages(NESTED, { "ui.continue": "Continue" }, "")).toBe(
+      `{\n    "ui": {\n        "continue": "Continue"\n    }\n}`,
+    );
+  });
+
   test("an empty template writes an empty object in the default style", () => {
     expect(entriesToMessages("", { a: "b" })).toBe(`{\n  "a": "b"\n}\n`);
   });

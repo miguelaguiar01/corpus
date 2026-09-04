@@ -60,7 +60,15 @@ function setPath(tree: Tree, path: string[], value: string): void {
     }
     node = next ?? (node[key] = {});
   }
-  node[path[path.length - 1]!] = value;
+  const last = path[path.length - 1]!;
+  if (typeof node[last] === "object") {
+    // An id equal to a nested key path cannot live in this file's shape;
+    // failing loudly beats overwriting the subtree.
+    throw new Error(
+      `messages: id ${JSON.stringify(path.join("."))} collides with a nested key path`,
+    );
+  }
+  node[last] = value;
 }
 
 export function entriesToMessages(
@@ -70,7 +78,7 @@ export function entriesToMessages(
 ): string {
   const base = existing !== undefined ? existing : template;
   const baseTree = parseTree(base);
-  const style = styleOf(base);
+  const style = styleOf(base.trim() === "" ? template : base);
   const nested =
     isNested(baseTree) ||
     (existing !== undefined &&
