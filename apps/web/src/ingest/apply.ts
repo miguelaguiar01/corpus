@@ -39,6 +39,13 @@ export function applySnapshot(
         (lang) => lang !== project.sourceLanguage,
       );
 
+      // Refresh the declarations so the catalogue's facets stay in sync
+      // with what the client declared (§5).
+      tx.update(projects)
+        .set({ stringTypes: snapshot.stringTypes ?? null })
+        .where(eq(projects.id, projectId))
+        .run();
+
       const current = loadCurrent(tx, projectId, project.sourceLanguage);
       const plan = diffSnapshot(
         { sourceLanguage: project.sourceLanguage, targetLanguages },

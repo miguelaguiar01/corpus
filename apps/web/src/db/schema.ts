@@ -1,3 +1,4 @@
+import type { FieldDeclaration } from "@corpus/contract";
 import {
   index,
   integer,
@@ -40,6 +41,11 @@ export const projects = sqliteTable("projects", {
   name: text("name").notNull(),
   sourceLanguage: text("source_language").notNull(),
   languages: text("languages", { mode: "json" }).notNull().$type<string[]>(),
+  // Per-type metadata field declarations (§5), refreshed on each push, so
+  // the catalogue can generate facets generically.
+  stringTypes: text("string_types", { mode: "json" }).$type<
+    Record<string, Record<string, FieldDeclaration>>
+  >(),
   tokenHash: text("token_hash"),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()

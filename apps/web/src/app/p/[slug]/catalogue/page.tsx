@@ -1,65 +1,131 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getDb } from "@/db";
-import { listCatalogue } from "@/catalogue/query";
+import { deriveFacets } from "@/catalogue/facets";
+import {
+  listCatalogue,
+  type CatalogueFilters,
+  type TranslationState,
+} from "@/catalogue/query";
+import { distinctTypes } from "@/catalogue/types";
+import { FacetPanel } from "@/components/facet-panel";
 import { StateChips } from "@/components/state-chips";
 import { getProjectBySlug } from "@/projects/service";
 import { t } from "@/i18n";
+
+type SearchParams = Record<string, string | string[] | undefined>;
+
+function filtersFromParams(params: URLSearchParams): CatalogueFilters {
+  const metadata: Record<string, string> = {};
+  for (const [key, value] of params) {
+    if (key.startsWith("meta.")) metadata[key.slice("meta.".length)] = value;
+  }
+  const state = params.get("state");
+  const language = params.get("language");
+  const type = params.get("type");
+  return {
+    types: type ? [type] : undefined,
+    metadata: Object.keys(metadata).length ? metadata : undefined,
+    language: language ?? undefined,
+    states: state ? [state as TranslationState] : undefined,
+  };
+}
 
 export default async function CataloguePage({
   params,
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ cursor?: string; archived?: string }>;
+  searchParams: Promise<SearchParams>;
 }) {
   const { slug } = await params;
-  const { cursor, archived } = await searchParams;
+  const raw = await searchParams;
   const db = getDb();
   const project = getProjectBySlug(db, slug);
   if (!project) notFound();
 
+  const active = new URLSearchParams(
+    Object.entries(raw).filter(
+      (entry): entry is [string, string] => typeof entry[1] === "string",
+    ),
+  );
+  const basePath = `/p/${slug}/catalogue`;
+
   const page = listCatalogue(db, project.id, {
-    cursor: cursor ? Number(cursor) : undefined,
-    includeArchived: archived === "1",
+    ...filtersFromParams(active),
+    includeArchived: active.get("archived") === "1",
+    cursor: active.get("cursor") ? Number(active.get("cursor")) : undefined,
   });
+  const facets = deriveFacets(
+    project.stringTypes,
+    distinctTypes(db, project.id),
+    project.languages,
+  );
 
   return (
-    <main className="space-y-4">
-      <h1 className="text-xl font-semibold">{t("catalogue.heading")}</h1>
-      {page.rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t("catalogue.empty")}</p>
-      ) : (
-        <ul className="divide-y divide-border">
-          {page.rows.map((row) => (
-            <li key={row.stringId}>
-              <Link
-                href={`/p/${slug}/s/${encodeURIComponent(row.stringId)}`}
-                className="flex flex-col gap-1.5 py-3 hover:bg-accent/40"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-sm">{row.stringId}</span>
-                  <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-                    {row.type}
-                  </span>
-                </div>
-                <p className="line-clamp-1 text-sm text-muted-foreground">
-                  {row.source}
-                </p>
-                <StateChips languages={project.languages} states={row.states} />
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-      {page.nextCursor !== null && (
-        <Link
-          href={`/p/${slug}/catalogue?cursor=${page.nextCursor}${archived === "1" ? "&archived=1" : ""}`}
-          className="inline-block text-sm underline"
-        >
-          {t("catalogue.loadMore")}
-        </Link>
-      )}
+    <main className="grid gap-6 md:grid-cols-[12rem_1fr]">
+      <FacetPanel basePath={basePath} facets={facets} active={active} />
+      <div className="space-y-4">
+        <h1 className="text-xl font-semibold">{t("catalogue.heading")}</h1>
+        {page.rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {t("catalogue.empty")}
+          </p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {page.rows.map((row) => (
+              <li key={row.stringId}>
+                <Link
+                  href={`/p/${slug}/s/${encodeURIComponent(row.stringId)}`}
+                  className="flex flex-col gap-1.5 py-3 hover:bg-accent/40"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-sm">{row.stringId}</span>
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                      {row.type}
+                    </span>
+                  </div>
+                  <p className="line-clamp-1 text-sm text-muted-foreground">
+                    {row.source}
+                  </p>
+                  <StateChips
+                    languages={project.languages}
+                    states={row.states}
+                  />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+        {page.nextCursor !== null && (
+          <NextPage
+            basePath={basePath}
+            active={active}
+            cursor={page.nextCursor}
+          />
+        )}
+      </div>
     </main>
+  );
+}
+
+function NextPage({
+  basePath,
+  active,
+  cursor,
+}: {
+  basePath: string;
+  active: URLSearchParams;
+  cursor: number;
+}) {
+  const next = new URLSearchParams(active);
+  next.set("cursor", String(cursor));
+  return (
+    <Link
+      href={`${basePath}?${next}`}
+      className="inline-block text-sm underline"
+    >
+      {t("catalogue.loadMore")}
+    </Link>
   );
 }
