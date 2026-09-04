@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getDb } from "@/db";
 import { searchStringIds } from "@/db/search";
-import { deriveFacets } from "@/catalogue/facets";
+import { declaredMetadataFields, deriveFacets } from "@/catalogue/facets";
 import { progressCounts } from "@/catalogue/progress";
 import {
   listCatalogue,
@@ -19,10 +19,17 @@ import { t } from "@/i18n";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
-function filtersFromParams(params: URLSearchParams): CatalogueFilters {
+function filtersFromParams(
+  params: URLSearchParams,
+  declaredFields: Set<string>,
+): CatalogueFilters {
   const metadata: Record<string, string> = {};
   for (const [key, value] of params) {
-    if (key.startsWith("meta.")) metadata[key.slice("meta.".length)] = value;
+    if (!key.startsWith("meta.")) continue;
+    const field = key.slice("meta.".length);
+    // Only declared fields reach a SQL json path (§5) — an unknown or
+    // malformed field is ignored, not passed through.
+    if (declaredFields.has(field)) metadata[field] = value;
   }
   const state = params.get("state");
   const language = params.get("language");
@@ -58,8 +65,9 @@ export default async function CataloguePage({
   const query = active.get("q")?.trim();
   const searchIds = query ? searchStringIds(db, project.id, query) : undefined;
 
+  const declaredFields = declaredMetadataFields(project.stringTypes);
   const page = listCatalogue(db, project.id, {
-    ...filtersFromParams(active),
+    ...filtersFromParams(active, declaredFields),
     stringIds: searchIds,
     includeArchived: active.get("archived") === "1",
     cursor: active.get("cursor") ? Number(active.get("cursor")) : undefined,

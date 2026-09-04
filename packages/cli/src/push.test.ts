@@ -123,3 +123,27 @@ test("a 422 renders each per-entry error", async () => {
   expect(code).toBe(1);
   expect(c.output.join("\n")).toContain("greeting: bad ICU");
 });
+
+test("a transport failure (server unreachable) is a clean error, not a stack trace", async () => {
+  process.env.CORPUS_SERVER = "http://127.0.0.1:1"; // nothing listening
+  const c = ctx();
+  const code = await run(["push"], c);
+  expect(code).toBe(1);
+  expect(c.output.join("\n")).toMatch(/could not reach the server/);
+});
+
+test("an unexpected non-2xx renders the server's message", async () => {
+  const { server, url } = await startServer(() => ({
+    status: 403,
+    json: {
+      error: "project-mismatch",
+      message: "token is for a different project",
+    },
+  }));
+  active = server;
+  process.env.CORPUS_SERVER = url;
+  const c = ctx();
+  const code = await run(["push"], c);
+  expect(code).toBe(1);
+  expect(c.output.join("\n")).toContain("token is for a different project");
+});

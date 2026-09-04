@@ -45,7 +45,7 @@ export function FacetPanel({
               ? facet.options
               : [];
         const label =
-          "field" in facet ? facet.field : t(BUILTIN_LABEL[facet.key]!);
+          "label" in facet ? facet.label : t(BUILTIN_LABEL[facet.key]!);
         return (
           <div key={facet.key} className="space-y-1">
             <p className="font-medium">{label}</p>

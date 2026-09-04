@@ -66,12 +66,12 @@ test("results are scoped to the project", () => {
   expect(hits).toEqual([mine.id]);
 });
 
-test("archived strings are excluded", () => {
+test("search matches regardless of archived state (the catalogue filters visibility)", () => {
   const { db, p } = project();
   const row = insert(db, p.id, "s1", "estufa secreta");
   expect(searchStringIds(db, p.id, "estufa")).toContain(row.id);
   db.update(strings).set({ archived: true }).run();
-  expect(searchStringIds(db, p.id, "estufa")).toEqual([]);
+  expect(searchStringIds(db, p.id, "estufa")).toContain(row.id);
 });
 
 test("an empty query matches nothing", () => {
