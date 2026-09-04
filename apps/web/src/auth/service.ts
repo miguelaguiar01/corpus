@@ -1,7 +1,8 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq, gt, lte } from "drizzle-orm";
 import type { Db } from "@/db";
 import { sessions, users } from "@/db/schema";
+import { MAX_NAME_LENGTH } from "./constants";
 
 export type User = typeof users.$inferSelect;
 
@@ -29,7 +30,7 @@ export function redeemInvite(
   input: { instanceSecret: string; providedSecret: string; name: string },
 ): InviteResult {
   const name = input.name.trim();
-  if (name.length === 0 || name.length > 80) {
+  if (name.length === 0 || name.length > MAX_NAME_LENGTH) {
     return { ok: false, reason: "invalid-name" };
   }
   if (!secretsMatch(input.instanceSecret, input.providedSecret)) {
@@ -39,7 +40,7 @@ export function redeemInvite(
   const existing = db.select().from(users).where(eq(users.name, name)).get();
   if (existing) return { ok: true, user: existing };
 
-  const isFirstUser = db.select().from(users).limit(1).all().length === 0;
+  const isFirstUser = db.select().from(users).limit(1).get() === undefined;
   const created = db
     .insert(users)
     .values({ name, maintainer: isFirstUser })
@@ -49,12 +50,14 @@ export function redeemInvite(
 }
 
 // Create a session and return the raw token for the cookie; only its
-// hash is stored (§10).
+// hash is stored (§10). Logins are rare, so each one also sweeps
+// expired sessions — the table stays bounded without a scheduler.
 export function createSession(
   db: Db,
   userId: number,
   now: Date = new Date(),
 ): string {
+  db.delete(sessions).where(lte(sessions.expiresAt, now)).run();
   const token = randomBytes(32).toString("hex");
   db.insert(sessions)
     .values({
@@ -73,11 +76,15 @@ export function getSessionUser(
   now: Date = new Date(),
 ): User | undefined {
   const row = db
-    .select({ user: users, expiresAt: sessions.expiresAt })
+    .select({ user: users })
     .from(sessions)
     .innerJoin(users, eq(sessions.userId, users.id))
-    .where(eq(sessions.tokenHash, hashToken(token)))
+    .where(
+      and(
+        eq(sessions.tokenHash, hashToken(token)),
+        gt(sessions.expiresAt, now),
+      ),
+    )
     .get();
-  if (!row || row.expiresAt.getTime() <= now.getTime()) return undefined;
-  return row.user;
+  return row?.user;
 }

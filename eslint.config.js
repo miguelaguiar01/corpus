@@ -10,7 +10,6 @@ export default tseslint.config(
       "**/next-env.d.ts",
       "**/dist/",
       "coverage/",
-      "package-lock.json",
     ],
   },
   js.configs.recommended,
