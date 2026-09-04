@@ -3,9 +3,9 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db";
+import { inviteErrorPath, SESSION_COOKIE } from "./constants";
 import { RateLimiter } from "./rate-limit";
 import { createSession, redeemInvite, SESSION_TTL_MS } from "./service";
-import { SESSION_COOKIE } from "./session";
 
 // Two layers (§10: rate-limit the invite endpoint; review finding on
 // PR #25): a per-client window for the friendly case, and a global cap
@@ -21,6 +21,8 @@ const clientLimiter = new RateLimiter({
 });
 const globalLimiter = new RateLimiter({ max: 30, windowMs: WINDOW_MS });
 
+// Only the first x-forwarded-for hop; entirely client-controlled without
+// a proxy, which is why the global limiter must also consume.
 function clientKey(forwardedFor: string | null): string {
   return forwardedFor?.split(",")[0]?.trim() || "unknown";
 }
@@ -31,7 +33,7 @@ export async function submitInvite(formData: FormData): Promise<void> {
     clientKey(requestHeaders.get("x-forwarded-for")),
   );
   if (!globalLimiter.allow("invite") || !perClientOk) {
-    redirect("/invite?error=rate-limited");
+    redirect(inviteErrorPath("rate-limited"));
   }
 
   const instanceSecret = process.env.CORPUS_INVITE_SECRET;
@@ -47,7 +49,7 @@ export async function submitInvite(formData: FormData): Promise<void> {
     name,
   });
   if (!result.ok) {
-    redirect("/invite?error=invalid");
+    redirect(inviteErrorPath("invalid"));
   }
 
   const token = createSession(getDb(), result.user.id);

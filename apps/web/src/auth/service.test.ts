@@ -1,7 +1,6 @@
-import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
-import { openDb } from "@/db";
 import { sessions, users } from "@/db/schema";
+import { memoryDb as db } from "@/db/test-helpers";
 import {
   createSession,
   getSessionUser,
@@ -9,12 +8,7 @@ import {
   SESSION_TTL_MS,
 } from "./service";
 
-const MIGRATIONS = fileURLToPath(new URL("../../drizzle", import.meta.url));
 const SECRET = "top-secret";
-
-function db() {
-  return openDb(":memory:", MIGRATIONS);
-}
 
 test("wrong secret is rejected and creates no user", () => {
   const d = db();

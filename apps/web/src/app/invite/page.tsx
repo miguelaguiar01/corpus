@@ -1,8 +1,22 @@
+import { redirect } from "next/navigation";
 import { submitInvite } from "@/auth/actions";
+import {
+  INVITE_ERROR_MESSAGES,
+  MAX_NAME_LENGTH,
+  type InviteErrorCode,
+} from "@/auth/constants";
 import { currentUser } from "@/auth/session";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { t } from "@/i18n";
-import { redirect } from "next/navigation";
+
+function errorMessage(code: string | undefined): string | undefined {
+  if (code === undefined) return undefined;
+  const key =
+    INVITE_ERROR_MESSAGES[code as InviteErrorCode] ??
+    INVITE_ERROR_MESSAGES.invalid;
+  return t(key);
+}
 
 export default async function InvitePage({
   searchParams,
@@ -11,6 +25,7 @@ export default async function InvitePage({
 }) {
   if (await currentUser()) redirect("/");
   const { error } = await searchParams;
+  const message = errorMessage(error);
 
   return (
     <main className="flex min-h-dvh items-center justify-center px-6">
@@ -19,34 +34,30 @@ export default async function InvitePage({
           <h1 className="text-2xl font-semibold">{t("invite.heading")}</h1>
           <p className="text-sm text-muted-foreground">{t("invite.intro")}</p>
         </div>
-        {error !== undefined && (
+        {message !== undefined && (
           <p className="text-sm text-destructive" role="alert">
-            {error === "rate-limited"
-              ? t("invite.errorRateLimited")
-              : t("invite.errorInvalid")}
+            {message}
           </p>
         )}
         <div className="space-y-4">
           <label className="block space-y-1.5">
             <span className="text-sm font-medium">{t("invite.nameLabel")}</span>
-            <input
+            <Input
               name="name"
               required
-              maxLength={80}
+              maxLength={MAX_NAME_LENGTH}
               autoComplete="username"
-              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             />
           </label>
           <label className="block space-y-1.5">
             <span className="text-sm font-medium">
               {t("invite.secretLabel")}
             </span>
-            <input
+            <Input
               name="secret"
               type="password"
               required
               autoComplete="current-password"
-              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             />
           </label>
         </div>

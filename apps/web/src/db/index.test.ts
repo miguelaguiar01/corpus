@@ -1,19 +1,10 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { eq } from "drizzle-orm";
 import { expect, test } from "vitest";
-import { openDb } from "./index";
 import { sessions, users } from "./schema";
-
-// Tests run from the repo root; resolve the migrations folder from this
-// file instead of relying on openDb's cwd-based default.
-const MIGRATIONS = fileURLToPath(new URL("../../drizzle", import.meta.url));
-
-function memoryDb() {
-  return openDb(":memory:", MIGRATIONS);
-}
+import { fileDb, memoryDb } from "./test-helpers";
 
 test("migrations apply on a fresh database", () => {
   const db = memoryDb();
@@ -39,7 +30,7 @@ test("creates a session referencing a user", () => {
   const db = memoryDb();
   const [user] = db.insert(users).values({ name: "ana" }).returning().all();
   if (!user) throw new Error("insert failed");
-  const expires = new Date(Date.now() + 1000 * 60 * 60 * 24 * 365);
+  const expires = new Date("2030-01-01T00:00:00Z");
   db.insert(sessions)
     .values({ tokenHash: "hash-abc", userId: user.id, expiresAt: expires })
     .run();
@@ -70,9 +61,9 @@ test("migrations are idempotent on an existing database file", () => {
     "corpus.db",
   );
   try {
-    const first = openDb(file, MIGRATIONS);
+    const first = fileDb(file);
     first.insert(users).values({ name: "kept" }).run();
-    const reopened = openDb(file, MIGRATIONS);
+    const reopened = fileDb(file);
     expect(reopened.select().from(users).all()).toHaveLength(1);
   } finally {
     fs.rmSync(path.dirname(file), { recursive: true, force: true });

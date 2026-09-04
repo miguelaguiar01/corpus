@@ -1,5 +1,9 @@
+# Keep the build context to what `next build` needs — anything listed
+# here can change without busting the COPY . . layer.
 .git
-node_modules
+.github
+bin
+docs
 **/node_modules
 **/.next
 data
@@ -11,6 +15,8 @@ data
 .env.*
 !.env.example
 coverage
+*.md
+**/*.tsbuildinfo
+**/*.test.ts
 Dockerfile
 compose.yaml
-docs

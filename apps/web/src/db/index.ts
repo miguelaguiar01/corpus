@@ -13,13 +13,10 @@ export type Db = BetterSQLite3Database<typeof schema>;
 const MIGRATIONS_FOLDER = path.join(process.cwd(), "drizzle");
 
 // The SQLite file lives on a volume in the Docker deployment (§2); the
-// path is env-configurable so the container can mount it.
-function dbPath(): string {
-  return process.env.CORPUS_DB_PATH ?? path.join("data", "corpus.db");
-}
-
+// path is env-configurable so the container can mount it. Default args
+// evaluate per call, so the env read stays lazy.
 export function openDb(
-  file: string = dbPath(),
+  file: string = process.env.CORPUS_DB_PATH ?? path.join("data", "corpus.db"),
   migrationsFolder: string = MIGRATIONS_FOLDER,
 ): Db {
   if (file !== ":memory:") {

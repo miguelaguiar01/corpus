@@ -37,7 +37,7 @@ ITEM_ID=$(gh project item-list "$PROJECT_NUMBER" --owner "$OWNER" \
   -q ".items[] | select(.content.number == $1) | .id")
 
 if [ -z "$ITEM_ID" ]; then
-  ISSUE_URL=$(gh issue view "$1" -R "miguelaguiar01/corpus" --json url -q .url)
+  ISSUE_URL=$(gh issue view "$1" -R "$OWNER/corpus" --json url -q .url)
   ITEM_ID=$(gh project item-add "$PROJECT_NUMBER" --owner "$OWNER" \
     --url "$ISSUE_URL" --format json --jq .id)
 fi
