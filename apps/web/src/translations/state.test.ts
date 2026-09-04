@@ -112,6 +112,15 @@ describe("verify", () => {
     expect(result).toEqual({ error: "not-maintainer" });
   });
 
+  test("on an archived-string row rejects as archived before checking the actor", () => {
+    const result = transition(
+      row("translated", { archived: true }),
+      { type: "verify" },
+      anyone,
+    );
+    expect(result).toEqual({ error: "archived" });
+  });
+
   test("from untranslated is rejected — there is nothing to sign off", () => {
     const result = transition(
       row("untranslated"),
