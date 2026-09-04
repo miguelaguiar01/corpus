@@ -14,6 +14,7 @@ import { VerifyForm } from "@/components/verify-form";
 import { getProjectBySlug } from "@/projects/service";
 import { stringDetail } from "@/strings/detail";
 import { saveString, verifyString } from "@/translations/actions";
+import { canVerifyRow } from "@/translations/permissions";
 import { t, type MessageKey } from "@/i18n";
 
 type Query = {
@@ -54,22 +55,22 @@ export default async function StringPage({
   const queueKind = isQueueKind(query.queue) ? query.queue : undefined;
   const queue = queueKind ? queueItems(db, project.id, queueKind) : undefined;
   const language = query.language ?? project.sourceLanguage;
-  // M2 is source proofreading: verify always acts on the source row, whatever
-  // queue the reader arrived through. Target-row actions come with M3's editor.
   const source = translations[project.sourceLanguage];
-  const canVerify =
-    user?.maintainer === true &&
-    source !== undefined &&
-    source.state !== "verified" &&
-    !string.archived;
   // A target language selected in the URL turns the page into the editor
   // (§9.3): the source pane stays, the target pane appears. Queue links
-  // will select it (#109); until then it is reachable by URL.
+  // select it for the untranslated and stale queues.
   const target =
     language !== project.sourceLanguage && project.languages.includes(language)
       ? language
       : undefined;
   const targetRow = target ? translations[target] : undefined;
+  // Verify acts on the row being read: the target when one is selected,
+  // otherwise the source (proofreading).
+  const acted = targetRow ?? source;
+  const actedLanguage = target ?? project.sourceLanguage;
+  const canVerify =
+    acted !== undefined &&
+    canVerifyRow(user, { state: acted.state, archived: string.archived });
   // Chips are the source's own placeholders (select arguments are not
   // placeholders); declarations only supply descriptions.
   const described = new Map<string, string>();
@@ -114,6 +115,11 @@ export default async function StringPage({
 
       {target && targetRow && !string.archived && (
         <section className="space-y-3">
+          {targetRow.stale && (
+            <p className="text-sm text-destructive" role="status">
+              {t("editor.staleBanner")}
+            </p>
+          )}
           <TargetPane
             action={saveString}
             source={string.source}
@@ -163,14 +169,14 @@ export default async function StringPage({
       {(canVerify || queue) && (
         <div className="fixed inset-x-0 bottom-0 border-t border-border bg-background px-4 py-3">
           <div className="mx-auto max-w-xl space-y-2">
-            {canVerify && source && (
+            {canVerify && acted && (
               <VerifyForm
                 action={verifyString}
                 slug={slug}
                 stringKey={string.key}
-                openedVersion={source.version}
+                openedVersion={acted.version}
                 queue={queueKind}
-                language={queueKind ? language : undefined}
+                language={actedLanguage}
               />
             )}
             {queue && (
