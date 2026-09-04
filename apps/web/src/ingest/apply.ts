@@ -9,123 +9,140 @@ export type IngestReport = DiffReport & {
   entitiesRemoved: number;
 };
 
+// Carries the computed report out of a dry-run transaction while forcing
+// the rollback (§8: same diff, rolled back, so the numbers are exact).
+class DryRunRollback extends Error {
+  constructor(readonly report: IngestReport) {
+    super("dry-run rollback");
+  }
+}
+
 // Apply a validated snapshot to a project in one transaction (§8). The
 // whole thing rolls back if any step throws, so a push is all-or-nothing.
+// dryRun applies then rolls back, returning the exact report.
 export function applySnapshot(
   db: Db,
   projectId: number,
   snapshot: Snapshot,
+  options: { dryRun?: boolean } = {},
 ): IngestReport {
-  return db.transaction((tx) => {
-    const project = tx
-      .select()
-      .from(projects)
-      .where(eq(projects.id, projectId))
-      .get();
-    if (!project) throw new Error(`project ${projectId} not found`);
-
-    const targetLanguages = project.languages.filter(
-      (lang) => lang !== project.sourceLanguage,
-    );
-
-    const current = loadCurrent(tx, projectId, project.sourceLanguage);
-    const plan = diffSnapshot(
-      { sourceLanguage: project.sourceLanguage, targetLanguages },
-      current,
-      snapshot.strings.map((s) => ({ id: s.id, source: s.source })),
-    );
-    const bySnapshotId = new Map(snapshot.strings.map((s) => [s.id, s]));
-    const currentRowId = new Map(current.map((c) => [c.stringId, c.rowId]));
-
-    for (const id of plan.insert) {
-      const entry = bySnapshotId.get(id)!;
-      const row = tx
-        .insert(strings)
-        .values({
-          projectId,
-          stringId: entry.id,
-          type: entry.type,
-          source: entry.source,
-          metadata: entry.metadata,
-          examples: entry.examples,
-        })
-        .returning()
+  try {
+    return db.transaction((tx) => {
+      const project = tx
+        .select()
+        .from(projects)
+        .where(eq(projects.id, projectId))
         .get();
-      tx.insert(stringTranslations)
-        .values([
-          {
-            stringId: row.id,
-            language: project.sourceLanguage,
-            state: "translated",
-          },
-          ...targetLanguages.map((language) => ({
-            stringId: row.id,
-            language,
-            state: "untranslated" as const,
-          })),
-        ])
-        .run();
-    }
+      if (!project) throw new Error(`project ${projectId} not found`);
 
-    for (const id of plan.refresh) {
-      const entry = bySnapshotId.get(id)!;
-      tx.update(strings)
-        .set({
-          type: entry.type,
-          metadata: entry.metadata,
-          examples: entry.examples,
-          archived: false,
-        })
-        .where(eq(strings.id, currentRowId.get(id)!))
-        .run();
-    }
+      const targetLanguages = project.languages.filter(
+        (lang) => lang !== project.sourceLanguage,
+      );
 
-    for (const id of plan.updateSource) {
-      const entry = bySnapshotId.get(id)!;
-      const rowId = currentRowId.get(id)!;
-      tx.update(strings)
-        .set({
-          type: entry.type,
-          source: entry.source,
-          metadata: entry.metadata,
-          examples: entry.examples,
-          archived: false,
-        })
-        .where(eq(strings.id, rowId))
-        .run();
-      // Targets go stale (old text kept); the source-language row is reset
-      // to translated for re-verification (§8).
-      tx.update(stringTranslations)
-        .set({ stale: true })
-        .where(eq(stringTranslations.stringId, rowId))
-        .run();
-      tx.update(stringTranslations)
-        .set({ state: "translated", stale: false })
-        .where(
-          and(
-            eq(stringTranslations.stringId, rowId),
-            eq(stringTranslations.language, project.sourceLanguage),
-          ),
-        )
-        .run();
-    }
+      const current = loadCurrent(tx, projectId, project.sourceLanguage);
+      const plan = diffSnapshot(
+        { sourceLanguage: project.sourceLanguage, targetLanguages },
+        current,
+        snapshot.strings.map((s) => ({ id: s.id, source: s.source })),
+      );
+      const bySnapshotId = new Map(snapshot.strings.map((s) => [s.id, s]));
+      const currentRowId = new Map(current.map((c) => [c.stringId, c.rowId]));
 
-    if (plan.archive.length > 0) {
-      tx.update(strings)
-        .set({ archived: true })
-        .where(
-          inArray(
-            strings.id,
-            plan.archive.map((id) => currentRowId.get(id)!),
-          ),
-        )
-        .run();
-    }
+      for (const id of plan.insert) {
+        const entry = bySnapshotId.get(id)!;
+        const row = tx
+          .insert(strings)
+          .values({
+            projectId,
+            stringId: entry.id,
+            type: entry.type,
+            source: entry.source,
+            metadata: entry.metadata,
+            examples: entry.examples,
+          })
+          .returning()
+          .get();
+        tx.insert(stringTranslations)
+          .values([
+            {
+              stringId: row.id,
+              language: project.sourceLanguage,
+              state: "translated",
+            },
+            ...targetLanguages.map((language) => ({
+              stringId: row.id,
+              language,
+              state: "untranslated" as const,
+            })),
+          ])
+          .run();
+      }
 
-    const entityResult = applyEntities(tx, projectId, snapshot);
+      for (const id of plan.refresh) {
+        const entry = bySnapshotId.get(id)!;
+        tx.update(strings)
+          .set({
+            type: entry.type,
+            metadata: entry.metadata,
+            examples: entry.examples,
+            archived: false,
+          })
+          .where(eq(strings.id, currentRowId.get(id)!))
+          .run();
+      }
 
-    return { ...plan.report, ...entityResult };
-  });
+      for (const id of plan.updateSource) {
+        const entry = bySnapshotId.get(id)!;
+        const rowId = currentRowId.get(id)!;
+        tx.update(strings)
+          .set({
+            type: entry.type,
+            source: entry.source,
+            metadata: entry.metadata,
+            examples: entry.examples,
+            archived: false,
+          })
+          .where(eq(strings.id, rowId))
+          .run();
+        // Targets go stale (old text kept); the source-language row is reset
+        // to translated for re-verification (§8).
+        tx.update(stringTranslations)
+          .set({ stale: true })
+          .where(eq(stringTranslations.stringId, rowId))
+          .run();
+        tx.update(stringTranslations)
+          .set({ state: "translated", stale: false })
+          .where(
+            and(
+              eq(stringTranslations.stringId, rowId),
+              eq(stringTranslations.language, project.sourceLanguage),
+            ),
+          )
+          .run();
+      }
+
+      if (plan.archive.length > 0) {
+        tx.update(strings)
+          .set({ archived: true })
+          .where(
+            inArray(
+              strings.id,
+              plan.archive.map((id) => currentRowId.get(id)!),
+            ),
+          )
+          .run();
+      }
+
+      const entityResult = applyEntities(tx, projectId, snapshot);
+
+      const report = { ...plan.report, ...entityResult };
+      if (options.dryRun) throw new DryRunRollback(report);
+      return report;
+    });
+  } catch (error) {
+    if (error instanceof DryRunRollback) return error.report;
+    throw error;
+  }
 }
 
 function loadCurrent(
