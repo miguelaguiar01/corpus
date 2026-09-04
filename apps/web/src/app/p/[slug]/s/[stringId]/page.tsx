@@ -1,3 +1,4 @@
+import { placeholdersOf } from "@corpus/contract";
 import { notFound } from "next/navigation";
 import { currentUser } from "@/auth/session";
 import { isQueueKind, queueItems } from "@/catalogue/queues";
@@ -8,10 +9,11 @@ import { MetadataChips } from "@/components/metadata-chips";
 import { QueueNav } from "@/components/queue-nav";
 import { SourceView } from "@/components/source-view";
 import { StateChips } from "@/components/state-chips";
+import { TargetPane, type Slot } from "@/components/target-pane";
 import { VerifyForm } from "@/components/verify-form";
 import { getProjectBySlug } from "@/projects/service";
 import { stringDetail } from "@/strings/detail";
-import { verifyString } from "@/translations/actions";
+import { saveString, verifyString } from "@/translations/actions";
 import { t, type MessageKey } from "@/i18n";
 
 type Query = {
@@ -60,6 +62,27 @@ export default async function StringPage({
     source !== undefined &&
     source.state !== "verified" &&
     !string.archived;
+  // A target language selected in the URL turns the page into the editor
+  // (§9.3): the source pane stays, the target pane appears. Queue links
+  // will select it (#109); until then it is reachable by URL.
+  const target =
+    language !== project.sourceLanguage && project.languages.includes(language)
+      ? language
+      : undefined;
+  const targetRow = target ? translations[target] : undefined;
+  // Chips are the source's own placeholders (select arguments are not
+  // placeholders); declarations only supply descriptions.
+  const described = new Map<string, string>();
+  for (const decl of Object.values(declarations)) {
+    if (decl.type !== "placeholders") continue;
+    for (const [name, spec] of Object.entries(decl.slots)) {
+      described.set(name, spec.description);
+    }
+  }
+  const slots: Slot[] = [...placeholdersOf(string.source)].map((name) => ({
+    name,
+    description: described.get(name),
+  }));
   const errorKey = query.error
     ? (ERROR_KEY[query.error] ?? "verify.errorGeneric")
     : undefined;
@@ -88,6 +111,22 @@ export default async function StringPage({
           metadata={string.metadata ?? {}}
         />
       </header>
+
+      {target && targetRow && !string.archived && (
+        <section className="space-y-3">
+          <TargetPane
+            action={saveString}
+            source={string.source}
+            slots={slots}
+            language={target}
+            initialText={targetRow.text ?? ""}
+            slug={slug}
+            stringKey={string.key}
+            openedVersion={targetRow.version}
+            queue={queueKind}
+          />
+        </section>
+      )}
 
       {entities.length > 0 && (
         <section className="space-y-3">
