@@ -65,3 +65,16 @@ not accepted in review.
 tells a reader nothing (owner directive on #14/PR #24).
 
 **Context:** PR #24.
+
+## 2026-09-04 — Metadata declarations travel in the snapshot
+
+**Decision:** the `corpus/1` envelope carries optional `stringTypes`
+(per-type field declarations) and `entityTypes` (labels) alongside
+strings and entities.
+
+**Why:** the server renders metadata generically from declarations
+(§5 — facets, tooltips, editor chips) but never reads the client's
+`corpus.config.ts`; the snapshot is the only channel. §4's additive
+versioning makes the addition backward-compatible.
+
+**Context:** #30.
