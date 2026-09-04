@@ -48,6 +48,7 @@
   "editor.placeholders": "Insert a placeholder",
   "editor.save": "Save translation",
   "editor.previewHeading": "Preview",
+  "editor.staleBanner": "The source text changed after this translation was saved. Check it against the source above, then save again.",
   "editor.missingPlaceholder": "Missing {name}",
   "editor.unexpectedPlaceholder": "Unexpected {name}",
   "editor.unknownSelect": "The source has no select on {arg}",
