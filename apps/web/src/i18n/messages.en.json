@@ -41,6 +41,8 @@
   "verify.errorNotMaintainer": "Only maintainers can verify.",
   "verify.errorGeneric": "This string could not be verified.",
   "verify.warningChanged": "This string changed since you opened it. Your sign-off applied to the latest version.",
+  "editor.errorInvalid": "That translation was not saved: its placeholders or selects do not match the source.",
+  "editor.errorEmpty": "Nothing to save: the translation is empty.",
   "invite.heading": "Join this Corpus instance",
   "invite.intro": "Enter the instance invite secret and pick a display name.",
   "invite.nameLabel": "Display name",

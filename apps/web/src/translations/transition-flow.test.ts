@@ -5,7 +5,7 @@ import { projects, users } from "@/db/schema";
 import { memoryDb } from "@/db/test-helpers";
 import { applySnapshot } from "@/ingest/apply";
 import { stringDetail } from "@/strings/detail";
-import { verifyFlow } from "./verify-flow";
+import { transitionFlow, verifyFlow } from "./transition-flow";
 
 const FIXTURE = moonlightManor as Snapshot;
 const KEYS = FIXTURE.strings.map((s) => s.id);
@@ -125,4 +125,119 @@ test("an unknown key is not found", () => {
   expect(verifyFlow(db, { project: p, user: ana, key: "nope" })).toEqual({
     kind: "not-found",
   });
+});
+
+function textOf(
+  db: ReturnType<typeof memoryDb>,
+  projectId: number,
+  key: string,
+  language: string,
+) {
+  return stringDetail(db, projectId, key)!.translations[language];
+}
+
+test("a valid save transitions the target row, logs one edit, and moves to the next queue item", () => {
+  const { db, p, rui } = pushed();
+  const result = transitionFlow(db, {
+    project: p,
+    user: rui,
+    key: KEYS[1]!,
+    language: "en",
+    action: { type: "save", text: "Heard nothing all night." },
+    queue: "untranslated",
+  });
+  expect(result).toEqual({
+    kind: "redirect",
+    to: `/p/mm/s/${encodeURIComponent(KEYS[2]!)}?queue=untranslated&language=en`,
+  });
+  expect(textOf(db, p.id, KEYS[1]!, "en")).toMatchObject({
+    state: "translated",
+    text: "Heard nothing all night.",
+  });
+  expect(stringDetail(db, p.id, KEYS[1]!)?.history).toHaveLength(1);
+});
+
+test("an invalid save is rejected server-side: row unchanged, nothing logged, error carried back", () => {
+  const { db, p, rui } = pushed();
+  const before = textOf(db, p.id, KEYS[0]!, "en");
+  const result = transitionFlow(db, {
+    project: p,
+    user: rui,
+    key: KEYS[0]!,
+    language: "en",
+    action: { type: "save", text: "Someone was seen at the window." },
+    queue: "untranslated",
+  });
+  expect(result).toEqual({
+    kind: "redirect",
+    to: `/p/mm/s/${encodeURIComponent(KEYS[0]!)}?queue=untranslated&language=en&error=invalid-translation`,
+  });
+  expect(textOf(db, p.id, KEYS[0]!, "en")).toEqual(before);
+  expect(stringDetail(db, p.id, KEYS[0]!)?.history).toHaveLength(0);
+});
+
+test("verify on a target row is maintainer-only", () => {
+  const { db, p, ana, rui } = pushed();
+  transitionFlow(db, {
+    project: p,
+    user: rui,
+    key: KEYS[2]!,
+    language: "en",
+    action: { type: "save", text: "Continue" },
+  });
+  const denied = transitionFlow(db, {
+    project: p,
+    user: rui,
+    key: KEYS[2]!,
+    language: "en",
+    action: { type: "verify" },
+  });
+  expect(denied).toEqual({
+    kind: "redirect",
+    to: `/p/mm/s/${encodeURIComponent(KEYS[2]!)}?error=not-maintainer`,
+  });
+  const allowed = transitionFlow(db, {
+    project: p,
+    user: ana,
+    key: KEYS[2]!,
+    language: "en",
+    action: { type: "verify" },
+  });
+  expect(allowed).toEqual({
+    kind: "redirect",
+    to: `/p/mm/s/${encodeURIComponent(KEYS[2]!)}`,
+  });
+  expect(textOf(db, p.id, KEYS[2]!, "en")?.state).toBe("verified");
+});
+
+test("a save with a stale version token still applies but stays on the string with the warning", () => {
+  const { db, p, rui } = pushed();
+  const stale = textOf(db, p.id, KEYS[2]!, "en")!.version - 60_000;
+  const result = transitionFlow(db, {
+    project: p,
+    user: rui,
+    key: KEYS[2]!,
+    language: "en",
+    action: { type: "save", text: "Continue" },
+    queue: "untranslated",
+    openedVersion: stale,
+  });
+  expect(result).toEqual({
+    kind: "redirect",
+    to: `/p/mm/s/${encodeURIComponent(KEYS[2]!)}?queue=untranslated&language=en&warning=changed`,
+  });
+  expect(textOf(db, p.id, KEYS[2]!, "en")?.text).toBe("Continue");
+});
+
+test("verifyFlow is the source-language verify case of transitionFlow", () => {
+  const { db, p, ana } = pushed();
+  expect(verifyFlow(db, { project: p, user: ana, key: KEYS[1]! })).toEqual(
+    transitionFlow(db, {
+      project: p,
+      user: ana,
+      key: KEYS[1]!,
+      language: "pt-PT",
+      action: { type: "verify" },
+    }),
+  );
 });
