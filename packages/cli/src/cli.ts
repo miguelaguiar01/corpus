@@ -1,5 +1,6 @@
 import { buildSnapshot } from "./build";
 import { CliError, loadConfig, requireToken } from "./config";
+import { pull } from "./pull";
 
 export type RunContext = {
   cwd: string;
@@ -8,14 +9,17 @@ export type RunContext = {
   err: (line: string) => void;
 };
 
-const USAGE = "usage: corpus push [--dry-run]";
+const USAGE =
+  "usage: corpus push [--dry-run] | corpus pull [--min-state <untranslated|translated|verified>]";
 
 export async function run(argv: string[], ctx: RunContext): Promise<number> {
   const [command] = argv;
 
-  if (command === "push") {
+  if (command === "push" || command === "pull") {
     try {
-      return await push(argv.slice(1), ctx);
+      return command === "push"
+        ? await push(argv.slice(1), ctx)
+        : await pull(argv.slice(1), ctx);
     } catch (error) {
       if (error instanceof CliError) {
         ctx.err(`corpus: ${error.message}`);
