@@ -1,12 +1,20 @@
 import { and, eq, inArray } from "drizzle-orm";
 import type { Snapshot } from "@corpus/contract";
 import type { Db } from "@/db";
-import { entities, projects, strings, stringTranslations } from "@/db/schema";
+import {
+  edits,
+  entities,
+  projects,
+  strings,
+  stringTranslations,
+} from "@/db/schema";
 import { diffSnapshot, type CurrentString, type DiffReport } from "./diff";
 
 export type IngestReport = DiffReport & {
   entitiesUpserted: number;
   entitiesRemoved: number;
+  seeded: number;
+  seedsIgnored: number;
 };
 
 // Carries the computed report out of a dry-run transaction while forcing
@@ -144,8 +152,9 @@ export function applySnapshot(
       }
 
       const entityResult = applyEntities(tx, projectId, snapshot);
+      const seedResult = applySeeds(tx, projectId, targetLanguages, snapshot);
 
-      const report = { ...plan.report, ...entityResult };
+      const report = { ...plan.report, ...entityResult, ...seedResult };
       if (options.dryRun) throw new DryRunRollback(report);
       return report;
     });
@@ -241,4 +250,61 @@ function applyEntities(
     entitiesUpserted: snapshot.entities.length,
     entitiesRemoved: removed.length,
   };
+}
+
+// seedTranslations (§8): a repo's existing target catalogs import as
+// `translated`, but only where Corpus has no edit history for the
+// string×language — after the first edit, Corpus wins. Unknown ids,
+// unknown languages, and the source language are skipped and counted,
+// never errors. Runs after the string writes so the rows exist.
+function applySeeds(
+  db: Db,
+  projectId: number,
+  targetLanguages: string[],
+  snapshot: Snapshot,
+): { seeded: number; seedsIgnored: number } {
+  const seeds = snapshot.seedTranslations ?? {};
+  let seeded = 0;
+  let seedsIgnored = 0;
+  const rowIdByStringId = new Map(
+    db
+      .select({ id: strings.id, stringId: strings.stringId })
+      .from(strings)
+      .where(eq(strings.projectId, projectId))
+      .all()
+      .map((row) => [row.stringId, row.id]),
+  );
+  const edited = new Set(
+    db
+      .select({ stringId: edits.stringId, language: edits.language })
+      .from(edits)
+      .all()
+      .map((edit) => `${edit.stringId}\u0000${edit.language}`),
+  );
+
+  for (const [language, texts] of Object.entries(seeds)) {
+    const known = targetLanguages.includes(language);
+    for (const [stringId, text] of Object.entries(texts)) {
+      const rowId = rowIdByStringId.get(stringId);
+      if (
+        !known ||
+        rowId === undefined ||
+        edited.has(`${rowId}\u0000${language}`)
+      ) {
+        seedsIgnored += 1;
+        continue;
+      }
+      db.update(stringTranslations)
+        .set({ text, state: "translated", updatedAt: new Date() })
+        .where(
+          and(
+            eq(stringTranslations.stringId, rowId),
+            eq(stringTranslations.language, language),
+          ),
+        )
+        .run();
+      seeded += 1;
+    }
+  }
+  return { seeded, seedsIgnored };
 }

@@ -1,9 +1,16 @@
 import { moonlightManor, type Snapshot } from "@corpus/contract";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { expect, test } from "vitest";
 import type { Db } from "@/db";
-import { entities, projects, strings, stringTranslations } from "@/db/schema";
+import {
+  entities,
+  projects,
+  strings,
+  stringTranslations,
+  users,
+} from "@/db/schema";
 import { memoryDb } from "@/db/test-helpers";
+import { applyTransition } from "@/translations/service";
 import { applySnapshot } from "./apply";
 
 const FIXTURE = moonlightManor as Snapshot;
@@ -148,4 +155,105 @@ test("push persists the entity type labels alongside the string declarations", (
     .get();
   expect(row?.entityTypes).toEqual(FIXTURE.entityTypes);
   expect(row?.stringTypes).toEqual(FIXTURE.stringTypes);
+});
+
+function withSeeds(
+  seeds: Record<string, Record<string, string>>,
+  strings = FIXTURE.strings,
+): Snapshot {
+  return { ...FIXTURE, strings, seedTranslations: seeds };
+}
+
+function translationOf(db: Db, stringId: string, language: string) {
+  const s = stringRow(db, stringId);
+  if (!s) throw new Error(`no string ${stringId}`);
+  return db
+    .select()
+    .from(stringTranslations)
+    .where(
+      and(
+        eq(stringTranslations.stringId, s.id),
+        eq(stringTranslations.language, language),
+      ),
+    )
+    .get();
+}
+
+test("seedTranslations on a first push import as translated and are counted", () => {
+  const { db, project } = seed();
+  const report = applySnapshot(
+    db,
+    project.id,
+    withSeeds({
+      en: { "ui.continue": "Continue", "skin.heard-nothing": "Heard nothing." },
+    }),
+  );
+  expect(report.seeded).toBe(2);
+  expect(report.seedsIgnored).toBe(0);
+  expect(translationOf(db, "ui.continue", "en")).toMatchObject({
+    state: "translated",
+    text: "Continue",
+  });
+  expect(translationOf(db, "skin.seen-at-greenhouse-window", "en")?.state).toBe(
+    "untranslated",
+  );
+});
+
+test("a row with Corpus edit history keeps its text over a later seed", () => {
+  const { db, project } = seed();
+  applySnapshot(db, project.id, FIXTURE);
+  const [ana] = db
+    .insert(users)
+    .values({ name: "ana", maintainer: true })
+    .returning()
+    .all();
+  const row = stringRow(db, "ui.continue")!;
+  applyTransition(db, {
+    stringId: row.id,
+    language: "en",
+    action: { type: "save", text: "Carry on" },
+    actor: ana!,
+  });
+  const report = applySnapshot(
+    db,
+    project.id,
+    withSeeds({
+      en: { "ui.continue": "Continue", "skin.heard-nothing": "Heard nothing." },
+    }),
+  );
+  expect(report.seeded).toBe(1);
+  expect(report.seedsIgnored).toBe(1);
+  expect(translationOf(db, "ui.continue", "en")?.text).toBe("Carry on");
+  expect(translationOf(db, "skin.heard-nothing", "en")?.text).toBe(
+    "Heard nothing.",
+  );
+});
+
+test("seeds for unknown ids, unknown languages, and the source language are ignored, not errors", () => {
+  const { db, project } = seed();
+  const report = applySnapshot(
+    db,
+    project.id,
+    withSeeds({
+      en: { "nope.missing": "x", "ui.continue": "Continue" },
+      fr: { "ui.continue": "Continuer" },
+      "pt-PT": { "ui.continue": "Prosseguir" },
+    }),
+  );
+  expect(report.seeded).toBe(1);
+  expect(report.seedsIgnored).toBe(3);
+  expect(translationOf(db, "ui.continue", "pt-PT")?.text).toBeNull();
+  expect(stringRow(db, "ui.continue")?.source).toBe("Continuar");
+});
+
+test("a dry run reports seeds without applying them", () => {
+  const { db, project } = seed();
+  const report = applySnapshot(
+    db,
+    project.id,
+    withSeeds({ en: { "ui.continue": "Continue" } }),
+    { dryRun: true },
+  );
+  expect(report.seeded).toBe(1);
+  expect(stringRow(db, "ui.continue")).toBeUndefined();
 });
