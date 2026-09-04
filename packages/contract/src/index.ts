@@ -3,4 +3,5 @@ export * from "./strings";
 export * from "./snapshot";
 export * from "./config";
 export * from "./icu";
+export * from "./validate";
 export { moonlightManor } from "./fixtures/moonlight-manor";
