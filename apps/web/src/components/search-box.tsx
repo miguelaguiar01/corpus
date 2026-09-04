@@ -1,0 +1,30 @@
+import { t } from "@/i18n";
+
+// Server-driven search: a GET form. Active facet params ride along as
+// hidden inputs so search composes with them; cursor resets.
+export function SearchBox({
+  basePath,
+  active,
+}: {
+  basePath: string;
+  active: URLSearchParams;
+}) {
+  const hidden: [string, string][] = [];
+  for (const [key, value] of active) {
+    if (key !== "q" && key !== "cursor") hidden.push([key, value]);
+  }
+  return (
+    <form action={basePath} className="flex gap-2">
+      {hidden.map(([key, value], i) => (
+        <input key={`${key}-${i}`} type="hidden" name={key} value={value} />
+      ))}
+      <input
+        type="search"
+        name="q"
+        defaultValue={active.get("q") ?? ""}
+        placeholder={t("catalogue.searchPlaceholder")}
+        className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      />
+    </form>
+  );
+}
