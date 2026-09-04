@@ -47,6 +47,7 @@
   "editor.targetLabel": "Translation ({language})",
   "editor.placeholders": "Insert a placeholder",
   "editor.save": "Save translation",
+  "editor.previewHeading": "Preview",
   "editor.missingPlaceholder": "Missing {name}",
   "editor.unexpectedPlaceholder": "Unexpected {name}",
   "editor.unknownSelect": "The source has no select on {arg}",

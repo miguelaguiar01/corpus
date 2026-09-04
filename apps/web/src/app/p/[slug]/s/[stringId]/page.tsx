@@ -124,6 +124,7 @@ export default async function StringPage({
             stringKey={string.key}
             openedVersion={targetRow.version}
             queue={queueKind}
+            examples={examples}
           />
         </section>
       )}

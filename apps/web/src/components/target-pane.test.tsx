@@ -71,3 +71,73 @@ test("the form carries the row and the version token", () => {
   expect(value("openedVersion")).toBe("1");
   expect(textarea.name).toBe("text");
 });
+
+const EXAMPLES = [
+  {
+    values: { witness: "a Condessa", suspect: "o Doutor", hour: "21h" },
+    rendered: "A Condessa viu o Doutor às 21h.",
+  },
+  {
+    values: { witness: "o mordomo", suspect: "a Condessa", hour: "23h" },
+    rendered: "O mordomo viu a Condessa às 23h.",
+  },
+];
+
+function paneWithExamples(initialText = "") {
+  render(
+    <TargetPane
+      action={vi.fn()}
+      source={SOURCE}
+      slots={slots}
+      language="en"
+      initialText={initialText}
+      slug="mm"
+      stringKey="k"
+      openedVersion={1}
+      examples={EXAMPLES}
+    />,
+  );
+  return screen.getByRole("textbox") as HTMLTextAreaElement;
+}
+
+test("with no draft, the previews are the examples' own renders", () => {
+  paneWithExamples();
+  expect(screen.getByText("A Condessa viu o Doutor às 21h.")).toBeTruthy();
+  expect(screen.getByText("O mordomo viu a Condessa às 23h.")).toBeTruthy();
+});
+
+test("the previews follow the draft, one per example, values substituted", () => {
+  const textarea = paneWithExamples("{witness} saw {suspect} at {hour}.");
+  expect(screen.getByText("A Condessa saw o Doutor at 21h.")).toBeTruthy();
+  fireEvent.change(textarea, {
+    target: { value: "At {hour}, {witness} saw {suspect}." },
+  });
+  expect(screen.getByText("At 21h, a Condessa saw o Doutor.")).toBeTruthy();
+  expect(screen.getByText("At 23h, o mordomo saw a Condessa.")).toBeTruthy();
+});
+
+test("a draft with a select renders each example through its own branch", () => {
+  render(
+    <TargetPane
+      action={vi.fn()}
+      source="{g, select, m {Ele} f {Ela}} saiu."
+      slots={[]}
+      language="en"
+      initialText="{g, select, m {He} f {She}} left."
+      slug="mm"
+      stringKey="k"
+      openedVersion={1}
+      examples={[
+        { values: { g: "m" }, rendered: "Ele saiu." },
+        { values: { g: "f" }, rendered: "Ela saiu." },
+      ]}
+    />,
+  );
+  expect(screen.getByText("He left.")).toBeTruthy();
+  expect(screen.getByText("She left.")).toBeTruthy();
+});
+
+test("without examples there is no preview section", () => {
+  pane("x");
+  expect(screen.queryByRole("region", { name: "Preview" })).toBeNull();
+});
