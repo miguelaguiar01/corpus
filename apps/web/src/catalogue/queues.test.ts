@@ -6,7 +6,7 @@ import { projects, strings, users } from "@/db/schema";
 import { memoryDb } from "@/db/test-helpers";
 import { applySnapshot } from "@/ingest/apply";
 import { applyTransition } from "@/translations/service";
-import { allQueues, queueCounts, queueItems } from "./queues";
+import { allQueues, neighbours, queueCounts, queueItems } from "./queues";
 
 const FIXTURE = moonlightManor as Snapshot;
 
@@ -163,4 +163,23 @@ test("allQueues returns every queue keyed by kind from one load", () => {
   expect(all.untranslated).toEqual(queueItems(db, p.id, "untranslated"));
   expect(all.stale.count).toBe(0);
   expect(all.unverifiedSource.first).toEqual(item(db, IDS[0]!, "pt-PT"));
+});
+
+test("neighbours finds the previous and next items around the current one", () => {
+  const { db, p } = pushed();
+  const queue = queueItems(db, p.id, "unverifiedSource");
+  const [a, b, c] = queue.items;
+  expect(neighbours(queue, b!)).toEqual({ index: 1, previous: a, next: c });
+  expect(neighbours(queue, a!)).toEqual({ index: 0, previous: null, next: b });
+  expect(neighbours(queue, c!)).toEqual({ index: 2, previous: b, next: null });
+});
+
+test("neighbours of an item not in the queue is index null with no links", () => {
+  const { db, p } = pushed();
+  const queue = queueItems(db, p.id, "stale");
+  expect(neighbours(queue, { stringId: 1, language: "en" })).toEqual({
+    index: null,
+    previous: null,
+    next: null,
+  });
 });

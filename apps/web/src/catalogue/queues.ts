@@ -5,7 +5,16 @@ import { projects, strings, stringTranslations } from "@/db/schema";
 // The three dashboard queues (§9.1) over string × language rows, excluding
 // archived strings (§11). Items are ordered by string id then language so
 // next/previous is deterministic.
-export type QueueKind = "untranslated" | "stale" | "unverifiedSource";
+export const QUEUE_KINDS = [
+  "untranslated",
+  "stale",
+  "unverifiedSource",
+] as const;
+export type QueueKind = (typeof QUEUE_KINDS)[number];
+
+export function isQueueKind(value: unknown): value is QueueKind {
+  return (QUEUE_KINDS as readonly unknown[]).includes(value);
+}
 // stringId is the internal row id; key is the client's snapshot id (§4),
 // which the string route uses.
 export type QueueItem = { stringId: number; key: string; language: string };
@@ -81,5 +90,28 @@ export function queueCounts(db: Db, projectId: number): QueueCounts {
     untranslated: rows.filter(MATCHERS.untranslated).length,
     stale: rows.filter(MATCHERS.stale).length,
     unverifiedSource: rows.filter(MATCHERS.unverifiedSource).length,
+  };
+}
+
+// Position of an item in a queue plus its neighbours, for next/previous.
+// Computed before a transition so "next" still points past the item that
+// is about to leave the queue.
+export function neighbours(
+  queue: Queue,
+  current: Pick<QueueItem, "stringId" | "language">,
+): {
+  index: number | null;
+  previous: QueueItem | null;
+  next: QueueItem | null;
+} {
+  const index = queue.items.findIndex(
+    (item) =>
+      item.stringId === current.stringId && item.language === current.language,
+  );
+  if (index < 0) return { index: null, previous: null, next: null };
+  return {
+    index,
+    previous: queue.items[index - 1] ?? null,
+    next: queue.items[index + 1] ?? null,
   };
 }

@@ -2,11 +2,16 @@ import Link from "next/link";
 import type { QueueCounts, QueueItem, QueueKind } from "@/catalogue/queues";
 import { t, type MessageKey } from "@/i18n";
 
-const QUEUES: { kind: QueueKind; label: MessageKey }[] = [
-  { kind: "untranslated", label: "queue.untranslated" },
-  { kind: "stale", label: "queue.stale" },
-  { kind: "unverifiedSource", label: "queue.unverifiedSource" },
-];
+export const QUEUE_LABEL: Record<QueueKind, MessageKey> = {
+  untranslated: "queue.untranslated",
+  stale: "queue.stale",
+  unverifiedSource: "queue.unverifiedSource",
+};
+
+const QUEUES = (Object.keys(QUEUE_LABEL) as QueueKind[]).map((kind) => ({
+  kind,
+  label: QUEUE_LABEL[kind],
+}));
 
 // The dashboard's queues (§9.1): one stacked list, each row a thumb-height
 // link into the string surface at the queue's first item, carrying the
