@@ -15,6 +15,33 @@ with itself — the standing demo and integration test.
 - **[`AGENTS.md`](AGENTS.md)** — workflow, non-negotiables, and the board.
 - **[`docs/DECISIONS.md`](docs/DECISIONS.md)** — architecture decisions log.
 
+## Self-hosting
+
+Corpus ships as a single container with its SQLite database on a
+volume. You need Docker and nothing else:
+
+```sh
+git clone https://github.com/miguelaguiar01/corpus.git
+cd corpus
+docker build -t corpus .
+docker run -d --name corpus \
+  -p 3000:3000 \
+  -e CORPUS_INVITE_SECRET="$(openssl rand -hex 24)" \
+  -v corpus-data:/data \
+  corpus
+```
+
+Then open http://localhost:3000 — you'll be asked for the invite secret
+you just set and a display name. The first person to join becomes the
+instance maintainer. All data lives in the `corpus-data` volume; the
+container itself is disposable.
+
+With Docker Compose (or a PaaS like Coolify that reads `compose.yaml`):
+
+```sh
+CORPUS_INVITE_SECRET="$(openssl rand -hex 24)" docker compose up -d
+```
+
 ## Configuration
 
 Environment variables are documented in [`.env.example`](.env.example).

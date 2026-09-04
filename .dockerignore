@@ -1,0 +1,16 @@
+.git
+node_modules
+**/node_modules
+**/.next
+data
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+.env
+.env.*
+!.env.example
+coverage
+Dockerfile
+compose.yaml
+docs
