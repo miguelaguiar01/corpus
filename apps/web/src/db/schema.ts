@@ -1,4 +1,10 @@
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+  index,
+  integer,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 // Users per spec §10: a display name and one flag. The first user created
 // on an instance becomes a maintainer (enforced in the auth layer, #15).
@@ -25,3 +31,86 @@ export const sessions = sqliteTable("sessions", {
     .$defaultFn(() => new Date()),
   expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
 });
+
+// Projects, strings, entities, translations (§2, §8, §11). Source text and
+// metadata are outputs of push (repo wins); translations/states are M2.
+export const projects = sqliteTable("projects", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  slug: text("slug").notNull().unique(),
+  name: text("name").notNull(),
+  sourceLanguage: text("source_language").notNull(),
+  languages: text("languages", { mode: "json" }).notNull().$type<string[]>(),
+  tokenHash: text("token_hash"),
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export const strings = sqliteTable(
+  "strings",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    projectId: integer("project_id")
+      .notNull()
+      .references(() => projects.id),
+    // The client's stable snapshot id (§4); unique within a project.
+    stringId: text("string_id").notNull(),
+    type: text("type").notNull(),
+    source: text("source").notNull(),
+    metadata: text("metadata", { mode: "json" }).$type<
+      Record<string, unknown>
+    >(),
+    examples: text("examples", { mode: "json" }).$type<unknown[]>(),
+    archived: integer("archived", { mode: "boolean" }).notNull().default(false),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [uniqueIndex("strings_project_string_id").on(t.projectId, t.stringId)],
+);
+
+export const entities = sqliteTable(
+  "entities",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    projectId: integer("project_id")
+      .notNull()
+      .references(() => projects.id),
+    entityId: text("entity_id").notNull(),
+    type: text("type").notNull(),
+    name: text("name").notNull(),
+    attributes: text("attributes", { mode: "json" }).$type<
+      Record<string, string>
+    >(),
+  },
+  (t) => [
+    uniqueIndex("entities_project_entity_id").on(t.projectId, t.entityId),
+  ],
+);
+
+// Per string × language row (§11): text, state, stale overlay. The state
+// machine transitions land in M2; this ticket is the row shape only.
+export const stringTranslations = sqliteTable(
+  "string_translations",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    stringId: integer("string_id")
+      .notNull()
+      .references(() => strings.id),
+    language: text("language").notNull(),
+    text: text("text"),
+    state: text("state", {
+      enum: ["untranslated", "translated", "verified"],
+    })
+      .notNull()
+      .default("untranslated"),
+    stale: integer("stale", { mode: "boolean" }).notNull().default(false),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("translations_string_language").on(t.stringId, t.language),
+    index("translations_state").on(t.state),
+  ],
+);
