@@ -34,10 +34,9 @@ export async function buildSnapshot(
       collectExec(source.command, cwd, sourced, entities, errors);
       continue;
     }
-    const file =
-      source.adapter === "messages"
-        ? source.path.replace("{lang}", config.sourceLanguage)
-        : source.path;
+    // Push reads the source-language file; a table path may carry {lang}
+    // too when its translations are pulled back per language (§8).
+    const file = source.path.replace("{lang}", config.sourceLanguage);
     const data = await readModule(jiti, path.join(cwd, file));
     const entries =
       source.adapter === "messages"

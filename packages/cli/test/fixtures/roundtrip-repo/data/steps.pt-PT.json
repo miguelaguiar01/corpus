@@ -1,0 +1,4 @@
+[
+  { "id": "step.open", "text": "Abre a porta.", "kind": "hint" },
+  { "id": "step.key", "text": "Procura a chave {where}.", "kind": "task" }
+]
