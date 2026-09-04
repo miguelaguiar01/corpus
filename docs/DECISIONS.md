@@ -128,3 +128,19 @@ home for the refinement work an MVP always needs. Naming the milestone
 keeps that work planned and reviewed rather than drive-by.
 
 **Context:** owner decision on 2026-09-04, at the close of M2.
+
+## 2026-09-04 — Pull writes JSON files only; TS-module sources go through `exec`
+
+**Decision:** the adapters' write side regenerates `messages` and `table`
+files only when they are JSON. A source that is a TypeScript module is
+read on push but not written on pull; a project that wants translations
+back into a TS module names an `exec` import command (§3). Two JSON
+layouts round-trip byte-identical: JSON.stringify's expanded form (any
+indent, with or without a trailing newline) and, for tables, one record
+per line.
+
+**Why:** a TS module cannot be reproduced byte for byte from its data,
+and the round-trip invariant (§8) is worth more than write support for
+one more file type. The exec hook already exists for exactly this case.
+
+**Context:** #110.
