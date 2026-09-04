@@ -14,7 +14,7 @@ export async function loadConfig(cwd: string): Promise<CorpusConfig> {
   if (!existsSync(configPath)) {
     throw new CliError(`no ${CONFIG_FILENAME} found in ${cwd}`);
   }
-  const jiti = createJiti(import.meta.url);
+  const jiti = createJiti(import.meta.url, { moduleCache: false });
   const loaded = await jiti.import(configPath, { default: true });
   return corpusConfigSchema.parse(loaded);
 }

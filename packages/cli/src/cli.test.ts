@@ -60,9 +60,5 @@ test("push without CORPUS_TOKEN errors, naming the env var", async () => {
   expect(c.output.join("\n")).toMatch(/CORPUS_TOKEN/);
 });
 
-test("push with config + token resolves and reports the project", async () => {
-  const c = ctx();
-  const code = await run(["push"], c);
-  expect(code).toBe(0);
-  expect(c.output.join("\n")).toContain("fixture-project");
-});
+// The full push flow (build + upload + report rendering) is covered in
+// push.test.ts against a real test server.
