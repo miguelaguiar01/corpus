@@ -1,11 +1,11 @@
 import type { FieldDeclaration, MetadataValue } from "@corpus/contract";
 
-const CHIP =
+export const CHIP =
   "inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-xs text-secondary-foreground";
 
 // Metadata rendered generically from the type's declarations (§5): enum
-// values and set flags as chips, text as a note, placeholder slots as
-// chips carrying their description. Refs are the entity cards' job.
+// values and set flags as chips, text as a note. Placeholder slots show
+// in context in the source view; refs are the entity cards' job.
 export function MetadataChips({
   declarations,
   metadata,
@@ -31,17 +31,6 @@ export function MetadataChips({
       case "text":
         if (typeof value === "string" && value) {
           notes.push({ key: field, text: value });
-        }
-        break;
-      case "placeholders":
-        for (const [slot, spec] of Object.entries(decl.slots)) {
-          chips.push({
-            key: `${field}.${slot}`,
-            label: `{${slot}}`,
-            title: spec.role
-              ? `${spec.description} (${spec.role})`
-              : spec.description,
-          });
         }
         break;
       default:

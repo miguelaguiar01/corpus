@@ -6,6 +6,7 @@ import { EntityCards } from "@/components/entity-cards";
 import { HistoryList } from "@/components/history-list";
 import { MetadataChips } from "@/components/metadata-chips";
 import { QueueNav } from "@/components/queue-nav";
+import { SourceView } from "@/components/source-view";
 import { StateChips } from "@/components/state-chips";
 import { VerifyForm } from "@/components/verify-form";
 import { getProjectBySlug } from "@/projects/service";
@@ -64,7 +65,7 @@ export default async function StringPage({
     <main className="mx-auto max-w-xl space-y-8 pb-32">
       <header className="space-y-3">
         <p className="font-mono text-xs text-muted-foreground">{string.key}</p>
-        <p className="text-2xl leading-snug">{string.source}</p>
+        <SourceView source={string.source} declarations={declarations} />
         {string.archived && (
           <p className="text-sm text-destructive">{t("string.archived")}</p>
         )}
