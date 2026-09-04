@@ -2,3 +2,4 @@
 export * from "./strings";
 export * from "./snapshot";
 export * from "./config";
+export * from "./icu";
