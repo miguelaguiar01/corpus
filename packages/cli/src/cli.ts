@@ -43,14 +43,21 @@ async function push(args: string[], ctx: RunContext): Promise<number> {
   const snapshot = await buildSnapshot(config, ctx.cwd);
 
   const url = `${config.server.replace(/\/$/, "")}/api/push${dryRun ? "?dryRun" : ""}`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${token}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify(snapshot),
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(snapshot),
+    });
+  } catch (error) {
+    throw new CliError(
+      `could not reach the server at ${config.server}: ${(error as Error).message}`,
+    );
+  }
 
   if (response.status === 401) {
     ctx.err("corpus: unauthorized — check CORPUS_TOKEN for this project");
@@ -67,7 +74,9 @@ async function push(args: string[], ctx: RunContext): Promise<number> {
     return 1;
   }
   if (!response.ok) {
-    ctx.err(`corpus: push failed (HTTP ${response.status})`);
+    ctx.err(
+      `corpus: push failed (HTTP ${response.status})${await serverMessage(response)}`,
+    );
     return 1;
   }
 
@@ -77,4 +86,14 @@ async function push(args: string[], ctx: RunContext): Promise<number> {
     `${label} ${config.project}: ${report.added} added, ${report.changed} changed, ${report.stale} stale, ${report.archived} archived`,
   );
   return 0;
+}
+
+// The server's message body for an otherwise-unhandled non-2xx, if any.
+async function serverMessage(response: Response): Promise<string> {
+  try {
+    const body = (await response.json()) as { message?: string };
+    return body.message ? `: ${body.message}` : "";
+  } catch {
+    return "";
+  }
 }

@@ -1,13 +1,31 @@
 import type { FieldDeclaration } from "@corpus/contract";
 
 export type Facet =
-  | { kind: "enum"; key: string; field: string; options: string[] }
-  | { kind: "flag"; key: string; field: string }
-  | { kind: "ref"; key: string; field: string }
+  | {
+      kind: "enum";
+      key: string;
+      field: string;
+      label: string;
+      options: string[];
+    }
+  | { kind: "flag"; key: string; field: string; label: string }
+  | { kind: "ref"; key: string; field: string; label: string }
   | { kind: "type"; key: "type"; options: string[] }
   | { kind: "state"; key: "state"; options: string[] }
   | { kind: "language"; key: "language"; options: string[] }
   | { kind: "archived"; key: "archived" };
+
+// The metadata fields a project actually declares — used to reject
+// unknown facet params before they reach a SQL json path (§5).
+export function declaredMetadataFields(
+  declarations: ProjectDeclarations,
+): Set<string> {
+  const fields = new Set<string>();
+  for (const type of Object.values(declarations ?? {})) {
+    for (const field of Object.keys(type)) fields.add(field);
+  }
+  return fields;
+}
 
 export type ProjectDeclarations = Record<
   string,
@@ -30,12 +48,13 @@ export function deriveFacets(
       if (seen.has(field)) continue;
       seen.add(field);
       const key = `meta.${field}`;
+      const label = decl.description || field;
       if (decl.type === "enum") {
-        facets.push({ kind: "enum", key, field, options: decl.values });
+        facets.push({ kind: "enum", key, field, label, options: decl.values });
       } else if (decl.type === "flag") {
-        facets.push({ kind: "flag", key, field });
+        facets.push({ kind: "flag", key, field, label });
       } else if (decl.type === "ref" || decl.type === "list<ref>") {
-        facets.push({ kind: "ref", key, field });
+        facets.push({ kind: "ref", key, field, label });
       }
     }
   }
