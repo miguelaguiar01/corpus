@@ -32,6 +32,14 @@ export default async function ProjectLayout({
           {t("app.title")}
         </Link>
         <ProjectSwitcher current={slug} projects={projects} />
+        <nav className="ml-auto flex gap-4 text-sm">
+          <Link href={`/p/${slug}`} className="hover:underline">
+            {t("nav.overview")}
+          </Link>
+          <Link href={`/p/${slug}/catalogue`} className="hover:underline">
+            {t("nav.catalogue")}
+          </Link>
+        </nav>
       </header>
       <div className="px-4 py-6">{children}</div>
     </div>
