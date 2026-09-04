@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@corpus/adapters": "*",
     "@corpus/contract": "*",
     "jiti": "^2.4.0"
   }
