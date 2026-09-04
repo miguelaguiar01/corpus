@@ -13,6 +13,8 @@
   "catalogue.heading": "Catalogue",
   "catalogue.empty": "No strings yet. Push a snapshot to populate this project.",
   "catalogue.loadMore": "Load more",
+  "catalogue.searchPlaceholder": "Search source text…",
+  "progress.summary": "{verified} verified · {translated} translated of {total}",
   "facet.type": "Type",
   "facet.state": "State",
   "facet.language": "Language",

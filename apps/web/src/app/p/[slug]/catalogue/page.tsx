@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getDb } from "@/db";
+import { searchStringIds } from "@/db/search";
 import { deriveFacets } from "@/catalogue/facets";
+import { progressCounts } from "@/catalogue/progress";
 import {
   listCatalogue,
   type CatalogueFilters,
@@ -9,6 +11,8 @@ import {
 } from "@/catalogue/query";
 import { distinctTypes } from "@/catalogue/types";
 import { FacetPanel } from "@/components/facet-panel";
+import { ProgressStrip } from "@/components/progress-strip";
+import { SearchBox } from "@/components/search-box";
 import { StateChips } from "@/components/state-chips";
 import { getProjectBySlug } from "@/projects/service";
 import { t } from "@/i18n";
@@ -51,8 +55,12 @@ export default async function CataloguePage({
   );
   const basePath = `/p/${slug}/catalogue`;
 
+  const query = active.get("q")?.trim();
+  const searchIds = query ? searchStringIds(db, project.id, query) : undefined;
+
   const page = listCatalogue(db, project.id, {
     ...filtersFromParams(active),
+    stringIds: searchIds,
     includeArchived: active.get("archived") === "1",
     cursor: active.get("cursor") ? Number(active.get("cursor")) : undefined,
   });
@@ -61,12 +69,15 @@ export default async function CataloguePage({
     distinctTypes(db, project.id),
     project.languages,
   );
+  const progress = progressCounts(db, project.id);
 
   return (
     <main className="grid gap-6 md:grid-cols-[12rem_1fr]">
       <FacetPanel basePath={basePath} facets={facets} active={active} />
       <div className="space-y-4">
         <h1 className="text-xl font-semibold">{t("catalogue.heading")}</h1>
+        <ProgressStrip progress={progress} />
+        <SearchBox basePath={basePath} active={active} />
         {page.rows.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             {t("catalogue.empty")}
