@@ -4,4 +4,5 @@ export * from "./snapshot";
 export * from "./config";
 export * from "./icu";
 export * from "./validate";
+export * from "./preview";
 export { moonlightManor } from "./fixtures/moonlight-manor";

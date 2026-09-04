@@ -75,3 +75,9 @@ test("a malformed message is a typed error, never a throw", () => {
 test("no examples means no previews", () => {
   expect(previewsFor("Continuar", [])).toEqual([]);
 });
+
+test("the preview API is reachable from the package entry point", async () => {
+  const entry = await import("./index");
+  expect(typeof entry.renderPreview).toBe("function");
+  expect(typeof entry.previewsFor).toBe("function");
+});
