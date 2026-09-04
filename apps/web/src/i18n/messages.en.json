@@ -7,6 +7,8 @@
   "home.newProject": "New project",
   "home.noProjects": "No projects yet. Create one to get started.",
   "project.languages": "Languages: {languages}",
+  "nav.overview": "Overview",
+  "nav.catalogue": "Catalogue",
   "switcher.label": "Select a project",
   "switcher.placeholder": "Search projects…",
   "switcher.empty": "No projects match.",
