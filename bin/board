@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# bin/board — add an issue to the Corpus project board and set its lane.
+#
+# Usage: bin/board <issue#> <backlog|ready|in-progress|blocked|done>
+#
+# IDs come from AGENTS.md ("IDs for bin/board", project #4, owner
+# miguelaguiar01). Idempotent: an issue already on the board just gets its
+# lane updated.
+set -euo pipefail
+
+OWNER=miguelaguiar01
+PROJECT_NUMBER=4
+PROJECT_ID=PVT_kwHOAYLnWs4BiZ1K
+STATUS_FIELD_ID=PVTSSF_lAHOAYLnWs4BiZ1KzhhSBm0
+
+usage() {
+  echo "usage: bin/board <issue#> <backlog|ready|in-progress|blocked|done>" >&2
+  exit 1
+}
+
+[ $# -eq 2 ] || usage
+case "$1" in
+  ''|*[!0-9]*) usage ;;
+esac
+
+case "$2" in
+  backlog)     OPTION_ID=15972a3d ;;
+  ready)       OPTION_ID=aefe58df ;;
+  in-progress) OPTION_ID=fcdf6852 ;;
+  blocked)     OPTION_ID=ee89bafc ;;
+  done)        OPTION_ID=a6ea2847 ;;
+  *) usage ;;
+esac
+
+ITEM_ID=$(gh project item-list "$PROJECT_NUMBER" --owner "$OWNER" \
+  --format json --limit 200 \
+  -q ".items[] | select(.content.number == $1) | .id")
+
+if [ -z "$ITEM_ID" ]; then
+  ISSUE_URL=$(gh issue view "$1" --json url -q .url)
+  ITEM_ID=$(gh project item-add "$PROJECT_NUMBER" --owner "$OWNER" \
+    --url "$ISSUE_URL" --format json --jq .id)
+fi
+
+gh project item-edit --id "$ITEM_ID" --project-id "$PROJECT_ID" \
+  --field-id "$STATUS_FIELD_ID" --single-select-option-id "$OPTION_ID" \
+  >/dev/null
+
+echo "#$1 -> $2"
