@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, inArray } from "drizzle-orm";
+import { and, asc, eq, exists, gt, inArray, sql, type SQL } from "drizzle-orm";
 import type { Db } from "@/db";
 import { strings, stringTranslations } from "@/db/schema";
 
@@ -16,7 +16,16 @@ export type CatalogueRow = {
 
 export type CataloguePage = { rows: CatalogueRow[]; nextCursor: number | null };
 
-export type CatalogueOptions = {
+export type CatalogueFilters = {
+  types?: string[];
+  // Metadata equality: field -> value ("true"/"false" for flags).
+  metadata?: Record<string, string>;
+  language?: string;
+  states?: TranslationState[];
+  stringIds?: number[];
+};
+
+export type CatalogueOptions = CatalogueFilters & {
   includeArchived?: boolean;
   cursor?: number;
   limit?: number;
@@ -33,8 +42,40 @@ export function listCatalogue(
   const limit = options.limit ?? 50;
   const cursor = options.cursor ?? 0;
 
-  const conditions = [eq(strings.projectId, projectId), gt(strings.id, cursor)];
+  const conditions: SQL[] = [
+    eq(strings.projectId, projectId),
+    gt(strings.id, cursor),
+  ];
   if (!options.includeArchived) conditions.push(eq(strings.archived, false));
+  if (options.types?.length) {
+    conditions.push(inArray(strings.type, options.types));
+  }
+  if (options.stringIds) {
+    // Empty means "search matched nothing" → no rows.
+    if (options.stringIds.length === 0) return { rows: [], nextCursor: null };
+    conditions.push(inArray(strings.id, options.stringIds));
+  }
+  for (const [field, value] of Object.entries(options.metadata ?? {})) {
+    conditions.push(
+      sql`json_extract(${strings.metadata}, ${"$." + field}) = ${jsonValue(value)}`,
+    );
+  }
+  if (options.language && options.states?.length) {
+    conditions.push(
+      exists(
+        db
+          .select({ one: sql`1` })
+          .from(stringTranslations)
+          .where(
+            and(
+              eq(stringTranslations.stringId, strings.id),
+              eq(stringTranslations.language, options.language),
+              inArray(stringTranslations.state, options.states),
+            ),
+          ),
+      ),
+    );
+  }
 
   const found = db
     .select()
@@ -74,4 +115,11 @@ export function listCatalogue(
     })),
     nextCursor: hasMore ? (page[page.length - 1]?.id ?? null) : null,
   };
+}
+
+// Flags are stored as JSON booleans; enums/refs as strings.
+function jsonValue(value: string): string | number {
+  if (value === "true") return 1;
+  if (value === "false") return 0;
+  return value;
 }
