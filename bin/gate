@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# bin/gate — the single QA entry point (AGENTS.md, spec §14).
+# Must pass before opening any PR; CI re-runs it on every PR.
+#
+# Steps: typecheck + lint + format check + full test suite + corpus check
+# on this repo's own catalog. Any step failing fails the gate.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+step() {
+  echo
+  echo "=== gate: $1 ==="
+}
+
+step "typecheck"
+npm run typecheck
+
+step "lint"
+npm run lint
+
+step "format"
+npm run format
+
+step "tests"
+npm test
+
+step "corpus check (self catalog)"
+# Placeholder: `corpus check` is built in M4 (spec §16) — see
+# docs/DECISIONS.md "M0 bootstrap sequence". Skips unconditionally so an
+# M1-era CLI without a real `check` can never silently pass this step;
+# the M4 corpus-check ticket replaces this whole block with the real
+# invocation.
+echo "WARNING: 'corpus check' SKIPPED — not built until M4." >&2
+echo "WARNING: placeholder step; the M4 corpus-check ticket replaces it." >&2
+
+echo
+echo "=== gate: PASS ==="
