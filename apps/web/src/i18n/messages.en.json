@@ -1,0 +1,8 @@
+{
+  "app.title": "Corpus",
+  "app.tagline": "A translation workbench for structured text",
+  "home.heading": "Corpus",
+  "notFound.heading": "Page not found",
+  "notFound.description": "This page does not exist. Check the address or go back to the dashboard.",
+  "notFound.backHome": "Back to home"
+}

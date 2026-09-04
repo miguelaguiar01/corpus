@@ -1,8 +1,13 @@
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { t } from "@/i18n";
 import "./globals.css";
 
-// Chrome strings (metadata, headings, …) arrive with the i18n catalog
-// wiring (#13) — this shell deliberately renders no user-facing text.
+export const metadata: Metadata = {
+  title: t("app.title"),
+  description: t("app.tagline"),
+};
+
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">

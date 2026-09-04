@@ -1,8 +1,9 @@
 @import "tailwindcss";
 
 /* shadcn/ui theme tokens — quiet visual identity, system light/dark (§9).
-   Light values on :root, dark under the media query; the .dark class is
-   the manual override hook if one is ever needed. */
+   Light values on :root, dark under the media query. Theme switching is
+   token-based: components use token colors (bg-background, text-foreground,
+   …), never `dark:` utilities — there is no .dark class in this app. */
 :root {
   --background: oklch(0.99 0 0);
   --foreground: oklch(0.18 0 0);
