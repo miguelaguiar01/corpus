@@ -1,7 +1,11 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { validateTranslation } from "@corpus/contract";
+import {
+  renderPreview,
+  validateTranslation,
+  type Example,
+} from "@corpus/contract";
 import type { QueueKind } from "@/catalogue/queues";
 import { Button } from "@/components/ui/button";
 import { t } from "@/i18n";
@@ -25,6 +29,7 @@ export function TargetPane({
   stringKey,
   openedVersion,
   queue,
+  examples = [],
 }: {
   action: (formData: FormData) => void | Promise<void>;
   source: string;
@@ -35,6 +40,7 @@ export function TargetPane({
   stringKey: string;
   openedVersion: number;
   queue?: QueueKind;
+  examples?: Example[];
 }) {
   const [text, setText] = useState(initialText);
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -99,6 +105,24 @@ export function TargetPane({
           ))}
         </div>
       )}
+      {examples.length > 0 && (
+        <section
+          role="region"
+          aria-label={t("editor.previewHeading")}
+          className="space-y-1.5"
+        >
+          <h3 className="text-sm text-muted-foreground">
+            {t("editor.previewHeading")}
+          </h3>
+          <ul className="space-y-1.5">
+            {previews(text, blank, examples).map((preview, index) => (
+              <li key={index} className="text-base leading-relaxed">
+                {preview}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {errors.length > 0 && (
         <ul role="alert" className="space-y-0.5 text-sm text-destructive">
           {errors.map((error, index) => (
@@ -116,4 +140,16 @@ export function TargetPane({
       </Button>
     </form>
   );
+}
+
+// Live preview (§7): each example's values substituted into the draft,
+// so both select branches show as the translator types. With no draft
+// yet, the examples' own source-language renders stand in. A draft the
+// parser rejects previews nothing; the validation list explains why.
+function previews(text: string, blank: boolean, examples: Example[]): string[] {
+  return examples.flatMap((example) => {
+    if (blank) return [example.rendered];
+    const result = renderPreview(text, example.values);
+    return result.ok ? [result.text] : [];
+  });
 }
