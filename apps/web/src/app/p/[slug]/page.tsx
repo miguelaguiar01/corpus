@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { requireUser } from "@/auth/session";
 import { getDb } from "@/db";
 import { progressCounts } from "@/catalogue/progress";
 import { allQueues } from "@/catalogue/queues";
@@ -18,6 +19,7 @@ export default async function ProjectHome({
 }: {
   params: Promise<{ slug: string }>;
 }) {
+  await requireUser();
   const { slug } = await params;
   const db = getDb();
   const project = getProjectBySlug(db, slug);

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActiveFilters } from "@/components/active-filters";
 import { CatalogueRow } from "@/components/catalogue-row";
+import { requireUser } from "@/auth/session";
 import { getDb } from "@/db";
 import { searchStringIds } from "@/db/search";
 import { declaredMetadataFields, deriveFacets } from "@/catalogue/facets";
@@ -53,6 +54,7 @@ export default async function CataloguePage({
   params: Promise<{ slug: string }>;
   searchParams: Promise<SearchParams>;
 }) {
+  await requireUser();
   const { slug } = await params;
   const raw = await searchParams;
   const db = getDb();

@@ -1,6 +1,6 @@
 import { placeholdersOf } from "@corpus/contract";
 import { notFound } from "next/navigation";
-import { currentUser } from "@/auth/session";
+import { requireUser } from "@/auth/session";
 import { isQueueKind, queueItems } from "@/catalogue/queues";
 import { getDb } from "@/db";
 import { EntityCards } from "@/components/entity-cards";
@@ -43,6 +43,7 @@ export default async function StringPage({
   params: Promise<{ slug: string; stringId: string }>;
   searchParams: Promise<Query>;
 }) {
+  const user = await requireUser();
   const { slug, stringId } = await params;
   const query = await searchParams;
   const db = getDb();
@@ -50,7 +51,6 @@ export default async function StringPage({
   if (!project) notFound();
   const detail = stringDetail(db, project.id, decodeURIComponent(stringId));
   if (!detail) notFound();
-  const user = await currentUser();
   const { string, declarations, translations, entities, history } = detail;
   const examples = string.examples ?? [];
 
