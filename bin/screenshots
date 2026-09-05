@@ -21,6 +21,7 @@ if [ -z "${CORPUS_SMOKE_SKIP_BUILD:-}" ]; then
   npm run build -w apps/web
 fi
 
+for viewport in phone desktop; do
 for scheme in light dark; do
   cleanup; PID=""
   TMP="$(mktemp -d)"
@@ -28,7 +29,7 @@ for scheme in light dark; do
   cp -r apps/web/.next/standalone/. "$TMP/run/"
   mkdir -p "$TMP/run/apps/web/.next"
   cp -r apps/web/.next/static "$TMP/run/apps/web/.next/static"
-  echo "=== screenshots: $scheme ==="
+  echo "=== screenshots: $viewport $scheme ==="
   PORT="$PORT" HOSTNAME=127.0.0.1 NODE_ENV=production \
     CORPUS_DB_PATH="$TMP/data/corpus.db" \
     CORPUS_INVITE_SECRET=smoke-only-not-a-secret \
@@ -40,6 +41,7 @@ for scheme in light dark; do
   done
   curl -sf "http://127.0.0.1:$PORT/api/health" >/dev/null || { cat "$TMP/server.log" >&2; exit 1; }
   CORPUS_SMOKE_URL="http://127.0.0.1:$PORT" CORPUS_SMOKE_SECRET=smoke-only-not-a-secret \
-    CORPUS_SHOT_SCHEME="$scheme" npx tsx apps/web/e2e/screenshots.ts
+    CORPUS_SHOT_SCHEME="$scheme" CORPUS_SHOT_VIEWPORT="$viewport" npx tsx apps/web/e2e/screenshots.ts
+done
 done
 echo "=== screenshots: done ==="
