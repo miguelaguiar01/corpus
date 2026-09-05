@@ -52,8 +52,10 @@ export function renderPreviewSegments(
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
   const segments: PreviewSegment[] = [];
   render(parsed.nodes, values, segments);
-  const first = segments[0];
-  if (parsed.nodes[0]?.kind === "placeholder" && first && first.text) {
+  // Capitalise the first character of the whole render, wherever it
+  // falls: an empty leading value must not stop it.
+  const first = segments.find((segment) => segment.text.length > 0);
+  if (parsed.nodes[0]?.kind === "placeholder" && first) {
     first.text = first.text[0]!.toUpperCase() + first.text.slice(1);
   }
   return { ok: true, segments };

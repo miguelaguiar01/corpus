@@ -34,6 +34,17 @@ test("segments tell the example's values apart from the draft's words", () => {
   );
 });
 
+test("an empty leading value still capitalises the sentence", () => {
+  expect(renderPreview("{a}bcd", { a: "" })).toEqual({ ok: true, text: "Bcd" });
+  expect(renderPreviewSegments("{a}bcd", { a: "" })).toEqual({
+    ok: true,
+    segments: [
+      { text: "", value: true },
+      { text: "Bcd", value: false },
+    ],
+  });
+});
+
 test("previewsFor renders one preview per example, in order", () => {
   expect(previewsFor(sighting.source, sighting.examples!)).toEqual([
     { ok: true, text: first!.rendered },
