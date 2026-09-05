@@ -6,7 +6,6 @@
 # reads the workspace's source; only the tarball and a booted container.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-ROOT="$PWD"
 
 export CORPUS_SMOKE_NAME="corpus-install-$$"
 export CORPUS_SMOKE_PORT="${CORPUS_INSTALL_PORT:-3904}"
@@ -59,7 +58,7 @@ npx corpus init --project install-smoke --source en --languages en,pt-PT \
 grep -q '@corpus-tool/cli' corpus.config.ts
 
 # What the repository looks like before Corpus touches it.
-cp -r "$CLIENT" "$TMP/before"
+cp -r "$CLIENT" "$TMP/before" && rm -rf "$TMP/before/node_modules"
 same_as_before() {
   diff -r --exclude=node_modules --exclude=package-lock.json "$TMP/before" "$CLIENT" \
     || { echo "pull changed the repository ($1)" >&2; exit 1; }
@@ -67,7 +66,7 @@ same_as_before() {
 
 echo "=== install-smoke: push ==="
 npx corpus push | tee "$TMP/push.log"
-grep -q "added" "$TMP/push.log"
+grep -q "2 added" "$TMP/push.log"
 
 echo "=== install-smoke: pull at untranslated must reproduce the repository ==="
 npx corpus pull --min-state untranslated
