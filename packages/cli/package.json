@@ -15,6 +15,7 @@
   "dependencies": {
     "@corpus/adapters": "*",
     "@corpus/contract": "*",
-    "jiti": "^2.4.0"
+    "jiti": "^2.4.0",
+    "typescript": "^5.6.0"
   }
 }
