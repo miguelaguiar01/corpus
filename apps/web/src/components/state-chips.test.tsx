@@ -34,3 +34,28 @@ test("a language with no row defaults to untranslated", () => {
   render(<StateChips languages={["fr"]} states={{}} />);
   expect(screen.getByText("fr")).toBeTruthy();
 });
+
+test("the three states are visibly distinct, not only by colour", () => {
+  render(
+    <StateChips
+      languages={["a", "b", "c"]}
+      states={{
+        a: { state: "untranslated", stale: false },
+        b: { state: "translated", stale: false },
+        c: { state: "verified", stale: false },
+      }}
+    />,
+  );
+  const chip = (language: string) =>
+    screen.getByText(language).closest("span[title]")!;
+  const classes = ["a", "b", "c"].map((l) => chip(l).className);
+  expect(new Set(classes).size).toBe(3);
+  // Untranslated is outlined (nothing filled), translated is filled in the
+  // quiet tone, verified is filled in the strong tone and carries a mark.
+  expect(chip("a").className).toMatch(/border/);
+  expect(chip("a").className).not.toMatch(/bg-(muted|secondary|primary)\b/);
+  expect(chip("b").className).toMatch(/bg-muted-foreground/);
+  expect(chip("c").className).toMatch(/bg-primary/);
+  expect(chip("c").textContent).toMatch(/✓/);
+  expect(chip("b").textContent).not.toMatch(/✓/);
+});
