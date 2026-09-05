@@ -39,6 +39,9 @@ export default async function ProjectLayout({
           <Link href={`/p/${slug}/catalogue`} className="hover:underline">
             {t("nav.catalogue")}
           </Link>
+          <Link href={`/p/${slug}/entities`} className="hover:underline">
+            {t("nav.entities")}
+          </Link>
         </nav>
       </header>
       <div className="px-4 py-6">{children}</div>
