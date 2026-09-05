@@ -257,3 +257,26 @@ test("a save aimed at the source language is rejected server-side", () => {
   });
   expect(stringDetail(db, p.id, KEYS[2]!)?.history).toHaveLength(0);
 });
+
+test("saving the same text again is a no-op transition that still moves on", () => {
+  const { db, p, rui } = pushed();
+  const save = () =>
+    transitionFlow(db, {
+      project: p,
+      user: rui,
+      key: KEYS[2]!,
+      language: "en",
+      action: { type: "save", text: "Continue" },
+    });
+  save();
+  const result = save();
+  expect(result).toEqual({
+    kind: "redirect",
+    to: `/p/mm/s/${encodeURIComponent(KEYS[2]!)}`,
+  });
+  expect(stringDetail(db, p.id, KEYS[2]!)?.history).toHaveLength(2);
+  expect(textOf(db, p.id, KEYS[2]!, "en")).toMatchObject({
+    state: "translated",
+    text: "Continue",
+  });
+});

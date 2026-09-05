@@ -176,3 +176,66 @@ test("the server being unreachable is a clean error", async () => {
   expect(await run(["pull"], c)).toBe(1);
   expect(c.output.join("\n")).toMatch(/could not reach the server/);
 });
+
+test("a table source with {lang} is written per language, one record per line", async () => {
+  const { writeFileSync, mkdirSync } = await import("node:fs");
+  mkdirSync(path.join(repo, "data"), { recursive: true });
+  writeFileSync(
+    path.join(repo, "data/steps.en.json"),
+    `[\n  { "id": "step.1", "text": "Open the door.", "kind": "hint" }\n]\n`,
+  );
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    read("corpus.config.ts").replace(
+      "sources: [",
+      'sources: [\n    { adapter: "table", type: "step", path: "data/steps.{lang}.json", map: { id: "id", text: "text" } },',
+    ),
+  );
+  await serve(200, {
+    ...PAYLOAD,
+    types: { ...PAYLOAD.types, "step.1": "step" },
+    translations: {
+      en: { ...PAYLOAD.translations.en, "step.1": "Open the door." },
+      pt: { ...PAYLOAD.translations.pt, "step.1": "Abre a porta." },
+    },
+  });
+  const c = ctx();
+  expect(await run(["pull"], c)).toBe(0);
+  expect(read("data/steps.pt.json")).toBe(
+    `[\n  { "id": "step.1", "text": "Abre a porta.", "kind": "hint" }\n]\n`,
+  );
+  expect(c.output.join("\n")).toContain("data/steps.pt.json");
+});
+
+test("an invalid --min-state is refused before any request", async () => {
+  const { calls } = await serve();
+  const c = ctx();
+  expect(await run(["pull", "--min-state", "done"], c)).toBe(1);
+  expect(c.output.join("\n")).toMatch(/--min-state must be one of/);
+  expect(calls).toHaveLength(0);
+});
+
+test("translations no writable source can take are reported, not dropped silently", async () => {
+  await serve(200, {
+    ...PAYLOAD,
+    types: { ...PAYLOAD.types, "orphan.x": "nowhere" },
+    translations: {
+      ...PAYLOAD.translations,
+      pt: { ...PAYLOAD.translations.pt, "orphan.x": "?" },
+    },
+  });
+  const { writeFileSync } = await import("node:fs");
+  // Drop the exec importer so nothing can claim the orphan.
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    read("corpus.config.ts").replace(
+      /,\s*importCommand: "node scripts\/import.mjs"/,
+      "",
+    ),
+  );
+  const c = ctx();
+  expect(await run(["pull"], c)).toBe(0);
+  expect(c.output.join("\n")).toMatch(
+    /2 translation\(s\) belong to no writable source/,
+  );
+});
