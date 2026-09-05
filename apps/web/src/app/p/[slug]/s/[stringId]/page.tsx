@@ -116,7 +116,10 @@ export default async function StringPage({
       {target && targetRow && !string.archived && (
         <section className="space-y-3">
           {targetRow.stale && (
-            <p className="text-sm text-destructive" role="status">
+            <p
+              className="rounded-md bg-state-stale px-3 py-2 text-sm text-state-stale-foreground"
+              role="status"
+            >
               {t("editor.staleBanner")}
             </p>
           )}
