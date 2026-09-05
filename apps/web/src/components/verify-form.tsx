@@ -17,7 +17,9 @@ export function VerifyForm({
   stringKey: string;
   openedVersion: number;
   queue?: QueueKind;
-  language?: string;
+  // The row the sign-off acts on; named on the button so a maintainer
+  // never mistakes proofreading the source for verifying a translation.
+  language: string;
 }) {
   return (
     <form action={action}>
@@ -25,9 +27,9 @@ export function VerifyForm({
       <input type="hidden" name="key" value={stringKey} />
       <input type="hidden" name="openedVersion" value={openedVersion} />
       {queue && <input type="hidden" name="queue" value={queue} />}
-      {language && <input type="hidden" name="language" value={language} />}
+      <input type="hidden" name="language" value={language} />
       <Button type="submit" size="lg" className="min-h-12 w-full text-base">
-        {t("verify.button")}
+        {t("verify.button", { language })}
       </Button>
     </form>
   );
