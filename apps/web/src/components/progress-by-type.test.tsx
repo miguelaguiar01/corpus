@@ -39,7 +39,7 @@ test("renders a labelled bar per string type under each language", () => {
 
 test("names the three fills once, in a legend", () => {
   render(<ProgressByType progress={progress} />);
-  const legend = screen.getByRole("list", { name: "Fills" });
+  const legend = screen.getByRole("list", { name: "Legend" });
   expect(legend.textContent).toBe("VerifiedTranslatedUntranslated");
 });
 

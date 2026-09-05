@@ -6,7 +6,7 @@ import { PageHeader } from "./page-header";
 afterEach(cleanup);
 
 const TITLE = "Moonlight Manor";
-const META = "Languages: pt-PT, en";
+const META = "Corpus build v0.5.0";
 const ACTION = "Act";
 
 test("renders the title as the page heading with optional meta and actions", () => {

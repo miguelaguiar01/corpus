@@ -90,6 +90,7 @@ export default async function StringPage({
     ? (ERROR_KEY[query.error] ?? "verify.errorGeneric")
     : undefined;
 
+  const editing = Boolean(target && targetRow && !string.archived);
   const verify = canVerify && acted && (
     <VerifyForm
       action={verifyString}
@@ -124,8 +125,14 @@ export default async function StringPage({
           />
         </div>
       )}
-      <div className="grid gap-x-10 gap-y-8 lg:grid-cols-12">
-        <div className="space-y-8 lg:col-span-5">
+      <div
+        className={
+          editing
+            ? "grid gap-x-10 gap-y-8 lg:grid-cols-12"
+            : "max-w-2xl space-y-8"
+        }
+      >
+        <div className={editing ? "space-y-8 lg:col-span-5" : "space-y-8"}>
           <header className="space-y-3">
             <p className="font-mono text-xs text-muted-foreground">
               {string.key}
@@ -162,7 +169,7 @@ export default async function StringPage({
           )}
         </div>
 
-        <div className="space-y-6 lg:col-span-7">
+        <div className={editing ? "space-y-6 lg:col-span-7" : "space-y-6"}>
           {target && targetRow && !string.archived && (
             <section className="space-y-3">
               {targetRow.stale && (

@@ -62,7 +62,7 @@ token colours only.
 | Token | Meaning |
 |---|---|
 | `background`, `foreground` | page ground and ink |
-| `card`, `popover` | raised surfaces, one step off the background in both themes |
+| `popover` | the one raised surface, the project switcher's list; cards are hairlines on the background |
 | `muted`, `muted-foreground` | quiet fills and secondary text |
 | `secondary`, `accent` | control fills; achromatic |
 | `primary` | the ink button; achromatic |

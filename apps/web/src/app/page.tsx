@@ -11,8 +11,6 @@ import { Button } from "@/components/ui/button";
 import { listProjects } from "@/projects/service";
 import { t } from "@/i18n";
 
-const PUSH_COMMAND = "corpus push";
-
 export default async function Home() {
   const user = await requireUser();
   const db = getDb();
@@ -47,7 +45,7 @@ export default async function Home() {
             </p>
             {user.maintainer && (
               <code className="block w-fit rounded-md bg-muted px-3 py-2 text-sm">
-                {PUSH_COMMAND}
+                corpus push
               </code>
             )}
           </div>

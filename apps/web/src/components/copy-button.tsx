@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { t } from "@/i18n";
 
@@ -9,11 +9,15 @@ import { t } from "@/i18n";
 // and the text stays selectable.
 export function CopyButton({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(timer);
+  }, [copied]);
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(value);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
     } catch {
       // The text is still there to select.
     }
