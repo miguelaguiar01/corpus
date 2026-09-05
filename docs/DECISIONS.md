@@ -144,3 +144,16 @@ and the round-trip invariant (§8) is worth more than write support for
 one more file type. The exec hook already exists for exactly this case.
 
 **Context:** #110.
+
+## 2026-09-05 — Host and image share one Node major (22)
+
+**Decision:** `engines.node` is `22.x`, `.nvmrc` says `22`, CI reads
+`.nvmrc`, and the Dockerfile's builder and runner are `node:22-slim`.
+
+**Why:** `better-sqlite3` is a native module. Prebuilt binaries exist for
+common platforms, so a newer host often works by luck; when they do not,
+a mismatched major means a toolchain and a confusing first install. One
+number in four places keeps mode 1 (local) and mode 2 (container)
+honest with each other (§2).
+
+**Context:** #131, from the local-vs-container review.
