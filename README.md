@@ -49,7 +49,7 @@ docker run -d --name corpus \
   corpus
 ```
 
-Open http://localhost:3000, enter the invite secret you just set and a display name. The first person to join becomes the instance maintainer. All data lives in the `corpus-data` volume; the container is disposable.
+Open http://localhost:3000, join with the invite secret you just set, a display name, and a password. The first person to join becomes the instance maintainer; anyone with the secret can join, and after that they sign in with their name and password. A maintainer can reset a forgotten password from the settings page. All data lives in the `corpus-data` volume; the container is disposable.
 
 With Docker Compose, or a PaaS that reads `compose.yaml`:
 
@@ -105,7 +105,7 @@ Source text and metadata belong to the repository; translations and workflow sta
 | Catalogue | Every string, searched (accent-insensitive full text) and filtered by type, state, language, and the project's own metadata.                              |
 | Editor    | The source with its branches, placeholders, metadata, entities and examples on one side; the draft with chips, validation and live previews on the other. |
 | Entities  | Read-only cards for the characters, rooms and other objects the strings refer to.                                                                         |
-| Settings  | The push token, languages, push history, and the people on the instance. Maintainers only.                                                                |
+| Settings  | The push token, languages, push history, and the people on the instance, with password resets. Maintainers only.                                         |
 
 ## Screens
 

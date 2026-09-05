@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db";
-import { INVITE_PATH, SESSION_COOKIE } from "./constants";
+import { INVITE_PATH, PASSWORD_PATH, SESSION_COOKIE } from "./constants";
 import { getSessionUser, type User } from "./service";
 
 export async function currentUser(): Promise<User | undefined> {
@@ -12,9 +12,11 @@ export async function currentUser(): Promise<User | undefined> {
 }
 
 // Guard for every protected server component: resolves the session or
-// sends the visitor to the invite prompt (§10).
+// sends the visitor to the sign-in prompt (§10). A temporary password
+// (after a maintainer's reset) must be replaced before anything else.
 export async function requireUser(): Promise<User> {
   const user = await currentUser();
   if (!user) redirect(INVITE_PATH);
+  if (user.passwordTemporary) redirect(PASSWORD_PATH);
   return user;
 }

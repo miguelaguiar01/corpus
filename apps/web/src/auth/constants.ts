@@ -6,6 +6,7 @@ import type { MessageKey } from "@/i18n";
 export const SESSION_COOKIE = "corpus_session";
 
 export const INVITE_PATH = "/invite";
+export const PASSWORD_PATH = "/password";
 
 export const MAX_NAME_LENGTH = 80;
 
@@ -14,6 +15,9 @@ export const MAX_NAME_LENGTH = 80;
 // both import this, so adding a code is a one-file change.
 export const INVITE_ERROR_MESSAGES = {
   invalid: "invite.errorInvalid",
+  credentials: "invite.errorCredentials",
+  "name-taken": "invite.errorNameTaken",
+  "weak-password": "invite.errorWeakPassword",
   "rate-limited": "invite.errorRateLimited",
 } as const satisfies Record<string, MessageKey>;
 

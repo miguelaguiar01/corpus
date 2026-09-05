@@ -1,6 +1,6 @@
 import { moonlightManor } from "@corpus/contract";
 import { expect, test, type Page } from "@playwright/test";
-import { join } from "./session";
+import { join, signIn, signOut } from "./session";
 
 // A page that overflows sideways on a phone pans the visual viewport and
 // breaks hit-testing of the fixed bottom bar; catch it where it happens.
@@ -93,4 +93,13 @@ test("a maintainer takes a string from pushed to verified on a phone", async ({
   await expectNoSidewaysOverflow(page);
   await page.getByRole("link", { name: /seen-at-greenhouse-window/ }).click();
   await expectNoSidewaysOverflow(page);
+
+  // Signing out ends the session on the server; signing back in with the
+  // password lands on the same instance with the same account.
+  await signOut(page);
+  await page.goto(dashboard);
+  await page.waitForURL(/\/invite/);
+  await signIn(page, "ana");
+  await page.goto(dashboard);
+  await expect(page.getByText("1 verified, 2 translated of 3")).toBeVisible();
 });

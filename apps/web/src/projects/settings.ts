@@ -1,5 +1,6 @@
 // Maintainer corner services (§9.5, §10). Every action re-checks the
 // acting user's maintainer flag; the UI only decides what to show.
+import { endSessionsOf, resetPassword } from "@/auth/service";
 import { eq } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 import type { Db } from "@/db";
@@ -92,5 +93,21 @@ export function setMaintainer(
     if (remaining === 0) return { ok: false, reason: "last-maintainer" };
   }
   db.update(users).set({ maintainer }).where(eq(users.id, userId)).run();
+  // A demoted maintainer's open sessions still carry the old flag until
+  // their next request; ending them makes the change take effect now.
+  if (!maintainer && target.maintainer) endSessionsOf(db, userId);
   return { ok: true };
+}
+
+// A maintainer issues a temporary password (§10): it ends the person's
+// sessions and must be replaced at their next sign-in.
+export function resetUserPassword(
+  db: Db,
+  userId: number,
+  actor: Actor,
+): SettingsResult<{ temporary: string }> {
+  if (!isMaintainer(db, actor)) return { ok: false, reason: "forbidden" };
+  const target = db.select().from(users).where(eq(users.id, userId)).get();
+  if (!target) return { ok: false, reason: "not-found" };
+  return { ok: true, temporary: resetPassword(db, userId) };
 }
