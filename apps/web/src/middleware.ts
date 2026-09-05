@@ -13,13 +13,15 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
   if (request.cookies.has(SESSION_COOKIE)) return NextResponse.next();
-  // A relative Location: the standalone server reports its bind address
-  // in request.url, so an absolute redirect built from it would send a
-  // visitor of any real host to localhost.
-  return new NextResponse(null, {
-    status: 307,
-    headers: { location: INVITE_PATH },
-  });
+  // Built from the Host header: the standalone server reports its bind
+  // address in request.url, so a redirect built from that sends a
+  // visitor of any real host to localhost. (The runtime rejects a
+  // relative Location.)
+  const host = request.headers.get("host");
+  const origin = host
+    ? `${request.nextUrl.protocol}//${host}`
+    : request.nextUrl.origin;
+  return NextResponse.redirect(new URL(INVITE_PATH, origin));
 }
 
 export const config = {

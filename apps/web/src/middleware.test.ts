@@ -32,14 +32,14 @@ test.each(["/api/push", "/api/health", "/api/push?dryRun"])(
   },
 );
 
-test("the redirect is relative, so it lands on the host the visitor used", () => {
+test("the redirect goes to the host the visitor used", () => {
   // The standalone server reports its bind address in request.url, not
-  // the visitor's host; an absolute redirect built from it sends a
-  // visitor of corpus.example.com to localhost.
-  const req = new NextRequest("http://localhost:3000/p/moonlight", {
+  // the visitor's host; a redirect built from it would send a visitor of
+  // corpus.example.com to localhost.
+  const req = new NextRequest("http://localhost:3000/p/moonlight?x=1", {
     headers: { host: "corpus.example.com" },
   });
   const res = middleware(req);
   expect(res.status).toBe(307);
-  expect(res.headers.get("location")).toBe("/invite");
+  expect(res.headers.get("location")).toBe("http://corpus.example.com/invite");
 });
