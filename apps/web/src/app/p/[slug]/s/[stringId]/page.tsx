@@ -179,6 +179,7 @@ export default async function StringPage({
                 openedVersion={targetRow.version}
                 queue={queueKind}
                 examples={examples}
+                sourceLanguage={project.sourceLanguage}
               />
             </section>
           )}

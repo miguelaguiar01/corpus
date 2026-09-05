@@ -10,14 +10,28 @@ import { parseIcu, type IcuError, type IcuNode } from "./icu";
 export type PreviewResult =
   { ok: true; text: string } | { ok: false; errors: IcuError[] };
 
+// A preview split into what the draft says and what the example put in
+// (a slot's value), so an editor can show the two apart.
+export type PreviewSegment = { text: string; value: boolean };
+export type PreviewSegmentsResult =
+  { ok: true; segments: PreviewSegment[] } | { ok: false; errors: IcuError[] };
+
 export type PreviewExample = { values: Record<string, string> };
 
-function render(nodes: IcuNode[], values: Record<string, string>): string {
-  let text = "";
+function render(
+  nodes: IcuNode[],
+  values: Record<string, string>,
+  out: PreviewSegment[],
+): void {
   for (const node of nodes) {
-    if (node.kind === "literal") text += node.text;
+    if (node.kind === "literal") out.push({ text: node.text, value: false });
     else if (node.kind === "placeholder") {
-      text += values[node.name] ?? `{${node.name}}`;
+      const value = values[node.name];
+      out.push(
+        value === undefined
+          ? { text: `{${node.name}}`, value: false }
+          : { text: value, value: true },
+      );
     } else {
       const value = values[node.arg];
       const branch =
@@ -25,23 +39,33 @@ function render(nodes: IcuNode[], values: Record<string, string>): string {
         node.branches.other ??
         Object.values(node.branches)[0] ??
         [];
-      text += render(branch, values);
+      render(branch, values, out);
     }
   }
-  return text;
+}
+
+export function renderPreviewSegments(
+  message: string,
+  values: Record<string, string>,
+): PreviewSegmentsResult {
+  const parsed = parseIcu(message);
+  if (!parsed.ok) return { ok: false, errors: parsed.errors };
+  const segments: PreviewSegment[] = [];
+  render(parsed.nodes, values, segments);
+  const first = segments[0];
+  if (parsed.nodes[0]?.kind === "placeholder" && first && first.text) {
+    first.text = first.text[0]!.toUpperCase() + first.text.slice(1);
+  }
+  return { ok: true, segments };
 }
 
 export function renderPreview(
   message: string,
   values: Record<string, string>,
 ): PreviewResult {
-  const parsed = parseIcu(message);
-  if (!parsed.ok) return { ok: false, errors: parsed.errors };
-  let text = render(parsed.nodes, values);
-  if (parsed.nodes[0]?.kind === "placeholder" && text.length > 0) {
-    text = text[0]!.toUpperCase() + text.slice(1);
-  }
-  return { ok: true, text };
+  const result = renderPreviewSegments(message, values);
+  if (!result.ok) return result;
+  return { ok: true, text: result.segments.map((s) => s.text).join("") };
 }
 
 export function previewsFor(

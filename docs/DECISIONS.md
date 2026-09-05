@@ -189,3 +189,18 @@ matching mono for string keys and braces, and reads as a tool rather than
 a template. Self-hosting keeps the runtime network-free.
 
 **Context:** #166, from the M5 design audit on epic #114.
+
+## 2026-09-05 — Previews name the language of their values and mute them
+
+**Decision:** the editor's preview heading says which language the example
+values come from ("Preview with pt-PT values"), and the substituted values
+render in the quiet tone while the translator's own words stay in the
+foreground tone. The contract gains `renderPreviewSegments`, the same
+substitution as `renderPreview` but keeping value and draft text apart;
+`renderPreview` is built on it.
+
+**Why:** example values are source-language values used as-is for every
+target (§7, §13); a preview like "was seen at the da estufa window" must
+read as data the translator cannot fix here, not as their mistake.
+
+**Context:** #175, from the M5 demo finding (#145).

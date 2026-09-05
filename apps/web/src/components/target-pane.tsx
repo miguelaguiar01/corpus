@@ -3,9 +3,10 @@
 import { useRef, useState } from "react";
 import {
   parseIcu,
-  renderPreview,
+  renderPreviewSegments,
   validateTranslation,
   type Example,
+  type PreviewSegment,
 } from "@corpus/contract";
 import type { QueueKind } from "@/catalogue/queues";
 import { Banner } from "@/components/ui/banner";
@@ -57,6 +58,7 @@ export function TargetPane({
   openedVersion,
   queue,
   examples = [],
+  sourceLanguage,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   source: string;
@@ -68,6 +70,9 @@ export function TargetPane({
   openedVersion: number;
   queue?: QueueKind;
   examples?: Example[];
+  // The examples' slot values are in the source language (§7); the
+  // preview says so.
+  sourceLanguage: string;
 }) {
   const [text, setText] = useState(initialText);
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -167,16 +172,24 @@ export function TargetPane({
       {examples.length > 0 && (
         <section
           role="region"
-          aria-label={t("editor.previewHeading")}
+          aria-label={t("editor.previewHeading", { language: sourceLanguage })}
           className="space-y-1.5"
         >
           <h3 className="text-sm font-medium text-muted-foreground">
-            {t("editor.previewHeading")}
+            {t("editor.previewHeading", { language: sourceLanguage })}
           </h3>
           <ul className="space-y-1.5">
-            {previews(text, blank, examples).map((preview, index) => (
+            {previews(text, blank, examples).map((segments, index) => (
               <li key={index} className="text-base leading-relaxed">
-                {preview}
+                {segments.map((segment, i) =>
+                  segment.value ? (
+                    <span key={i} className="text-muted-foreground">
+                      {segment.text}
+                    </span>
+                  ) : (
+                    <span key={i}>{segment.text}</span>
+                  ),
+                )}
               </li>
             ))}
           </ul>
@@ -204,13 +217,18 @@ export function TargetPane({
 }
 
 // Live preview (§7): each example's values substituted into the draft,
-// so both select branches show as the translator types. With no draft
+// so both select branches show as the translator types, the values in
+// the quiet tone so the translator's own words stand out. With no draft
 // yet, the examples' own source-language renders stand in. A draft the
 // parser rejects previews nothing; the validation list explains why.
-function previews(text: string, blank: boolean, examples: Example[]): string[] {
+function previews(
+  text: string,
+  blank: boolean,
+  examples: Example[],
+): PreviewSegment[][] {
   return examples.flatMap((example) => {
-    if (blank) return [example.rendered];
-    const result = renderPreview(text, example.values);
-    return result.ok ? [result.text] : [];
+    if (blank) return [[{ text: example.rendered, value: false }]];
+    const result = renderPreviewSegments(text, example.values);
+    return result.ok ? [result.segments] : [];
   });
 }
