@@ -30,20 +30,21 @@ for scheme in light dark; do
   mkdir -p "$TMP/run/apps/web/.next"
   cp -r apps/web/.next/static "$TMP/run/apps/web/.next/static"
   echo "=== screenshots: $viewport $scheme ==="
-  # Bound to localhost, as Next names a loopback bind: bound to 127.0.0.1 the
-  # middleware would redirect to http://localhost:PORT, a different origin for
-  # the browser, and a prefetch of that never settles.
+  # localhost throughout, never 127.0.0.1: Next names a loopback bind
+  # localhost in the middleware URL, so a 127.0.0.1 origin gets an absolute
+  # cross-origin redirect that a prefetch never settles; and a localhost
+  # bind may listen on ::1 only, which a 127.0.0.1 health check misses.
   PORT="$PORT" HOSTNAME=localhost NODE_ENV=production \
     CORPUS_DB_PATH="$TMP/data/corpus.db" \
     CORPUS_INVITE_SECRET=smoke-only-not-a-secret \
     node "$TMP/run/apps/web/server.js" >"$TMP/server.log" 2>&1 &
   PID=$!
   for _ in $(seq 1 60); do
-    curl -sf "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1 && break
+    curl -sf "http://localhost:$PORT/api/health" >/dev/null 2>&1 && break
     sleep 1
   done
-  curl -sf "http://127.0.0.1:$PORT/api/health" >/dev/null || { cat "$TMP/server.log" >&2; exit 1; }
-  CORPUS_SMOKE_URL="http://127.0.0.1:$PORT" CORPUS_SMOKE_SECRET=smoke-only-not-a-secret \
+  curl -sf "http://localhost:$PORT/api/health" >/dev/null || { cat "$TMP/server.log" >&2; exit 1; }
+  CORPUS_SMOKE_URL="http://localhost:$PORT" CORPUS_SMOKE_SECRET=smoke-only-not-a-secret \
     CORPUS_SHOT_SCHEME="$scheme" CORPUS_SHOT_VIEWPORT="$viewport" npx tsx apps/web/e2e/screenshots.ts
 done
 done
