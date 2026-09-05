@@ -4,7 +4,7 @@ import { t, type MessageKey } from "@/i18n";
 import { chipVariants } from "@/components/ui/chip";
 import { cn } from "@/lib/utils";
 
-const BUILTIN_LABEL: Record<string, MessageKey> = {
+export const BUILTIN_LABEL: Record<string, MessageKey> = {
   type: "facet.type",
   state: "facet.state",
   language: "facet.language",
@@ -23,7 +23,7 @@ export function FacetPanel({
   active: URLSearchParams;
 }) {
   return (
-    <aside className="space-y-4 text-sm">
+    <aside className="space-y-4 text-sm md:sticky md:top-4 md:self-start">
       {facets.map((facet) => {
         if (facet.kind === "archived") {
           const on = active.get("archived") === "1";
