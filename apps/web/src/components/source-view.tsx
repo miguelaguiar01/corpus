@@ -5,6 +5,7 @@ import {
 } from "@corpus/contract";
 import { chipVariants } from "@/components/ui/chip";
 import { t } from "@/i18n";
+import { cn } from "@/lib/utils";
 
 // The source (§9.3) reads as one sentence at one size: placeholders as
 // mono chips, each select as its branches inline ("visto / vista") with
@@ -29,6 +30,7 @@ export function SourceView({
       <p className={className}>{renderNodes(parsed.nodes, slots)}</p>
       {selects.length > 0 && (
         <dl
+          role="group"
           aria-label={t("source.branches")}
           className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground"
         >
@@ -67,10 +69,13 @@ function slotDescriptions(
   return slots;
 }
 
-const PLACEHOLDER = chipVariants({
-  variant: "key",
-  className: "align-baseline px-[0.4em] py-[0.1em] text-[0.6em] leading-tight",
-});
+const PLACEHOLDER = cn(
+  chipVariants({ variant: "key" }),
+  "align-baseline px-[0.4em] py-[0.1em] text-[0.6em] leading-tight",
+);
+
+// Word, slash, word stay together; a long branch still wraps.
+const SLASH = "\u00a0/\u00a0";
 
 function renderNodes(nodes: IcuNode[], slots: Map<string, string>) {
   return nodes.map((node, index) => {
@@ -83,18 +88,10 @@ function renderNodes(nodes: IcuNode[], slots: Map<string, string>) {
       );
     }
     return (
-      <span
-        key={index}
-        role="group"
-        aria-label={node.arg}
-        title={node.arg}
-        className="whitespace-nowrap"
-      >
+      <span key={index} role="group" aria-label={node.arg} title={node.arg}>
         {Object.values(node.branches).map((branch, i) => (
           <span key={i}>
-            {i > 0 && (
-              <span className="mx-[0.3em] text-muted-foreground">/</span>
-            )}
+            {i > 0 && <span className="text-muted-foreground">{SLASH}</span>}
             {renderNodes(branch, slots)}
           </span>
         ))}

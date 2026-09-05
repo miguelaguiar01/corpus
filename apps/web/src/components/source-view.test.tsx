@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { moonlightManor } from "@corpus/contract";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vitest";
 import { SourceView } from "./source-view";
 
@@ -27,17 +27,19 @@ test("placeholders render as chips carrying the declared slot description", () =
 });
 
 test("each select reads inline as its branches, named by its argument", () => {
-  render(<SourceView source={sighting.source} declarations={declarations} />);
-  const selects = screen.getAllByRole("group");
+  const { container } = render(
+    <SourceView source={sighting.source} declarations={declarations} />,
+  );
+  const selects = within(container.querySelector("p")!).getAllByRole("group");
   expect(selects).toHaveLength(2);
   expect(selects[0]?.getAttribute("aria-label")).toBe("person_gender");
-  expect(selects[0]?.textContent).toBe("visto/vista");
+  expect(selects[0]?.textContent).toBe("visto\u00a0/\u00a0vista");
   expect(screen.queryByText(/select,/)).toBeNull();
 });
 
 test("a strip below names every argument and key", () => {
   render(<SourceView source={sighting.source} declarations={declarations} />);
-  const strip = screen.getByLabelText("Branches");
+  const strip = screen.getByRole("group", { name: "Branches" });
   expect(strip.textContent).toContain("person_gender");
   expect(strip.textContent).toContain("mvisto");
   expect(strip.textContent).toContain("fvista");
@@ -66,7 +68,7 @@ test("a plain string is just text", () => {
   );
   expect(container.textContent).toBe("Continuar");
   expect(screen.queryAllByRole("group")).toHaveLength(0);
-  expect(screen.queryByLabelText("Branches")).toBeNull();
+  expect(screen.queryByRole("group", { name: "Branches" })).toBeNull();
 });
 
 test("an undeclared placeholder still renders as a chip, without a tooltip", () => {
