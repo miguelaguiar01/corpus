@@ -1,3 +1,4 @@
+import { SESSION_COOKIE } from "@/auth/constants";
 import { NextRequest } from "next/server";
 import { expect, test } from "vitest";
 import { middleware } from "./middleware";
@@ -14,8 +15,11 @@ test("a page without a session redirects to /invite", () => {
   expect(res.headers.get("location")).toContain("/invite");
 });
 
-test("a page with a session cookie passes through", () => {
+test("a page with a session cookie passes through and re-issues the cookie", () => {
   const res = middleware(request("/p/moonlight", true));
+  const reissued = res.headers.get("set-cookie") ?? "";
+  expect(reissued).toContain(`${SESSION_COOKIE}=`);
+  expect(reissued).toMatch(/Max-Age=7776000/);
   expect(res.headers.get("location")).toBeNull();
 });
 

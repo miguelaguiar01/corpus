@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 // chrome strings come from the catalog).
 export default function NotFound() {
   return (
-    <AppShell>
+    <AppShell signedIn={false}>
       <Page
         width="reading"
         className="flex flex-col items-center gap-4 py-16 text-center"

@@ -3,16 +3,29 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db";
-import { inviteErrorPath, SESSION_COOKIE } from "./constants";
+import {
+  INVITE_PATH,
+  inviteErrorPath,
+  PASSWORD_PATH,
+  SESSION_COOKIE,
+} from "./constants";
 import { RateLimiter } from "./rate-limit";
-import { createSession, redeemInvite, SESSION_TTL_MS } from "./service";
+import { currentUser } from "./session";
+import {
+  createSession,
+  endSession,
+  joinInstance,
+  SESSION_TTL_MS,
+  setPassword,
+  signIn,
+} from "./service";
 
-// Two layers (§10: rate-limit the invite endpoint; review finding on
-// PR #25): a per-client window for the friendly case, and a global cap
-// so a rotated/spoofed x-forwarded-for cannot buy fresh budgets — the
-// instance serves a handful of humans, so 30 attempts/15min across all
-// clients is generous. Module-level state survives across requests in
-// the single server process.
+// Two layers (§10: rate-limit the sign-in and join forms): a per-client
+// window for the friendly case, and a global cap so a rotated/spoofed
+// x-forwarded-for cannot buy fresh budgets — the instance serves a
+// handful of humans, so 30 attempts/15min across all clients is
+// generous. Module-level state survives across requests in the single
+// server process.
 const WINDOW_MS = 15 * 60 * 1000;
 const clientLimiter = new RateLimiter({
   max: 5,
@@ -27,32 +40,16 @@ function clientKey(forwardedFor: string | null): string {
   return forwardedFor?.split(",")[0]?.trim() || "unknown";
 }
 
-export async function submitInvite(formData: FormData): Promise<void> {
+async function limited(): Promise<boolean> {
   const requestHeaders = await headers();
   const perClientOk = clientLimiter.allow(
     clientKey(requestHeaders.get("x-forwarded-for")),
   );
-  if (!globalLimiter.allow("invite") || !perClientOk) {
-    redirect(inviteErrorPath("rate-limited"));
-  }
+  return !globalLimiter.allow("invite") || !perClientOk;
+}
 
-  const instanceSecret = process.env.CORPUS_INVITE_SECRET;
-  if (!instanceSecret) {
-    throw new Error("CORPUS_INVITE_SECRET is not configured");
-  }
-
-  const name = String(formData.get("name") ?? "");
-  const providedSecret = String(formData.get("secret") ?? "");
-  const result = redeemInvite(getDb(), {
-    instanceSecret,
-    providedSecret,
-    name,
-  });
-  if (!result.ok) {
-    redirect(inviteErrorPath("invalid"));
-  }
-
-  const token = createSession(getDb(), result.user.id);
+async function startSession(userId: number, to: string): Promise<never> {
+  const token = createSession(getDb(), userId);
   const jar = await cookies();
   jar.set(SESSION_COOKIE, token, {
     httpOnly: true,
@@ -61,5 +58,64 @@ export async function submitInvite(formData: FormData): Promise<void> {
     path: "/",
     maxAge: Math.floor(SESSION_TTL_MS / 1000),
   });
+  redirect(to);
+}
+
+export async function submitJoin(formData: FormData): Promise<void> {
+  if (await limited()) redirect(inviteErrorPath("rate-limited"));
+  const instanceSecret = process.env.CORPUS_INVITE_SECRET;
+  if (!instanceSecret) {
+    throw new Error("CORPUS_INVITE_SECRET is not configured");
+  }
+  const result = joinInstance(getDb(), {
+    instanceSecret,
+    providedSecret: String(formData.get("secret") ?? ""),
+    name: String(formData.get("name") ?? ""),
+    password: String(formData.get("password") ?? ""),
+  });
+  if (!result.ok) {
+    redirect(
+      inviteErrorPath(
+        result.reason === "name-taken"
+          ? "name-taken"
+          : result.reason === "weak-password"
+            ? "weak-password"
+            : "invalid",
+      ),
+    );
+  }
+  await startSession(result.user.id, "/");
+}
+
+export async function submitSignIn(formData: FormData): Promise<void> {
+  if (await limited()) redirect(inviteErrorPath("rate-limited"));
+  const result = signIn(getDb(), {
+    name: String(formData.get("name") ?? ""),
+    password: String(formData.get("password") ?? ""),
+  });
+  if (!result.ok) redirect(inviteErrorPath("credentials"));
+  await startSession(
+    result.user.id,
+    result.mustChangePassword ? PASSWORD_PATH : "/",
+  );
+}
+
+export async function submitPassword(formData: FormData): Promise<void> {
+  const user = await currentUser();
+  if (!user) redirect(INVITE_PATH);
+  const result = setPassword(
+    getDb(),
+    user.id,
+    String(formData.get("password") ?? ""),
+  );
+  if (!result.ok) redirect(`${PASSWORD_PATH}?error=weak-password`);
   redirect("/");
+}
+
+export async function signOut(): Promise<void> {
+  const jar = await cookies();
+  const token = jar.get(SESSION_COOKIE)?.value;
+  if (token) endSession(getDb(), token);
+  jar.delete(SESSION_COOKIE);
+  redirect(INVITE_PATH);
 }

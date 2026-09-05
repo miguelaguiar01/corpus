@@ -4,9 +4,14 @@ import { getDb } from "@/db";
 import { requireUser } from "@/auth/session";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import { NEW_TOKEN_COOKIE } from "./constants";
+import { NEW_TOKEN_COOKIE, RESET_PASSWORD_COOKIE } from "./constants";
 import { createProject, getProjectBySlug } from "./service";
-import { rotateToken, setMaintainer, updateLanguages } from "./settings";
+import {
+  resetUserPassword,
+  rotateToken,
+  setMaintainer,
+  updateLanguages,
+} from "./settings";
 
 export type NewProjectState =
   | { status: "idle" }
@@ -106,4 +111,23 @@ export async function toggleMaintainer(formData: FormData): Promise<void> {
       result.ok ? { saved: "users" } : { error: result.reason },
     ),
   );
+}
+
+export async function resetPasswordAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const db = getDb();
+  const slug = field(formData, "slug");
+  if (!getProjectBySlug(db, slug)) notFound();
+  const userId = Number(field(formData, "userId"));
+  const result = resetUserPassword(db, userId, user);
+  if (!result.ok) redirect(settingsPath(slug, { error: result.reason }));
+  const jar = await cookies();
+  jar.set(RESET_PASSWORD_COOKIE, `${userId}:${result.temporary}`, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: `/p/${slug}/settings`,
+    maxAge: 60,
+  });
+  redirect(settingsPath(slug, { reset: String(userId) }));
 }

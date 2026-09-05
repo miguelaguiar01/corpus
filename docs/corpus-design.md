@@ -239,10 +239,12 @@ The tool has its own visual identity (quiet, big type, system light/dark via sha
 
 ## 10. Users and access
 
-- One **instance invite secret** (env var). Visiting the app without a session prompts for it plus a display name; success sets a long-lived session cookie and creates/reuses the named user. No passwords, no accounts, no reset flows.
+- Accounts are a **display name and a password**, stored in the instance's SQLite (scrypt hashes). One **instance invite secret** (env var) admits new people: joining takes the secret, a name, and a password of at least eight characters. A taken name is refused, except that an account from before passwords existed (no hash yet) is claimed by the first join with its name. Signing in takes name and password. There is no e-mail and no self-service recovery.
+- A maintainer can **reset** anyone's password from §9.5: it ends that person's sessions and shows a temporary password once; their next sign-in goes straight to choosing a new one, and nothing else is reachable until they have.
+- Sessions live in the database and last 90 days of disuse, renewed on use. **Sign out** ends the session on the server, not just in the browser; so does a password reset, and so does losing the maintainer flag.
 - Users have one flag: `maintainer`. The first user created on an instance is a maintainer; maintainers can toggle the flag for other users in the UI. Maintainers verify strings and see surface §9.5. Everyone sees all projects on the instance.
 - The CLI authenticates with **per-project bearer tokens** (created at project creation, rotatable), supplied via `CORPUS_TOKEN` — never committed.
-- The instance is expected to run behind the owner's own edge (e.g. Cloudflare Access) for defense in depth, but must be safe without it: secret + tokens are sufficient auth, rate-limit the invite endpoint, session cookies `HttpOnly`/`SameSite=Lax`, security headers on.
+- The instance is expected to run behind the owner's own edge (e.g. Cloudflare Access) for defense in depth, but must be safe without it: secret, passwords, and tokens are sufficient auth; rate-limit the sign-in and join forms; session cookies `HttpOnly`/`SameSite=Lax`, security headers on.
 - Every page under `/p/[slug]/` calls `requireUser()` itself. The shared layout checks too, but a layout is not an authorization boundary: the App Router can skip an unchanged layout on a client navigation, and the edge middleware only checks that a session cookie exists.
 
 ---
