@@ -1,4 +1,4 @@
-#!/usr/bin/env -S npx tsx
+#!/usr/bin/env node
 import { run } from "./cli";
 
 run(process.argv.slice(2), {

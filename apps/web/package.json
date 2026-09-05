@@ -32,6 +32,6 @@
     "drizzle-kit": "^0.31.10",
     "postcss": "^8.5.0",
     "tailwindcss": "^4.0.0",
-    "@corpus/cli": "*"
+    "@corpus-tool/cli": "*"
   }
 }

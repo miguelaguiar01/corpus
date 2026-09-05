@@ -13,7 +13,7 @@ import {
 import { createServer, type Server } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { run, type RunContext } from "@corpus/cli";
+import { run, type RunContext } from "@corpus-tool/cli";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { users } from "@/db/schema";
 import { memoryDb } from "@/db/test-helpers";
