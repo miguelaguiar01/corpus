@@ -54,7 +54,7 @@ test("the three states are visibly distinct, not only by colour", () => {
   // quiet tone, verified is filled in the strong tone and carries a mark.
   expect(chip("a").className).toMatch(/border/);
   expect(chip("a").className).not.toMatch(/bg-(muted|secondary|primary)\b/);
-  expect(chip("b").className).toMatch(/bg-muted-foreground/);
+  expect(chip("b").className).toMatch(/bg-foreground\/15/);
   expect(chip("c").className).toMatch(/bg-primary/);
   expect(chip("c").textContent).toMatch(/✓/);
   expect(chip("b").textContent).not.toMatch(/✓/);

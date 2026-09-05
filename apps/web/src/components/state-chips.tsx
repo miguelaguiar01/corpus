@@ -8,7 +8,7 @@ import { STATE_KEY } from "./state-label";
 // untranslated and translated used to look the same.)
 const STATE_CLASS: Record<LanguageState["state"], string> = {
   untranslated: "border border-border text-muted-foreground",
-  translated: "bg-muted-foreground text-background",
+  translated: "bg-foreground/15 text-foreground",
   verified: "bg-primary text-primary-foreground",
 };
 
