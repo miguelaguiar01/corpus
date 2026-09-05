@@ -5,6 +5,7 @@ import { Page } from "@/components/page-container";
 import { PageHeader } from "@/components/page-header";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
+import { CopyButton } from "@/components/copy-button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Section } from "@/components/ui/section";
@@ -58,116 +59,156 @@ export default async function SettingsPage({
     : undefined;
 
   return (
-    <Page width="reading" className="space-y-10">
+    <Page width="reading">
       <PageHeader
         title={t("settings.heading")}
         meta={t("settings.version", { version: appVersion(process.env) })}
       />
+      {(errorKey || query.saved) && (
+        <div className="mt-6 space-y-4">
+          {errorKey && <Banner tone="error">{t(errorKey)}</Banner>}
+          {query.saved && <Banner tone="success">{t("settings.saved")}</Banner>}
+        </div>
+      )}
 
-      {errorKey && <Banner tone="error">{t(errorKey)}</Banner>}
-      {query.saved && <Banner tone="success">{t("settings.saved")}</Banner>}
+      <div className="divide-y divide-border">
+        <Section
+          heading={t("settings.tokenHeading")}
+          description={t("settings.tokenIntro")}
+          className="py-8"
+        >
+          {newToken && (
+            <Banner tone="success" className="space-y-2">
+              <p>{t("settings.tokenOnce")}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <code className="block break-all rounded-md border border-border bg-background px-3 py-2 font-mono">
+                  {newToken}
+                </code>
+                <CopyButton value={newToken} />
+              </div>
+            </Banner>
+          )}
+          <form action={rotateProjectToken}>
+            <input type="hidden" name="slug" value={slug} />
+            <Button type="submit" variant="outline">
+              {t("settings.rotateToken")}
+            </Button>
+          </form>
+        </Section>
 
-      <Section heading={t("settings.tokenHeading")}>
-        {newToken ? (
-          <div className="space-y-2">
-            <p className="text-sm">{t("settings.tokenOnce")}</p>
-            <code className="block break-all rounded-md border border-border p-3 text-sm">
-              {newToken}
-            </code>
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            {t("settings.tokenIntro")}
-          </p>
-        )}
-        <form action={rotateProjectToken}>
-          <input type="hidden" name="slug" value={slug} />
-          <Button type="submit" variant="outline">
-            {t("settings.rotateToken")}
-          </Button>
-        </form>
-      </Section>
-
-      <Section heading={t("settings.languagesHeading")}>
-        <form action={saveLanguages} className="space-y-3">
-          <input type="hidden" name="slug" value={slug} />
-          <p className="text-sm">
-            {t("settings.sourceLanguage", { language: project.sourceLanguage })}
-          </p>
-          <Field label={t("settings.targetLanguages")}>
-            <Input
-              name="languages"
-              defaultValue={targets.join(", ")}
-              placeholder="en, pt-PT"
-            />
-          </Field>
-          <Button type="submit">{t("settings.saveLanguages")}</Button>
-        </form>
-      </Section>
-
-      <Section heading={t("settings.historyHeading")}>
-        {history.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            {t("settings.historyEmpty")}
-          </p>
-        ) : (
-          <ol className="divide-y divide-border text-sm">
-            {history.map((push) => (
-              <li key={push.id} className="space-y-0.5 py-2">
-                <div className="flex items-baseline justify-between gap-3">
-                  <time dateTime={push.at.toISOString()}>
-                    {push.at.toISOString().slice(0, 16).replace("T", " ")}
-                  </time>
-                  <span className="text-muted-foreground">
-                    {t("settings.historyStrings", { count: push.stringCount })}
-                  </span>
-                </div>
-                <p className="text-muted-foreground">
-                  {t("settings.historyReport", {
-                    added: push.added,
-                    changed: push.changed,
-                    stale: push.stale,
-                    archived: push.archived,
-                    seeded: push.seeded,
-                  })}
-                </p>
-              </li>
-            ))}
-          </ol>
-        )}
-      </Section>
-
-      <Section heading={t("settings.usersHeading")}>
-        <ul className="divide-y divide-border border-y border-border">
-          {people.map((person) => (
-            <li
-              key={person.id}
-              className="flex min-h-12 items-center gap-3 py-2"
+        <Section
+          heading={t("settings.languagesHeading")}
+          description={t("settings.languagesIntro", {
+            language: project.sourceLanguage,
+          })}
+          className="py-8"
+        >
+          <form action={saveLanguages} className="space-y-3">
+            <input type="hidden" name="slug" value={slug} />
+            <Field
+              label={t("settings.targetLanguages")}
+              hint={t("settings.targetLanguagesHint")}
             >
-              <span className="flex-1">{person.name}</span>
-              <span className="text-xs text-muted-foreground">
-                {person.maintainer
-                  ? t("settings.roleMaintainer")
-                  : t("settings.roleTranslator")}
-              </span>
-              <form action={toggleMaintainer}>
-                <input type="hidden" name="slug" value={slug} />
-                <input type="hidden" name="userId" value={person.id} />
-                <input
-                  type="hidden"
-                  name="maintainer"
-                  value={person.maintainer ? "0" : "1"}
-                />
-                <Button type="submit" variant="outline" size="sm">
-                  {person.maintainer
-                    ? t("settings.demote")
-                    : t("settings.promote")}
-                </Button>
-              </form>
-            </li>
-          ))}
-        </ul>
-      </Section>
+              <Input
+                name="languages"
+                defaultValue={targets.join(", ")}
+                placeholder="en, pt-PT"
+              />
+            </Field>
+            <Button type="submit">{t("settings.saveLanguages")}</Button>
+          </form>
+        </Section>
+
+        <Section
+          heading={t("settings.historyHeading")}
+          description={t("settings.historyIntro")}
+          className="py-8"
+        >
+          {history.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {t("settings.historyEmpty")}
+            </p>
+          ) : (
+            <ol className="divide-y divide-border text-sm">
+              {history.map((push) => (
+                <li key={push.id} className="space-y-0.5 py-2">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <time dateTime={push.at.toISOString()}>
+                      {push.at.toISOString().slice(0, 16).replace("T", " ")}
+                    </time>
+                    <span className="text-muted-foreground">
+                      {t("settings.historyStrings", {
+                        count: push.stringCount,
+                      })}
+                    </span>
+                  </div>
+                  <p className="text-muted-foreground">
+                    {t("settings.historyReport", {
+                      added: push.added,
+                      changed: push.changed,
+                      stale: push.stale,
+                      archived: push.archived,
+                      seeded: push.seeded,
+                    })}
+                  </p>
+                </li>
+              ))}
+            </ol>
+          )}
+        </Section>
+
+        <Section
+          heading={t("settings.usersHeading")}
+          description={t("settings.usersIntro")}
+          className="py-8"
+        >
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                  <th scope="col" className="py-2 font-medium">
+                    {t("settings.colName")}
+                  </th>
+                  <th scope="col" className="py-2 font-medium">
+                    {t("settings.colRole")}
+                  </th>
+                  <th scope="col" className="py-2" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {people.map((person) => (
+                  <tr key={person.id}>
+                    <td className="max-w-48 truncate py-2 pr-3">
+                      {person.name}
+                    </td>
+                    <td className="py-2 pr-3 text-muted-foreground">
+                      {person.maintainer
+                        ? t("settings.roleMaintainer")
+                        : t("settings.roleTranslator")}
+                    </td>
+                    <td className="py-2 text-right">
+                      <form action={toggleMaintainer}>
+                        <input type="hidden" name="slug" value={slug} />
+                        <input type="hidden" name="userId" value={person.id} />
+                        <input
+                          type="hidden"
+                          name="maintainer"
+                          value={person.maintainer ? "0" : "1"}
+                        />
+                        <Button type="submit" variant="outline" size="sm">
+                          {person.maintainer
+                            ? t("settings.demote")
+                            : t("settings.promote")}
+                        </Button>
+                      </form>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+      </div>
     </Page>
   );
 }
