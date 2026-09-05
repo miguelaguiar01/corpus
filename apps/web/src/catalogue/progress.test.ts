@@ -85,3 +85,33 @@ test("search composes with facet filters at the query layer", () => {
     "skin.seen-at-greenhouse-window",
   ]);
 });
+
+test("a string type that names the prototype cannot poison the process", () => {
+  // Applied directly, past the contract's charset: the second line of
+  // defence, since a row with such a type may already exist in a database.
+  const db = memoryDb();
+  const [p] = db
+    .insert(projects)
+    .values({
+      slug: "mm",
+      name: "MM",
+      sourceLanguage: "pt-PT",
+      languages: ["pt-PT", "en"],
+    })
+    .returning()
+    .all();
+  if (!p) throw new Error("seed failed");
+  const poisoned = {
+    ...moonlightManor,
+    strings: moonlightManor.strings.map((entry, index) =>
+      index === 0 ? { ...entry, type: "__proto__" } : entry,
+    ),
+  } as Snapshot;
+  applySnapshot(db, p.id, poisoned);
+  const progress = progressCounts(db, p.id);
+  expect(progress.perType["__proto__"]?.["pt-PT"]?.total).toBe(1);
+  expect(({} as Record<string, unknown>)["pt-PT"]).toBeUndefined();
+  expect(Object.prototype.hasOwnProperty.call(Object.prototype, "pt-PT")).toBe(
+    false,
+  );
+});

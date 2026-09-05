@@ -38,9 +38,17 @@ export function pullPayload(
     .where(and(eq(strings.projectId, project.id), eq(strings.archived, false)))
     .all();
 
-  const types: Record<string, string> = {};
-  const translations: Record<string, Record<string, string>> = {};
-  for (const language of project.languages) translations[language] = {};
+  // Keys come from pushed data; null-prototype maps keep a key such as
+  // __proto__ an ordinary key.
+  const types: Record<string, string> = Object.create(null) as Record<
+    string,
+    string
+  >;
+  const translations: Record<string, Record<string, string>> = Object.create(
+    null,
+  ) as Record<string, Record<string, string>>;
+  const bucket = () => Object.create(null) as Record<string, string>;
+  for (const language of project.languages) translations[language] = bucket();
   for (const row of rows) {
     types[row.id] = row.type;
     // The source row's text is the string's source (§8); its translation
@@ -48,7 +56,7 @@ export function pullPayload(
     const text =
       row.language === project.sourceLanguage ? row.source : row.text;
     if (text === null || RANK[row.state] < RANK[minState]) continue;
-    (translations[row.language] ??= {})[row.id] = text;
+    (translations[row.language] ??= bucket())[row.id] = text;
   }
   return {
     contract: CONTRACT_VERSION,
