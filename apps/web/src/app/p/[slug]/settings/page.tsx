@@ -64,10 +64,12 @@ export default async function SettingsPage({
         title={t("settings.heading")}
         meta={t("settings.version", { version: appVersion(process.env) })}
       />
-      <div className="mt-6 space-y-4">
-        {errorKey && <Banner tone="error">{t(errorKey)}</Banner>}
-        {query.saved && <Banner tone="success">{t("settings.saved")}</Banner>}
-      </div>
+      {(errorKey || query.saved) && (
+        <div className="mt-6 space-y-4">
+          {errorKey && <Banner tone="error">{t(errorKey)}</Banner>}
+          {query.saved && <Banner tone="success">{t("settings.saved")}</Banner>}
+        </div>
+      )}
 
       <div className="divide-y divide-border">
         <Section
@@ -160,47 +162,51 @@ export default async function SettingsPage({
           description={t("settings.usersIntro")}
           className="py-8"
         >
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                <th scope="col" className="py-2 font-medium">
-                  {t("settings.colName")}
-                </th>
-                <th scope="col" className="py-2 font-medium">
-                  {t("settings.colRole")}
-                </th>
-                <th scope="col" className="py-2" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {people.map((person) => (
-                <tr key={person.id}>
-                  <td className="py-2 pr-3">{person.name}</td>
-                  <td className="py-2 pr-3 text-muted-foreground">
-                    {person.maintainer
-                      ? t("settings.roleMaintainer")
-                      : t("settings.roleTranslator")}
-                  </td>
-                  <td className="py-2 text-right">
-                    <form action={toggleMaintainer}>
-                      <input type="hidden" name="slug" value={slug} />
-                      <input type="hidden" name="userId" value={person.id} />
-                      <input
-                        type="hidden"
-                        name="maintainer"
-                        value={person.maintainer ? "0" : "1"}
-                      />
-                      <Button type="submit" variant="outline" size="sm">
-                        {person.maintainer
-                          ? t("settings.demote")
-                          : t("settings.promote")}
-                      </Button>
-                    </form>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                  <th scope="col" className="py-2 font-medium">
+                    {t("settings.colName")}
+                  </th>
+                  <th scope="col" className="py-2 font-medium">
+                    {t("settings.colRole")}
+                  </th>
+                  <th scope="col" className="py-2" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {people.map((person) => (
+                  <tr key={person.id}>
+                    <td className="max-w-48 truncate py-2 pr-3">
+                      {person.name}
+                    </td>
+                    <td className="py-2 pr-3 text-muted-foreground">
+                      {person.maintainer
+                        ? t("settings.roleMaintainer")
+                        : t("settings.roleTranslator")}
+                    </td>
+                    <td className="py-2 text-right">
+                      <form action={toggleMaintainer}>
+                        <input type="hidden" name="slug" value={slug} />
+                        <input type="hidden" name="userId" value={person.id} />
+                        <input
+                          type="hidden"
+                          name="maintainer"
+                          value={person.maintainer ? "0" : "1"}
+                        />
+                        <Button type="submit" variant="outline" size="sm">
+                          {person.maintainer
+                            ? t("settings.demote")
+                            : t("settings.promote")}
+                        </Button>
+                      </form>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Section>
       </div>
     </Page>
