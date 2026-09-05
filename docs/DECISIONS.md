@@ -224,3 +224,21 @@ package would be ceremony; the `@corpus` scope belongs to an existing npm
 account, and `corpus-tool` was free as an organisation.
 
 **Context:** #200 (owner decision), #201; epic #199.
+
+## 2026-09-05 — Releases are tags; npm publishes through trusted publishing
+
+**Decision:** `@corpus-tool/cli` is versioned in its `package.json` with a
+matching `CHANGELOG.md` section (keep-a-changelog). A tag `v<version>` on
+`main` runs `.github/workflows/release.yml`: it checks the tag against the
+package and the changelog, runs the install smoke, publishes with npm's
+trusted publishing (OIDC from GitHub Actions, provenance attached
+automatically, no long-lived token in the repository), and creates the
+GitHub release from the changelog section. A prerelease version publishes
+under the dist-tag `next`. The first version is published by hand because
+trusted publishing is configured on a package that already exists. The
+web app keeps `git describe` as its build identity.
+
+**Why:** one number in one file, one command to ship it, and nothing a
+leaked secret could publish.
+
+**Context:** #205; epic #199.

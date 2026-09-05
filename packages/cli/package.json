@@ -31,7 +31,7 @@
     }
   },
   "bin": {
-    "corpus": "./dist/bin.js"
+    "corpus": "dist/bin.js"
   },
   "scripts": {
     "build": "node build.mjs",

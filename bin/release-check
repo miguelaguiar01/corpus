@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# A release tag must name the version in packages/cli/package.json, and
+# the changelog must have a section for it. Run by the release workflow;
+# run it yourself before tagging.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+TAG="${1:-}"
+[ -n "$TAG" ] || { echo "usage: bin/release-check v<version>" >&2; exit 2; }
+VERSION="${TAG#v}"
+PKG="$(node -p "require('./packages/cli/package.json').version")"
+[ "$VERSION" = "$PKG" ] || { echo "tag $TAG does not match packages/cli/package.json version $PKG" >&2; exit 1; }
+bin/changelog-section "$VERSION" >/dev/null || { echo "CHANGELOG.md has no section for $VERSION" >&2; exit 1; }
+# npm rewrites a manifest it dislikes at publish time (a bin path with a
+# leading ./ once lost the corpus binary); only a publish dry run shows it.
+DRY="$(cd packages/cli && npm publish --dry-run --access public 2>&1)" || { echo "$DRY" >&2; exit 1; }
+if grep -q "auto-corrected" <<<"$DRY"; then
+  echo "npm would rewrite packages/cli/package.json at publish time:" >&2
+  grep "npm warn publish" <<<"$DRY" >&2
+  exit 1
+fi
+grep -q '"corpus": "dist/bin.js"' packages/cli/package.json || { echo "the corpus bin entry is missing" >&2; exit 1; }
+echo "release-check: $TAG matches the package and the changelog; the manifest publishes as written"
