@@ -1,6 +1,7 @@
 import type { Progress } from "@/catalogue/progress";
 import { t } from "@/i18n";
 import { ProgressBar } from "./progress-bar";
+import { ProgressLegend } from "./progress-legend";
 
 // Per-language progress broken down by string type (§9.1).
 export function ProgressByType({ progress }: { progress: Progress }) {
@@ -9,12 +10,13 @@ export function ProgressByType({ progress }: { progress: Progress }) {
   const types = Object.keys(progress.perType);
   return (
     <div className="space-y-6">
+      <ProgressLegend />
       {languages.map((language) => {
         const p = progress.perLanguage[language]!;
         return (
           <section key={language} className="space-y-2">
             <div className="flex items-baseline justify-between">
-              <h3 className="text-lg font-semibold">{language}</h3>
+              <h3 className="text-base font-medium">{language}</h3>
               <span className="text-xs text-muted-foreground">
                 {t("progress.summary", {
                   verified: p.verified,

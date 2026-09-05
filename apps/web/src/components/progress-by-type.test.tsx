@@ -25,7 +25,7 @@ test("renders a section per language with its summary", () => {
   render(<ProgressByType progress={progress} />);
   expect(screen.getByRole("heading", { name: "pt-PT" })).toBeTruthy();
   expect(screen.getByRole("heading", { name: "en" })).toBeTruthy();
-  expect(screen.getByText("1 verified · 2 translated of 3")).toBeTruthy();
+  expect(screen.getByText("1 verified, 2 translated of 3")).toBeTruthy();
 });
 
 test("renders a labelled bar per string type under each language", () => {
@@ -35,6 +35,12 @@ test("renders a labelled bar per string type under each language", () => {
   const skin = screen.getAllByRole("meter", { name: "clue-skin" });
   expect(skin[0]?.getAttribute("aria-valuenow")).toBe("2");
   expect(skin[0]?.getAttribute("aria-valuemax")).toBe("2");
+});
+
+test("names the three fills once, in a legend", () => {
+  render(<ProgressByType progress={progress} />);
+  const legend = screen.getByRole("list", { name: "Fills" });
+  expect(legend.textContent).toBe("VerifiedTranslatedUntranslated");
 });
 
 test("renders nothing for a project with no rows", () => {
