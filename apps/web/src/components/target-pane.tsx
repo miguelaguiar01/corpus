@@ -2,11 +2,13 @@
 
 import { useRef, useState } from "react";
 import {
+  parseIcu,
   renderPreview,
   validateTranslation,
   type Example,
 } from "@corpus/contract";
 import type { QueueKind } from "@/catalogue/queues";
+import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { chipVariants } from "@/components/ui/chip";
 import { Field } from "@/components/ui/field";
@@ -15,6 +17,30 @@ import { insertAtCaret } from "@/translations/caret";
 import { validationMessage } from "@/translations/validation-message";
 
 export type Slot = { name: string; description?: string };
+
+// The source's select arguments, each with its keys in source order: a
+// chip per argument inserts the whole skeleton so no braces are typed by
+// hand. Two selects on one argument make one chip.
+function selectsOf(source: string): { arg: string; keys: string[] }[] {
+  const parsed = parseIcu(source);
+  if (!parsed.ok) return [];
+  const byArg = new Map<string, string[]>();
+  for (const node of parsed.nodes) {
+    if (node.kind === "select" && !byArg.has(node.arg)) {
+      byArg.set(node.arg, Object.keys(node.branches));
+    }
+  }
+  return [...byArg].map(([arg, keys]) => ({ arg, keys }));
+}
+
+function selectSkeleton(arg: string, keys: string[]) {
+  const head = `{${arg}, select, ${keys[0]} {`;
+  const rest = keys
+    .slice(1)
+    .map((key) => ` ${key} {}`)
+    .join("");
+  return { token: `${head}}${rest}}`, caret: head.length };
+}
 
 // The target pane (§9.3): a draft, chips that insert the source's
 // placeholders at the caret (no hand-typed braces), and the contract's
@@ -50,14 +76,16 @@ export function TargetPane({
     ? { ok: true as const }
     : validateTranslation(source, text);
   const errors = validation.ok ? [] : validation.errors;
+  const selects = selectsOf(source);
 
-  const insert = (name: string) => {
+  const insert = (token: string, caretOffset?: number) => {
     const el = ref.current;
     const next = insertAtCaret(
       text,
       el?.selectionStart ?? null,
       el?.selectionEnd ?? null,
-      `{${name}}`,
+      token,
+      caretOffset,
     );
     setText(next.text);
     requestAnimationFrame(() => {
@@ -81,7 +109,7 @@ export function TargetPane({
           onChange={(event) => setText(event.target.value)}
           rows={4}
           autoCapitalize="sentences"
-          className="w-full rounded-md border border-input bg-background p-3 text-lg leading-snug focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="min-h-28 w-full resize-none rounded-md border border-input bg-background p-3 text-lg field-sizing-content focus-visible:border-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
       </Field>
       {slots.length > 0 && (
@@ -100,11 +128,40 @@ export function TargetPane({
                   "min-h-8 hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
               })}
               title={slot.description}
-              onClick={() => insert(slot.name)}
+              onClick={() => insert(`{${slot.name}}`)}
             >
               {`{${slot.name}}`}
             </button>
           ))}
+        </div>
+      )}
+      {selects.length > 0 && (
+        <div
+          className="flex flex-wrap gap-1.5"
+          role="group"
+          aria-label={t("editor.selects")}
+        >
+          {selects.map((select) => {
+            const skeleton = selectSkeleton(select.arg, select.keys);
+            return (
+              <button
+                key={select.arg}
+                type="button"
+                className={chipVariants({
+                  variant: "key",
+                  className:
+                    "min-h-8 hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                })}
+                title={t("editor.insertSelect", {
+                  arg: select.arg,
+                  keys: select.keys.join(", "),
+                })}
+                onClick={() => insert(skeleton.token, skeleton.caret)}
+              >
+                {`{${select.arg}, select}`}
+              </button>
+            );
+          })}
         </div>
       )}
       {examples.length > 0 && (
@@ -126,11 +183,13 @@ export function TargetPane({
         </section>
       )}
       {errors.length > 0 && (
-        <ul role="alert" className="space-y-0.5 text-sm text-destructive">
-          {errors.map((error, index) => (
-            <li key={index}>{validationMessage(error)}</li>
-          ))}
-        </ul>
+        <Banner tone="error">
+          <ul className="space-y-0.5">
+            {errors.map((error, index) => (
+              <li key={index}>{validationMessage(error)}</li>
+            ))}
+          </ul>
+        </Banner>
       )}
       <Button
         type="submit"

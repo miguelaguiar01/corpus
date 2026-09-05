@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
+import { moonlightManor } from "@corpus/contract";
 import { TargetPane } from "./target-pane";
 
 afterEach(cleanup);
@@ -32,6 +33,49 @@ function pane(initialText = "") {
   }) as HTMLButtonElement;
   return { action, textarea, save };
 }
+
+const sighting = moonlightManor.strings[0]!;
+
+test("a select chip inserts the skeleton with the source's keys, caret in the first branch", () => {
+  const action = vi.fn();
+  render(
+    <TargetPane
+      action={action}
+      source={sighting.source}
+      slots={[]}
+      language="en"
+      initialText=""
+      slug="mm"
+      stringKey="k"
+      openedVersion={1}
+    />,
+  );
+  const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
+  // Two selects on person_gender in the source, one chip.
+  fireEvent.click(
+    screen.getByRole("button", { name: "{person_gender, select}" }),
+  );
+  expect(textarea.value).toBe("{person_gender, select, m {} f {}}");
+});
+
+test("the preview renders each example's branch from the draft", () => {
+  render(
+    <TargetPane
+      action={vi.fn()}
+      source={sighting.source}
+      slots={[]}
+      language="en"
+      initialText="{person} was {person_gender, select, m {seen} f {spotted}}."
+      slug="mm"
+      stringKey="k"
+      openedVersion={1}
+      examples={sighting.examples ?? []}
+    />,
+  );
+  const preview = screen.getByRole("region", { name: "Preview" });
+  expect(preview.textContent).toContain("was spotted");
+  expect(preview.textContent).toContain("was seen");
+});
 
 test("tapping a placeholder chip inserts it at the caret", () => {
   const { textarea } = pane("saw  at");
