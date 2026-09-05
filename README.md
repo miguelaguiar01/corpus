@@ -13,38 +13,51 @@ every build.
 
 <p>
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dashboard-dark.png">
-    <img src="docs/screenshots/dashboard-light.png" width="260" alt="The dashboard on a phone: the three queues (untranslated, stale, unverified source) and per-language progress bars for the Corpus chrome project.">
-  </picture>
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/editor-dark.png">
-    <img src="docs/screenshots/editor-light.png" width="260" alt="The editor on a phone: the source string with a placeholder chip, the Portuguese draft, an insertable placeholder, and the save button.">
-  </picture>
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/editor-structured-dark.png">
-    <img src="docs/screenshots/editor-structured-light.png" width="260" alt="The editor on a structured string: the source's select branches rendered as a branch view, and live previews with example values.">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/editor-structured-desktop-dark.png">
+    <img src="docs/screenshots/editor-structured-desktop-light.png" width="800" alt="The editor on a desktop: the source sentence on the left with its selects inline and placeholders as chips, related entities beneath it, and on the right the translation with insertable placeholder and select chips, live previews with the example values muted, and the save button.">
   </picture>
 </p>
 
-*Corpus translating Corpus on a phone, light and dark. The third screen is
-the fixture project, Moonlight Manor, showing what structured text looks
-like: a select rendered as branches, and previews from the string's own
-examples.*
+*The editor on a desktop, on the fixture project Moonlight Manor: a source
+with two selects reads as one sentence, the keys sit in a strip beneath
+it, and the previews substitute the string's own example values.*
 
-<details>
-<summary>More screens: catalogue, entity browser, maintainer settings</summary>
 <p>
   <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dashboard-dark.png">
+    <img src="docs/screenshots/dashboard-light.png" width="260" alt="The dashboard on a phone: the three queues (untranslated, stale, unverified source) with their counts, then per-language progress bars with a legend for the Corpus chrome project.">
+  </picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/editor-dark.png">
+    <img src="docs/screenshots/editor-light.png" width="260" alt="The editor on a phone: the source string with a placeholder chip, the per-language state chips, and the queue navigation at thumb height.">
+  </picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/editor-structured-dark.png">
+    <img src="docs/screenshots/editor-structured-light.png" width="260" alt="The editor on a phone with a structured string: the sentence with its selects inline, the branches strip, and the related entities.">
+  </picture>
+</p>
+
+*Corpus translating Corpus on a phone, light and dark, which is where
+translators mostly work. The third screen is Moonlight Manor again.*
+
+<details>
+<summary>More screens: home, catalogue, entity browser, maintainer settings</summary>
+<p>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/home-dark.png">
+    <img src="docs/screenshots/home-light.png" width="260" alt="The home page on a phone: one card per project with its languages, a progress bar per language, and the three queue counts.">
+  </picture>
+  <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/catalogue-dark.png">
-    <img src="docs/screenshots/catalogue-light.png" width="260" alt="The catalogue on a phone: search, facet filters, and per-language state chips on every string.">
+    <img src="docs/screenshots/catalogue-light.png" width="260" alt="The catalogue on a phone: facet filters, a search box with the active filter as a chip, and per-language state chips on every string.">
   </picture>
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/entities-dark.png">
-    <img src="docs/screenshots/entities-light.png" width="260" alt="The entity browser on a phone: read-only cards grouped by entity type, with attributes.">
+    <img src="docs/screenshots/entities-light.png" width="260" alt="The entity browser on a phone: read-only cards grouped by entity type with a count, attributes aligned in two columns.">
   </picture>
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-dark.png">
-    <img src="docs/screenshots/settings-light.png" width="260" alt="The maintainer corner on a phone: push token rotation, languages, push history, and the people on the instance.">
+    <img src="docs/screenshots/settings-light.png" width="260" alt="The maintainer corner on a phone: sections for the push token, languages, push history, and the people on the instance, each with a line explaining it.">
   </picture>
 </p>
 </details>
