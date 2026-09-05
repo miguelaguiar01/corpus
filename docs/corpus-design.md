@@ -34,7 +34,7 @@ Corpus's own UI chrome is a Corpus project: the tool translates itself with itse
 Three parts, one contract:
 
 1. **`apps/web`** — Next.js (App Router) + TypeScript + SQLite. Owns projects, strings, entities, translations, states, users, history. Serves the UI and the HTTP API the CLI talks to.
-2. **`packages/cli`** — the `corpus` binary, run inside a client repo. `corpus push` extracts that repo's text into a snapshot and uploads it; `corpus pull` writes approved translations back into the repo's files. A human (or agent) opens the client repo's PR from there.
+2. **`packages/cli`** — the `corpus` binary, published to npm as `@corpus-tool/cli` and run inside a client repo (a client's config imports `defineCorpus` from it; the contract and adapters are bundled in). `corpus push` extracts that repo's text into a snapshot and uploads it; `corpus pull` writes approved translations back into the repo's files. A human (or agent) opens the client repo's PR from there.
 3. **`packages/contract`** — the versioned snapshot schema (`"corpus/1"`), defined **once in zod**. Web, CLI, adapters, and tests all import these types. This package is pure (no I/O) and is the only thing web and CLI share.
 
 Plus **`packages/adapters`** — pure functions mapping repo files ↔ snapshot entries (§4). Used by the CLI; unit-testable with no filesystem beyond fixtures.
@@ -68,7 +68,7 @@ import { defineCorpus } from "@corpus-tool/cli";
 
 export default defineCorpus({
   project: "moonlight-manor",
-  server: process.env.CORPUS_SERVER!,        // token via CORPUS_TOKEN env
+  server: "https://corpus.example",           // token via CORPUS_TOKEN env
   sourceLanguage: "pt-PT",
   languages: ["pt-PT", "en"],
   stringTypes: { /* §5: metadata field declarations per type */ },
