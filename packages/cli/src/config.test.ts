@@ -62,11 +62,10 @@ test("a plain ESM config works the same way", async () => {
 test("no config names the directory and every filename looked for", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-empty-"));
   dirs.push(dir);
-  await expect(loadConfig(dir)).rejects.toThrow(
-    new RegExp(
-      `${dir.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}.*corpus\\.config\\.ts.*corpus\\.config\\.mjs`,
-    ),
-  );
+  const error = await loadConfig(dir).catch((e: unknown) => e as Error);
+  expect(error).toBeInstanceOf(CliError);
+  expect(error.message).toContain(dir);
+  expect(error.message).toMatch(/corpus\.config\.ts.*corpus\.config\.mjs/);
 });
 
 test("a config that fails to load names the file and the cause", async () => {
@@ -85,6 +84,17 @@ test("a config rejected inside defineCorpus is reported the same way", async () 
   );
   await expect(loadConfig(dir)).rejects.toThrow(
     /corpus\.config\.ts is not a valid config: languages: expected array/,
+  );
+});
+
+test("an error with a malformed issues array is still reported as a load failure", async () => {
+  const dir = client("corpus.config.ts", BODY("odd"));
+  writeFileSync(
+    path.join(dir, "node_modules", "@corpus-tool", "cli", "index.js"),
+    'export const defineCorpus = () => { throw Object.assign(new Error("odd"), { issues: [42] }); };\n',
+  );
+  await expect(loadConfig(dir)).rejects.toThrow(
+    /could not load .*corpus\.config\.ts: odd/,
   );
 });
 

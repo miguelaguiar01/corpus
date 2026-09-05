@@ -47,7 +47,13 @@ type Issue = { path: PropertyKey[]; message: string };
 
 function issuesOf(error: unknown): Issue[] | undefined {
   const issues = (error as { issues?: unknown } | null)?.issues;
-  return Array.isArray(issues) ? (issues as Issue[]) : undefined;
+  if (!Array.isArray(issues)) return undefined;
+  const wellFormed = issues.every(
+    (issue) =>
+      Array.isArray((issue as Issue)?.path) &&
+      typeof (issue as Issue).message === "string",
+  );
+  return wellFormed ? (issues as Issue[]) : undefined;
 }
 
 function invalid(configPath: string, issues: Issue[]): CliError {
