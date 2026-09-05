@@ -23,7 +23,7 @@ export function FacetPanel({
   active: URLSearchParams;
 }) {
   return (
-    <aside className="space-y-4 text-sm md:sticky md:top-4 md:self-start">
+    <aside className="space-y-4 text-sm md:sticky md:top-4 md:max-h-[calc(100dvh-2rem)] md:self-start md:overflow-y-auto">
       {facets.map((facet) => {
         if (facet.kind === "archived") {
           const on = active.get("archived") === "1";

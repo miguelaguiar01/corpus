@@ -23,7 +23,7 @@ export function CatalogueRow({
   return (
     <Link
       href={href}
-      className="-mx-2 grid gap-x-6 gap-y-1.5 rounded-md px-2 py-2.5 hover:bg-accent/40 focus-visible:bg-accent/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring md:grid-cols-[minmax(0,1fr)_auto] md:items-start"
+      className="grid gap-x-6 gap-y-1.5 py-2.5 hover:bg-accent/40 focus-visible:bg-accent/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring md:grid-cols-[minmax(0,1fr)_minmax(auto,50%)] md:items-start"
     >
       <div className="min-w-0 space-y-1">
         <div className="flex items-center gap-2">

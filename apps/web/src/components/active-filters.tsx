@@ -23,11 +23,20 @@ export function ActiveFilters({
   };
   const known = new Set(["q", "archived", ...facets.map((f) => f.key)]);
   const filters = [...active]
-    .filter(([key, value]) => known.has(key) && value.trim() !== "")
+    .filter(
+      ([key, value]) =>
+        known.has(key) &&
+        value.trim() !== "" &&
+        (key !== "archived" || value === "1"),
+    )
     .map(([key, value]) => ({
       key,
       text:
-        key === "q" ? value : key === "archived" ? t("facet.archived") : value,
+        key === "q"
+          ? value
+          : key === "archived"
+            ? t("catalogue.archivedFilter")
+            : value,
       title: key === "q" ? t("catalogue.search") : label(key),
     }));
   if (filters.length === 0) return null;

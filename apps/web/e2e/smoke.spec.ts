@@ -85,4 +85,12 @@ test("a maintainer takes a string from pushed to verified on a phone", async ({
     page.getByRole("link", { name: /Unverified source/ }),
   ).toContainText("2");
   await expect(page.getByText("1 verified, 2 translated of 3")).toBeVisible();
+
+  // The desktop layouts must not overflow either.
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await expectNoSidewaysOverflow(page);
+  await page.goto(`/p/${moonlightManor.project}/catalogue`);
+  await expectNoSidewaysOverflow(page);
+  await page.getByRole("link", { name: /seen-at-greenhouse-window/ }).click();
+  await expectNoSidewaysOverflow(page);
 });

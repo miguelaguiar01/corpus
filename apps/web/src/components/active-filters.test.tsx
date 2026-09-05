@@ -33,7 +33,7 @@ test("a blank search and an unknown param are not filters", () => {
     <ActiveFilters
       basePath="/c"
       facets={FACETS}
-      active={new URLSearchParams("q=+&foo=bar&cursor=3")}
+      active={new URLSearchParams("q=+&foo=bar&cursor=3&archived=0")}
     />,
   );
   expect(container.innerHTML).toBe("");

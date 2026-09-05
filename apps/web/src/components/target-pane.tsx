@@ -19,19 +19,20 @@ import { validationMessage } from "@/translations/validation-message";
 
 export type Slot = { name: string; description?: string };
 
-// The source's select arguments, each with its keys in source order: a
-// chip per argument inserts the whole skeleton so no braces are typed by
-// hand. Two selects on one argument make one chip.
+// The source's select arguments, each with every key any of its selects
+// uses, in source order (validation unions them the same way): a chip
+// per argument inserts the whole skeleton so no braces are typed by hand.
 function selectsOf(source: string): { arg: string; keys: string[] }[] {
   const parsed = parseIcu(source);
   if (!parsed.ok) return [];
-  const byArg = new Map<string, string[]>();
+  const byArg = new Map<string, Set<string>>();
   for (const node of parsed.nodes) {
-    if (node.kind === "select" && !byArg.has(node.arg)) {
-      byArg.set(node.arg, Object.keys(node.branches));
-    }
+    if (node.kind !== "select") continue;
+    const keys = byArg.get(node.arg) ?? new Set<string>();
+    for (const key of Object.keys(node.branches)) keys.add(key);
+    byArg.set(node.arg, keys);
   }
-  return [...byArg].map(([arg, keys]) => ({ arg, keys }));
+  return [...byArg].map(([arg, keys]) => ({ arg, keys: [...keys] }));
 }
 
 function selectSkeleton(arg: string, keys: string[]) {
@@ -114,7 +115,7 @@ export function TargetPane({
           onChange={(event) => setText(event.target.value)}
           rows={4}
           autoCapitalize="sentences"
-          className="min-h-28 w-full resize-none rounded-md border border-input bg-background p-3 text-lg field-sizing-content focus-visible:border-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="min-h-28 w-full resize-none rounded-md border border-input bg-background p-3 text-lg field-sizing-content focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         />
       </Field>
       {slots.length > 0 && (

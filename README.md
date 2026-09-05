@@ -19,8 +19,8 @@ every build.
 </p>
 
 *The editor on a desktop, on the fixture project Moonlight Manor: a source
-with two selects reads as one sentence, the keys sit in a strip beneath
-it, and the previews substitute the string's own example values.*
+with two selects reads as one sentence, the branches strip beneath it
+names the keys, and the previews substitute the string's own example values.*
 
 <p>
   <picture>
