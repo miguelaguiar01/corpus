@@ -90,10 +90,8 @@ export default async function CataloguePage({
     >
       <FacetPanel basePath={basePath} facets={facets} active={active} />
       <div className="min-w-0 space-y-5">
-        <PageHeader
-          title={t("catalogue.heading")}
-          meta={<ProgressStrip progress={progress} />}
-        />
+        <PageHeader title={t("catalogue.heading")} />
+        <ProgressStrip progress={progress} />
         <div className="flex flex-wrap items-center gap-3">
           <SearchBox basePath={basePath} active={active} />
           <ActiveFilters basePath={basePath} facets={facets} active={active} />

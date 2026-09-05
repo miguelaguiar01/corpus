@@ -8,7 +8,7 @@ export function ProgressStrip({ progress }: { progress: Progress }) {
   const languages = Object.keys(progress.perLanguage);
   if (languages.length === 0) return null;
   return (
-    <ul className="space-y-1.5">
+    <ul className="max-w-xl space-y-1.5">
       {languages.map((language) => {
         const p = progress.perLanguage[language]!;
         return (
