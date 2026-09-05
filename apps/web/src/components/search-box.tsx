@@ -14,7 +14,7 @@ export function SearchBox({
     if (key !== "q" && key !== "cursor") hidden.push([key, value]);
   }
   return (
-    <form action={basePath} className="flex gap-2">
+    <form action={basePath} role="search" className="w-full max-w-sm">
       {hidden.map(([key, value], i) => (
         <input key={`${key}-${i}`} type="hidden" name={key} value={value} />
       ))}
@@ -23,6 +23,7 @@ export function SearchBox({
         name="q"
         defaultValue={active.get("q") ?? ""}
         placeholder={t("catalogue.searchPlaceholder")}
+        aria-label={t("catalogue.search")}
         className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       />
     </form>

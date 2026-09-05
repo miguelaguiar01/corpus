@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ActiveFilters } from "@/components/active-filters";
+import { CatalogueRow } from "@/components/catalogue-row";
 import { getDb } from "@/db";
 import { searchStringIds } from "@/db/search";
 import { declaredMetadataFields, deriveFacets } from "@/catalogue/facets";
@@ -13,10 +15,8 @@ import { distinctTypes } from "@/catalogue/types";
 import { FacetPanel } from "@/components/facet-panel";
 import { Page } from "@/components/page-container";
 import { PageHeader } from "@/components/page-header";
-import { Chip } from "@/components/ui/chip";
 import { ProgressStrip } from "@/components/progress-strip";
 import { SearchBox } from "@/components/search-box";
-import { StateChips } from "@/components/state-chips";
 import { getProjectBySlug } from "@/projects/service";
 import { stringPath } from "@/strings/paths";
 import { t } from "@/i18n";
@@ -84,12 +84,20 @@ export default async function CataloguePage({
   const progress = progressCounts(db, project.id);
 
   return (
-    <Page width="wide" className="grid gap-6 md:grid-cols-[12rem_1fr]">
+    <Page
+      width="wide"
+      className="grid gap-x-8 gap-y-6 md:grid-cols-[14rem_minmax(0,1fr)]"
+    >
       <FacetPanel basePath={basePath} facets={facets} active={active} />
-      <div className="space-y-4">
-        <PageHeader title={t("catalogue.heading")} />
-        <ProgressStrip progress={progress} />
-        <SearchBox basePath={basePath} active={active} />
+      <div className="min-w-0 space-y-5">
+        <PageHeader
+          title={t("catalogue.heading")}
+          meta={<ProgressStrip progress={progress} />}
+        />
+        <div className="flex flex-wrap items-center gap-3">
+          <SearchBox basePath={basePath} active={active} />
+          <ActiveFilters basePath={basePath} facets={facets} active={active} />
+        </div>
         {page.rows.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             {t("catalogue.empty")}
@@ -98,22 +106,14 @@ export default async function CataloguePage({
           <ul className="divide-y divide-border">
             {page.rows.map((row) => (
               <li key={row.stringId}>
-                <Link
+                <CatalogueRow
                   href={stringPath(slug, row.stringId)}
-                  className="flex flex-col gap-1.5 py-3 hover:bg-accent/40"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-sm">{row.stringId}</span>
-                    <Chip variant="outline">{row.type}</Chip>
-                  </div>
-                  <p className="line-clamp-1 text-sm text-muted-foreground">
-                    {row.source}
-                  </p>
-                  <StateChips
-                    languages={project.languages}
-                    states={row.states}
-                  />
-                </Link>
+                  stringId={row.stringId}
+                  type={row.type}
+                  source={row.source}
+                  languages={project.languages}
+                  states={row.states}
+                />
               </li>
             ))}
           </ul>
