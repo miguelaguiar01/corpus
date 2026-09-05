@@ -24,18 +24,22 @@ mkdir -p "$TMP/run" "$TMP/data"
 cp -r apps/web/.next/standalone/. "$TMP/run/"
 mkdir -p "$TMP/run/apps/web/.next"
 cp -r apps/web/.next/static "$TMP/run/apps/web/.next/static"
-PORT="$PORT" HOSTNAME=127.0.0.1 NODE_ENV=production \
+# localhost throughout, never 127.0.0.1: Next names a loopback bind
+# localhost in the middleware URL, so a 127.0.0.1 origin gets an absolute
+# cross-origin redirect that a prefetch never settles; and a localhost
+# bind may listen on ::1 only, which a 127.0.0.1 health check misses.
+PORT="$PORT" HOSTNAME=localhost NODE_ENV=production \
   CORPUS_DB_PATH="$TMP/data/corpus.db" \
   CORPUS_INVITE_SECRET=smoke-only-not-a-secret \
   node "$TMP/run/apps/web/server.js" >"$TMP/server.log" 2>&1 &
 PID=$!
 for _ in $(seq 1 60); do
-  curl -sf "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1 && break
+  curl -sf "http://localhost:$PORT/api/health" >/dev/null 2>&1 && break
   sleep 1
 done
-curl -sf "http://127.0.0.1:$PORT/api/health" >/dev/null || { cat "$TMP/server.log" >&2; exit 1; }
+curl -sf "http://localhost:$PORT/api/health" >/dev/null || { cat "$TMP/server.log" >&2; exit 1; }
 
 echo "=== smoke: playwright ==="
-CORPUS_SMOKE_URL="http://127.0.0.1:$PORT" CORPUS_SMOKE_SECRET=smoke-only-not-a-secret \
+CORPUS_SMOKE_URL="http://localhost:$PORT" CORPUS_SMOKE_SECRET=smoke-only-not-a-secret \
   npx playwright test -c apps/web/playwright.config.ts "$@"
 echo "=== smoke: PASS ==="

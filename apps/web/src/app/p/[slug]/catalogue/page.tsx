@@ -11,6 +11,8 @@ import {
 } from "@/catalogue/query";
 import { distinctTypes } from "@/catalogue/types";
 import { FacetPanel } from "@/components/facet-panel";
+import { Page } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
 import { ProgressStrip } from "@/components/progress-strip";
 import { SearchBox } from "@/components/search-box";
 import { StateChips } from "@/components/state-chips";
@@ -81,10 +83,10 @@ export default async function CataloguePage({
   const progress = progressCounts(db, project.id);
 
   return (
-    <main className="grid gap-6 md:grid-cols-[12rem_1fr]">
+    <Page width="wide" className="grid gap-6 md:grid-cols-[12rem_1fr]">
       <FacetPanel basePath={basePath} facets={facets} active={active} />
       <div className="space-y-4">
-        <h1 className="text-xl font-semibold">{t("catalogue.heading")}</h1>
+        <PageHeader title={t("catalogue.heading")} />
         <ProgressStrip progress={progress} />
         <SearchBox basePath={basePath} active={active} />
         {page.rows.length === 0 ? (
@@ -125,7 +127,7 @@ export default async function CataloguePage({
           />
         )}
       </div>
-    </main>
+    </Page>
   );
 }
 

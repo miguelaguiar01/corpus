@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { getDb } from "@/db";
 import { progressCounts } from "@/catalogue/progress";
 import { allQueues } from "@/catalogue/queues";
+import { Page } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
 import { ProgressByType } from "@/components/progress-by-type";
 import { QueueList } from "@/components/queue-list";
 import { getProjectBySlug } from "@/projects/service";
@@ -22,13 +24,13 @@ export default async function ProjectHome({
   const progress = progressCounts(db, project.id);
 
   return (
-    <main className="mx-auto max-w-xl space-y-8">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">{project.name}</h1>
-        <p className="text-sm text-muted-foreground">
-          {t("project.languages", { languages: project.languages.join(", ") })}
-        </p>
-      </header>
+    <Page width="reading" className="space-y-8">
+      <PageHeader
+        title={project.name}
+        meta={t("project.languages", {
+          languages: project.languages.join(", "),
+        })}
+      />
       <section className="space-y-3">
         <h2 className="text-sm text-muted-foreground">
           {t("dashboard.queuesHeading")}
@@ -53,6 +55,6 @@ export default async function ProjectHome({
         </h2>
         <ProgressByType progress={progress} />
       </section>
-    </main>
+    </Page>
   );
 }

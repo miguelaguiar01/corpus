@@ -1,5 +1,8 @@
 import { notFound } from "next/navigation";
 import { requireUser } from "@/auth/session";
+import { AppShell } from "@/components/app-shell";
+import { Page } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
 import { t } from "@/i18n";
 import { NewProjectForm } from "./form";
 
@@ -8,9 +11,11 @@ export default async function NewProjectPage() {
   const user = await requireUser();
   if (!user.maintainer) notFound();
   return (
-    <main className="mx-auto max-w-sm space-y-6 px-6 py-10">
-      <h1 className="text-2xl font-semibold">{t("newProject.heading")}</h1>
-      <NewProjectForm />
-    </main>
+    <AppShell>
+      <Page width="form" className="space-y-6">
+        <PageHeader title={t("newProject.heading")} />
+        <NewProjectForm />
+      </Page>
+    </AppShell>
   );
 }
