@@ -64,6 +64,7 @@
   "string.examplesHeading": "Examples",
   "string.entitiesHeading": "Related",
   "string.historyHeading": "History",
+  "source.branches": "Branches",
   "string.archived": "This string is archived. It is read-only.",
   "history.empty": "No edits yet.",
   "history.change": "{from} to {to}",

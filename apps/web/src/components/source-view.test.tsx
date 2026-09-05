@@ -26,16 +26,30 @@ test("placeholders render as chips carrying the declared slot description", () =
   );
 });
 
-test("each select renders as labelled branches instead of ICU syntax", () => {
+test("each select reads inline as its branches, named by its argument", () => {
   render(<SourceView source={sighting.source} declarations={declarations} />);
   const selects = screen.getAllByRole("group");
   expect(selects).toHaveLength(2);
   expect(selects[0]?.getAttribute("aria-label")).toBe("person_gender");
-  expect(selects[0]?.textContent).toContain("m");
-  expect(selects[0]?.textContent).toContain("visto");
-  expect(selects[0]?.textContent).toContain("f");
-  expect(selects[0]?.textContent).toContain("vista");
+  expect(selects[0]?.textContent).toBe("visto/vista");
   expect(screen.queryByText(/select,/)).toBeNull();
+});
+
+test("a strip below names every argument and key", () => {
+  render(<SourceView source={sighting.source} declarations={declarations} />);
+  const strip = screen.getByLabelText("Branches");
+  expect(strip.textContent).toContain("person_gender");
+  expect(strip.textContent).toContain("mvisto");
+  expect(strip.textContent).toContain("fvista");
+  expect(strip.textContent).toContain("sozinho");
+});
+
+test("the sentence keeps its punctuation attached to the last branch", () => {
+  const { container } = render(
+    <SourceView source={sighting.source} declarations={declarations} />,
+  );
+  const sentence = container.querySelector("p")!;
+  expect(sentence.textContent?.trim().endsWith(".")).toBe(true);
 });
 
 test("literal text between segments is kept verbatim", () => {
@@ -52,6 +66,7 @@ test("a plain string is just text", () => {
   );
   expect(container.textContent).toBe("Continuar");
   expect(screen.queryAllByRole("group")).toHaveLength(0);
+  expect(screen.queryByLabelText("Branches")).toBeNull();
 });
 
 test("an undeclared placeholder still renders as a chip, without a tooltip", () => {

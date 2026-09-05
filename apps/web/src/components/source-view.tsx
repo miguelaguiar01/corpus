@@ -4,15 +4,17 @@ import {
   type IcuNode,
 } from "@corpus/contract";
 import { chipVariants } from "@/components/ui/chip";
+import { t } from "@/i18n";
 
-// The source pane's branch view (§9.3): placeholders as chips carrying
-// their declared description, each select as its argument plus one line
-// per branch, never raw ICU syntax. Literal text is verbatim. A source
-// that fails to parse (impossible after push validation) shows as text.
+// The source (§9.3) reads as one sentence at one size: placeholders as
+// mono chips, each select as its branches inline ("visto / vista") with
+// the argument on demand, and a strip below that names every argument
+// and key. Punctuation stays attached. A source that fails to parse
+// (impossible after push validation) shows as text.
 export function SourceView({
   source,
   declarations,
-  className = "text-2xl leading-snug",
+  className = "text-xl lg:text-2xl",
 }: {
   source: string;
   declarations: Record<string, FieldDeclaration>;
@@ -21,7 +23,32 @@ export function SourceView({
   const parsed = parseIcu(source);
   if (!parsed.ok) return <p className={className}>{source}</p>;
   const slots = slotDescriptions(declarations);
-  return <p className={className}>{renderNodes(parsed.nodes, slots)}</p>;
+  const selects = parsed.nodes.filter((node) => node.kind === "select");
+  return (
+    <div className="space-y-3">
+      <p className={className}>{renderNodes(parsed.nodes, slots)}</p>
+      {selects.length > 0 && (
+        <dl
+          aria-label={t("source.branches")}
+          className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground"
+        >
+          {selects.map((node, index) => (
+            <div key={index} className="flex flex-wrap items-baseline gap-x-2">
+              <dt className="font-mono">{node.arg}</dt>
+              {Object.entries(node.branches).map(([key, branch]) => (
+                <dd key={key} className="flex items-baseline gap-1">
+                  <span className="font-mono">{key}</span>
+                  <span className="text-foreground">
+                    {renderNodes(branch, slots)}
+                  </span>
+                </dd>
+              ))}
+            </div>
+          ))}
+        </dl>
+      )}
+    </div>
+  );
 }
 
 function slotDescriptions(
@@ -40,19 +67,17 @@ function slotDescriptions(
   return slots;
 }
 
+const PLACEHOLDER = chipVariants({
+  variant: "key",
+  className: "align-baseline px-[0.4em] py-[0.1em] text-[0.6em] leading-tight",
+});
+
 function renderNodes(nodes: IcuNode[], slots: Map<string, string>) {
   return nodes.map((node, index) => {
     if (node.kind === "literal") return node.text;
     if (node.kind === "placeholder") {
       return (
-        <span
-          key={index}
-          className={chipVariants({
-            variant: "key",
-            className: "align-middle",
-          })}
-          title={slots.get(node.name)}
-        >
+        <span key={index} className={PLACEHOLDER} title={slots.get(node.name)}>
           {`{${node.name}}`}
         </span>
       );
@@ -62,12 +87,14 @@ function renderNodes(nodes: IcuNode[], slots: Map<string, string>) {
         key={index}
         role="group"
         aria-label={node.arg}
-        className="mx-0.5 inline-flex flex-col rounded-md border border-border px-2 py-1 align-middle text-base leading-snug"
+        title={node.arg}
+        className="whitespace-nowrap"
       >
-        <span className="text-xs text-muted-foreground">{node.arg}</span>
-        {Object.entries(node.branches).map(([key, branch]) => (
-          <span key={key}>
-            <span className="mr-1.5 text-xs text-muted-foreground">{key}</span>
+        {Object.values(node.branches).map((branch, i) => (
+          <span key={i}>
+            {i > 0 && (
+              <span className="mx-[0.3em] text-muted-foreground">/</span>
+            )}
             {renderNodes(branch, slots)}
           </span>
         ))}
