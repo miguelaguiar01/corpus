@@ -1,24 +1,34 @@
 import type { EntityCard } from "@/strings/detail";
+import { cn } from "@/lib/utils";
 
-// Entity cards (§6): one per referenced entity, attributes as a
-// definition list, no schema beyond the type's declared label.
-export function EntityCards({ entities }: { entities: EntityCard[] }) {
+// Entity cards (§6): one per referenced entity, the type as a quiet
+// caption, attributes as a definition list with the keys aligned. Two
+// columns by default; the browser widens to three from lg.
+export function EntityCards({
+  entities,
+  className,
+}: {
+  entities: EntityCard[];
+  className?: string;
+}) {
   if (entities.length === 0) return null;
   return (
-    <ul className="grid gap-3 sm:grid-cols-2">
+    <ul className={cn("grid gap-3 sm:grid-cols-2", className)}>
       {entities.map((entity) => (
         <li
           key={`${entity.field ?? ""}:${entity.entityId}`}
-          className="rounded-lg border border-border p-3"
+          className="space-y-2 rounded-lg border border-border p-4"
         >
-          <p className="text-xs text-muted-foreground">{entity.typeLabel}</p>
-          <p className="text-base font-medium">{entity.name}</p>
+          <div>
+            <p className="text-xs text-muted-foreground">{entity.typeLabel}</p>
+            <p className="text-base font-medium">{entity.name}</p>
+          </div>
           {entity.attributes && Object.keys(entity.attributes).length > 0 && (
-            <dl className="mt-2 space-y-1 text-sm">
+            <dl className="grid grid-cols-[minmax(4rem,max-content)_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm">
               {Object.entries(entity.attributes).map(([key, value]) => (
-                <div key={key} className="flex gap-2">
-                  <dt className="shrink-0 text-muted-foreground">{key}</dt>
-                  <dd>{value}</dd>
+                <div key={key} className="contents">
+                  <dt className="text-muted-foreground">{key}</dt>
+                  <dd className="min-w-0">{value}</dd>
                 </div>
               ))}
             </dl>
