@@ -14,6 +14,7 @@ import { NEW_TOKEN_COOKIE } from "@/projects/constants";
 import { getProjectBySlug } from "@/projects/service";
 import { pushHistory } from "@/pushes/history";
 import { t, type MessageKey } from "@/i18n";
+import { appVersion } from "@/version";
 
 type Query = { token?: string; saved?: string; error?: string };
 
@@ -53,7 +54,12 @@ export default async function SettingsPage({
 
   return (
     <main className="mx-auto max-w-xl space-y-10">
-      <h1 className="text-2xl font-semibold">{t("settings.heading")}</h1>
+      <header className="space-y-1">
+        <h1 className="text-2xl font-semibold">{t("settings.heading")}</h1>
+        <p className="text-xs text-muted-foreground">
+          {t("settings.version", { version: appVersion(process.env) })}
+        </p>
+      </header>
 
       {errorKey && (
         <p className="text-sm text-destructive" role="alert">

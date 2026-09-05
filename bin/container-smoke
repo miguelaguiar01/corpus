@@ -20,7 +20,7 @@ cleanup() {
 trap cleanup EXIT
 
 echo "=== container-smoke: build ==="
-docker build -t "$TAG" .
+docker build -t "$TAG" --build-arg "CORPUS_VERSION=${CORPUS_VERSION:-$(git describe --tags --always --dirty 2>/dev/null || echo dev)}" .
 
 echo "=== container-smoke: run ==="
 docker run -d --name "$NAME" -p "127.0.0.1:$PORT:3000" \
@@ -32,7 +32,7 @@ for _ in $(seq 1 60); do
   if body=$(curl -sf "http://127.0.0.1:$PORT/api/health" 2>/dev/null); then
     echo "health: $body"
     case "$body" in
-      *'"ok"'*) ;;
+      *'"ok"'*'"version":"'*) ;;
       *) echo "unexpected health body" >&2; docker logs "$NAME" >&2; exit 1 ;;
     esac
     echo "=== container-smoke: logs ==="
