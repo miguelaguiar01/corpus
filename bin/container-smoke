@@ -6,10 +6,14 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 TAG="${CORPUS_IMAGE:-corpus:smoke}"
-NAME="corpus-smoke-$$"
+NAME="${CORPUS_SMOKE_NAME:-corpus-smoke-$$}"
 PORT="${CORPUS_SMOKE_PORT:-3900}"
+# --keep leaves the container running for a caller (bin/dogfood) that
+# will use it and remove it; the name and port are printed for them.
+KEEP=0; [ "${1:-}" = "--keep" ] && KEEP=1
 
 cleanup() {
+  [ "$KEEP" = 1 ] && return 0
   docker rm -f "$NAME" >/dev/null 2>&1 || true
   docker volume rm "$NAME-data" >/dev/null 2>&1 || true
 }
@@ -34,6 +38,7 @@ for _ in $(seq 1 60); do
     echo "=== container-smoke: logs ==="
     docker logs "$NAME" 2>&1 | sed 's/^/  /'
     echo "=== container-smoke: PASS ==="
+    [ "$KEEP" = 1 ] && echo "CORPUS_SMOKE_NAME=$NAME CORPUS_SMOKE_PORT=$PORT"
     exit 0
   fi
   sleep 1

@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Corpus translates Corpus (spec §12, §15): boot the production image,
+# seed the repo's own project, push the chrome catalog with the real CLI,
+# pull it back at every state, and prove the working tree is unchanged.
+# The standard adapter path can never silently rot: this breaks first.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+export CORPUS_SMOKE_NAME="corpus-dogfood-$$"
+export CORPUS_SMOKE_PORT="${CORPUS_DOGFOOD_PORT:-3901}"
+cleanup() {
+  docker rm -f "$CORPUS_SMOKE_NAME" >/dev/null 2>&1 || true
+  docker volume rm "$CORPUS_SMOKE_NAME-data" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
+bin/container-smoke --keep
+
+echo "=== dogfood: seed the corpus-chrome project inside the container ==="
+TOKEN="$(openssl rand -hex 24)"
+# The runtime image has node and the app's better-sqlite3; the seed is the
+# same direct insert a maintainer's "new project" performs (§10), minus UI.
+docker exec -e TOKEN="$TOKEN" "$CORPUS_SMOKE_NAME" node -e '
+  const Database = require("/app/node_modules/better-sqlite3");
+  const { createHash } = require("node:crypto");
+  const db = new Database("/data/corpus.db");
+  const hash = createHash("sha256").update(process.env.TOKEN).digest("hex");
+  db.prepare("insert into projects (slug, name, source_language, languages, token_hash, created_at) values (?, ?, ?, ?, ?, ?)")
+    .run("corpus-chrome", "Corpus (chrome)", "en", JSON.stringify(["en", "pt-PT"]), hash, Date.now());
+  console.log("seeded project corpus-chrome");
+'
+
+export CORPUS_SERVER="http://127.0.0.1:$CORPUS_SMOKE_PORT"
+export CORPUS_TOKEN="$TOKEN"
+corpus() { npx tsx packages/cli/src/bin.ts "$@"; }
+
+echo "=== dogfood: push ==="
+corpus push
+
+echo "=== dogfood: pull at untranslated must reproduce the tree ==="
+corpus pull --min-state untranslated
+git diff --exit-code --stat -- apps/web/src/i18n || { echo "pull changed tracked files" >&2; exit 1; }
+if [ -n "$(git status --porcelain --untracked-files=all -- apps/web/src/i18n)" ]; then
+  echo "pull created files:" >&2; git status --porcelain -- apps/web/src/i18n >&2; exit 1
+fi
+
+echo "=== dogfood: pull at verified must write nothing ==="
+corpus pull
+git diff --exit-code --quiet -- apps/web/src/i18n
+[ -z "$(git status --porcelain --untracked-files=all -- apps/web/src/i18n)" ]
+
+echo "=== dogfood: PASS ==="
