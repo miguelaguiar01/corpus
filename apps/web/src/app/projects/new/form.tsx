@@ -2,7 +2,9 @@
 
 import { useActionState } from "react";
 import { createProjectAction, type NewProjectState } from "@/projects/actions";
+import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { t, type MessageKey } from "@/i18n";
 
@@ -19,45 +21,35 @@ export function NewProjectForm() {
 
   if (state.status === "created") {
     return (
-      <div className="space-y-3" role="status">
-        <p className="text-sm">
-          {t("newProject.created", { slug: state.slug })}
-        </p>
-        <p className="text-sm text-muted-foreground">
-          {t("newProject.tokenOnce")}
-        </p>
-        <code className="block break-all rounded-md bg-muted p-3 text-sm">
+      <Banner tone="success" className="space-y-3">
+        <p>{t("newProject.created", { slug: state.slug })}</p>
+        <p className="text-muted-foreground">{t("newProject.tokenOnce")}</p>
+        <code className="block break-all rounded-md border border-border bg-background p-3">
           {state.token}
         </code>
-      </div>
+      </Banner>
     );
   }
 
   return (
     <form action={action} className="space-y-4">
       {state.status === "error" && (
-        <p className="text-sm text-destructive" role="alert">
+        <Banner tone="error">
           {t(ERROR_KEYS[state.reason] ?? "newProject.errorInvalid")}
-        </p>
+        </Banner>
       )}
-      <label className="block space-y-1.5">
-        <span className="text-sm font-medium">{t("newProject.slug")}</span>
+      <Field label={t("newProject.slug")}>
         <Input name="slug" required />
-      </label>
-      <label className="block space-y-1.5">
-        <span className="text-sm font-medium">{t("newProject.name")}</span>
+      </Field>
+      <Field label={t("newProject.name")}>
         <Input name="name" required />
-      </label>
-      <label className="block space-y-1.5">
-        <span className="text-sm font-medium">
-          {t("newProject.sourceLanguage")}
-        </span>
+      </Field>
+      <Field label={t("newProject.sourceLanguage")}>
         <Input name="sourceLanguage" required placeholder="en" />
-      </label>
-      <label className="block space-y-1.5">
-        <span className="text-sm font-medium">{t("newProject.languages")}</span>
+      </Field>
+      <Field label={t("newProject.languages")}>
         <Input name="languages" required placeholder="en, pt-PT" />
-      </label>
+      </Field>
       <Button type="submit">{t("newProject.submit")}</Button>
     </form>
   );

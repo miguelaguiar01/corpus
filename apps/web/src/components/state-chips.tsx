@@ -1,16 +1,16 @@
 import { t } from "@/i18n";
 import type { LanguageState } from "@/catalogue/query";
+import { Chip } from "@/components/ui/chip";
 import { STATE_KEY } from "./state-label";
 
 // Three states, three treatments that survive both themes and do not
 // rely on hue alone: outlined, filled achromatic, filled moss with a
-// mark. Colour means state (docs/design.md): only verified and stale
-// carry hue.
-const STATE_CLASS: Record<LanguageState["state"], string> = {
-  untranslated: "border border-border text-muted-foreground",
-  translated: "bg-foreground/15 text-foreground",
-  verified: "bg-state-verified text-state-verified-foreground",
-};
+// mark.
+const STATE_VARIANT = {
+  untranslated: "outline",
+  translated: "neutral",
+  verified: "state-verified",
+} as const satisfies Record<LanguageState["state"], string>;
 
 export function StateChips({
   languages,
@@ -25,9 +25,9 @@ export function StateChips({
         const value = states[language];
         const state = value?.state ?? "untranslated";
         return (
-          <span
+          <Chip
             key={language}
-            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${STATE_CLASS[state]}`}
+            variant={STATE_VARIANT[state]}
             title={t(STATE_KEY[state])}
           >
             {state === "verified" && <span aria-hidden="true">✓</span>}
@@ -37,7 +37,7 @@ export function StateChips({
                 {t("state.stale")}
               </span>
             )}
-          </span>
+          </Chip>
         );
       })}
     </div>

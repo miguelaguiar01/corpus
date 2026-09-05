@@ -3,8 +3,11 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/auth/session";
 import { Page } from "@/components/page-container";
 import { PageHeader } from "@/components/page-header";
+import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Section } from "@/components/ui/section";
 import { getDb } from "@/db";
 import { users } from "@/db/schema";
 import {
@@ -61,21 +64,10 @@ export default async function SettingsPage({
         meta={t("settings.version", { version: appVersion(process.env) })}
       />
 
-      {errorKey && (
-        <p className="text-sm text-destructive" role="alert">
-          {t(errorKey)}
-        </p>
-      )}
-      {query.saved && (
-        <p className="text-sm text-muted-foreground" role="status">
-          {t("settings.saved")}
-        </p>
-      )}
+      {errorKey && <Banner tone="error">{t(errorKey)}</Banner>}
+      {query.saved && <Banner tone="success">{t("settings.saved")}</Banner>}
 
-      <section className="space-y-3">
-        <h2 className="text-sm text-muted-foreground">
-          {t("settings.tokenHeading")}
-        </h2>
+      <Section heading={t("settings.tokenHeading")}>
         {newToken ? (
           <div className="space-y-2">
             <p className="text-sm">{t("settings.tokenOnce")}</p>
@@ -94,33 +86,26 @@ export default async function SettingsPage({
             {t("settings.rotateToken")}
           </Button>
         </form>
-      </section>
+      </Section>
 
-      <section className="space-y-3">
-        <h2 className="text-sm text-muted-foreground">
-          {t("settings.languagesHeading")}
-        </h2>
+      <Section heading={t("settings.languagesHeading")}>
         <form action={saveLanguages} className="space-y-3">
           <input type="hidden" name="slug" value={slug} />
           <p className="text-sm">
             {t("settings.sourceLanguage", { language: project.sourceLanguage })}
           </p>
-          <label className="block space-y-1.5">
-            <span className="text-sm">{t("settings.targetLanguages")}</span>
+          <Field label={t("settings.targetLanguages")}>
             <Input
               name="languages"
               defaultValue={targets.join(", ")}
               placeholder="en, pt-PT"
             />
-          </label>
+          </Field>
           <Button type="submit">{t("settings.saveLanguages")}</Button>
         </form>
-      </section>
+      </Section>
 
-      <section className="space-y-3">
-        <h2 className="text-sm text-muted-foreground">
-          {t("settings.historyHeading")}
-        </h2>
+      <Section heading={t("settings.historyHeading")}>
         {history.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             {t("settings.historyEmpty")}
@@ -150,12 +135,9 @@ export default async function SettingsPage({
             ))}
           </ol>
         )}
-      </section>
+      </Section>
 
-      <section className="space-y-3">
-        <h2 className="text-sm text-muted-foreground">
-          {t("settings.usersHeading")}
-        </h2>
+      <Section heading={t("settings.usersHeading")}>
         <ul className="divide-y divide-border border-y border-border">
           {people.map((person) => (
             <li
@@ -185,7 +167,7 @@ export default async function SettingsPage({
             </li>
           ))}
         </ul>
-      </section>
+      </Section>
     </Page>
   );
 }

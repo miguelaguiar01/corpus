@@ -6,6 +6,7 @@ import { Page } from "@/components/page-container";
 import { PageHeader } from "@/components/page-header";
 import { ProgressByType } from "@/components/progress-by-type";
 import { QueueList } from "@/components/queue-list";
+import { Section } from "@/components/ui/section";
 import { getProjectBySlug } from "@/projects/service";
 import { t } from "@/i18n";
 
@@ -31,10 +32,7 @@ export default async function ProjectHome({
           languages: project.languages.join(", "),
         })}
       />
-      <section className="space-y-3">
-        <h2 className="text-sm text-muted-foreground">
-          {t("dashboard.queuesHeading")}
-        </h2>
+      <Section heading={t("dashboard.queuesHeading")}>
         <QueueList
           slug={slug}
           counts={{
@@ -48,13 +46,10 @@ export default async function ProjectHome({
             unverifiedSource: queues.unverifiedSource.first,
           }}
         />
-      </section>
-      <section className="space-y-3">
-        <h2 className="text-sm text-muted-foreground">
-          {t("dashboard.progressHeading")}
-        </h2>
+      </Section>
+      <Section heading={t("dashboard.progressHeading")}>
         <ProgressByType progress={progress} />
-      </section>
+      </Section>
     </Page>
   );
 }

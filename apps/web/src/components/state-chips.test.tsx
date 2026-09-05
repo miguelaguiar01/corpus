@@ -55,7 +55,7 @@ test("the three states are visibly distinct, not only by colour", () => {
   // mark.
   expect(chip("a").className).toMatch(/border/);
   expect(chip("a").className).not.toMatch(/bg-(muted|secondary|state)/);
-  expect(chip("b").className).toMatch(/bg-foreground\/15/);
+  expect(chip("b").className).toMatch(/bg-secondary/);
   expect(chip("c").className).toMatch(/bg-state-verified/);
   expect(chip("c").textContent).toMatch(/✓/);
   expect(chip("b").textContent).not.toMatch(/✓/);

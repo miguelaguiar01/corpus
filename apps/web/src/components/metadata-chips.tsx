@@ -1,7 +1,5 @@
 import type { FieldDeclaration, MetadataValue } from "@corpus/contract";
-
-export const CHIP =
-  "inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-xs text-secondary-foreground";
+import { Chip } from "@/components/ui/chip";
 
 // Metadata rendered generically from the type's declarations (§5): enum
 // values and set flags as chips, text as a note. Placeholder slots show
@@ -43,9 +41,9 @@ export function MetadataChips({
       {chips.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {chips.map((chip) => (
-            <span key={chip.key} className={CHIP} title={chip.title}>
+            <Chip key={chip.key} title={chip.title}>
               {chip.label}
-            </span>
+            </Chip>
           ))}
         </div>
       )}

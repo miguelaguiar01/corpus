@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { Facet } from "@/catalogue/facets";
 import { t, type MessageKey } from "@/i18n";
+import { chipVariants } from "@/components/ui/chip";
+import { cn } from "@/lib/utils";
 
 const BUILTIN_LABEL: Record<string, MessageKey> = {
   type: "facet.type",
@@ -94,11 +96,11 @@ function FacetLink({
   return (
     <Link
       href={href}
-      className={`${block ? "block" : "inline-block"} rounded-full border px-2 py-0.5 text-xs ${
-        selected
-          ? "border-primary bg-primary text-primary-foreground"
-          : "border-border hover:bg-accent"
-      }`}
+      className={cn(
+        chipVariants({ variant: selected ? "solid" : "outline" }),
+        block && "flex",
+        !selected && "hover:bg-accent",
+      )}
     >
       {label}
     </Link>

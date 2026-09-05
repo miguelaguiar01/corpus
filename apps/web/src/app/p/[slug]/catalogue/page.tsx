@@ -13,6 +13,7 @@ import { distinctTypes } from "@/catalogue/types";
 import { FacetPanel } from "@/components/facet-panel";
 import { Page } from "@/components/page-container";
 import { PageHeader } from "@/components/page-header";
+import { Chip } from "@/components/ui/chip";
 import { ProgressStrip } from "@/components/progress-strip";
 import { SearchBox } from "@/components/search-box";
 import { StateChips } from "@/components/state-chips";
@@ -103,9 +104,7 @@ export default async function CataloguePage({
                 >
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-sm">{row.stringId}</span>
-                    <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-                      {row.type}
-                    </span>
+                    <Chip variant="outline">{row.type}</Chip>
                   </div>
                   <p className="line-clamp-1 text-sm text-muted-foreground">
                     {row.source}
