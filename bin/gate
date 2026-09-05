@@ -25,13 +25,9 @@ step "tests"
 npm test
 
 step "corpus check (self catalog)"
-# Placeholder: `corpus check` is built in M4 (spec §16) — see
-# docs/DECISIONS.md "M0 bootstrap sequence". Skips unconditionally so an
-# M1-era CLI without a real `check` can never silently pass this step;
-# the M4 corpus-check ticket replaces this whole block with the real
-# invocation.
-echo "WARNING: 'corpus check' SKIPPED — not built until M4." >&2
-echo "WARNING: placeholder step; the M4 corpus-check ticket replaces it." >&2
+# The repo's own chrome must come from the catalog (§12): the real
+# `corpus check` on this repo, configured in corpus.config.ts.
+npx tsx packages/cli/src/bin.ts check
 
 echo
 echo "=== gate: PASS ==="
