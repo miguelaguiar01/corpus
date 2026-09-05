@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { requireUser } from "@/auth/session";
 import { getDb } from "@/db";
 import { EntityCards } from "@/components/entity-cards";
 import { entitiesByType } from "@/entities/browser";
@@ -14,6 +15,7 @@ export default async function EntitiesPage({
 }: {
   params: Promise<{ slug: string }>;
 }) {
+  await requireUser();
   const { slug } = await params;
   const db = getDb();
   const project = getProjectBySlug(db, slug);

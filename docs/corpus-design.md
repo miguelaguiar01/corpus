@@ -243,6 +243,7 @@ The tool has its own visual identity (quiet, big type, system light/dark via sha
 - Users have one flag: `maintainer`. The first user created on an instance is a maintainer; maintainers can toggle the flag for other users in the UI. Maintainers verify strings and see surface §9.5. Everyone sees all projects on the instance.
 - The CLI authenticates with **per-project bearer tokens** (created at project creation, rotatable), supplied via `CORPUS_TOKEN` — never committed.
 - The instance is expected to run behind the owner's own edge (e.g. Cloudflare Access) for defense in depth, but must be safe without it: secret + tokens are sufficient auth, rate-limit the invite endpoint, session cookies `HttpOnly`/`SameSite=Lax`, security headers on.
+- Every page under `/p/[slug]/` calls `requireUser()` itself. The shared layout checks too, but a layout is not an authorization boundary: the App Router can skip an unchanged layout on a client navigation, and the edge middleware only checks that a session cookie exists.
 
 ---
 
