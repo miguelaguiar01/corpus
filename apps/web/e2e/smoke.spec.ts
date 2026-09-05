@@ -36,6 +36,7 @@ test("a maintainer takes a string from pushed to verified on a phone", async ({
 
   await page.getByRole("link", { name: /Untranslated/ }).click();
   await page.waitForURL(/language=en/);
+  await page.waitForLoadState("networkidle");
   const draft = page.getByRole("textbox");
   await draft.fill("was seen at the window ");
   await page.getByRole("button", { name: "{room_de}" }).click();
@@ -57,8 +58,12 @@ test("a maintainer takes a string from pushed to verified on a phone", async ({
 
   await page.getByRole("link", { name: /Unverified source/ }).click();
   await page.waitForURL(/queue=unverifiedSource/);
-  await page.getByRole("button", { name: "Mark pt-PT as verified" }).click();
-  await page.waitForURL(/queue=unverifiedSource/);
+  await page.waitForLoadState("networkidle");
+  const before = page.url();
+  const verify = page.getByRole("button", { name: "Mark pt-PT as verified" });
+  await expect(verify).toBeVisible();
+  await verify.click();
+  await page.waitForURL((url) => url.href !== before);
 
   await page.goto(dashboard);
   await expect(
