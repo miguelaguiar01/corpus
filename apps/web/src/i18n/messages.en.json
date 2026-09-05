@@ -19,6 +19,7 @@
   "entities.heading": "Entities",
   "entities.empty": "No entities yet. Push a snapshot that includes them.",
   "settings.heading": "Settings",
+  "settings.version": "Corpus build {version}",
   "settings.saved": "Saved.",
   "settings.errorForbidden": "Only maintainers can change settings.",
   "settings.errorInvalid": "Check the fields and try again.",

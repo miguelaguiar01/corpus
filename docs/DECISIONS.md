@@ -157,3 +157,16 @@ number in four places keeps mode 1 (local) and mode 2 (container)
 honest with each other (§2).
 
 **Context:** #131, from the local-vs-container review.
+
+## 2026-09-05 — Build identity is the git describe string, stamped into the image
+
+**Decision:** the Docker image takes `--build-arg CORPUS_VERSION` (CI passes
+`git describe --tags --always --dirty`, e.g. `v0.4.0-3-gabc1234`), baked
+into the runner as an env var. `/api/health` returns it alongside `status`,
+and the maintainer corner shows it. An unstamped build reports `dev`.
+
+**Why:** a running instance must be traceable to a commit without a
+login, and health is the endpoint operators already poll. The snapshot
+contract version (`corpus/1`, §4) is a different axis and stays separate.
+
+**Context:** #139, owner-requested on 2026-09-04.

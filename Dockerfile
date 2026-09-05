@@ -18,6 +18,10 @@ COPY . .
 RUN npm run build -w apps/web
 
 FROM node:22-slim AS runner
+# Build identity (git SHA, and tag if any), shown by /api/health and the
+# maintainer corner. Passed by CI; a local build without it reports "dev".
+ARG CORPUS_VERSION=dev
+ENV CORPUS_VERSION=$CORPUS_VERSION
 ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
