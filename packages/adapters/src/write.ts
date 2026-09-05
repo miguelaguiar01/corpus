@@ -49,7 +49,16 @@ function isNested(tree: Tree): boolean {
   return Object.values(tree).some((value) => typeof value !== "string");
 }
 
+const UNSAFE_SEGMENTS = new Set(["__proto__", "constructor", "prototype"]);
+
 function setPath(tree: Tree, path: string[], value: string): void {
+  // An id from the server is data; these segments would walk into the
+  // prototype instead of the tree.
+  if (path.some((segment) => UNSAFE_SEGMENTS.has(segment))) {
+    throw new Error(
+      `messages: id ${JSON.stringify(path.join("."))} is not a valid key path`,
+    );
+  }
   let node = tree;
   for (const key of path.slice(0, -1)) {
     const next = node[key];
@@ -85,7 +94,8 @@ export function entriesToMessages(
       !existing.trim() &&
       isNested(parseTree(template)));
 
-  const out: Tree = {};
+  // Null-prototype, so a flat key such as __proto__ is an own key.
+  const out: Tree = Object.create(null) as Tree;
   const seen = new Set<string>();
   const place = (path: string[], fallback: string | undefined) => {
     const id = path.join(".");

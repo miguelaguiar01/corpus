@@ -1,13 +1,19 @@
 // Normative corpus/1 envelope and entity schemas (§4, §6, §8). Loose
 // objects throughout: consumers must ignore unknown fields (§4).
 import { z } from "zod";
-import { fieldDeclarationSchema, stringEntrySchema } from "./strings";
+import {
+  fieldDeclarationSchema,
+  stringEntrySchema,
+  identifier,
+  languageCode,
+  entityId,
+} from "./strings";
 
 export const CONTRACT_VERSION = "corpus/1" as const;
 
 export const entitySchema = z.looseObject({
-  id: z.string().min(1),
-  type: z.string().min(1),
+  id: entityId(),
+  type: identifier(),
   name: z.string().min(1),
   attributes: z.record(z.string(), z.string()).optional(),
 });
@@ -20,8 +26,8 @@ export const entityTypeDeclarationSchema = z.looseObject({
 // render metadata generically (§5) without reading the client's config.
 export const snapshotSchema = z.looseObject({
   contract: z.literal(CONTRACT_VERSION),
-  project: z.string().min(1),
-  sourceLanguage: z.string().min(1),
+  project: identifier(),
+  sourceLanguage: languageCode(),
   strings: z.array(stringEntrySchema),
   entities: z.array(entitySchema).default([]),
   stringTypes: z

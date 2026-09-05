@@ -172,3 +172,21 @@ describe("entriesToTable", () => {
     ]);
   });
 });
+
+test("an id that would walk into the prototype is refused", () => {
+  const nested = '{\n  "a": {\n    "b": "B"\n  }\n}\n';
+  expect(() =>
+    entriesToMessages(nested, { "__proto__.polluted": "EVIL" }, undefined),
+  ).toThrow(/not a valid key path/);
+  expect(() =>
+    entriesToMessages(nested, { "constructor.prototype.x": "y" }, undefined),
+  ).toThrow(/not a valid key path/);
+  // A flat catalog has the whole id as one segment; still refused.
+  expect(() =>
+    entriesToMessages('{\n  "a": "A"\n}\n', { ["__proto__"]: "P" }, undefined),
+  ).toThrow(/not a valid key path/);
+  expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  expect(
+    Object.prototype.hasOwnProperty.call(Object.prototype, "polluted"),
+  ).toBe(false);
+});
