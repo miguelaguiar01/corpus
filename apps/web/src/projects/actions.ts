@@ -2,7 +2,9 @@
 
 import { getDb } from "@/db";
 import { requireUser } from "@/auth/session";
+import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
+import { NEW_TOKEN_COOKIE } from "./constants";
 import { createProject, getProjectBySlug } from "./service";
 import { rotateToken, setMaintainer, updateLanguages } from "./settings";
 
@@ -58,8 +60,17 @@ export async function rotateProjectToken(formData: FormData): Promise<void> {
   if (!project) notFound();
   const result = rotateToken(db, project.id, user);
   if (!result.ok) redirect(settingsPath(slug, { error: result.reason }));
-  // Shown once, in the URL of the redirect target only; never stored.
-  redirect(settingsPath(slug, { token: result.token }));
+  // Shown once: carried to the page in a short-lived HttpOnly cookie
+  // scoped to the settings path, never in a URL that proxies would log.
+  const jar = await cookies();
+  jar.set(NEW_TOKEN_COOKIE, result.token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: `/p/${slug}/settings`,
+    maxAge: 60,
+  });
+  redirect(settingsPath(slug, { token: "1" }));
 }
 
 export async function saveLanguages(formData: FormData): Promise<void> {

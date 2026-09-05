@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/auth/session";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import {
   saveLanguages,
   toggleMaintainer,
 } from "@/projects/actions";
+import { NEW_TOKEN_COOKIE } from "@/projects/constants";
 import { getProjectBySlug } from "@/projects/service";
 import { t, type MessageKey } from "@/i18n";
 
@@ -38,6 +40,11 @@ export default async function SettingsPage({
   if (!project) notFound();
   const people = db.select().from(users).orderBy(users.name).all();
   const targets = project.languages.filter((l) => l !== project.sourceLanguage);
+  // The freshly rotated token, if the action just set it (60 s cookie).
+  const newToken =
+    query.token === "1"
+      ? (await cookies()).get(NEW_TOKEN_COOKIE)?.value
+      : undefined;
   const errorKey = query.error
     ? (ERROR_KEY[query.error] ?? "settings.errorInvalid")
     : undefined;
@@ -61,11 +68,11 @@ export default async function SettingsPage({
         <h2 className="text-sm text-muted-foreground">
           {t("settings.tokenHeading")}
         </h2>
-        {query.token ? (
+        {newToken ? (
           <div className="space-y-2">
             <p className="text-sm">{t("settings.tokenOnce")}</p>
             <code className="block break-all rounded-md border border-border p-3 text-sm">
-              {query.token}
+              {newToken}
             </code>
           </div>
         ) : (
