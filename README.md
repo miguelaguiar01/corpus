@@ -31,6 +31,24 @@ the fixture project, Moonlight Manor, showing what structured text looks
 like: a select rendered as branches, and previews from the string's own
 examples.*
 
+<details>
+<summary>More screens: catalogue, entity browser, maintainer settings</summary>
+<p>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/catalogue-dark.png">
+    <img src="docs/screenshots/catalogue-light.png" width="260" alt="The catalogue on a phone: search, facet filters, and per-language state chips on every string.">
+  </picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/entities-dark.png">
+    <img src="docs/screenshots/entities-light.png" width="260" alt="The entity browser on a phone: read-only cards grouped by entity type, with attributes.">
+  </picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-dark.png">
+    <img src="docs/screenshots/settings-light.png" width="260" alt="The maintainer corner on a phone: push token rotation, languages, push history, and the people on the instance.">
+  </picture>
+</p>
+</details>
+
 ## Self-hosting
 
 Corpus ships as a single container with its SQLite database on a
