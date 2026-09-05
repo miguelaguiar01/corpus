@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# README screenshots (spec §12): build once, then for each colour scheme
-# start a fresh standalone server on a throwaway database and let
-# apps/web/e2e/screenshots.ts stage the demo and capture the surfaces.
-# Output: docs/screenshots/<surface>-<scheme>.png at 390px, 2x.
+# README screenshots (spec §12): build once, then for each viewport and
+# colour scheme start a fresh standalone server on a throwaway database
+# and let apps/web/e2e/screenshots.ts stage the demo and capture the
+# surfaces. Output: docs/screenshots/<surface>[-desktop]-<scheme>.png at
+# 390px or 1280px, 2x; the README references a subset, the rest is for
+# PR evidence (CORPUS_SHOTS_DIR points the output elsewhere).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
