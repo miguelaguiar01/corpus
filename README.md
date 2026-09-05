@@ -27,7 +27,7 @@ Flat key-value translation tools lose what makes game and app text hard: the pla
 
 - **Structured text, first class.** Strings carry placeholders, ICU selects, metadata, and references to the entities they mention. The editor renders a select as its branches, never as syntax, and chips insert placeholders and select skeletons so nobody types braces by hand.
 - **Previews without running your code.** Each string can ship examples, slot values plus the source render, and the editor substitutes them into the draft as it is typed, one preview per example, both branches of a select exercised.
-- **The repository stays the truth.** `corpus push` diffs the repo into Corpus by string id; `corpus pull` writes verified translations back through the same adapters, format preserving. Push then pull reproduces the repository byte for byte, and that invariant is a test in the gate.
+- **The repository stays the truth.** `corpus push` diffs the repo into Corpus by string id; `corpus pull` writes verified translations back through the same adapters, format-preserving. Push then pull reproduces the repository byte for byte, and that invariant is a test in the gate.
 - **A workflow, not a spreadsheet.** Every string and language moves untranslated, translated, verified, with a stale mark when the source changes underneath, an attributed history of every edit, and queues that tell a translator what to work on next.
 - **One container.** Next.js and SQLite in a single image with its database on a volume. No external services, no accounts, one invite secret for the instance.
 - **Made for a phone in one hand.** Translators mostly work on phones, so every surface was designed at 390px first, with the desktop layouts built out from there.
@@ -83,7 +83,7 @@ Create the project in the web app, which shows you a push token once, then from 
 export CORPUS_SERVER=http://localhost:3000 CORPUS_TOKEN=<token>
 corpus push                       # repo → Corpus: adds, changes, marks stale, archives
 corpus pull                       # Corpus → repo: verified translations only
-corpus pull --min-state translated
+corpus pull --min-state translated  # Corpus → repo: translated and verified
 corpus check                      # lint: user-facing literals outside declared sources
 ```
 
