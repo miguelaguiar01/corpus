@@ -9,7 +9,7 @@ const STEP =
 const STEP_INLINE =
   "flex min-h-8 items-center justify-center rounded-md px-3 text-sm";
 
-// Previous/next through the active queue, at thumb height (§9.3).
+// Previous/next through the active queue (§9.3).
 export function QueueNav({
   slug,
   queue,
@@ -27,7 +27,13 @@ export function QueueNav({
   const { index, previous, next } = neighbours(queue, current);
   if (index === null) {
     return (
-      <nav className="flex justify-center py-2 text-sm">
+      <nav
+        className={
+          inline
+            ? "flex border-b border-border pb-3 text-sm"
+            : "flex justify-center py-2 text-sm"
+        }
+      >
         <Link href={`/p/${slug}`} className="underline">
           {t(QUEUE_LABEL[queue.kind])}
         </Link>

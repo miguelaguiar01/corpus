@@ -34,9 +34,8 @@ const ERROR_KEY: Record<string, MessageKey> = {
   "source-row": "editor.errorSourceRow",
 };
 
-// Source verification surface (§9.3, M2): read the source with everything
-// that gives it context, then sign it off and flow on through the queue.
-// The full editor (target pane, branch view) is M3.
+// The string surface (§9.3): read the source with everything that gives
+// it context, translate it or sign it off, and flow on through the queue.
 export default async function StringPage({
   params,
   searchParams,
