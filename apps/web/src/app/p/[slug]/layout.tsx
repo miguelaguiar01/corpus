@@ -27,12 +27,14 @@ export default async function ProjectLayout({
 
   return (
     <div className="min-h-dvh">
-      <header className="flex items-center gap-3 border-b border-border px-4 py-3">
+      {/* Wraps on a phone: four links beside the switcher overflow 390px,
+          and a page that overflows sideways breaks fixed-bar hit testing. */}
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border px-4 py-3">
         <Link href="/" className="text-sm font-semibold">
           {t("app.title")}
         </Link>
         <ProjectSwitcher current={slug} projects={projects} />
-        <nav className="ml-auto flex gap-4 text-sm">
+        <nav className="ml-auto flex flex-wrap gap-x-4 gap-y-1 text-sm">
           <Link href={`/p/${slug}`} className="hover:underline">
             {t("nav.overview")}
           </Link>
