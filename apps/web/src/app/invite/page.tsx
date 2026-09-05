@@ -31,7 +31,7 @@ export default async function InvitePage({
   const message = errorMessage(error);
 
   return (
-    <AppShell>
+    <AppShell home={false}>
       <Page width="form" className="space-y-6 py-12 lg:py-20">
         <PageHeader title={t("invite.heading")} meta={t("invite.intro")} />
         <form action={submitInvite} className="space-y-6">
