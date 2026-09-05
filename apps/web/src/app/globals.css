@@ -4,50 +4,62 @@
    Light values on :root, dark under the media query. Theme switching is
    token-based: components use token colors (bg-background, text-foreground,
    …), never `dark:` utilities — there is no .dark class in this app. */
+/* Tokens (docs/design.md). A barely-warm neutral base and an ink
+   foreground; colour is reserved for translation state: verified is
+   moss, stale is amber, destructive is red. Light on :root, dark under
+   the media query. Components use token colours, never `dark:`. */
 :root {
-  --background: oklch(0.99 0 0);
-  --foreground: oklch(0.18 0 0);
+  --background: oklch(0.985 0.004 85);
+  --foreground: oklch(0.2 0.01 80);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.18 0 0);
+  --card-foreground: oklch(0.2 0.01 80);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.18 0 0);
-  --primary: oklch(0.24 0 0);
-  --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.96 0 0);
-  --secondary-foreground: oklch(0.24 0 0);
-  --muted: oklch(0.96 0 0);
-  --muted-foreground: oklch(0.5 0 0);
-  --accent: oklch(0.96 0 0);
-  --accent-foreground: oklch(0.24 0 0);
-  --destructive: oklch(0.55 0.2 25);
-  --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.91 0 0);
-  --input: oklch(0.91 0 0);
-  --ring: oklch(0.6 0 0);
+  --popover-foreground: oklch(0.2 0.01 80);
+  --primary: oklch(0.22 0.01 80);
+  --primary-foreground: oklch(0.985 0.004 85);
+  --secondary: oklch(0.93 0.006 85);
+  --secondary-foreground: oklch(0.22 0.01 80);
+  --muted: oklch(0.955 0.005 85);
+  --muted-foreground: oklch(0.5 0.012 80);
+  --accent: oklch(0.955 0.005 85);
+  --accent-foreground: oklch(0.22 0.01 80);
+  --destructive: oklch(0.55 0.19 27);
+  --destructive-foreground: oklch(0.985 0.004 85);
+  --border: oklch(0.9 0.006 85);
+  --input: oklch(0.88 0.006 85);
+  --ring: oklch(0.55 0.02 80);
+  --state-verified: oklch(0.52 0.1 155);
+  --state-verified-foreground: oklch(0.985 0.004 85);
+  --state-stale: oklch(0.8 0.13 80);
+  --state-stale-foreground: oklch(0.22 0.03 80);
   --radius: 0.5rem;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: oklch(0.16 0 0);
-    --foreground: oklch(0.95 0 0);
-    --card: oklch(0.2 0 0);
-    --card-foreground: oklch(0.95 0 0);
-    --popover: oklch(0.2 0 0);
-    --popover-foreground: oklch(0.95 0 0);
-    --primary: oklch(0.92 0 0);
-    --primary-foreground: oklch(0.2 0 0);
-    --secondary: oklch(0.26 0 0);
-    --secondary-foreground: oklch(0.95 0 0);
-    --muted: oklch(0.26 0 0);
-    --muted-foreground: oklch(0.68 0 0);
-    --accent: oklch(0.26 0 0);
-    --accent-foreground: oklch(0.95 0 0);
-    --destructive: oklch(0.65 0.18 25);
-    --destructive-foreground: oklch(0.98 0 0);
-    --border: oklch(0.28 0 0);
-    --input: oklch(0.28 0 0);
-    --ring: oklch(0.55 0 0);
+    --background: oklch(0.17 0.005 80);
+    --foreground: oklch(0.94 0.005 85);
+    --card: oklch(0.21 0.005 80);
+    --card-foreground: oklch(0.94 0.005 85);
+    --popover: oklch(0.21 0.005 80);
+    --popover-foreground: oklch(0.94 0.005 85);
+    --primary: oklch(0.92 0.005 85);
+    --primary-foreground: oklch(0.2 0.01 80);
+    --secondary: oklch(0.28 0.006 80);
+    --secondary-foreground: oklch(0.94 0.005 85);
+    --muted: oklch(0.25 0.006 80);
+    --muted-foreground: oklch(0.7 0.01 85);
+    --accent: oklch(0.27 0.006 80);
+    --accent-foreground: oklch(0.94 0.005 85);
+    --destructive: oklch(0.66 0.18 27);
+    --destructive-foreground: oklch(0.985 0.004 85);
+    --border: oklch(0.31 0.006 80);
+    --input: oklch(0.34 0.006 80);
+    --ring: oklch(0.6 0.02 80);
+    --state-verified: oklch(0.74 0.11 155);
+    --state-verified-foreground: oklch(0.17 0.02 155);
+    --state-stale: oklch(0.82 0.13 80);
+    --state-stale-foreground: oklch(0.2 0.03 80);
   }
 }
 
@@ -71,6 +83,15 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-state-verified: var(--state-verified);
+  --color-state-verified-foreground: var(--state-verified-foreground);
+  --color-state-stale: var(--state-stale);
+  --color-state-stale-foreground: var(--state-stale-foreground);
+  --font-sans:
+    var(--font-plex-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    sans-serif;
+  --font-mono:
+    var(--font-plex-mono), ui-monospace, "SFMono-Regular", Menlo, monospace;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
