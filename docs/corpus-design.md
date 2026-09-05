@@ -319,4 +319,9 @@ M0–M4 are the MVP. One milestone follows it:
 
 - **M5 — Post-MVP refinement.** Frontend and UX refinement of every surface, bugs found outside a milestone's scope, and functionality the owner wants sharpened. During M3 and M4 the epic is only a landing zone for such issues; it is refined when M4 closes, from a design audit against §9, a real-usage pass on a non-dogfood project, and a triage into must-fix and later. *Done when: the must-fix list is empty and the audit's findings are fixed or explicitly deferred.*
 
+M5 is done. Two milestones follow it:
+
+- **M6 — Ship as a package.** The CLI and the contract it imports are published to npm, built to plain JavaScript with declarations, with `corpus init` scaffolding a config, a release workflow, and an install smoke in CI that installs the packed tarballs into a fresh repository and round-trips against the container. *Done when: `npm install` of the CLI in a fresh repository, `corpus init`, `corpus push` and `corpus pull` reproduce that repository byte for byte, verified by a CI job, and the README's quick start is that path.*
+- **M7 — External installation feedback.** Corpus is handed to another agent with a real project of its own (tags, relations, and a large number of entities), who installs it from the package and reports on the installation and the use. The report is triaged into must-fix and later; the epic is a landing zone until the report exists and is refined from it. *Done when: the report exists and its must-fix list is empty.*
+
 Everything not listed here is §13 or a future issue.
