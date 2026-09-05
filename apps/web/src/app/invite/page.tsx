@@ -9,7 +9,9 @@ import { currentUser } from "@/auth/session";
 import { AppShell } from "@/components/app-shell";
 import { Page } from "@/components/page-container";
 import { PageHeader } from "@/components/page-header";
+import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { t } from "@/i18n";
 
@@ -35,34 +37,24 @@ export default async function InvitePage({
       <Page width="form" className="space-y-6 py-12 lg:py-20">
         <PageHeader title={t("invite.heading")} meta={t("invite.intro")} />
         <form action={submitInvite} className="space-y-6">
-          {message !== undefined && (
-            <p className="text-sm text-destructive" role="alert">
-              {message}
-            </p>
-          )}
+          {message !== undefined && <Banner tone="error">{message}</Banner>}
           <div className="space-y-4">
-            <label className="block space-y-1.5">
-              <span className="text-sm font-medium">
-                {t("invite.nameLabel")}
-              </span>
+            <Field label={t("invite.nameLabel")}>
               <Input
                 name="name"
                 required
                 maxLength={MAX_NAME_LENGTH}
                 autoComplete="username"
               />
-            </label>
-            <label className="block space-y-1.5">
-              <span className="text-sm font-medium">
-                {t("invite.secretLabel")}
-              </span>
+            </Field>
+            <Field label={t("invite.secretLabel")}>
               <Input
                 name="secret"
                 type="password"
                 required
                 autoComplete="current-password"
               />
-            </label>
+            </Field>
           </div>
           <Button type="submit" className="w-full">
             {t("invite.submit")}

@@ -96,6 +96,29 @@ column of fields, `reading` (42rem) for text and lists, `wide` (72rem)
 for facets, grids and two panes. `PageHeader` sets the title, an
 optional one-line meta, and optional right-aligned actions.
 
+## Primitives
+
+Four small components in `apps/web/src/components/ui` carry the
+structure, so pages never hand-roll it:
+
+- `Section`: a sentence-case heading (14/500, muted), an optional meta
+  beside it and an optional description, then the content. Pages are a
+  page header followed by sections.
+- `Field`: label, one control, optional hint and error. The control is
+  labelled by the label and described by the hint or error; an error
+  marks it invalid and is announced.
+- `Banner`: one line of feedback with a tone. Warning is the stale amber,
+  error is destructive and an alert; info and success are achromatic and
+  a status.
+- `Chip`: a small label. Neutral and outline for metadata and facets,
+  solid for a selected control, key (mono) for identifiers and ICU
+  placeholders, and the two state variants. `chipVariants` gives the
+  classes to a link or button that looks like a chip.
+
+Buttons follow one rule: one primary per view, the action the page is
+for; secondary actions are outline; anything else is a text link. No
+shadows on controls.
+
 ## Spacing and shape
 
 A 4px grid through Tailwind's spacing scale. Two radii: `rounded-md`

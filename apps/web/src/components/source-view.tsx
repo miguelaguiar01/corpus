@@ -3,7 +3,7 @@ import {
   type FieldDeclaration,
   type IcuNode,
 } from "@corpus/contract";
-import { CHIP } from "./metadata-chips";
+import { chipVariants } from "@/components/ui/chip";
 
 // The source pane's branch view (§9.3): placeholders as chips carrying
 // their declared description, each select as its argument plus one line
@@ -47,7 +47,10 @@ function renderNodes(nodes: IcuNode[], slots: Map<string, string>) {
       return (
         <span
           key={index}
-          className={`${CHIP} align-middle`}
+          className={chipVariants({
+            variant: "key",
+            className: "align-middle",
+          })}
           title={slots.get(node.name)}
         >
           {`{${node.name}}`}

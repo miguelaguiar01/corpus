@@ -8,10 +8,11 @@ import {
 } from "@corpus/contract";
 import type { QueueKind } from "@/catalogue/queues";
 import { Button } from "@/components/ui/button";
+import { chipVariants } from "@/components/ui/chip";
+import { Field } from "@/components/ui/field";
 import { t } from "@/i18n";
 import { insertAtCaret } from "@/translations/caret";
 import { validationMessage } from "@/translations/validation-message";
-import { CHIP } from "./metadata-chips";
 
 export type Slot = { name: string; description?: string };
 
@@ -72,10 +73,7 @@ export function TargetPane({
       <input type="hidden" name="language" value={language} />
       <input type="hidden" name="openedVersion" value={openedVersion} />
       {queue && <input type="hidden" name="queue" value={queue} />}
-      <label className="block space-y-1.5">
-        <span className="text-sm text-muted-foreground">
-          {t("editor.targetLabel", { language })}
-        </span>
+      <Field label={t("editor.targetLabel", { language })}>
         <textarea
           ref={ref}
           name="text"
@@ -85,7 +83,7 @@ export function TargetPane({
           autoCapitalize="sentences"
           className="w-full rounded-md border border-input bg-background p-3 text-lg leading-snug focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         />
-      </label>
+      </Field>
       {slots.length > 0 && (
         <div
           className="flex flex-wrap gap-1.5"
@@ -96,7 +94,11 @@ export function TargetPane({
             <button
               key={slot.name}
               type="button"
-              className={`${CHIP} min-h-8 hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring`}
+              className={chipVariants({
+                variant: "key",
+                className:
+                  "min-h-8 hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+              })}
               title={slot.description}
               onClick={() => insert(slot.name)}
             >
@@ -111,7 +113,7 @@ export function TargetPane({
           aria-label={t("editor.previewHeading")}
           className="space-y-1.5"
         >
-          <h3 className="text-sm text-muted-foreground">
+          <h3 className="text-sm font-medium text-muted-foreground">
             {t("editor.previewHeading")}
           </h3>
           <ul className="space-y-1.5">

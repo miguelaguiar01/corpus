@@ -7,6 +7,8 @@ import { EntityCards } from "@/components/entity-cards";
 import { HistoryList } from "@/components/history-list";
 import { MetadataChips } from "@/components/metadata-chips";
 import { Page } from "@/components/page-container";
+import { Banner } from "@/components/ui/banner";
+import { Section } from "@/components/ui/section";
 import { QueueNav } from "@/components/queue-nav";
 import { SourceView } from "@/components/source-view";
 import { StateChips } from "@/components/state-chips";
@@ -94,18 +96,10 @@ export default async function StringPage({
       <header className="space-y-3">
         <p className="font-mono text-xs text-muted-foreground">{string.key}</p>
         <SourceView source={string.source} declarations={declarations} />
-        {string.archived && (
-          <p className="text-sm text-destructive">{t("string.archived")}</p>
-        )}
-        {errorKey && (
-          <p className="text-sm text-destructive" role="alert">
-            {t(errorKey)}
-          </p>
-        )}
+        {string.archived && <Banner tone="info">{t("string.archived")}</Banner>}
+        {errorKey && <Banner tone="error">{t(errorKey)}</Banner>}
         {query.warning === "changed" && (
-          <p className="text-sm text-destructive" role="status">
-            {t("verify.warningChanged")}
-          </p>
+          <Banner tone="warning">{t("verify.warningChanged")}</Banner>
         )}
         <StateChips languages={project.languages} states={translations} />
         <MetadataChips
@@ -117,12 +111,7 @@ export default async function StringPage({
       {target && targetRow && !string.archived && (
         <section className="space-y-3">
           {targetRow.stale && (
-            <p
-              className="rounded-md bg-state-stale px-3 py-2 text-sm text-state-stale-foreground"
-              role="status"
-            >
-              {t("editor.staleBanner")}
-            </p>
+            <Banner tone="warning">{t("editor.staleBanner")}</Banner>
           )}
           <TargetPane
             action={saveString}
@@ -140,19 +129,13 @@ export default async function StringPage({
       )}
 
       {entities.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-sm text-muted-foreground">
-            {t("string.entitiesHeading")}
-          </h2>
+        <Section heading={t("string.entitiesHeading")}>
           <EntityCards entities={entities} />
-        </section>
+        </Section>
       )}
 
       {examples.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-sm text-muted-foreground">
-            {t("string.examplesHeading")}
-          </h2>
+        <Section heading={t("string.examplesHeading")}>
           <ul className="space-y-2">
             {examples.map((example, index) => (
               <li key={index} className="text-base leading-relaxed">
@@ -160,15 +143,12 @@ export default async function StringPage({
               </li>
             ))}
           </ul>
-        </section>
+        </Section>
       )}
 
-      <section className="space-y-3">
-        <h2 className="text-sm text-muted-foreground">
-          {t("string.historyHeading")}
-        </h2>
+      <Section heading={t("string.historyHeading")}>
         <HistoryList history={history} />
-      </section>
+      </Section>
 
       {(canVerify || queue) && (
         <div className="fixed inset-x-0 bottom-0 border-t border-border bg-background px-4 py-3">

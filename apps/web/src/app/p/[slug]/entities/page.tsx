@@ -5,6 +5,7 @@ import { entitiesByType } from "@/entities/browser";
 import { getProjectBySlug } from "@/projects/service";
 import { Page } from "@/components/page-container";
 import { PageHeader } from "@/components/page-header";
+import { Section } from "@/components/ui/section";
 import { t } from "@/i18n";
 
 // Entity browser (§9.4): read-only cards per entity type.
@@ -26,15 +27,13 @@ export default async function EntitiesPage({
         <p className="text-sm text-muted-foreground">{t("entities.empty")}</p>
       )}
       {groups.map((group) => (
-        <section key={group.type} className="space-y-3">
-          <h2 className="flex items-baseline gap-2">
-            <span className="text-lg font-semibold">{group.label}</span>
-            <span className="text-sm text-muted-foreground">
-              {group.entities.length}
-            </span>
-          </h2>
+        <Section
+          key={group.type}
+          heading={group.label}
+          meta={group.entities.length}
+        >
           <EntityCards entities={group.entities} />
-        </section>
+        </Section>
       ))}
     </Page>
   );
