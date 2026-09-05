@@ -3,7 +3,9 @@
 // /api/health only reports ok on a migrated DB.
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME === "nodejs") {
-    const { getDb } = await import("@/db");
+    const { getDb, resolvedPaths } = await import("@/db");
     getDb();
+    // Say which file this instance writes to; never a guess (§2).
+    console.log(`corpus: database ${resolvedPaths().dbPath}`);
   }
 }
