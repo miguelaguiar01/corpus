@@ -1,5 +1,6 @@
 import { buildSnapshot } from "./build";
 import { CliError, loadConfig, requireToken } from "./config";
+import { checkFiles } from "./check";
 import { pull } from "./pull";
 
 export type RunContext = {
@@ -10,16 +11,16 @@ export type RunContext = {
 };
 
 const USAGE =
-  "usage: corpus push [--dry-run] | corpus pull [--min-state <untranslated|translated|verified>]";
+  "usage: corpus push [--dry-run] | corpus pull [--min-state <untranslated|translated|verified>] | corpus check";
 
 export async function run(argv: string[], ctx: RunContext): Promise<number> {
   const [command] = argv;
 
-  if (command === "push" || command === "pull") {
+  if (command === "push" || command === "pull" || command === "check") {
     try {
-      return command === "push"
-        ? await push(argv.slice(1), ctx)
-        : await pull(argv.slice(1), ctx);
+      if (command === "push") return await push(argv.slice(1), ctx);
+      if (command === "pull") return await pull(argv.slice(1), ctx);
+      return await check(ctx);
     } catch (error) {
       if (error instanceof CliError) {
         ctx.err(`corpus: ${error.message}`);
@@ -100,4 +101,24 @@ async function serverMessage(response: Response): Promise<string> {
   } catch {
     return "";
   }
+}
+
+// `corpus check` (§3): exit 1 with file:line: text per finding, 0 when clean.
+async function check(ctx: RunContext): Promise<number> {
+  const config = await loadConfig(ctx.cwd);
+  const options = config.check ?? {};
+  const findings = checkFiles(ctx.cwd, {
+    include: options.include ?? ["src"],
+    ignore: options.ignore,
+    allow: (options.allow ?? []).map((source) => new RegExp(source, "u")),
+  });
+  for (const f of findings) ctx.err(`${f.file}:${f.line}: ${f.text}`);
+  if (findings.length > 0) {
+    ctx.err(
+      `corpus: ${findings.length} user-facing literal(s) outside declared sources`,
+    );
+    return 1;
+  }
+  ctx.out("check: no user-facing literals outside declared sources");
+  return 0;
 }

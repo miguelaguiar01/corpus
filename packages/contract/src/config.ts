@@ -36,6 +36,15 @@ export const corpusConfigSchema = z
       .optional(),
     entityTypes: z.record(z.string(), entityTypeDeclarationSchema).optional(),
     sources: z.array(sourceSchema).min(1),
+    // `corpus check` (§3): directories to scan, path prefixes to skip, and
+    // regex sources for texts that are not chrome (brand names, codes).
+    check: z
+      .looseObject({
+        include: z.array(z.string().min(1)).optional(),
+        ignore: z.array(z.string().min(1)).optional(),
+        allow: z.array(z.string().min(1)).optional(),
+      })
+      .optional(),
   })
   .refine((c) => c.languages.includes(c.sourceLanguage), {
     message: "languages must include sourceLanguage",
