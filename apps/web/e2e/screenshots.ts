@@ -52,8 +52,11 @@ async function main(): Promise<void> {
     colorScheme: scheme,
   });
   const page = await context.newPage();
-  const shot = (name: string) =>
-    page.screenshot({ path: path.join(out, `${name}-${suffix}.png`) });
+  // From the top of the page, whatever the last action scrolled to.
+  const shot = async (name: string) => {
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({ path: path.join(out, `${name}-${suffix}.png`) });
+  };
 
   // The entry surfaces, before there is a session or a project.
   await page.goto(`${base}/invite`, { waitUntil: "networkidle" });
