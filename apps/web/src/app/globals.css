@@ -88,13 +88,10 @@
     sans-serif;
   --font-mono:
     var(--font-plex-mono), ui-monospace, "SFMono-Regular", Menlo, monospace;
-  /* Two radii: 6px for controls (rounded-md), 10px for cards (rounded-lg). */
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-lg: 10px;
   --radius-xl: 14px;
-  /* The scale 12/14/16/18/22/28/36 with two line-heights: 1.5 for text,
-     1.25 for display (xl and up). */
   --text-xs: 0.75rem;
   --text-xs--line-height: 1.5;
   --text-sm: 0.875rem;

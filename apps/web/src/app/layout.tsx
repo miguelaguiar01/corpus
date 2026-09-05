@@ -4,9 +4,8 @@ import type { ReactNode } from "react";
 import { t } from "@/i18n";
 import "./globals.css";
 
-// The one family pair (docs/design.md): Plex Sans for chrome, Plex Mono
-// for identifiers and ICU. Self-hosted by next/font, so the CSP's
-// style-src 'self' holds and nothing is fetched at runtime.
+// Self-hosted by next/font: the files ship under /_next/static, so the
+// CSP's default-src 'self' covers them and nothing is fetched at runtime.
 const sans = IBM_Plex_Sans({
   subsets: ["latin", "latin-ext"],
   weight: ["400", "500", "600"],
@@ -28,9 +27,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${sans.variable} ${mono.variable}`}>
-      <body className="min-h-dvh bg-background font-sans text-foreground antialiased">
-        {children}
-      </body>
+      <body className="min-h-dvh antialiased">{children}</body>
     </html>
   );
 }

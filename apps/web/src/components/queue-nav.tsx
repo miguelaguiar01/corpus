@@ -44,7 +44,7 @@ export function QueueNav({
   return (
     <nav className="flex items-center gap-2">
       {step(previous, t("queue.previous"))}
-      <span className="text-sm tabular-nums text-muted-foreground">
+      <span className="text-sm text-muted-foreground">
         {t("queue.position", { index: index + 1, count: queue.count })}
       </span>
       {step(next, t("queue.next"))}

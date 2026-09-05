@@ -55,7 +55,7 @@ async function main(): Promise<void> {
   const shot = (name: string) =>
     page.screenshot({ path: path.join(out, `${name}-${suffix}.png`) });
 
-  // The two entry surfaces, before there is a session or a project.
+  // The entry surfaces, before there is a session or a project.
   await page.goto(`${base}/invite`, { waitUntil: "networkidle" });
   await shot("invite");
   await join(page, "ana");

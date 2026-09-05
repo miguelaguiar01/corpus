@@ -26,8 +26,10 @@ principles that decide how they are used.
 
 ## Type
 
-Loaded with `next/font` in `apps/web/src/app/layout.tsx`, self-hosted so
-the CSP's `style-src 'self'` holds.
+Loaded with `next/font` in `apps/web/src/app/layout.tsx`. The files are
+fetched once at build time and served from `/_next/static`, so the CSP's
+`default-src 'self'` covers them and the running app makes no font
+requests.
 
 | Role | Face | Weights |
 |---|---|---|
@@ -60,7 +62,7 @@ token colours only.
 | Token | Meaning |
 |---|---|
 | `background`, `foreground` | page ground and ink |
-| `card`, `popover` | raised surfaces, one step lighter (light) or lighter (dark) |
+| `card`, `popover` | raised surfaces, one step off the background in both themes |
 | `muted`, `muted-foreground` | quiet fills and secondary text |
 | `secondary`, `accent` | control fills; achromatic |
 | `primary` | the ink button; achromatic |
