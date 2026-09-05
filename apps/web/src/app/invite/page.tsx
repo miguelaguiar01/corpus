@@ -35,7 +35,8 @@ export default async function InvitePage({
   return (
     <AppShell home={false}>
       <Page width="form" className="space-y-6 py-12 lg:py-20">
-        <PageHeader title={t("invite.heading")} meta={t("invite.intro")} />
+        <PageHeader title={t("invite.heading")} meta={t("app.tagline")} />
+        <p className="text-sm text-muted-foreground">{t("invite.intro")}</p>
         <form action={submitInvite} className="space-y-6">
           {message !== undefined && <Banner tone="error">{message}</Banner>}
           <div className="space-y-4">
