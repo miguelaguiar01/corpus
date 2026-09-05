@@ -1,3 +1,5 @@
+import { SESSION_TTL_MS } from "./constants";
+export { SESSION_TTL_MS };
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { and, eq, gt, lte } from "drizzle-orm";
 import type { Db } from "@/db";
@@ -12,9 +14,6 @@ import {
 
 export type User = typeof users.$inferSelect;
 
-// Ninety days, renewed on use (§10): an active translator never sees it
-// expire; a session that stops being used does.
-export const SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 // Renewal writes are skipped while the session has more than this left.
 const RENEW_WHEN_LESS_THAN_MS = SESSION_TTL_MS - 24 * 60 * 60 * 1000;
 
@@ -28,7 +27,7 @@ export type JoinResult =
 
 export type SignInResult =
   | { ok: true; user: User; mustChangePassword: boolean }
-  | { ok: false; reason: "invalid-credentials" | "weak-password" };
+  | { ok: false; reason: "invalid-credentials" };
 
 function secretsMatch(instanceSecret: string, providedSecret: string): boolean {
   const a = Buffer.from(instanceSecret);

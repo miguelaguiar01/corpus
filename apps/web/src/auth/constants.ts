@@ -4,6 +4,8 @@
 import type { MessageKey } from "@/i18n";
 
 export const SESSION_COOKIE = "corpus_session";
+// Sessions end after this long without use (§10).
+export const SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 
 export const INVITE_PATH = "/invite";
 export const PASSWORD_PATH = "/password";

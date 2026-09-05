@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { INVITE_PATH, SESSION_COOKIE } from "@/auth/constants";
+import { INVITE_PATH, SESSION_COOKIE, SESSION_TTL_MS } from "@/auth/constants";
 
 // Cheap edge gate (§10): visitors without a session cookie are sent to
 // the invite prompt. Actual session validity is checked server-side by
@@ -12,8 +12,22 @@ export function middleware(request: NextRequest) {
   if (pathname === INVITE_PATH || pathname.startsWith("/api/")) {
     return NextResponse.next();
   }
-  if (request.cookies.has(SESSION_COOKIE)) return NextResponse.next();
-  return NextResponse.redirect(new URL(INVITE_PATH, request.url));
+  const session = request.cookies.get(SESSION_COOKIE)?.value;
+  if (!session) {
+    return NextResponse.redirect(new URL(INVITE_PATH, request.url));
+  }
+  // The row's expiry slides on use (service); the cookie's has to slide
+  // here, on every page request, or the browser drops a live session at
+  // ninety days after sign-in.
+  const response = NextResponse.next();
+  response.cookies.set(SESSION_COOKIE, session, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: Math.floor(SESSION_TTL_MS / 1000),
+  });
+  return response;
 }
 
 export const config = {

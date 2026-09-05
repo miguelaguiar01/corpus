@@ -179,11 +179,14 @@ export default async function SettingsPage({
           className="py-8"
         >
           {temporaryPassword && resetFor && (
-            <Banner tone="success">
+            <Banner tone="success" className="space-y-2">
               <p>{t("settings.resetDone", { name: resetFor.name })}</p>
-              <code className="mt-2 block font-mono text-base">
-                {temporaryPassword}
-              </code>
+              <div className="flex flex-wrap items-center gap-2">
+                <code className="block rounded-md border border-border bg-background px-3 py-2 font-mono">
+                  {temporaryPassword}
+                </code>
+                <CopyButton value={temporaryPassword} />
+              </div>
             </Banner>
           )}
           <div className="overflow-x-auto">

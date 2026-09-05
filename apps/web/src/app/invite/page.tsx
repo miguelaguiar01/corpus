@@ -25,7 +25,7 @@ function errorMessage(code: string | undefined): string | undefined {
 }
 
 // Which form the error belongs under, so it sits beside the fields the
-// visitor has to fix rather than at the top of the page.
+// visitor has to fix; a rate limit covers both and sits above them.
 const JOIN_ERRORS: ReadonlySet<string> = new Set([
   "invalid",
   "name-taken",
@@ -41,6 +41,7 @@ export default async function InvitePage({
   const { error } = await searchParams;
   const message = errorMessage(error);
   const joinError = error !== undefined && JOIN_ERRORS.has(error);
+  const pageError = error === "rate-limited";
   const passwordLimits = {
     minLength: MIN_PASSWORD_LENGTH,
     maxLength: MAX_PASSWORD_LENGTH,
@@ -49,13 +50,16 @@ export default async function InvitePage({
   return (
     <AppShell home={false}>
       <Page width="form" className="space-y-12 py-12 lg:py-20">
+        {message !== undefined && pageError && (
+          <Banner tone="error">{message}</Banner>
+        )}
         <div className="space-y-6">
           <PageHeader
             title={t("invite.signInHeading")}
             meta={t("app.tagline")}
           />
           <form action={submitSignIn} className="space-y-6">
-            {message !== undefined && !joinError && (
+            {message !== undefined && !joinError && !pageError && (
               <Banner tone="error">{message}</Banner>
             )}
             <div className="space-y-4">
