@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Prints the CHANGELOG.md section for one version (keep-a-changelog
+# headings, "## [x.y.z] - date"), exit 1 if there is none.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+VERSION="${1:?usage: bin/changelog-section <version>}"
+awk -v v="$VERSION" '
+  /^## \[/ { if (found) exit; if (index($0, "## [" v "]") == 1) { found = 1; next } }
+  found { print }
+  END { exit found ? 0 : 1 }
+' CHANGELOG.md | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}'
