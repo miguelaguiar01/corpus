@@ -136,7 +136,7 @@ export function TargetPane({
         type="submit"
         size="lg"
         disabled={blank || errors.length > 0}
-        className="min-h-12 w-full text-base"
+        className="min-h-12 w-full text-base lg:min-h-0 lg:w-auto lg:text-sm"
       >
         {t("editor.save")}
       </Button>

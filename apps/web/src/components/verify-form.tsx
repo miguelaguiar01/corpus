@@ -11,6 +11,8 @@ export function VerifyForm({
   openedVersion,
   queue,
   language,
+  inline = false,
+  secondary = false,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   slug: string;
@@ -20,6 +22,10 @@ export function VerifyForm({
   // The row the sign-off acts on; named on the button so a maintainer
   // never mistakes proofreading the source for verifying a translation.
   language: string;
+  // Inline at the end of the target pane on desktop; thumb height in
+  // the fixed bar on a phone. Secondary when Save is the pane's primary.
+  inline?: boolean;
+  secondary?: boolean;
 }) {
   return (
     <form action={action}>
@@ -28,7 +34,12 @@ export function VerifyForm({
       <input type="hidden" name="openedVersion" value={openedVersion} />
       {queue && <input type="hidden" name="queue" value={queue} />}
       <input type="hidden" name="language" value={language} />
-      <Button type="submit" size="lg" className="min-h-12 w-full text-base">
+      <Button
+        type="submit"
+        size="lg"
+        variant={secondary ? "outline" : "default"}
+        className={inline ? undefined : "min-h-12 w-full text-base"}
+      >
         {t("verify.button", { language })}
       </Button>
     </form>

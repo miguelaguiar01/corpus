@@ -34,9 +34,8 @@ const ERROR_KEY: Record<string, MessageKey> = {
   "source-row": "editor.errorSourceRow",
 };
 
-// Source verification surface (§9.3, M2): read the source with everything
-// that gives it context, then sign it off and flow on through the queue.
-// The full editor (target pane, branch view) is M3.
+// The string surface (§9.3): read the source with everything that gives
+// it context, translate it or sign it off, and flow on through the queue.
 export default async function StringPage({
   params,
   searchParams,
@@ -91,67 +90,113 @@ export default async function StringPage({
     ? (ERROR_KEY[query.error] ?? "verify.errorGeneric")
     : undefined;
 
+  const verify = canVerify && acted && (
+    <VerifyForm
+      action={verifyString}
+      slug={slug}
+      stringKey={string.key}
+      openedVersion={acted.version}
+      queue={queueKind}
+      language={actedLanguage}
+      inline
+      secondary={target !== undefined}
+    />
+  );
+  const proofreading = canVerify && !target && (
+    <p className="text-xs text-muted-foreground">
+      {t("editor.proofreading", { language: actedLanguage })}
+    </p>
+  );
+
+  // Two panes from lg (§9.3): the source with its context left, the
+  // target with its actions right, history full width below. Under lg
+  // one column, with save and verify at thumb height in a fixed bar
+  // and the page padded so the bar covers nothing.
   return (
-    <Page width="reading" className="space-y-8 pb-32">
-      <header className="space-y-3">
-        <p className="font-mono text-xs text-muted-foreground">{string.key}</p>
-        <SourceView source={string.source} declarations={declarations} />
-        {string.archived && <Banner tone="info">{t("string.archived")}</Banner>}
-        {errorKey && <Banner tone="error">{t(errorKey)}</Banner>}
-        {query.warning === "changed" && (
-          <Banner tone="warning">{t("verify.warningChanged")}</Banner>
-        )}
-        <StateChips languages={project.languages} states={translations} />
-        <MetadataChips
-          declarations={declarations}
-          metadata={string.metadata ?? {}}
-        />
-      </header>
-
-      {target && targetRow && !string.archived && (
-        <section className="space-y-3">
-          {targetRow.stale && (
-            <Banner tone="warning">{t("editor.staleBanner")}</Banner>
-          )}
-          <TargetPane
-            action={saveString}
-            source={string.source}
-            slots={slots}
-            language={target}
-            initialText={targetRow.text ?? ""}
+    <Page width="wide" className="space-y-8 pb-32 lg:pb-8">
+      {queue && (
+        <div className="hidden lg:block">
+          <QueueNav
             slug={slug}
-            stringKey={string.key}
-            openedVersion={targetRow.version}
-            queue={queueKind}
-            examples={examples}
+            queue={queue}
+            current={{ stringId: string.id, language }}
+            inline
           />
-        </section>
+        </div>
       )}
+      <div className="grid gap-x-10 gap-y-8 lg:grid-cols-12">
+        <div className="space-y-8 lg:col-span-5">
+          <header className="space-y-3">
+            <p className="font-mono text-xs text-muted-foreground">
+              {string.key}
+            </p>
+            <SourceView source={string.source} declarations={declarations} />
+            {string.archived && (
+              <Banner tone="info">{t("string.archived")}</Banner>
+            )}
+            {errorKey && <Banner tone="error">{t(errorKey)}</Banner>}
+            {query.warning === "changed" && (
+              <Banner tone="warning">{t("verify.warningChanged")}</Banner>
+            )}
+            <StateChips languages={project.languages} states={translations} />
+            <MetadataChips
+              declarations={declarations}
+              metadata={string.metadata ?? {}}
+            />
+          </header>
+          {entities.length > 0 && (
+            <Section heading={t("string.entitiesHeading")}>
+              <EntityCards entities={entities} />
+            </Section>
+          )}
+          {examples.length > 0 && (
+            <Section heading={t("string.examplesHeading")}>
+              <ul className="space-y-2">
+                {examples.map((example, index) => (
+                  <li key={index} className="text-base leading-relaxed">
+                    {example.rendered}
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )}
+        </div>
 
-      {entities.length > 0 && (
-        <Section heading={t("string.entitiesHeading")}>
-          <EntityCards entities={entities} />
-        </Section>
-      )}
-
-      {examples.length > 0 && (
-        <Section heading={t("string.examplesHeading")}>
-          <ul className="space-y-2">
-            {examples.map((example, index) => (
-              <li key={index} className="text-base leading-relaxed">
-                {example.rendered}
-              </li>
-            ))}
-          </ul>
-        </Section>
-      )}
+        <div className="space-y-6 lg:col-span-7">
+          {target && targetRow && !string.archived && (
+            <section className="space-y-3">
+              {targetRow.stale && (
+                <Banner tone="warning">{t("editor.staleBanner")}</Banner>
+              )}
+              <TargetPane
+                action={saveString}
+                source={string.source}
+                slots={slots}
+                language={target}
+                initialText={targetRow.text ?? ""}
+                slug={slug}
+                stringKey={string.key}
+                openedVersion={targetRow.version}
+                queue={queueKind}
+                examples={examples}
+              />
+            </section>
+          )}
+          {canVerify && (
+            <div className="hidden space-y-2 lg:block">
+              {proofreading}
+              {verify}
+            </div>
+          )}
+        </div>
+      </div>
 
       <Section heading={t("string.historyHeading")}>
         <HistoryList history={history} />
       </Section>
 
       {(canVerify || queue) && (
-        <div className="fixed inset-x-0 bottom-0 border-t border-border bg-background px-4 py-3">
+        <div className="fixed inset-x-0 bottom-0 border-t border-border bg-background px-4 py-3 lg:hidden">
           <div className="mx-auto max-w-xl space-y-2">
             {canVerify && !target && (
               <p className="text-center text-xs text-muted-foreground">
