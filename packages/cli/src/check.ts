@@ -2,6 +2,11 @@
 // outside the declared sources. It walks the real syntax tree, so it can
 // tell JSX text and user-facing props from code strings; it cannot know
 // intent, hence the allow list and `corpus-ignore` comments.
+//
+// Known gaps, by design of a heuristic: a plain string variable used as
+// a JSX child, template literals with substitutions, calls such as
+// toast("Saved"), and the `value` prop are not findings; HTML entity
+// text can be a false positive.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
