@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { Progress } from "@/catalogue/progress";
+import { emptyProgress, type Progress } from "@/catalogue/progress";
 import type { QueueCounts } from "@/catalogue/queues";
 import { Chip } from "@/components/ui/chip";
 import { t } from "@/i18n";
@@ -38,13 +38,7 @@ export function ProjectCard({
       </div>
       <div className="space-y-1.5">
         {languages.map((language) => {
-          const p = progress[language] ?? {
-            untranslated: 0,
-            translated: 0,
-            verified: 0,
-            stale: 0,
-            total: 0,
-          };
+          const p = progress[language] ?? emptyProgress();
           return (
             <div key={language} className="flex items-center gap-3 text-xs">
               <span className="w-12 shrink-0 text-muted-foreground">
@@ -55,14 +49,14 @@ export function ProjectCard({
           );
         })}
       </div>
-      <dl
-        aria-label={t("home.queueCounts")}
-        className="flex flex-wrap gap-x-5 gap-y-1 text-sm"
-      >
+      <dl className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
         {(Object.keys(QUEUE_LABEL) as (keyof QueueCounts)[]).map((kind) => (
-          <div key={kind} className="flex items-baseline gap-1.5">
-            <dd className="font-medium">{counts[kind]}</dd>
+          <div
+            key={kind}
+            className="flex flex-row-reverse items-baseline gap-1.5"
+          >
             <dt className="text-muted-foreground">{t(QUEUE_LABEL[kind])}</dt>
+            <dd className="font-medium">{counts[kind]}</dd>
           </div>
         ))}
       </dl>

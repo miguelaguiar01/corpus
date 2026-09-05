@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getDb } from "@/db";
 import { requireUser } from "@/auth/session";
 import { progressCounts } from "@/catalogue/progress";
-import { allQueues } from "@/catalogue/queues";
+import { queueCounts } from "@/catalogue/queues";
 import { AppShell } from "@/components/app-shell";
 import { Page } from "@/components/page-container";
 import { PageHeader } from "@/components/page-header";
@@ -16,18 +16,13 @@ const PUSH_COMMAND = "corpus push";
 export default async function Home() {
   const user = await requireUser();
   const db = getDb();
-  const projects = listProjects(db).map((project) => {
-    const queues = allQueues(db, project.id);
-    return {
-      ...project,
-      progress: progressCounts(db, project.id).perLanguage,
-      counts: {
-        untranslated: queues.untranslated.count,
-        stale: queues.stale.count,
-        unverifiedSource: queues.unverifiedSource.count,
-      },
-    };
-  });
+  const projects = listProjects(db).map((project) => ({
+    slug: project.slug,
+    name: project.name,
+    languages: project.languages,
+    progress: progressCounts(db, project.id).perLanguage,
+    counts: queueCounts(db, project.id),
+  }));
 
   return (
     <AppShell>

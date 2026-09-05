@@ -16,7 +16,7 @@ export type Progress = {
   perType: Record<string, Record<string, LanguageProgress>>;
 };
 
-function empty(): LanguageProgress {
+export function emptyProgress(): LanguageProgress {
   return { untranslated: 0, translated: 0, verified: 0, stale: 0, total: 0 };
 }
 
@@ -37,9 +37,9 @@ export function progressCounts(db: Db, projectId: number): Progress {
 
   const progress: Progress = { perLanguage: {}, perType: {} };
   for (const row of rows) {
-    const lang = (progress.perLanguage[row.language] ??= empty());
+    const lang = (progress.perLanguage[row.language] ??= emptyProgress());
     const byType = (progress.perType[row.type] ??= {});
-    const typeLang = (byType[row.language] ??= empty());
+    const typeLang = (byType[row.language] ??= emptyProgress());
     for (const bucket of [lang, typeLang]) {
       bucket[row.state as TranslationState] += 1;
       bucket.total += 1;

@@ -8,11 +8,15 @@ export default defineCorpus({
   sourceLanguage: "en",
   languages: ["en", "pt-PT"],
   // `corpus check` (§3, §12): every chrome string must come from the
-  // catalog above. Allowed: the product name, and language-code examples
-  // in placeholders ("en", "en, pt-PT").
+  // catalog above. Allowed: the product name, language-code examples in
+  // placeholders ("en", "en, pt-PT"), and the CLI's own commands.
   check: {
     include: ["apps/web/src"],
-    allow: ["^Corpus$", "^[a-z]{2}(-[A-Z]{2})?(, [a-z]{2}(-[A-Z]{2})?)*$"],
+    allow: [
+      "^Corpus$",
+      "^[a-z]{2}(-[A-Z]{2})?(, [a-z]{2}(-[A-Z]{2})?)*$",
+      "^corpus [a-z]+$",
+    ],
   },
   sources: [
     {

@@ -26,7 +26,7 @@ test("links the whole card to the dashboard and names the project", () => {
   expect(link.getAttribute("href")).toBe("/p/manor");
 });
 
-test("shows a chip and a meter per language and the three queue counts", () => {
+test("shows a meter per language and the three queue counts", () => {
   render(
     <ProjectCard
       slug="manor"
@@ -40,11 +40,11 @@ test("shows a chip and a meter per language and the three queue counts", () => {
   expect(
     screen.getByRole("meter", { name: "en" }).getAttribute("aria-valuenow"),
   ).toBe("3");
-  expect(screen.getByText("Untranslated").previousSibling?.textContent).toBe(
+  expect(screen.getByText("Untranslated").nextElementSibling?.textContent).toBe(
     "3",
   );
-  expect(screen.getByText("Stale").previousSibling?.textContent).toBe("1");
+  expect(screen.getByText("Stale").nextElementSibling?.textContent).toBe("1");
   expect(
-    screen.getByText("Unverified source").previousSibling?.textContent,
+    screen.getByText("Unverified source").nextElementSibling?.textContent,
   ).toBe("2");
 });
