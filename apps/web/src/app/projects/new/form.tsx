@@ -2,6 +2,8 @@
 
 import { useActionState } from "react";
 import { createProjectAction, type NewProjectState } from "@/projects/actions";
+import { CopyButton } from "@/components/copy-button";
+import { LanguagesInput } from "@/components/languages-input";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -24,9 +26,12 @@ export function NewProjectForm() {
       <Banner tone="success" className="space-y-3">
         <p>{t("newProject.created", { slug: state.slug })}</p>
         <p className="text-muted-foreground">{t("newProject.tokenOnce")}</p>
-        <code className="block break-all rounded-md border border-border bg-background p-3">
-          {state.token}
-        </code>
+        <div className="flex flex-wrap items-center gap-2">
+          <code className="block break-all rounded-md border border-border bg-background px-3 py-2 font-mono">
+            {state.token}
+          </code>
+          <CopyButton value={state.token} />
+        </div>
       </Banner>
     );
   }
@@ -38,18 +43,27 @@ export function NewProjectForm() {
           {t(ERROR_KEYS[state.reason] ?? "newProject.errorInvalid")}
         </Banner>
       )}
-      <Field label={t("newProject.slug")}>
-        <Input name="slug" required />
+      <Field label={t("newProject.slug")} hint={t("newProject.slugHint")}>
+        <Input name="slug" required autoCapitalize="none" />
       </Field>
-      <Field label={t("newProject.name")}>
+      <Field label={t("newProject.name")} hint={t("newProject.nameHint")}>
         <Input name="name" required />
       </Field>
-      <Field label={t("newProject.sourceLanguage")}>
-        <Input name="sourceLanguage" required placeholder="en" />
+      <Field
+        label={t("newProject.sourceLanguage")}
+        hint={t("newProject.sourceLanguageHint")}
+      >
+        <Input
+          name="sourceLanguage"
+          required
+          placeholder="en"
+          autoCapitalize="none"
+        />
       </Field>
-      <Field label={t("newProject.languages")}>
-        <Input name="languages" required placeholder="en, pt-PT" />
-      </Field>
+      <LanguagesInput
+        label={t("newProject.languages")}
+        hint={t("newProject.languagesHint")}
+      />
       <Button type="submit">{t("newProject.submit")}</Button>
     </form>
   );
