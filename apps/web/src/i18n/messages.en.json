@@ -84,7 +84,7 @@
   "editor.selects": "Insert a select",
   "editor.insertSelect": "Insert a select on {arg} with the keys {keys}",
   "editor.save": "Save translation",
-  "editor.previewHeading": "Preview",
+  "editor.previewHeading": "Preview with {language} values",
   "editor.staleBanner": "The source text changed after this translation was saved. Check it against the source above, then save again.",
   "editor.missingPlaceholder": "Missing {name}",
   "editor.unexpectedPlaceholder": "Unexpected {name}",

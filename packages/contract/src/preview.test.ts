@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { moonlightManor } from "./fixtures/moonlight-manor";
-import { previewsFor, renderPreview } from "./preview";
+import { previewsFor, renderPreview, renderPreviewSegments } from "./preview";
 
 const sighting = moonlightManor.strings[0]!;
 const [first, second] = sighting.examples!;
@@ -13,6 +13,35 @@ test("renders the fixture's examples exactly as the client rendered them", () =>
   expect(renderPreview(sighting.source, second!.values)).toEqual({
     ok: true,
     text: second!.rendered,
+  });
+});
+
+test("segments tell the example's values apart from the draft's words", () => {
+  const draft = "{person} was seen at the {room_de} window.";
+  const result = renderPreviewSegments(draft, first!.values);
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(result.segments).toEqual([
+    { text: "A Condessa Rosa", value: true },
+    { text: " was seen at the ", value: false },
+    { text: "da estufa", value: true },
+    { text: " window.", value: false },
+  ]);
+  expect(result.segments.map((s) => s.text).join("")).toBe(
+    renderPreview(draft, first!.values).ok
+      ? (renderPreview(draft, first!.values) as { text: string }).text
+      : "",
+  );
+});
+
+test("an empty leading value still capitalises the sentence", () => {
+  expect(renderPreview("{a}bcd", { a: "" })).toEqual({ ok: true, text: "Bcd" });
+  expect(renderPreviewSegments("{a}bcd", { a: "" })).toEqual({
+    ok: true,
+    segments: [
+      { text: "", value: true },
+      { text: "Bcd", value: false },
+    ],
   });
 });
 

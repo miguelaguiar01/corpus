@@ -271,7 +271,7 @@ Progress numbers are counts over string×language states, excluding archived str
 |---|---|
 | **Entity form tables** (per-language, per-role grammatical forms as translatable data, with per-language derivation rules) vs. grammar-as-code in each client. The contract's additive versioning reserves an entities `forms` field. | A client ships engine text in a second language where slot grammar can't be derived by a trivial rule (for pt→en it can: "of the " + name). Likely at that client's engine-localization phase; possibly never. |
 | **Direct git integration** (Corpus holds a scoped token, opens translation PRs itself). The CLI snapshot format is the foundation either way. | Manual push/pull demonstrably becomes the bottleneck with real translators. |
-| Per-language example slot values for previews. | Same trigger as form tables; revisit together. |
+| Per-language example slot values for previews. Evidence from the M5 demo: a draft English translation previews as "was seen at the da estufa window", the Portuguese contraction baked into the value; the editor now names the values' language and renders them in the quiet tone so the mismatch reads as data, not as the translator's error. | Same trigger as form tables; revisit together. |
 | Per-project membership / roles beyond `maintainer`. | A person exists who must be excluded from some project on the instance. |
 | ICU plural support. | A source string genuinely needs it (source language pt-PT has so far not). |
 

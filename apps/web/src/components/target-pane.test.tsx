@@ -25,6 +25,7 @@ function pane(initialText = "") {
       slug="mm"
       stringKey="k"
       openedVersion={1}
+      sourceLanguage="pt-PT"
     />,
   );
   const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
@@ -33,6 +34,10 @@ function pane(initialText = "") {
   }) as HTMLButtonElement;
   return { action, textarea, save };
 }
+
+// A preview line is several spans; read the region's text.
+const previewText = () =>
+  screen.getByRole("region", { name: /Preview/ }).textContent ?? "";
 
 const sighting = moonlightManor.strings[0]!;
 
@@ -48,6 +53,7 @@ test("a select chip inserts the skeleton with the source's keys, caret in the fi
       slug="mm"
       stringKey="k"
       openedVersion={1}
+      sourceLanguage="pt-PT"
     />,
   );
   const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
@@ -70,11 +76,36 @@ test("the preview renders each example's branch from the draft", () => {
       stringKey="k"
       openedVersion={1}
       examples={sighting.examples ?? []}
+      sourceLanguage="pt-PT"
     />,
   );
-  const preview = screen.getByRole("region", { name: "Preview" });
+  const preview = screen.getByRole("region", {
+    name: "Preview with pt-PT values",
+  });
   expect(preview.textContent).toContain("was spotted");
   expect(preview.textContent).toContain("was seen");
+});
+
+test("the preview shows the example's values in the quiet tone", () => {
+  render(
+    <TargetPane
+      action={vi.fn()}
+      source={sighting.source}
+      slots={[]}
+      language="en"
+      initialText="{person} was seen at the {room_de} window."
+      slug="mm"
+      stringKey="k"
+      openedVersion={1}
+      examples={sighting.examples ?? []}
+      sourceLanguage="pt-PT"
+    />,
+  );
+  const value = screen.getByText("da estufa");
+  expect(value.className).toMatch(/text-muted-foreground/);
+  expect(
+    screen.getAllByText("was seen at the")[0]?.className ?? "",
+  ).not.toMatch(/text-muted-foreground/);
 });
 
 test("tapping a placeholder chip inserts it at the caret", () => {
@@ -138,6 +169,7 @@ function paneWithExamples(initialText = "") {
       slug="mm"
       stringKey="k"
       openedVersion={1}
+      sourceLanguage="pt-PT"
       examples={EXAMPLES}
     />,
   );
@@ -152,12 +184,12 @@ test("with no draft, the previews are the examples' own renders", () => {
 
 test("the previews follow the draft, one per example, values substituted", () => {
   const textarea = paneWithExamples("{witness} saw {suspect} at {hour}.");
-  expect(screen.getByText("A Condessa saw o Doutor at 21h.")).toBeTruthy();
+  expect(previewText()).toContain("A Condessa saw o Doutor at 21h.");
   fireEvent.change(textarea, {
     target: { value: "At {hour}, {witness} saw {suspect}." },
   });
-  expect(screen.getByText("At 21h, a Condessa saw o Doutor.")).toBeTruthy();
-  expect(screen.getByText("At 23h, o mordomo saw a Condessa.")).toBeTruthy();
+  expect(previewText()).toContain("At 21h, a Condessa saw o Doutor.");
+  expect(previewText()).toContain("At 23h, o mordomo saw a Condessa.");
 });
 
 test("a draft with a select renders each example through its own branch", () => {
@@ -171,14 +203,15 @@ test("a draft with a select renders each example through its own branch", () => 
       slug="mm"
       stringKey="k"
       openedVersion={1}
+      sourceLanguage="pt-PT"
       examples={[
         { values: { g: "m" }, rendered: "Ele saiu." },
         { values: { g: "f" }, rendered: "Ela saiu." },
       ]}
     />,
   );
-  expect(screen.getByText("He left.")).toBeTruthy();
-  expect(screen.getByText("She left.")).toBeTruthy();
+  expect(previewText()).toContain("He left.");
+  expect(previewText()).toContain("She left.");
 });
 
 test("without examples there is no preview section", () => {
