@@ -53,3 +53,14 @@ test("fails closed when the key table is full of live entries", () => {
   expect(limiter.allow("c", t + 2)).toBe(false);
   expect(limiter.allow("a", t + 3)).toBe(true);
 });
+
+test("blocked() reports the state without spending an attempt", () => {
+  const limiter = new RateLimiter({ max: 2, windowMs: 60_000 });
+  const t = 1_000_000;
+  expect(limiter.blocked("k", t)).toBe(false);
+  expect(limiter.allow("k", t)).toBe(true);
+  expect(limiter.blocked("k", t)).toBe(false);
+  expect(limiter.allow("k", t)).toBe(true);
+  expect(limiter.blocked("k", t)).toBe(true);
+  expect(limiter.blocked("k", t + 60_001)).toBe(false);
+});

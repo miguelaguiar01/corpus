@@ -73,6 +73,17 @@ test("updateLanguages keeps the source language and dedupes", () => {
   expect(getProjectBySlug(db, "mm")?.languages).toEqual(["pt-PT"]);
 });
 
+test("updateLanguages rejects language codes that are not codes", () => {
+  const { db, ana, project } = seed();
+  expect(updateLanguages(db, project.id, ["en", "not a code"], ana)).toEqual({
+    ok: false,
+    reason: "invalid",
+  });
+  expect(updateLanguages(db, project.id, ["en", "es-419"], ana)).toEqual({
+    ok: true,
+  });
+});
+
 test("updateLanguages rejects blanks and non-maintainers", () => {
   const { db, ana, rui, project } = seed();
   expect(updateLanguages(db, project.id, ["  "], ana)).toEqual({

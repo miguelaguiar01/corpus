@@ -80,3 +80,23 @@ test.each([
   expect(result.ok).toBe(false);
   if (!result.ok) expect(result.reason).toBe("invalid");
 });
+
+test("the slug is lowercase letters, digits and hyphens; languages are codes", () => {
+  const { d, actor } = maintainer();
+  for (const slug of [
+    "Moonlight",
+    "moon light",
+    "../x",
+    "-x",
+    "a".repeat(64),
+  ]) {
+    expect(createProject(d, { ...INPUT, slug }, actor)).toEqual({
+      ok: false,
+      reason: "invalid",
+    });
+  }
+  expect(
+    createProject(d, { ...INPUT, languages: ["pt-PT", "en/../x"] }, actor),
+  ).toEqual({ ok: false, reason: "invalid" });
+  expect(createProject(d, { ...INPUT, slug: "mm-2" }, actor).ok).toBe(true);
+});

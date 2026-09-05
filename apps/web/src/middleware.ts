@@ -14,7 +14,10 @@ export function middleware(request: NextRequest) {
   }
   const session = request.cookies.get(SESSION_COOKIE)?.value;
   if (!session) {
-    return NextResponse.redirect(new URL(INVITE_PATH, request.url));
+    // Behind a proxy the Host header is whatever the proxy forwards;
+    // CORPUS_PUBLIC_URL pins the origin the redirect names.
+    const origin = process.env.CORPUS_PUBLIC_URL || request.url;
+    return NextResponse.redirect(new URL(INVITE_PATH, origin));
   }
   // The row's expiry slides on use (service); the cookie's has to slide
   // here, on every page request, or the browser drops a live session at

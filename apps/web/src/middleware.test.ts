@@ -23,6 +23,16 @@ test("a page with a session cookie passes through and re-issues the cookie", () 
   expect(res.headers.get("location")).toBeNull();
 });
 
+test("the redirect names CORPUS_PUBLIC_URL when it is set", () => {
+  process.env.CORPUS_PUBLIC_URL = "https://corpus.example";
+  try {
+    const res = middleware(request("/p/moonlight"));
+    expect(res.headers.get("location")).toBe("https://corpus.example/invite");
+  } finally {
+    delete process.env.CORPUS_PUBLIC_URL;
+  }
+});
+
 test("/invite is always open", () => {
   const res = middleware(request("/invite"));
   expect(res.headers.get("location")).toBeNull();
