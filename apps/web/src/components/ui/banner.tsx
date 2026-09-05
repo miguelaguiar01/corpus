@@ -2,10 +2,11 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 // Colour means translation state (docs/design.md): warning is the stale
-// amber, error is destructive, info and success stay achromatic.
+// amber, error is destructive, info and success stay achromatic (and
+// look alike; the tone names the intent and picks the role).
 const TONE = {
   info: "bg-muted text-foreground",
-  success: "bg-muted font-medium text-foreground",
+  success: "bg-muted text-foreground",
   warning: "bg-state-stale text-state-stale-foreground",
   error: "border border-destructive/50 text-destructive",
 } as const;

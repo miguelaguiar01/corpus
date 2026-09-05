@@ -102,14 +102,15 @@ Four small components in `apps/web/src/components/ui` carry the
 structure, so pages never hand-roll it:
 
 - `Section`: a sentence-case heading (14/500, muted), an optional meta
-  beside it and an optional description, then the content. Pages are a
-  page header followed by sections.
+  at the right end of the heading line (a count, a total) and an
+  optional description, then the content. Pages are a page header
+  followed by sections.
 - `Field`: label, one control, optional hint and error. The control is
   labelled by the label and described by the hint or error; an error
   marks it invalid and is announced.
-- `Banner`: one line of feedback with a tone. Warning is the stale amber,
-  error is destructive and an alert; info and success are achromatic and
-  a status.
+- `Banner`: feedback with a tone, usually one line. Warning is the stale
+  amber, error is destructive and an alert; info and success are
+  achromatic and a status.
 - `Chip`: a small label. Neutral and outline for metadata and facets,
   solid for a selected control, key (mono) for identifiers and ICU
   placeholders, and the two state variants. `chipVariants` gives the

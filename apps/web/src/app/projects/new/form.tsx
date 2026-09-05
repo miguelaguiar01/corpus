@@ -23,10 +23,8 @@ export function NewProjectForm() {
     return (
       <Banner tone="success" className="space-y-3">
         <p>{t("newProject.created", { slug: state.slug })}</p>
-        <p className="font-normal text-muted-foreground">
-          {t("newProject.tokenOnce")}
-        </p>
-        <code className="block break-all rounded-md border border-border bg-background p-3 font-normal">
+        <p className="text-muted-foreground">{t("newProject.tokenOnce")}</p>
+        <code className="block break-all rounded-md border border-border bg-background p-3">
           {state.token}
         </code>
       </Banner>
