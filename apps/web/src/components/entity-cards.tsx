@@ -8,7 +8,7 @@ export function EntityCards({ entities }: { entities: EntityCard[] }) {
     <ul className="grid gap-3 sm:grid-cols-2">
       {entities.map((entity) => (
         <li
-          key={`${entity.field}:${entity.entityId}`}
+          key={`${entity.field ?? ""}:${entity.entityId}`}
           className="rounded-lg border border-border p-3"
         >
           <p className="text-xs text-muted-foreground">{entity.typeLabel}</p>

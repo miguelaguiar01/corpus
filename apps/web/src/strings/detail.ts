@@ -44,7 +44,8 @@ export type StringDetail = {
 };
 
 export type EntityCard = {
-  field: string;
+  // The ref field that named the entity, when reached from a string.
+  field?: string;
   entityId: string;
   type: string;
   typeLabel: string;
