@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { entriesToMessages, entriesToTable } from "@corpus/adapters";
+import { option } from "./args";
 import {
   MIN_STATES,
   pullPayloadSchema,
@@ -107,11 +108,6 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     `pulled ${config.project} at ${minState}: ${changed.length} file(s) changed`,
   );
   return 0;
-}
-
-function option(args: string[], name: string): string | undefined {
-  const index = args.indexOf(name);
-  return index >= 0 ? args[index + 1] : undefined;
 }
 
 function readRepoFile(cwd: string, rel: string): string | undefined {
