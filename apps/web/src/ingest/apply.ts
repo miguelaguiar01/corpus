@@ -5,6 +5,7 @@ import {
   edits,
   entities,
   projects,
+  pushes,
   strings,
   stringTranslations,
 } from "@/db/schema";
@@ -156,6 +157,18 @@ export function applySnapshot(
 
       const report = { ...plan.report, ...entityResult, ...seedResult };
       if (options.dryRun) throw new DryRunRollback(report);
+      tx.insert(pushes)
+        .values({
+          projectId,
+          stringCount: snapshot.strings.length,
+          added: report.added,
+          changed: report.changed,
+          stale: report.stale,
+          archived: report.archived,
+          unarchived: report.unarchived,
+          seeded: report.seeded,
+        })
+        .run();
       return report;
     });
   } catch (error) {

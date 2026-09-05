@@ -12,6 +12,7 @@ import {
 } from "@/projects/actions";
 import { NEW_TOKEN_COOKIE } from "@/projects/constants";
 import { getProjectBySlug } from "@/projects/service";
+import { pushHistory } from "@/pushes/history";
 import { t, type MessageKey } from "@/i18n";
 
 type Query = { token?: string; saved?: string; error?: string };
@@ -39,6 +40,7 @@ export default async function SettingsPage({
   const project = getProjectBySlug(db, slug);
   if (!project) notFound();
   const people = db.select().from(users).orderBy(users.name).all();
+  const history = pushHistory(db, project.id);
   const targets = project.languages.filter((l) => l !== project.sourceLanguage);
   // The freshly rotated token, if the action just set it (60 s cookie).
   const newToken =
@@ -107,6 +109,44 @@ export default async function SettingsPage({
           </label>
           <Button type="submit">{t("settings.saveLanguages")}</Button>
         </form>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm text-muted-foreground">
+          {t("settings.historyHeading")}
+        </h2>
+        {history.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {t("settings.historyEmpty")}
+          </p>
+        ) : (
+          <ol className="divide-y divide-border text-sm">
+            {history.map((push) => (
+              <li key={push.id} className="space-y-0.5 py-2">
+                <div className="flex items-baseline justify-between gap-3">
+                  <time
+                    dateTime={push.at.toISOString()}
+                    className="tabular-nums"
+                  >
+                    {push.at.toISOString().slice(0, 16).replace("T", " ")}
+                  </time>
+                  <span className="text-muted-foreground">
+                    {t("settings.historyStrings", { count: push.stringCount })}
+                  </span>
+                </div>
+                <p className="text-muted-foreground">
+                  {t("settings.historyReport", {
+                    added: push.added,
+                    changed: push.changed,
+                    stale: push.stale,
+                    archived: push.archived,
+                    seeded: push.seeded,
+                  })}
+                </p>
+              </li>
+            ))}
+          </ol>
+        )}
       </section>
 
       <section className="space-y-3">

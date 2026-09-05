@@ -5,6 +5,7 @@ import type { Db } from "@/db";
 import {
   entities,
   projects,
+  pushes,
   strings,
   stringTranslations,
   users,
@@ -256,4 +257,36 @@ test("a dry run reports seeds without applying them", () => {
   );
   expect(report.seeded).toBe(1);
   expect(stringRow(db, "ui.continue")).toBeUndefined();
+});
+
+test("an applied push records one history row with its report; a dry run records none", () => {
+  const { db, project } = seed();
+  applySnapshot(db, project.id, FIXTURE, { dryRun: true });
+  expect(db.select().from(pushes).all()).toHaveLength(0);
+
+  const report = applySnapshot(db, project.id, FIXTURE);
+  const rows = db.select().from(pushes).all();
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({
+    projectId: project.id,
+    stringCount: FIXTURE.strings.length,
+    added: report.added,
+    changed: 0,
+    stale: 0,
+    archived: 0,
+    unarchived: 0,
+    seeded: 0,
+  });
+  expect(rows[0]?.at).toBeInstanceOf(Date);
+
+  const changed: Snapshot = {
+    ...FIXTURE,
+    strings: FIXTURE.strings.map((s, i) =>
+      i === 0 ? { ...s, source: s.source + "!" } : s,
+    ),
+  };
+  applySnapshot(db, project.id, changed);
+  const second = db.select().from(pushes).all();
+  expect(second).toHaveLength(2);
+  expect(second[1]).toMatchObject({ changed: 1, stale: 1 });
 });
