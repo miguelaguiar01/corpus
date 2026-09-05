@@ -4,7 +4,8 @@ import { chipVariants } from "@/components/ui/chip";
 import { t } from "@/i18n";
 import { BUILTIN_LABEL } from "./facet-panel";
 
-// What the list is filtered by, each chip a link that drops that filter.
+// Only what the page actually filters by (facet keys, archived, a
+// non-blank search) becomes a chip.
 export function ActiveFilters({
   basePath,
   facets,
@@ -20,8 +21,9 @@ export function ActiveFilters({
     const builtin = BUILTIN_LABEL[key];
     return builtin ? t(builtin) : key;
   };
+  const known = new Set(["q", "archived", ...facets.map((f) => f.key)]);
   const filters = [...active]
-    .filter(([key]) => key !== "cursor")
+    .filter(([key, value]) => known.has(key) && value.trim() !== "")
     .map(([key, value]) => ({
       key,
       text:

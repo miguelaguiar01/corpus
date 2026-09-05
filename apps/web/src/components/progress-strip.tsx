@@ -13,7 +13,7 @@ export function ProgressStrip({ progress }: { progress: Progress }) {
         const p = progress.perLanguage[language]!;
         return (
           <li key={language} className="flex items-center gap-3 text-xs">
-            <span className="w-12 shrink-0 font-medium">{language}</span>
+            <span className="w-14 shrink-0 font-medium">{language}</span>
             <ProgressBar p={p} label={language} className="h-1.5 flex-1" />
             <span className="shrink-0 text-muted-foreground">
               {t("progress.summary", {

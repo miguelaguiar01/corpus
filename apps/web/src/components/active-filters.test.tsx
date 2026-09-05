@@ -28,6 +28,17 @@ test("renders nothing when the list is unfiltered", () => {
   expect(container.innerHTML).toBe("");
 });
 
+test("a blank search and an unknown param are not filters", () => {
+  const { container } = render(
+    <ActiveFilters
+      basePath="/c"
+      facets={FACETS}
+      active={new URLSearchParams("q=+&foo=bar&cursor=3")}
+    />,
+  );
+  expect(container.innerHTML).toBe("");
+});
+
 test("one chip per active filter, each a link that drops only that filter", () => {
   render(
     <ActiveFilters
