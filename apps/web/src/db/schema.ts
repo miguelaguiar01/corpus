@@ -159,3 +159,27 @@ export const edits = sqliteTable(
   },
   (t) => [index("edits_string_language").on(t.stringId, t.language)],
 );
+
+// Snapshot history (§9.5): one row per applied push (dry runs excluded)
+// with the report the CLI printed, so a maintainer can see when the
+// repo last pushed and what it changed.
+export const pushes = sqliteTable(
+  "pushes",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    projectId: integer("project_id")
+      .notNull()
+      .references(() => projects.id),
+    at: integer("at", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    stringCount: integer("string_count").notNull(),
+    added: integer("added").notNull(),
+    changed: integer("changed").notNull(),
+    stale: integer("stale").notNull(),
+    archived: integer("archived").notNull(),
+    unarchived: integer("unarchived").notNull(),
+    seeded: integer("seeded").notNull(),
+  },
+  (t) => [index("pushes_project_at").on(t.projectId, t.at)],
+);

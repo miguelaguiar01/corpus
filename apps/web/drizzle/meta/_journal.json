@@ -43,6 +43,13 @@
       "when": 1788550652856,
       "tag": "0005_project-entity-types",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1788577652028,
+      "tag": "0006_push-history",
+      "breakpoints": true
     }
   ]
 }
