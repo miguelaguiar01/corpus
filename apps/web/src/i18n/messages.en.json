@@ -81,6 +81,8 @@
   "editor.errorSourceRow": "The source text comes from the repository and is not edited here.",
   "editor.targetLabel": "Translation ({language})",
   "editor.placeholders": "Insert a placeholder",
+  "editor.selects": "Insert a select",
+  "editor.insertSelect": "Insert a select on {arg} with the keys {keys}",
   "editor.save": "Save translation",
   "editor.previewHeading": "Preview",
   "editor.staleBanner": "The source text changed after this translation was saved. Check it against the source above, then save again.",

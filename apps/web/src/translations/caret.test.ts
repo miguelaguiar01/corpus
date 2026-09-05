@@ -15,6 +15,13 @@ test("replaces a selection", () => {
   });
 });
 
+test("lands the caret inside the token when an offset is given", () => {
+  expect(insertAtCaret("a b", 1, 1, "{g, select, m {} f {}}", 15)).toEqual({
+    text: "a{g, select, m {} f {}} b",
+    caret: 16,
+  });
+});
+
 test("appends when there is no caret position", () => {
   expect(insertAtCaret("Olá", null, null, "{name}")).toEqual({
     text: "Olá{name}",
