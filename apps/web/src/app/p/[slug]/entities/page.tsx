@@ -32,7 +32,7 @@ export default async function EntitiesPage({
           heading={group.label}
           meta={group.entities.length}
         >
-          <EntityCards entities={group.entities} />
+          <EntityCards entities={group.entities} className="lg:grid-cols-3" />
         </Section>
       ))}
     </Page>
