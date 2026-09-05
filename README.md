@@ -1,71 +1,42 @@
-# Corpus
+<h1 align="center">Corpus</h1>
 
-Corpus is a self-hosted, lightweight translation workbench for games and
-apps whose text is *structured*: strings that carry metadata, placeholders,
-relations to game objects, and rendering context that flat key-value TMS
-tools can't represent well.
+<p align="center">
+  A self-hosted translation workbench for games and apps whose text is structured.<br>
+  Your repository stays the source of truth. Corpus is where people translate and verify it.
+</p>
 
-Text lives in each project's git repository; Corpus is an editing surface,
-never the source of truth. A CLI (`corpus push` / `corpus pull`) syncs the
-two, and the round-trip is provably lossless. Corpus translates its own UI
-with itself, which is the standing demo below and a test that runs on
-every build.
+<p align="center">
+  <a href="https://github.com/miguelaguiar01/corpus/actions/workflows/gate.yml"><img alt="CI" src="https://github.com/miguelaguiar01/corpus/actions/workflows/gate.yml/badge.svg"></a>
+  <img alt="Node 22" src="https://img.shields.io/badge/node-22-333333">
+  <img alt="TypeScript, strict" src="https://img.shields.io/badge/typescript-strict-333333">
+  <img alt="Single container, SQLite" src="https://img.shields.io/badge/deploy-one%20container%2C%20SQLite-333333">
+</p>
 
-<p>
+<p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/editor-structured-desktop-dark.png">
-    <img src="docs/screenshots/editor-structured-desktop-light.png" width="800" alt="The editor on a desktop: the source sentence on the left with its selects inline and placeholders as chips, related entities beneath it, and on the right the translation with insertable placeholder and select chips, live previews with the example values muted, and the save button.">
+    <img src="docs/screenshots/editor-structured-desktop-light.png" width="960" alt="The editor: on the left a source sentence whose gendered select reads inline as visto / vista with a strip naming its keys, the related characters and rooms beneath; on the right the English draft with insertable placeholder and select chips, two live previews built from the string's own example values, and the save button.">
   </picture>
 </p>
 
-*The editor on a desktop, on the fixture project Moonlight Manor: a source
-with two selects reads as one sentence, the branches strip beneath it
-names the keys, and the previews substitute the string's own example values.*
+<p align="center"><em>A string from the fixture project, Moonlight Manor: one sentence, two gendered selects, three placeholders, and a live preview for each example the repository shipped with it.</em></p>
 
-<p>
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dashboard-dark.png">
-    <img src="docs/screenshots/dashboard-light.png" width="260" alt="The dashboard on a phone: the three queues (untranslated, stale, unverified source) with their counts, then per-language progress bars with a legend for the Corpus chrome project.">
-  </picture>
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/editor-dark.png">
-    <img src="docs/screenshots/editor-light.png" width="260" alt="The editor on a phone: the source string with a placeholder chip, the per-language state chips, and the queue navigation at thumb height.">
-  </picture>
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/editor-structured-dark.png">
-    <img src="docs/screenshots/editor-structured-light.png" width="260" alt="The editor on a phone with a structured string: the sentence with its selects inline, the branches strip, and the related entities.">
-  </picture>
-</p>
+## Why Corpus
 
-*Corpus translating Corpus on a phone, light and dark, which is where
-translators mostly work. The third screen is Moonlight Manor again.*
+Flat key-value translation tools lose what makes game and app text hard: the placeholder that arrives with a Portuguese contraction baked in, the select that branches on a character's gender, the room the sentence is about. Corpus keeps all of it in view while someone translates.
 
-<details>
-<summary>More screens: home, catalogue, entity browser, maintainer settings</summary>
-<p>
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/home-dark.png">
-    <img src="docs/screenshots/home-light.png" width="260" alt="The home page on a phone: one card per project with its languages, a progress bar per language, and the three queue counts.">
-  </picture>
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/catalogue-dark.png">
-    <img src="docs/screenshots/catalogue-light.png" width="260" alt="The catalogue on a phone: facet filters, a search box with the active filter as a chip, and per-language state chips on every string.">
-  </picture>
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/entities-dark.png">
-    <img src="docs/screenshots/entities-light.png" width="260" alt="The entity browser on a phone: read-only cards grouped by entity type with a count, attributes aligned in two columns.">
-  </picture>
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-dark.png">
-    <img src="docs/screenshots/settings-light.png" width="260" alt="The maintainer corner on a phone: sections for the push token, languages, push history, and the people on the instance, each with a line explaining it.">
-  </picture>
-</p>
-</details>
+- **Structured text, first class.** Strings carry placeholders, ICU selects, metadata, and references to the entities they mention. The editor renders a select as its branches, never as syntax, and chips insert placeholders and select skeletons so nobody types braces by hand.
+- **Previews without running your code.** Each string can ship examples, slot values plus the source render, and the editor substitutes them into the draft as it is typed, one preview per example, both branches of a select exercised.
+- **The repository stays the truth.** `corpus push` diffs the repo into Corpus by string id; `corpus pull` writes verified translations back through the same adapters, format preserving. Push then pull reproduces the repository byte for byte, and that invariant is a test in the gate.
+- **A workflow, not a spreadsheet.** Every string and language moves untranslated, translated, verified, with a stale mark when the source changes underneath, an attributed history of every edit, and queues that tell a translator what to work on next.
+- **One container.** Next.js and SQLite in a single image with its database on a volume. No external services, no accounts, one invite secret for the instance.
+- **Made for a phone in one hand.** Translators mostly work on phones, so every surface was designed at 390px first, with the desktop layouts built out from there.
 
-## Self-hosting
+Corpus translates its own interface with itself. That is the standing demo in these screenshots and a test that runs on every build.
 
-Corpus ships as a single container with its SQLite database on a
-volume. You need Docker and nothing else:
+## Quick start
+
+You need Docker and nothing else.
 
 ```sh
 git clone https://github.com/miguelaguiar01/corpus.git
@@ -78,57 +49,19 @@ docker run -d --name corpus \
   corpus
 ```
 
-Then open http://localhost:3000. You'll be asked for the invite secret
-you just set and a display name. The first person to join becomes the
-instance maintainer. All data lives in the `corpus-data` volume; the
-container itself is disposable.
+Open http://localhost:3000, enter the invite secret you just set and a display name. The first person to join becomes the instance maintainer. All data lives in the `corpus-data` volume; the container is disposable.
 
-Mount a **directory**, never a single file: SQLite runs in WAL mode and
-keeps `-wal` and `-shm` files next to the database, so a bind mount of
-`corpus.db` alone would break writes.
-
-To reach the instance from other devices, put it behind HTTPS (any
-reverse proxy or a PaaS like Coolify works): the session cookie is
-marked `Secure` in production, so browsers won't send it over plain
-http except on localhost.
-
-With Docker Compose (or a PaaS that reads `compose.yaml`):
+With Docker Compose, or a PaaS that reads `compose.yaml`:
 
 ```sh
 CORPUS_INVITE_SECRET="$(openssl rand -hex 24)" docker compose up -d
 ```
 
-`/api/health` reports the build it is running (`git describe` at build
-time), so an instance is traceable to a commit without logging in.
+Two things to know before exposing it: mount a directory, never a single file (SQLite runs in WAL mode and keeps `-wal` and `-shm` files beside the database), and put it behind HTTPS to reach it from other devices, because the session cookie is `Secure` in production. `/api/health` reports the build it is running, so an instance is traceable to a commit without logging in.
 
-## Local development
+## Connect a repository
 
-The same app runs as a plain local process, no Docker involved. You need
-Node 22 (see `.nvmrc`) and npm:
-
-```sh
-git clone https://github.com/miguelaguiar01/corpus.git
-cd corpus
-npm install
-cp apps/web/.env.example apps/web/.env   # then set CORPUS_INVITE_SECRET
-npm run dev
-```
-
-Open http://localhost:3000, enter the invite secret from your `.env`
-and a display name. The database is created on first start at
-`apps/web/data/corpus.db` and is gitignored; delete it to start over.
-
-Two local checks mirror CI: `bin/gate` (typecheck, lint, tests, and
-`corpus check` on this repo's own chrome) and `bin/container-smoke`
-(build and boot the production image, needs Docker). `bin/smoke` runs the
-Playwright walk-through on a phone viewport, and `bin/screenshots`
-regenerates the images above.
-
-## The CLI
-
-A project declares where its text lives in a `corpus.config.ts`; the CLI
-never guesses. This is the whole configuration for a repo whose strings
-are a plain message catalog:
+A project declares where its text lives in a `corpus.config.ts`; the CLI never guesses. This is the whole configuration for a repository whose strings are a plain message catalog:
 
 ```ts
 import { defineCorpus } from "@corpus/contract";
@@ -144,66 +77,115 @@ export default defineCorpus({
 });
 ```
 
-Create the project in the web app (you get a push token once), then from
-the project's repository:
+Create the project in the web app, which shows you a push token once, then from the repository:
 
 ```sh
 export CORPUS_SERVER=http://localhost:3000 CORPUS_TOKEN=<token>
-corpus push                     # repo → Corpus: adds, changes, marks stale, archives
-corpus pull                     # Corpus → repo: verified translations only
+corpus push                       # repo → Corpus: adds, changes, marks stale, archives
+corpus pull                       # Corpus → repo: verified translations only
 corpus pull --min-state translated
-corpus check                    # lint: user-facing literals outside declared sources
+corpus check                      # lint: user-facing literals outside declared sources
 ```
 
-Pushing is a diff by string id: new ids are added, changed source text
-marks its translations stale, ids that disappear are archived with their
-history kept. Pulling writes translations back through the same adapters,
-format-preserving, and prints only the files it changed. Pushing then
-pulling reproduces the repository byte for byte; that invariant is a test
-in the gate.
+Pushing is a diff by string id: new ids are added, changed source text marks its translations stale, ids that disappear are archived with their history kept. Pulling writes translations back and prints only the files it changed.
 
-The CLI is not published to npm yet. From this repository, `corpus` is
-`npx tsx packages/cli/src/bin.ts`, run from the client project's
-directory. Structured sources (`table` records with metadata fields, or an
-`exec` command that emits entries) are described in the design spec, §3.
-
-## Configuration
-
-Environment variables are documented in
-[`apps/web/.env.example`](apps/web/.env.example). Local and container
-runs share one code path; only these differ by environment:
-
-| Variable | Local default | Container |
-| --- | --- | --- |
-| `CORPUS_INVITE_SECRET` | required, from `apps/web/.env` | `-e` at `docker run` |
-| `CORPUS_DB_PATH` | `apps/web/data/corpus.db` | `/data/corpus.db` on the volume |
-| `PORT` | `3000` | `3000` |
-
-Migrations apply automatically when the app starts, and the boot log
-names the database file it opened.
+The CLI is not published to npm yet. From this repository it is `npx tsx packages/cli/src/bin.ts`, run from the client project's directory. Structured sources, `table` records with metadata fields or an `exec` command that emits entries, are described in the [design spec, §3](docs/corpus-design.md).
 
 ## How it works
 
 ```
-client repo ──corpus push──▶ web app (people verify and translate) ──corpus pull──▶ repo files ──PR──▶ merged truth
+repository ──corpus push──▶ Corpus (people verify and translate) ──corpus pull──▶ repository files ──PR──▶ merged
 ```
 
-Source text and metadata belong to the repository; translations and
-workflow states belong to Corpus. Each string × language moves
-`untranslated → translated → verified`, with a `stale` mark when the
-source changes underneath, and every edit is logged with who and when.
-The database is a working copy with history: losing it loses only edits
-not yet pulled.
+Source text and metadata belong to the repository; translations and workflow states belong to Corpus. The database is a working copy with history: losing it loses only edits not yet pulled.
 
-The binding design lives in
-[`docs/corpus-design.md`](docs/corpus-design.md), including why key-value
-TMS tools don't fit structured game text and what Corpus deliberately does
-not do. Architecture decisions are logged in
-[`docs/DECISIONS.md`](docs/DECISIONS.md).
+| Surface   | What it is for                                                                                                                                            |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dashboard | The three queues (untranslated, stale, unverified source) and per-language progress by string type. A translator never wonders what to work on.           |
+| Catalogue | Every string, searched (accent-insensitive full text) and filtered by type, state, language, and the project's own metadata.                              |
+| Editor    | The source with its branches, placeholders, metadata, entities and examples on one side; the draft with chips, validation and live previews on the other. |
+| Entities  | Read-only cards for the characters, rooms and other objects the strings refer to.                                                                         |
+| Settings  | The push token, languages, push history, and the people on the instance. Maintainers only.                                                                |
 
-## Working on Corpus
+## Screens
 
-[`AGENTS.md`](AGENTS.md) is the workflow: the spec is binding, `bin/gate`
-must pass before a PR, every PR is reviewed by someone other than its
-author, and the round-trip invariant is never merged red. Work is tracked
-on the project board linked from the repository.
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dashboard-desktop-dark.png">
+    <img src="docs/screenshots/dashboard-desktop-light.png" width="960" alt="The dashboard: the three queues with their counts on the left, and on the right per-language progress bars with a legend, one bar per string type.">
+  </picture>
+</p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/catalogue-desktop-dark.png">
+    <img src="docs/screenshots/catalogue-desktop-light.png" width="960" alt="The catalogue: facet filters in a rail on the left; on the right the per-language progress, a search box with the active filter as a chip, and one row per string with its key, type, source and per-language state chips.">
+  </picture>
+</p>
+
+<details>
+<summary>More screens: home, a plain string in the editor, the entity browser, settings, and a phone</summary>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/home-desktop-dark.png">
+    <img src="docs/screenshots/home-desktop-light.png" width="960" alt="The home page: one card per project with its languages, a progress bar per language, and the three queue counts; a New project button for maintainers.">
+  </picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/editor-desktop-dark.png">
+    <img src="docs/screenshots/editor-desktop-light.png" width="960" alt="The editor on one of Corpus's own strings: the source with a placeholder chip on the left, the Portuguese draft on the right with the placeholder chip to insert and the save button, and the queue navigation above.">
+  </picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/entities-desktop-dark.png">
+    <img src="docs/screenshots/entities-desktop-light.png" width="960" alt="The entity browser: cards grouped by entity type with a count per type, each card naming the entity and listing its attributes in two aligned columns.">
+  </picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-desktop-dark.png">
+    <img src="docs/screenshots/settings-desktop-light.png" width="960" alt="Settings: sections for the push token, languages, push history, and the people on the instance, each with a line explaining it.">
+  </picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dashboard-dark.png">
+    <img src="docs/screenshots/dashboard-light.png" width="300" alt="The dashboard on a phone: the same queues and progress bars in one column, at thumb height.">
+  </picture>
+</p>
+</details>
+
+Every screen follows the system light or dark preference. The visual system, the tokens, the type scale and the rules behind it, is written down in [`docs/design.md`](docs/design.md).
+
+## Configuration
+
+Environment variables are documented in [`apps/web/.env.example`](apps/web/.env.example). Local and container runs share one code path; only these differ by environment:
+
+| Variable               | Local default                  | Container                       |
+| ---------------------- | ------------------------------ | ------------------------------- |
+| `CORPUS_INVITE_SECRET` | required, from `apps/web/.env` | `-e` at `docker run`            |
+| `CORPUS_DB_PATH`       | `apps/web/data/corpus.db`      | `/data/corpus.db` on the volume |
+| `PORT`                 | `3000`                         | `3000`                          |
+
+Migrations apply automatically when the app starts, and the boot log names the database file it opened.
+
+## Local development
+
+The same app runs as a plain local process. You need Node 22 (see `.nvmrc`) and npm:
+
+```sh
+git clone https://github.com/miguelaguiar01/corpus.git
+cd corpus
+npm install
+cp apps/web/.env.example apps/web/.env   # then set CORPUS_INVITE_SECRET
+npm run dev
+```
+
+The database is created on first start at `apps/web/data/corpus.db` and is gitignored; delete it to start over.
+
+`bin/gate` is the one quality gate, locally and in CI: typecheck, lint, format, the full test suite, and `corpus check` on this repository's own interface strings. `bin/smoke` walks the whole loop in a browser, invite to verified translation, on a phone viewport and then checks the desktop layouts; `bin/container-smoke` builds and boots the production image; `bin/screenshots` regenerates the images above.
+
+## Documentation
+
+- [`docs/corpus-design.md`](docs/corpus-design.md), the binding design: the data model, the ICU subset, sync semantics, the round-trip invariant, and what Corpus deliberately does not do.
+- [`docs/design.md`](docs/design.md), the visual system.
+- [`docs/DECISIONS.md`](docs/DECISIONS.md), architecture decisions as they were made.
+- [`AGENTS.md`](AGENTS.md), how work happens here: the spec is binding, the gate must pass before a PR, every PR is reviewed by someone other than its author, and the round-trip invariant is never merged red.
+
+## Status
+
+The MVP is complete and the interface has been through a full design pass. Corpus runs its own translation into Portuguese from this repository, on every build. The CLI is used from this repository for now; publishing it to npm is next.
