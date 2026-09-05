@@ -15,9 +15,19 @@ export type Db = BetterSQLite3Database<typeof schema>;
 // The database file and the migrations folder, from env overrides or
 // the app root (see locate.ts). Evaluated per call so the env read stays
 // lazy and tests can point elsewhere.
+// Where this module runs from, if the runtime says (a file: URL under the
+// source tree or the standalone bundle); otherwise cwd is the only clue.
+function moduleDirectory(): string | undefined {
+  try {
+    return path.dirname(fileURLToPath(import.meta.url));
+  } catch {
+    return undefined;
+  }
+}
+
 export function resolvedPaths(): { migrationsDir: string; dbPath: string } {
   return resolvePaths({
-    moduleDir: path.dirname(fileURLToPath(import.meta.url)),
+    moduleDir: moduleDirectory(),
     cwd: process.cwd(),
     env: process.env,
   });

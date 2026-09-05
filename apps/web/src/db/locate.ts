@@ -13,10 +13,13 @@ export function locateAppRoot({
   moduleDir,
   cwd,
 }: {
-  moduleDir: string;
+  // Absent when the runtime cannot say where the module lives; then cwd
+  // is the only candidate.
+  moduleDir?: string;
   cwd: string;
 }): string {
   if (existsSync(path.join(cwd, MARKER))) return cwd;
+  if (moduleDir === undefined) return cwd;
   let dir = moduleDir;
   for (;;) {
     if (existsSync(path.join(dir, MARKER))) return dir;
@@ -33,7 +36,7 @@ export function resolvePaths({
   cwd,
   env,
 }: {
-  moduleDir: string;
+  moduleDir?: string;
   cwd: string;
   env: Record<string, string | undefined>;
 }): { migrationsDir: string; dbPath: string } {

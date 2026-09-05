@@ -57,3 +57,8 @@ test("with no app root anywhere, it falls back to cwd", () => {
   tmp = mkdtempSync(path.join(os.tmpdir(), "corpus-locate-"));
   expect(locateAppRoot({ moduleDir: tmp, cwd: tmp })).toBe(tmp);
 });
+
+test("with no module location at all, cwd still resolves", () => {
+  const root = appRoot();
+  expect(locateAppRoot({ moduleDir: undefined, cwd: root })).toBe(root);
+});

@@ -96,6 +96,7 @@ export async function toggleMaintainer(formData: FormData): Promise<void> {
   const user = await requireUser();
   const db = getDb();
   const slug = field(formData, "slug");
+  if (!getProjectBySlug(db, slug)) notFound();
   const userId = Number(field(formData, "userId"));
   const maintainer = field(formData, "maintainer") === "1";
   const result = setMaintainer(db, userId, maintainer, user);

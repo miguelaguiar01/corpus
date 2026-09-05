@@ -44,7 +44,9 @@ export function rotateToken(
   return { ok: true, token };
 }
 
-// Target languages; the source language is fixed and always first.
+// Target languages; the source language is fixed and always first. Rows
+// for a removed language are kept (nothing here deletes translations):
+// adding the language back brings its work back; pull simply skips it.
 export function updateLanguages(
   db: Db,
   projectId: number,
