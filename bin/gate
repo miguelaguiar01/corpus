@@ -21,6 +21,9 @@ npm run lint
 step "format"
 npm run format
 
+step "build the CLI package"
+npm run build -w packages/cli
+
 step "tests"
 npm test
 

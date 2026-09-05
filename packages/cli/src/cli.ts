@@ -16,6 +16,10 @@ const USAGE =
 export async function run(argv: string[], ctx: RunContext): Promise<number> {
   const [command] = argv;
 
+  if (command === "--help" || command === "-h" || command === "help") {
+    ctx.out(USAGE);
+    return 0;
+  }
   if (command === "push" || command === "pull" || command === "check") {
     try {
       if (command === "push") return await push(argv.slice(1), ctx);

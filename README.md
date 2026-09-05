@@ -64,7 +64,7 @@ Two things to know before exposing it: mount a directory, never a single file (S
 A project declares where its text lives in a `corpus.config.ts`; the CLI never guesses. This is the whole configuration for a repository whose strings are a plain message catalog:
 
 ```ts
-import { defineCorpus } from "@corpus/contract";
+import { defineCorpus } from "@corpus-tool/cli";
 
 export default defineCorpus({
   project: "my-game",

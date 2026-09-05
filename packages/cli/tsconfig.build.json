@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "rootDir": "..",
+    "outDir": "dist/types"
+  },
+  "include": ["src", "../contract/src", "../adapters/src"],
+  "exclude": [
+    "src/**/*.test.ts",
+    "../contract/src/**/*.test.ts",
+    "../adapters/src/**/*.test.ts"
+  ]
+}

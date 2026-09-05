@@ -1,21 +1,50 @@
 {
-  "name": "@corpus/cli",
-  "version": "0.0.0",
-  "private": true,
+  "name": "@corpus-tool/cli",
+  "version": "0.1.0",
+  "description": "The Corpus CLI: push a repository's structured text to a Corpus instance and pull verified translations back, format-preserving.",
+  "keywords": [
+    "i18n",
+    "localization",
+    "translation",
+    "icu",
+    "games",
+    "cli"
+  ],
+  "homepage": "https://github.com/miguelaguiar01/corpus#readme",
+  "bugs": "https://github.com/miguelaguiar01/corpus/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/miguelaguiar01/corpus.git",
+    "directory": "packages/cli"
+  },
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "dist"
+  ],
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/types/cli/src/index.d.ts",
+      "import": "./dist/index.js"
+    }
   },
   "bin": {
-    "corpus": "./src/bin.ts"
+    "corpus": "./dist/bin.js"
   },
   "scripts": {
+    "build": "node build.mjs",
+    "prepack": "npm run build",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@corpus/adapters": "*",
-    "@corpus/contract": "*",
     "jiti": "^2.4.0",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@corpus/adapters": "*",
+    "@corpus/contract": "*"
   }
 }

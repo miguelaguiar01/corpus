@@ -11,7 +11,8 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@corpus-tool/cli": ["../../packages/cli/src/index.ts"]
     },
     "resolveJsonModule": true
   },

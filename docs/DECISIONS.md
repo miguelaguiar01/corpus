@@ -204,3 +204,23 @@ target (§7, §13); a preview like "was seen at the da estufa window" must
 read as data the translator cannot fix here, not as their mistake.
 
 **Context:** #175, from the M5 demo finding (#145).
+
+## 2026-09-05 — One published package, `@corpus-tool/cli`, with the contract folded in
+
+**Decision:** the only package on npm is `@corpus-tool/cli` (binary
+`corpus`), under the `corpus-tool` organisation. A client project's
+`corpus.config.ts` imports `defineCorpus` and `CorpusConfig` from it; the
+`@corpus/contract` and `@corpus/adapters` workspace packages stay private
+and are bundled into the CLI's `dist` by esbuild, with their declarations
+emitted alongside and rewritten to relative paths. Runtime dependencies
+stay external: `jiti` (loads the client's TypeScript config), `typescript`
+(`corpus check` parses source files) and `zod` (the contract's schemas).
+Inside the workspace, `@corpus-tool/cli` resolves to the CLI's source
+through `tsconfig` paths and the vitest alias, so nothing in the repo
+depends on a build having run except `bin/gate`'s own build step.
+
+**Why:** nothing in a client project touches Corpus at runtime, so a second
+package would be ceremony; the `@corpus` scope belongs to an existing npm
+account, and `corpus-tool` was free as an organisation.
+
+**Context:** #200 (owner decision), #201; epic #199.

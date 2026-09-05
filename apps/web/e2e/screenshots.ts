@@ -3,7 +3,7 @@
 // README. bin/screenshots starts one fresh server per colour scheme and
 // runs this once for each, so light and dark show identical state.
 import { chromium, type Page } from "@playwright/test";
-import { buildSnapshot, loadConfig } from "@corpus/cli";
+import { buildSnapshot, loadConfig } from "@corpus-tool/cli";
 import { moonlightManor } from "@corpus/contract";
 import { mkdirSync } from "node:fs";
 import path from "node:path";

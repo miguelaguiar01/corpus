@@ -9,6 +9,9 @@
     "isolatedModules": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
-    "noEmit": true
+    "noEmit": true,
+    "paths": {
+      "@corpus-tool/cli": ["./packages/cli/src/index.ts"]
+    }
   }
 }
