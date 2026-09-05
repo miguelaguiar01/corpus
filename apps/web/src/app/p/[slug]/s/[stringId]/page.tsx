@@ -169,6 +169,11 @@ export default async function StringPage({
       {(canVerify || queue) && (
         <div className="fixed inset-x-0 bottom-0 border-t border-border bg-background px-4 py-3">
           <div className="mx-auto max-w-xl space-y-2">
+            {canVerify && !target && (
+              <p className="text-center text-xs text-muted-foreground">
+                {t("editor.proofreading", { language: actedLanguage })}
+              </p>
+            )}
             {canVerify && acted && (
               <VerifyForm
                 action={verifyString}

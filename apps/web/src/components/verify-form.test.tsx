@@ -14,6 +14,7 @@ test("submits the string, language, version token, and queue as hidden fields", 
       stringKey="skin.seen"
       openedVersion={1700000000000}
       queue="unverifiedSource"
+      language="pt-PT"
     />,
   );
   const value = (name: string) =>
@@ -22,12 +23,23 @@ test("submits the string, language, version token, and queue as hidden fields", 
   expect(value("key")).toBe("skin.seen");
   expect(value("openedVersion")).toBe("1700000000000");
   expect(value("queue")).toBe("unverifiedSource");
-  expect(screen.getByRole("button", { name: "Mark as verified" })).toBeTruthy();
+  expect(
+    screen.getByRole("button", { name: "Mark pt-PT as verified" }),
+  ).toBeTruthy();
 });
 
 test("omits the queue field when there is no queue", () => {
   const { container } = render(
-    <VerifyForm action={vi.fn()} slug="mm" stringKey="k" openedVersion={1} />,
+    <VerifyForm
+      action={vi.fn()}
+      slug="mm"
+      stringKey="k"
+      openedVersion={1}
+      language="en"
+    />,
   );
   expect(container.querySelector('input[name="queue"]')).toBeNull();
+  expect(
+    screen.getByRole("button", { name: "Mark en as verified" }),
+  ).toBeTruthy();
 });
