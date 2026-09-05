@@ -14,6 +14,9 @@ const REPO = fileURLToPath(new URL("../../..", import.meta.url));
 
 const base = process.env.CORPUS_SMOKE_URL ?? "http://127.0.0.1:3902";
 const scheme = process.env.CORPUS_SHOT_SCHEME === "dark" ? "dark" : "light";
+// Phone by default (the design target, §9); desktop for the wide layouts.
+const desktop = process.env.CORPUS_SHOT_VIEWPORT === "desktop";
+const suffix = desktop ? `desktop-${scheme}` : scheme;
 const out = process.env.CORPUS_SHOTS_DIR ?? path.resolve("docs/screenshots");
 mkdirSync(out, { recursive: true });
 
@@ -42,15 +45,24 @@ async function main(): Promise<void> {
   const browser = await chromium.launch();
   const context = await browser.newContext({
     baseURL: base,
-    viewport: { width: 390, height: 844 },
+    viewport: desktop
+      ? { width: 1280, height: 800 }
+      : { width: 390, height: 844 },
     deviceScaleFactor: 2,
     colorScheme: scheme,
   });
   const page = await context.newPage();
   const shot = (name: string) =>
-    page.screenshot({ path: path.join(out, `${name}-${scheme}.png`) });
+    page.screenshot({ path: path.join(out, `${name}-${suffix}.png`) });
 
+  // The entry surfaces, before there is a session or a project.
+  await page.goto(`${base}/invite`, { waitUntil: "networkidle" });
+  await shot("invite");
   await join(page, "ana");
+  await page.goto(`${base}/`, { waitUntil: "networkidle" });
+  await shot("home-empty");
+  await page.goto(`${base}/projects/new`, { waitUntil: "networkidle" });
+  await shot("new-project");
 
   // Corpus translating Corpus (§12): the repo's own chrome catalog, built
   // by the real snapshot builder from corpus.config.ts.
@@ -84,6 +96,8 @@ async function main(): Promise<void> {
   await page.getByRole("button", { name: "Mark en as verified" }).click();
   await page.waitForURL((url) => !url.href.includes("app.tagline"));
 
+  await page.goto(`${base}/`, { waitUntil: "networkidle" });
+  await shot("home");
   await page.goto(corpus, { waitUntil: "networkidle" });
   await shot("dashboard");
   await page.goto(`${corpus}/catalogue?q=verified`, {

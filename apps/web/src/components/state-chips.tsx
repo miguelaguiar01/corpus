@@ -3,13 +3,13 @@ import type { LanguageState } from "@/catalogue/query";
 import { STATE_KEY } from "./state-label";
 
 // Three states, three treatments that survive both themes and do not
-// rely on hue alone: outlined, filled quiet, filled strong with a mark.
-// (`muted` and `secondary` share a colour in globals.css, which is why
-// untranslated and translated used to look the same.)
+// rely on hue alone: outlined, filled achromatic, filled moss with a
+// mark. Colour means state (docs/design.md): only verified and stale
+// carry hue.
 const STATE_CLASS: Record<LanguageState["state"], string> = {
   untranslated: "border border-border text-muted-foreground",
   translated: "bg-foreground/15 text-foreground",
-  verified: "bg-primary text-primary-foreground",
+  verified: "bg-state-verified text-state-verified-foreground",
 };
 
 export function StateChips({
@@ -33,7 +33,7 @@ export function StateChips({
             {state === "verified" && <span aria-hidden="true">✓</span>}
             <span className="font-medium">{language}</span>
             {value?.stale && (
-              <span className="rounded-sm bg-destructive px-1 text-destructive-foreground">
+              <span className="rounded-sm bg-state-stale px-1 text-state-stale-foreground">
                 {t("state.stale")}
               </span>
             )}

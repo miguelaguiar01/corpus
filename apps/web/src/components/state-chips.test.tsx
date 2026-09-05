@@ -51,11 +51,12 @@ test("the three states are visibly distinct, not only by colour", () => {
   const classes = ["a", "b", "c"].map((l) => chip(l).className);
   expect(new Set(classes).size).toBe(3);
   // Untranslated is outlined (nothing filled), translated is filled in the
-  // quiet tone, verified is filled in the strong tone and carries a mark.
+  // achromatic tone, verified is filled in the state colour and carries a
+  // mark.
   expect(chip("a").className).toMatch(/border/);
-  expect(chip("a").className).not.toMatch(/bg-(muted|secondary|primary)\b/);
+  expect(chip("a").className).not.toMatch(/bg-(muted|secondary|state)/);
   expect(chip("b").className).toMatch(/bg-foreground\/15/);
-  expect(chip("c").className).toMatch(/bg-primary/);
+  expect(chip("c").className).toMatch(/bg-state-verified/);
   expect(chip("c").textContent).toMatch(/✓/);
   expect(chip("b").textContent).not.toMatch(/✓/);
 });

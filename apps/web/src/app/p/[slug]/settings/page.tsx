@@ -130,10 +130,7 @@ export default async function SettingsPage({
             {history.map((push) => (
               <li key={push.id} className="space-y-0.5 py-2">
                 <div className="flex items-baseline justify-between gap-3">
-                  <time
-                    dateTime={push.at.toISOString()}
-                    className="tabular-nums"
-                  >
+                  <time dateTime={push.at.toISOString()}>
                     {push.at.toISOString().slice(0, 16).replace("T", " ")}
                   </time>
                   <span className="text-muted-foreground">

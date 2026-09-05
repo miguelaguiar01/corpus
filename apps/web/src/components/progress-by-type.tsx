@@ -2,9 +2,7 @@ import type { Progress } from "@/catalogue/progress";
 import { t } from "@/i18n";
 import { ProgressBar } from "./progress-bar";
 
-// Per-language progress broken down by string type (§9.1). Verified fills
-// in the foreground tone, translated in the quieter one; the remainder is
-// untranslated.
+// Per-language progress broken down by string type (§9.1).
 export function ProgressByType({ progress }: { progress: Progress }) {
   const languages = Object.keys(progress.perLanguage);
   if (languages.length === 0) return null;

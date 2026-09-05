@@ -27,7 +27,7 @@ export default async function EntitiesPage({
         <section key={group.type} className="space-y-3">
           <h2 className="flex items-baseline gap-2">
             <span className="text-lg font-semibold">{group.label}</span>
-            <span className="text-sm tabular-nums text-muted-foreground">
+            <span className="text-sm text-muted-foreground">
               {group.entities.length}
             </span>
           </h2>

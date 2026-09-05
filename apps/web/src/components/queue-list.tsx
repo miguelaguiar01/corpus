@@ -33,9 +33,7 @@ export function QueueList({
         const item = first[kind];
         const body = (
           <>
-            <span className="w-12 text-3xl font-semibold tabular-nums">
-              {count}
-            </span>
+            <span className="min-w-16 text-3xl font-semibold">{count}</span>
             <span className="text-base">{t(label)}</span>
           </>
         );

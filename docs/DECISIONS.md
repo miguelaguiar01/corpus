@@ -170,3 +170,22 @@ login, and health is the endpoint operators already poll. The snapshot
 contract version (`corpus/1`, §4) is a different axis and stays separate.
 
 **Context:** #139, owner-requested on 2026-09-04.
+
+## 2026-09-05 — IBM Plex Sans and Mono are the one typeface pair
+
+**Decision:** the web app sets IBM Plex Sans (400/500/600) for chrome and
+project text and IBM Plex Mono (400/500) for identifiers and ICU, loaded
+through `next/font/google`. The files are downloaded once at `next build`
+and served from `/_next/static`, so the running app is network-free and
+the CSP's `default-src 'self'` covers them; the image build itself does
+need network access for that step (vendoring the woff2 files with
+`next/font/local` would remove that, if it ever matters). `font-bold`
+resolves to 600 so the browser never synthesises a weight that was not
+loaded. The full token system is in `docs/design.md`.
+
+**Why:** the spec asks for a quiet identity where a project's text is the
+prominent thing (§9); Plex has wide language coverage for that text, a
+matching mono for string keys and braces, and reads as a tool rather than
+a template. Self-hosting keeps the runtime network-free.
+
+**Context:** #166, from the M5 design audit on epic #114.
