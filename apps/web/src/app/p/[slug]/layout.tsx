@@ -14,7 +14,7 @@ export default async function ProjectLayout({
   children: ReactNode;
   params: Promise<{ slug: string }>;
 }) {
-  await requireUser();
+  const user = await requireUser();
   const { slug } = await params;
   const db = getDb();
   const project = getProjectBySlug(db, slug);
@@ -42,6 +42,11 @@ export default async function ProjectLayout({
           <Link href={`/p/${slug}/entities`} className="hover:underline">
             {t("nav.entities")}
           </Link>
+          {user.maintainer && (
+            <Link href={`/p/${slug}/settings`} className="hover:underline">
+              {t("nav.settings")}
+            </Link>
+          )}
         </nav>
       </header>
       <div className="px-4 py-6">{children}</div>
