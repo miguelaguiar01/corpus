@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Build the production image and prove it boots (spec §2, §14): the
+# standalone server starts, migrations apply on an empty volume, and
+# /api/health answers. Used by CI and by hand; one source of truth.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+TAG="${CORPUS_IMAGE:-corpus:smoke}"
+NAME="corpus-smoke-$$"
+PORT="${CORPUS_SMOKE_PORT:-3900}"
+
+cleanup() {
+  docker rm -f "$NAME" >/dev/null 2>&1 || true
+  docker volume rm "$NAME-data" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
+echo "=== container-smoke: build ==="
+docker build -t "$TAG" .
+
+echo "=== container-smoke: run ==="
+docker run -d --name "$NAME" -p "127.0.0.1:$PORT:3000" \
+  -e CORPUS_INVITE_SECRET=smoke-only-not-a-secret \
+  -v "$NAME-data:/data" "$TAG" >/dev/null
+
+echo "=== container-smoke: wait for /api/health ==="
+for _ in $(seq 1 60); do
+  if body=$(curl -sf "http://127.0.0.1:$PORT/api/health" 2>/dev/null); then
+    echo "health: $body"
+    case "$body" in
+      *'"ok"'*) ;;
+      *) echo "unexpected health body" >&2; docker logs "$NAME" >&2; exit 1 ;;
+    esac
+    echo "=== container-smoke: logs ==="
+    docker logs "$NAME" 2>&1 | sed 's/^/  /'
+    echo "=== container-smoke: PASS ==="
+    exit 0
+  fi
+  sleep 1
+done
+echo "container did not answer within 60s" >&2
+docker logs "$NAME" >&2 || true
+exit 1
