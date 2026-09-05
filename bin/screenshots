@@ -30,7 +30,10 @@ for scheme in light dark; do
   mkdir -p "$TMP/run/apps/web/.next"
   cp -r apps/web/.next/static "$TMP/run/apps/web/.next/static"
   echo "=== screenshots: $viewport $scheme ==="
-  PORT="$PORT" HOSTNAME=127.0.0.1 NODE_ENV=production \
+  # Bound to localhost, as Next names a loopback bind: bound to 127.0.0.1 the
+  # middleware would redirect to http://localhost:PORT, a different origin for
+  # the browser, and a prefetch of that never settles.
+  PORT="$PORT" HOSTNAME=localhost NODE_ENV=production \
     CORPUS_DB_PATH="$TMP/data/corpus.db" \
     CORPUS_INVITE_SECRET=smoke-only-not-a-secret \
     node "$TMP/run/apps/web/server.js" >"$TMP/server.log" 2>&1 &

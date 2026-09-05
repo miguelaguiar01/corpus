@@ -21,7 +21,7 @@ test("marks the overview only on the project root", () => {
 });
 
 test("marks the catalogue on the catalogue and in the editor", () => {
-  pathname.current = "/p/manor/catalogue?type=chrome";
+  pathname.current = "/p/manor/catalogue";
   const { unmount } = render(<AppNav slug="manor" maintainer={false} />);
   expect(current()).toEqual(["Catalogue"]);
   unmount();

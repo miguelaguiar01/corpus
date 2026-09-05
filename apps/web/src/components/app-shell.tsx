@@ -4,10 +4,8 @@ import { t } from "@/i18n";
 import { AppNav } from "./app-nav";
 import { ProjectSwitcher, type ProjectOption } from "./project-switcher";
 
-// The one shell (docs/design.md): wordmark, the project switcher and nav
-// when there is a project, and the page below. The header wraps on a
-// phone; four links beside the switcher overflow 390px, and a page that
-// overflows sideways breaks fixed-bar hit testing.
+// The header wraps on a phone: four links beside the switcher overflow
+// 390px, and a page that overflows sideways breaks fixed-bar hit testing.
 export function AppShell({
   project,
   maintainer = false,

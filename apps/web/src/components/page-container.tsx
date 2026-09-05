@@ -1,7 +1,5 @@
 import type { ReactNode } from "react";
 
-// Per-page width (docs/design.md): form for a single column of fields,
-// reading for text and lists, wide for facets, grids and two panes.
 const WIDTH = {
   form: "max-w-md",
   reading: "max-w-2xl",

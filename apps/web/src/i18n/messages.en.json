@@ -9,6 +9,7 @@
   "nav.catalogue": "Catalogue",
   "nav.entities": "Entities",
   "nav.settings": "Settings",
+  "nav.primary": "Main navigation",
   "switcher.label": "Select a project",
   "switcher.placeholder": "Search projects…",
   "switcher.empty": "No projects match.",

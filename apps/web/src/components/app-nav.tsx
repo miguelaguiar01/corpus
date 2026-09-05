@@ -38,10 +38,13 @@ export function AppNav({
   maintainer: boolean;
 }) {
   const base = `/p/${slug}`;
-  const rest = (usePathname() ?? "").split("?")[0]!.slice(base.length);
+  const rest = usePathname().slice(base.length);
   const items = maintainer ? [...ITEMS, SETTINGS] : ITEMS;
   return (
-    <nav className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
+    <nav
+      aria-label={t("nav.primary")}
+      className="flex flex-wrap gap-x-5 gap-y-1 text-sm"
+    >
       {items.map((item) => {
         const active = item.matches(rest);
         return (
