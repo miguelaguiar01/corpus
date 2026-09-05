@@ -6,6 +6,7 @@ import { Page } from "@/components/page-container";
 import { PageHeader } from "@/components/page-header";
 import { ProgressByType } from "@/components/progress-by-type";
 import { QueueList } from "@/components/queue-list";
+import { Chip } from "@/components/ui/chip";
 import { Section } from "@/components/ui/section";
 import { getProjectBySlug } from "@/projects/service";
 import { t } from "@/i18n";
@@ -25,31 +26,39 @@ export default async function ProjectHome({
   const progress = progressCounts(db, project.id);
 
   return (
-    <Page width="reading" className="space-y-8">
+    <Page width="wide" className="space-y-8">
       <PageHeader
         title={project.name}
-        meta={t("project.languages", {
-          languages: project.languages.join(", "),
-        })}
+        meta={
+          <span className="flex flex-wrap gap-1.5">
+            {project.languages.map((language) => (
+              <Chip key={language} variant="outline">
+                {language}
+              </Chip>
+            ))}
+          </span>
+        }
       />
-      <Section heading={t("dashboard.queuesHeading")}>
-        <QueueList
-          slug={slug}
-          counts={{
-            untranslated: queues.untranslated.count,
-            stale: queues.stale.count,
-            unverifiedSource: queues.unverifiedSource.count,
-          }}
-          first={{
-            untranslated: queues.untranslated.first,
-            stale: queues.stale.first,
-            unverifiedSource: queues.unverifiedSource.first,
-          }}
-        />
-      </Section>
-      <Section heading={t("dashboard.progressHeading")}>
-        <ProgressByType progress={progress} />
-      </Section>
+      <div className="grid gap-x-12 gap-y-8 lg:grid-cols-2">
+        <Section heading={t("dashboard.queuesHeading")}>
+          <QueueList
+            slug={slug}
+            counts={{
+              untranslated: queues.untranslated.count,
+              stale: queues.stale.count,
+              unverifiedSource: queues.unverifiedSource.count,
+            }}
+            first={{
+              untranslated: queues.untranslated.first,
+              stale: queues.stale.first,
+              unverifiedSource: queues.unverifiedSource.first,
+            }}
+          />
+        </Section>
+        <Section heading={t("dashboard.progressHeading")}>
+          <ProgressByType progress={progress} />
+        </Section>
+      </div>
     </Page>
   );
 }
