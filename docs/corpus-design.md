@@ -64,7 +64,7 @@ SQLite is a working copy with history. Losing the database loses only edits not 
 The CLI never *discovers* strings — it reads declared sources. Grep-style extraction fails silently; declaration cannot. A client repo commits a typed `corpus.config.ts`:
 
 ```ts
-import { defineCorpus } from "@corpus/contract";
+import { defineCorpus } from "@corpus-tool/cli";
 
 export default defineCorpus({
   project: "moonlight-manor",

@@ -8,5 +8,9 @@
     "outDir": "dist/types"
   },
   "include": ["src", "../contract/src", "../adapters/src"],
-  "exclude": ["**/*.test.ts"]
+  "exclude": [
+    "src/**/*.test.ts",
+    "../contract/src/**/*.test.ts",
+    "../adapters/src/**/*.test.ts"
+  ]
 }
