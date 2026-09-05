@@ -23,9 +23,11 @@ import {
 // Two layers (§10: rate-limit the sign-in and join forms): a per-client
 // window for the friendly case, and a global cap so a rotated/spoofed
 // x-forwarded-for cannot buy fresh budgets — the instance serves a
-// handful of humans, so 30 attempts/15min across all clients is
-// generous. Module-level state survives across requests in the single
-// server process.
+// handful of humans, so 30 failures/15min across all clients is
+// generous. The global cap counts failures only, so one client cannot
+// lock everyone out by submitting; the per-client window counts every
+// attempt and is checked first. Module-level state survives across
+// requests in the single server process.
 const WINDOW_MS = 15 * 60 * 1000;
 const clientLimiter = new RateLimiter({
   max: 5,
@@ -42,10 +44,14 @@ function clientKey(forwardedFor: string | null): string {
 
 async function limited(): Promise<boolean> {
   const requestHeaders = await headers();
-  const perClientOk = clientLimiter.allow(
-    clientKey(requestHeaders.get("x-forwarded-for")),
-  );
-  return !globalLimiter.allow("invite") || !perClientOk;
+  if (!clientLimiter.allow(clientKey(requestHeaders.get("x-forwarded-for")))) {
+    return true;
+  }
+  return globalLimiter.blocked("invite");
+}
+
+function noteFailure(): void {
+  globalLimiter.allow("invite");
 }
 
 async function startSession(userId: number, to: string): Promise<never> {
@@ -74,6 +80,7 @@ export async function submitJoin(formData: FormData): Promise<void> {
     password: String(formData.get("password") ?? ""),
   });
   if (!result.ok) {
+    noteFailure();
     redirect(
       inviteErrorPath(
         result.reason === "name-taken"
@@ -93,7 +100,10 @@ export async function submitSignIn(formData: FormData): Promise<void> {
     name: String(formData.get("name") ?? ""),
     password: String(formData.get("password") ?? ""),
   });
-  if (!result.ok) redirect(inviteErrorPath("credentials"));
+  if (!result.ok) {
+    noteFailure();
+    redirect(inviteErrorPath("credentials"));
+  }
   await startSession(
     result.user.id,
     result.mustChangePassword ? PASSWORD_PATH : "/",

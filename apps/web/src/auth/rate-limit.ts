@@ -32,6 +32,13 @@ export class RateLimiter {
     }
   }
 
+  // True when the key is over its limit right now; counts nothing.
+  blocked(key: string, now: number = Date.now()): boolean {
+    const entry = this.hits.get(key);
+    if (!entry || now - entry.windowStart >= this.windowMs) return false;
+    return entry.count >= this.max;
+  }
+
   allow(key: string, now: number = Date.now()): boolean {
     const entry = this.hits.get(key);
     if (entry && now - entry.windowStart < this.windowMs) {

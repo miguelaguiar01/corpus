@@ -89,7 +89,7 @@ corpus check                      # lint: user-facing literals outside declared 
 
 Pushing is a diff by string id: new ids are added, changed source text marks its translations stale, ids that disappear are archived with their history kept. Pulling writes translations back and prints only the files it changed.
 
-The CLI is not published to npm yet. From this repository it is `npx tsx packages/cli/src/bin.ts`, run from the client project's directory. Structured sources, `table` records with metadata fields or an `exec` command that emits entries, are described in the [design spec, §3](docs/corpus-design.md).
+The CLI is not published to npm yet. From this repository it is `npx tsx packages/cli/src/bin.ts`, run from the client project's directory. Structured sources, `table` records with metadata fields or an `exec` command that emits entries, are described in the [design spec, §3](docs/corpus-design.md). Note that `corpus push` and `corpus pull` run the repository's own `corpus.config.ts` and any `exec` commands it declares, so run them only in repositories you trust, as you would their build scripts.
 
 ## How it works
 
@@ -160,6 +160,7 @@ Environment variables are documented in [`apps/web/.env.example`](apps/web/.env.
 | `CORPUS_INVITE_SECRET` | required, from `apps/web/.env` | `-e` at `docker run`            |
 | `CORPUS_DB_PATH`       | `apps/web/data/corpus.db`      | `/data/corpus.db` on the volume |
 | `PORT`                 | `3000`                         | `3000`                          |
+| `CORPUS_PUBLIC_URL`    | unset                          | the public origin, behind a proxy |
 
 Migrations apply automatically when the app starts, and the boot log names the database file it opened.
 

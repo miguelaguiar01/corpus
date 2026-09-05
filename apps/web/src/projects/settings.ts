@@ -1,3 +1,4 @@
+import { LANGUAGE_RE } from "@corpus/contract";
 // Maintainer corner services (§9.5, §10). Every action re-checks the
 // acting user's maintainer flag; the UI only decides what to show.
 import { endSessionsOf, resetPassword } from "@/auth/service";
@@ -62,7 +63,9 @@ export function updateLanguages(
     .get();
   if (!project) return { ok: false, reason: "not-found" };
   const cleaned = targets.map((l) => l.trim());
-  if (cleaned.some((l) => l === "")) return { ok: false, reason: "invalid" };
+  if (!cleaned.every((l) => LANGUAGE_RE.test(l))) {
+    return { ok: false, reason: "invalid" };
+  }
   const languages = [project.sourceLanguage];
   for (const l of cleaned) if (!languages.includes(l)) languages.push(l);
   db.update(projects)

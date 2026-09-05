@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 // Security headers on every response (§10).
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
+  // Browsers ignore it over plain http, so a local run is unaffected.
+  { key: "Strict-Transport-Security", value: "max-age=63072000" },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   {

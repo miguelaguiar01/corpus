@@ -1,3 +1,4 @@
+import { LANGUAGE_RE } from "@corpus/contract";
 import { createHash, randomBytes } from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { Db } from "@/db";
@@ -24,6 +25,10 @@ export function hashToken(token: string): string {
 
 // Per-project bearer token (§10): created at project creation, returned
 // once, only its hash persisted.
+// The slug is a path segment and a config value (§3): lowercase, digits,
+// hyphens, at most 63 characters.
+export const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
+
 export function createProject(
   db: Db,
   input: CreateProjectInput,
@@ -34,9 +39,10 @@ export function createProject(
   const slug = input.slug.trim();
   const name = input.name.trim();
   if (
-    slug.length === 0 ||
+    !SLUG_RE.test(slug) ||
     name.length === 0 ||
     input.languages.length === 0 ||
+    !input.languages.every((l) => LANGUAGE_RE.test(l)) ||
     !input.languages.includes(input.sourceLanguage)
   ) {
     return { ok: false, reason: "invalid" };
