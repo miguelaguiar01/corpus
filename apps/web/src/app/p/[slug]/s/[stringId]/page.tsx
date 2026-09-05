@@ -6,6 +6,7 @@ import { getDb } from "@/db";
 import { EntityCards } from "@/components/entity-cards";
 import { HistoryList } from "@/components/history-list";
 import { MetadataChips } from "@/components/metadata-chips";
+import { Page } from "@/components/page-container";
 import { QueueNav } from "@/components/queue-nav";
 import { SourceView } from "@/components/source-view";
 import { StateChips } from "@/components/state-chips";
@@ -89,7 +90,7 @@ export default async function StringPage({
     : undefined;
 
   return (
-    <main className="mx-auto max-w-xl space-y-8 pb-32">
+    <Page width="reading" className="space-y-8 pb-32">
       <header className="space-y-3">
         <p className="font-mono text-xs text-muted-foreground">{string.key}</p>
         <SourceView source={string.source} declarations={declarations} />
@@ -197,6 +198,6 @@ export default async function StringPage({
           </div>
         </div>
       )}
-    </main>
+    </Page>
   );
 }

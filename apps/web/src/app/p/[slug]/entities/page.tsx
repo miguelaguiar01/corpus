@@ -3,6 +3,8 @@ import { getDb } from "@/db";
 import { EntityCards } from "@/components/entity-cards";
 import { entitiesByType } from "@/entities/browser";
 import { getProjectBySlug } from "@/projects/service";
+import { Page } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
 import { t } from "@/i18n";
 
 // Entity browser (§9.4): read-only cards per entity type.
@@ -18,8 +20,8 @@ export default async function EntitiesPage({
   const groups = entitiesByType(db, project.id);
 
   return (
-    <main className="mx-auto max-w-3xl space-y-8">
-      <h1 className="text-2xl font-semibold">{t("entities.heading")}</h1>
+    <Page width="wide" className="space-y-8">
+      <PageHeader title={t("entities.heading")} />
       {groups.length === 0 && (
         <p className="text-sm text-muted-foreground">{t("entities.empty")}</p>
       )}
@@ -34,6 +36,6 @@ export default async function EntitiesPage({
           <EntityCards entities={group.entities} />
         </section>
       ))}
-    </main>
+    </Page>
   );
 }

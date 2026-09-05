@@ -83,6 +83,19 @@ Contrast of the foreground pairs, computed from the OKLCH values:
 
 All text pairs clear 4.5:1 in both themes.
 
+## Shell
+
+Every page renders inside `AppShell`: a header at least 56px tall with
+the wordmark, the project switcher and the primary navigation when there
+is a project, and the page below. The current navigation item carries
+`aria-current="page"` and a two-pixel underline in the foreground; the
+others are muted. The header wraps on a phone rather than overflow.
+
+`Page` gives each page its width and gutters: `form` (28rem) for a single
+column of fields, `reading` (42rem) for text and lists, `wide` (72rem)
+for facets, grids and two panes. `PageHeader` sets the title, an
+optional one-line meta, and optional right-aligned actions.
+
 ## Spacing and shape
 
 A 4px grid through Tailwind's spacing scale. Two radii: `rounded-md`

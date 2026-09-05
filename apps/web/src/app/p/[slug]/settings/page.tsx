@@ -1,6 +1,8 @@
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/auth/session";
+import { Page } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getDb } from "@/db";
@@ -53,13 +55,11 @@ export default async function SettingsPage({
     : undefined;
 
   return (
-    <main className="mx-auto max-w-xl space-y-10">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">{t("settings.heading")}</h1>
-        <p className="text-xs text-muted-foreground">
-          {t("settings.version", { version: appVersion(process.env) })}
-        </p>
-      </header>
+    <Page width="reading" className="space-y-10">
+      <PageHeader
+        title={t("settings.heading")}
+        meta={t("settings.version", { version: appVersion(process.env) })}
+      />
 
       {errorKey && (
         <p className="text-sm text-destructive" role="alert">
@@ -186,6 +186,6 @@ export default async function SettingsPage({
           ))}
         </ul>
       </section>
-    </main>
+    </Page>
   );
 }
