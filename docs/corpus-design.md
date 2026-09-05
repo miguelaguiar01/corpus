@@ -54,6 +54,7 @@ SQLite is a working copy with history. Losing the database loses only edits not 
 - SQLite via Drizzle ORM on `better-sqlite3`; full-text search via an FTS5 virtual table (raw SQL migration).
 - UI components: shadcn/ui (copied in, not a dependency) + Tailwind.
 - Deployment target: a single Docker container (Next standalone output), SQLite file on a volume.
+- The same build runs identically as a local process (`npm run dev`, or the standalone server) and in the container: one code path, with only the database path, the invite secret, and the port coming from the environment. Defaults resolve against the app's own location, never the working directory.
 - No other runtime dependencies without a one-sentence justification in the PR that adds them.
 
 ---
