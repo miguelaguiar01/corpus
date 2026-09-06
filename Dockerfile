@@ -22,6 +22,9 @@ FROM node:22-slim AS runner
 # maintainer corner. Passed by CI; a local build without it reports "dev".
 ARG CORPUS_VERSION=dev
 ENV CORPUS_VERSION=$CORPUS_VERSION
+LABEL org.opencontainers.image.source="https://github.com/miguelaguiar01/corpus" \
+      org.opencontainers.image.description="Corpus, a self-hosted translation workbench for structured text" \
+      org.opencontainers.image.licenses="MIT"
 ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
