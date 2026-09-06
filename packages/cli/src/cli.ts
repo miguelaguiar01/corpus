@@ -6,6 +6,7 @@ import { CliError, loadConfig, requireToken } from "./config";
 import { checkFiles } from "./check";
 import { init, INIT_USAGE } from "./init";
 import { pull } from "./pull";
+import { workbench, WORKBENCH_USAGE } from "./workbench";
 
 export type RunContext = {
   cwd: string;
@@ -15,7 +16,8 @@ export type RunContext = {
 };
 
 const USAGE = `usage: corpus push [--dry-run] | corpus pull [--min-state <untranslated|translated|verified>] | corpus check | corpus build [--out <file>]
-       ${INIT_USAGE}`;
+       ${INIT_USAGE}
+       ${WORKBENCH_USAGE}`;
 
 export async function run(argv: string[], ctx: RunContext): Promise<number> {
   const [command] = argv;
@@ -29,12 +31,14 @@ export async function run(argv: string[], ctx: RunContext): Promise<number> {
     command === "pull" ||
     command === "check" ||
     command === "build" ||
+    command === "workbench" ||
     command === "init"
   ) {
     try {
       if (command === "init") return await init(argv.slice(1), ctx);
       if (command === "push") return await push(argv.slice(1), ctx);
       if (command === "build") return await build(argv.slice(1), ctx);
+      if (command === "workbench") return await workbench(argv.slice(1), ctx);
       if (command === "pull") return await pull(argv.slice(1), ctx);
       return await check(ctx);
     } catch (error) {

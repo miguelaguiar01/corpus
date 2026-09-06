@@ -91,6 +91,7 @@ Create the project in Corpus (the instance shows you its push token once), then:
 
 ```sh
 export CORPUS_TOKEN=<token>
+npx corpus workbench                  # an instance on localhost, database and secret under .corpus/
 npx corpus build                      # no server: runs the sources, validates, prints a summary
 npx corpus push                       # repo → Corpus: adds, changes, marks stale, archives
 npx corpus pull                       # Corpus → repo: verified translations only
