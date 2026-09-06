@@ -50,7 +50,9 @@ decisions made along the way are recorded in `docs/DECISIONS.md`.
   to `ghcr.io/miguelaguiar01/corpus:<version>` and `:latest`, and creates
   the GitHub release from the changelog section. A prerelease version
   (`v0.4.0-next.1`) publishes under the dist-tag `next` and tags the
-  image with the prerelease version only.
+  image with the prerelease version only. Until #271 lands, the workflow
+  publishes the CLI alone and `bin/release-check` reads only its
+  manifest; release nothing else by hand.
 
 ## Board and tickets
 
