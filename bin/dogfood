@@ -32,7 +32,9 @@ docker exec -e TOKEN="$TOKEN" "$CORPUS_SMOKE_NAME" node -e '
 
 export CORPUS_SERVER="http://127.0.0.1:$CORPUS_SMOKE_PORT"
 export CORPUS_TOKEN="$TOKEN"
-corpus() { npx tsx packages/cli/src/bin.ts "$@"; }
+# The shipped binary, not the source: the dogfood proves the built CLI.
+npm run build -w packages/cli >/dev/null
+corpus() { node packages/cli/dist/bin.js "$@"; }
 
 echo "=== dogfood: push ==="
 corpus push

@@ -1,10 +1,9 @@
-import { SESSION_TTL_MS } from "./constants";
-export { SESSION_TTL_MS };
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { and, eq, gt, lte } from "drizzle-orm";
 import type { Db } from "@/db";
 import { sessions, users } from "@/db/schema";
-import { MAX_NAME_LENGTH } from "./constants";
+import { MAX_NAME_LENGTH, SESSION_TTL_MS } from "./constants";
+export { SESSION_TTL_MS };
 import {
   hashPassword,
   passwordProblem,
