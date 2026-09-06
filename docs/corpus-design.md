@@ -97,6 +97,8 @@ export default defineCorpus({
 });
 ```
 
+`corpus build` runs the sources and validates the snapshot with no server (`--out <file>` writes it); `push` does the same before it needs a token. Both name every source that cannot take translations back: an `exec` source without `importCommand`, a `messages` or `table` path without `{lang}`.
+
 **Completeness is enforced client-side, not guessed:** `corpus check` is a lint pass that flags suspicious user-facing string literals outside declared source files (heuristic, à la eslint-plugin-i18next; configurable ignore list). Client repos wire it into their CI gate. Config declares where text lives; `check` ensures text only lives there; therefore `push` is complete by construction.
 
 ---

@@ -156,3 +156,23 @@ async function readModule(
   }
   return mod[exportName];
 }
+
+// Sources that cannot take translations back (§8): pull says so too,
+// but the author should hear it before anyone translates.
+export function pushOnlyNotes(config: CorpusConfig): string[] {
+  const notes: string[] = [];
+  for (const source of config.sources) {
+    if (source.adapter === "exec") {
+      if (!source.importCommand) {
+        notes.push(
+          `exec "${source.command}" is push-only: add importCommand to write translations back`,
+        );
+      }
+    } else if (!source.path.includes("{lang}")) {
+      notes.push(
+        `${source.path} has no {lang}: its translations cannot be written back`,
+      );
+    }
+  }
+  return notes;
+}
