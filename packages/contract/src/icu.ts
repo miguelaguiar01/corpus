@@ -14,6 +14,8 @@ export type IcuParseResult =
   { ok: true; nodes: IcuNode[] } | { ok: false; errors: IcuError[] };
 
 const NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+// A branch key may be a bare number too (`1 {marca} other {marcas}`).
+const KEY_RE = /^[A-Za-z0-9_]+$/;
 
 class ParseFailure extends Error {
   constructor(
@@ -131,7 +133,7 @@ class Parser {
       if (this.source[this.pos] !== "{") {
         throw new ParseFailure("select needs branches", start);
       }
-      if (!NAME_RE.test(key)) {
+      if (!KEY_RE.test(key)) {
         throw new ParseFailure(
           `invalid branch key ${JSON.stringify(key)}`,
           this.pos,

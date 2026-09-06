@@ -80,14 +80,38 @@ export function findLiterals(
   return findings;
 }
 
+// An ignore entry is a path prefix, or a glob when it has * or ?: **/
+// matches zero or more directories, * stays within one, ? is one
+// character.
+export function ignoreMatcher(patterns: string[]): (rel: string) => boolean {
+  const tests = patterns.map((raw) => {
+    const p = raw.replace(/\/$/, "");
+    if (!/[*?]/.test(p)) {
+      return (rel: string) => rel === p || rel.startsWith(`${p}/`);
+    }
+    const source = p
+      .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+      .replace(/\*\*\//g, "@@DIRS@@")
+      .replace(/\/\*\*/g, "@@TAIL@@")
+      .replace(/\*\*/g, ".*")
+      .replace(/\*/g, "[^/]*")
+      .replace(/\?/g, "[^/]")
+      .replace(/@@DIRS@@/g, "(?:.*/)?")
+      .replace(/@@TAIL@@/g, "(?:/.*)?");
+    const re = new RegExp(`^${source}$`);
+    return (rel: string) => re.test(rel);
+  });
+  return (rel) => tests.some((test) => test(rel));
+}
+
 export function checkFiles(root: string, options: CheckOptions): Finding[] {
-  const ignore = (options.ignore ?? []).map((p) => p.replace(/\/$/, ""));
+  const ignored = ignoreMatcher(options.ignore ?? []);
   const findings: Finding[] = [];
   const walk = (dir: string) => {
     for (const name of readdirSync(dir).sort()) {
       const abs = path.join(dir, name);
       const rel = path.relative(root, abs).split(path.sep).join("/");
-      if (ignore.some((p) => rel === p || rel.startsWith(`${p}/`))) continue;
+      if (ignored(rel)) continue;
       if (statSync(abs).isDirectory()) {
         if (!SKIP_DIRS.has(name)) walk(abs);
       } else if (/\.[jt]sx$/.test(name)) {

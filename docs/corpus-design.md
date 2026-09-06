@@ -99,7 +99,7 @@ export default defineCorpus({
 
 `corpus build` runs the sources and validates the snapshot with no server (`--out <file>` writes it); `push` does the same before it needs a token. Both name every source that cannot take translations back: an `exec` source without `importCommand`, a `messages` or `table` path without `{lang}`.
 
-**Completeness is enforced client-side, not guessed:** `corpus check` is a lint pass that flags suspicious user-facing string literals outside declared source files (heuristic, à la eslint-plugin-i18next; configurable ignore list). Client repos wire it into their CI gate. Config declares where text lives; `check` ensures text only lives there; therefore `push` is complete by construction.
+**Completeness is enforced client-side, not guessed:** `corpus check` is a lint pass that flags suspicious user-facing string literals outside declared source files (heuristic, à la eslint-plugin-i18next; an ignore list of path prefixes or globs such as `**/*.test.tsx`). Client repos wire it into their CI gate. Config declares where text lives; `check` ensures text only lives there; therefore `push` is complete by construction.
 
 ---
 
@@ -159,7 +159,7 @@ A snapshot string entry:
 (The example project throughout this spec, *Moonlight Manor*, is invented. It exists so the spec can show a morphologically rich source language — Portuguese gender agreement, contracted prepositions — without depending on any real game.)
 
 ### ICU subset
-Source text may use ICU MessageFormat **placeholders** (`{name}`) and **select** (`{g, select, m {…} f {…}}`). Nothing else (no plural, no nesting) in v1 — reject at push time. This subset is what the editor can render as a friendly branch view rather than raw syntax.
+Source text may use ICU MessageFormat **placeholders** (`{name}`) and **select** (`{g, select, m {…} f {…}}`; a branch key may be a word or a number). Nothing else (no plural, no nesting) in v1 — reject at push time; a count that needs plural forms is a select whose key the client computes (`one` / `other`), until §13's plural decision is taken. This subset is what the editor can render as a friendly branch view rather than raw syntax.
 
 ---
 
