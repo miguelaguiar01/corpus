@@ -33,11 +33,17 @@ Corpus's own UI chrome is a Corpus project: the tool translates itself with itse
 
 Three parts, one contract:
 
-1. **`apps/web`** — Next.js (App Router) + TypeScript + SQLite. Owns projects, strings, entities, translations, states, users, history. Serves the UI and the HTTP API the CLI talks to.
+1. **`apps/web`** — Next.js (App Router) + TypeScript + SQLite. Owns projects, strings, entities, translations, states, users, history. Serves the UI and the HTTP API the CLI talks to. Published to npm as **`@corpus-tool/workbench`** (`packages/workbench`: the built app with its runtime packages as dependencies, nothing vendored), at the same version as the CLI, from the same tag.
 2. **`packages/cli`** — the `corpus` binary, published to npm as `@corpus-tool/cli` and run inside a client repo (a client's config imports `defineCorpus` from it; the contract and adapters are bundled in). `corpus push` extracts that repo's text into a snapshot and uploads it; `corpus pull` writes approved translations back into the repo's files. A human (or agent) opens the client repo's PR from there.
 3. **`packages/contract`** — the versioned snapshot schema (`"corpus/1"`), defined **once in zod**. Web, CLI, adapters, and tests all import these types. This package is pure (no I/O) and is the only thing web and CLI share.
 
 Plus **`packages/adapters`** — pure functions mapping repo files ↔ snapshot entries (§4). Used by the CLI; unit-testable with no filesystem beyond fixtures.
+
+An instance runs in one of three ways, all the same app and the same database file:
+
+- **`npx corpus workbench`** in the client repository, for one person on their own machine: the CLI starts the workbench package from the repository's `node_modules`, with the database at `.corpus/corpus.db` and a generated instance secret at `.corpus/secret`, and prints the URL and the secret for the first join. Updating is `npm update` of both packages. Nothing else to install.
+- **The published container image**, `ghcr.io/miguelaguiar01/corpus:<version>`, for a team: a URL that translators reach from their phones, a volume for the database, HTTPS in front. The image is built by the same tag that publishes the packages, so one version number names all three.
+- **A checkout**, for developing Corpus itself.
 
 Monorepo via npm workspaces. Data flow is a loop:
 
@@ -244,7 +250,7 @@ The tool has its own visual identity (quiet, big type, system light/dark via sha
 
 ## 10. Users and access
 
-- Accounts are a **display name and a password**, stored in the instance's SQLite (scrypt hashes). One **instance invite secret** (env var) admits new people: joining takes the secret, a name, and a password of at least eight characters. A taken name is refused, except that an account from before passwords existed (no hash yet) is claimed by the first join with its name. Signing in takes name and password. There is no e-mail and no self-service recovery.
+- Accounts are a **display name and a password**, stored in the instance's SQLite (scrypt hashes). One **instance invite secret** (an env var; `corpus workbench` generates one into `.corpus/secret` and prints it) admits new people: joining takes the secret, a name, and a password of at least eight characters. A taken name is refused, except that an account from before passwords existed (no hash yet) is claimed by the first join with its name. Signing in takes name and password. There is no e-mail and no self-service recovery.
 - A maintainer can **reset** anyone's password from §9.5: it ends that person's sessions and shows a temporary password once; their next sign-in goes straight to choosing a new one, and nothing else is reachable until they have.
 - Sessions live in the database and last 90 days of disuse, renewed on use. **Sign out** ends the session on the server, not just in the browser; so does a password reset, and so does losing the maintainer flag.
 - Users have one flag: `maintainer`. The first user created on an instance is a maintainer; maintainers can toggle the flag for other users in the UI. Maintainers verify strings and see surface §9.5. Everyone sees all projects on the instance.
@@ -330,6 +336,7 @@ M0–M4 are the MVP. One milestone follows it:
 M5 is done. Two milestones follow it:
 
 - **M6 — Ship as a package.** The CLI is published to npm as `@corpus-tool/cli`, one package with the contract and adapters bundled in, built to plain JavaScript with declarations, with `corpus init` scaffolding a config, a release workflow, and an install smoke in CI that installs the packed tarball into a fresh repository and round-trips against the container. *Done when: `npm install` of the CLI in a fresh repository, `corpus init`, `corpus push` and `corpus pull` reproduce that repository byte for byte, verified by a CI job, and the README's quick start is that path.*
+- **M8 — Corpus runs from npm.** The web app ships as `@corpus-tool/workbench`, released by the same tag at the same version as the CLI; `npx corpus workbench` starts it on localhost with the database and secret under `.corpus/`, no Docker; the container image is published per tag for the team case; the README's quick start becomes two npm commands, with the container as the path for a team. *Done when: in a fresh repository, `npm install --save-dev @corpus-tool/cli @corpus-tool/workbench` and `npx corpus workbench` give an instance that `corpus init`, `push` and `pull` round-trip against, verified by a CI job with no Docker on that path; one tag publishes both packages and the image at one version; the README's quick start is that path.*
 - **M7 — External installation feedback.** Corpus is handed to another agent with a real project of its own (tags, relations, and a large number of entities), who installs it from the package and reports on the installation and the use. The report is triaged into must-fix and later; the epic is a landing zone until the report exists and is refined from it. *Done when: the report exists and its must-fix list is empty.*
 
 Everything not listed here is §13 or a future issue.

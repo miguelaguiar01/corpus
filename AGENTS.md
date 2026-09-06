@@ -41,13 +41,16 @@ decisions made along the way are recorded in `docs/DECISIONS.md`.
   IDs below).
 - Standard workspace commands: `npm test`, `npm run typecheck`, `npm run dev`
   (wire these in M0 across the workspaces).
-- **Releasing the CLI**: bump `version` in `packages/cli/package.json`, add
-  the section to `CHANGELOG.md`, merge, then `bin/release-check v<version>`
+- **Releasing**: bump `version` in `packages/cli/package.json` and
+  `packages/workbench/package.json` (one number for both), add the
+  section to `CHANGELOG.md`, merge, then `bin/release-check v<version>`
   and `git tag v<version> && git push origin v<version>`. The release
-  workflow runs the install smoke, publishes `@corpus-tool/cli` with
-  provenance, and creates the GitHub release from the changelog section.
-  A prerelease version (`v0.2.0-next.1`) publishes under the dist-tag
-  `next`.
+  workflow runs the install smoke, publishes `@corpus-tool/cli` and
+  `@corpus-tool/workbench` with provenance, pushes the container image
+  to `ghcr.io/miguelaguiar01/corpus:<version>` and `:latest`, and creates
+  the GitHub release from the changelog section. A prerelease version
+  (`v0.4.0-next.1`) publishes under the dist-tag `next` and tags the
+  image with the prerelease version only.
 
 ## Board and tickets
 

@@ -262,3 +262,28 @@ ever ended a session. A password per person closes both without adding a
 service, which is the constraint the whole deployment story rests on.
 
 **Context:** #220, #219; audit #216.
+
+## 2026-09-06 — The workbench is a second package at the CLI's version; the image is published per tag
+
+**Decision:** the web app ships as `@corpus-tool/workbench`, a second
+published package carrying the built app with its runtime packages
+(Next, React, the SQLite binding, drizzle) declared as dependencies and
+nothing vendored, since npm never packs a `node_modules` directory. It
+carries the same version as `@corpus-tool/cli` and is published by the
+same tag. `npx corpus workbench` resolves it from the client
+repository's own `node_modules` and starts it with the database and a
+generated secret under `.corpus/`. The container image is built by the
+same tag and pushed to the GitHub registry as `:<version>` and
+`:latest`. The CLI does not bundle the workbench.
+
+**Why:** an instance needed Docker or a checkout, so trying Corpus
+began with an image build and updating meant two places. The standalone
+build is 52 MB (Next 18, the SQLite binding 8), which is too much to
+pull into every CI `npm install` that only pushes and pulls; a companion
+package keeps the client small and lets one version number name the
+CLI, the workbench and the image. Prisma's `studio` is the shape people
+expect. The name is the owner's: the README calls the product a
+translation workbench.
+
+**Context:** #267 (epic), #268; the installation report's friction list
+opened with Docker.
