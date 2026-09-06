@@ -1,6 +1,11 @@
 services:
   corpus:
-    build: .
+    build:
+      context: .
+      args:
+        # The build identity /api/health reports: a tag or commit from
+        # `git describe`; "dev" when unset.
+        CORPUS_VERSION: ${CORPUS_VERSION:-dev}
     ports:
       - "3000:3000"
     environment:
