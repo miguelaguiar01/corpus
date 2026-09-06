@@ -1,6 +1,6 @@
 {
   "name": "@corpus-tool/cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "license": "MIT",
   "description": "The Corpus CLI: push a repository's structured text to a Corpus instance and pull verified translations back, format-preserving.",
   "keywords": [
