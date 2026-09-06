@@ -29,8 +29,9 @@ npm test
 
 step "corpus check (self catalog)"
 # The repo's own chrome must come from the catalog (§12): the real
-# `corpus check` on this repo, configured in corpus.config.ts.
-npx tsx packages/cli/src/bin.ts check
+# `corpus check` on this repo, configured in corpus.config.ts, run from
+# the binary built above so the gate exercises what ships.
+node packages/cli/dist/bin.js check
 
 echo
 echo "=== gate: PASS ==="

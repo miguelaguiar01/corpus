@@ -1,9 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { INVITE_PATH, SESSION_COOKIE, SESSION_TTL_MS } from "@/auth/constants";
 
-// Cheap edge gate (§10; Next 16 calls this file the proxy): visitors without a session cookie are sent to
-// the invite prompt. Actual session validity is checked server-side by
-// requireUser()/currentUser() — the edge runtime cannot open SQLite.
+// Cheap edge gate (§10; Next 16 calls this file the proxy): visitors
+// without a session cookie are sent to the invite prompt. Actual session
+// validity is checked server-side by requireUser()/currentUser(), since
+// the edge runtime cannot open SQLite.
 // /api/* routes are machine endpoints that carry their own auth (bearer
 // token, or public like /api/health), so the cookie gate must not touch
 // them — otherwise the CLI gets redirected to the invite page.
