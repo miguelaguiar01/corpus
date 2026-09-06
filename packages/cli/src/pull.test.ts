@@ -5,6 +5,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  writeFileSync,
 } from "node:fs";
 import { createServer, type Server } from "node:http";
 import path from "node:path";
@@ -238,4 +239,31 @@ test("translations no writable source can take are reported, not dropped silentl
   expect(c.output.join("\n")).toMatch(
     /2 translation\(s\) belong to no writable source/,
   );
+});
+
+test("a .ts catalogue is skipped with a message instead of failing in JSON.parse", async () => {
+  await serve();
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "pt"],
+  sources: [{ adapter: "messages", type: "chrome", path: "i18n/{lang}.ts" }],
+});
+`,
+  );
+  writeFileSync(
+    path.join(repo, "i18n/en.ts"),
+    'export default { "app.title": "Corpus", greeting: "Hello {name}" };\n',
+  );
+  const c = ctx();
+  const code = await run(["pull"], c);
+  expect(code).toBe(0);
+  expect(c.output).toContain(
+    "corpus: i18n/{lang}.ts is not JSON: pull writes JSON only, so its translations cannot be written back",
+  );
+  expect(existsSync(path.join(repo, "i18n/pt.ts"))).toBe(false);
 });

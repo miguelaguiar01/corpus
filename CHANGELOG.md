@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+### Fixed
+
+- A `messages` or `table` catalogue that is not JSON (`.ts`, `.js`) is named by `build` and `push` as one pull cannot write back, and `pull` skips it with that message instead of failing inside `JSON.parse`.
+
 ## [0.3.0] - 2026-09-06
 
 ### Added

@@ -101,3 +101,19 @@ test("corpus build --out writes the snapshot JSON", async () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("corpus build names a .ts catalogue as one pull cannot write back", async () => {
+  const c = ctx({
+    cwd: fileURLToPath(
+      new URL("../test/fixtures/ts-catalogue", import.meta.url),
+    ),
+    env: {},
+  });
+  expect(await run(["build"], c)).toBe(0);
+  expect(c.output).toContain(
+    "built ts-catalogue: 2 string(s) (chrome 2), 0 entity(ies) (none)",
+  );
+  expect(c.output).toContain(
+    "corpus: i18n/{lang}.ts is not JSON: pull writes JSON only, so its translations cannot be written back",
+  );
+});

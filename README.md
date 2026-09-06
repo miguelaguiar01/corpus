@@ -98,7 +98,7 @@ npx corpus pull --min-state translated  # Corpus → repo: translated and verifi
 npx corpus check                      # lint: user-facing literals outside declared sources (ignore by prefix or glob)
 ```
 
-`build` needs no server or token, so a config or an exporter can be checked as it is written; it also names any source that cannot take translations back (an `exec` source without `importCommand`, a path without `{lang}`), as does `push`. Pushing is a diff by string id: new ids are added, changed source text marks its translations stale, ids that disappear are archived with their history kept. Pulling writes translations back and prints only the files it changed. Node 22 or later; a TypeScript config needs no build step.
+`build` needs no server or token, so a config or an exporter can be checked as it is written; it also names any source that cannot take translations back (an `exec` source without `importCommand`, a path without `{lang}`, a `.ts` catalogue, since pull writes JSON only), as does `push`. Pushing is a diff by string id: new ids are added, changed source text marks its translations stale, ids that disappear are archived with their history kept. Pulling writes translations back and prints only the files it changed. Node 22 or later; a TypeScript config needs no build step.
 
 Structured sources, `table` records (a module's default or named export, with the fields to carry as metadata listed in the map) or an `exec` command that emits entries, are described in the [design spec, §3](docs/corpus-design.md). Note that `corpus push` and `corpus pull` run the repository's own `corpus.config.ts` and any `exec` commands it declares, so run them only in repositories you trust, as you would their build scripts.
 
