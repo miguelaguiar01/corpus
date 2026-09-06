@@ -11,6 +11,7 @@ import {
   type PullPayload,
 } from "@corpus/contract";
 import type { RunContext } from "./cli";
+import { writesBack } from "./build";
 import { CliError, loadConfig, requireToken } from "./config";
 
 // `corpus pull` (§8): download translations at or above --min-state and
@@ -37,6 +38,12 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
       // an exec importer rather than vanishing.
       ctx.err(
         `corpus: ${source.path} has no {lang}: its translations cannot be written back`,
+      );
+      continue;
+    }
+    if (!writesBack(source.path)) {
+      ctx.err(
+        `corpus: ${source.path} is not JSON: pull writes JSON only, so its translations cannot be written back`,
       );
       continue;
     }

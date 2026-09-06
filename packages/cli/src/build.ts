@@ -179,7 +179,17 @@ export function pushOnlyNotes(config: CorpusConfig): string[] {
       notes.push(
         `${source.path} has no {lang}: its translations cannot be written back`,
       );
+    } else if (!writesBack(source.path)) {
+      notes.push(
+        `${source.path} is not JSON: pull writes JSON only, so its translations cannot be written back`,
+      );
     }
   }
   return notes;
+}
+
+// Pull rewrites a catalogue in place and only knows JSON (§8); a .ts or
+// .js catalogue pushes fine but nothing can come back to it.
+export function writesBack(sourcePath: string): boolean {
+  return sourcePath.toLowerCase().endsWith(".json");
 }
