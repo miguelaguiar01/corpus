@@ -235,7 +235,7 @@ All surfaces are project-scoped under `/p/[slug]/…`, with a project switcher (
 1. **Dashboard** — per-language progress bars broken down by string type; **queues** as buttons: *untranslated (n)*, *stale (n)*, *unverified source (n)*. Tapping a queue opens the editor at its first item. A translator should never wonder what to work on.
 2. **Catalogue** — every string; FTS5 search (accent-insensitive); facet filters auto-generated from metadata declarations plus type, state, language, archived. Rows show per-language state chips; click into the editor. This surface is the aggregation/verification view and is fully useful before any translation exists.
 3. **Editor** — source left (branch view for selects, placeholder chips, metadata chips, entity cards in a side rail, examples), target right (chip-insertable placeholders — no hand-typed braces), live preview from the draft using example values, save (→ `translated`) and verify (→ `verified`, maintainer only), visible attributed history, next/previous at thumb height to flow through a queue. Validation feedback is inline and specific ("missing {witness}").
-4. **Entity browser** — read-only cards per entity type.
+4. **Entity browser** — read-only cards per entity type, narrowed by a type chip or a name search once a project has hundreds.
 5. **Maintainer corner** — project settings, push token (generate/rotate), snapshot history (when, counts, stale caused), language list, seen users. Visible to maintainers only.
 
 The tool has its own visual identity (quiet, big type, system light/dark via shadcn theming) — it renders *projects'* text prominently and keeps its own chrome minimal. All chrome strings come from Corpus's own message catalog from the first component (§12).

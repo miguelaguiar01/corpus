@@ -46,7 +46,7 @@ export default async function EntitiesPage({
   const chip = (selected: boolean) =>
     cn(
       chipVariants({ variant: selected ? "solid" : "outline" }),
-      "hover:text-foreground",
+      !selected && "hover:text-foreground",
     );
 
   return (

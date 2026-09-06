@@ -146,7 +146,14 @@ async function readModule(
   abs: string,
   exportName?: string,
 ): Promise<unknown> {
-  if (abs.endsWith(".json")) return JSON.parse(readFileSync(abs, "utf8"));
+  if (abs.endsWith(".json")) {
+    if (exportName !== undefined) {
+      throw new Error(
+        `a JSON file has no exports; drop export ${JSON.stringify(exportName)}`,
+      );
+    }
+    return JSON.parse(readFileSync(abs, "utf8"));
+  }
   if (exportName === undefined) return jiti.import(abs, { default: true });
   const mod = (await jiti.import(abs)) as Record<string, unknown>;
   if (!(exportName in mod)) {

@@ -20,6 +20,7 @@ contract (`corpus/1`) is the only one.
 ### Fixed
 
 - Table and messages errors name the source file and no longer escape as stack traces; a non-scalar table field names `map.metadata` as the way to leave it out.
+- A JSON table that names an `export` is an error instead of being silently ignored; `pull`'s message for a path without `{lang}` matches `push`'s.
 
 ## [0.1.1] - 2026-09-06
 

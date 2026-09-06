@@ -151,3 +151,24 @@ test("table errors name the file and the export", async () => {
     ),
   ).rejects.toThrow(/steps-named\.ts: the module has no export named "STEPS"/);
 });
+
+test("a JSON table cannot name an export", async () => {
+  await expect(
+    buildSnapshot(
+      config({
+        sources: [
+          {
+            adapter: "table",
+            type: "step",
+            path: "i18n/en.json",
+            export: "STEPS",
+            map: { id: "id", text: "text" },
+          },
+        ],
+      }),
+      REPO,
+    ),
+  ).rejects.toThrow(
+    /i18n\/en\.json: a JSON file has no exports; drop export "STEPS"/,
+  );
+});

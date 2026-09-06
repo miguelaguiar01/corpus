@@ -36,7 +36,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
       // Source-only: nothing to write back, and its ids stay available to
       // an exec importer rather than vanishing.
       ctx.err(
-        `corpus: ${source.path} has no {lang}; its translations are not written`,
+        `corpus: ${source.path} has no {lang}: its translations cannot be written back`,
       );
       continue;
     }
