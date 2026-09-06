@@ -7,6 +7,8 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-09-06
+
 ### Fixed
 
 - A `messages` or `table` catalogue that is not JSON (`.ts`, `.js`) is named by `build` and `push` as one pull cannot write back, and `pull` skips it with that message instead of failing inside `JSON.parse`.
@@ -56,7 +58,8 @@ The first published version.
 - The `messages`, `table` and `exec` adapters, and the `corpus/1` snapshot contract with its ICU subset (placeholders and `select`).
 - The package ships plain JavaScript for Node 22 with type declarations; a client's config imports `defineCorpus` from `@corpus-tool/cli`.
 
-[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.3.1
 [0.3.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.3.0
 [0.2.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.2.0
 [0.1.1]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.1.1
