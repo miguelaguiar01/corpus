@@ -3,7 +3,7 @@ import { expect, test } from "vitest";
 import { projects } from "@/db/schema";
 import { memoryDb } from "@/db/test-helpers";
 import { applySnapshot } from "@/ingest/apply";
-import { entitiesByType } from "./browser";
+import { entitiesByType, filterGroups, typeCounts } from "./browser";
 
 const FIXTURE = moonlightManor as Snapshot;
 
@@ -59,4 +59,21 @@ test("a project with no entities yields no groups", () => {
     .returning()
     .all();
   expect(entitiesByType(db, p!.id)).toEqual([]);
+});
+
+test("filterGroups narrows to a type, or to names containing the query without accents", () => {
+  const { db, p } = pushed();
+  const groups = entitiesByType(db, p.id);
+  expect(filterGroups(groups, { type: "room" }).map((g) => g.type)).toEqual([
+    "room",
+  ]);
+  const byName = filterGroups(groups, { q: "insonia" });
+  expect(byName.flatMap((g) => g.entities.map((e) => e.name))).toEqual([
+    "Insónia",
+  ]);
+  expect(filterGroups(groups, { q: "nobody" })).toEqual([]);
+  expect(filterGroups(groups, {})).toEqual(groups);
+  expect(typeCounts(groups).map((c) => `${c.type}:${c.count}`)).toEqual(
+    groups.map((g) => `${g.type}:${g.entities.length}`),
+  );
 });

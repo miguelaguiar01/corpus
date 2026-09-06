@@ -5,9 +5,13 @@ import { t } from "@/i18n";
 export function SearchBox({
   basePath,
   active,
+  placeholder = t("catalogue.searchPlaceholder"),
+  label = t("catalogue.search"),
 }: {
   basePath: string;
   active: URLSearchParams;
+  placeholder?: string;
+  label?: string;
 }) {
   const hidden: [string, string][] = [];
   for (const [key, value] of active) {
@@ -22,8 +26,8 @@ export function SearchBox({
         type="search"
         name="q"
         defaultValue={active.get("q") ?? ""}
-        placeholder={t("catalogue.searchPlaceholder")}
-        aria-label={t("catalogue.search")}
+        placeholder={placeholder}
+        aria-label={label}
         className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       />
     </form>
