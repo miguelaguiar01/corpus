@@ -87,3 +87,21 @@ test("braces are structural: no ICU quote-escaping in the v1 subset", () => {
   if (!result.ok) throw new Error("expected ok");
   expect(result.nodes[0]).toEqual({ kind: "literal", text: "it''s " });
 });
+
+test("a select branch key may be a number", () => {
+  const result = parseIcu(
+    "{n, select, 1 {falta 1 marca} other {faltam {n} marcas}}",
+  );
+  expect(result.ok).toBe(true);
+  if (!result.ok) throw new Error("parse failed");
+  const select = result.nodes.find((n) => n.kind === "select");
+  expect(
+    select && select.kind === "select" && Object.keys(select.branches),
+  ).toEqual(["1", "other"]);
+});
+
+test("a select branch key is a word or a number, nothing in between", () => {
+  expect(parseIcu("{n, select, 12abc {x} other {y}}").ok).toBe(false);
+  expect(parseIcu("{n, select, 0 {x} other {y}}").ok).toBe(true);
+  expect(parseIcu("{1, select, one {x} other {y}}").ok).toBe(false);
+});

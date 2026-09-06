@@ -7,6 +7,11 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+### Added
+
+- `check.ignore` entries may be globs (`**/*.test.tsx`); a plain entry is still a path prefix.
+- A select branch key may be a number (`{n, select, 1 {…} other {…}}`).
+
 ## [0.2.0] - 2026-09-06
 
 What the first outside installation asked for.

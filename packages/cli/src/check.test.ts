@@ -101,3 +101,29 @@ describe("checkFiles", () => {
     ]);
   });
 });
+
+test("ignore entries may be globs; a plain entry is still a prefix", async () => {
+  const { ignoreMatcher } = await import("./check");
+  const ignored = ignoreMatcher([
+    "**/*.test.tsx",
+    "src/legacy",
+    "src/*.stories.tsx",
+    "fixtures/**",
+  ]);
+  expect(ignored("src/components/button.test.tsx")).toBe(true);
+  expect(ignored("button.test.tsx")).toBe(true);
+  expect(ignored("src/components/button.tsx")).toBe(false);
+  expect(ignored("src/legacy")).toBe(true);
+  expect(ignored("src/legacy/old.tsx")).toBe(true);
+  expect(ignored("src/legacy-two/x.tsx")).toBe(false);
+  expect(ignored("src/card.stories.tsx")).toBe(true);
+  expect(ignored("src/deep/card.stories.tsx")).toBe(false);
+  expect(ignored("fixtures")).toBe(true);
+  expect(ignored("fixtures/a/b.tsx")).toBe(true);
+  // Literal text is never re-read as a pattern, whatever it contains.
+  const odd = ignoreMatcher(["src/(a)/@@DIRS@@/*.tsx", "src/x+y?.tsx"]);
+  expect(odd("src/(a)/@@DIRS@@/b.tsx")).toBe(true);
+  expect(odd("src/a/b.tsx")).toBe(false);
+  expect(odd("src/x+y1.tsx")).toBe(true);
+  expect(odd("src/x+y12.tsx")).toBe(false);
+});
