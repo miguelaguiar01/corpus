@@ -56,6 +56,14 @@ echo "=== install-smoke: init ==="
 npx corpus init --project install-smoke --source en --languages en,pt-PT \
   --messages "src/i18n/{lang}.json" --server "$SERVER"
 grep -q '@corpus-tool/cli' corpus.config.ts
+# Declarations as a real project has them (§5); the push must carry them.
+node -e '
+  const fs = require("node:fs");
+  const src = fs.readFileSync("corpus.config.ts", "utf8");
+  const decl = `  stringTypes: { chrome: { tone: { type: "enum", description: "How the line reads.", values: ["plain", "urgent"] } } },\n  entityTypes: { room: { label: "Room" } },\n  sources:`;
+  if (!src.includes("  sources:")) throw new Error("no sources in the generated config");
+  fs.writeFileSync("corpus.config.ts", src.replace("  sources:", decl));
+'
 
 # What the repository looks like before Corpus touches it.
 cp -r "$CLIENT" "$TMP/before" && rm -rf "$TMP/before/node_modules"
@@ -67,6 +75,14 @@ same_as_before() {
 echo "=== install-smoke: push ==="
 npx corpus push | tee "$TMP/push.log"
 grep -q "2 added" "$TMP/push.log"
+docker exec "$CORPUS_SMOKE_NAME" node -e '
+  const Database = require("/app/node_modules/better-sqlite3");
+  const row = new Database("/data/corpus.db").prepare("select string_types, entity_types from projects where slug = ?").get("install-smoke");
+  if (!row.string_types?.includes("tone") || !row.entity_types?.includes("Room")) {
+    console.error("the push did not carry the declarations:", row); process.exit(1);
+  }
+  console.log("the instance holds the declarations");
+'
 
 echo "=== install-smoke: pull at untranslated must reproduce the repository ==="
 npx corpus pull --min-state untranslated

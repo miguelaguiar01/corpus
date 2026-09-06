@@ -52,12 +52,16 @@ export async function buildSnapshot(
     else byId.set(entry.id, file);
   }
 
+  // The declarations travel with the snapshot (§4): the server renders
+  // and validates metadata from them without reading the config.
   const snapshot = {
     contract: "corpus/1" as const,
     project: config.project,
     sourceLanguage: config.sourceLanguage,
     strings: sourced.map((s) => s.entry),
     entities,
+    ...(config.stringTypes && { stringTypes: config.stringTypes }),
+    ...(config.entityTypes && { entityTypes: config.entityTypes }),
   };
 
   const parsed = snapshotSchema.safeParse(snapshot);
