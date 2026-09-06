@@ -147,3 +147,17 @@ test("an unexpected non-2xx renders the server's message", async () => {
   expect(code).toBe(1);
   expect(c.output.join("\n")).toContain("token is for a different project");
 });
+
+test("push builds and validates before it asks for the token", async () => {
+  const broken = fileURLToPath(
+    new URL("../test/fixtures/broken", import.meta.url),
+  );
+  const c = ctx({ cwd: broken, env: {} });
+  const code = await run(["push"], c);
+  expect(code).not.toBe(0);
+  expect(c.output.join("\n")).toMatch(/missing\/en\.json/);
+  expect(c.output.join("\n")).not.toMatch(/CORPUS_TOKEN/);
+  const c2 = ctx({ env: {} });
+  expect(await run(["push"], c2)).not.toBe(0);
+  expect(c2.output.join("\n")).toMatch(/CORPUS_TOKEN is not set/);
+});

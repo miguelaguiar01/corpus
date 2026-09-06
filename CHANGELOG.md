@@ -10,6 +10,12 @@ contract (`corpus/1`) is the only one.
 ### Added
 
 - `table` sources read a named export (`export: "STEPS"`) and can list the fields to carry as metadata (`map.metadata`).
+- `corpus build` runs the sources and validates the snapshot with no server; `--out <file>` writes it.
+- `build` and `push` name every source that cannot take translations back (an `exec` source without `importCommand`, a path without `{lang}`).
+
+### Changed
+
+- `push` builds and validates the snapshot before it needs `CORPUS_TOKEN`, so config and exporter errors reach the author first.
 
 ### Fixed
 

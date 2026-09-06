@@ -91,13 +91,14 @@ Create the project in Corpus (the instance shows you its push token once), then:
 
 ```sh
 export CORPUS_TOKEN=<token>
+npx corpus build                      # no server: runs the sources, validates, prints a summary
 npx corpus push                       # repo → Corpus: adds, changes, marks stale, archives
 npx corpus pull                       # Corpus → repo: verified translations only
 npx corpus pull --min-state translated  # Corpus → repo: translated and verified
 npx corpus check                      # lint: user-facing literals outside declared sources
 ```
 
-Pushing is a diff by string id: new ids are added, changed source text marks its translations stale, ids that disappear are archived with their history kept. Pulling writes translations back and prints only the files it changed. Node 22 or later; a TypeScript config needs no build step.
+`build` needs no server or token, so a config or an exporter can be checked as it is written; it also names any source that cannot take translations back (an `exec` source without `importCommand`, a path without `{lang}`), as does `push`. Pushing is a diff by string id: new ids are added, changed source text marks its translations stale, ids that disappear are archived with their history kept. Pulling writes translations back and prints only the files it changed. Node 22 or later; a TypeScript config needs no build step.
 
 Structured sources, `table` records (a module's default or named export, with the fields to carry as metadata listed in the map) or an `exec` command that emits entries, are described in the [design spec, §3](docs/corpus-design.md). Note that `corpus push` and `corpus pull` run the repository's own `corpus.config.ts` and any `exec` commands it declares, so run them only in repositories you trust, as you would their build scripts.
 
