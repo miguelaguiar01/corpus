@@ -1,15 +1,21 @@
 # Changelog
 
-The published package is `@corpus-tool/cli`. This file follows
+The published packages are `@corpus-tool/cli` and `@corpus-tool/workbench`, at one version. This file follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/) and stay below 1.0 while the
 contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-07
+
+Corpus runs from npm. This file now covers both packages, which share a version.
+
 ### Added
 
+- `@corpus-tool/workbench`, the web app as a package: the built app with Next, React and the SQLite binding as dependencies, 1.3 MB packed; its `corpus-workbench` bin starts the app from `CORPUS_DB_PATH`, `CORPUS_INVITE_SECRET`, `PORT` and `HOSTNAME`.
 - `corpus workbench [--port <n>] [--db <path>] [--open]` starts an instance from the repository with `@corpus-tool/workbench` installed beside the CLI: database and a generated secret under `.corpus/` (added to `.gitignore`), the URL and the secret printed once it answers, Ctrl-C stops it.
+- The container image is published with each release as `ghcr.io/miguelaguiar01/corpus:<version>` and `:latest`; `compose.yaml` pulls it.
 
 ## [0.3.1] - 2026-09-06
 
@@ -62,7 +68,8 @@ The first published version.
 - The `messages`, `table` and `exec` adapters, and the `corpus/1` snapshot contract with its ICU subset (placeholders and `select`).
 - The package ships plain JavaScript for Node 22 with type declarations; a client's config imports `defineCorpus` from `@corpus-tool/cli`.
 
-[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.4.0
 [0.3.1]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.3.1
 [0.3.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.3.0
 [0.2.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.2.0

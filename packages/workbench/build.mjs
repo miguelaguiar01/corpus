@@ -54,7 +54,12 @@ cpSync(path.join(web, ".next/static"), path.join(app, ".next/static"), {
 // the real name; the trace files (.nft.json) are Next's own bookkeeping
 // and stay as they are.
 const hashed = path.join(standalone, ".next/node_modules");
-for (const name of existsSync(hashed) ? readdirSync(hashed) : []) {
+if (!existsSync(hashed)) {
+  throw new Error(
+    `no ${path.relative(repo, hashed)}: the trace changed shape (the app needs its native module)`,
+  );
+}
+for (const name of readdirSync(hashed)) {
   const real = name.replace(/-[0-9a-f]{16}$/, "");
   if (real === name) throw new Error(`unexpected traced module ${name}`);
   let rewritten = 0;
