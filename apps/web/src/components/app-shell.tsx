@@ -29,7 +29,7 @@ export function AppShell({
   const wordmark = "text-sm font-semibold";
   return (
     <div className="min-h-dvh">
-      <header className="flex min-h-14 flex-wrap items-center gap-x-4 gap-y-2 border-b border-border px-4 py-2 sm:px-6 lg:px-8">
+      <header className="flex min-h-14 flex-wrap items-center gap-x-4 gap-y-2 border-b border-border px-4 py-2 sm:px-6 lg:px-10 2xl:px-16">
         {home ? (
           <Link href="/" className={wordmark}>
             {t("app.title")}

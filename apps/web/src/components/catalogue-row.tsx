@@ -3,8 +3,10 @@ import type { LanguageState } from "@/catalogue/query";
 import { Chip } from "@/components/ui/chip";
 import { StateChips } from "./state-chips";
 
-// One string in the catalogue (§9.2): the key and type, the source, and
-// the per-language state at the right on a desktop; stacked on a phone.
+// One string in the catalogue (§9.2). On a desktop the rows share three
+// aligned columns, key and type, the project's text at the list size the
+// type scale gives project text, the per-language states, so a page of
+// them reads as a table; on a phone they stack.
 export function CatalogueRow({
   href,
   stringId,
@@ -23,15 +25,15 @@ export function CatalogueRow({
   return (
     <Link
       href={href}
-      className="grid gap-x-6 gap-y-1.5 py-2.5 hover:bg-accent/40 focus-visible:bg-accent/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring md:grid-cols-[minmax(0,1fr)_minmax(auto,50%)] md:items-start"
+      className="grid gap-x-8 gap-y-2 py-3 hover:bg-accent/40 focus-visible:bg-accent/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring md:grid-cols-[14rem_minmax(0,1fr)_auto] md:items-start xl:grid-cols-[18rem_minmax(0,1fr)_auto]"
     >
-      <div className="min-w-0 space-y-1">
-        <div className="flex items-center gap-2">
-          <span className="truncate font-mono text-sm">{stringId}</span>
-          <Chip variant="outline">{type}</Chip>
-        </div>
-        <p className="line-clamp-2 text-sm text-muted-foreground">{source}</p>
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 md:flex-col md:items-start">
+        <span className="truncate font-mono text-xs text-muted-foreground md:max-w-full">
+          {stringId}
+        </span>
+        <Chip variant="outline">{type}</Chip>
       </div>
+      <p className="line-clamp-2 min-w-0 text-lg leading-snug">{source}</p>
       <div className="md:justify-self-end">
         <StateChips languages={languages} states={states} />
       </div>

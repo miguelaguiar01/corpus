@@ -23,7 +23,7 @@ export function FacetPanel({
   active: URLSearchParams;
 }) {
   return (
-    <aside className="space-y-4 text-sm md:sticky md:top-4 md:max-h-[calc(100dvh-2rem)] md:self-start md:overflow-y-auto">
+    <aside className="space-y-5 text-sm md:sticky md:top-6 md:max-h-[calc(100dvh-3rem)] md:self-start md:overflow-y-auto [scrollbar-color:var(--color-border)_transparent] [scrollbar-width:thin]">
       {facets.map((facet) => {
         if (facet.kind === "archived") {
           const on = active.get("archived") === "1";
@@ -46,11 +46,20 @@ export function FacetPanel({
             : "options" in facet
               ? facet.options
               : [];
-        const label =
-          "label" in facet ? facet.label : t(BUILTIN_LABEL[facet.key]!);
+        // A declared field is headed by its name; its description, a
+        // sentence, is the tooltip rather than a heading.
+        if (options.length === 0) return null;
+        const heading =
+          "field" in facet ? facet.field : t(BUILTIN_LABEL[facet.key]!);
+        const description = "label" in facet ? facet.label : undefined;
         return (
-          <div key={facet.key} className="space-y-1">
-            <p className="font-medium">{label}</p>
+          <div key={facet.key} className="space-y-1.5">
+            <p
+              className="font-medium"
+              title={description !== heading ? description : undefined}
+            >
+              {heading}
+            </p>
             <div className="flex flex-wrap gap-1.5">
               {options.map((option) => (
                 <FacetLink
