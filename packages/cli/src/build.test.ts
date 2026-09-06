@@ -76,3 +76,23 @@ test("invalid ICU in a source errors with the file path and key", async () => {
     /bad\/en\.json.*broken/s,
   );
 });
+
+test("the config's string and entity type declarations travel in the snapshot", async () => {
+  const declared = config({
+    stringTypes: {
+      chrome: {
+        tone: {
+          type: "enum",
+          description: "How the line reads.",
+          values: ["plain", "urgent"],
+        },
+      },
+    },
+    entityTypes: { room: { label: "Room" } },
+  });
+  const snapshot = await buildSnapshot(declared, REPO);
+  expect(snapshot.stringTypes).toEqual(declared.stringTypes);
+  expect(snapshot.entityTypes).toEqual(declared.entityTypes);
+  const bare = await buildSnapshot(config(), REPO);
+  expect("stringTypes" in bare).toBe(false);
+});
