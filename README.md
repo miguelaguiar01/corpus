@@ -10,6 +10,7 @@
   <img alt="Node 22" src="https://img.shields.io/badge/node-22-333333">
   <img alt="TypeScript, strict" src="https://img.shields.io/badge/typescript-strict-333333">
   <img alt="Single container, SQLite" src="https://img.shields.io/badge/deploy-one%20container%2C%20SQLite-333333">
+  <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-333333">
 </p>
 
 <p align="center">
@@ -190,3 +191,7 @@ The database is created on first start at `apps/web/data/corpus.db` and is gitig
 ## Status
 
 The MVP is complete and the interface has been through a full design pass. Corpus runs its own translation into Portuguese from this repository, on every build. The CLI is used from this repository for now; publishing it to npm is next.
+
+## License
+
+[MIT](LICENSE).
