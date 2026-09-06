@@ -4,9 +4,10 @@
 //
 // The key (e.g. x-forwarded-for) is client-influenced, so the limiter
 // bounds its own memory: expired entries are evicted as new keys arrive,
-// and once maxKeys live entries exist, unknown keys are denied
-// (fail-closed). Callers must pair a per-client limiter with a
-// global-cap limiter so spoofed keys cannot buy extra attempts.
+// and once maxKeys live entries exist, allow() denies unknown keys
+// (fail-closed); blocked() and retryAfterMs() only read, so a caller
+// that gates on them must pair a per-client limiter with a global cap,
+// which is what bounds spoofed keys.
 export class RateLimiter {
   private readonly max: number;
   private readonly windowMs: number;
