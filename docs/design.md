@@ -92,8 +92,10 @@ is a project, and the page below. The current navigation item carries
 others are muted. The header wraps on a phone rather than overflow.
 
 `Page` gives each page its width and gutters: `form` (28rem) for a single
-column of fields, `reading` (42rem) for text and lists, `wide` (72rem)
-for facets, grids and two panes. `PageHeader` sets the title, an
+column of fields, `reading` (48rem) for text and settings, `wide` (up to
+100rem) for facets, grids and two panes, which grow with the display.
+The gutters scale with it (16px, 24px, 40px, 64px at `2xl`) and the
+header shares them, so chrome and content keep the same edges. `PageHeader` sets the title, an
 optional one-line meta, and optional right-aligned actions.
 
 ## Primitives

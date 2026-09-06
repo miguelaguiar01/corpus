@@ -41,7 +41,7 @@ export default async function ProjectHome({
           </span>
         }
       />
-      <div className="grid gap-x-12 gap-y-8 lg:grid-cols-2">
+      <div className="grid gap-x-12 gap-y-8 lg:grid-cols-2 xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] xl:gap-x-16">
         <Section heading={t("dashboard.queuesHeading")}>
           <QueueList
             slug={slug}

@@ -88,7 +88,7 @@ export default async function CataloguePage({
   return (
     <Page
       width="wide"
-      className="grid gap-x-8 gap-y-6 md:grid-cols-[14rem_minmax(0,1fr)]"
+      className="grid gap-x-10 gap-y-6 md:grid-cols-[17rem_minmax(0,1fr)] xl:gap-x-14"
     >
       <FacetPanel basePath={basePath} facets={facets} active={active} />
       <div className="min-w-0 space-y-5">

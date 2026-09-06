@@ -8,14 +8,14 @@ export function ProgressStrip({ progress }: { progress: Progress }) {
   const languages = Object.keys(progress.perLanguage);
   if (languages.length === 0) return null;
   return (
-    <ul className="max-w-xl space-y-1.5">
+    <ul className="grid gap-x-12 gap-y-1.5 lg:grid-cols-2">
       {languages.map((language) => {
         const p = progress.perLanguage[language]!;
         return (
           <li key={language} className="flex items-center gap-3 text-xs">
             <span className="w-14 shrink-0 font-medium">{language}</span>
             <ProgressBar p={p} label={language} className="h-1.5 flex-1" />
-            <span className="shrink-0 text-muted-foreground">
+            <span className="w-44 shrink-0 text-right text-muted-foreground">
               {t("progress.summary", {
                 verified: p.verified,
                 translated: p.translated,
