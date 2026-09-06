@@ -14,8 +14,8 @@ export type IcuParseResult =
   { ok: true; nodes: IcuNode[] } | { ok: false; errors: IcuError[] };
 
 const NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
-// A branch key may be a bare number too (`1 {marca} other {marcas}`).
-const KEY_RE = /^[A-Za-z0-9_]+$/;
+// A branch key is a word, or a bare number (`1 {marca} other {marcas}`).
+const KEY_RE = /^(?:[A-Za-z_][A-Za-z0-9_]*|[0-9]+)$/;
 
 class ParseFailure extends Error {
   constructor(

@@ -81,8 +81,18 @@ export function findLiterals(
 }
 
 // An ignore entry is a path prefix, or a glob when it has * or ?: **/
-// matches zero or more directories, * stays within one, ? is one
-// character.
+// matches zero or more directories, a trailing /** a whole subtree, *
+// stays within one segment, ? is one character. One pass over the
+// pattern, so no expansion is ever re-read as a pattern.
+const GLOB_TOKEN = /(\*\*\/|\/\*\*|\*\*|\*|\?)/;
+const GLOB_REGEX: Record<string, string> = {
+  "**/": "(?:.*/)?",
+  "/**": "(?:/.*)?",
+  "**": ".*",
+  "*": "[^/]*",
+  "?": "[^/]",
+};
+
 export function ignoreMatcher(patterns: string[]): (rel: string) => boolean {
   const tests = patterns.map((raw) => {
     const p = raw.replace(/\/$/, "");
@@ -90,14 +100,11 @@ export function ignoreMatcher(patterns: string[]): (rel: string) => boolean {
       return (rel: string) => rel === p || rel.startsWith(`${p}/`);
     }
     const source = p
-      .replace(/[.+^${}()|[\]\\]/g, "\\$&")
-      .replace(/\*\*\//g, "@@DIRS@@")
-      .replace(/\/\*\*/g, "@@TAIL@@")
-      .replace(/\*\*/g, ".*")
-      .replace(/\*/g, "[^/]*")
-      .replace(/\?/g, "[^/]")
-      .replace(/@@DIRS@@/g, "(?:.*/)?")
-      .replace(/@@TAIL@@/g, "(?:/.*)?");
+      .split(GLOB_TOKEN)
+      .map(
+        (part) => GLOB_REGEX[part] ?? part.replace(/[.+^${}()|[\]\\]/g, "\\$&"),
+      )
+      .join("");
     const re = new RegExp(`^${source}$`);
     return (rel: string) => re.test(rel);
   });

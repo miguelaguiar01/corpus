@@ -99,3 +99,9 @@ test("a select branch key may be a number", () => {
     select && select.kind === "select" && Object.keys(select.branches),
   ).toEqual(["1", "other"]);
 });
+
+test("a select branch key is a word or a number, nothing in between", () => {
+  expect(parseIcu("{n, select, 12abc {x} other {y}}").ok).toBe(false);
+  expect(parseIcu("{n, select, 0 {x} other {y}}").ok).toBe(true);
+  expect(parseIcu("{1, select, one {x} other {y}}").ok).toBe(false);
+});
