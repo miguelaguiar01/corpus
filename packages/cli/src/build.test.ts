@@ -96,3 +96,58 @@ test("the config's string and entity type declarations travel in the snapshot", 
   const bare = await buildSnapshot(config(), REPO);
   expect("stringTypes" in bare).toBe(false);
 });
+
+test("a table source reads a named export and carries only the listed metadata", async () => {
+  const snapshot = await buildSnapshot(
+    config({
+      sources: [
+        {
+          adapter: "table",
+          type: "tutorial-step",
+          path: "steps-named.ts",
+          export: "TUTORIAL_STEPS",
+          map: { id: "id", text: "text", metadata: ["scene"] },
+        },
+      ],
+    }),
+    REPO,
+  );
+  expect(snapshot.strings.map((s) => s.metadata)).toEqual([
+    { scene: "intro" },
+    { scene: "intro" },
+  ]);
+});
+
+test("table errors name the file and the export", async () => {
+  await expect(
+    buildSnapshot(
+      config({
+        sources: [
+          {
+            adapter: "table",
+            type: "tutorial-step",
+            path: "steps-named.ts",
+            map: { id: "id", text: "text" },
+          },
+        ],
+      }),
+      REPO,
+    ),
+  ).rejects.toThrow(/steps-named\.ts: table: expected an array of records/);
+  await expect(
+    buildSnapshot(
+      config({
+        sources: [
+          {
+            adapter: "table",
+            type: "tutorial-step",
+            path: "steps-named.ts",
+            export: "STEPS",
+            map: { id: "id", text: "text" },
+          },
+        ],
+      }),
+      REPO,
+    ),
+  ).rejects.toThrow(/steps-named\.ts: the module has no export named "STEPS"/);
+});

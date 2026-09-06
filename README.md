@@ -99,7 +99,7 @@ npx corpus check                      # lint: user-facing literals outside decla
 
 Pushing is a diff by string id: new ids are added, changed source text marks its translations stale, ids that disappear are archived with their history kept. Pulling writes translations back and prints only the files it changed. Node 22 or later; a TypeScript config needs no build step.
 
-Structured sources, `table` records with metadata fields or an `exec` command that emits entries, are described in the [design spec, §3](docs/corpus-design.md). Note that `corpus push` and `corpus pull` run the repository's own `corpus.config.ts` and any `exec` commands it declares, so run them only in repositories you trust, as you would their build scripts.
+Structured sources, `table` records (a module's default or named export, with the fields to carry as metadata listed in the map) or an `exec` command that emits entries, are described in the [design spec, §3](docs/corpus-design.md). Note that `corpus push` and `corpus pull` run the repository's own `corpus.config.ts` and any `exec` commands it declares, so run them only in repositories you trust, as you would their build scripts.
 
 ## How it works
 

@@ -2,7 +2,7 @@ import type { MetadataValue, StringEntry } from "@corpus/contract";
 
 export type TableOptions = {
   type: string;
-  map: { id: string; text: string };
+  map: { id: string; text: string; metadata?: string[] };
 };
 
 // Array of records + an id/text field map -> snapshot string entries
@@ -15,7 +15,9 @@ export function tableToEntries(
   options: TableOptions,
 ): StringEntry[] {
   if (!Array.isArray(data)) {
-    throw new Error("table: source must be an array of records");
+    throw new Error(
+      "table: expected an array of records (the module's default export, or the export named by `export`)",
+    );
   }
   const { id: idField, text: textField } = options.map;
   const entries: StringEntry[] = [];
@@ -39,7 +41,7 @@ export function tableToEntries(
     }
     seen.add(id);
 
-    const metadata = toMetadata(row, idField, textField);
+    const metadata = toMetadata(row, idField, textField, options.map.metadata);
     entries.push(
       metadata === undefined
         ? { id, type: options.type, source }
@@ -63,14 +65,16 @@ function toMetadata(
   row: Record<string, unknown>,
   idField: string,
   textField: string,
+  only: string[] | undefined,
 ): Record<string, MetadataValue> | undefined {
   const metadata: Record<string, MetadataValue> = {};
   let has = false;
   for (const [key, value] of Object.entries(row)) {
     if (key === idField || key === textField) continue;
+    if (only !== undefined && !only.includes(key)) continue;
     if (!isMetadataValue(value)) {
       throw new Error(
-        `table: metadata field ${JSON.stringify(key)} must be a string, boolean, or string[]`,
+        `table: metadata field ${JSON.stringify(key)} must be a string, boolean, or string[]; list the fields to carry in map.metadata to leave it out`,
       );
     }
     metadata[key] = value;

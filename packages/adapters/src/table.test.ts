@@ -109,3 +109,22 @@ test("empty array yields no entries", () => {
     tableToEntries([], { type: "t", map: { id: "id", text: "text" } }),
   ).toEqual([]);
 });
+
+test("map.metadata lists the fields to carry; the rest are left out", () => {
+  const rows = [
+    { id: "a", text: "A", scene: "intro", cells: { x: 1 }, clue: 3 },
+  ];
+  expect(
+    tableToEntries(rows, {
+      type: "step",
+      map: { id: "id", text: "text", metadata: ["scene"] },
+    }),
+  ).toEqual([
+    { id: "a", type: "step", source: "A", metadata: { scene: "intro" } },
+  ]);
+  expect(() =>
+    tableToEntries(rows, { type: "step", map: { id: "id", text: "text" } }),
+  ).toThrow(
+    /"cells" must be a string, boolean, or string\[\]; list the fields to carry in map\.metadata/,
+  );
+});
