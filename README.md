@@ -10,6 +10,7 @@
   <img alt="Node 22" src="https://img.shields.io/badge/node-22-333333">
   <img alt="TypeScript, strict" src="https://img.shields.io/badge/typescript-strict-333333">
   <img alt="Single container, SQLite" src="https://img.shields.io/badge/deploy-one%20container%2C%20SQLite-333333">
+  <a href="https://www.npmjs.com/package/@corpus-tool/cli"><img alt="npm" src="https://img.shields.io/npm/v/%40corpus-tool%2Fcli?color=333333&label=%40corpus-tool%2Fcli"></a>
   <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-333333">
 </p>
 
@@ -62,14 +63,22 @@ Two things to know before exposing it: mount a directory, never a single file (S
 
 ## Connect a repository
 
-A project declares where its text lives in a `corpus.config.ts`; the CLI never guesses. This is the whole configuration for a repository whose strings are a plain message catalog:
+In the repository whose text you want translated, install the CLI and let it write the config:
+
+```sh
+npm install --save-dev @corpus-tool/cli
+npx corpus init --project my-game --source en --languages en,pt-PT \
+  --messages "src/i18n/{lang}.json" --server http://localhost:3000
+```
+
+That writes a `corpus.config.ts`, the whole configuration for a repository whose strings are a plain message catalog. The CLI never guesses where text lives; the config declares it:
 
 ```ts
 import { defineCorpus } from "@corpus-tool/cli";
 
 export default defineCorpus({
   project: "my-game",
-  server: process.env.CORPUS_SERVER ?? "http://localhost:3000",
+  server: "http://localhost:3000",
   sourceLanguage: "en",
   languages: ["en", "pt-PT"],
   sources: [
@@ -78,19 +87,19 @@ export default defineCorpus({
 });
 ```
 
-Create the project in the web app, which shows you a push token once, then from the repository:
+Create the project in Corpus (the instance shows you its push token once), then:
 
 ```sh
-export CORPUS_SERVER=http://localhost:3000 CORPUS_TOKEN=<token>
-corpus push                       # repo → Corpus: adds, changes, marks stale, archives
-corpus pull                       # Corpus → repo: verified translations only
-corpus pull --min-state translated  # Corpus → repo: translated and verified
-corpus check                      # lint: user-facing literals outside declared sources
+export CORPUS_TOKEN=<token>
+npx corpus push                       # repo → Corpus: adds, changes, marks stale, archives
+npx corpus pull                       # Corpus → repo: verified translations only
+npx corpus pull --min-state translated  # Corpus → repo: translated and verified
+npx corpus check                      # lint: user-facing literals outside declared sources
 ```
 
-Pushing is a diff by string id: new ids are added, changed source text marks its translations stale, ids that disappear are archived with their history kept. Pulling writes translations back and prints only the files it changed.
+Pushing is a diff by string id: new ids are added, changed source text marks its translations stale, ids that disappear are archived with their history kept. Pulling writes translations back and prints only the files it changed. Node 22 or later; a TypeScript config needs no build step.
 
-The CLI is not published to npm yet. From this repository it is `npx tsx packages/cli/src/bin.ts`, run from the client project's directory. Structured sources, `table` records with metadata fields or an `exec` command that emits entries, are described in the [design spec, §3](docs/corpus-design.md). Note that `corpus push` and `corpus pull` run the repository's own `corpus.config.ts` and any `exec` commands it declares, so run them only in repositories you trust, as you would their build scripts.
+Structured sources, `table` records with metadata fields or an `exec` command that emits entries, are described in the [design spec, §3](docs/corpus-design.md). Note that `corpus push` and `corpus pull` run the repository's own `corpus.config.ts` and any `exec` commands it declares, so run them only in repositories you trust, as you would their build scripts.
 
 ## How it works
 
@@ -179,7 +188,7 @@ npm run dev
 
 The database is created on first start at `apps/web/data/corpus.db` and is gitignored; delete it to start over.
 
-`bin/gate` is the one quality gate, locally and in CI: typecheck, lint, format, the full test suite, and `corpus check` on this repository's own interface strings. `bin/smoke` walks the whole loop in a browser, invite to verified translation, on a phone viewport and then checks the desktop layouts; `bin/container-smoke` builds and boots the production image; `bin/screenshots` regenerates the images above.
+`bin/gate` is the one quality gate, locally and in CI: typecheck, lint, format, the CLI build, the full test suite, and `corpus check` on this repository's own interface strings. `bin/smoke` walks the whole loop in a browser, invite to verified translation, on a phone viewport and then checks the desktop layouts; `bin/container-smoke` builds and boots the production image; `bin/install-smoke` installs the packed CLI into a fresh repository and round-trips it against that image; `bin/screenshots` regenerates the images above. Releases are tags: see `AGENTS.md`.
 
 ## Documentation
 
@@ -190,7 +199,7 @@ The database is created on first start at `apps/web/data/corpus.db` and is gitig
 
 ## Status
 
-The MVP is complete and the interface has been through a full design pass. Corpus runs its own translation into Portuguese from this repository, on every build. The CLI is used from this repository for now; publishing it to npm is next.
+The MVP is complete, the interface has been through a full design pass, and the CLI ships on npm as `@corpus-tool/cli`. Corpus runs its own translation into Portuguese from this repository, on every build, and every release installs the packed CLI into a fresh repository and round-trips it before publishing. Next: a first outside project, with its feedback folded back in.
 
 ## License
 
