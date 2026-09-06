@@ -1,0 +1,34 @@
+{
+  "name": "@corpus-tool/workbench",
+  "version": "0.3.1",
+  "description": "The Corpus translation workbench: the web app @corpus-tool/cli starts with `corpus workbench`, or a host runs behind a URL.",
+  "license": "MIT",
+  "homepage": "https://github.com/miguelaguiar01/corpus#readme",
+  "bugs": "https://github.com/miguelaguiar01/corpus/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/miguelaguiar01/corpus.git",
+    "directory": "packages/workbench"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "bin",
+    "dist"
+  ],
+  "bin": {
+    "corpus-workbench": "bin/corpus-workbench.cjs"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "prepack": "npm run build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "next": "^16.3.4",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  }
+}

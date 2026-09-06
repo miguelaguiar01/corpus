@@ -24,6 +24,9 @@ npm run format
 step "build the CLI package"
 npm run build -w packages/cli
 
+step "build the workbench package"
+npm run build -w packages/workbench
+
 step "tests"
 npm test
 
