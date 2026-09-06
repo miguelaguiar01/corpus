@@ -43,3 +43,43 @@ export function entitiesByType(db: Db, projectId: number): EntityGroup[] {
   }
   return [...groups.values()];
 }
+
+export type EntityFilter = { type?: string; q?: string };
+
+// Diacritics do not count when searching names, as in the catalogue.
+function fold(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+// The browser at hundreds of entities (§9.4): one type at a time, or
+// the names that contain the query, across the groups.
+export function filterGroups(
+  groups: EntityGroup[],
+  filter: EntityFilter,
+): EntityGroup[] {
+  const q = filter.q?.trim() ? fold(filter.q.trim()) : undefined;
+  return groups
+    .filter((group) => !filter.type || group.type === filter.type)
+    .map((group) =>
+      q === undefined
+        ? group
+        : {
+            ...group,
+            entities: group.entities.filter((e) => fold(e.name).includes(q)),
+          },
+    )
+    .filter((group) => group.entities.length > 0);
+}
+
+export function typeCounts(
+  groups: EntityGroup[],
+): { type: string; label: string; count: number }[] {
+  return groups.map((g) => ({
+    type: g.type,
+    label: g.label,
+    count: g.entities.length,
+  }));
+}
