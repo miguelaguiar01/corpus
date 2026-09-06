@@ -4,9 +4,10 @@
 //
 // The key (e.g. x-forwarded-for) is client-influenced, so the limiter
 // bounds its own memory: expired entries are evicted as new keys arrive,
-// and once maxKeys live entries exist, unknown keys are denied
-// (fail-closed). Callers must pair a per-client limiter with a
-// global-cap limiter so spoofed keys cannot buy extra attempts.
+// and once maxKeys live entries exist, allow() denies unknown keys
+// (fail-closed); blocked() and retryAfterMs() only read, so a caller
+// that gates on them must pair a per-client limiter with a global cap,
+// which is what bounds spoofed keys.
 export class RateLimiter {
   private readonly max: number;
   private readonly windowMs: number;
@@ -37,6 +38,13 @@ export class RateLimiter {
     const entry = this.hits.get(key);
     if (!entry || now - entry.windowStart >= this.windowMs) return false;
     return entry.count >= this.max;
+  }
+
+  // How long a blocked key waits until its window opens; 0 when not blocked.
+  retryAfterMs(key: string, now: number = Date.now()): number {
+    if (!this.blocked(key, now)) return 0;
+    const entry = this.hits.get(key)!;
+    return entry.windowStart + this.windowMs - now;
   }
 
   allow(key: string, now: number = Date.now()): boolean {

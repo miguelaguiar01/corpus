@@ -24,13 +24,13 @@ import {
 // window for the friendly case, and a global cap so a rotated/spoofed
 // x-forwarded-for cannot buy fresh budgets — the instance serves a
 // handful of humans, so 30 failures/15min across all clients is
-// generous. The global cap counts failures only, so one client cannot
-// lock everyone out by submitting; the per-client window counts every
-// attempt and is checked first. Module-level state survives across
-// requests in the single server process.
+// generous. Both count failures only: a person trying names and
+// passwords on a fresh instance is not locked out by their successes,
+// and one client cannot lock everyone out by submitting. Module-level
+// state survives across requests in the single server process.
 const WINDOW_MS = 15 * 60 * 1000;
 const clientLimiter = new RateLimiter({
-  max: 5,
+  max: 10,
   windowMs: WINDOW_MS,
   maxKeys: 1000,
 });
@@ -42,16 +42,30 @@ function clientKey(forwardedFor: string | null): string {
   return forwardedFor?.split(",")[0]?.trim() || "unknown";
 }
 
-async function limited(): Promise<boolean> {
+async function currentClient(): Promise<string> {
   const requestHeaders = await headers();
-  if (!clientLimiter.allow(clientKey(requestHeaders.get("x-forwarded-for")))) {
-    return true;
-  }
-  return globalLimiter.blocked("invite");
+  return clientKey(requestHeaders.get("x-forwarded-for"));
 }
 
-function noteFailure(): void {
+// The wait, in whole minutes, when either window is closed; 0 otherwise.
+async function limitedForMinutes(): Promise<number> {
+  const client = await currentClient();
+  const wait = Math.max(
+    clientLimiter.retryAfterMs(client),
+    globalLimiter.retryAfterMs("invite"),
+  );
+  return wait > 0 ? Math.max(1, Math.ceil(wait / 60_000)) : 0;
+}
+
+async function noteFailure(): Promise<void> {
+  clientLimiter.allow(await currentClient());
   globalLimiter.allow("invite");
+}
+
+async function rejectIfLimited(): Promise<void> {
+  const minutes = await limitedForMinutes();
+  if (minutes > 0)
+    redirect(inviteErrorPath("rate-limited", { wait: String(minutes) }));
 }
 
 async function startSession(userId: number, to: string): Promise<never> {
@@ -68,7 +82,7 @@ async function startSession(userId: number, to: string): Promise<never> {
 }
 
 export async function submitJoin(formData: FormData): Promise<void> {
-  if (await limited()) redirect(inviteErrorPath("rate-limited"));
+  await rejectIfLimited();
   const instanceSecret = process.env.CORPUS_INVITE_SECRET;
   if (!instanceSecret) {
     throw new Error("CORPUS_INVITE_SECRET is not configured");
@@ -80,7 +94,7 @@ export async function submitJoin(formData: FormData): Promise<void> {
     password: String(formData.get("password") ?? ""),
   });
   if (!result.ok) {
-    noteFailure();
+    await noteFailure();
     redirect(
       inviteErrorPath(
         result.reason === "name-taken"
@@ -95,13 +109,13 @@ export async function submitJoin(formData: FormData): Promise<void> {
 }
 
 export async function submitSignIn(formData: FormData): Promise<void> {
-  if (await limited()) redirect(inviteErrorPath("rate-limited"));
+  await rejectIfLimited();
   const result = signIn(getDb(), {
     name: String(formData.get("name") ?? ""),
     password: String(formData.get("password") ?? ""),
   });
   if (!result.ok) {
-    noteFailure();
+    await noteFailure();
     redirect(inviteErrorPath("credentials"));
   }
   await startSession(

@@ -118,7 +118,7 @@
   "invite.errorCredentials": "That name and password were not accepted.",
   "invite.errorNameTaken": "That name is taken. Sign in above, or pick another.",
   "invite.errorWeakPassword": "That password is too short. Use at least eight characters.",
-  "invite.errorRateLimited": "Too many attempts. Wait a few minutes and try again.",
+  "invite.errorRateLimited": "Too many failed attempts. Try again in {minutes} min.",
   "newProject.heading": "New project",
   "newProject.slug": "Slug",
   "newProject.slugHint": "The short name in the project's address, such as moonlight-manor: lowercase letters, digits and hyphens. It cannot change later.",
