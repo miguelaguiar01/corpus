@@ -1,7 +1,7 @@
 import { SESSION_COOKIE } from "@/auth/constants";
 import { NextRequest } from "next/server";
 import { expect, test } from "vitest";
-import { middleware } from "./middleware";
+import { proxy } from "./proxy";
 
 function request(path: string, withCookie = false) {
   const req = new NextRequest(`http://corpus.test${path}`);
@@ -10,13 +10,13 @@ function request(path: string, withCookie = false) {
 }
 
 test("a page without a session redirects to /invite", () => {
-  const res = middleware(request("/p/moonlight"));
+  const res = proxy(request("/p/moonlight"));
   expect(res.status).toBe(307);
   expect(res.headers.get("location")).toContain("/invite");
 });
 
 test("a page with a session cookie passes through and re-issues the cookie", () => {
-  const res = middleware(request("/p/moonlight", true));
+  const res = proxy(request("/p/moonlight", true));
   const reissued = res.headers.get("set-cookie") ?? "";
   expect(reissued).toContain(`${SESSION_COOKIE}=`);
   expect(reissued).toMatch(/Max-Age=7776000/);
@@ -26,7 +26,7 @@ test("a page with a session cookie passes through and re-issues the cookie", () 
 test("the redirect names CORPUS_PUBLIC_URL when it is set", () => {
   process.env.CORPUS_PUBLIC_URL = "https://corpus.example";
   try {
-    const res = middleware(request("/p/moonlight"));
+    const res = proxy(request("/p/moonlight"));
     expect(res.headers.get("location")).toBe("https://corpus.example/invite");
   } finally {
     delete process.env.CORPUS_PUBLIC_URL;
@@ -34,14 +34,14 @@ test("the redirect names CORPUS_PUBLIC_URL when it is set", () => {
 });
 
 test("/invite is always open", () => {
-  const res = middleware(request("/invite"));
+  const res = proxy(request("/invite"));
   expect(res.headers.get("location")).toBeNull();
 });
 
 test.each(["/api/push", "/api/health", "/api/push?dryRun"])(
   "%s is not cookie-gated (machine endpoints self-authenticate)",
   (path) => {
-    const res = middleware(request(path));
+    const res = proxy(request(path));
     expect(res.headers.get("location")).toBeNull();
   },
 );

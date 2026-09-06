@@ -1,4 +1,4 @@
-// Dependency-free auth constants: importable from the edge middleware
+// Dependency-free auth constants: importable from the edge proxy
 // (which cannot load SQLite) and from server code alike, so cookie name,
 // route, limits, and error vocabulary each have exactly one home.
 import type { MessageKey } from "@/i18n";
