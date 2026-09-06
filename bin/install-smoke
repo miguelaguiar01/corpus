@@ -1,41 +1,32 @@
 #!/usr/bin/env bash
-# The package a stranger installs (spec §16, M6): pack the CLI, install
-# the tarball into a fresh repository with a small message catalog, and
-# run the whole loop against the production image: init, push, pull at
-# every state, and prove the repository is byte-identical. Nothing here
-# reads the workspace's source; only the tarball and a booted container.
+# The packages a stranger installs (spec §16, M6 and M8): pack the CLI
+# and the workbench, install both tarballs into a fresh repository with
+# a small message catalog, and run the whole loop twice: against
+# `npx corpus workbench` with no Docker, then against the production
+# image. Each loop is init, push, pull at every state, and proof that
+# the repository is byte-identical. Nothing here reads the workspace's
+# source; only the tarballs, the client's node_modules, and the servers.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 export CORPUS_SMOKE_NAME="corpus-install-$$"
 export CORPUS_SMOKE_PORT="${CORPUS_INSTALL_PORT:-3904}"
+WB_PORT="${CORPUS_INSTALL_WB_PORT:-3905}"
 TMP="$(mktemp -d)"
+WB_PGID=""
 cleanup() {
+  [ -z "$WB_PGID" ] || /bin/kill -TERM -- "-$WB_PGID" >/dev/null 2>&1 || true
   docker rm -f "$CORPUS_SMOKE_NAME" >/dev/null 2>&1 || true
   docker volume rm "$CORPUS_SMOKE_NAME-data" >/dev/null 2>&1 || true
   rm -rf "$TMP"
 }
 trap cleanup EXIT
 
-echo "=== install-smoke: pack the CLI ==="
+echo "=== install-smoke: pack the CLI and the workbench ==="
 ( cd packages/cli && npm pack --pack-destination "$TMP" 2>&1 | tail -1 )
-TARBALL="$(ls "$TMP"/*.tgz)"
+( cd packages/workbench && npm pack --pack-destination "$TMP" 2>&1 | tail -1 )
 
-bin/container-smoke --keep
-
-echo "=== install-smoke: seed the client project inside the container ==="
-TOKEN="$(openssl rand -hex 24)"
-docker exec -e TOKEN="$TOKEN" "$CORPUS_SMOKE_NAME" node -e '
-  const Database = require("/app/node_modules/better-sqlite3");
-  const { createHash } = require("node:crypto");
-  const db = new Database("/data/corpus.db");
-  const hash = createHash("sha256").update(process.env.TOKEN).digest("hex");
-  db.prepare("insert into projects (slug, name, source_language, languages, token_hash, created_at) values (?, ?, ?, ?, ?, ?)")
-    .run("install-smoke", "Install smoke", "en", JSON.stringify(["en", "pt-PT"]), hash, Date.now());
-  console.log("seeded project install-smoke");
-'
-
-echo "=== install-smoke: a fresh repository, the tarball installed ==="
+echo "=== install-smoke: a fresh repository, both tarballs installed ==="
 CLIENT="$TMP/client"
 mkdir -p "$CLIENT/src/i18n"
 cat > "$CLIENT/src/i18n/en.json" <<'JSON'
@@ -44,56 +35,107 @@ cat > "$CLIENT/src/i18n/en.json" <<'JSON'
   "farewell": "Goodbye"
 }
 JSON
-( cd "$CLIENT" && npm init -y >/dev/null && npm install --no-audit --no-fund "$TARBALL" 2>&1 | tail -1 )
+( cd "$CLIENT" && npm init -y >/dev/null && printf 'node_modules\n' > .gitignore && npm install --no-audit --no-fund "$TMP"/*.tgz 2>&1 | tail -1 )
 [ ! -e "$CLIENT/node_modules/.bin/tsx" ] || { echo "the client got tsx; the bin must run on plain node" >&2; exit 1; }
 head -1 "$CLIENT/node_modules/@corpus-tool/cli/dist/bin.js" | grep -q '^#!/usr/bin/env node$' || { echo "the bin's shebang is not plain node" >&2; exit 1; }
+[ ! -e "$CLIENT/node_modules/@corpus-tool/workbench/node_modules" ] || { echo "the workbench tarball carried a node_modules" >&2; exit 1; }
 
 cd "$CLIENT"
-export CORPUS_TOKEN="$TOKEN"
-SERVER="http://127.0.0.1:$CORPUS_SMOKE_PORT"
 
-echo "=== install-smoke: init ==="
-npx corpus init --project install-smoke --source en --languages en,pt-PT \
-  --messages "src/i18n/{lang}.json" --server "$SERVER"
-grep -q '@corpus-tool/cli' corpus.config.ts
-# Declarations as a real project has them (§5); the push must carry them.
-node -e '
-  const fs = require("node:fs");
-  const src = fs.readFileSync("corpus.config.ts", "utf8");
-  const decl = `  stringTypes: { chrome: { tone: { type: "enum", description: "How the line reads.", values: ["plain", "urgent"] } } },\n  entityTypes: { room: { label: "Room" } },\n  sources:`;
-  if (!src.includes("  sources:")) throw new Error("no sources in the generated config");
-  fs.writeFileSync("corpus.config.ts", src.replace("  sources:", decl));
+# The client's own copy of the SQLite binding (a dependency of the
+# workbench) reads and seeds the local database; the container is
+# seeded through docker exec. Both insert the same project row.
+SEED_JS='
+  const Database = require(process.env.SQLITE_MODULE);
+  const { createHash } = require("node:crypto");
+  const db = new Database(process.env.DB);
+  const hash = createHash("sha256").update(process.env.TOKEN).digest("hex");
+  db.prepare("insert into projects (slug, name, source_language, languages, token_hash, created_at) values (?, ?, ?, ?, ?, ?)")
+    .run("install-smoke", "Install smoke", "en", JSON.stringify(["en", "pt-PT"]), hash, Date.now());
+  console.log("seeded project install-smoke");
 '
-
-# What the repository looks like before Corpus touches it.
-cp -r "$CLIENT" "$TMP/before" && rm -rf "$TMP/before/node_modules"
-same_as_before() {
-  diff -r --exclude=node_modules --exclude=package-lock.json "$TMP/before" "$CLIENT" \
-    || { echo "pull changed the repository ($1)" >&2; exit 1; }
-}
-
-echo "=== install-smoke: push ==="
-npx corpus push | tee "$TMP/push.log"
-grep -q "2 added" "$TMP/push.log"
-docker exec "$CORPUS_SMOKE_NAME" node -e '
-  const Database = require("/app/node_modules/better-sqlite3");
-  const row = new Database("/data/corpus.db").prepare("select string_types, entity_types from projects where slug = ?").get("install-smoke");
+DECL_JS='
+  const Database = require(process.env.SQLITE_MODULE);
+  const row = new Database(process.env.DB).prepare("select string_types, entity_types from projects where slug = ?").get("install-smoke");
   if (!row.string_types?.includes("tone") || !row.entity_types?.includes("Room")) {
     console.error("the push did not carry the declarations:", row); process.exit(1);
   }
   console.log("the instance holds the declarations");
 '
 
-echo "=== install-smoke: pull at untranslated must reproduce the repository ==="
-npx corpus pull --min-state untranslated
-same_as_before "untranslated"
+same_as_before() {
+  diff -r --exclude=node_modules --exclude=package-lock.json --exclude=.corpus "$TMP/before" "$CLIENT" \
+    || { echo "pull changed the repository ($1)" >&2; exit 1; }
+}
 
-echo "=== install-smoke: pull at verified must write nothing ==="
-npx corpus pull
-same_as_before "verified"
+# The loop against one instance: init (or repoint) the config, snapshot
+# the repository, push, check the declarations, pull at both states,
+# push again. $1 server URL, $2 token, $3 the command that checks the
+# declarations on that instance's database.
+loop() {
+  local server="$1" token="$2" check="$3"
+  export CORPUS_TOKEN="$token"
+  if [ ! -e corpus.config.ts ]; then
+    echo "=== install-smoke: init ==="
+    npx corpus init --project install-smoke --source en --languages en,pt-PT \
+      --messages "src/i18n/{lang}.json" --server "$server"
+    grep -q '@corpus-tool/cli' corpus.config.ts
+    # Declarations as a real project has them (§5); the push must carry them.
+    node -e '
+      const fs = require("node:fs");
+      const src = fs.readFileSync("corpus.config.ts", "utf8");
+      const decl = `  stringTypes: { chrome: { tone: { type: "enum", description: "How the line reads.", values: ["plain", "urgent"] } } },\n  entityTypes: { room: { label: "Room" } },\n  sources:`;
+      if (!src.includes("  sources:")) throw new Error("no sources in the generated config");
+      fs.writeFileSync("corpus.config.ts", src.replace("  sources:", decl));
+    '
+  else
+    sed -i "s|server: \"[^\"]*\"|server: \"$server\"|" corpus.config.ts
+    grep -q "$server" corpus.config.ts
+  fi
+  rm -rf "$TMP/before"; cp -r "$CLIENT" "$TMP/before"; rm -rf "$TMP/before/node_modules" "$TMP/before/.corpus"
 
-echo "=== install-smoke: push again is a no-op diff ==="
-npx corpus push | tee "$TMP/push2.log"
-grep -q "0 added" "$TMP/push2.log"
+  echo "=== install-smoke: push ==="
+  npx corpus push | tee "$TMP/push.log"
+  grep -q "2 added" "$TMP/push.log"
+  eval "$check"
+
+  echo "=== install-smoke: pull at untranslated must reproduce the repository ==="
+  npx corpus pull --min-state untranslated
+  same_as_before "untranslated"
+
+  echo "=== install-smoke: pull at verified must write nothing ==="
+  npx corpus pull
+  same_as_before "verified"
+
+  echo "=== install-smoke: push again is a no-op diff ==="
+  npx corpus push | tee "$TMP/push2.log"
+  grep -q "0 added" "$TMP/push2.log"
+}
+
+echo "=== install-smoke: corpus workbench, no Docker ==="
+setsid npx corpus workbench --port "$WB_PORT" > "$TMP/workbench.log" 2>&1 < /dev/null &
+WB_PGID="$!"
+for _ in $(seq 1 120); do
+  curl -sf "http://localhost:$WB_PORT/api/health" >/dev/null 2>&1 && break
+  kill -0 "$WB_PGID" 2>/dev/null || { cat "$TMP/workbench.log" >&2; echo "corpus workbench exited" >&2; exit 1; }
+  sleep 0.5
+done
+curl -sf "http://localhost:$WB_PORT/api/health" >/dev/null || { cat "$TMP/workbench.log" >&2; echo "corpus workbench did not answer" >&2; exit 1; }
+grep -q "is running at http://localhost:$WB_PORT" "$TMP/workbench.log"
+[ -f .corpus/secret ] && [ -f .corpus/corpus.db ] || { echo ".corpus/ lacks the secret or the database" >&2; exit 1; }
+grep -qx '.corpus/' .gitignore
+TOKEN_WB="$(openssl rand -hex 24)"
+SQLITE_MODULE="$CLIENT/node_modules/better-sqlite3" DB="$CLIENT/.corpus/corpus.db" TOKEN="$TOKEN_WB" node -e "$SEED_JS"
+loop "http://localhost:$WB_PORT" "$TOKEN_WB" "SQLITE_MODULE='$CLIENT/node_modules/better-sqlite3' DB='$CLIENT/.corpus/corpus.db' node -e \"\$DECL_JS\""
+/bin/kill -TERM -- "-$WB_PGID"; WB_PGID=""
+for _ in $(seq 1 40); do curl -sf "http://localhost:$WB_PORT/api/health" >/dev/null 2>&1 || break; sleep 0.5; done
+curl -sf "http://localhost:$WB_PORT/api/health" >/dev/null 2>&1 && { echo "the workbench kept running after the command was stopped" >&2; exit 1; }
+echo "=== install-smoke: the workbench stopped with the command ==="
+
+echo "=== install-smoke: the container ==="
+( cd "$OLDPWD" && bin/container-smoke --keep )
+TOKEN_CT="$(openssl rand -hex 24)"
+docker exec -e TOKEN="$TOKEN_CT" -e SQLITE_MODULE=/app/node_modules/better-sqlite3 -e DB=/data/corpus.db "$CORPUS_SMOKE_NAME" node -e "$SEED_JS"
+loop "http://127.0.0.1:$CORPUS_SMOKE_PORT" "$TOKEN_CT" "docker exec -e SQLITE_MODULE=/app/node_modules/better-sqlite3 -e DB=/data/corpus.db '$CORPUS_SMOKE_NAME' node -e \"\$DECL_JS\""
 
 echo "=== install-smoke: PASS ==="
