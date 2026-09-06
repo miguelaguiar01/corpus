@@ -2,19 +2,19 @@
 // never discovers strings.
 import { z } from "zod";
 import { entityTypeDeclarationSchema } from "./snapshot";
-import { fieldDeclarationSchema } from "./strings";
+import { fieldDeclarationSchema, identifier, languageCode } from "./strings";
 
 export const sourceSchema = z.discriminatedUnion("adapter", [
   z.looseObject({
     adapter: z.literal("messages"),
-    type: z.string().min(1),
+    type: identifier(),
     path: z
       .string()
       .refine((p) => p.includes("{lang}"), "path must contain {lang}"),
   }),
   z.looseObject({
     adapter: z.literal("table"),
-    type: z.string().min(1),
+    type: identifier(),
     path: z.string().min(1),
     map: z.looseObject({ id: z.string().min(1), text: z.string().min(1) }),
   }),
@@ -27,10 +27,10 @@ export const sourceSchema = z.discriminatedUnion("adapter", [
 
 export const corpusConfigSchema = z
   .looseObject({
-    project: z.string().min(1),
+    project: identifier(),
     server: z.string().min(1),
-    sourceLanguage: z.string().min(1),
-    languages: z.array(z.string().min(1)).min(1),
+    sourceLanguage: languageCode(),
+    languages: z.array(languageCode()).min(1),
     stringTypes: z
       .record(z.string(), z.record(z.string(), fieldDeclarationSchema))
       .optional(),

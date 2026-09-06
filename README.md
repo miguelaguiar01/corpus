@@ -11,6 +11,7 @@
   <img alt="TypeScript, strict" src="https://img.shields.io/badge/typescript-strict-333333">
   <img alt="Single container, SQLite" src="https://img.shields.io/badge/deploy-one%20container%2C%20SQLite-333333">
   <a href="https://www.npmjs.com/package/@corpus-tool/cli"><img alt="npm" src="https://img.shields.io/npm/v/%40corpus-tool%2Fcli?color=333333&label=%40corpus-tool%2Fcli"></a>
+  <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-333333">
 </p>
 
 <p align="center">
@@ -50,7 +51,7 @@ docker run -d --name corpus \
   corpus
 ```
 
-Open http://localhost:3000, enter the invite secret you just set and a display name. The first person to join becomes the instance maintainer. All data lives in the `corpus-data` volume; the container is disposable.
+Open http://localhost:3000, join with the invite secret you just set, a display name, and a password. The first person to join becomes the instance maintainer; anyone with the secret can join, and after that they sign in with their name and password. A maintainer can reset a forgotten password from the settings page. All data lives in the `corpus-data` volume; the container is disposable.
 
 With Docker Compose, or a PaaS that reads `compose.yaml`:
 
@@ -98,7 +99,7 @@ npx corpus check                      # lint: user-facing literals outside decla
 
 Pushing is a diff by string id: new ids are added, changed source text marks its translations stale, ids that disappear are archived with their history kept. Pulling writes translations back and prints only the files it changed. Node 22 or later; a TypeScript config needs no build step.
 
-Structured sources, `table` records with metadata fields or an `exec` command that emits entries, are described in the [design spec, §3](docs/corpus-design.md).
+Structured sources, `table` records with metadata fields or an `exec` command that emits entries, are described in the [design spec, §3](docs/corpus-design.md). Note that `corpus push` and `corpus pull` run the repository's own `corpus.config.ts` and any `exec` commands it declares, so run them only in repositories you trust, as you would their build scripts.
 
 ## How it works
 
@@ -114,7 +115,7 @@ Source text and metadata belong to the repository; translations and workflow sta
 | Catalogue | Every string, searched (accent-insensitive full text) and filtered by type, state, language, and the project's own metadata.                              |
 | Editor    | The source with its branches, placeholders, metadata, entities and examples on one side; the draft with chips, validation and live previews on the other. |
 | Entities  | Read-only cards for the characters, rooms and other objects the strings refer to.                                                                         |
-| Settings  | The push token, languages, push history, and the people on the instance. Maintainers only.                                                                |
+| Settings  | The push token, languages, push history, and the people on the instance, with password resets. Maintainers only.                                         |
 
 ## Screens
 
@@ -169,6 +170,7 @@ Environment variables are documented in [`apps/web/.env.example`](apps/web/.env.
 | `CORPUS_INVITE_SECRET` | required, from `apps/web/.env` | `-e` at `docker run`            |
 | `CORPUS_DB_PATH`       | `apps/web/data/corpus.db`      | `/data/corpus.db` on the volume |
 | `PORT`                 | `3000`                         | `3000`                          |
+| `CORPUS_PUBLIC_URL`    | unset                          | the public origin, behind a proxy |
 
 Migrations apply automatically when the app starts, and the boot log names the database file it opened.
 
@@ -198,3 +200,7 @@ The database is created on first start at `apps/web/data/corpus.db` and is gitig
 ## Status
 
 The MVP is complete, the interface has been through a full design pass, and the CLI ships on npm as `@corpus-tool/cli`. Corpus runs its own translation into Portuguese from this repository, on every build, and every release installs the packed CLI into a fresh repository and round-trips it before publishing. Next: a first outside project, with its feedback folded back in.
+
+## License
+
+[MIT](LICENSE).

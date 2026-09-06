@@ -1,8 +1,16 @@
+import { eq } from "drizzle-orm";
 import { expect, test } from "vitest";
 import { users } from "@/db/schema";
 import { memoryDb } from "@/db/test-helpers";
+import { createSession, getSessionUser, signIn } from "@/auth/service";
+import { hashPassword } from "@/auth/password";
 import { createProject, findProjectByToken, getProjectBySlug } from "./service";
-import { rotateToken, setMaintainer, updateLanguages } from "./settings";
+import {
+  resetUserPassword,
+  rotateToken,
+  setMaintainer,
+  updateLanguages,
+} from "./settings";
 
 function seed() {
   const db = memoryDb();
@@ -65,6 +73,17 @@ test("updateLanguages keeps the source language and dedupes", () => {
   expect(getProjectBySlug(db, "mm")?.languages).toEqual(["pt-PT"]);
 });
 
+test("updateLanguages rejects language codes that are not codes", () => {
+  const { db, ana, project } = seed();
+  expect(updateLanguages(db, project.id, ["en", "not a code"], ana)).toEqual({
+    ok: false,
+    reason: "invalid",
+  });
+  expect(updateLanguages(db, project.id, ["en", "es-419"], ana)).toEqual({
+    ok: true,
+  });
+});
+
 test("updateLanguages rejects blanks and non-maintainers", () => {
   const { db, ana, rui, project } = seed();
   expect(updateLanguages(db, project.id, ["  "], ana)).toEqual({
@@ -109,4 +128,45 @@ test("the last maintainer cannot be demoted", () => {
       .all()
       .find((u) => u.id === ana.id)?.maintainer,
   ).toBe(true);
+});
+
+test("demotion ends the person's sessions; promotion leaves them alone", () => {
+  const { db, ana, rui } = seed();
+  const ruiSession = createSession(db, rui.id);
+  const anaSession = createSession(db, ana.id);
+  expect(setMaintainer(db, rui.id, true, ana)).toEqual({ ok: true });
+  expect(getSessionUser(db, ruiSession)?.name).toBe("rui");
+  expect(setMaintainer(db, rui.id, false, ana)).toEqual({ ok: true });
+  expect(getSessionUser(db, ruiSession)).toBeUndefined();
+  expect(getSessionUser(db, anaSession)?.name).toBe("ana");
+});
+
+test("resetUserPassword is maintainer-only and needs a real user", () => {
+  const { db, ana, rui } = seed();
+  expect(resetUserPassword(db, ana.id, rui)).toEqual({
+    ok: false,
+    reason: "forbidden",
+  });
+  expect(resetUserPassword(db, 999, ana)).toEqual({
+    ok: false,
+    reason: "not-found",
+  });
+});
+
+test("resetUserPassword ends sessions and hands out a temporary password once", () => {
+  const { db, ana, rui } = seed();
+  db.update(users)
+    .set({ passwordHash: hashPassword("rui's password") })
+    .where(eq(users.id, rui.id))
+    .run();
+  const session = createSession(db, rui.id);
+  const result = resetUserPassword(db, rui.id, ana);
+  if (!result.ok) throw new Error(result.reason);
+  expect(result.temporary).toMatch(/^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$/);
+  expect(getSessionUser(db, session)).toBeUndefined();
+  expect(signIn(db, { name: "rui", password: "rui's password" }).ok).toBe(
+    false,
+  );
+  const next = signIn(db, { name: "rui", password: result.temporary });
+  expect(next.ok && next.mustChangePassword).toBe(true);
 });

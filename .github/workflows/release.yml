@@ -18,10 +18,10 @@ jobs:
     name: release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # No registry-url here: with it, setup-node writes an .npmrc whose
       # empty auth token stops npm from doing the OIDC exchange.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
       - name: The npm this workflow was checked with (trusted publishing needs 11.5.1 or later)
@@ -29,7 +29,7 @@ jobs:
       - run: npm ci
       - name: The tag names the package version
         run: bin/release-check "${GITHUB_REF_NAME}"
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
       - name: The packed CLI round-trips a fresh repository
         run: bin/install-smoke
       - name: Publish

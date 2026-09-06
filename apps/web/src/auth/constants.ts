@@ -1,11 +1,14 @@
-// Dependency-free auth constants: importable from the edge middleware
+// Dependency-free auth constants: importable from the edge proxy
 // (which cannot load SQLite) and from server code alike, so cookie name,
 // route, limits, and error vocabulary each have exactly one home.
 import type { MessageKey } from "@/i18n";
 
 export const SESSION_COOKIE = "corpus_session";
+// Sessions end after this long without use (§10).
+export const SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 
 export const INVITE_PATH = "/invite";
+export const PASSWORD_PATH = "/password";
 
 export const MAX_NAME_LENGTH = 80;
 
@@ -14,6 +17,9 @@ export const MAX_NAME_LENGTH = 80;
 // both import this, so adding a code is a one-file change.
 export const INVITE_ERROR_MESSAGES = {
   invalid: "invite.errorInvalid",
+  credentials: "invite.errorCredentials",
+  "name-taken": "invite.errorNameTaken",
+  "weak-password": "invite.errorWeakPassword",
   "rate-limited": "invite.errorRateLimited",
 } as const satisfies Record<string, MessageKey>;
 

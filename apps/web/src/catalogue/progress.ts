@@ -35,10 +35,17 @@ export function progressCounts(db: Db, projectId: number): Progress {
     .where(and(eq(strings.projectId, projectId), eq(strings.archived, false)))
     .all();
 
-  const progress: Progress = { perLanguage: {}, perType: {} };
+  // Keys come from pushed data; null-prototype maps keep a key such as
+  // __proto__ an ordinary key.
+  const progress: Progress = {
+    perLanguage: Object.create(null) as Progress["perLanguage"],
+    perType: Object.create(null) as Progress["perType"],
+  };
   for (const row of rows) {
     const lang = (progress.perLanguage[row.language] ??= emptyProgress());
-    const byType = (progress.perType[row.type] ??= {});
+    const byType = (progress.perType[row.type] ??= Object.create(
+      null,
+    ) as Record<string, LanguageProgress>);
     const typeLang = (byType[row.language] ??= emptyProgress());
     for (const bucket of [lang, typeLang]) {
       bucket[row.state as TranslationState] += 1;

@@ -242,3 +242,23 @@ web app keeps `git describe` as its build identity.
 leaked secret could publish.
 
 **Context:** #205; epic #199.
+
+## 2026-09-05 — Accounts are a name and a password in the instance database
+
+**Decision:** joining an instance takes the invite secret, a display
+name, and a password; signing in takes the name and password. Passwords
+are scrypt hashes in SQLite beside the users they belong to. A taken name
+is refused, so the invite secret no longer lets anyone become anyone; an
+account created before passwords existed is claimed by the first join
+with its name. Maintainers reset passwords from the settings page (a
+temporary password shown once, sessions ended, a new password forced at
+the next sign-in). Sessions are server-side rows that sign-out, a reset,
+and demotion end; they expire after ninety days of disuse. No e-mail, no
+external identity provider, no self-service recovery.
+
+**Why:** the pre-publish audit found that the shared secret alone made
+every display name impersonable by anyone who had it, and that nothing
+ever ended a session. A password per person closes both without adding a
+service, which is the constraint the whole deployment story rests on.
+
+**Context:** #220, #219; audit #216.

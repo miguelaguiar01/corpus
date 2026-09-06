@@ -14,15 +14,21 @@ import { users } from "@/db/schema";
 import {
   rotateProjectToken,
   saveLanguages,
+  resetPasswordAction,
   toggleMaintainer,
 } from "@/projects/actions";
-import { NEW_TOKEN_COOKIE } from "@/projects/constants";
+import { NEW_TOKEN_COOKIE, RESET_PASSWORD_COOKIE } from "@/projects/constants";
 import { getProjectBySlug } from "@/projects/service";
 import { pushHistory } from "@/pushes/history";
 import { t, type MessageKey } from "@/i18n";
 import { appVersion } from "@/version";
 
-type Query = { token?: string; saved?: string; error?: string };
+type Query = {
+  token?: string;
+  reset?: string;
+  saved?: string;
+  error?: string;
+};
 
 const ERROR_KEY: Record<string, MessageKey> = {
   forbidden: "settings.errorForbidden",
@@ -53,6 +59,16 @@ export default async function SettingsPage({
   const newToken =
     query.token === "1"
       ? (await cookies()).get(NEW_TOKEN_COOKIE)?.value
+      : undefined;
+  // Likewise the temporary password a reset just issued, tied to the
+  // person it was issued for so a stale cookie cannot be shown for another.
+  const resetCookie = query.reset
+    ? (await cookies()).get(RESET_PASSWORD_COOKIE)?.value
+    : undefined;
+  const resetFor = people.find((p) => String(p.id) === query.reset);
+  const temporaryPassword =
+    resetCookie && resetFor && resetCookie.startsWith(`${resetFor.id}:`)
+      ? resetCookie.slice(`${resetFor.id}:`.length)
       : undefined;
   const errorKey = query.error
     ? (ERROR_KEY[query.error] ?? "settings.errorInvalid")
@@ -162,6 +178,17 @@ export default async function SettingsPage({
           description={t("settings.usersIntro")}
           className="py-8"
         >
+          {temporaryPassword && resetFor && (
+            <Banner tone="success" className="space-y-2">
+              <p>{t("settings.resetDone", { name: resetFor.name })}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <code className="block rounded-md border border-border bg-background px-3 py-2 font-mono">
+                  {temporaryPassword}
+                </code>
+                <CopyButton value={temporaryPassword} />
+              </div>
+            </Banner>
+          )}
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -186,21 +213,38 @@ export default async function SettingsPage({
                         ? t("settings.roleMaintainer")
                         : t("settings.roleTranslator")}
                     </td>
-                    <td className="py-2 text-right">
-                      <form action={toggleMaintainer}>
-                        <input type="hidden" name="slug" value={slug} />
-                        <input type="hidden" name="userId" value={person.id} />
-                        <input
-                          type="hidden"
-                          name="maintainer"
-                          value={person.maintainer ? "0" : "1"}
-                        />
-                        <Button type="submit" variant="outline" size="sm">
-                          {person.maintainer
-                            ? t("settings.demote")
-                            : t("settings.promote")}
-                        </Button>
-                      </form>
+                    <td className="py-2">
+                      <div className="flex justify-end gap-2">
+                        <form action={resetPasswordAction}>
+                          <input type="hidden" name="slug" value={slug} />
+                          <input
+                            type="hidden"
+                            name="userId"
+                            value={person.id}
+                          />
+                          <Button type="submit" variant="ghost" size="sm">
+                            {t("settings.resetPassword")}
+                          </Button>
+                        </form>
+                        <form action={toggleMaintainer}>
+                          <input type="hidden" name="slug" value={slug} />
+                          <input
+                            type="hidden"
+                            name="userId"
+                            value={person.id}
+                          />
+                          <input
+                            type="hidden"
+                            name="maintainer"
+                            value={person.maintainer ? "0" : "1"}
+                          />
+                          <Button type="submit" variant="outline" size="sm">
+                            {person.maintainer
+                              ? t("settings.demote")
+                              : t("settings.promote")}
+                          </Button>
+                        </form>
+                      </div>
                     </td>
                   </tr>
                 ))}

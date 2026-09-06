@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { defineCorpus } from "./config";
+import { corpusConfigSchema, defineCorpus } from "./config";
 
 test("the §3 example config validates and round-trips", () => {
   const config = defineCorpus({
@@ -103,4 +103,24 @@ test("exec sources may name a companion import command (§3 pull)", () => {
   });
   const exec = config.sources[0];
   expect(exec?.adapter === "exec" && exec.importCommand).toBe("import");
+});
+
+test("language codes must be tags such as en or pt-PT", () => {
+  const base = {
+    project: "p",
+    server: "http://localhost:3000",
+    sourceLanguage: "en",
+    languages: ["en", "pt-PT"],
+    sources: [
+      { adapter: "messages", type: "chrome", path: "i18n/{lang}.json" },
+    ],
+  };
+  expect(corpusConfigSchema.safeParse(base).success).toBe(true);
+  expect(
+    corpusConfigSchema.safeParse({ ...base, languages: ["en", "__proto__"] })
+      .success,
+  ).toBe(false);
+  expect(
+    corpusConfigSchema.safeParse({ ...base, project: "my project" }).success,
+  ).toBe(false);
 });

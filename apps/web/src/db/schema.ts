@@ -17,6 +17,14 @@ import type { TranslationState } from "@/translations/state";
 export const users = sqliteTable("users", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull().unique(),
+  // scrypt hash (auth/password.ts); null until the account has set one,
+  // which an account created before passwords existed does at its next
+  // sign-in with the invite secret.
+  passwordHash: text("password_hash"),
+  // Set by a maintainer's reset: the next sign-in must choose a new one.
+  passwordTemporary: integer("password_temporary", { mode: "boolean" })
+    .notNull()
+    .default(false),
   maintainer: integer("maintainer", { mode: "boolean" })
     .notNull()
     .default(false),

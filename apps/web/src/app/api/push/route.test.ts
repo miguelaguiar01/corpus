@@ -1,4 +1,5 @@
 import { moonlightManor } from "@corpus/contract";
+import { MAX_BODY_BYTES } from "@/api/limits";
 import { expect, test, vi } from "vitest";
 import { users } from "@/db/schema";
 import { memoryDb } from "@/db/test-helpers";
@@ -82,4 +83,12 @@ test("a token for a different project → 403", async () => {
   const { token } = setup();
   const res = await push(token, forProject("some-other-project"));
   expect(res.status).toBe(403);
+});
+
+test("a body over the cap → 413 before it is parsed", async () => {
+  const { token, slug } = setup();
+  const snap = forProject(slug);
+  snap.strings[0]!.source = "x".repeat(MAX_BODY_BYTES + 1);
+  const res = await push(token, snap);
+  expect(res.status).toBe(413);
 });

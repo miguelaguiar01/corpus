@@ -11,9 +11,9 @@ data
 *.db-journal
 *.db-wal
 *.db-shm
-.env
-.env.*
-!.env.example
+**/.env
+**/.env.*
+!**/.env.example
 coverage
 *.md
 **/*.tsbuildinfo
