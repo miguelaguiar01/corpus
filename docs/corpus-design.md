@@ -103,7 +103,7 @@ export default defineCorpus({
 });
 ```
 
-`corpus build` runs the sources and validates the snapshot with no server (`--out <file>` writes it); `push` does the same before it needs a token. Both name every source that cannot take translations back: an `exec` source without `importCommand`, a `messages` or `table` path without `{lang}`, or one that is not `.json` (a `.ts` or `.js` catalogue pushes, but pull rewrites files in place and writes JSON only).
+`corpus workbench [--port <n>] [--db <path>] [--open]` starts the instance of §2's first shape from the repository and prints its URL and secret. `corpus build` runs the sources and validates the snapshot with no server (`--out <file>` writes it); `push` does the same before it needs a token. Both name every source that cannot take translations back: an `exec` source without `importCommand`, a `messages` or `table` path without `{lang}`, or one that is not `.json` (a `.ts` or `.js` catalogue pushes, but pull rewrites files in place and writes JSON only).
 
 **Completeness is enforced client-side, not guessed:** `corpus check` is a lint pass that flags suspicious user-facing string literals outside declared source files (heuristic, à la eslint-plugin-i18next; an ignore list of path prefixes or globs such as `**/*.test.tsx`). Client repos wire it into their CI gate. Config declares where text lives; `check` ensures text only lives there; therefore `push` is complete by construction.
 

@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+### Added
+
+- `corpus workbench [--port <n>] [--db <path>] [--open]` starts an instance from the repository with `@corpus-tool/workbench` installed beside the CLI: database and a generated secret under `.corpus/` (added to `.gitignore`), the URL and the secret printed once it answers, Ctrl-C stops it.
+
 ## [0.3.1] - 2026-09-06
 
 ### Fixed
