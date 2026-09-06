@@ -193,6 +193,7 @@ The database is created on first start at `apps/web/data/corpus.db` and is gitig
 ## Documentation
 
 - [`docs/corpus-design.md`](docs/corpus-design.md), the binding design: the data model, the ICU subset, sync semantics, the round-trip invariant, and what Corpus deliberately does not do.
+- [`docs/handoff.md`](docs/handoff.md), installing Corpus in a project of your own: structured text, entities, the three source adapters, and what to report back.
 - [`docs/design.md`](docs/design.md), the visual system.
 - [`docs/DECISIONS.md`](docs/DECISIONS.md), architecture decisions as they were made.
 - [`AGENTS.md`](AGENTS.md), how work happens here: the spec is binding, the gate must pass before a PR, every PR is reviewed by someone other than its author, and the round-trip invariant is never merged red.
