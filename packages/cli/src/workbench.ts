@@ -129,6 +129,10 @@ export async function workbench(
   const stop = () => {
     if (child.exitCode === null) child.kill("SIGTERM");
   };
+  const release = () => {
+    process.off("SIGINT", stop);
+    process.off("SIGTERM", stop);
+  };
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);
 
@@ -139,6 +143,7 @@ export async function workbench(
   ]);
   if (!up) {
     stop();
+    release();
     throw new CliError(
       `the workbench did not answer at ${url} within ${HEALTH_TIMEOUT_MS / 1000}s`,
     );
@@ -156,9 +161,11 @@ export async function workbench(
 
   return new Promise<number>((resolve) => {
     child.once("exit", (code, signal) => {
-      process.off("SIGINT", stop);
-      process.off("SIGTERM", stop);
-      resolve(signal ? 0 : (code ?? 0));
+      release();
+      // Stopped by the person (through this command) is a clean exit;
+      // any other signal is a failure worth an exit code.
+      const stopped = signal === "SIGTERM" || signal === "SIGINT";
+      resolve(signal ? (stopped ? 0 : 1) : (code ?? 0));
     });
   });
 }
@@ -170,9 +177,8 @@ function openBrowser(url: string): void {
       : process.platform === "win32"
         ? ["cmd", ["/c", "start", "", url]]
         : ["xdg-open", [url]];
-  try {
-    spawn(command, args, { detached: true, stdio: "ignore" }).unref();
-  } catch {
-    // no browser to open; the URL is printed
-  }
+  // A missing opener fails asynchronously; the URL is printed anyway.
+  const opener = spawn(command, args, { detached: true, stdio: "ignore" });
+  opener.on("error", () => {});
+  opener.unref();
 }
