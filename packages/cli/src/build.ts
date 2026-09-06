@@ -37,11 +37,22 @@ export async function buildSnapshot(
     // Push reads the source-language file; a table path may carry {lang}
     // too when its translations are pulled back per language (§8).
     const file = source.path.replace("{lang}", config.sourceLanguage);
-    const data = await readModule(jiti, path.join(cwd, file));
-    const entries =
-      source.adapter === "messages"
-        ? messagesToEntries(data, { type: source.type })
-        : tableToEntries(data, { type: source.type, map: source.map });
+    let entries: StringEntry[];
+    try {
+      const data = await readModule(
+        jiti,
+        path.join(cwd, file),
+        source.adapter === "table" ? source.export : undefined,
+      );
+      entries =
+        source.adapter === "messages"
+          ? messagesToEntries(data, { type: source.type })
+          : tableToEntries(data, { type: source.type, map: source.map });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      errors.push(`${file}: ${message}`);
+      continue;
+    }
     for (const entry of entries) validateEntry(entry, file, sourced, errors);
   }
 
@@ -133,7 +144,15 @@ function collectExec(
 async function readModule(
   jiti: ReturnType<typeof createJiti>,
   abs: string,
+  exportName?: string,
 ): Promise<unknown> {
   if (abs.endsWith(".json")) return JSON.parse(readFileSync(abs, "utf8"));
-  return jiti.import(abs, { default: true });
+  if (exportName === undefined) return jiti.import(abs, { default: true });
+  const mod = (await jiti.import(abs)) as Record<string, unknown>;
+  if (!(exportName in mod)) {
+    throw new Error(
+      `the module has no export named ${JSON.stringify(exportName)}`,
+    );
+  }
+  return mod[exportName];
 }

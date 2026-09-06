@@ -16,7 +16,15 @@ export const sourceSchema = z.discriminatedUnion("adapter", [
     adapter: z.literal("table"),
     type: identifier(),
     path: z.string().min(1),
-    map: z.looseObject({ id: z.string().min(1), text: z.string().min(1) }),
+    // The module's default export, or the named export `export` names.
+    export: z.string().min(1).optional(),
+    // Fields beside id and text become metadata: all of them, or only
+    // the ones `metadata` lists.
+    map: z.looseObject({
+      id: z.string().min(1),
+      text: z.string().min(1),
+      metadata: z.array(z.string().min(1)).optional(),
+    }),
   }),
   z.looseObject({
     adapter: z.literal("exec"),

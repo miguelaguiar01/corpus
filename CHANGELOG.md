@@ -7,6 +7,14 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+### Added
+
+- `table` sources read a named export (`export: "STEPS"`) and can list the fields to carry as metadata (`map.metadata`).
+
+### Fixed
+
+- Table and messages errors name the source file and no longer escape as stack traces; a non-scalar table field names `map.metadata` as the way to leave it out.
+
 ## [0.1.1] - 2026-09-06
 
 ### Fixed

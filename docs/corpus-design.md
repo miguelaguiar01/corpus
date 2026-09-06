@@ -82,6 +82,9 @@ export default defineCorpus({
     //    fields (which is the id, the text, which become metadata).
     { adapter: "table", type: "tutorial-step", path: "src/tutorial/steps.ts",
       map: { id: "id", text: "text" } },
+    //    The module's default export, or `export: "STEPS"` for a named one.
+    //    Every other field of a record becomes metadata, or only the ones
+    //    `map.metadata: ["scene"]` lists.
 
     // 3. Custom exporter hook: a script in the client repo that emits
     //    snapshot entries (strings and/or entities) directly. Used when only
