@@ -15,7 +15,7 @@ WB_PORT="${CORPUS_INSTALL_WB_PORT:-3905}"
 TMP="$(mktemp -d)"
 WB_PGID=""
 cleanup() {
-  [ -z "$WB_PGID" ] || /bin/kill -TERM -- "-$WB_PGID" >/dev/null 2>&1 || true
+  [ -z "$WB_PGID" ] || kill -TERM -- "-$WB_PGID" >/dev/null 2>&1 || true
   docker rm -f "$CORPUS_SMOKE_NAME" >/dev/null 2>&1 || true
   docker volume rm "$CORPUS_SMOKE_NAME-data" >/dev/null 2>&1 || true
   rm -rf "$TMP"
@@ -127,7 +127,7 @@ grep -qx '.corpus/' .gitignore
 TOKEN_WB="$(openssl rand -hex 24)"
 SQLITE_MODULE="$CLIENT/node_modules/better-sqlite3" DB="$CLIENT/.corpus/corpus.db" TOKEN="$TOKEN_WB" node -e "$SEED_JS"
 loop "http://localhost:$WB_PORT" "$TOKEN_WB" "SQLITE_MODULE='$CLIENT/node_modules/better-sqlite3' DB='$CLIENT/.corpus/corpus.db' node -e \"\$DECL_JS\""
-/bin/kill -TERM -- "-$WB_PGID"; WB_PGID=""
+kill -TERM -- "-$WB_PGID"; WB_PGID=""
 for _ in $(seq 1 40); do curl -sf "http://localhost:$WB_PORT/api/health" >/dev/null 2>&1 || break; sleep 0.5; done
 curl -sf "http://localhost:$WB_PORT/api/health" >/dev/null 2>&1 && { echo "the workbench kept running after the command was stopped" >&2; exit 1; }
 echo "=== install-smoke: the workbench stopped with the command ==="

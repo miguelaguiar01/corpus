@@ -9,7 +9,7 @@
   <a href="https://github.com/miguelaguiar01/corpus/actions/workflows/gate.yml"><img alt="CI" src="https://github.com/miguelaguiar01/corpus/actions/workflows/gate.yml/badge.svg"></a>
   <img alt="Node 22" src="https://img.shields.io/badge/node-22-333333">
   <img alt="TypeScript, strict" src="https://img.shields.io/badge/typescript-strict-333333">
-  <img alt="Single container, SQLite" src="https://img.shields.io/badge/deploy-one%20container%2C%20SQLite-333333">
+  <img alt="npm or one container, SQLite" src="https://img.shields.io/badge/deploy-npm%20or%20one%20container%2C%20SQLite-333333">
   <a href="https://www.npmjs.com/package/@corpus-tool/cli"><img alt="npm" src="https://img.shields.io/npm/v/%40corpus-tool%2Fcli?color=333333&label=%40corpus-tool%2Fcli"></a>
   <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-333333">
 </p>

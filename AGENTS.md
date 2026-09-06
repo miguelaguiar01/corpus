@@ -42,18 +42,18 @@ decisions made along the way are recorded in `docs/DECISIONS.md`.
 - Standard workspace commands: `npm test`, `npm run typecheck`, `npm run dev`
   (wire these in M0 across the workspaces).
 - **Releasing**: bump `version` in `packages/cli/package.json` and
-  `packages/workbench/package.json` (one number for both), add the
-  section to `CHANGELOG.md`, merge, then `bin/release-check v<version>`
-  and `git tag v<version> && git push origin v<version>`. The release
-  workflow runs the install smoke, publishes `@corpus-tool/cli` and
-  `@corpus-tool/workbench` with provenance, pushes the container image
-  to `ghcr.io/miguelaguiar01/corpus:<version>` and `:latest`, and creates
-  the GitHub release from the changelog section. A prerelease version
-  (`v0.4.0-next.1`) publishes under the dist-tag `next` and tags the
-  image with the prerelease version only. A package's first version is published by hand from its
-  directory (`npm publish --access public`) and its trusted publisher
-  configured on npmjs.com before the tag, since trusted publishing needs
-  the package to exist.
+  `packages/workbench/package.json` (one number for both), add the section
+  to `CHANGELOG.md`, merge, then `bin/release-check v<version>` and `git
+  tag v<version> && git push origin v<version>`. The release workflow runs
+  the install smoke, publishes `@corpus-tool/cli` and
+  `@corpus-tool/workbench` with provenance, pushes the container image to
+  `ghcr.io/miguelaguiar01/corpus:<version>` and `:latest`, and creates the
+  GitHub release from the changelog section. A prerelease version
+  (`v0.4.0-next.1`) publishes under the dist-tag `next` and tags the image
+  with the prerelease version only. A package's first version is published
+  by hand from its directory (`npm publish --access public`) and its
+  trusted publisher configured on npmjs.com before the tag, since trusted
+  publishing needs the package to exist.
 
 ## Board and tickets
 
