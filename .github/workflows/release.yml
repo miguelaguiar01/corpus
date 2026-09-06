@@ -3,7 +3,8 @@ name: release
 # A tag v<version> publishes @corpus-tool/cli at that version. The first
 # version was published by hand (trusted publishing is configured on the
 # package's npm settings page, so the package has to exist first); every
-# later tag goes through here with npm's automatic provenance. A
+# later tag goes through here with npm's automatic provenance, and a tag
+# whose version is already on the registry only creates the release. A
 # prerelease version (v0.2.0-next.1) publishes under the dist-tag next.
 on:
   push:
@@ -32,9 +33,17 @@ jobs:
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
       - name: The packed CLI round-trips a fresh repository
         run: bin/install-smoke
+      # A version already on the registry is not published again: the
+      # first one went up by hand, and a rerun of a tag must not fail
+      # at publish and lose the GitHub release.
       - name: Publish
         working-directory: packages/cli
         run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if npm view "@corpus-tool/cli@${VERSION}" version >/dev/null 2>&1; then
+            echo "@corpus-tool/cli@${VERSION} is already on the registry; not publishing again"
+            exit 0
+          fi
           case "${GITHUB_REF_NAME}" in
             *-*) npm publish --access public --tag next ;;
             *)   npm publish --access public ;;
