@@ -1,5 +1,8 @@
 services:
   corpus:
+    # The published image at a version (`docker compose pull`), or a
+    # build from this checkout when the image is not present locally.
+    image: ghcr.io/miguelaguiar01/corpus:${CORPUS_IMAGE_TAG:-latest}
     build:
       context: .
       args:

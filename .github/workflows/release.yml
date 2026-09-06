@@ -1,11 +1,14 @@
 name: release
 
-# A tag v<version> publishes @corpus-tool/cli at that version. The first
-# version was published by hand (trusted publishing is configured on the
-# package's npm settings page, so the package has to exist first); every
-# later tag goes through here with npm's automatic provenance, and a tag
-# whose version is already on the registry only creates the release. A
-# prerelease version (v0.2.0-next.1) publishes under the dist-tag next.
+# A tag v<version> publishes @corpus-tool/cli and @corpus-tool/workbench
+# at that version and pushes the container image to the GitHub registry
+# as :<version> (and :latest for a release). A package's first version is
+# published by hand (trusted publishing is configured on the package's
+# npm settings page, so the package has to exist first); every later tag
+# goes through here with npm's automatic provenance, and a version
+# already on the registry is skipped. A prerelease version
+# (v0.4.0-next.1) publishes under the dist-tag next and tags the image
+# with the prerelease version only.
 on:
   push:
     tags: ["v*"]
@@ -13,6 +16,7 @@ on:
 permissions:
   contents: write
   id-token: write
+  packages: write
 
 jobs:
   release:
@@ -35,18 +39,35 @@ jobs:
         run: bin/install-smoke
       # A version already on the registry is not published again: the
       # first one went up by hand, and a rerun of a tag must not fail
-      # at publish and lose the GitHub release.
-      - name: Publish
-        working-directory: packages/cli
+      # at publish and lose the image push or the GitHub release.
+      - name: Publish both packages
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          if npm view "@corpus-tool/cli@${VERSION}" version >/dev/null 2>&1; then
-            echo "@corpus-tool/cli@${VERSION} is already on the registry; not publishing again"
-            exit 0
-          fi
+          for dir in packages/cli packages/workbench; do
+            NAME="$(node -p "require('./$dir/package.json').name")"
+            if npm view "${NAME}@${VERSION}" version >/dev/null 2>&1; then
+              echo "${NAME}@${VERSION} is already on the registry; not publishing again"
+              continue
+            fi
+            case "${GITHUB_REF_NAME}" in
+              *-*) (cd "$dir" && npm publish --access public --tag next) ;;
+              *)   (cd "$dir" && npm publish --access public) ;;
+            esac
+          done
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: The container image, at this version
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER}/corpus"
+          VERSION="${GITHUB_REF_NAME#v}"
+          docker build -t "$IMAGE:$VERSION" --build-arg "CORPUS_VERSION=${GITHUB_REF_NAME}" .
+          docker push "$IMAGE:$VERSION"
           case "${GITHUB_REF_NAME}" in
-            *-*) npm publish --access public --tag next ;;
-            *)   npm publish --access public ;;
+            *-*) ;;
+            *) docker tag "$IMAGE:$VERSION" "$IMAGE:latest" && docker push "$IMAGE:latest" ;;
           esac
       - name: GitHub release with this version's changelog section
         env:
