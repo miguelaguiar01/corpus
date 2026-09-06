@@ -43,7 +43,7 @@ You need Docker and nothing else.
 ```sh
 git clone https://github.com/miguelaguiar01/corpus.git
 cd corpus
-docker build -t corpus .
+docker build -t corpus --build-arg CORPUS_VERSION="$(git describe --tags --always)" .
 docker run -d --name corpus \
   -p 3000:3000 \
   -e CORPUS_INVITE_SECRET="$(openssl rand -hex 24)" \
@@ -56,10 +56,10 @@ Open http://localhost:3000, join with the invite secret you just set, a display 
 With Docker Compose, or a PaaS that reads `compose.yaml`:
 
 ```sh
-CORPUS_INVITE_SECRET="$(openssl rand -hex 24)" docker compose up -d
+CORPUS_VERSION="$(git describe --tags --always)" CORPUS_INVITE_SECRET="$(openssl rand -hex 24)" docker compose up -d
 ```
 
-Two things to know before exposing it: mount a directory, never a single file (SQLite runs in WAL mode and keeps `-wal` and `-shm` files beside the database), and put it behind HTTPS to reach it from other devices, because the session cookie is `Secure` in production. `/api/health` reports the build it is running, so an instance is traceable to a commit without logging in.
+Two things to know before exposing it: mount a directory, never a single file (SQLite runs in WAL mode and keeps `-wal` and `-shm` files beside the database), and put it behind HTTPS to reach it from other devices, because the session cookie is `Secure` in production. `/api/health` reports the build it is running (the `CORPUS_VERSION` build argument, a tag or a commit from `git describe`), so an instance is traceable to a commit without logging in; without the argument it says `dev`.
 
 ## Connect a repository
 
