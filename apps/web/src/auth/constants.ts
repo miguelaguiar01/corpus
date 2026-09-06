@@ -25,6 +25,10 @@ export const INVITE_ERROR_MESSAGES = {
 
 export type InviteErrorCode = keyof typeof INVITE_ERROR_MESSAGES;
 
-export function inviteErrorPath(code: InviteErrorCode): string {
-  return `${INVITE_PATH}?error=${code}`;
+export function inviteErrorPath(
+  code: InviteErrorCode,
+  extra: Record<string, string> = {},
+): string {
+  const params = new URLSearchParams({ error: code, ...extra });
+  return `${INVITE_PATH}?${params}`;
 }

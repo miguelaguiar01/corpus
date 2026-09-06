@@ -64,3 +64,12 @@ test("blocked() reports the state without spending an attempt", () => {
   expect(limiter.blocked("k", t)).toBe(true);
   expect(limiter.blocked("k", t + 60_001)).toBe(false);
 });
+
+test("retryAfterMs is the rest of the window for a blocked key and 0 otherwise", () => {
+  const limiter = new RateLimiter({ max: 1, windowMs: 60_000 });
+  const t = 1_000_000;
+  expect(limiter.retryAfterMs("k", t)).toBe(0);
+  limiter.allow("k", t);
+  expect(limiter.retryAfterMs("k", t + 15_000)).toBe(45_000);
+  expect(limiter.retryAfterMs("k", t + 60_000)).toBe(0);
+});

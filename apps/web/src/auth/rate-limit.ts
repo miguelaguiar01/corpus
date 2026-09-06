@@ -39,6 +39,13 @@ export class RateLimiter {
     return entry.count >= this.max;
   }
 
+  // How long a blocked key waits until its window opens; 0 when not blocked.
+  retryAfterMs(key: string, now: number = Date.now()): number {
+    if (!this.blocked(key, now)) return 0;
+    const entry = this.hits.get(key)!;
+    return entry.windowStart + this.windowMs - now;
+  }
+
   allow(key: string, now: number = Date.now()): boolean {
     const entry = this.hits.get(key);
     if (entry && now - entry.windowStart < this.windowMs) {

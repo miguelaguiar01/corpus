@@ -16,12 +16,16 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { t } from "@/i18n";
 
-function errorMessage(code: string | undefined): string | undefined {
+function errorMessage(
+  code: string | undefined,
+  wait: string | undefined,
+): string | undefined {
   if (code === undefined) return undefined;
   const key =
     INVITE_ERROR_MESSAGES[code as InviteErrorCode] ??
     INVITE_ERROR_MESSAGES.invalid;
-  return t(key);
+  const minutes = Math.max(1, Math.floor(Number(wait)) || 1);
+  return t(key, { minutes });
 }
 
 // Which form the error belongs under, so it sits beside the fields the
@@ -35,11 +39,11 @@ const JOIN_ERRORS: ReadonlySet<string> = new Set([
 export default async function InvitePage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; wait?: string }>;
 }) {
   if (await currentUser()) redirect("/");
-  const { error } = await searchParams;
-  const message = errorMessage(error);
+  const { error, wait } = await searchParams;
+  const message = errorMessage(error, wait);
   const joinError = error !== undefined && JOIN_ERRORS.has(error);
   const pageError = error === "rate-limited";
   const passwordLimits = {
