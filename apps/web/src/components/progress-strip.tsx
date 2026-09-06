@@ -15,7 +15,7 @@ export function ProgressStrip({ progress }: { progress: Progress }) {
           <li key={language} className="flex items-center gap-3 text-xs">
             <span className="w-14 shrink-0 font-medium">{language}</span>
             <ProgressBar p={p} label={language} className="h-1.5 flex-1" />
-            <span className="w-44 shrink-0 text-right text-muted-foreground">
+            <span className="w-52 shrink-0 text-right whitespace-nowrap text-muted-foreground">
               {t("progress.summary", {
                 verified: p.verified,
                 translated: p.translated,

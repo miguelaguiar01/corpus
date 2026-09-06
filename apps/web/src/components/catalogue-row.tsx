@@ -4,8 +4,9 @@ import { Chip } from "@/components/ui/chip";
 import { StateChips } from "./state-chips";
 
 // One string in the catalogue (§9.2). On a desktop the rows share three
-// aligned columns, key and type, the project's text, the per-language
-// states, so a page of them reads as a table; on a phone they stack.
+// aligned columns, key and type, the project's text at the list size the
+// type scale gives project text, the per-language states, so a page of
+// them reads as a table; on a phone they stack.
 export function CatalogueRow({
   href,
   stringId,
@@ -32,7 +33,7 @@ export function CatalogueRow({
         </span>
         <Chip variant="outline">{type}</Chip>
       </div>
-      <p className="line-clamp-2 min-w-0 text-base leading-snug">{source}</p>
+      <p className="line-clamp-2 min-w-0 text-lg leading-snug">{source}</p>
       <div className="md:justify-self-end">
         <StateChips languages={languages} states={states} />
       </div>
