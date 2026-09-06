@@ -10,6 +10,13 @@ VERSION="${TAG#v}"
 PKG="$(node -p "require('./packages/cli/package.json').version")"
 [ "$VERSION" = "$PKG" ] || { echo "tag $TAG does not match packages/cli/package.json version $PKG" >&2; exit 1; }
 bin/changelog-section "$VERSION" >/dev/null || { echo "CHANGELOG.md has no section for $VERSION" >&2; exit 1; }
+# A version already on the registry (the first one went up by hand; a
+# re-run of a tag) is not published again, and npm refuses even a dry
+# run over it, so the manifest check is skipped for it.
+if npm view "@corpus-tool/cli@${VERSION}" version >/dev/null 2>&1; then
+  echo "release-check: $TAG matches the package and the changelog; @corpus-tool/cli@${VERSION} is already on the registry"
+  exit 0
+fi
 # npm rewrites a manifest it dislikes at publish time (a bin path with a
 # leading ./ once lost the corpus binary); only a publish dry run shows it.
 DRY="$(cd packages/cli && npm publish --dry-run --access public 2>&1)" || { echo "$DRY" >&2; exit 1; }
