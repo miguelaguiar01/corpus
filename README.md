@@ -31,42 +31,42 @@ Flat key-value translation tools lose what makes game and app text hard: the pla
 - **Previews without running your code.** Each string can ship examples, slot values plus the source render, and the editor substitutes them into the draft as it is typed, one preview per example, both branches of a select exercised.
 - **The repository stays the truth.** `corpus push` diffs the repo into Corpus by string id; `corpus pull` writes verified translations back through the same adapters, format-preserving. Push then pull reproduces the repository byte for byte, and that invariant is a test in the gate.
 - **A workflow, not a spreadsheet.** Every string and language moves untranslated, translated, verified, with a stale mark when the source changes underneath, an attributed history of every edit, and queues that tell a translator what to work on next.
-- **One container.** Next.js and SQLite in a single image with its database on a volume. No external services, no accounts, one invite secret for the instance.
+- **One command, or one container.** `npx corpus workbench` runs an instance on your machine from two npm packages, database included. For a team it is one image with its database on a volume. No external services; accounts are a name and a password, and one invite secret admits people.
 - **Made for a phone in one hand.** Translators mostly work on phones, so every surface was designed at 390px first, with the desktop layouts built out from there.
 
 Corpus translates its own interface with itself. That is the standing demo in these screenshots and a test that runs on every build.
 
 ## Quick start
 
-You need Docker and nothing else.
+You need Node 22 and nothing else. In the repository whose text you want translated:
+
+```sh
+npm install --save-dev @corpus-tool/cli @corpus-tool/workbench
+npx corpus workbench
+```
+
+That starts an instance at http://localhost:3000 and prints the invite secret it generated. Open it, join with the secret, a display name and a password, and you are the maintainer. The database and the secret live under `.corpus/` in the repository, which the command adds to `.gitignore`; delete the directory to start over. Updating is `npm update` of the two packages, which always share a version.
+
+## For a team
+
+Translators need a URL they can reach from their phones, so a team runs the published image, the same app at the same version, with its database on a volume:
 
 ```sh
 git clone https://github.com/miguelaguiar01/corpus.git
 cd corpus
-docker build -t corpus --build-arg CORPUS_VERSION="$(git describe --tags --always)" .
-docker run -d --name corpus \
-  -p 3000:3000 \
-  -e CORPUS_INVITE_SECRET="$(openssl rand -hex 24)" \
-  -v corpus-data:/data \
-  corpus
+CORPUS_INVITE_SECRET="$(openssl rand -hex 24)" docker compose pull
+CORPUS_INVITE_SECRET="$(openssl rand -hex 24)" docker compose up -d
 ```
 
-Open http://localhost:3000, join with the invite secret you just set, a display name, and a password. The first person to join becomes the instance maintainer; anyone with the secret can join, and after that they sign in with their name and password. A maintainer can reset a forgotten password from the settings page. All data lives in the `corpus-data` volume; the container is disposable.
-
-With Docker Compose, or a PaaS that reads `compose.yaml`:
-
-```sh
-CORPUS_VERSION="$(git describe --tags --always)" CORPUS_INVITE_SECRET="$(openssl rand -hex 24)" docker compose up -d
-```
+`compose.yaml` names `ghcr.io/miguelaguiar01/corpus:latest`; set `CORPUS_IMAGE_TAG` to pin a version. The first person to join with the secret becomes the maintainer; anyone with the secret can join, and after that they sign in with their name and password. A maintainer can reset a forgotten password from the settings page. All data lives in the `corpus-data` volume; the container is disposable. Without the image, `docker compose up -d --build` builds it from the checkout.
 
 Two things to know before exposing it: mount a directory, never a single file (SQLite runs in WAL mode and keeps `-wal` and `-shm` files beside the database), and put it behind HTTPS to reach it from other devices, because the session cookie is `Secure` in production. `/api/health` reports the build it is running (the `CORPUS_VERSION` build argument, a tag or a commit from `git describe`), so an instance is traceable to a commit without logging in; without the argument it says `dev`.
 
 ## Connect a repository
 
-In the repository whose text you want translated, install the CLI and let it write the config:
+With the packages installed, let the CLI write the config:
 
 ```sh
-npm install --save-dev @corpus-tool/cli
 npx corpus init --project my-game --source en --languages en,pt-PT \
   --messages "src/i18n/{lang}.json" --server http://localhost:3000
 ```
@@ -87,10 +87,9 @@ export default defineCorpus({
 });
 ```
 
-Start an instance and create the project in it (it shows you the push token once), then push:
+With the instance running, create the project in it (it shows you the push token once), then push:
 
 ```sh
-npx corpus workbench                  # an instance on localhost, database and secret under .corpus/
 export CORPUS_TOKEN=<token>
 npx corpus build                      # no server: runs the sources, validates, prints a summary
 npx corpus push                       # repo → Corpus: adds, changes, marks stale, archives
@@ -165,14 +164,14 @@ Every screen follows the system light or dark preference. The visual system, the
 
 ## Configuration
 
-Environment variables are documented in [`apps/web/.env.example`](apps/web/.env.example). Local and container runs share one code path; only these differ by environment:
+Environment variables are documented in [`apps/web/.env.example`](apps/web/.env.example). Every way of running an instance shares one code path; only these differ:
 
-| Variable               | Local default                  | Container                       |
-| ---------------------- | ------------------------------ | ------------------------------- |
-| `CORPUS_INVITE_SECRET` | required, from `apps/web/.env` | `-e` at `docker run`            |
-| `CORPUS_DB_PATH`       | `apps/web/data/corpus.db`      | `/data/corpus.db` on the volume |
-| `PORT`                 | `3000`                         | `3000`                          |
-| `CORPUS_PUBLIC_URL`    | unset                          | the public origin, behind a proxy |
+| Variable               | `corpus workbench`                | Container                         | Checkout                       |
+| ---------------------- | --------------------------------- | --------------------------------- | ------------------------------ |
+| `CORPUS_INVITE_SECRET` | generated into `.corpus/secret`   | `-e` or compose                   | required, from `apps/web/.env` |
+| `CORPUS_DB_PATH`       | `.corpus/corpus.db` (`--db`)      | `/data/corpus.db` on the volume   | `apps/web/data/corpus.db`      |
+| `PORT`                 | `3000` (`--port`)                 | `3000`                            | `3000`                         |
+| `CORPUS_PUBLIC_URL`    | unset                             | the public origin, behind a proxy | unset                          |
 
 Migrations apply automatically when the app starts, and the boot log names the database file it opened.
 
@@ -190,7 +189,7 @@ npm run dev
 
 The database is created on first start at `apps/web/data/corpus.db` and is gitignored; delete it to start over.
 
-`bin/gate` is the one quality gate, locally and in CI: typecheck, lint, format, the CLI build, the full test suite, and `corpus check` on this repository's own interface strings. `bin/smoke` walks the whole loop in a browser, invite to verified translation, on a phone viewport and then checks the desktop layouts; `bin/container-smoke` builds and boots the production image; `bin/install-smoke` installs the packed CLI into a fresh repository and round-trips it against that image; `bin/screenshots` regenerates the images above. Releases are tags: see `AGENTS.md`.
+`bin/gate` is the one quality gate, locally and in CI: typecheck, lint, format, the CLI build, the full test suite, and `corpus check` on this repository's own interface strings. `bin/smoke` walks the whole loop in a browser, invite to verified translation, on a phone viewport and then checks the desktop layouts; `bin/container-smoke` builds and boots the production image; `bin/install-smoke` installs the packed CLI and workbench into a fresh repository and round-trips it against `corpus workbench` and then against that image; `bin/screenshots` regenerates the images above. Releases are tags: see `AGENTS.md`.
 
 ## Documentation
 
@@ -201,7 +200,7 @@ The database is created on first start at `apps/web/data/corpus.db` and is gitig
 
 ## Status
 
-The MVP is complete, the interface has been through a full design pass, and the CLI ships on npm as `@corpus-tool/cli`. Corpus runs its own translation into Portuguese from this repository, on every build, and every release installs the packed CLI into a fresh repository and round-trips it before publishing. Next: a first outside project, with its feedback folded back in.
+The MVP is complete, the interface has been through two design passes, and Corpus ships on npm as `@corpus-tool/cli` and `@corpus-tool/workbench`, with the image published beside them at the same version. Corpus runs its own translation into Portuguese from this repository on every build, and every release installs both packages into a fresh repository and round-trips them, with and without Docker, before publishing. A first outside project has been through it and its findings are in.
 
 ## License
 
