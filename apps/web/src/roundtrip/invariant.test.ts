@@ -149,28 +149,51 @@ test("push then pull at untranslated reproduces the repo byte for byte", async (
   expect(output.join("\n")).toContain("0 file(s) changed");
 });
 
-test("a translation saved in Corpus comes back in exactly the expected file and key", async () => {
-  expect(await run(["push"], ctx())).toBe(0);
-  const before = tree(repo);
-  const greeting = stringDetail(db, projectId, "app.greeting")!;
+// The target catalogues in the fixture hold translations already; when
+// Corpus holds the same text, pull rewrites them and must land on the
+// same bytes, for both adapters.
+function translate(id: string, text: string) {
+  const detail = stringDetail(db, projectId, id)!;
   const [ana] = db.select().from(users).all();
   applyTransition(db, {
-    stringId: greeting.string.id,
+    stringId: detail.string.id,
     language: "en",
-    action: { type: "save", text: "Hello {name}" },
+    action: { type: "save", text },
     actor: ana!,
   });
+}
+
+test("translations that match the repository's target catalogues write the same bytes", async () => {
+  const before = tree(repo);
+  expect(await run(["push"], ctx())).toBe(0);
+  translate("app.title", "Corpus");
+  translate("app.greeting", "Hello {name}");
+  translate("step.open", "Open the door.");
+  translate("step.key", "Find the key {where}.");
+  expect(await run(["pull", "--min-state", "translated"], ctx())).toBe(0);
+  expect(tree(repo)).toEqual(before);
+  expect(output.join("\n")).toContain("0 file(s) changed");
+});
+
+test("a translation saved in Corpus comes back in exactly the expected file and key, and the source files are never written", async () => {
+  expect(await run(["push"], ctx())).toBe(0);
+  const before = tree(repo);
+  translate("app.greeting", "Hi {name}");
+  translate("step.key", "Look for the key {where}.");
   expect(await run(["pull", "--min-state", "translated"], ctx())).toBe(0);
   const after = tree(repo);
-  expect(Object.keys(after).sort()).toEqual(
-    [...Object.keys(before), "i18n/en.json"].sort(),
-  );
+  expect(Object.keys(after).sort()).toEqual(Object.keys(before).sort());
   expect(after["i18n/pt-PT.json"]).toBe(before["i18n/pt-PT.json"]);
   expect(after["data/steps.pt-PT.json"]).toBe(before["data/steps.pt-PT.json"]);
   expect(JSON.parse(after["i18n/en.json"]!)).toEqual({
-    app: { greeting: "Hello {name}" },
+    app: { title: "Corpus", greeting: "Hi {name}" },
   });
+  expect(JSON.parse(after["data/steps.en.json"]!)).toEqual([
+    { id: "step.open", text: "Open the door.", kind: "hint" },
+    { id: "step.key", text: "Look for the key {where}.", kind: "task" },
+  ]);
   expect(output.join("\n")).toContain("i18n/en.json");
+  expect(output.join("\n")).toContain("data/steps.en.json");
 });
 
 test("a verified-only pull writes nothing when nothing is verified", async () => {

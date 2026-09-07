@@ -1,0 +1,4 @@
+[
+  { "id": "step.open", "text": "Open the door.", "kind": "hint" },
+  { "id": "step.key", "text": "Find the key {where}.", "kind": "task" }
+]

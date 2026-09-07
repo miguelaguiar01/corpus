@@ -1,0 +1,6 @@
+{
+  "app": {
+    "title": "Corpus",
+    "greeting": "Hello {name}"
+  }
+}

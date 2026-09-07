@@ -230,7 +230,7 @@ An invalid snapshot is rejected with per-entry errors and **nothing** is applied
 ### `corpus pull`
 Downloads translations for the configured target languages — never the source language, whose text belongs to the repository; default only `verified`, `--min-state translated` to loosen — and writes repo files through the adapters (messages/table written directly; `exec` sources invoke their import command with the entries on stdin). Prints changed files. The human/agent reviews and PRs.
 
-**Core invariant (tested, §15): push∘pull round-trips byte-identical files** for the built-in adapters — pushing a repo and immediately pulling at `--min-state untranslated` reproduces the source files exactly.
+**Core invariant (tested, §15): push∘pull round-trips byte-identical files** for the built-in adapters — pushing a repo and immediately pulling at `--min-state untranslated` leaves every file exactly as it was, target catalogues the repository already keeps included, and pulling translations that equal a target catalogue's text writes the same bytes. The source-language files are never written.
 
 ---
 
@@ -311,7 +311,7 @@ Code:
 ## 15. Testing
 
 - **Contract:** zod schema round-trip tests; golden snapshot fixtures (including one modeled on the *Moonlight Manor* examples with selects, refs, and examples).
-- **Invariant:** push∘pull byte-identical round-trip for `messages` and `table` adapters (repo fixture in, identical files out).
+- **Invariant:** push∘pull byte-identical round-trip for `messages` and `table` adapters (repo fixture with source and target catalogues in, identical files out; the source files untouched, the target files rewritten through the writer).
 - **Diff semantics:** table-driven tests for §8's four cases, including stale marking, archive/unarchive, and seed-ignored-after-edit.
 - **Validation:** the placeholder/select rule table (§5, §7 — placeholders must survive; selects may collapse entirely but not be malformed; branch keys must match source when present) as pure unit tests, enforced client- and server-side.
 - **UI:** component tests for the editor's validation feedback; **one Playwright smoke** (invite → dashboard → queue → translate with placeholder chips → verify as maintainer → progress updates) running in CI from the first milestone that has an editor.
