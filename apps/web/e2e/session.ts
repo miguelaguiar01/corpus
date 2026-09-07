@@ -1,14 +1,14 @@
 import type { Page } from "@playwright/test";
 
 export const E2E_PASSWORD = "smoke password, long enough";
+export const SMOKE_SECRET =
+  process.env.CORPUS_SMOKE_SECRET ?? "smoke-only-not-a-secret";
 
 // Joins the instance through the invite form. The first person to join
 // becomes the maintainer, which is what the smoke relies on.
 export async function join(page: Page, name: string): Promise<void> {
   await page.goto("/invite");
-  await page
-    .getByLabel("Invite secret")
-    .fill(process.env.CORPUS_SMOKE_SECRET ?? "smoke-only-not-a-secret");
+  await page.getByLabel("Invite secret").fill(SMOKE_SECRET);
   await page.getByLabel("Display name").fill(name);
   await page.getByLabel("Choose a password").fill(E2E_PASSWORD);
   await page.getByRole("button", { name: "Join" }).click();

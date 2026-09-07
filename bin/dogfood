@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Corpus translates Corpus (spec §12, §15): boot the production image,
-# seed the repo's own project, push the chrome catalog with the real CLI,
+# create the repo's own project with the real CLI, push the chrome catalog,
 # pull it back at every state, and prove the working tree is unchanged,
 # the committed Portuguese catalogue included: pull rewrites an existing
 # target catalogue through the writer and must land on the same bytes.

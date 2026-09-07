@@ -8,12 +8,11 @@ import { moonlightManor } from "@corpus/contract";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { join } from "./session";
+import { join, SMOKE_SECRET } from "./session";
 
 const REPO = fileURLToPath(new URL("../../..", import.meta.url));
 
 const base = process.env.CORPUS_SMOKE_URL ?? "http://127.0.0.1:3902";
-const secret = process.env.CORPUS_SMOKE_SECRET ?? "smoke-only-not-a-secret";
 const scheme = process.env.CORPUS_SHOT_SCHEME === "dark" ? "dark" : "light";
 // Phone by default (the design target, §9); desktop for the wide layouts.
 const desktop = process.env.CORPUS_SHOT_VIEWPORT === "desktop";
@@ -31,11 +30,13 @@ async function createProject(
   languages: string[],
 ): Promise<string> {
   const response = await page.request.post(`${base}/api/projects`, {
-    headers: { authorization: `Bearer ${secret}` },
+    headers: { authorization: `Bearer ${SMOKE_SECRET}` },
     data: { slug, name, sourceLanguage, languages },
   });
   if (!response.ok()) {
-    throw new Error(`project ${slug}: HTTP ${response.status()}`);
+    throw new Error(
+      `project ${slug}: HTTP ${response.status()} ${await response.text()}`,
+    );
   }
   const { token } = (await response.json()) as { token: string };
   return token;

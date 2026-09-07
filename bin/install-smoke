@@ -122,8 +122,10 @@ configure "http://localhost:$WB_PORT"
 unset CORPUS_TOKEN
 setsid npx corpus workbench --port "$WB_PORT" > "$TMP/workbench.log" 2>&1 < /dev/null &
 WB_PGID="$!"
+# The summary's last line comes whatever provisioning did; the token
+# line is asserted below.
 for _ in $(seq 1 120); do
-  grep -q "written to .corpus/token" "$TMP/workbench.log" 2>/dev/null && break
+  grep -q "  stop      Ctrl-C" "$TMP/workbench.log" 2>/dev/null && break
   kill -0 "$WB_PGID" 2>/dev/null || { cat "$TMP/workbench.log" >&2; echo "corpus workbench exited" >&2; exit 1; }
   sleep 0.5
 done
