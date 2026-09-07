@@ -143,7 +143,7 @@ test("a maintainer takes a string from pushed to verified on a phone", async ({
   ).toContainText("Countess Rosa was seen at the greenhouse window at 9 pm.");
   await expect(page.getByRole("button", { name: "{room_de}" })).toHaveAttribute(
     "title",
-    /greenhouse/,
+    "Room with 'de' contraction baked in\ngreenhouse",
   );
 
   // Signing out ends the session on the server; signing back in with the

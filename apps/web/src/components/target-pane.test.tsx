@@ -272,3 +272,47 @@ test("without values for the target language, the heading names the source langu
     screen.getByRole("button", { name: "{room_de}" }).getAttribute("title"),
   ).toBe("Where, with its article");
 });
+
+test("a blank draft keeps the source-language heading over the examples' own renders", () => {
+  render(
+    <TargetPane
+      action={vi.fn()}
+      source={sighting.source}
+      slots={[]}
+      language="en"
+      initialText=""
+      slug="mm"
+      stringKey="k"
+      openedVersion={1}
+      examples={sighting.examples ?? []}
+      sourceLanguage="pt-PT"
+    />,
+  );
+  const region = screen.getByRole("region", {
+    name: "Preview with pt-PT values",
+  });
+  expect(region.textContent).toContain("A Condessa Rosa foi vista");
+});
+
+test("a chip with no description and a value shows the value alone; with neither, no title", () => {
+  render(
+    <TargetPane
+      action={vi.fn()}
+      source={sighting.source}
+      slots={[{ name: "room_de" }, { name: "nowhere" }]}
+      language="en"
+      initialText="{room_de}"
+      slug="mm"
+      stringKey="k"
+      openedVersion={1}
+      examples={sighting.examples ?? []}
+      sourceLanguage="pt-PT"
+    />,
+  );
+  expect(
+    screen.getByRole("button", { name: "{room_de}" }).getAttribute("title"),
+  ).toBe("greenhouse");
+  expect(
+    screen.getByRole("button", { name: "{nowhere}" }).getAttribute("title"),
+  ).toBeNull();
+});

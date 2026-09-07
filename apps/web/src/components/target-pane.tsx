@@ -77,19 +77,19 @@ export function TargetPane({
   sourceLanguage: string;
 }) {
   const [text, setText] = useState(initialText);
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const blank = text.trim() === "";
   // One exporter, one set of languages: the first example decides which
-  // language the previews and the chip hints are in.
+  // language the previews and the chip hints are in. A blank draft shows
+  // the examples' own source renders, so it stays in the source language.
   const resolved = examples.map((example) =>
     exampleValues(example, language, sourceLanguage),
   );
-  const previewLanguage = resolved[0]?.language ?? sourceLanguage;
-  const hint = (slot: string) => {
-    const value =
-      resolved[0]?.language === language ? resolved[0].values[slot] : undefined;
-    return value;
-  };
-  const ref = useRef<HTMLTextAreaElement>(null);
-  const blank = text.trim() === "";
+  const previewLanguage = blank
+    ? sourceLanguage
+    : (resolved[0]?.language ?? sourceLanguage);
+  const hint = (slot: string) =>
+    resolved[0]?.language === language ? resolved[0].values[slot] : undefined;
   const validation = blank
     ? { ok: true as const }
     : validateTranslation(source, text);
@@ -145,9 +145,11 @@ export function TargetPane({
                 className:
                   "min-h-8 hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
               })}
-              title={[slot.description, hint(slot.name)]
-                .filter(Boolean)
-                .join("\n")}
+              title={
+                [slot.description, hint(slot.name)]
+                  .filter(Boolean)
+                  .join("\n") || undefined
+              }
               onClick={() => insert(`{${slot.name}}`)}
             >
               {`{${slot.name}}`}
@@ -244,12 +246,11 @@ function previews(
   text: string,
   blank: boolean,
   examples: Example[],
-  resolved: { values: Record<string, string> }[],
+  resolved: ReturnType<typeof exampleValues>[],
 ): PreviewSegment[][] {
   return examples.flatMap((example, index) => {
     if (blank) return [[{ text: example.rendered, value: false }]];
-    const values = resolved[index]?.values ?? example.values;
-    const result = renderPreviewSegments(text, values);
+    const result = renderPreviewSegments(text, resolved[index]!.values);
     return result.ok ? [result.segments] : [];
   });
 }
