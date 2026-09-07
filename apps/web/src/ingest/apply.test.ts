@@ -290,3 +290,20 @@ test("an applied push records one history row with its report; a dry run records
   expect(second).toHaveLength(2);
   expect(second[1]).toMatchObject({ changed: 1, stale: 1 });
 });
+
+test("a push gives existing strings rows for a language added since the last push", () => {
+  const { db, project } = seed();
+  applySnapshot(db, project.id, FIXTURE);
+  db.update(projects)
+    .set({ languages: ["pt-PT", "en", "de-DE"] })
+    .where(eq(projects.id, project.id))
+    .run();
+  applySnapshot(db, project.id, FIXTURE);
+  const rows = db
+    .select()
+    .from(stringTranslations)
+    .where(eq(stringTranslations.language, "de-DE"))
+    .all();
+  expect(rows.length).toBe(FIXTURE.strings.length);
+  expect(rows.every((r) => r.state === "untranslated")).toBe(true);
+});
