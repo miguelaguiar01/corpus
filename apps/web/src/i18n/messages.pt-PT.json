@@ -1,0 +1,13 @@
+{
+  "app.title": "Corpus",
+  "nav.overview": "Visão geral",
+  "nav.catalogue": "Catálogo",
+  "nav.entities": "Entidades",
+  "nav.settings": "Definições",
+  "nav.signOut": "Terminar sessão",
+  "invite.signIn": "Iniciar sessão",
+  "invite.submit": "Entrar",
+  "catalogue.heading": "Catálogo",
+  "entities.heading": "Entidades",
+  "settings.heading": "Definições"
+}

@@ -35,6 +35,13 @@ cat > "$CLIENT/src/i18n/en.json" <<'JSON'
   "farewell": "Goodbye"
 }
 JSON
+# A target catalogue the repository already keeps: pull rewrites it
+# through the writer and must leave the same bytes.
+cat > "$CLIENT/src/i18n/pt-PT.json" <<'JSON'
+{
+  "greeting": "Olá {name}"
+}
+JSON
 ( cd "$CLIENT" && npm init -y >/dev/null && printf 'node_modules\n' > .gitignore && npm install --no-audit --no-fund "$TMP"/*.tgz 2>&1 | tail -1 )
 [ ! -e "$CLIENT/node_modules/.bin/tsx" ] || { echo "the client got tsx; the bin must run on plain node" >&2; exit 1; }
 head -1 "$CLIENT/node_modules/@corpus-tool/cli/dist/bin.js" | grep -q '^#!/usr/bin/env node$' || { echo "the bin's shebang is not plain node" >&2; exit 1; }

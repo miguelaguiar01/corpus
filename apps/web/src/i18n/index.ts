@@ -9,9 +9,9 @@
 //      interpolation (pass values as the second argument). `select` support
 //      is added when a chrome string first needs it.
 //
-// messages.pt-PT.json is produced by `corpus pull` once the dogfood loop
-// exists (M4) — never edited by hand. Chrome renders the source language
-// until then.
+// messages.pt-PT.json is the Portuguese catalogue the dogfood loop pulls
+// back and rewrites through the writer (§12, §15); the chrome still
+// renders the source language.
 import messages from "./messages.en.json";
 
 export type MessageKey = keyof typeof messages;

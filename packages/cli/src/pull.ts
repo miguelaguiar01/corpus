@@ -29,6 +29,9 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
   const payload = await download(config, token, minState as MinState, ctx);
   if (payload === undefined) return 1;
 
+  // The source text belongs to the repository (§1, §8): pull writes
+  // target languages only and hands importers only those.
+  const targets = config.languages.filter((l) => l !== config.sourceLanguage);
   const changed: string[] = [];
   const claimedTypes = new Set<string>();
   for (const source of config.sources) {
@@ -53,7 +56,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     if (template === undefined) {
       throw new CliError(`source file ${templatePath} does not exist`);
     }
-    for (const language of config.languages) {
+    for (const language of targets) {
       const file = source.path.replace("{lang}", language);
       const existing = readRepoFile(ctx.cwd, file);
       const translations = forType(payload, language, source.type);
@@ -74,6 +77,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     if (source.adapter !== "exec" || !source.importCommand) continue;
     const translations: PullPayload["translations"] = {};
     for (const [language, texts] of Object.entries(payload.translations)) {
+      if (language === config.sourceLanguage) continue;
       translations[language] = Object.fromEntries(
         Object.entries(texts).filter(
           ([id]) => !claimedTypes.has(payload.types[id] ?? ""),
@@ -99,8 +103,9 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
   ).length;
   if (importers === 0) {
     const dropped = new Set(
-      Object.values(payload.translations)
-        .flatMap((texts) => Object.keys(texts))
+      Object.entries(payload.translations)
+        .filter(([language]) => language !== config.sourceLanguage)
+        .flatMap(([, texts]) => Object.keys(texts))
         .filter((id) => !claimedTypes.has(payload.types[id] ?? "")),
     );
     if (dropped.size > 0) {
