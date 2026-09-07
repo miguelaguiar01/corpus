@@ -17,7 +17,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/editor-structured-desktop-dark.png">
-    <img src="docs/screenshots/editor-structured-desktop-light.png" width="960" alt="The editor: on the left a source sentence whose gendered select reads inline as visto / vista with a strip naming its keys, the related trait and characters beneath; on the right the English draft with insertable placeholder and select chips, two live previews built from the string's own example values, and the save button.">
+    <img src="docs/screenshots/editor-structured-desktop-light.png" width="960" alt="The editor: on the left a source sentence whose gendered select reads inline as visto / vista with a strip naming its keys, the language chips that switch the target, the other languages' current text, and the related trait and characters beneath; on the right the English draft with insertable placeholder and select chips, two live previews built from the example's English values, and the save button.">
   </picture>
 </p>
 
@@ -167,7 +167,7 @@ Source text and metadata belong to the repository; translations and workflow sta
   </picture>
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/editor-desktop-dark.png">
-    <img src="docs/screenshots/editor-desktop-light.png" width="960" alt="The editor on one of Corpus's own strings: the source with a placeholder chip on the left, the Portuguese draft on the right with the placeholder chip to insert and the save button, and the queue navigation above.">
+    <img src="docs/screenshots/editor-desktop-light.png" width="960" alt="The editor on one of Corpus's own strings: the source with a placeholder chip on the left, the language chips above it (en verified, pt-PT selected), the Portuguese draft on the right with the placeholder chip to insert and the save button, and the queue navigation above.">
   </picture>
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/entities-desktop-dark.png">
