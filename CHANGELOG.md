@@ -7,6 +7,25 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-07
+
+The CLI covers the headless path: what the first outside integration asked for, ranked by how often it was blocked.
+
+### Added
+
+- `corpus workbench` creates the project `corpus.config.ts` declares when it starts in a repository with no `.corpus/token`, and writes the token there (owner-only); an existing project is named with its settings page. `--no-provision` opts out.
+- `corpus project create [--name] [--server]` creates the config's project on any instance with the instance secret (`CORPUS_INVITE_SECRET`, or `.corpus/secret` for a local workbench) and prints the token alone on the last line of stdout; `corpus project rotate-token` replaces a token with the current one and rewrites `.corpus/token` when that is where it came from. Server side: `POST /api/projects` with the secret, rate-limited like the join form, and `POST /api/projects/<slug>/token` with the current token.
+- Every command reads the token from `CORPUS_TOKEN`, then from `.corpus/token`.
+- `corpus status [--json]`: the dashboard's numbers in the terminal, per language and per string type, with the string count, the last push and the server's version, and a line naming any language the config and the project disagree on. `GET /api/status` with the project token.
+- `corpus pull --lang <l>` (repeatable) pulls one language's files and leaves the rest alone (`/api/pull?lang=`); `corpus pull --check` writes nothing and exits 1 when a pull would change a file.
+- `corpus validate [--json]`: the editor's checks over the target files of every JSON source, offline: a dropped placeholder, a malformed select, or a key the source no longer has is a finding, `file:key: message` one per line, exit 1. The repository's own gate runs it.
+- `corpus push` names languages the config declares that the project lacks, and the reverse.
+
+### Changed
+
+- The gate scripts (`bin/dogfood`, `bin/install-smoke`, the screenshot fixture) create their projects through the CLI and the API instead of inserting rows by hand.
+- The README's quick start is `init`, `workbench`, `push`; a section on CI gates; the screenshots are retaken at a smaller desktop viewport with a staged project that shows every state.
+
 ## [0.4.1] - 2026-09-07
 
 What the demo project's integration found.

@@ -42,10 +42,19 @@ You need Node 22 and nothing else. In the repository whose text you want transla
 
 ```sh
 npm install --save-dev @corpus-tool/cli @corpus-tool/workbench
+npx corpus init --project my-game --source en --languages en,pt-PT \
+  --messages "src/i18n/{lang}.json" --server http://localhost:3000
 npx corpus workbench
 ```
 
-That starts an instance at http://localhost:3000 and prints the invite secret it generated. Open it, join with the secret, a display name and a password, and you are the maintainer. The database and the secret live under `.corpus/` in the repository, which the command adds to `.gitignore`; delete the directory to start over. Updating is `npm update` of the two packages, which always share a version.
+`init` writes `corpus.config.ts`, the whole configuration for a repository whose strings are a plain message catalog. `workbench` starts an instance at http://localhost:3000, creates the project the config declares, and prints the invite secret it generated; the project's token is written to `.corpus/token`, so in another shell:
+
+```sh
+npx corpus push          # the repository's text is in Corpus
+npx corpus status        # how far along each language is, from the terminal
+```
+
+Open the URL, join with the secret, a display name and a password, and you are the maintainer: translate, verify, then `npx corpus pull` writes the verified translations back into the repository's files. The database, the secret and the token live under `.corpus/`, which the command adds to `.gitignore`; delete the directory to start over. Updating is `npm update` of the two packages, which always share a version.
 
 ## For a team
 
@@ -64,14 +73,7 @@ Two things to know before exposing it: mount a directory, never a single file (S
 
 ## Connect a repository
 
-With the packages installed, let the CLI write the config:
-
-```sh
-npx corpus init --project my-game --source en --languages en,pt-PT \
-  --messages "src/i18n/{lang}.json" --server http://localhost:3000
-```
-
-That writes a `corpus.config.ts`, the whole configuration for a repository whose strings are a plain message catalog. The CLI never guesses where text lives; the config declares it:
+The CLI never guesses where text lives; `corpus.config.ts` declares it:
 
 ```ts
 import { defineCorpus } from "@corpus-tool/cli";
@@ -87,20 +89,42 @@ export default defineCorpus({
 });
 ```
 
-With the instance running, create the project in it (it shows you the push token once), then push:
+The project exists on the instance before the first push. `corpus workbench` creates it when it starts in a repository with a config and no `.corpus/token`; against any other instance, the instance secret creates it and prints the token once, alone on the last line, for `CORPUS_TOKEN` or `.corpus/token`:
 
 ```sh
-export CORPUS_TOKEN=<token>
+CORPUS_INVITE_SECRET=<the instance secret> npx corpus project create --name "My game"
+```
+
+Every command reads the token from `CORPUS_TOKEN`, then from `.corpus/token`; `corpus project rotate-token` replaces it with the current one and rewrites the file when that is where it came from. The commands:
+
+```sh
 npx corpus build                      # no server: runs the sources, validates, prints a summary
 npx corpus push                       # repo → Corpus: adds, changes, marks stale, archives
+npx corpus status                     # per-language and per-type counts; --json for a script
 npx corpus pull                       # Corpus → repo: verified translations only
 npx corpus pull --min-state translated  # Corpus → repo: translated and verified
+npx corpus pull --lang pt-PT          # one language's files, the rest untouched
+npx corpus pull --check               # writes nothing; exit 1 if a pull would change a file
+npx corpus validate                   # no server: every translation still fits its source
 npx corpus check                      # lint: user-facing literals outside declared sources (ignore by prefix or glob)
 ```
 
-`build` needs no server or token, so a config or an exporter can be checked as it is written; it also names any source that cannot take translations back (an `exec` source without `importCommand`, a path without `{lang}`, a `.ts` catalogue, since pull writes JSON only), as does `push`. Pushing is a diff by string id: new ids are added, changed source text marks its translations stale, ids that disappear are archived with their history kept. Pulling writes translations back and prints only the files it changed. Node 22 or later; a TypeScript config needs no build step.
+`build` needs no server or token, so a config or an exporter can be checked as it is written; it also names any source that cannot take translations back (an `exec` source without `importCommand`, a path without `{lang}`, a `.ts` catalogue, since pull writes JSON only), as does `push`. Pushing is a diff by string id: new ids are added, changed source text marks its translations stale, ids that disappear are archived with their history kept; push also names any language the config and the project disagree on, since the config sets the project's languages once, at creation, and the settings page owns them after that. Pulling writes translations back and prints only the files it changed. `validate` runs the editor's checks over the target files (a placeholder dropped, a select malformed, a key the source no longer has) with no server, so a hand edit or a merge cannot ship a broken translation. Node 22 or later; a TypeScript config needs no build step.
 
 Structured sources, `table` records (a module's default or named export, with the fields to carry as metadata listed in the map) or an `exec` command that emits entries, are described in the [design spec, §3](docs/corpus-design.md). Note that `corpus push` and `corpus pull` run the repository's own `corpus.config.ts` and any `exec` commands it declares, so run them only in repositories you trust, as you would their build scripts.
+
+## In CI
+
+Nothing here needs a browser. A job with `CORPUS_TOKEN` in its environment can gate a merge on the translation state:
+
+```sh
+npx corpus check                                          # no stray literals
+npx corpus validate                                       # every translation still fits its source
+npx corpus pull --check                                   # the repository carries what is verified
+npx corpus status --json | jq -e '.progress.perLanguage["pt-PT"].untranslated == 0'
+```
+
+`status --json` is the dashboard's numbers as one object: per language and per string type, `untranslated`, `translated`, `verified`, `stale` and `total`, with the string count, the last push and the server's version. A throwaway instance for a test job is `corpus workbench` in the repository, which creates the project and writes the token itself; this repository's own gate does exactly that (`bin/install-smoke`), and pushes its interface strings to a fresh container the same way (`bin/dogfood`).
 
 ## How it works
 
@@ -173,7 +197,7 @@ Environment variables are documented in [`apps/web/.env.example`](apps/web/.env.
 | `PORT`                 | `3000` (`--port`)                 | `3000`                            | `3000`                         |
 | `CORPUS_PUBLIC_URL`    | unset                             | the public origin, behind a proxy | unset                          |
 
-Migrations apply automatically when the app starts, and the boot log names the database file it opened.
+The CLI reads the project token from `CORPUS_TOKEN`, then from `.corpus/token`, which `corpus workbench` writes; `corpus project create` needs the instance secret in `CORPUS_INVITE_SECRET`, or reads `.corpus/secret` when the server is the local workbench. Migrations apply automatically when the app starts, and the boot log names the database file it opened.
 
 ## Local development
 
@@ -189,7 +213,7 @@ npm run dev
 
 The database is created on first start at `apps/web/data/corpus.db` and is gitignored; delete it to start over.
 
-`bin/gate` is the one quality gate, locally and in CI: typecheck, lint, format, the CLI build, the full test suite, and `corpus check` on this repository's own interface strings. `bin/smoke` walks the whole loop in a browser, invite to verified translation, on a phone viewport and then checks the desktop layouts; `bin/container-smoke` builds and boots the production image; `bin/install-smoke` installs the packed CLI and workbench into a fresh repository and round-trips it against `corpus workbench` and then against that image; `bin/screenshots` regenerates the images above. Releases are tags: see `AGENTS.md`.
+`bin/gate` is the one quality gate, locally and in CI: typecheck, lint, format, both package builds, the full test suite, and `corpus check` and `corpus validate` on this repository's own interface strings. `bin/smoke` walks the whole loop in a browser, invite to verified translation, on a phone viewport and then checks the desktop layouts; `bin/container-smoke` builds and boots the production image; `bin/install-smoke` installs the packed CLI and workbench into a fresh repository and round-trips it against `corpus workbench` and then against that image; `bin/screenshots` regenerates the images above. Releases are tags: see `AGENTS.md`.
 
 ## Documentation
 
@@ -200,7 +224,7 @@ The database is created on first start at `apps/web/data/corpus.db` and is gitig
 
 ## Status
 
-The MVP is complete, the interface has been through two design passes, and Corpus ships on npm as `@corpus-tool/cli` and `@corpus-tool/workbench`, with the image published beside them at the same version. Corpus runs its own translation into Portuguese from this repository on every build, and every release installs both packages into a fresh repository and round-trips them, with and without Docker, before publishing. A first outside project has been through it and its findings are in.
+The MVP is complete, the interface has been through two design passes, and Corpus ships on npm as `@corpus-tool/cli` and `@corpus-tool/workbench`, with the image published beside them at the same version. Corpus runs its own translation into Portuguese from this repository on every build, and every release installs both packages into a fresh repository and round-trips them, with and without Docker, before publishing. A first outside project has been through it, and what it asked for next, a CLI that covers the whole loop with no browser and no token pasted, is in.
 
 ## License
 
