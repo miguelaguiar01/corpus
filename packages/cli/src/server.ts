@@ -23,7 +23,7 @@ export async function request(
     });
   } catch (error) {
     throw new CliError(
-      `could not reach the server at ${new URL(url).origin}: ${(error as Error).message}`,
+      `could not reach the server at ${url}: ${(error as Error).message}`,
     );
   }
 }
