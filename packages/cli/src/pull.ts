@@ -1,7 +1,13 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { entriesToMessages, entriesToTable } from "@corpus/adapters";
+import {
+  applyMessagesOps,
+  applyTableOps,
+  entriesToMessages,
+  entriesToTable,
+  type SourceOp,
+} from "@corpus/adapters";
 import { option, options } from "./args";
 import {
   MIN_STATES,
@@ -100,6 +106,52 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     }
   }
 
+  // The pending proposals (§8, §11): each into the source-language file
+  // of the source it names, a removal into that source's target files
+  // too; a file that matches no source is refused by name.
+  for (const [file, ops] of proposalsByFile(payload.sourceChanges ?? [])) {
+    const source = config.sources.find(
+      (s): s is Exclude<typeof s, { adapter: "exec" }> =>
+        s.adapter !== "exec" &&
+        s.path.replace("{lang}", config.sourceLanguage) === file,
+    );
+    if (!source || !writesBack(source.path)) {
+      ctx.err(
+        `corpus: proposal(s) for ${ops.map((o) => o.id).join(", ")}: ${file} matches no writable source; not written`,
+      );
+      continue;
+    }
+    const files: [string, SourceOp[]][] = [[file, ops]];
+    const removals = ops.filter((o) => o.kind === "delete");
+    if (removals.length > 0 && source.path.includes("{lang}")) {
+      for (const language of allTargets) {
+        files.push([source.path.replace("{lang}", language), removals]);
+      }
+    }
+    for (const [target, targetOps] of files) {
+      const existing = readRepoFile(ctx.cwd, target);
+      if (existing === undefined) {
+        if (target === file)
+          throw new CliError(`source file ${file} does not exist`);
+        continue;
+      }
+      // A target file may lack a removed key already; that is not an error.
+      const applicable =
+        target === file
+          ? targetOps
+          : targetOps.filter((o) => existing.includes(JSON.stringify(o.id)));
+      if (applicable.length === 0) continue;
+      const next =
+        source.adapter === "messages"
+          ? applyMessagesOps(existing, applicable)
+          : applyTableOps(existing, applicable, source.map);
+      if (next !== existing) {
+        if (!check) writeFileSync(path.join(ctx.cwd, target), next);
+        changed.push(target);
+      }
+    }
+  }
+
   if (check) {
     for (const source of config.sources) {
       if (source.adapter === "exec" && source.importCommand) {
@@ -162,6 +214,22 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     `pulled ${config.project} at ${minState}: ${changed.length} file(s) changed`,
   );
   return 0;
+}
+
+function proposalsByFile(
+  changes: NonNullable<PullPayload["sourceChanges"]>,
+): Map<string, SourceOp[]> {
+  const byFile = new Map<string, SourceOp[]>();
+  for (const change of changes) {
+    const ops = byFile.get(change.file) ?? [];
+    ops.push(
+      change.kind === "delete"
+        ? { kind: "delete", id: change.id }
+        : { kind: change.kind, id: change.id, text: change.text ?? "" },
+    );
+    byFile.set(change.file, ops);
+  }
+  return byFile;
 }
 
 function readRepoFile(cwd: string, rel: string): string | undefined {

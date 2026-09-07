@@ -160,3 +160,9 @@ test("render says never pushed and shows a language with no rows as zeros", () =
     "fr                   0           0         0      0      0",
   );
 });
+
+test("render names pending proposals when there are any", () => {
+  const lines = render({ ...STATUS, pendingProposals: 2 }, "http://x");
+  expect(lines[1]).toBe("2 proposal(s) pending: corpus pull writes them");
+  expect(render(STATUS, "http://x")[1]).toBe("");
+});

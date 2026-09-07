@@ -178,3 +178,75 @@ export function entriesToTable(
     : JSON.stringify(out, null, style.indent);
   return body + (style.trailingNewline ? "\n" : "");
 }
+
+// Source-side operations (§8, §11): a proposal sets, adds or removes a
+// key in the source-language file, and a removal leaves the target
+// files too. Same format rules as the writers above: structure, key
+// order, indentation and trailing newline come from the file.
+export type SourceOp =
+  | { kind: "edit" | "add"; id: string; text: string }
+  | { kind: "delete"; id: string };
+
+function removePath(tree: Tree, path: string[]): boolean {
+  const [head, ...rest] = path;
+  if (head === undefined) return false;
+  if (rest.length === 0) {
+    if (typeof tree[head] !== "string") return false;
+    delete tree[head];
+    return true;
+  }
+  const next = tree[head];
+  if (typeof next !== "object" || next === null) return false;
+  const removed = removePath(next, rest);
+  if (removed && Object.keys(next).length === 0) delete tree[head];
+  return removed;
+}
+
+export function applyMessagesOps(text: string, ops: SourceOp[]): string {
+  const tree = parseTree(text);
+  const style = styleOf(text);
+  const nested = isNested(tree);
+  const out: Tree = Object.create(null) as Tree;
+  for (const [path, value] of leaves(tree)) setPath(out, path, value);
+  for (const op of ops) {
+    const path = nested ? op.id.split(".") : [op.id];
+    if (op.kind === "delete") {
+      if (!removePath(out, path) && !removePath(out, [op.id])) {
+        throw new Error(`messages: no key ${JSON.stringify(op.id)} to remove`);
+      }
+    } else {
+      setPath(out, path, op.text);
+    }
+  }
+  return (
+    JSON.stringify(out, null, style.indent) +
+    (style.trailingNewline ? "\n" : "")
+  );
+}
+
+export function applyTableOps(
+  text: string,
+  ops: SourceOp[],
+  map: { id: string; text: string },
+): string {
+  const records = parseRecords(text);
+  const style = styleOf(text);
+  const inline = oneRecordPerLine(text, records.length);
+  let out = records.map((record) => ({ ...record }));
+  for (const op of ops) {
+    const index = out.findIndex((r) => String(r[map.id]) === op.id);
+    if (op.kind === "delete") {
+      if (index < 0)
+        throw new Error(`table: no record ${JSON.stringify(op.id)} to remove`);
+      out = out.filter((_, i) => i !== index);
+    } else if (index >= 0) {
+      out[index] = { ...out[index]!, [map.text]: op.text };
+    } else {
+      out.push({ [map.id]: op.id, [map.text]: op.text });
+    }
+  }
+  const body = inline
+    ? `[\n${out.map((r) => style.indent + inlineRecord(r)).join(",\n")}\n]`
+    : JSON.stringify(out, null, style.indent);
+  return body + (style.trailingNewline ? "\n" : "");
+}

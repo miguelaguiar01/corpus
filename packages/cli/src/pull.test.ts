@@ -351,3 +351,60 @@ test("the source-language file keeps its own shape even at untranslated, and imp
   };
   expect(Object.keys(received.translations)).toEqual(["pt"]);
 });
+
+test("pending proposals are written into the source file, a removal into the target files too, and --check counts them", async () => {
+  const { writeFileSync } = await import("node:fs");
+  writeFileSync(
+    path.join(repo, "i18n/pt.json"),
+    `{\n  "app.title": "Corpo",\n  "greeting": "Olá {name}"\n}\n`,
+  );
+  const withProposals = {
+    ...PAYLOAD,
+    translations: { en: PAYLOAD.translations.en, pt: {} },
+    sourceChanges: [
+      {
+        kind: "edit",
+        id: "greeting",
+        type: "chrome",
+        file: "i18n/en.json",
+        text: "Hi {name}",
+      },
+      {
+        kind: "add",
+        id: "farewell",
+        type: "chrome",
+        file: "i18n/en.json",
+        text: "Bye",
+      },
+      { kind: "delete", id: "app.title", type: "chrome", file: "i18n/en.json" },
+      {
+        kind: "edit",
+        id: "exec.bye",
+        type: "computed",
+        file: "scripts/none.json",
+        text: "x",
+      },
+    ],
+  };
+  await serve(200, withProposals);
+  const c = ctx();
+  expect(await run(["pull", "--check"], c)).toBe(1);
+  expect(c.output.join("\n")).toMatch(/2 file\(s\) would change/);
+  expect(JSON.parse(read("i18n/en.json"))).toEqual({
+    "app.title": "Corpus",
+    greeting: "Hello {name}",
+  });
+  const d = ctx();
+  expect(await run(["pull"], d)).toBe(0);
+  expect(JSON.parse(read("i18n/en.json"))).toEqual({
+    greeting: "Hi {name}",
+    farewell: "Bye",
+  });
+  expect(JSON.parse(read("i18n/pt.json"))).toEqual({ greeting: "Olá {name}" });
+  const out = d.output.join("\n");
+  expect(out).toMatch(
+    /scripts\/none\.json matches no writable source; not written/,
+  );
+  expect(out).toContain("i18n/en.json");
+  expect(out).toContain("i18n/pt.json");
+});
