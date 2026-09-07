@@ -6,7 +6,12 @@ import { OtherLanguages } from "./other-languages";
 afterEach(cleanup);
 
 const translations = {
-  "pt-PT": { state: "verified" as const, stale: false, text: "Olá", version: 1 },
+  "pt-PT": {
+    state: "verified" as const,
+    stale: false,
+    text: "Olá",
+    version: 1,
+  },
   en: { state: "translated" as const, stale: true, text: "Hello", version: 2 },
   fr: { state: "untranslated" as const, stale: false, text: null, version: 0 },
 };
