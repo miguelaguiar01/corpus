@@ -18,7 +18,7 @@ export type RunContext = {
   err: (line: string) => void;
 };
 
-const USAGE = `usage: corpus push [--dry-run] | corpus pull [--min-state <untranslated|translated|verified>] | corpus check | corpus build [--out <file>]
+const USAGE = `usage: corpus push [--dry-run] | corpus pull [--min-state <untranslated|translated|verified>] [--lang <l>]... [--check] | corpus check | corpus build [--out <file>]
        ${INIT_USAGE}
        ${WORKBENCH_USAGE}
        ${PROJECT_USAGE}

@@ -73,6 +73,23 @@ test("minState loosens the filter", async () => {
   expect(Object.keys(body.translations["pt-PT"]!)).toHaveLength(3);
 });
 
+test("lang narrows the payload to those target languages", async () => {
+  const { token } = setup();
+  const res = await pull(token, "?minState=untranslated&lang=en");
+  expect(res.status).toBe(200);
+  const body = (await res.json()) as {
+    translations: Record<string, Record<string, string>>;
+  };
+  expect(Object.keys(body.translations)).toEqual(["en"]);
+});
+
+test("lang refuses the source language and an unknown one with 422", async () => {
+  const { token } = setup();
+  expect((await pull(token, "?lang=pt-PT")).status).toBe(422);
+  expect((await pull(token, "?lang=de")).status).toBe(422);
+  expect((await pull(token, "?lang=en&lang=de")).status).toBe(422);
+});
+
 test("an unknown minState is a 400", async () => {
   const { token } = setup();
   expect((await pull(token, "?minState=done")).status).toBe(400);

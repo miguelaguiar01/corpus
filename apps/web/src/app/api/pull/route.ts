@@ -12,8 +12,8 @@ export async function GET(request: Request): Promise<Response> {
   const auth = authenticateProject(db, request);
   if (!auth.ok) return auth.response;
 
-  const minState =
-    new URL(request.url).searchParams.get("minState") ?? "verified";
+  const params = new URL(request.url).searchParams;
+  const minState = params.get("minState") ?? "verified";
   if (!isMinState(minState)) {
     return Response.json(
       {
@@ -23,5 +23,25 @@ export async function GET(request: Request): Promise<Response> {
       { status: 400 },
     );
   }
-  return Response.json(pullPayload(db, auth.project, minState));
+  // `lang` (repeatable) narrows the payload to those target languages
+  // (§8); the source language is never pulled.
+  const langs = params.getAll("lang");
+  const unknown = langs.filter((l) => !auth.project.languages.includes(l));
+  if (unknown.length > 0 || langs.includes(auth.project.sourceLanguage)) {
+    return Response.json(
+      {
+        error: "bad-request",
+        message: `lang must name a target language of the project (${auth.project.languages.filter((l) => l !== auth.project.sourceLanguage).join(", ")})`,
+      },
+      { status: 422 },
+    );
+  }
+  return Response.json(
+    pullPayload(
+      db,
+      auth.project,
+      minState,
+      langs.length > 0 ? langs : undefined,
+    ),
+  );
 }

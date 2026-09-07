@@ -13,7 +13,8 @@ const RANK: Record<MinState, number> = Object.fromEntries(
 ) as Record<MinState, number>;
 
 // Build the pull payload (§8) for a project: rows at or above minState
-// with text, archived strings excluded, every configured language present.
+// with text, archived strings excluded, every configured language
+// present, or only the ones asked for.
 export function pullPayload(
   db: Db,
   project: {
@@ -23,6 +24,7 @@ export function pullPayload(
     languages: string[];
   },
   minState: MinState,
+  only: string[] = project.languages,
 ): PullPayload {
   const rows = db
     .select({
@@ -48,9 +50,11 @@ export function pullPayload(
     null,
   ) as Record<string, Record<string, string>>;
   const bucket = () => Object.create(null) as Record<string, string>;
-  for (const language of project.languages) translations[language] = bucket();
+  const wanted = new Set(only);
+  for (const language of only) translations[language] = bucket();
   for (const row of rows) {
     types[row.id] = row.type;
+    if (!wanted.has(row.language)) continue;
     // The source row's text is the string's source (§8); its translation
     // row only carries state.
     const text =
