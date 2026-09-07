@@ -62,7 +62,10 @@ export function listCatalogue(
       sql`json_extract(${strings.metadata}, ${"$." + field}) = ${jsonValue(value)}`,
     );
   }
-  if (options.language && options.states?.length) {
+  // Language alone means "has text in that language" (translated or
+  // verified, stale included); state alone means "in that state in any
+  // language"; together, that state in that language (§9.2).
+  if (options.language || options.states?.length) {
     conditions.push(
       exists(
         db
@@ -71,8 +74,15 @@ export function listCatalogue(
           .where(
             and(
               eq(stringTranslations.stringId, strings.id),
-              eq(stringTranslations.language, options.language),
-              inArray(stringTranslations.state, options.states),
+              options.language
+                ? eq(stringTranslations.language, options.language)
+                : undefined,
+              inArray(
+                stringTranslations.state,
+                options.states?.length
+                  ? options.states
+                  : ["translated", "verified"],
+              ),
             ),
           ),
       ),
