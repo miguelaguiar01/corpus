@@ -172,3 +172,14 @@ test("a JSON table cannot name an export", async () => {
     /i18n\/en\.json: a JSON file has no exports; drop export "STEPS"/,
   );
 });
+
+test("entries carry the file they were read from and the snapshot its writable sources", async () => {
+  const snapshot = await buildSnapshot(config(), REPO);
+  const byId = Object.fromEntries(snapshot.strings.map((s) => [s.id, s.file]));
+  expect(byId["app.title"]).toBe("i18n/en.json");
+  expect(byId["step-1"]).toBe("steps.ts");
+  // steps.ts is not JSON, so only the messages source can take a string.
+  expect(snapshot.sources).toEqual([
+    { path: "i18n/{lang}.json", adapter: "messages", type: "chrome" },
+  ]);
+});

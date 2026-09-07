@@ -48,6 +48,9 @@ export const stringEntrySchema = z.looseObject({
   source: z.string(),
   metadata: z.record(z.string(), metadataValueSchema).optional(),
   examples: z.array(exampleSchema).optional(),
+  // The repository path the entry was read from (§4): what lets a
+  // proposal be written back to the right file. Exec entries have none.
+  file: z.string().min(1).optional(),
 });
 
 // description is mandatory on every declaration — it renders as the

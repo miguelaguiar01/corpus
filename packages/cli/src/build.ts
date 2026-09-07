@@ -46,7 +46,10 @@ export async function buildSnapshot(
       errors.push(`${file}: ${message}`);
       continue;
     }
-    for (const entry of entries) validateEntry(entry, file, sourced, errors);
+    // The file rides with the entry (§4), so a proposal can come back to it.
+    for (const entry of entries) {
+      validateEntry({ ...entry, file }, file, sourced, errors);
+    }
   }
 
   const byId = new Map<string, string>();
@@ -66,6 +69,9 @@ export async function buildSnapshot(
     entities,
     ...(config.stringTypes && { stringTypes: config.stringTypes }),
     ...(config.entityTypes && { entityTypes: config.entityTypes }),
+    ...(writableSources(config).length > 0 && {
+      sources: writableSources(config),
+    }),
   };
 
   const parsed = snapshotSchema.safeParse(snapshot);
@@ -175,6 +181,19 @@ async function readModule(
     );
   }
   return mod[exportName];
+}
+
+// The sources pull can rewrite in place (§4): not exec, a .json path;
+// {lang} is not required, so a table without it takes proposals though
+// it takes no translations.
+export function writableSources(
+  config: CorpusConfig,
+): { path: string; adapter: "messages" | "table"; type: string }[] {
+  return config.sources.flatMap((source) =>
+    source.adapter !== "exec" && writesBack(source.path)
+      ? [{ path: source.path, adapter: source.adapter, type: source.type }]
+      : [],
+  );
 }
 
 // Sources that cannot take translations back (§8): pull says so too,

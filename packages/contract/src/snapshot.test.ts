@@ -1,4 +1,5 @@
 import { expect, test } from "vitest";
+import { moonlightManor } from "./fixtures/moonlight-manor";
 import { entitySchema, snapshotSchema } from "./snapshot";
 
 const MINIMAL = {
@@ -105,4 +106,15 @@ test("a full snapshot with strings and entities parses", () => {
   });
   expect(parsed.strings).toHaveLength(1);
   expect(parsed.entities).toHaveLength(1);
+});
+
+test("a snapshot may declare its writable sources; the fixture does", () => {
+  expect(snapshotSchema.safeParse(moonlightManor).success).toBe(true);
+  const parsed = snapshotSchema.safeParse(moonlightManor);
+  expect(parsed.success && parsed.data.sources?.length).toBe(2);
+  const bad = snapshotSchema.safeParse({
+    ...moonlightManor,
+    sources: [{ path: "x/{lang}.json", adapter: "exec", type: "t" }],
+  });
+  expect(bad.success).toBe(false);
 });
