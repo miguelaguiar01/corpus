@@ -49,18 +49,9 @@ head -1 "$CLIENT/node_modules/@corpus-tool/cli/dist/bin.js" | grep -q '^#!/usr/b
 
 cd "$CLIENT"
 
-# The client's own copy of the SQLite binding (a dependency of the
-# workbench) reads and seeds the local database; the container is
-# seeded through docker exec. Both insert the same project row.
-SEED_JS='
-  const Database = require(process.env.SQLITE_MODULE);
-  const { createHash } = require("node:crypto");
-  const db = new Database(process.env.DB);
-  const hash = createHash("sha256").update(process.env.TOKEN).digest("hex");
-  db.prepare("insert into projects (slug, name, source_language, languages, token_hash, created_at) values (?, ?, ?, ?, ?, ?)")
-    .run("install-smoke", "Install smoke", "en", JSON.stringify(["en", "pt-PT"]), hash, Date.now());
-  console.log("seeded project install-smoke");
-'
+# The declarations are checked on the instance's database: the client's
+# own copy of the SQLite binding for the workbench, docker exec for the
+# container.
 DECL_JS='
   const Database = require(process.env.SQLITE_MODULE);
   const row = new Database(process.env.DB).prepare("select string_types, entity_types from projects where slug = ?").get("install-smoke");
@@ -75,19 +66,15 @@ same_as_before() {
     || { echo "pull changed the repository ($1)" >&2; exit 1; }
 }
 
-# The loop against one instance: init (or repoint) the config, snapshot
-# the repository, push, check the declarations, pull at both states,
-# push again. $1 server URL, $2 token, $3 the command that checks the
-# declarations on that instance's database.
-loop() {
-  local server="$1" token="$2" check="$3"
-  export CORPUS_TOKEN="$token"
+# The config: init once, with declarations as a real project has them
+# (§5); later loops repoint the server. $1 server URL.
+configure() {
+  local server="$1"
   if [ ! -e corpus.config.ts ]; then
     echo "=== install-smoke: init ==="
     npx corpus init --project install-smoke --source en --languages en,pt-PT \
       --messages "src/i18n/{lang}.json" --server "$server"
     grep -q '@corpus-tool/cli' corpus.config.ts
-    # Declarations as a real project has them (§5); the push must carry them.
     node -e '
       const fs = require("node:fs");
       const src = fs.readFileSync("corpus.config.ts", "utf8");
@@ -99,6 +86,14 @@ loop() {
     sed -i "s|server: \"[^\"]*\"|server: \"$server\"|" corpus.config.ts
     grep -q "$server" corpus.config.ts
   fi
+}
+
+# The loop against one instance: snapshot the repository, push, check
+# the declarations, pull at both states, push again. The token is
+# whatever the CLI finds (CORPUS_TOKEN, or .corpus/token). $1 the
+# command that checks the declarations on that instance's database.
+loop() {
+  local check="$1"
   rm -rf "$TMP/before"; cp -r "$CLIENT" "$TMP/before"; rm -rf "$TMP/before/node_modules" "$TMP/before/.corpus"
 
   echo "=== install-smoke: push ==="
@@ -120,20 +115,27 @@ loop() {
 }
 
 echo "=== install-smoke: corpus workbench, no Docker ==="
+# The config exists before the workbench starts, so the start creates
+# the project it declares and writes .corpus/token (§2); no token is
+# pasted anywhere on this path.
+configure "http://localhost:$WB_PORT"
+unset CORPUS_TOKEN
 setsid npx corpus workbench --port "$WB_PORT" > "$TMP/workbench.log" 2>&1 < /dev/null &
 WB_PGID="$!"
+# The summary's last line comes whatever provisioning did; the token
+# line is asserted below.
 for _ in $(seq 1 120); do
-  curl -sf "http://localhost:$WB_PORT/api/health" >/dev/null 2>&1 && break
+  grep -q "  stop      Ctrl-C" "$TMP/workbench.log" 2>/dev/null && break
   kill -0 "$WB_PGID" 2>/dev/null || { cat "$TMP/workbench.log" >&2; echo "corpus workbench exited" >&2; exit 1; }
   sleep 0.5
 done
 curl -sf "http://localhost:$WB_PORT/api/health" >/dev/null || { cat "$TMP/workbench.log" >&2; echo "corpus workbench did not answer" >&2; exit 1; }
 grep -q "is running at http://localhost:$WB_PORT" "$TMP/workbench.log"
-[ -f .corpus/secret ] && [ -f .corpus/corpus.db ] || { echo ".corpus/ lacks the secret or the database" >&2; exit 1; }
+grep -q "written to .corpus/token (project install-smoke created)" "$TMP/workbench.log" || { cat "$TMP/workbench.log" >&2; echo "the workbench did not provision the project" >&2; exit 1; }
+[ -f .corpus/secret ] && [ -f .corpus/corpus.db ] && [ -f .corpus/token ] || { echo ".corpus/ lacks the secret, the database or the token" >&2; exit 1; }
+[ "$(stat -c %a .corpus/token)" = "600" ] || { echo ".corpus/token is not owner-only" >&2; exit 1; }
 grep -qx '.corpus/' .gitignore
-TOKEN_WB="$(openssl rand -hex 24)"
-SQLITE_MODULE="$CLIENT/node_modules/better-sqlite3" DB="$CLIENT/.corpus/corpus.db" TOKEN="$TOKEN_WB" node -e "$SEED_JS"
-loop "http://localhost:$WB_PORT" "$TOKEN_WB" "SQLITE_MODULE='$CLIENT/node_modules/better-sqlite3' DB='$CLIENT/.corpus/corpus.db' node -e \"\$DECL_JS\""
+loop "SQLITE_MODULE='$CLIENT/node_modules/better-sqlite3' DB='$CLIENT/.corpus/corpus.db' node -e \"\$DECL_JS\""
 kill -TERM -- "-$WB_PGID"; WB_PGID=""
 for _ in $(seq 1 40); do curl -sf "http://localhost:$WB_PORT/api/health" >/dev/null 2>&1 || break; sleep 0.5; done
 curl -sf "http://localhost:$WB_PORT/api/health" >/dev/null 2>&1 && { echo "the workbench kept running after the command was stopped" >&2; exit 1; }
@@ -141,8 +143,14 @@ echo "=== install-smoke: the workbench stopped with the command ==="
 
 echo "=== install-smoke: the container ==="
 ( cd "$OLDPWD" && bin/container-smoke --keep )
-TOKEN_CT="$(openssl rand -hex 24)"
-docker exec -e TOKEN="$TOKEN_CT" -e SQLITE_MODULE=/app/node_modules/better-sqlite3 -e DB=/data/corpus.db "$CORPUS_SMOKE_NAME" node -e "$SEED_JS"
-loop "http://127.0.0.1:$CORPUS_SMOKE_PORT" "$TOKEN_CT" "docker exec -e SQLITE_MODULE=/app/node_modules/better-sqlite3 -e DB=/data/corpus.db '$CORPUS_SMOKE_NAME' node -e \"\$DECL_JS\""
+configure "http://127.0.0.1:$CORPUS_SMOKE_PORT"
+# The container is another instance: its secret comes from the
+# environment, which wins over .corpus/secret, and the token from the
+# command's last line (§3).
+rm -f .corpus/token
+CORPUS_TOKEN="$(CORPUS_INVITE_SECRET=smoke-only-not-a-secret npx corpus project create --name "Install smoke" | tail -1)"
+export CORPUS_TOKEN
+[ -n "$CORPUS_TOKEN" ] || { echo "no token from corpus project create" >&2; exit 1; }
+loop "docker exec -e SQLITE_MODULE=/app/node_modules/better-sqlite3 -e DB=/data/corpus.db '$CORPUS_SMOKE_NAME' node -e \"\$DECL_JS\""
 
 echo "=== install-smoke: PASS ==="
