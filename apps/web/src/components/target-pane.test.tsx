@@ -79,8 +79,9 @@ test("the preview renders each example's branch from the draft", () => {
       sourceLanguage="pt-PT"
     />,
   );
+  // The fixture carries English values, so the preview is in English.
   const preview = screen.getByRole("region", {
-    name: "Preview with pt-PT values",
+    name: "Preview with en values",
   });
   expect(preview.textContent).toContain("was spotted");
   expect(preview.textContent).toContain("was seen");
@@ -92,7 +93,7 @@ test("the preview shows the example's values in the quiet tone", () => {
       action={vi.fn()}
       source={sighting.source}
       slots={[]}
-      language="en"
+      language="fr"
       initialText="{person} was seen at the {room_de} window."
       slug="mm"
       stringKey="k"
@@ -217,4 +218,57 @@ test("a draft with a select renders each example through its own branch", () => 
 test("without examples there is no preview section", () => {
   pane("x");
   expect(screen.queryByRole("region", { name: "Preview" })).toBeNull();
+});
+
+test("with values for the target language, the preview is the target sentence and the heading says so", () => {
+  render(
+    <TargetPane
+      action={vi.fn()}
+      source={sighting.source}
+      slots={[{ name: "room_de", description: "Where, with its article" }]}
+      language="en"
+      initialText="{person} was seen at the {room_de} window at {hour}."
+      slug="mm"
+      stringKey="k"
+      openedVersion={1}
+      examples={sighting.examples ?? []}
+      sourceLanguage="pt-PT"
+    />,
+  );
+  expect(
+    screen.getByRole("region", { name: "Preview with en values" }),
+  ).toBeTruthy();
+  expect(previewText()).toContain(
+    "Countess Rosa was seen at the greenhouse window at 9 pm.",
+  );
+  expect(previewText()).toContain(
+    "Doctor Vaz was seen at the drawing room window at 11 pm.",
+  );
+  const chip = screen.getByRole("button", { name: "{room_de}" });
+  expect(chip.getAttribute("title")).toBe(
+    "Where, with its article\ngreenhouse",
+  );
+});
+
+test("without values for the target language, the heading names the source language and chips keep only their description", () => {
+  render(
+    <TargetPane
+      action={vi.fn()}
+      source={sighting.source}
+      slots={[{ name: "room_de", description: "Where, with its article" }]}
+      language="fr"
+      initialText="{person}"
+      slug="mm"
+      stringKey="k"
+      openedVersion={1}
+      examples={sighting.examples ?? []}
+      sourceLanguage="pt-PT"
+    />,
+  );
+  expect(
+    screen.getByRole("region", { name: "Preview with pt-PT values" }),
+  ).toBeTruthy();
+  expect(
+    screen.getByRole("button", { name: "{room_de}" }).getAttribute("title"),
+  ).toBe("Where, with its article");
 });

@@ -130,6 +130,19 @@ test("a maintainer takes a string from pushed to verified on a phone", async ({
     page.getByRole("definition").filter({ hasText: /was seen at the window/ }),
   ).toBeVisible();
 
+  // The fixture's English values: the draft previews as the English
+  // sentence, and a chip says what its slot resolves to (§7).
+  await page
+    .getByRole("textbox")
+    .fill("{person} was seen at the {room_de} window at {hour}.");
+  await expect(
+    page.getByRole("region", { name: "Preview with en values" }),
+  ).toContainText("Countess Rosa was seen at the greenhouse window at 9 pm.");
+  await expect(page.getByRole("button", { name: "{room_de}" })).toHaveAttribute(
+    "title",
+    /greenhouse/,
+  );
+
   // Signing out ends the session on the server; signing back in with the
   // password lands on the same instance with the same account.
   await signOut(page);

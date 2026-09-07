@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import {
+  exampleValues,
   parseIcu,
   renderPreviewSegments,
   validateTranslation,
@@ -71,11 +72,22 @@ export function TargetPane({
   openedVersion: number;
   queue?: QueueKind;
   examples?: Example[];
-  // The examples' slot values are in the source language (§7); the
-  // preview says so.
+  // The examples' slot values are in the source language unless they
+  // carry the target's (§7); the preview says which.
   sourceLanguage: string;
 }) {
   const [text, setText] = useState(initialText);
+  // One exporter, one set of languages: the first example decides which
+  // language the previews and the chip hints are in.
+  const resolved = examples.map((example) =>
+    exampleValues(example, language, sourceLanguage),
+  );
+  const previewLanguage = resolved[0]?.language ?? sourceLanguage;
+  const hint = (slot: string) => {
+    const value =
+      resolved[0]?.language === language ? resolved[0].values[slot] : undefined;
+    return value;
+  };
   const ref = useRef<HTMLTextAreaElement>(null);
   const blank = text.trim() === "";
   const validation = blank
@@ -133,7 +145,9 @@ export function TargetPane({
                 className:
                   "min-h-8 hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
               })}
-              title={slot.description}
+              title={[slot.description, hint(slot.name)]
+                .filter(Boolean)
+                .join("\n")}
               onClick={() => insert(`{${slot.name}}`)}
             >
               {`{${slot.name}}`}
@@ -173,26 +187,30 @@ export function TargetPane({
       {examples.length > 0 && (
         <section
           role="region"
-          aria-label={t("editor.previewHeading", { language: sourceLanguage })}
+          aria-label={t("editor.previewHeading", {
+            language: previewLanguage,
+          })}
           className="space-y-1.5"
         >
           <h3 className="text-sm font-medium text-muted-foreground">
-            {t("editor.previewHeading", { language: sourceLanguage })}
+            {t("editor.previewHeading", { language: previewLanguage })}
           </h3>
           <ul className="space-y-1.5">
-            {previews(text, blank, examples).map((segments, index) => (
-              <li key={index} className="text-base leading-relaxed">
-                {segments.map((segment, i) =>
-                  segment.value ? (
-                    <span key={i} className="text-muted-foreground">
-                      {segment.text}
-                    </span>
-                  ) : (
-                    <span key={i}>{segment.text}</span>
-                  ),
-                )}
-              </li>
-            ))}
+            {previews(text, blank, examples, resolved).map(
+              (segments, index) => (
+                <li key={index} className="text-base leading-relaxed">
+                  {segments.map((segment, i) =>
+                    segment.value ? (
+                      <span key={i} className="text-muted-foreground">
+                        {segment.text}
+                      </span>
+                    ) : (
+                      <span key={i}>{segment.text}</span>
+                    ),
+                  )}
+                </li>
+              ),
+            )}
           </ul>
         </section>
       )}
@@ -226,10 +244,12 @@ function previews(
   text: string,
   blank: boolean,
   examples: Example[],
+  resolved: { values: Record<string, string> }[],
 ): PreviewSegment[][] {
-  return examples.flatMap((example) => {
+  return examples.flatMap((example, index) => {
     if (blank) return [[{ text: example.rendered, value: false }]];
-    const result = renderPreviewSegments(text, example.values);
+    const values = resolved[index]?.values ?? example.values;
+    const result = renderPreviewSegments(text, values);
     return result.ok ? [result.segments] : [];
   });
 }
