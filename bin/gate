@@ -3,7 +3,8 @@
 # Must pass before opening any PR; CI re-runs it on every PR.
 #
 # Steps: typecheck + lint + format check + full test suite + corpus check
-# on this repo's own catalog. Any step failing fails the gate.
+# and corpus validate on this repo's own catalog. Any step failing fails
+# the gate.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -35,6 +36,11 @@ step "corpus check (self catalog)"
 # `corpus check` on this repo, configured in corpus.config.ts, run from
 # the binary built above so the gate exercises what ships.
 node packages/cli/dist/bin.js check
+
+step "corpus validate (self catalog)"
+# The committed Portuguese catalogue must still satisfy its source's
+# placeholders and selects (§3), offline.
+node packages/cli/dist/bin.js validate
 
 echo
 echo "=== gate: PASS ==="
