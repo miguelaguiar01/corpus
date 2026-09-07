@@ -340,6 +340,7 @@ reference block over multi-pane editing, since a phone has room for
 one target and the save and verify flow acts on one row.
 
 **Context:** #311 (epic), #312; the integration's message of
-2026-09-07; the M5 evidence in the former §13 entry ("was seen at the
-da estufa window").
+2026-09-07; the M5 evidence recorded in the §13 entry this resolves
+("was seen at the da estufa window", the Portuguese contraction baked
+into a value the English preview used as-is).
 
