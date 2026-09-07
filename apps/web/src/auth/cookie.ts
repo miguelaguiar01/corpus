@@ -10,7 +10,10 @@ export function secureCookie(
   host: string | null,
   forwardedProto: string | null,
   protocol?: string,
+  publicUrl: string | undefined = process.env.CORPUS_PUBLIC_URL,
 ): boolean {
+  // A configured HTTPS origin settles it, whatever a client puts in Host.
+  if (publicUrl?.toLowerCase().startsWith("https:")) return true;
   if (forwardedProto?.split(",")[0]?.trim() === "https") return true;
   if (protocol === "https:") return true;
   const raw = (host ?? "").trim().toLowerCase();

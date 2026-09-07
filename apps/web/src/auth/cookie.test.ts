@@ -24,3 +24,13 @@ test("no host at all is treated as remote", () => {
   expect(secureCookie(null, null)).toBe(true);
   expect(secureCookie("", null)).toBe(true);
 });
+
+test("a configured HTTPS public URL forces Secure whatever the request says", () => {
+  expect(
+    secureCookie("localhost:3000", null, "http:", "https://corpus.example"),
+  ).toBe(true);
+  expect(
+    secureCookie("localhost:3000", null, "http:", "http://localhost:3000"),
+  ).toBe(false);
+  expect(secureCookie("localhost:3000", null, "http:", undefined)).toBe(false);
+});
