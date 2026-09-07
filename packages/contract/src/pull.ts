@@ -5,6 +5,7 @@
 // other, which is what makes the push∘pull round trip possible.
 import { z } from "zod";
 import { CONTRACT_VERSION } from "./snapshot";
+import { identifier } from "./strings";
 
 export const MIN_STATES = ["untranslated", "translated", "verified"] as const;
 export type MinState = (typeof MIN_STATES)[number];
@@ -14,13 +15,18 @@ export type SourceChangeKind = (typeof SOURCE_CHANGE_KINDS)[number];
 
 // A pending proposal (§11) for pull to write into a source file (§8):
 // `text` for an edit or an add, none for a delete.
-export const sourceChangeSchema = z.looseObject({
-  kind: z.enum(SOURCE_CHANGE_KINDS),
-  id: z.string().min(1),
-  type: z.string().min(1),
-  file: z.string().min(1),
-  text: z.string().optional(),
-});
+export const sourceChangeSchema = z
+  .looseObject({
+    kind: z.enum(SOURCE_CHANGE_KINDS),
+    id: identifier(),
+    type: identifier(),
+    file: z.string().min(1),
+    text: z.string().optional(),
+  })
+  .refine((c) => c.kind === "delete" || c.text !== undefined, {
+    message: "an edit or an add carries text",
+    path: ["text"],
+  });
 
 export const pullPayloadSchema = z.looseObject({
   contract: z.literal(CONTRACT_VERSION),

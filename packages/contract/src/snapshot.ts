@@ -22,14 +22,15 @@ export const entityTypeDeclarationSchema = z.looseObject({
   label: z.string().min(1),
 });
 
-// stringTypes/entityTypes travel in the snapshot so the server can
-// render metadata generically (§5) without reading the client's config.
+// The sources pull can rewrite in place (§4): where a new string may go.
 export const writableSourceSchema = z.looseObject({
   path: z.string().min(1),
   adapter: z.enum(["messages", "table"]),
   type: identifier(),
 });
 
+// stringTypes/entityTypes travel in the snapshot so the server can
+// render metadata generically (§5) without reading the client's config.
 export const snapshotSchema = z.looseObject({
   contract: z.literal(CONTRACT_VERSION),
   project: identifier(),

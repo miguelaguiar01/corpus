@@ -67,4 +67,19 @@ test("a pull payload may carry pending source changes", () => {
       sourceChanges: [{ kind: "rename", id: "a", type: "t", file: "f" }],
     }).success,
   ).toBe(false);
+  // An id or a type must be an identifier, and an edit carries text.
+  expect(
+    pullPayloadSchema.safeParse({
+      ...base,
+      sourceChanges: [
+        { kind: "add", id: "a b", type: "t", file: "f", text: "x" },
+      ],
+    }).success,
+  ).toBe(false);
+  expect(
+    pullPayloadSchema.safeParse({
+      ...base,
+      sourceChanges: [{ kind: "edit", id: "a", type: "t", file: "f" }],
+    }).success,
+  ).toBe(false);
 });

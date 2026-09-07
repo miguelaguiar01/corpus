@@ -5,7 +5,7 @@ import {
   type CorpusConfig,
 } from "@corpus/contract";
 import { expect, test } from "vitest";
-import { buildSnapshot } from "./build";
+import { buildSnapshot, writableSources } from "./build";
 
 const REPO = fileURLToPath(new URL("../test/fixtures/repo", import.meta.url));
 
@@ -182,4 +182,56 @@ test("entries carry the file they were read from and the snapshot its writable s
   expect(snapshot.sources).toEqual([
     { path: "i18n/{lang}.json", adapter: "messages", type: "chrome" },
   ]);
+});
+
+test("writableSources: not exec, a .json path, {lang} not required", () => {
+  const sources = writableSources(
+    config({
+      sources: [
+        { adapter: "messages", type: "chrome", path: "i18n/{lang}.json" },
+        {
+          adapter: "table",
+          type: "step",
+          path: "steps.json",
+          map: { id: "id", text: "text" },
+        },
+        {
+          adapter: "table",
+          type: "row",
+          path: "data/rows.{lang}.JSON",
+          map: { id: "id", text: "text" },
+        },
+        {
+          adapter: "table",
+          type: "ts",
+          path: "steps.ts",
+          map: { id: "id", text: "text" },
+        },
+        { adapter: "messages", type: "js", path: "i18n/{lang}.js" },
+        { adapter: "exec", command: "node x.mjs" },
+      ],
+    }),
+  );
+  expect(sources).toEqual([
+    { path: "i18n/{lang}.json", adapter: "messages", type: "chrome" },
+    { path: "steps.json", adapter: "table", type: "step" },
+    { path: "data/rows.{lang}.JSON", adapter: "table", type: "row" },
+  ]);
+});
+
+test("a snapshot with nothing writable carries no sources", async () => {
+  const snapshot = await buildSnapshot(
+    config({
+      sources: [
+        {
+          adapter: "table",
+          type: "tutorial-step",
+          path: "steps.ts",
+          map: { id: "id", text: "text" },
+        },
+      ],
+    }),
+    REPO,
+  );
+  expect("sources" in snapshot).toBe(false);
 });
