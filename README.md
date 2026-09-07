@@ -17,7 +17,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/editor-structured-desktop-dark.png">
-    <img src="docs/screenshots/editor-structured-desktop-light.png" width="960" alt="The editor: on the left a source sentence whose gendered select reads inline as visto / vista with a strip naming its keys, the related characters and rooms beneath; on the right the English draft with insertable placeholder and select chips, two live previews built from the string's own example values, and the save button.">
+    <img src="docs/screenshots/editor-structured-desktop-light.png" width="960" alt="The editor: on the left a source sentence whose gendered select reads inline as visto / vista with a strip naming its keys, the related trait and characters beneath; on the right the English draft with insertable placeholder and select chips, two live previews built from the string's own example values, and the save button.">
   </picture>
 </p>
 
@@ -95,7 +95,7 @@ The project exists on the instance before the first push. `corpus workbench` cre
 CORPUS_INVITE_SECRET=<the instance secret> npx corpus project create --name "My game"
 ```
 
-Every command reads the token from `CORPUS_TOKEN`, then from `.corpus/token`; `corpus project rotate-token` replaces it with the current one and rewrites the file when that is where it came from. The commands:
+Where a command needs the project token it reads `CORPUS_TOKEN`, then `.corpus/token`; `corpus project rotate-token` replaces it with the current one and rewrites the file when that is where it came from. The commands:
 
 ```sh
 npx corpus build                      # no server: runs the sources, validates, prints a summary
@@ -124,7 +124,7 @@ npx corpus pull --check                                   # the repository carri
 npx corpus status --json | jq -e '.progress.perLanguage["pt-PT"].untranslated == 0'
 ```
 
-`status --json` is the dashboard's numbers as one object: per language and per string type, `untranslated`, `translated`, `verified`, `stale` and `total`, with the string count, the last push and the server's version. A throwaway instance for a test job is `corpus workbench` in the repository, which creates the project and writes the token itself; this repository's own gate does exactly that (`bin/install-smoke`), and pushes its interface strings to a fresh container the same way (`bin/dogfood`).
+`status --json` is the dashboard's numbers as one object: per language and per string type, `untranslated`, `translated`, `verified`, `stale` and `total`, with the string count, the last push and the server's version. A throwaway instance for a test job is `corpus workbench` in the repository, which creates the project and writes the token itself; this repository's CI does exactly that (`bin/install-smoke`), and pushes its interface strings to a fresh container the same way (`bin/dogfood`).
 
 ## How it works
 
@@ -154,7 +154,7 @@ Source text and metadata belong to the repository; translations and workflow sta
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/catalogue-desktop-dark.png">
-    <img src="docs/screenshots/catalogue-desktop-light.png" width="960" alt="The catalogue: facet filters in a rail on the left; on the right the per-language progress, a search box with the active filter as a chip, and one row per string with its key, type, source and per-language state chips.">
+    <img src="docs/screenshots/catalogue-desktop-light.png" width="960" alt="The catalogue: facet filters in a rail on the left; on the right the per-language progress, the search box, and one row per string with its key, type, source and per-language state chips, verified ones filled in green.">
   </picture>
 </p>
 
