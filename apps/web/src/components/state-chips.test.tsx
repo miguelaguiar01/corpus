@@ -73,6 +73,8 @@ test("with hrefFor the chips are links and the selected language is marked", () 
   const en = screen.getByRole("link", { name: /en/ });
   expect(en.getAttribute("href")).toBe("/p/mm/s/key?language=en");
   expect(en.getAttribute("aria-current")).toBe("page");
+  expect(screen.getByText("en").className).toMatch(/underline/);
   const source = screen.getByRole("link", { name: /pt-PT/ });
   expect(source.getAttribute("aria-current")).toBeNull();
+  expect(screen.getByText("pt-PT").className).not.toMatch(/underline/);
 });

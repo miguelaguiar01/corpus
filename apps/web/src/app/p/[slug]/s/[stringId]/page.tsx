@@ -12,7 +12,7 @@ import { Section } from "@/components/ui/section";
 import { QueueNav } from "@/components/queue-nav";
 import { SourceView } from "@/components/source-view";
 import { StateChips } from "@/components/state-chips";
-import { stringPath } from "@/strings/paths";
+import { languageSwitchPath } from "@/strings/paths";
 import { TargetPane, type Slot } from "@/components/target-pane";
 import { VerifyForm } from "@/components/verify-form";
 import { getProjectBySlug } from "@/projects/service";
@@ -153,22 +153,21 @@ export default async function StringPage({
             <StateChips
               languages={project.languages}
               states={translations}
-              selected={language}
-              hrefFor={(next) =>
-                stringPath(slug, string.key, {
-                  language: next === project.sourceLanguage ? undefined : next,
-                  // The queue is kept only when the switched-to row is in
-                  // it (§9.3), so next and previous stay inside it.
-                  queue:
-                    queueKind &&
-                    queue?.items.some(
-                      (item) =>
-                        item.stringId === string.id && item.language === next,
-                    )
-                      ? queueKind
-                      : undefined,
-                })
-              }
+              selected={actedLanguage}
+              hrefFor={languageSwitchPath({
+                slug,
+                key: string.key,
+                sourceLanguage: project.sourceLanguage,
+                queue:
+                  queueKind && queue
+                    ? {
+                        kind: queueKind,
+                        languages: queue.items
+                          .filter((item) => item.stringId === string.id)
+                          .map((item) => item.language),
+                      }
+                    : undefined,
+              })}
             />
             <MetadataChips
               declarations={declarations}
