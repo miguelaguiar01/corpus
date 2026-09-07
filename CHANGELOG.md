@@ -7,9 +7,15 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-09-07
+
+What the demo project's integration found.
+
 ### Fixed
 
 - `pull` leaves the source language alone: its catalogue is never rewritten (a compact JSON file stays as it is) and an `exec` importer no longer receives source-language text.
+- Workbench: the session cookie is `Secure` when the request is HTTPS or reaches a host other than loopback, not whenever the build is production, so `corpus workbench` on `http://localhost` or `http://127.0.0.1` signs in from Safari and from automation.
+- Workbench: adding a language in settings creates an untranslated row for every active string at once, so the dashboard, the queues and the catalogue show it without a push; a push also fills any gap.
 
 ## [0.4.0] - 2026-09-07
 
@@ -72,7 +78,8 @@ The first published version.
 - The `messages`, `table` and `exec` adapters, and the `corpus/1` snapshot contract with its ICU subset (placeholders and `select`).
 - The package ships plain JavaScript for Node 22 with type declarations; a client's config imports `defineCorpus` from `@corpus-tool/cli`.
 
-[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.4.1
 [0.4.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.4.0
 [0.3.1]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.3.1
 [0.3.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.3.0
