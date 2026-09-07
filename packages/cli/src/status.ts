@@ -1,7 +1,7 @@
 import type { RunContext } from "./cli";
 import { CliError, loadConfig, requireToken } from "./config";
 import { languageDrift } from "./project";
-import { serverMessage } from "./server";
+import { request, serverMessage, UNAUTHORIZED } from "./server";
 
 export const STATUS_USAGE = "corpus status [--json]";
 
@@ -40,21 +40,8 @@ export async function status(args: string[], ctx: RunContext): Promise<number> {
   const config = await loadConfig(ctx.cwd);
   const token = requireToken(ctx.env, ctx.cwd);
   const url = `${config.server.replace(/\/$/, "")}/api/status`;
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      headers: { authorization: `Bearer ${token}` },
-    });
-  } catch (error) {
-    throw new CliError(
-      `could not reach the server at ${config.server}: ${(error as Error).message}`,
-    );
-  }
-  if (response.status === 401) {
-    throw new CliError(
-      "unauthorized — the token was refused (CORPUS_TOKEN or .corpus/token, for this project)",
-    );
-  }
+  const response = await request(url, token);
+  if (response.status === 401) throw new CliError(UNAUTHORIZED);
   if (!response.ok) {
     throw new CliError(
       `status failed (HTTP ${response.status})${await serverMessage(response)}`,

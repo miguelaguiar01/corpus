@@ -13,11 +13,10 @@ export async function GET(request: Request): Promise<Response> {
   if (!auth.ok) return auth.response;
   const { project } = auth;
 
-  const activeStrings = db
-    .select({ id: strings.id })
-    .from(strings)
-    .where(and(eq(strings.projectId, project.id), eq(strings.archived, false)))
-    .all().length;
+  const activeStrings = await db.$count(
+    strings,
+    and(eq(strings.projectId, project.id), eq(strings.archived, false)),
+  );
   const lastPush = db
     .select({ at: pushes.at })
     .from(pushes)

@@ -13,6 +13,7 @@ import {
 import type { RunContext } from "./cli";
 import { writesBack } from "./build";
 import { CliError, loadConfig, requireToken } from "./config";
+import { request, serverMessage, UNAUTHORIZED } from "./server";
 
 // `corpus pull` (§8): download translations at or above --min-state and
 // write them back through the adapters. Files are only touched when
@@ -148,26 +149,14 @@ async function download(
   ctx: RunContext,
 ): Promise<PullPayload | undefined> {
   const url = `${config.server.replace(/\/$/, "")}/api/pull?minState=${minState}`;
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      headers: { authorization: `Bearer ${token}` },
-    });
-  } catch (error) {
-    throw new CliError(
-      `could not reach the server at ${config.server}: ${(error as Error).message}`,
-    );
-  }
+  const response = await request(url, token);
   if (response.status === 401) {
-    ctx.err("corpus: unauthorized — check CORPUS_TOKEN for this project");
+    ctx.err(`corpus: ${UNAUTHORIZED}`);
     return undefined;
   }
   if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as {
-      message?: string;
-    };
     ctx.err(
-      `corpus: pull failed (HTTP ${response.status})${body.message ? `: ${body.message}` : ""}`,
+      `corpus: pull failed (HTTP ${response.status})${await serverMessage(response)}`,
     );
     return undefined;
   }

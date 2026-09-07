@@ -59,6 +59,18 @@ test("the project's numbers with its languages, string count and last push", asy
   expect(json.progress.perLanguage.en?.untranslated).toBe(
     moonlightManor.strings.length,
   );
+
+  // A string dropped from the next push is archived: out of the count,
+  // as out of the dashboard; the last push moves.
+  const fewer = structuredClone(moonlightManor) as Snapshot;
+  fewer.strings.pop();
+  applySnapshot(db, created.project.id, fewer);
+  const after = (await (await status(created.token)).json()) as {
+    strings: number;
+    lastPushAt: string;
+  };
+  expect(after.strings).toBe(moonlightManor.strings.length - 1);
+  expect(after.lastPushAt >= json.lastPushAt).toBe(true);
 });
 
 test("no token is 401", async () => {

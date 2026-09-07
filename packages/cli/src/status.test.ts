@@ -123,6 +123,25 @@ test("a refused token is one line", async () => {
   expect(c.stderr.join("\n")).toMatch(/refused/);
 });
 
+test("a long type name widens the first column of every table", () => {
+  const lines = render(
+    {
+      ...STATUS,
+      progress: {
+        perLanguage: STATUS.progress.perLanguage,
+        perType: { "dialogue-line": STATUS.progress.perType.chrome! },
+      },
+    },
+    "http://x",
+  );
+  expect(lines).toContain(
+    "language       untranslated  translated  verified  stale  total",
+  );
+  expect(lines).toContain(
+    "dialogue-line  untranslated  translated  verified  stale  total",
+  );
+});
+
 test("render says never pushed and shows a language with no rows as zeros", () => {
   const lines = render(
     {

@@ -7,7 +7,7 @@ import { checkFiles } from "./check";
 import { init, INIT_USAGE } from "./init";
 import { languageDrift, project, PROJECT_USAGE } from "./project";
 import { pull } from "./pull";
-import { serverMessage } from "./server";
+import { request, serverMessage, UNAUTHORIZED } from "./server";
 import { status, STATUS_USAGE } from "./status";
 import { workbench, WORKBENCH_USAGE } from "./workbench";
 
@@ -80,26 +80,13 @@ async function push(args: string[], ctx: RunContext): Promise<number> {
   const token = requireToken(ctx.env, ctx.cwd);
 
   const url = `${config.server.replace(/\/$/, "")}/api/push${dryRun ? "?dryRun" : ""}`;
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${token}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify(snapshot),
-    });
-  } catch (error) {
-    throw new CliError(
-      `could not reach the server at ${config.server}: ${(error as Error).message}`,
-    );
-  }
+  const response = await request(url, token, {
+    method: "POST",
+    body: snapshot,
+  });
 
   if (response.status === 401) {
-    ctx.err(
-      "corpus: unauthorized — the token was refused (CORPUS_TOKEN or .corpus/token, for this project)",
-    );
+    ctx.err(`corpus: ${UNAUTHORIZED}`);
     return 1;
   }
   if (response.status === 422) {
