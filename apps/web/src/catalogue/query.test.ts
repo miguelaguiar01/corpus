@@ -1,7 +1,9 @@
 import { moonlightManor, type Snapshot } from "@corpus/contract";
 import { expect, test } from "vitest";
 import { applySnapshot } from "@/ingest/apply";
-import { projects } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { projects, strings, users } from "@/db/schema";
+import { applyTransition } from "@/translations/service";
 import { memoryDb } from "@/db/test-helpers";
 import { listCatalogue } from "./query";
 
@@ -80,4 +82,66 @@ test("cursor pagination walks the whole set without overlap", () => {
     cursor = next.nextCursor;
   }
   expect(seen.size).toBe(moonlightManor.strings.length);
+});
+
+// One English translation saved and one Portuguese source verified, so
+// the facets have something to tell apart.
+function withHistory() {
+  const { db, p } = pushed();
+  const [ana] = db
+    .insert(users)
+    .values({ name: "ana", maintainer: true })
+    .returning()
+    .all();
+  if (!ana) throw new Error("seed failed");
+  const id = (key: string) =>
+    db
+      .select({ id: strings.id })
+      .from(strings)
+      .where(eq(strings.stringId, key))
+      .get()!.id;
+  applyTransition(db, {
+    stringId: id("ui.continue"),
+    language: "en",
+    action: { type: "save", text: "Continue" },
+    actor: ana,
+  });
+  applyTransition(db, {
+    stringId: id("skin.heard-nothing"),
+    language: "pt-PT",
+    action: { type: "verify" },
+    actor: ana,
+  });
+  return { db, p };
+}
+
+test("a language alone lists the strings that have text in it", () => {
+  const { db, p } = withHistory();
+  const en = listCatalogue(db, p.id, { language: "en" }).rows;
+  expect(en.map((r) => r.stringId)).toEqual(["ui.continue"]);
+  const source = listCatalogue(db, p.id, { language: "pt-PT" }).rows;
+  expect(source.length).toBe(moonlightManor.strings.length);
+});
+
+test("a state alone lists the strings in that state in any language", () => {
+  const { db, p } = withHistory();
+  const verified = listCatalogue(db, p.id, { states: ["verified"] }).rows;
+  expect(verified.map((r) => r.stringId)).toEqual(["skin.heard-nothing"]);
+  const untranslated = listCatalogue(db, p.id, {
+    states: ["untranslated"],
+  }).rows;
+  expect(untranslated.length).toBe(moonlightManor.strings.length - 1);
+});
+
+test("a language and a state together mean that state in that language", () => {
+  const { db, p } = withHistory();
+  expect(
+    listCatalogue(db, p.id, { language: "en", states: ["verified"] }).rows,
+  ).toEqual([]);
+  expect(
+    listCatalogue(db, p.id, {
+      language: "pt-PT",
+      states: ["verified"],
+    }).rows.map((r) => r.stringId),
+  ).toEqual(["skin.heard-nothing"]);
 });
