@@ -316,3 +316,30 @@ came from keeps it out of shells and pastes.
 **Context:** #291 (epic), #292, PR #300's review; the alpha
 integration's report of 2026-09-07, which ranked this first "by a wide
 margin".
+
+## 2026-09-07 — Examples carry values per language; the client resolves them
+
+**Decision:** an example may carry `valuesByLanguage`, slot values
+resolved per target language by the client's exporter, beside its
+source-language `values`. The editor previews a draft with the
+selected language's values when they exist and with the source values
+otherwise, and says which. Placeholder chips keep the token as their
+text and show the resolved value on hover. The other languages of a
+string are shown under the source as a read-only block; editing stays
+one target at a time.
+
+**Why:** the alpha integration ships engine text whose nouns carry
+grammar, and asked for a live preview in the target language so a
+translator reads the source, types the target, and watches the real
+sentence appear. The client already knows how to resolve its nouns in
+every language it ships; carrying the results is a field, deriving
+them would be form tables (§13), which nobody needs yet. The owner
+chose the token over the resolved value as the chip's text, so the
+thing a translator inserts is the thing they see, and a read-only
+reference block over multi-pane editing, since a phone has room for
+one target and the save and verify flow acts on one row.
+
+**Context:** #311 (epic), #312; the integration's message of
+2026-09-07; the M5 evidence in the former §13 entry ("was seen at the
+da estufa window").
+
