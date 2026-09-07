@@ -7,6 +7,7 @@ import {
 } from "@corpus/contract";
 import type { Db } from "@/db";
 import { strings, stringTranslations } from "@/db/schema";
+import { sourceChangesFor } from "@/proposals/service";
 
 const RANK: Record<MinState, number> = Object.fromEntries(
   MIN_STATES.map((state, index) => [state, index]),
@@ -62,6 +63,7 @@ export function pullPayload(
     if (text === null || RANK[row.state] < RANK[minState]) continue;
     (translations[row.language] ??= bucket())[row.id] = text;
   }
+  const sourceChanges = sourceChangesFor(db, project.id);
   return {
     contract: CONTRACT_VERSION,
     project: project.slug,
@@ -69,5 +71,6 @@ export function pullPayload(
     minState,
     types,
     translations,
+    ...(sourceChanges.length > 0 && { sourceChanges }),
   };
 }

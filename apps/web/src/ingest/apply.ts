@@ -9,6 +9,7 @@ import {
   strings,
   stringTranslations,
 } from "@/db/schema";
+import { reconcileProposals } from "@/proposals/service";
 import { ensureTranslationRows } from "@/translations/rows";
 import { diffSnapshot, type CurrentString, type DiffReport } from "./diff";
 
@@ -17,6 +18,8 @@ export type IngestReport = DiffReport & {
   entitiesRemoved: number;
   seeded: number;
   seedsIgnored: number;
+  proposalsApplied: number;
+  proposalsSuperseded: number;
 };
 
 // Carries the computed report out of a dry-run transaction while forcing
@@ -55,6 +58,7 @@ export function applySnapshot(
         .set({
           stringTypes: snapshot.stringTypes ?? null,
           entityTypes: snapshot.entityTypes ?? null,
+          sources: snapshot.sources ?? null,
         })
         .where(eq(projects.id, projectId))
         .run();
@@ -79,6 +83,7 @@ export function applySnapshot(
             source: entry.source,
             metadata: entry.metadata,
             examples: entry.examples,
+            file: entry.file ?? null,
           })
           .returning()
           .get();
@@ -109,6 +114,7 @@ export function applySnapshot(
             type: entry.type,
             metadata: entry.metadata,
             examples: entry.examples,
+            file: entry.file ?? null,
             archived: false,
           })
           .where(eq(strings.id, currentRowId.get(id)!))
@@ -124,6 +130,7 @@ export function applySnapshot(
             source: entry.source,
             metadata: entry.metadata,
             examples: entry.examples,
+            file: entry.file ?? null,
             archived: false,
           })
           .where(eq(strings.id, rowId))
@@ -160,7 +167,20 @@ export function applySnapshot(
       const entityResult = applyEntities(tx, projectId, snapshot);
       const seedResult = applySeeds(tx, projectId, targetLanguages, snapshot);
 
-      const report = { ...plan.report, ...entityResult, ...seedResult };
+      // Proposals that this push lands or overtakes (§8, §11).
+      const proposals = reconcileProposals(
+        tx,
+        projectId,
+        new Map(current.map((c) => [c.stringId, c.source])),
+        new Map(snapshot.strings.map((s) => [s.id, s.source])),
+      );
+      const report = {
+        ...plan.report,
+        ...entityResult,
+        ...seedResult,
+        proposalsApplied: proposals.applied,
+        proposalsSuperseded: proposals.superseded,
+      };
       if (options.dryRun) throw new DryRunRollback(report);
       tx.insert(pushes)
         .values({

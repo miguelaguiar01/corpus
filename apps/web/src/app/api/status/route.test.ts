@@ -44,6 +44,7 @@ test("the project's numbers with its languages, string count and last push", asy
     strings: number;
     lastPushAt: string;
     version: string;
+    pendingProposals: number;
     progress: {
       perLanguage: Record<string, { total: number; untranslated: number }>;
     };
@@ -53,6 +54,7 @@ test("the project's numbers with its languages, string count and last push", asy
   expect(json.strings).toBe(moonlightManor.strings.length);
   expect(json.lastPushAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   expect(json.version).toBe("dev");
+  expect(json.pendingProposals).toBe(0);
   expect(json.progress.perLanguage.en?.total).toBe(
     moonlightManor.strings.length,
   );

@@ -2,6 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { authenticateProject } from "@/api/bearer";
 import { progressCounts } from "@/catalogue/progress";
+import { pendingCount } from "@/proposals/service";
 import { pushes, strings } from "@/db/schema";
 import { appVersion } from "@/version";
 
@@ -32,6 +33,7 @@ export async function GET(request: Request): Promise<Response> {
     strings: activeStrings,
     lastPushAt: lastPush ? lastPush.at.toISOString() : null,
     version: appVersion(process.env),
+    pendingProposals: pendingCount(db, project.id),
     progress: progressCounts(db, project.id),
   });
 }
