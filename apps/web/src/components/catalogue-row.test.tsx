@@ -30,3 +30,18 @@ test("links to the string and shows key, type, source and states", () => {
     /bg-state-verified/,
   );
 });
+
+test("a pending proposal marks the row", () => {
+  render(
+    <CatalogueRow
+      href="/p/mm/s/k"
+      stringId="k"
+      type="chrome"
+      source={SOURCE}
+      languages={["en"]}
+      states={{}}
+      pending
+    />,
+  );
+  expect(screen.getByText("proposed")).toBeTruthy();
+});

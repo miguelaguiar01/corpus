@@ -26,6 +26,8 @@ export type StringDetail = {
     type: string;
     source: string;
     archived: boolean;
+    // The repository file it came from (§4); null when pull cannot write it.
+    file: string | null;
     metadata: Record<string, MetadataValue> | null;
     examples: Example[] | null;
   };
@@ -122,6 +124,7 @@ export function stringDetail(
       type: string.type,
       source: string.source,
       archived: string.archived,
+      file: string.file,
       metadata,
       examples: string.examples ?? null,
     },

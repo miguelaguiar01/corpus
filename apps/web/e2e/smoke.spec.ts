@@ -86,6 +86,45 @@ test("a maintainer takes a string from pushed to verified on a phone", async ({
   ).toContainText("2");
   await expect(page.getByText("1 verified, 2 translated of 3")).toBeVisible();
 
+  // Source proposals (§9, §11): a change, the mark, a withdrawal, a new
+  // string, a removal. Nothing here changes a translation.
+  await page.goto(`/p/${moonlightManor.project}/s/ui.continue`);
+  await page.getByRole("button", { name: "Propose a change" }).click();
+  await page.getByLabel("Proposed source text").fill("Seguir");
+  await page.getByRole("button", { name: "Propose", exact: true }).click();
+  await page.waitForURL(/proposed=1/);
+  await expect(page.getByText("proposed by ana")).toBeVisible();
+  await page.goto(`/p/${moonlightManor.project}/catalogue`);
+  await expect(page.getByText("proposed", { exact: true })).toBeVisible();
+  await page.goto(`/p/${moonlightManor.project}`);
+  await expect(page.getByText(/Pending proposals: 1/)).toBeVisible();
+  await page.goto(`/p/${moonlightManor.project}/s/ui.continue`);
+  await page.getByRole("button", { name: "Withdraw" }).click();
+  await page.waitForURL(/withdrawn=1/);
+  await expect(
+    page.getByRole("button", { name: "Propose a change" }),
+  ).toBeVisible();
+  await expect(page.getByText("withdrawn", { exact: true })).toBeVisible();
+
+  await page.goto(`/p/${moonlightManor.project}/catalogue`);
+  await page.getByRole("link", { name: "Add a string" }).click();
+  await page.getByLabel("Key").fill("ui.back");
+  await page.getByLabel("Source file").selectOption("src/ui/{lang}.json");
+  await page.getByLabel("Source text").fill("Voltar");
+  await page.getByRole("button", { name: "Propose the string" }).click();
+  await page.waitForURL(/added=ui\.back/);
+  await expect(page.getByText(/Proposed ui\.back/)).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Proposed strings" }),
+  ).toBeVisible();
+  await expect(page.getByText("ui.back", { exact: true })).toBeVisible();
+
+  await page.goto(`/p/${moonlightManor.project}/s/skin.heard-nothing`);
+  await page.getByRole("button", { name: "Propose removal" }).click();
+  await page.waitForURL(/proposed=1/);
+  await expect(page.getByText("Removal").first()).toBeVisible();
+  await expect(page.getByText("proposed by ana")).toBeVisible();
+
   // The desktop layouts must not overflow either.
   await page.setViewportSize({ width: 1280, height: 800 });
   await expectNoSidewaysOverflow(page);

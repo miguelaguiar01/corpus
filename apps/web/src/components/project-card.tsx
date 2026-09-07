@@ -14,12 +14,14 @@ export function ProjectCard({
   languages,
   progress,
   counts,
+  pending = 0,
 }: {
   slug: string;
   name: string;
   languages: string[];
   progress: Progress["perLanguage"];
   counts: QueueCounts;
+  pending?: number;
 }) {
   return (
     <Link
@@ -59,6 +61,14 @@ export function ProjectCard({
             <dd className="font-medium">{counts[kind]}</dd>
           </div>
         ))}
+        {pending > 0 && (
+          <div className="flex flex-row-reverse items-baseline gap-1.5">
+            <dt className="text-muted-foreground">
+              {t("proposal.dashboardHeading")}
+            </dt>
+            <dd className="font-medium">{pending}</dd>
+          </div>
+        )}
       </dl>
     </Link>
   );

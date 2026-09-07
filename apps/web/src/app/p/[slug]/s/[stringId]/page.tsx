@@ -12,6 +12,7 @@ import { Section } from "@/components/ui/section";
 import { QueueNav } from "@/components/queue-nav";
 import { SourceView } from "@/components/source-view";
 import { OtherLanguages } from "@/components/other-languages";
+import { ProposalPanel } from "@/components/proposal-panel";
 import { StateChips } from "@/components/state-chips";
 import { languageSwitchPath } from "@/strings/paths";
 import { TargetPane, type Slot } from "@/components/target-pane";
@@ -19,14 +20,30 @@ import { VerifyForm } from "@/components/verify-form";
 import { getProjectBySlug } from "@/projects/service";
 import { stringDetail } from "@/strings/detail";
 import { saveString, verifyString } from "@/translations/actions";
+import {
+  proposeDeleteAction,
+  proposeEditAction,
+  withdrawProposalAction,
+} from "@/proposals/actions";
+import { pendingForString, proposalsForKey } from "@/proposals/service";
 import { canVerifyRow } from "@/translations/permissions";
 import { t, type MessageKey } from "@/i18n";
 
 type Query = {
+  proposed?: string;
+  withdrawn?: string;
+  proposalError?: string;
   queue?: string;
   language?: string;
   error?: string;
   warning?: string;
+};
+
+const PROPOSAL_ERROR_KEY: Record<string, MessageKey> = {
+  unchanged: "proposal.errorUnchanged",
+  forbidden: "proposal.errorForbidden",
+  "not-pending": "proposal.errorNotPending",
+  "invalid-icu": "proposal.invalidIcu",
 };
 
 const ERROR_KEY: Record<string, MessageKey> = {
@@ -57,6 +74,18 @@ export default async function StringPage({
   const examples = string.examples ?? [];
 
   const queueKind = isQueueKind(query.queue) ? query.queue : undefined;
+  const pendingProposal = pendingForString(db, string.id);
+  const proposalHistory = proposalsForKey(db, project.id, string.key).map(
+    (p) => ({
+      id: p.id,
+      kind: p.kind,
+      text: p.text,
+      author: p.author,
+      authorId: p.authorId,
+      status: p.status,
+      at: p.createdAt,
+    }),
+  );
   const queue = queueKind ? queueItems(db, project.id, queueKind) : undefined;
   const language = query.language ?? project.sourceLanguage;
   const source = translations[project.sourceLanguage];
@@ -175,6 +204,43 @@ export default async function StringPage({
               metadata={string.metadata ?? {}}
             />
           </header>
+          {!string.archived && (
+            <Section heading={t("proposal.heading")}>
+              {query.proposed && (
+                <Banner tone="info">{t("proposal.proposed")}</Banner>
+              )}
+              {query.withdrawn && (
+                <Banner tone="info">{t("proposal.withdrawn")}</Banner>
+              )}
+              {query.proposalError && (
+                <Banner tone="error">
+                  {t(
+                    PROPOSAL_ERROR_KEY[query.proposalError] ??
+                      "proposal.errorGeneric",
+                  )}
+                </Banner>
+              )}
+              <ProposalPanel
+                slug={slug}
+                stringKey={string.key}
+                language={target}
+                source={string.source}
+                slots={slots}
+                writable={string.file !== null}
+                pending={pendingProposal}
+                canWithdraw={
+                  pendingProposal !== undefined &&
+                  (pendingProposal.authorId === user.id || user.maintainer)
+                }
+                history={proposalHistory}
+                actions={{
+                  edit: proposeEditAction,
+                  remove: proposeDeleteAction,
+                  withdraw: withdrawProposalAction,
+                }}
+              />
+            </Section>
+          )}
           <OtherLanguages
             languages={project.languages}
             exclude={[project.sourceLanguage, actedLanguage]}

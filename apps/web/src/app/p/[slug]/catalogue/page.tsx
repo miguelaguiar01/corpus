@@ -19,6 +19,11 @@ import { PageHeader } from "@/components/page-header";
 import { ProgressStrip } from "@/components/progress-strip";
 import { SearchBox } from "@/components/search-box";
 import { getProjectBySlug } from "@/projects/service";
+import { pendingAdds, pendingKeys } from "@/proposals/service";
+import { withdrawProposalAction } from "@/proposals/actions";
+import { PendingAdds } from "@/components/pending-adds";
+import { Banner } from "@/components/ui/banner";
+import { buttonVariants } from "@/components/ui/button";
 import { stringPath } from "@/strings/paths";
 import { t } from "@/i18n";
 
@@ -54,7 +59,7 @@ export default async function CataloguePage({
   params: Promise<{ slug: string }>;
   searchParams: Promise<SearchParams>;
 }) {
-  await requireUser();
+  const user = await requireUser();
   const { slug } = await params;
   const raw = await searchParams;
   const db = getDb();
@@ -84,6 +89,8 @@ export default async function CataloguePage({
     project.languages,
   );
   const progress = progressCounts(db, project.id);
+  const pending = pendingKeys(db, project.id);
+  const adds = pendingAdds(db, project.id);
 
   return (
     <Page
@@ -92,7 +99,48 @@ export default async function CataloguePage({
     >
       <FacetPanel basePath={basePath} facets={facets} active={active} />
       <div className="min-w-0 space-y-5">
-        <PageHeader title={t("catalogue.heading")} />
+        <PageHeader
+          title={t("catalogue.heading")}
+          actions={
+            <Link
+              href={`/p/${slug}/strings/new`}
+              className={buttonVariants({ variant: "outline" })}
+            >
+              {t("proposal.addLink")}
+            </Link>
+          }
+        />
+        {active.get("added") && (
+          <Banner tone="info">
+            {t("proposal.added", { key: active.get("added") ?? "" })}
+          </Banner>
+        )}
+        {active.get("withdrawn") && (
+          <Banner tone="info">{t("proposal.withdrawn")}</Banner>
+        )}
+        {active.get("proposalError") && (
+          <Banner tone="error">
+            {t(
+              active.get("proposalError") === "forbidden"
+                ? "proposal.errorForbidden"
+                : "proposal.errorGeneric",
+            )}
+          </Banner>
+        )}
+        {adds.length > 0 && (
+          <PendingAdds
+            slug={slug}
+            adds={adds.map((a) => ({
+              id: a.id,
+              key: a.key,
+              text: a.text ?? "",
+              file: a.file,
+              author: a.author,
+              canWithdraw: a.authorId === user.id || user.maintainer,
+            }))}
+            withdraw={withdrawProposalAction}
+          />
+        )}
         <ProgressStrip progress={progress} />
         <div className="flex flex-wrap items-center gap-3">
           <SearchBox basePath={basePath} active={active} />
@@ -113,6 +161,7 @@ export default async function CataloguePage({
                   source={row.source}
                   languages={project.languages}
                   states={row.states}
+                  pending={pending.has(row.stringId)}
                 />
               </li>
             ))}
