@@ -41,3 +41,30 @@ test("renders nothing when no other language remains", () => {
   );
   expect(container.innerHTML).toBe("");
 });
+
+test("proofreading the source lists every target", () => {
+  render(
+    <OtherLanguages
+      languages={["pt-PT", "en", "fr"]}
+      exclude={["pt-PT", "pt-PT"]}
+      translations={translations}
+    />,
+  );
+  expect(screen.getByRole("heading", { name: "Other languages" })).toBeTruthy();
+  expect(screen.getByText("Hello")).toBeTruthy();
+  expect(screen.getByText("fr")).toBeTruthy();
+  expect(screen.queryByText("Olá")).toBeNull();
+});
+
+test("a translated language wears the translated chip, not the untranslated one", () => {
+  render(
+    <OtherLanguages
+      languages={["pt-PT", "en", "fr"]}
+      exclude={["pt-PT"]}
+      translations={translations}
+    />,
+  );
+  expect(screen.getByText("Translated").className).not.toBe(
+    screen.getByText("Untranslated").className,
+  );
+});

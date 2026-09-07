@@ -175,15 +175,11 @@ export default async function StringPage({
               metadata={string.metadata ?? {}}
             />
           </header>
-          {project.languages.length > 2 && (
-            <Section heading={t("string.otherLanguagesHeading")}>
-              <OtherLanguages
-                languages={project.languages}
-                exclude={[project.sourceLanguage, actedLanguage]}
-                translations={translations}
-              />
-            </Section>
-          )}
+          <OtherLanguages
+            languages={project.languages}
+            exclude={[project.sourceLanguage, actedLanguage]}
+            translations={translations}
+          />
           {entities.length > 0 && (
             <Section heading={t("string.entitiesHeading")}>
               <EntityCards entities={entities} />
