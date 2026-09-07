@@ -1,6 +1,6 @@
 {
   "name": "@corpus-tool/workbench",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "The Corpus translation workbench: the web app @corpus-tool/cli starts with `corpus workbench`, or a host runs behind a URL.",
   "license": "MIT",
   "homepage": "https://github.com/miguelaguiar01/corpus#readme",

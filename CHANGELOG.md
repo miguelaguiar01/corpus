@@ -7,6 +7,17 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-07
+
+The editor speaks the target language.
+
+### Added
+
+- Examples may carry `valuesByLanguage`, slot values resolved per target language by the client's exporter; the contract stays `corpus/1`. The editor previews a draft with the selected language's values when the example has them, and says which language the preview is in; a placeholder chip's hover shows the slot's description and the value it resolves to.
+- The editor's language chips switch the target language on the string itself, keeping the queue when the switched-to row is in it.
+- The other languages of a string are readable under the source while translating: current text, state, stale marked. Read only; editing stays one target at a time.
+- The Moonlight Manor fixture carries English example values, so the smoke and the screenshots show an English draft previewing as the English sentence.
+
 ## [0.5.0] - 2026-09-07
 
 The CLI covers the headless path: what the first outside integration asked for, ranked by how often it was blocked.
@@ -97,7 +108,8 @@ The first published version.
 - The `messages`, `table` and `exec` adapters, and the `corpus/1` snapshot contract with its ICU subset (placeholders and `select`).
 - The package ships plain JavaScript for Node 22 with type declarations; a client's config imports `defineCorpus` from `@corpus-tool/cli`.
 
-[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.6.0
 [0.5.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.5.0
 [0.4.1]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.4.1
 [0.4.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.4.0

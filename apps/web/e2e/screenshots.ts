@@ -187,7 +187,8 @@ async function main(): Promise<void> {
     moonlightManor.project,
     "Moonlight Manor",
     moonlightManor.sourceLanguage,
-    ["pt-PT", "en"],
+    // A third language, so the editor shows the other-languages block.
+    ["pt-PT", "en", "fr"],
   );
   await page.request.post(`${base}/api/push`, {
     headers: { authorization: `Bearer ${token}` },
@@ -200,15 +201,14 @@ async function main(): Promise<void> {
 
   // A little history so the surfaces are not empty: one source proofread,
   // one translation saved.
-  await page.goto(
+  await verify(
     string("skin.heard-nothing", "queue=unverifiedSource&language=pt-PT"),
+    "pt-PT",
   );
-  await page.getByRole("button", { name: "Mark pt-PT as verified" }).click();
-  await page.waitForURL(/ui\.continue/);
-  await page.goto(string("ui.continue", "queue=untranslated&language=en"));
-  await page.getByRole("textbox").fill("Continue");
-  await page.getByRole("button", { name: "Save translation" }).click();
-  await page.waitForURL((url) => !url.href.includes("ui.continue"));
+  await save(
+    string("ui.continue", "queue=untranslated&language=en"),
+    "Continue",
+  );
 
   await page.goto(
     string("skin.seen-at-greenhouse-window", "queue=untranslated&language=en"),
