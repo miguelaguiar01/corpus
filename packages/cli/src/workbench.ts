@@ -11,11 +11,12 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import type { RunContext } from "./cli";
 import { option } from "./args";
-import { CliError } from "./config";
+import { CliError, loadConfig } from "./config";
 import { CORPUS_DIR, DB_FILE, SECRET_FILE } from "./corpus-dir";
+import { provision, wantsProvision } from "./provision";
 
 export const WORKBENCH_USAGE =
-  "corpus workbench [--port <n>] [--db <path>] [--open]";
+  "corpus workbench [--port <n>] [--db <path>] [--open] [--no-provision]";
 
 const PACKAGE = "@corpus-tool/workbench";
 const HEALTH_TIMEOUT_MS = 30_000;
@@ -154,6 +155,9 @@ export async function workbench(
   ctx.out(
     `  secret    ${prepared.secret}  (join with it once; it is in ${CORPUS_DIR}/${SECRET_FILE})`,
   );
+  if (wantsProvision(ctx.cwd, args)) {
+    ctx.out(`  ${await provisionLine(ctx.cwd, url, prepared.secret)}`);
+  }
   ctx.out("  stop      Ctrl-C");
   if (args.includes("--open")) openBrowser(url);
 
@@ -166,6 +170,24 @@ export async function workbench(
       resolve(signal ? (stopped ? 0 : 1) : (code ?? 0));
     });
   });
+}
+
+// The config's project, created on this start (§2); a config that does
+// not load is reported, not fatal: the instance is up either way.
+async function provisionLine(
+  cwd: string,
+  url: string,
+  secret: string,
+): Promise<string> {
+  try {
+    const config = await loadConfig(cwd);
+    return await provision(cwd, url, secret, config);
+  } catch (error) {
+    if (error instanceof CliError) {
+      return `token     not written: ${error.message}`;
+    }
+    throw error;
+  }
 }
 
 function openBrowser(url: string): void {

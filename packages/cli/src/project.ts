@@ -80,34 +80,59 @@ export async function project(
 
 type Created = { slug: string; token: string };
 
+export type ProjectInput = {
+  slug: string;
+  name: string;
+  sourceLanguage: string;
+  languages: string[];
+};
+
+export type RequestResult =
+  ({ ok: true } & Created) | { ok: false; status: number; message: string };
+
+// The creation request (§10), for the command and for the workbench's
+// own start; the caller words the outcome.
+export async function requestProject(
+  server: string,
+  secret: string,
+  input: ProjectInput,
+): Promise<RequestResult> {
+  const response = await post(`${server}/api/projects`, secret, input);
+  if (response.ok) return { ok: true, ...((await response.json()) as Created) };
+  return {
+    ok: false,
+    status: response.status,
+    message: (await serverMessage(response)).replace(/^: /, ""),
+  };
+}
+
 // `corpus project create` (§3): the config's project, provisioned with
 // the instance secret; the token alone on stdout's last line.
 async function create(args: string[], ctx: RunContext): Promise<number> {
   const config = await loadConfig(ctx.cwd);
   const server = serverOf(args, config.server);
   const secret = requireSecret(ctx.env, ctx.cwd, server);
-  const response = await post(`${server}/api/projects`, secret, {
+  const result = await requestProject(server, secret, {
     slug: config.project,
     name: option(args, "--name") ?? config.project,
     sourceLanguage: config.sourceLanguage,
     languages: config.languages,
   });
-  if (response.status === 409) {
+  if (!result.ok) {
+    if (result.status === 409) {
+      throw new CliError(
+        `project ${config.project} already exists on ${server}; a maintainer rotates its token in the project's settings, or corpus project rotate-token with the current one`,
+      );
+    }
+    if (result.status === 401) {
+      throw new CliError(`the instance secret was refused by ${server}`);
+    }
     throw new CliError(
-      `project ${config.project} already exists on ${server}; a maintainer rotates its token in the project's settings, or corpus project rotate-token with the current one`,
+      `project create failed (HTTP ${result.status})${result.message ? `: ${result.message}` : ""}`,
     );
   }
-  if (response.status === 401) {
-    throw new CliError(`the instance secret was refused by ${server}`);
-  }
-  if (!response.ok) {
-    throw new CliError(
-      `project create failed (HTTP ${response.status})${await serverMessage(response)}`,
-    );
-  }
-  const created = (await response.json()) as Created;
-  ctx.err(`corpus: created project ${created.slug} on ${server}`);
-  ctx.out(created.token);
+  ctx.err(`corpus: created project ${result.slug} on ${server}`);
+  ctx.out(result.token);
   return 0;
 }
 
