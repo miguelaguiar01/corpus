@@ -3,6 +3,7 @@ import { getDb } from "@/db";
 import { requireUser } from "@/auth/session";
 import { progressCounts } from "@/catalogue/progress";
 import { queueCounts } from "@/catalogue/queues";
+import { pendingCount } from "@/proposals/service";
 import { AppShell } from "@/components/app-shell";
 import { Page } from "@/components/page-container";
 import { PageHeader } from "@/components/page-header";
@@ -20,6 +21,7 @@ export default async function Home() {
     languages: project.languages,
     progress: progressCounts(db, project.id).perLanguage,
     counts: queueCounts(db, project.id),
+    pending: pendingCount(db, project.id),
   }));
 
   return (
@@ -59,6 +61,7 @@ export default async function Home() {
                   languages={project.languages}
                   progress={project.progress}
                   counts={project.counts}
+                  pending={project.pending}
                 />
               </li>
             ))}

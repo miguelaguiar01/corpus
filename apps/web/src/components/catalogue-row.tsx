@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { LanguageState } from "@/catalogue/query";
 import { Chip } from "@/components/ui/chip";
+import { t } from "@/i18n";
 import { StateChips } from "./state-chips";
 
 // One string in the catalogue (§9.2). On a desktop the rows share three
@@ -14,6 +15,7 @@ export function CatalogueRow({
   source,
   languages,
   states,
+  pending = false,
 }: {
   href: string;
   stringId: string;
@@ -21,6 +23,7 @@ export function CatalogueRow({
   source: string;
   languages: string[];
   states: Record<string, LanguageState>;
+  pending?: boolean;
 }) {
   return (
     <Link
@@ -32,6 +35,9 @@ export function CatalogueRow({
           {stringId}
         </span>
         <Chip variant="outline">{type}</Chip>
+        {pending && (
+          <Chip variant="state-stale">{t("proposal.pendingMark")}</Chip>
+        )}
       </div>
       <p className="line-clamp-2 min-w-0 text-lg leading-snug">{source}</p>
       <div className="md:justify-self-end">

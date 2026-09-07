@@ -1,4 +1,4 @@
-import { and, count, eq } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 import {
   parseIcu,
   stringEntrySchema,
@@ -234,6 +234,22 @@ export function pendingForString(
     )
     .get();
   return row ? { ...row.proposal, author: row.author } : undefined;
+}
+
+// Every proposal on a string, newest first, so an author sees why one
+// lost (§11).
+export function proposalsForString(
+  db: Db,
+  stringRowId: number,
+): (Proposal & { author: string })[] {
+  return db
+    .select({ proposal: sourceChanges, author: users.name })
+    .from(sourceChanges)
+    .innerJoin(users, eq(users.id, sourceChanges.authorId))
+    .where(eq(sourceChanges.stringRowId, stringRowId))
+    .orderBy(desc(sourceChanges.createdAt), desc(sourceChanges.id))
+    .all()
+    .map((row) => ({ ...row.proposal, author: row.author }));
 }
 
 export function pendingKeys(db: Db, projectId: number): Set<string> {

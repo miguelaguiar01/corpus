@@ -19,6 +19,9 @@ import { PageHeader } from "@/components/page-header";
 import { ProgressStrip } from "@/components/progress-strip";
 import { SearchBox } from "@/components/search-box";
 import { getProjectBySlug } from "@/projects/service";
+import { pendingKeys } from "@/proposals/service";
+import { Banner } from "@/components/ui/banner";
+import { buttonVariants } from "@/components/ui/button";
 import { stringPath } from "@/strings/paths";
 import { t } from "@/i18n";
 
@@ -84,6 +87,7 @@ export default async function CataloguePage({
     project.languages,
   );
   const progress = progressCounts(db, project.id);
+  const pending = pendingKeys(db, project.id);
 
   return (
     <Page
@@ -92,7 +96,22 @@ export default async function CataloguePage({
     >
       <FacetPanel basePath={basePath} facets={facets} active={active} />
       <div className="min-w-0 space-y-5">
-        <PageHeader title={t("catalogue.heading")} />
+        <PageHeader
+          title={t("catalogue.heading")}
+          actions={
+            <Link
+              href={`/p/${slug}/strings/new`}
+              className={buttonVariants({ variant: "outline" })}
+            >
+              {t("proposal.addLink")}
+            </Link>
+          }
+        />
+        {active.get("added") && (
+          <Banner tone="info">
+            {t("proposal.added", { key: active.get("added") ?? "" })}
+          </Banner>
+        )}
         <ProgressStrip progress={progress} />
         <div className="flex flex-wrap items-center gap-3">
           <SearchBox basePath={basePath} active={active} />
@@ -113,6 +132,7 @@ export default async function CataloguePage({
                   source={row.source}
                   languages={project.languages}
                   states={row.states}
+                  pending={pending.has(row.stringId)}
                 />
               </li>
             ))}

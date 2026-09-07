@@ -1,7 +1,9 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/auth/session";
 import { getDb } from "@/db";
 import { progressCounts } from "@/catalogue/progress";
+import { pendingCount } from "@/proposals/service";
 import { allQueues } from "@/catalogue/queues";
 import { Page } from "@/components/page-container";
 import { PageHeader } from "@/components/page-header";
@@ -26,6 +28,7 @@ export default async function ProjectHome({
   if (!project) notFound();
   const queues = allQueues(db, project.id);
   const progress = progressCounts(db, project.id);
+  const pending = pendingCount(db, project.id);
 
   return (
     <Page width="wide" className="space-y-8">
@@ -56,6 +59,17 @@ export default async function ProjectHome({
               unverifiedSource: queues.unverifiedSource.first,
             }}
           />
+          {pending > 0 && (
+            <p className="pt-3 text-sm text-muted-foreground">
+              <Link
+                href={`/p/${slug}/catalogue`}
+                className="underline-offset-4 hover:underline"
+              >
+                {t("proposal.dashboardHeading")}:{" "}
+                {t("proposal.pendingCount", { count: String(pending) })}
+              </Link>
+            </p>
+          )}
         </Section>
         <Section heading={t("dashboard.progressHeading")}>
           <ProgressByType progress={progress} />

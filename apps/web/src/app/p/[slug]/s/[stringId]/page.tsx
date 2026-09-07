@@ -12,6 +12,7 @@ import { Section } from "@/components/ui/section";
 import { QueueNav } from "@/components/queue-nav";
 import { SourceView } from "@/components/source-view";
 import { OtherLanguages } from "@/components/other-languages";
+import { ProposalPanel } from "@/components/proposal-panel";
 import { StateChips } from "@/components/state-chips";
 import { languageSwitchPath } from "@/strings/paths";
 import { TargetPane, type Slot } from "@/components/target-pane";
@@ -19,10 +20,18 @@ import { VerifyForm } from "@/components/verify-form";
 import { getProjectBySlug } from "@/projects/service";
 import { stringDetail } from "@/strings/detail";
 import { saveString, verifyString } from "@/translations/actions";
+import {
+  proposeDeleteAction,
+  proposeEditAction,
+  withdrawProposalAction,
+} from "@/proposals/actions";
+import { pendingForString, proposalsForString } from "@/proposals/service";
 import { canVerifyRow } from "@/translations/permissions";
 import { t, type MessageKey } from "@/i18n";
 
 type Query = {
+  proposed?: string;
+  proposalError?: string;
   queue?: string;
   language?: string;
   error?: string;
@@ -57,6 +66,15 @@ export default async function StringPage({
   const examples = string.examples ?? [];
 
   const queueKind = isQueueKind(query.queue) ? query.queue : undefined;
+  const pendingProposal = pendingForString(db, string.id);
+  const proposalHistory = proposalsForString(db, string.id).map((p) => ({
+    id: p.id,
+    kind: p.kind,
+    text: p.text,
+    author: p.author,
+    status: p.status,
+    at: p.createdAt,
+  }));
   const queue = queueKind ? queueItems(db, project.id, queueKind) : undefined;
   const language = query.language ?? project.sourceLanguage;
   const source = translations[project.sourceLanguage];
@@ -180,6 +198,37 @@ export default async function StringPage({
             exclude={[project.sourceLanguage, actedLanguage]}
             translations={translations}
           />
+          {!string.archived && (
+            <Section heading={t("proposal.heading")}>
+              {query.proposed && (
+                <Banner tone="info">{t("proposal.proposed")}</Banner>
+              )}
+              {query.proposalError && (
+                <Banner tone="error">
+                  {t(
+                    query.proposalError === "unchanged"
+                      ? "proposal.errorUnchanged"
+                      : "proposal.errorGeneric",
+                  )}
+                </Banner>
+              )}
+              <ProposalPanel
+                slug={slug}
+                stringKey={string.key}
+                language={target}
+                source={string.source}
+                slots={slots}
+                writable={string.file !== null}
+                pending={pendingProposal}
+                history={proposalHistory}
+                actions={{
+                  edit: proposeEditAction,
+                  remove: proposeDeleteAction,
+                  withdraw: withdrawProposalAction,
+                }}
+              />
+            </Section>
+          )}
           {entities.length > 0 && (
             <Section heading={t("string.entitiesHeading")}>
               <EntityCards entities={entities} />
