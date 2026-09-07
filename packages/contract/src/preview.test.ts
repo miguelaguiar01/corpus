@@ -1,6 +1,11 @@
 import { expect, test } from "vitest";
 import { moonlightManor } from "./fixtures/moonlight-manor";
-import { previewsFor, renderPreview, renderPreviewSegments } from "./preview";
+import {
+  exampleValues,
+  previewsFor,
+  renderPreview,
+  renderPreviewSegments,
+} from "./preview";
 
 const sighting = moonlightManor.strings[0]!;
 const [first, second] = sighting.examples!;
@@ -109,4 +114,41 @@ test("the preview API is reachable from the package entry point", async () => {
   const entry = await import("./index");
   expect(typeof entry.renderPreview).toBe("function");
   expect(typeof entry.previewsFor).toBe("function");
+});
+
+test("exampleValues picks the target language's values and says so, or falls back to the source", () => {
+  expect(exampleValues(first!, "en", "pt-PT")).toEqual({
+    values: first!.valuesByLanguage!.en,
+    language: "en",
+  });
+  expect(exampleValues(first!, "fr", "pt-PT")).toEqual({
+    values: first!.values,
+    language: "pt-PT",
+  });
+  expect(exampleValues({ values: { a: "b" } }, "en", "pt-PT")).toEqual({
+    values: { a: "b" },
+    language: "pt-PT",
+  });
+});
+
+test("an English draft previews as the English sentence with English values", () => {
+  const draft =
+    "{person} was seen at the {room_de} window at {hour} — and was not alone.";
+  expect(
+    previewsFor(draft, sighting.examples!, { target: "en", source: "pt-PT" }),
+  ).toEqual([
+    {
+      ok: true,
+      text: "Countess Rosa was seen at the greenhouse window at 9 pm — and was not alone.",
+    },
+    {
+      ok: true,
+      text: "Doctor Vaz was seen at the drawing room window at 11 pm — and was not alone.",
+    },
+  ]);
+  // Without a language, or for one the example lacks, the source values.
+  expect(previewsFor(draft, sighting.examples!)[0]).toEqual({
+    ok: true,
+    text: "A Condessa Rosa was seen at the da estufa window at 21h — and was not alone.",
+  });
 });

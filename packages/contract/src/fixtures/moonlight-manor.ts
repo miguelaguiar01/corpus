@@ -76,6 +76,14 @@ export const moonlightManor = {
             room_de: "da estufa",
             hour: "21h",
           },
+          valuesByLanguage: {
+            en: {
+              person: "Countess Rosa",
+              person_gender: "f",
+              room_de: "greenhouse",
+              hour: "9 pm",
+            },
+          },
           rendered:
             "A Condessa Rosa foi vista à janela da estufa às 21h — e não estava sozinha.",
         },
@@ -85,6 +93,14 @@ export const moonlightManor = {
             person_gender: "m",
             room_de: "do salão",
             hour: "23h",
+          },
+          valuesByLanguage: {
+            en: {
+              person: "Doctor Vaz",
+              person_gender: "m",
+              room_de: "drawing room",
+              hour: "11 pm",
+            },
           },
           rendered:
             "O Doutor Vaz foi visto à janela do salão às 23h — e não estava sozinho.",
