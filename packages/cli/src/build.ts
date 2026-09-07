@@ -13,6 +13,7 @@ import {
   type Snapshot,
   type Source,
   type StringEntry,
+  type WritableSource,
 } from "@corpus/contract";
 import { CliError } from "./config";
 
@@ -46,7 +47,10 @@ export async function buildSnapshot(
       errors.push(`${file}: ${message}`);
       continue;
     }
-    for (const entry of entries) validateEntry(entry, file, sourced, errors);
+    // The file rides with the entry (§4), so a proposal can come back to it.
+    for (const entry of entries) {
+      validateEntry({ ...entry, file }, file, sourced, errors);
+    }
   }
 
   const byId = new Map<string, string>();
@@ -58,6 +62,7 @@ export async function buildSnapshot(
 
   // The declarations travel with the snapshot (§4): the server renders
   // and validates metadata from them without reading the config.
+  const sources = writableSources(config);
   const snapshot = {
     contract: "corpus/1" as const,
     project: config.project,
@@ -66,6 +71,7 @@ export async function buildSnapshot(
     entities,
     ...(config.stringTypes && { stringTypes: config.stringTypes }),
     ...(config.entityTypes && { entityTypes: config.entityTypes }),
+    ...(sources.length > 0 && { sources }),
   };
 
   const parsed = snapshotSchema.safeParse(snapshot);
@@ -119,12 +125,16 @@ function collectExec(
   }
   const out = parsed as { strings?: unknown[]; entities?: unknown[] };
   for (const raw of out.strings ?? []) {
-    const entry = stringEntrySchema.safeParse(raw);
-    if (!entry.success) {
+    const parsedEntry = stringEntrySchema.safeParse(raw);
+    if (!parsedEntry.success) {
       errors.push(`exec "${command}" emitted an invalid string entry`);
       continue;
     }
-    validateEntry(entry.data, `exec:${command}`, sourced, errors);
+    // An exporter's own `file` is dropped (§4): pull trusts the field to
+    // pick what it rewrites, and an exec source is not rewritable.
+    const entry = { ...parsedEntry.data };
+    delete entry.file;
+    validateEntry(entry, `exec:${command}`, sourced, errors);
   }
   for (const raw of out.entities ?? []) {
     const entity = entitySchema.safeParse(raw);
@@ -175,6 +185,17 @@ async function readModule(
     );
   }
   return mod[exportName];
+}
+
+// The sources pull can rewrite in place (§4): not exec, a .json path;
+// {lang} is not required, so a table without it takes proposals though
+// it takes no translations.
+export function writableSources(config: CorpusConfig): WritableSource[] {
+  return config.sources.flatMap((source) =>
+    source.adapter !== "exec" && writesBack(source.path)
+      ? [{ path: source.path, adapter: source.adapter, type: source.type }]
+      : [],
+  );
 }
 
 // Sources that cannot take translations back (§8): pull says so too,

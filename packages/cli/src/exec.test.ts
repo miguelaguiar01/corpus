@@ -18,6 +18,10 @@ function withExec(command: string): CorpusConfig {
 test("an exec source merges its strings and entities", async () => {
   const snapshot = await buildSnapshot(withExec("node export.mjs"), REPO);
   expect(snapshot.strings.map((s) => s.id)).toContain("exec.greeting");
+  // Exec entries carry no file (§4), whatever the exporter emitted.
+  expect(
+    snapshot.strings.find((s) => s.id === "exec.greeting")?.file,
+  ).toBeUndefined();
   expect(snapshot.entities.map((e) => e.id)).toContain("trait:brave");
 });
 

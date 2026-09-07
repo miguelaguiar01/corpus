@@ -7,6 +7,10 @@ export const moonlightManor = {
   contract: "corpus/1",
   project: "moonlight-manor",
   sourceLanguage: "pt-PT",
+  sources: [
+    { path: "src/skins/{lang}.json", adapter: "messages", type: "clue-skin" },
+    { path: "src/ui/{lang}.json", adapter: "messages", type: "chrome" },
+  ],
   stringTypes: {
     "clue-skin": {
       kind: {
@@ -59,6 +63,7 @@ export const moonlightManor = {
     {
       id: "skin.seen-at-greenhouse-window",
       type: "clue-skin",
+      file: "src/skins/pt-PT.json",
       source:
         "{person} foi {person_gender, select, m {visto} f {vista}} à janela {room_de} às {hour} — e não estava {person_gender, select, m {sozinho} f {sozinha}}.",
       metadata: {
@@ -110,12 +115,14 @@ export const moonlightManor = {
     {
       id: "skin.heard-nothing",
       type: "clue-skin",
+      file: "src/skins/pt-PT.json",
       source: "Não ouvi nada a noite toda.",
       metadata: { kind: "alibi", note: "Deliberately flat delivery." },
     },
     {
       id: "ui.continue",
       type: "chrome",
+      file: "src/ui/pt-PT.json",
       source: "Continuar",
       metadata: { note: "Button label at the end of a conversation." },
     },

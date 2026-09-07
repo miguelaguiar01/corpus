@@ -22,6 +22,13 @@ export const entityTypeDeclarationSchema = z.looseObject({
   label: z.string().min(1),
 });
 
+// The sources pull can rewrite in place (§4): where a new string may go.
+export const writableSourceSchema = z.looseObject({
+  path: z.string().min(1),
+  adapter: z.enum(["messages", "table"]),
+  type: identifier(),
+});
+
 // stringTypes/entityTypes travel in the snapshot so the server can
 // render metadata generically (§5) without reading the client's config.
 export const snapshotSchema = z.looseObject({
@@ -37,8 +44,11 @@ export const snapshotSchema = z.looseObject({
   seedTranslations: z
     .record(z.string(), z.record(z.string(), z.string()))
     .optional(),
+  // The writable file sources (§4, §8): where a new string may go.
+  sources: z.array(writableSourceSchema).optional(),
 });
 
+export type WritableSource = z.infer<typeof writableSourceSchema>;
 export type Entity = z.infer<typeof entitySchema>;
 export type EntityTypeDeclaration = z.infer<typeof entityTypeDeclarationSchema>;
 export type Snapshot = z.infer<typeof snapshotSchema>;

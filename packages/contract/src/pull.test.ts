@@ -41,3 +41,45 @@ test("rejects an unknown min state and a wrong contract", () => {
     pullPayloadSchema.safeParse({ ...PAYLOAD, contract: "corpus/2" }).success,
   ).toBe(false);
 });
+
+test("a pull payload may carry pending source changes", () => {
+  const base = {
+    contract: "corpus/1",
+    project: "p",
+    sourceLanguage: "en",
+    minState: "verified",
+    types: {},
+    translations: {},
+  };
+  const changes = [
+    { kind: "edit", id: "a", type: "t", file: "i18n/en.json", text: "New" },
+    { kind: "add", id: "b", type: "t", file: "i18n/en.json", text: "Added" },
+    { kind: "delete", id: "c", type: "t", file: "i18n/en.json" },
+  ];
+  const parsed = pullPayloadSchema.safeParse({
+    ...base,
+    sourceChanges: changes,
+  });
+  expect(parsed.success && parsed.data.sourceChanges).toEqual(changes);
+  expect(
+    pullPayloadSchema.safeParse({
+      ...base,
+      sourceChanges: [{ kind: "rename", id: "a", type: "t", file: "f" }],
+    }).success,
+  ).toBe(false);
+  // An id or a type must be an identifier, and an edit carries text.
+  expect(
+    pullPayloadSchema.safeParse({
+      ...base,
+      sourceChanges: [
+        { kind: "add", id: "a b", type: "t", file: "f", text: "x" },
+      ],
+    }).success,
+  ).toBe(false);
+  expect(
+    pullPayloadSchema.safeParse({
+      ...base,
+      sourceChanges: [{ kind: "edit", id: "a", type: "t", file: "f" }],
+    }).success,
+  ).toBe(false);
+});

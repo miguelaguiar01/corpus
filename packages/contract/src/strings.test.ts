@@ -194,3 +194,16 @@ test("an example parses with or without per-language values; keys are language c
       .success,
   ).toBe(false);
 });
+
+test("an entry may name the file it was read from", () => {
+  const entry = { id: "a", type: "t", source: "x" };
+  expect(stringEntrySchema.safeParse(entry).success).toBe(true);
+  const withFile = stringEntrySchema.safeParse({
+    ...entry,
+    file: "i18n/en.json",
+  });
+  expect(withFile.success && withFile.data.file).toBe("i18n/en.json");
+  expect(stringEntrySchema.safeParse({ ...entry, file: "" }).success).toBe(
+    false,
+  );
+});
