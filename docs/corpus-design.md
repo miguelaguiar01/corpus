@@ -228,7 +228,7 @@ An invalid snapshot is rejected with per-entry errors and **nothing** is applied
 `seedTranslations` (optional, typically first push): existing target-language catalogs found in the repo import as state `translated`. On subsequent pushes, seed data for a string×language that already has any Corpus edit history is **ignored** — Corpus wins on translations.
 
 ### `corpus pull`
-Downloads translations for the configured languages — default only `verified`, `--min-state translated` to loosen — and writes repo files through the adapters (messages/table written directly; `exec` sources invoke their import command with the entries on stdin). Prints changed files. The human/agent reviews and PRs.
+Downloads translations for the configured target languages — never the source language, whose text belongs to the repository; default only `verified`, `--min-state translated` to loosen — and writes repo files through the adapters (messages/table written directly; `exec` sources invoke their import command with the entries on stdin). Prints changed files. The human/agent reviews and PRs.
 
 **Core invariant (tested, §15): push∘pull round-trips byte-identical files** for the built-in adapters — pushing a repo and immediately pulling at `--min-state untranslated` reproduces the source files exactly.
 

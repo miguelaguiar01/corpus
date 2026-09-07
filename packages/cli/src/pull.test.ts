@@ -152,7 +152,8 @@ test("exec sources receive the entries the file adapters did not claim, on stdin
   };
   expect(imported.sourceLanguage).toBe("en");
   expect(imported.translations.pt).toEqual({ "exec.bye": "Adeus {who}" });
-  expect(imported.translations.en).toEqual({ "exec.bye": "Bye {who}" });
+  // The source language's text belongs to the repository; it is not sent.
+  expect(imported.translations.en).toBeUndefined();
 });
 
 test("a 401 prints an actionable message", async () => {
@@ -266,4 +267,18 @@ export default defineCorpus({
     "corpus: i18n/{lang}.ts is not JSON: pull writes JSON only, so its translations cannot be written back",
   );
   expect(existsSync(path.join(repo, "i18n/pt.ts"))).toBe(false);
+});
+
+test("the source-language file keeps its own shape even at untranslated, and importers never see the source", async () => {
+  await serve(200, { ...PAYLOAD, minState: "untranslated" });
+  const compact = '{"app.title":"Corpus","greeting":"Hello {name}"}';
+  writeFileSync(path.join(repo, "i18n/en.json"), compact);
+  const c = ctx();
+  expect(await run(["pull", "--min-state", "untranslated"], c)).toBe(0);
+  expect(read("i18n/en.json")).toBe(compact);
+  expect(c.output.join("\n")).not.toContain("i18n/en.json");
+  const received = JSON.parse(read("imported.json")) as {
+    translations: Record<string, unknown>;
+  };
+  expect(Object.keys(received.translations)).toEqual(["pt"]);
 });

@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+### Fixed
+
+- `pull` leaves the source language alone: its catalogue is never rewritten (a compact JSON file stays as it is) and an `exec` importer no longer receives source-language text.
+
 ## [0.4.0] - 2026-09-07
 
 Corpus runs from npm. This file now covers both packages, which share a version.
