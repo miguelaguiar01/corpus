@@ -187,8 +187,9 @@
   "proposal.withdrawn": "Withdrawn.",
   "proposal.errorForbidden": "Only its author or a maintainer can withdraw a proposal.",
   "proposal.errorNotPending": "That proposal is no longer pending.",
-  "proposal.pendingLine": "{count} proposals pending",
+  "proposal.pendingLine": "Pending proposals: {count}",
   "proposal.addSourceOption": "{path} ({type})",
   "proposal.pendingAddsHeading": "Proposed strings",
-  "proposal.replaceHint": "A newer proposal replaces the pending one."
+  "proposal.replaceHint": "A newer proposal replaces the pending one.",
+  "proposal.byInto": "proposed by {author} into {file}"
 }

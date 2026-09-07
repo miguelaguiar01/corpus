@@ -1,10 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
+import { Section } from "@/components/ui/section";
 import { t } from "@/i18n";
 
 // Pending adds (§9.2, §11): a new string has no row until a push lands
-// it, so the catalogue lists the proposals themselves, each withdrawable
-// by its author or a maintainer (the service decides).
+// it, so the catalogue lists the proposals themselves; the withdraw
+// shows to the author or a maintainer, and the service decides again.
 export function PendingAdds({
   slug,
   adds,
@@ -17,17 +18,12 @@ export function PendingAdds({
     text: string;
     file: string;
     author: string;
+    canWithdraw: boolean;
   }[];
   withdraw: (formData: FormData) => void | Promise<void>;
 }) {
   return (
-    <section
-      className="space-y-2"
-      aria-label={t("proposal.pendingAddsHeading")}
-    >
-      <h2 className="text-sm font-medium text-muted-foreground">
-        {t("proposal.pendingAddsHeading")}
-      </h2>
+    <Section heading={t("proposal.pendingAddsHeading")} meta={adds.length}>
       <ul className="divide-y divide-border">
         {adds.map((add) => (
           <li
@@ -42,18 +38,20 @@ export function PendingAdds({
               {add.text}
             </span>
             <span className="text-sm text-muted-foreground">
-              {t("proposal.by", { author: add.author })} · {add.file}
+              {t("proposal.byInto", { author: add.author, file: add.file })}
             </span>
-            <form action={withdraw}>
-              <input type="hidden" name="slug" value={slug} />
-              <input type="hidden" name="proposalId" value={add.id} />
-              <Button type="submit" variant="outline" size="sm">
-                {t("proposal.withdraw")}
-              </Button>
-            </form>
+            {add.canWithdraw && (
+              <form action={withdraw}>
+                <input type="hidden" name="slug" value={slug} />
+                <input type="hidden" name="proposalId" value={add.id} />
+                <Button type="submit" variant="outline" size="sm">
+                  {t("proposal.withdraw")}
+                </Button>
+              </form>
+            )}
           </li>
         ))}
       </ul>
-    </section>
+    </Section>
   );
 }

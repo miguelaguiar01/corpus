@@ -97,7 +97,7 @@ test("a maintainer takes a string from pushed to verified on a phone", async ({
   await page.goto(`/p/${moonlightManor.project}/catalogue`);
   await expect(page.getByText("proposed", { exact: true })).toBeVisible();
   await page.goto(`/p/${moonlightManor.project}`);
-  await expect(page.getByText(/1 proposals pending/)).toBeVisible();
+  await expect(page.getByText(/Pending proposals: 1/)).toBeVisible();
   await page.goto(`/p/${moonlightManor.project}/s/ui.continue`);
   await page.getByRole("button", { name: "Withdraw" }).click();
   await page.waitForURL(/withdrawn=1/);
@@ -115,8 +115,9 @@ test("a maintainer takes a string from pushed to verified on a phone", async ({
   await page.waitForURL(/added=ui\.back/);
   await expect(page.getByText(/Proposed ui\.back/)).toBeVisible();
   await expect(
-    page.getByRole("region", { name: "Proposed strings" }),
-  ).toContainText("ui.back");
+    page.getByRole("heading", { name: "Proposed strings" }),
+  ).toBeVisible();
+  await expect(page.getByText("ui.back", { exact: true })).toBeVisible();
 
   await page.goto(`/p/${moonlightManor.project}/s/skin.heard-nothing`);
   await page.getByRole("button", { name: "Propose removal" }).click();

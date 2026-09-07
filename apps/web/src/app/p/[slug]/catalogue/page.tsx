@@ -59,7 +59,7 @@ export default async function CataloguePage({
   params: Promise<{ slug: string }>;
   searchParams: Promise<SearchParams>;
 }) {
-  await requireUser();
+  const user = await requireUser();
   const { slug } = await params;
   const raw = await searchParams;
   const db = getDb();
@@ -118,6 +118,15 @@ export default async function CataloguePage({
         {active.get("withdrawn") && (
           <Banner tone="info">{t("proposal.withdrawn")}</Banner>
         )}
+        {active.get("proposalError") && (
+          <Banner tone="error">
+            {t(
+              active.get("proposalError") === "forbidden"
+                ? "proposal.errorForbidden"
+                : "proposal.errorGeneric",
+            )}
+          </Banner>
+        )}
         {adds.length > 0 && (
           <PendingAdds
             slug={slug}
@@ -127,6 +136,7 @@ export default async function CataloguePage({
               text: a.text ?? "",
               file: a.file,
               author: a.author,
+              canWithdraw: a.authorId === user.id || user.maintainer,
             }))}
             withdraw={withdrawProposalAction}
           />
