@@ -8,6 +8,7 @@ import { init, INIT_USAGE } from "./init";
 import { languageDrift, project, PROJECT_USAGE } from "./project";
 import { pull } from "./pull";
 import { serverMessage } from "./server";
+import { status, STATUS_USAGE } from "./status";
 import { workbench, WORKBENCH_USAGE } from "./workbench";
 
 export type RunContext = {
@@ -20,7 +21,8 @@ export type RunContext = {
 const USAGE = `usage: corpus push [--dry-run] | corpus pull [--min-state <untranslated|translated|verified>] | corpus check | corpus build [--out <file>]
        ${INIT_USAGE}
        ${WORKBENCH_USAGE}
-       ${PROJECT_USAGE}`;
+       ${PROJECT_USAGE}
+       ${STATUS_USAGE}`;
 
 export async function run(argv: string[], ctx: RunContext): Promise<number> {
   const [command] = argv;
@@ -36,7 +38,8 @@ export async function run(argv: string[], ctx: RunContext): Promise<number> {
     command === "build" ||
     command === "workbench" ||
     command === "init" ||
-    command === "project"
+    command === "project" ||
+    command === "status"
   ) {
     try {
       if (command === "init") return await init(argv.slice(1), ctx);
@@ -44,6 +47,7 @@ export async function run(argv: string[], ctx: RunContext): Promise<number> {
       if (command === "build") return await build(argv.slice(1), ctx);
       if (command === "workbench") return await workbench(argv.slice(1), ctx);
       if (command === "project") return await project(argv.slice(1), ctx);
+      if (command === "status") return await status(argv.slice(1), ctx);
       if (command === "pull") return await pull(argv.slice(1), ctx);
       return await check(ctx);
     } catch (error) {
