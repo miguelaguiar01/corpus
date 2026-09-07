@@ -4,6 +4,9 @@ import { users } from "@/db/schema";
 import { memoryDb } from "@/db/test-helpers";
 import { applySnapshot } from "@/ingest/apply";
 import { createProject } from "@/projects/service";
+import { proposeEdit } from "@/proposals/service";
+import { strings } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 const db = memoryDb();
 vi.mock("@/db", async (importActual) => ({
@@ -97,4 +100,32 @@ test("lang refuses the source language and an unknown one with 422", async () =>
 test("an unknown minState is a 400", async () => {
   const { token } = setup();
   expect((await pull(token, "?minState=done")).status).toBe(400);
+});
+
+test("pending proposals ride along as sourceChanges; none, no field", async () => {
+  const { token } = setup();
+  const before = (await (await pull(token)).json()) as {
+    sourceChanges?: unknown;
+  };
+  expect(before.sourceChanges).toBeUndefined();
+  const [ana] = db.select().from(users).all();
+  const row = db
+    .select()
+    .from(strings)
+    .where(eq(strings.stringId, "ui.continue"))
+    .all()
+    .at(-1)!;
+  proposeEdit(db, { stringRowId: row.id, text: "Seguir", actor: ana! });
+  const after = (await (await pull(token)).json()) as {
+    sourceChanges: { kind: string; id: string; file: string; text?: string }[];
+  };
+  expect(after.sourceChanges).toEqual([
+    {
+      kind: "edit",
+      id: "ui.continue",
+      type: "chrome",
+      file: "src/ui/pt-PT.json",
+      text: "Seguir",
+    },
+  ]);
 });

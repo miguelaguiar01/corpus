@@ -1,4 +1,5 @@
 import type {
+  WritableSource,
   EntityTypeDeclaration,
   Example,
   FieldDeclaration,
@@ -64,6 +65,9 @@ export const projects = sqliteTable("projects", {
     Record<string, EntityTypeDeclaration>
   >(),
   tokenHash: text("token_hash"),
+  // The writable file sources push declared (§4), where a new string
+  // may go (§11).
+  sources: text("sources", { mode: "json" }).$type<WritableSource[]>(),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
     .$defaultFn(() => new Date()),
@@ -84,6 +88,8 @@ export const strings = sqliteTable(
       Record<string, unknown>
     >(),
     examples: text("examples", { mode: "json" }).$type<Example[]>(),
+    // The repository file the entry was read from (§4); null for exec.
+    file: text("file"),
     archived: integer("archived", { mode: "boolean" }).notNull().default(false),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
@@ -190,4 +196,39 @@ export const pushes = sqliteTable(
     seeded: integer("seeded").notNull(),
   },
   (t) => [index("pushes_project_at").on(t.projectId, t.at)],
+);
+
+// Proposals (§11): pending source changes, beside the state machine.
+export const sourceChanges = sqliteTable(
+  "source_changes",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    projectId: integer("project_id")
+      .notNull()
+      .references(() => projects.id),
+    kind: text("kind").notNull().$type<"edit" | "add" | "delete">(),
+    // The string for an edit or a delete; none for an add.
+    stringRowId: integer("string_row_id").references(() => strings.id),
+    // The snapshot id for every kind: the key pull writes.
+    key: text("key").notNull(),
+    type: text("type").notNull(),
+    // The source-language file pull writes.
+    file: text("file").notNull(),
+    text: text("text"),
+    authorId: integer("author_id")
+      .notNull()
+      .references(() => users.id),
+    status: text("status")
+      .notNull()
+      .default("pending")
+      .$type<"pending" | "applied" | "superseded" | "withdrawn">(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    resolvedAt: integer("resolved_at", { mode: "timestamp_ms" }),
+  },
+  (t) => [
+    index("source_changes_project_status").on(t.projectId, t.status),
+    index("source_changes_string").on(t.stringRowId),
+  ],
 );

@@ -57,6 +57,13 @@
       "when": 1788634729836,
       "tag": "0007_user-passwords",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1788795431057,
+      "tag": "0008_source-changes",
+      "breakpoints": true
     }
   ]
 }
