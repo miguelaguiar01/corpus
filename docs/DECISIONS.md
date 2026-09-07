@@ -287,3 +287,32 @@ translation workbench.
 
 **Context:** #267 (epic), #268; the installation report's friction list
 opened with Docker.
+
+## 2026-09-07 — The instance secret creates projects; the config declares them
+
+**Decision:** a request that presents the instance invite secret as a
+bearer token may create a project through `POST /api/projects`; a
+project's token is rotated with the project's current token through
+`POST /api/projects/<slug>/token`, or by a maintainer in the UI. The
+CLI's `corpus project create` posts the project that `corpus.config.ts`
+declares and prints the token; `corpus workbench` does the same when it
+starts in a repository with a config and no `.corpus/token`, and writes
+the token there, where push and pull read it after `CORPUS_TOKEN`. The
+config is the source of the project's languages only at creation;
+afterwards the maintainer corner owns them, push warns on drift, and
+reconciliation is deferred (§13).
+
+**Why:** project creation was reachable only from a maintainer's
+browser session, so every headless user of Corpus, the alpha
+integration's agent and this repository's own dogfood and screenshot
+scripts included, either drove the form under automation or inserted
+the row with raw SQL to get a token. The invite secret is held by
+everyone on the instance, translators included, so it may not reach an
+existing project's token; creating a project with it hands out only
+that project's own token, which opens nothing that existed before.
+Keeping the token in the gitignored `.corpus/` beside the secret it
+came from keeps it out of shells and pastes.
+
+**Context:** #291 (epic), #292, PR #300's review; the alpha
+integration's report of 2026-09-07, which ranked this first "by a wide
+margin".
