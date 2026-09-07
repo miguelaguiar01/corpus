@@ -1,8 +1,9 @@
 "use server";
 
 import { getDb } from "@/db";
+import { secureCookieFromHeaders } from "@/auth/cookie";
 import { requireUser } from "@/auth/session";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { NEW_TOKEN_COOKIE, RESET_PASSWORD_COOKIE } from "./constants";
 import { createProject, getProjectBySlug } from "./service";
@@ -71,7 +72,7 @@ export async function rotateProjectToken(formData: FormData): Promise<void> {
   jar.set(NEW_TOKEN_COOKIE, result.token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: secureCookieFromHeaders(await headers()),
     path: `/p/${slug}/settings`,
     maxAge: 60,
   });
@@ -125,7 +126,7 @@ export async function resetPasswordAction(formData: FormData): Promise<void> {
   jar.set(RESET_PASSWORD_COOKIE, `${userId}:${result.temporary}`, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: secureCookieFromHeaders(await headers()),
     path: `/p/${slug}/settings`,
     maxAge: 60,
   });

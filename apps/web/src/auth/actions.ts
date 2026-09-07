@@ -9,6 +9,7 @@ import {
   PASSWORD_PATH,
   SESSION_COOKIE,
 } from "./constants";
+import { secureCookieFromHeaders } from "./cookie";
 import { RateLimiter } from "./rate-limit";
 import { currentUser } from "./session";
 import {
@@ -74,7 +75,7 @@ async function startSession(userId: number, to: string): Promise<never> {
   jar.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: secureCookieFromHeaders(await headers()),
     path: "/",
     maxAge: Math.floor(SESSION_TTL_MS / 1000),
   });
