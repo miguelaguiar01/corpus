@@ -60,3 +60,19 @@ test("the three states are visibly distinct, not only by colour", () => {
   expect(chip("c").textContent).toMatch(/✓/);
   expect(chip("b").textContent).not.toMatch(/✓/);
 });
+
+test("with hrefFor the chips are links and the selected language is marked", () => {
+  render(
+    <StateChips
+      languages={["pt-PT", "en"]}
+      states={{ "pt-PT": { state: "verified", stale: false } }}
+      selected="en"
+      hrefFor={(language) => `/p/mm/s/key?language=${language}`}
+    />,
+  );
+  const en = screen.getByRole("link", { name: /en/ });
+  expect(en.getAttribute("href")).toBe("/p/mm/s/key?language=en");
+  expect(en.getAttribute("aria-current")).toBe("page");
+  const source = screen.getByRole("link", { name: /pt-PT/ });
+  expect(source.getAttribute("aria-current")).toBeNull();
+});

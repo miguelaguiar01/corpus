@@ -1,6 +1,8 @@
+import Link from "next/link";
 import { t } from "@/i18n";
 import type { LanguageState } from "@/catalogue/query";
-import { Chip } from "@/components/ui/chip";
+import { Chip, chipVariants } from "@/components/ui/chip";
+import { cn } from "@/lib/utils";
 import { STATE_KEY } from "./state-label";
 
 // Three states, three treatments that survive both themes and do not
@@ -12,24 +14,27 @@ const STATE_VARIANT = {
   verified: "state-verified",
 } as const satisfies Record<LanguageState["state"], string>;
 
+// With `hrefFor`, the chips are the editor's language switcher (§9.3):
+// each a link to the same string in that language, the selected one
+// marked for assistive technology and by weight, not colour alone.
 export function StateChips({
   languages,
   states,
+  hrefFor,
+  selected,
 }: {
   languages: string[];
   states: Record<string, LanguageState>;
+  hrefFor?: (language: string) => string;
+  selected?: string;
 }) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {languages.map((language) => {
         const value = states[language];
         const state = value?.state ?? "untranslated";
-        return (
-          <Chip
-            key={language}
-            variant={STATE_VARIANT[state]}
-            title={t(STATE_KEY[state])}
-          >
+        const content = (
+          <>
             {state === "verified" && <span aria-hidden="true">✓</span>}
             <span className="font-medium">{language}</span>
             {value?.stale && (
@@ -37,7 +42,33 @@ export function StateChips({
                 {t("state.stale")}
               </span>
             )}
-          </Chip>
+          </>
+        );
+        if (!hrefFor) {
+          return (
+            <Chip
+              key={language}
+              variant={STATE_VARIANT[state]}
+              title={t(STATE_KEY[state])}
+            >
+              {content}
+            </Chip>
+          );
+        }
+        const current = language === selected;
+        return (
+          <Link
+            key={language}
+            href={hrefFor(language)}
+            title={t(STATE_KEY[state])}
+            aria-current={current ? "page" : undefined}
+            className={cn(
+              chipVariants({ variant: STATE_VARIANT[state] }),
+              current && "font-semibold underline underline-offset-4",
+            )}
+          >
+            {content}
+          </Link>
         );
       })}
     </div>
