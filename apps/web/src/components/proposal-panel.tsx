@@ -14,6 +14,7 @@ export type PendingProposal = {
   kind: "edit" | "add" | "delete";
   text: string | null;
   author: string;
+  authorId: number;
 };
 
 export type ProposalRecord = PendingProposal & {
@@ -49,6 +50,7 @@ export function ProposalPanel({
   slots,
   writable,
   pending,
+  canWithdraw = false,
   history,
   actions,
 }: {
@@ -59,6 +61,7 @@ export function ProposalPanel({
   slots: Slot[];
   writable: boolean;
   pending?: PendingProposal;
+  canWithdraw?: boolean;
   history: ProposalRecord[];
   actions: {
     edit: (formData: FormData) => void | Promise<void>;
@@ -99,94 +102,106 @@ export function ProposalPanel({
         <p className="text-sm text-muted-foreground">
           {t("proposal.notWritable")}
         </p>
-      ) : pending ? (
-        <div className="space-y-2 rounded-md border border-border p-3">
-          <div className="flex flex-wrap items-baseline gap-2 text-sm">
-            <Chip variant="state-stale">{t(KIND_KEY[pending.kind])}</Chip>
-            <span className="text-muted-foreground">
-              {t("proposal.by", { author: pending.author })}
-            </span>
-          </div>
-          {pending.text !== null && (
-            <p className="text-base leading-relaxed">{pending.text}</p>
-          )}
-          <form action={actions.withdraw}>
-            {hidden}
-            <input type="hidden" name="proposalId" value={pending.id} />
-            <Button type="submit" variant="secondary" size="sm">
-              {t("proposal.withdraw")}
-            </Button>
-          </form>
-        </div>
-      ) : open ? (
-        <form action={actions.edit} className="space-y-3">
-          {hidden}
-          <Field label={t("proposal.editLabel")}>
-            <textarea
-              ref={ref}
-              name="text"
-              value={text}
-              onChange={(event) => setText(event.target.value)}
-              rows={3}
-              className="min-h-20 w-full resize-none rounded-md border border-input bg-background p-3 text-lg field-sizing-content focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            />
-          </Field>
-          {slots.length > 0 && (
-            <div
-              className="flex flex-wrap gap-1.5"
-              role="group"
-              aria-label={t("editor.placeholders")}
-            >
-              {slots.map((slot) => (
-                <button
-                  key={slot.name}
-                  type="button"
-                  className={chipVariants({
-                    variant: "key",
-                    className: "min-h-8 hover:bg-accent",
-                  })}
-                  title={slot.description}
-                  onClick={() => insert(`{${slot.name}}`)}
-                >
-                  {`{${slot.name}}`}
-                </button>
-              ))}
+      ) : (
+        <>
+          {pending && (
+            <div className="space-y-2 rounded-md border border-border p-3">
+              <div className="flex flex-wrap items-baseline gap-2 text-sm">
+                <Chip variant="outline">{t(KIND_KEY[pending.kind])}</Chip>
+                <span className="text-muted-foreground">
+                  {t("proposal.by", { author: pending.author })}
+                </span>
+              </div>
+              {pending.text !== null && (
+                <p className="text-base leading-relaxed">{pending.text}</p>
+              )}
+              {canWithdraw && (
+                <form action={actions.withdraw}>
+                  {hidden}
+                  <input type="hidden" name="proposalId" value={pending.id} />
+                  <Button type="submit" variant="outline" size="sm">
+                    {t("proposal.withdraw")}
+                  </Button>
+                </form>
+              )}
             </div>
           )}
-          {!parsed.ok && text.trim() !== "" && (
-            <p className="text-sm text-destructive">
-              {t("proposal.invalidIcu")}
-            </p>
+          {open ? (
+            <form action={actions.edit} className="space-y-3">
+              {hidden}
+              <Field label={t("proposal.editLabel")}>
+                <textarea
+                  ref={ref}
+                  name="text"
+                  value={text}
+                  onChange={(event) => setText(event.target.value)}
+                  rows={3}
+                  className="min-h-20 w-full resize-none rounded-md border border-input bg-background p-3 text-lg field-sizing-content focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </Field>
+              {slots.length > 0 && (
+                <div
+                  className="flex flex-wrap gap-1.5"
+                  role="group"
+                  aria-label={t("editor.placeholders")}
+                >
+                  {slots.map((slot) => (
+                    <button
+                      key={slot.name}
+                      type="button"
+                      className={chipVariants({
+                        variant: "key",
+                        className: "min-h-8 hover:bg-accent",
+                      })}
+                      title={slot.description}
+                      onClick={() => insert(`{${slot.name}}`)}
+                    >
+                      {`{${slot.name}}`}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {!parsed.ok && text.trim() !== "" && (
+                <p className="text-sm text-destructive">
+                  {t("proposal.invalidIcu")}
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <Button type="submit" variant="secondary" disabled={!valid}>
+                  {t("proposal.submitEdit")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setOpen(false)}
+                >
+                  {t("proposal.cancel")}
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setOpen(true)}
+              >
+                {t("proposal.propose")}
+              </Button>
+              <form action={actions.remove}>
+                {hidden}
+                <Button type="submit" variant="outline">
+                  {t("proposal.proposeRemoval")}
+                </Button>
+              </form>
+              {pending && (
+                <span className="text-xs text-muted-foreground">
+                  {t("proposal.replaceHint")}
+                </span>
+              )}
+            </div>
           )}
-          <div className="flex flex-wrap gap-2">
-            <Button type="submit" disabled={!valid}>
-              {t("proposal.submitEdit")}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setOpen(false)}
-            >
-              {t("proposal.cancel")}
-            </Button>
-          </div>
-        </form>
-      ) : (
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => setOpen(true)}
-          >
-            {t("proposal.propose")}
-          </Button>
-          <form action={actions.remove}>
-            {hidden}
-            <Button type="submit" variant="secondary">
-              {t("proposal.proposeRemoval")}
-            </Button>
-          </form>
-        </div>
+        </>
       )}
       {history.length > 0 && (
         <ol className="divide-y divide-border text-sm">
@@ -202,7 +217,12 @@ export function ProposalPanel({
               <span className="text-muted-foreground">
                 {t(STATUS_KEY[entry.status])}
               </span>
-              <span className="text-muted-foreground">{stamp(entry.at)}</span>
+              <time
+                dateTime={entry.at.toISOString()}
+                className="text-muted-foreground"
+              >
+                {stamp(entry.at)}
+              </time>
               {entry.text !== null && (
                 <span className="basis-full">{entry.text}</span>
               )}

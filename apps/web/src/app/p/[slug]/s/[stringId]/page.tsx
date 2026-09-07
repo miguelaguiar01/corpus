@@ -25,17 +25,25 @@ import {
   proposeEditAction,
   withdrawProposalAction,
 } from "@/proposals/actions";
-import { pendingForString, proposalsForString } from "@/proposals/service";
+import { pendingForString, proposalsForKey } from "@/proposals/service";
 import { canVerifyRow } from "@/translations/permissions";
 import { t, type MessageKey } from "@/i18n";
 
 type Query = {
   proposed?: string;
+  withdrawn?: string;
   proposalError?: string;
   queue?: string;
   language?: string;
   error?: string;
   warning?: string;
+};
+
+const PROPOSAL_ERROR_KEY: Record<string, MessageKey> = {
+  unchanged: "proposal.errorUnchanged",
+  forbidden: "proposal.errorForbidden",
+  "not-pending": "proposal.errorNotPending",
+  "invalid-icu": "proposal.invalidIcu",
 };
 
 const ERROR_KEY: Record<string, MessageKey> = {
@@ -67,14 +75,17 @@ export default async function StringPage({
 
   const queueKind = isQueueKind(query.queue) ? query.queue : undefined;
   const pendingProposal = pendingForString(db, string.id);
-  const proposalHistory = proposalsForString(db, string.id).map((p) => ({
-    id: p.id,
-    kind: p.kind,
-    text: p.text,
-    author: p.author,
-    status: p.status,
-    at: p.createdAt,
-  }));
+  const proposalHistory = proposalsForKey(db, project.id, string.key).map(
+    (p) => ({
+      id: p.id,
+      kind: p.kind,
+      text: p.text,
+      author: p.author,
+      authorId: p.authorId,
+      status: p.status,
+      at: p.createdAt,
+    }),
+  );
   const queue = queueKind ? queueItems(db, project.id, queueKind) : undefined;
   const language = query.language ?? project.sourceLanguage;
   const source = translations[project.sourceLanguage];
@@ -193,22 +204,19 @@ export default async function StringPage({
               metadata={string.metadata ?? {}}
             />
           </header>
-          <OtherLanguages
-            languages={project.languages}
-            exclude={[project.sourceLanguage, actedLanguage]}
-            translations={translations}
-          />
           {!string.archived && (
             <Section heading={t("proposal.heading")}>
               {query.proposed && (
                 <Banner tone="info">{t("proposal.proposed")}</Banner>
               )}
+              {query.withdrawn && (
+                <Banner tone="info">{t("proposal.withdrawn")}</Banner>
+              )}
               {query.proposalError && (
                 <Banner tone="error">
                   {t(
-                    query.proposalError === "unchanged"
-                      ? "proposal.errorUnchanged"
-                      : "proposal.errorGeneric",
+                    PROPOSAL_ERROR_KEY[query.proposalError] ??
+                      "proposal.errorGeneric",
                   )}
                 </Banner>
               )}
@@ -220,6 +228,10 @@ export default async function StringPage({
                 slots={slots}
                 writable={string.file !== null}
                 pending={pendingProposal}
+                canWithdraw={
+                  pendingProposal !== undefined &&
+                  (pendingProposal.authorId === user.id || user.maintainer)
+                }
                 history={proposalHistory}
                 actions={{
                   edit: proposeEditAction,
@@ -229,6 +241,11 @@ export default async function StringPage({
               />
             </Section>
           )}
+          <OtherLanguages
+            languages={project.languages}
+            exclude={[project.sourceLanguage, actedLanguage]}
+            translations={translations}
+          />
           {entities.length > 0 && (
             <Section heading={t("string.entitiesHeading")}>
               <EntityCards entities={entities} />

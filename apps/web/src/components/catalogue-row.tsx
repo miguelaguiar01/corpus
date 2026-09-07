@@ -35,9 +35,7 @@ export function CatalogueRow({
           {stringId}
         </span>
         <Chip variant="outline">{type}</Chip>
-        {pending && (
-          <Chip variant="state-stale">{t("proposal.pendingMark")}</Chip>
-        )}
+        {pending && <Chip variant="outline">{t("proposal.pendingMark")}</Chip>}
       </div>
       <p className="line-clamp-2 min-w-0 text-lg leading-snug">{source}</p>
       <div className="md:justify-self-end">

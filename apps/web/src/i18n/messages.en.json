@@ -171,7 +171,6 @@
   "proposal.errorUnchanged": "That is the current source text.",
   "proposal.errorGeneric": "That proposal was not recorded.",
   "proposal.pendingMark": "proposed",
-  "proposal.pendingCount": "{count} pending",
   "proposal.dashboardHeading": "Proposals",
   "proposal.addHeading": "Add a string",
   "proposal.addLink": "Add a string",
@@ -183,7 +182,13 @@
   "proposal.addNoSources": "This project declares no source Corpus can write to. Push from a repository with a JSON catalogue first.",
   "proposal.addErrorExists": "A string with that key exists.",
   "proposal.addErrorKey": "That key is not a valid identifier.",
-  "proposal.addErrorIcu": "The text must parse as a source: balanced braces and the ICU subset.",
   "proposal.addErrorSource": "Pick one of the declared sources.",
-  "proposal.added": "Proposed {key}. It reaches the repository with the next corpus pull."
+  "proposal.added": "Proposed {key}. It reaches the repository with the next corpus pull.",
+  "proposal.withdrawn": "Withdrawn.",
+  "proposal.errorForbidden": "Only its author or a maintainer can withdraw a proposal.",
+  "proposal.errorNotPending": "That proposal is no longer pending.",
+  "proposal.pendingLine": "{count} proposals pending",
+  "proposal.addSourceOption": "{path} ({type})",
+  "proposal.pendingAddsHeading": "Proposed strings",
+  "proposal.replaceHint": "A newer proposal replaces the pending one."
 }

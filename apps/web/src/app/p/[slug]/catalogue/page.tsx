@@ -19,7 +19,9 @@ import { PageHeader } from "@/components/page-header";
 import { ProgressStrip } from "@/components/progress-strip";
 import { SearchBox } from "@/components/search-box";
 import { getProjectBySlug } from "@/projects/service";
-import { pendingKeys } from "@/proposals/service";
+import { pendingAdds, pendingKeys } from "@/proposals/service";
+import { withdrawProposalAction } from "@/proposals/actions";
+import { PendingAdds } from "@/components/pending-adds";
 import { Banner } from "@/components/ui/banner";
 import { buttonVariants } from "@/components/ui/button";
 import { stringPath } from "@/strings/paths";
@@ -88,6 +90,7 @@ export default async function CataloguePage({
   );
   const progress = progressCounts(db, project.id);
   const pending = pendingKeys(db, project.id);
+  const adds = pendingAdds(db, project.id);
 
   return (
     <Page
@@ -111,6 +114,22 @@ export default async function CataloguePage({
           <Banner tone="info">
             {t("proposal.added", { key: active.get("added") ?? "" })}
           </Banner>
+        )}
+        {active.get("withdrawn") && (
+          <Banner tone="info">{t("proposal.withdrawn")}</Banner>
+        )}
+        {adds.length > 0 && (
+          <PendingAdds
+            slug={slug}
+            adds={adds.map((a) => ({
+              id: a.id,
+              key: a.key,
+              text: a.text ?? "",
+              file: a.file,
+              author: a.author,
+            }))}
+            withdraw={withdrawProposalAction}
+          />
         )}
         <ProgressStrip progress={progress} />
         <div className="flex flex-wrap items-center gap-3">

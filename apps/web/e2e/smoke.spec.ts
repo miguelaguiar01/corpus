@@ -97,14 +97,14 @@ test("a maintainer takes a string from pushed to verified on a phone", async ({
   await page.goto(`/p/${moonlightManor.project}/catalogue`);
   await expect(page.getByText("proposed", { exact: true })).toBeVisible();
   await page.goto(`/p/${moonlightManor.project}`);
-  await expect(page.getByText(/Proposals: 1 pending/)).toBeVisible();
+  await expect(page.getByText(/1 proposals pending/)).toBeVisible();
   await page.goto(`/p/${moonlightManor.project}/s/ui.continue`);
   await page.getByRole("button", { name: "Withdraw" }).click();
-  await page.waitForURL(/proposed=1/);
+  await page.waitForURL(/withdrawn=1/);
   await expect(
     page.getByRole("button", { name: "Propose a change" }),
   ).toBeVisible();
-  await expect(page.getByText("withdrawn")).toBeVisible();
+  await expect(page.getByText("withdrawn", { exact: true })).toBeVisible();
 
   await page.goto(`/p/${moonlightManor.project}/catalogue`);
   await page.getByRole("link", { name: "Add a string" }).click();
@@ -114,6 +114,9 @@ test("a maintainer takes a string from pushed to verified on a phone", async ({
   await page.getByRole("button", { name: "Propose the string" }).click();
   await page.waitForURL(/added=ui\.back/);
   await expect(page.getByText(/Proposed ui\.back/)).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Proposed strings" }),
+  ).toContainText("ui.back");
 
   await page.goto(`/p/${moonlightManor.project}/s/skin.heard-nothing`);
   await page.getByRole("button", { name: "Propose removal" }).click();

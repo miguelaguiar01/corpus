@@ -163,12 +163,17 @@ export type WithdrawResult =
 // The author withdraws their own proposal; a maintainer anyone's.
 export function withdrawProposal(
   db: Db,
-  input: { proposalId: number; actor: Actor },
+  input: { proposalId: number; projectId: number; actor: Actor },
 ): WithdrawResult {
   const proposal = db
     .select()
     .from(sourceChanges)
-    .where(eq(sourceChanges.id, input.proposalId))
+    .where(
+      and(
+        eq(sourceChanges.id, input.proposalId),
+        eq(sourceChanges.projectId, input.projectId),
+      ),
+    )
     .get();
   if (!proposal) return { ok: false, reason: "not-found" };
   if (proposal.status !== "pending")
@@ -236,18 +241,43 @@ export function pendingForString(
   return row ? { ...row.proposal, author: row.author } : undefined;
 }
 
-// Every proposal on a string, newest first, so an author sees why one
-// lost (§11).
-export function proposalsForString(
+// Every proposal on a key, newest first, so an author sees why one
+// lost (§11); by key, so a landed add reads in its string's history.
+export function proposalsForKey(
   db: Db,
-  stringRowId: number,
+  projectId: number,
+  key: string,
 ): (Proposal & { author: string })[] {
   return db
     .select({ proposal: sourceChanges, author: users.name })
     .from(sourceChanges)
     .innerJoin(users, eq(users.id, sourceChanges.authorId))
-    .where(eq(sourceChanges.stringRowId, stringRowId))
+    .where(
+      and(eq(sourceChanges.projectId, projectId), eq(sourceChanges.key, key)),
+    )
     .orderBy(desc(sourceChanges.createdAt), desc(sourceChanges.id))
+    .all()
+    .map((row) => ({ ...row.proposal, author: row.author }));
+}
+
+// The pending adds, with their authors, for the catalogue: they have
+// no row yet, so the list shows them itself.
+export function pendingAdds(
+  db: Db,
+  projectId: number,
+): (Proposal & { author: string })[] {
+  return db
+    .select({ proposal: sourceChanges, author: users.name })
+    .from(sourceChanges)
+    .innerJoin(users, eq(users.id, sourceChanges.authorId))
+    .where(
+      and(
+        eq(sourceChanges.projectId, projectId),
+        eq(sourceChanges.kind, "add"),
+        eq(sourceChanges.status, "pending"),
+      ),
+    )
+    .orderBy(sourceChanges.createdAt)
     .all()
     .map((row) => ({ ...row.proposal, author: row.author }));
 }

@@ -162,25 +162,49 @@ test("withdraw is the author's or a maintainer's, once", () => {
     .returning()
     .all();
   expect(
-    withdrawProposal(db, { proposalId: mine.proposal.id, actor: other! }),
+    withdrawProposal(db, {
+      proposalId: mine.proposal.id,
+      projectId: ui.projectId,
+      actor: other!,
+    }),
   ).toEqual({
     ok: false,
     reason: "forbidden",
   });
   expect(
-    withdrawProposal(db, { proposalId: mine.proposal.id, actor: rui }),
+    withdrawProposal(db, {
+      proposalId: mine.proposal.id,
+      projectId: ui.projectId,
+      actor: rui,
+    }),
   ).toEqual({ ok: true });
   expect(
-    withdrawProposal(db, { proposalId: mine.proposal.id, actor: ana }),
+    withdrawProposal(db, {
+      proposalId: mine.proposal.id,
+      projectId: ui.projectId,
+      actor: ana,
+    }),
   ).toEqual({
     ok: false,
     reason: "not-pending",
   });
   expect(pendingForString(db, ui.id)).toBeUndefined();
+  // A proposal of another project is not found through this one.
+  expect(
+    withdrawProposal(db, {
+      proposalId: mine.proposal.id,
+      projectId: ui.projectId + 1,
+      actor: rui,
+    }),
+  ).toEqual({ ok: false, reason: "not-found" });
   const again = proposeDelete(db, { stringRowId: ui.id, actor: rui });
   if (!again.ok) throw new Error(again.reason);
   expect(
-    withdrawProposal(db, { proposalId: again.proposal.id, actor: ana }),
+    withdrawProposal(db, {
+      proposalId: again.proposal.id,
+      projectId: ui.projectId,
+      actor: ana,
+    }),
   ).toEqual({ ok: true });
 });
 

@@ -48,3 +48,30 @@ test("shows a meter per language and the three queue counts", () => {
     screen.getByText("Unverified source").nextElementSibling?.textContent,
   ).toBe("2");
 });
+
+test("pending proposals are counted beside the queues, and absent when none", () => {
+  render(
+    <ProjectCard
+      slug="manor"
+      name={NAME}
+      languages={["en"]}
+      progress={PROGRESS}
+      counts={COUNTS}
+      pending={2}
+    />,
+  );
+  expect(screen.getByText("Proposals").nextElementSibling?.textContent).toBe(
+    "2",
+  );
+  cleanup();
+  render(
+    <ProjectCard
+      slug="manor"
+      name={NAME}
+      languages={["en"]}
+      progress={PROGRESS}
+      counts={COUNTS}
+    />,
+  );
+  expect(screen.queryByText("Proposals")).toBeNull();
+});

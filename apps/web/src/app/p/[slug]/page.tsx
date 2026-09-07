@@ -65,8 +65,7 @@ export default async function ProjectHome({
                 href={`/p/${slug}/catalogue`}
                 className="underline-offset-4 hover:underline"
               >
-                {t("proposal.dashboardHeading")}:{" "}
-                {t("proposal.pendingCount", { count: String(pending) })}
+                {t("proposal.pendingLine", { count: String(pending) })}
               </Link>
             </p>
           )}
