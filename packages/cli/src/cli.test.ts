@@ -53,12 +53,12 @@ test("push without a config errors, naming corpus.config.ts", async () => {
   expect(c.output.join("\n")).toMatch(/corpus\.config\.ts/);
 });
 
-test("push without CORPUS_TOKEN errors, naming the env var", async () => {
+test("push without a token errors, naming the env var and the file", async () => {
   // A complete repository: the snapshot builds, then the token is missing.
   const c = ctx({ cwd: PUSH_ONLY, env: {} });
   const code = await run(["push"], c);
   expect(code).not.toBe(0);
-  expect(c.output.join("\n")).toMatch(/CORPUS_TOKEN/);
+  expect(c.output.join("\n")).toMatch(/CORPUS_TOKEN.*\.corpus\/token/);
 });
 
 // The full push flow (build + upload + report rendering) is covered in

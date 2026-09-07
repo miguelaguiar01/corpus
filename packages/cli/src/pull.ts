@@ -24,7 +24,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     throw new CliError(`--min-state must be one of ${MIN_STATES.join(", ")}`);
   }
   const config = await loadConfig(ctx.cwd);
-  const token = requireToken(ctx.env);
+  const token = requireToken(ctx.env, ctx.cwd);
 
   const payload = await download(config, token, minState as MinState, ctx);
   if (payload === undefined) return 1;

@@ -12,14 +12,12 @@ import path from "node:path";
 import type { RunContext } from "./cli";
 import { option } from "./args";
 import { CliError } from "./config";
+import { CORPUS_DIR, DB_FILE, SECRET_FILE } from "./corpus-dir";
 
 export const WORKBENCH_USAGE =
   "corpus workbench [--port <n>] [--db <path>] [--open]";
 
 const PACKAGE = "@corpus-tool/workbench";
-export const CORPUS_DIR = ".corpus";
-const SECRET_FILE = "secret";
-const DB_FILE = "corpus.db";
 const HEALTH_TIMEOUT_MS = 30_000;
 
 export type Prepared = {

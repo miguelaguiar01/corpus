@@ -1,7 +1,8 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { createJiti } from "jiti";
 import { corpusConfigSchema, type CorpusConfig } from "@corpus/contract";
+import { CORPUS_DIR, TOKEN_FILE, tokenPath } from "./corpus-dir";
 
 // In the order they are looked for.
 export const CONFIG_FILENAMES = [
@@ -66,10 +67,25 @@ function invalid(configPath: string, issues: Issue[]): CliError {
   return new CliError(`${configPath} is not a valid config: ${list}`);
 }
 
-export function requireToken(env: NodeJS.ProcessEnv): string {
-  const token = env.CORPUS_TOKEN;
-  if (!token) {
-    throw new CliError("CORPUS_TOKEN is not set (the per-project push token)");
+export type TokenSource = "env" | "file";
+
+// The project token (§10): the env var, then the file the workbench
+// wrote; where it came from decides whether a rotation rewrites the file.
+export function readToken(
+  env: NodeJS.ProcessEnv,
+  cwd: string,
+): { token: string; source: TokenSource } {
+  if (env.CORPUS_TOKEN) return { token: env.CORPUS_TOKEN, source: "env" };
+  const file = tokenPath(cwd);
+  if (existsSync(file)) {
+    const token = readFileSync(file, "utf8").trim();
+    if (token) return { token, source: "file" };
   }
-  return token;
+  throw new CliError(
+    `CORPUS_TOKEN is not set and ${CORPUS_DIR}/${TOKEN_FILE} does not exist (the per-project push token)`,
+  );
+}
+
+export function requireToken(env: NodeJS.ProcessEnv, cwd: string): string {
+  return readToken(env, cwd).token;
 }

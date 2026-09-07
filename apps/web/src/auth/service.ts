@@ -28,7 +28,10 @@ export type SignInResult =
   | { ok: true; user: User; mustChangePassword: boolean }
   | { ok: false; reason: "invalid-credentials" };
 
-function secretsMatch(instanceSecret: string, providedSecret: string): boolean {
+export function secretsMatch(
+  instanceSecret: string,
+  providedSecret: string,
+): boolean {
   const a = Buffer.from(instanceSecret);
   const b = Buffer.from(providedSecret);
   if (a.length !== b.length) return false;
