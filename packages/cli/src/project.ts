@@ -80,29 +80,27 @@ export async function project(
 
 type Created = { slug: string; token: string };
 
-export type ProjectInput = {
-  slug: string;
-  name: string;
-  sourceLanguage: string;
-  languages: string[];
-};
-
-export type RequestResult =
-  ({ ok: true } & Created) | { ok: false; status: number; message: string };
+type RequestResult =
+  ({ ok: true } & Created) | { ok: false; status: number; detail: string };
 
 // The creation request (§10), for the command and for the workbench's
 // own start; the caller words the outcome.
 export async function requestProject(
   server: string,
   secret: string,
-  input: ProjectInput,
+  input: {
+    slug: string;
+    name: string;
+    sourceLanguage: string;
+    languages: string[];
+  },
 ): Promise<RequestResult> {
   const response = await post(`${server}/api/projects`, secret, input);
   if (response.ok) return { ok: true, ...((await response.json()) as Created) };
   return {
     ok: false,
     status: response.status,
-    message: (await serverMessage(response)).replace(/^: /, ""),
+    detail: await serverMessage(response),
   };
 }
 
@@ -128,7 +126,7 @@ async function create(args: string[], ctx: RunContext): Promise<number> {
       throw new CliError(`the instance secret was refused by ${server}`);
     }
     throw new CliError(
-      `project create failed (HTTP ${result.status})${result.message ? `: ${result.message}` : ""}`,
+      `project create failed (HTTP ${result.status})${result.detail}`,
     );
   }
   ctx.err(`corpus: created project ${result.slug} on ${server}`);

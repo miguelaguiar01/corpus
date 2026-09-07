@@ -1,25 +1,24 @@
 import {
+  cpSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { createServer, type Server } from "node:http";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, expect, test } from "vitest";
-import type { CorpusConfig } from "@corpus/contract";
 import { provision, wantsProvision } from "./provision";
 
-const config = {
-  project: "moonlight-manor",
-  server: "https://corpus.example",
-  sourceLanguage: "pt-PT",
-  languages: ["pt-PT", "en"],
-  sources: [{ adapter: "messages", type: "chrome", path: "i18n/{lang}.json" }],
-} as CorpusConfig;
+const FIXTURE = fileURLToPath(
+  new URL("../test/fixtures/push-repo", import.meta.url),
+);
+const ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 
 type Captured = { url: string; auth: string | undefined; body: unknown };
 
@@ -59,15 +58,24 @@ afterEach(() => {
     rmSync(dir, { recursive: true, force: true });
 });
 
-function repo(): string {
+function tmp(): string {
   const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-provision-"));
   dirs.push(dir);
   mkdirSync(path.join(dir, ".corpus"));
   return dir;
 }
 
+// The push fixture's config (project push-fixture, en only), resolving
+// the workspace's packages through a linked node_modules.
+function repo(): string {
+  const dir = tmp();
+  cpSync(FIXTURE, dir, { recursive: true });
+  symlinkSync(path.join(ROOT, "node_modules"), path.join(dir, "node_modules"));
+  return dir;
+}
+
 test("provisioning wants a config and no token, unless told not to", () => {
-  const dir = repo();
+  const dir = tmp();
   expect(wantsProvision(dir, [])).toBe(false);
   writeFileSync(path.join(dir, "corpus.config.ts"), "");
   expect(wantsProvision(dir, [])).toBe(true);
@@ -78,19 +86,19 @@ test("provisioning wants a config and no token, unless told not to", () => {
 
 test("a created project's token lands in .corpus/token, owner-only", async () => {
   const { server, url, calls } = await startServer(201, {
-    slug: "moonlight-manor",
+    slug: "push-fixture",
     token: "fresh",
   });
   active = server;
   const dir = repo();
-  const line = await provision(dir, url, "s3cret", config);
+  const line = await provision(dir, url, "s3cret");
   expect(calls[0]?.url).toBe("/api/projects");
   expect(calls[0]?.auth).toBe("Bearer s3cret");
   expect(calls[0]?.body).toEqual({
-    slug: "moonlight-manor",
-    name: "moonlight-manor",
-    sourceLanguage: "pt-PT",
-    languages: ["pt-PT", "en"],
+    slug: "push-fixture",
+    name: "push-fixture",
+    sourceLanguage: "en",
+    languages: ["en"],
   });
   const token = path.join(dir, ".corpus/token");
   expect(readFileSync(token, "utf8")).toBe("fresh\n");
@@ -103,8 +111,8 @@ test("an existing project names the settings page and the file, writes nothing",
   const { server, url } = await startServer(409, { error: "slug-taken" });
   active = server;
   const dir = repo();
-  const line = await provision(dir, url, "s3cret", config);
-  expect(line).toContain(`${url}/p/moonlight-manor/settings`);
+  const line = await provision(dir, url, "s3cret");
+  expect(line).toContain(`${url}/p/push-fixture/settings`);
   expect(line).toMatch(/\.corpus\/token/);
   expect(() => statSync(path.join(dir, ".corpus/token"))).toThrow();
 });
@@ -115,6 +123,25 @@ test("any other failure is one line with the status", async () => {
     message: "languages",
   });
   active = server;
-  const line = await provision(repo(), url, "s3cret", config);
+  const line = await provision(repo(), url, "s3cret");
   expect(line).toMatch(/HTTP 422: languages/);
+});
+
+test("a config that does not load, an unreachable server and an unwritable file are one line each", async () => {
+  const broken = tmp();
+  writeFileSync(path.join(broken, "corpus.config.ts"), "export default 42;\n");
+  expect(await provision(broken, "http://127.0.0.1:1", "s")).toMatch(
+    /^token {5}not written: .*corpus\.config\.ts/,
+  );
+  expect(await provision(repo(), "http://127.0.0.1:1", "s")).toMatch(
+    /^token {5}not written: could not reach the server/,
+  );
+  const { server, url } = await startServer(201, {
+    slug: "push-fixture",
+    token: "t",
+  });
+  active = server;
+  const dir = repo();
+  mkdirSync(path.join(dir, ".corpus/token"));
+  expect(await provision(dir, url, "s")).toMatch(/^token {5}not written: /);
 });
