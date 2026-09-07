@@ -33,6 +33,9 @@ export CORPUS_TOKEN
 echo "=== dogfood: push ==="
 corpus push
 
+echo "=== dogfood: pull --check at untranslated finds nothing to change ==="
+corpus pull --check --min-state untranslated
+
 echo "=== dogfood: pull at untranslated must reproduce the tree ==="
 corpus pull --min-state untranslated
 git diff --exit-code --stat -- apps/web/src/i18n || { echo "pull changed tracked files" >&2; exit 1; }

@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { entriesToMessages, entriesToTable } from "@corpus/adapters";
-import { option } from "./args";
+import { option, options } from "./args";
 import {
   MIN_STATES,
   pullPayloadSchema,
@@ -19,20 +19,46 @@ import { request, serverMessage, UNAUTHORIZED } from "./server";
 // write them back through the adapters. Files are only touched when
 // their content changes, and every changed path is printed. `exec`
 // sources get, on stdin, whatever the file adapters did not claim.
+// `--lang` (repeatable) narrows both to those languages; `--check`
+// writes nothing, runs nothing, and exits 1 when a pull would change a
+// file.
 export async function pull(args: string[], ctx: RunContext): Promise<number> {
   const minState = option(args, "--min-state") ?? "verified";
   if (!(MIN_STATES as readonly string[]).includes(minState)) {
     throw new CliError(`--min-state must be one of ${MIN_STATES.join(", ")}`);
   }
+  const check = args.includes("--check");
   const config = await loadConfig(ctx.cwd);
-  const token = requireToken(ctx.env, ctx.cwd);
-
-  const payload = await download(config, token, minState as MinState, ctx);
-  if (payload === undefined) return 1;
-
   // The source text belongs to the repository (§1, §8): pull writes
   // target languages only and hands importers only those.
-  const targets = config.languages.filter((l) => l !== config.sourceLanguage);
+  const allTargets = config.languages.filter(
+    (l) => l !== config.sourceLanguage,
+  );
+  const langs = options(args, "--lang");
+  for (const lang of langs) {
+    if (lang === config.sourceLanguage) {
+      throw new CliError(
+        `--lang ${lang} is the source language, which is never pulled`,
+      );
+    }
+    if (!allTargets.includes(lang)) {
+      throw new CliError(
+        `--lang ${lang} is not a language of this config (${allTargets.join(", ")})`,
+      );
+    }
+  }
+  const targets = langs.length > 0 ? langs : allTargets;
+  const token = requireToken(ctx.env, ctx.cwd);
+
+  const payload = await download(
+    config,
+    token,
+    minState as MinState,
+    langs,
+    ctx,
+  );
+  if (payload === undefined) return 1;
+
   const changed: string[] = [];
   const claimedTypes = new Set<string>();
   for (const source of config.sources) {
@@ -68,17 +94,32 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
           ? entriesToMessages(template, translations, existing)
           : entriesToTable(template, translations, source.map, existing);
       if (next !== existing) {
-        writeFileSync(path.join(ctx.cwd, file), next);
+        if (!check) writeFileSync(path.join(ctx.cwd, file), next);
         changed.push(file);
       }
     }
+  }
+
+  if (check) {
+    for (const source of config.sources) {
+      if (source.adapter === "exec" && source.importCommand) {
+        ctx.err(
+          `corpus: exec "${source.importCommand}" is not checked: an import command's writes are its own`,
+        );
+      }
+    }
+    for (const file of changed) ctx.out(file);
+    ctx.out(
+      `pull --check ${config.project} at ${minState}: ${changed.length} file(s) would change`,
+    );
+    return changed.length === 0 ? 0 : 1;
   }
 
   for (const source of config.sources) {
     if (source.adapter !== "exec" || !source.importCommand) continue;
     const translations: PullPayload["translations"] = {};
     for (const [language, texts] of Object.entries(payload.translations)) {
-      if (language === config.sourceLanguage) continue;
+      if (!targets.includes(language)) continue;
       translations[language] = Object.fromEntries(
         Object.entries(texts).filter(
           ([id]) => !claimedTypes.has(payload.types[id] ?? ""),
@@ -105,7 +146,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
   if (importers === 0) {
     const dropped = new Set(
       Object.entries(payload.translations)
-        .filter(([language]) => language !== config.sourceLanguage)
+        .filter(([language]) => targets.includes(language))
         .flatMap(([, texts]) => Object.keys(texts))
         .filter((id) => !claimedTypes.has(payload.types[id] ?? "")),
     );
@@ -146,9 +187,14 @@ async function download(
   config: CorpusConfig,
   token: string,
   minState: MinState,
+  langs: string[],
   ctx: RunContext,
 ): Promise<PullPayload | undefined> {
-  const url = `${config.server.replace(/\/$/, "")}/api/pull?minState=${minState}`;
+  const query = [
+    `minState=${minState}`,
+    ...langs.map((l) => `lang=${encodeURIComponent(l)}`),
+  ].join("&");
+  const url = `${config.server.replace(/\/$/, "")}/api/pull?${query}`;
   const response = await request(url, token);
   if (response.status === 401) {
     ctx.err(`corpus: ${UNAUTHORIZED}`);
