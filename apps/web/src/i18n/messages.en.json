@@ -79,6 +79,8 @@
   "state.stale": "stale",
   "string.examplesHeading": "Examples",
   "string.entitiesHeading": "Related",
+  "string.otherLanguagesHeading": "Other languages",
+  "string.otherLanguagesNone": "No translation yet",
   "string.historyHeading": "History",
   "source.branches": "Branches",
   "string.archived": "This string is archived. It is read-only.",

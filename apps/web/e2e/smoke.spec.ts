@@ -105,6 +105,31 @@ test("a maintainer takes a string from pushed to verified on a phone", async ({
     page.getByRole("link", { name: /^pt-PT( stale)?$/ }),
   ).toHaveAttribute("aria-current", "page");
 
+  // A third language: while editing one target, the other is readable
+  // under the source (§9.3).
+  await page.goto(`/p/${moonlightManor.project}/settings`);
+  await page.getByLabel("Target languages").fill("en, fr");
+  await page.getByRole("button", { name: "Save languages" }).click();
+  await page.waitForURL(/saved=languages/);
+  await page.goto(
+    `/p/${moonlightManor.project}/s/skin.seen-at-greenhouse-window?language=en`,
+  );
+  await expect(
+    page.getByRole("heading", { name: "Other languages" }),
+  ).toBeVisible();
+  await expect(page.getByText("No translation yet")).toBeVisible();
+  // And from the third language, the English translation saved above
+  // reads through.
+  await page.goto(
+    `/p/${moonlightManor.project}/s/skin.seen-at-greenhouse-window?language=fr`,
+  );
+  await expect(
+    page.getByRole("heading", { name: "Other languages" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("definition").filter({ hasText: /was seen at the window/ }),
+  ).toBeVisible();
+
   // Signing out ends the session on the server; signing back in with the
   // password lands on the same instance with the same account.
   await signOut(page);

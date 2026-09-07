@@ -3,16 +3,7 @@ import { t } from "@/i18n";
 import type { LanguageState } from "@/catalogue/query";
 import { Chip, chipVariants } from "@/components/ui/chip";
 import { cn } from "@/lib/utils";
-import { STATE_KEY } from "./state-label";
-
-// Three states, three treatments that survive both themes and do not
-// rely on hue alone: outlined, filled achromatic, filled moss with a
-// mark.
-const STATE_VARIANT = {
-  untranslated: "outline",
-  translated: "neutral",
-  verified: "state-verified",
-} as const satisfies Record<LanguageState["state"], string>;
+import { STATE_KEY, STATE_VARIANT } from "./state-label";
 
 // With `hrefFor`, the chips are the editor's language switcher (§9.3):
 // each a link to the same string in that language, the selected one

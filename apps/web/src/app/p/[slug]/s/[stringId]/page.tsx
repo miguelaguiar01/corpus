@@ -11,6 +11,7 @@ import { Banner } from "@/components/ui/banner";
 import { Section } from "@/components/ui/section";
 import { QueueNav } from "@/components/queue-nav";
 import { SourceView } from "@/components/source-view";
+import { OtherLanguages } from "@/components/other-languages";
 import { StateChips } from "@/components/state-chips";
 import { languageSwitchPath } from "@/strings/paths";
 import { TargetPane, type Slot } from "@/components/target-pane";
@@ -174,6 +175,11 @@ export default async function StringPage({
               metadata={string.metadata ?? {}}
             />
           </header>
+          <OtherLanguages
+            languages={project.languages}
+            exclude={[project.sourceLanguage, actedLanguage]}
+            translations={translations}
+          />
           {entities.length > 0 && (
             <Section heading={t("string.entitiesHeading")}>
               <EntityCards entities={entities} />
