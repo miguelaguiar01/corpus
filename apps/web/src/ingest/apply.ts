@@ -9,6 +9,7 @@ import {
   strings,
   stringTranslations,
 } from "@/db/schema";
+import { ensureTranslationRows } from "@/translations/rows";
 import { diffSnapshot, type CurrentString, type DiffReport } from "./diff";
 
 export type IngestReport = DiffReport & {
@@ -96,6 +97,10 @@ export function applySnapshot(
           ])
           .run();
       }
+
+      // A language added in settings before this push, or before rows
+      // were created on adding one: existing strings get their rows.
+      ensureTranslationRows(tx, projectId, targetLanguages);
 
       for (const id of plan.refresh) {
         const entry = bySnapshotId.get(id)!;

@@ -1,6 +1,8 @@
 import { eq } from "drizzle-orm";
 import { expect, test } from "vitest";
-import { users } from "@/db/schema";
+import { stringTranslations, users } from "@/db/schema";
+import { moonlightManor, type Snapshot } from "@corpus/contract";
+import { applySnapshot } from "@/ingest/apply";
 import { memoryDb } from "@/db/test-helpers";
 import { createSession, getSessionUser, signIn } from "@/auth/service";
 import { hashPassword } from "@/auth/password";
@@ -169,4 +171,33 @@ test("resetUserPassword ends sessions and hands out a temporary password once", 
   );
   const next = signIn(db, { name: "rui", password: result.temporary });
   expect(next.ok && next.mustChangePassword).toBe(true);
+});
+
+test("adding a language gives every active string an untranslated row at once", () => {
+  const { db, ana, project } = seed();
+  applySnapshot(db, project.id, moonlightManor as Snapshot);
+  const before = db.select().from(stringTranslations).all().length;
+  expect(updateLanguages(db, project.id, ["en", "de-DE"], ana)).toEqual({
+    ok: true,
+  });
+  const rows = db
+    .select()
+    .from(stringTranslations)
+    .where(eq(stringTranslations.language, "de-DE"))
+    .all();
+  expect(rows.length).toBe(moonlightManor.strings.length);
+  expect(rows.every((r) => r.state === "untranslated" && r.text === null)).toBe(
+    true,
+  );
+  expect(db.select().from(stringTranslations).all().length).toBe(
+    before + moonlightManor.strings.length,
+  );
+  // Adding it again, or removing and re-adding, creates nothing new.
+  expect(updateLanguages(db, project.id, ["en"], ana)).toEqual({ ok: true });
+  expect(updateLanguages(db, project.id, ["en", "de-DE"], ana)).toEqual({
+    ok: true,
+  });
+  expect(db.select().from(stringTranslations).all().length).toBe(
+    before + moonlightManor.strings.length,
+  );
 });

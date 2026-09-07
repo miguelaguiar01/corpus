@@ -2,6 +2,7 @@ import { LANGUAGE_RE } from "@corpus/contract";
 // Maintainer corner services (§9.5, §10). Every action re-checks the
 // acting user's maintainer flag; the UI only decides what to show.
 import { endSessionsOf, resetPassword } from "@/auth/service";
+import { ensureTranslationRows } from "@/translations/rows";
 import { eq } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 import type { Db } from "@/db";
@@ -68,10 +69,14 @@ export function updateLanguages(
   }
   const languages = [project.sourceLanguage];
   for (const l of cleaned) if (!languages.includes(l)) languages.push(l);
-  db.update(projects)
-    .set({ languages })
-    .where(eq(projects.id, projectId))
-    .run();
+  const added = languages.filter((l) => !project.languages.includes(l));
+  db.transaction((tx) => {
+    tx.update(projects)
+      .set({ languages })
+      .where(eq(projects.id, projectId))
+      .run();
+    ensureTranslationRows(tx, projectId, added);
+  });
   return { ok: true };
 }
 
