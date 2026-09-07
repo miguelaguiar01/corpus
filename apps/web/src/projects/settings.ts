@@ -4,10 +4,9 @@ import { LANGUAGE_RE } from "@corpus/contract";
 import { endSessionsOf, resetPassword } from "@/auth/service";
 import { ensureTranslationRows } from "@/translations/rows";
 import { eq } from "drizzle-orm";
-import { randomBytes } from "node:crypto";
 import type { Db } from "@/db";
 import { projects, users } from "@/db/schema";
-import { hashToken } from "./service";
+import { issueToken } from "./service";
 
 type Actor = { id: number };
 
@@ -36,14 +35,8 @@ export function rotateToken(
   actor: Actor,
 ): SettingsResult<{ token: string }> {
   if (!isMaintainer(db, actor)) return { ok: false, reason: "forbidden" };
-  const token = randomBytes(24).toString("hex");
-  const updated = db
-    .update(projects)
-    .set({ tokenHash: hashToken(token) })
-    .where(eq(projects.id, projectId))
-    .returning({ id: projects.id })
-    .all();
-  if (updated.length === 0) return { ok: false, reason: "not-found" };
+  const token = issueToken(db, projectId);
+  if (token === undefined) return { ok: false, reason: "not-found" };
   return { ok: true, token };
 }
 

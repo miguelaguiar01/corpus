@@ -15,9 +15,12 @@ export type CreateProjectInput = {
   languages: string[];
 };
 
-export type CreateProjectResult =
+export type ProvisionResult =
   | { ok: true; project: Project; token: string }
-  | { ok: false; reason: "forbidden" | "slug-taken" | "invalid" };
+  | { ok: false; reason: "slug-taken" | "invalid" };
+
+export type CreateProjectResult =
+  ProvisionResult | { ok: false; reason: "forbidden" };
 
 export function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -35,7 +38,15 @@ export function createProject(
   actor: User,
 ): CreateProjectResult {
   if (!actor.maintainer) return { ok: false, reason: "forbidden" };
+  return provisionProject(db, input);
+}
 
+// The creation itself, for a maintainer's form and for the instance
+// secret (§10), which is the caller's to check.
+export function provisionProject(
+  db: Db,
+  input: CreateProjectInput,
+): ProvisionResult {
   const slug = input.slug.trim();
   const name = input.name.trim();
   if (
@@ -51,7 +62,7 @@ export function createProject(
     return { ok: false, reason: "slug-taken" };
   }
 
-  const token = randomBytes(24).toString("hex");
+  const token = newToken();
   const project = db
     .insert(projects)
     .values({
@@ -64,6 +75,23 @@ export function createProject(
     .returning()
     .get();
   return { ok: true, project, token };
+}
+
+function newToken(): string {
+  return randomBytes(24).toString("hex");
+}
+
+// A new token for the project; the old one stops working at once.
+// Returned once; undefined when there is no such project.
+export function issueToken(db: Db, projectId: number): string | undefined {
+  const token = newToken();
+  const updated = db
+    .update(projects)
+    .set({ tokenHash: hashToken(token) })
+    .where(eq(projects.id, projectId))
+    .returning({ id: projects.id })
+    .all();
+  return updated.length === 0 ? undefined : token;
 }
 
 export function findProjectByToken(db: Db, token: string): Project | undefined {

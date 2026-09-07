@@ -5,7 +5,9 @@ import { option } from "./args";
 import { CliError, loadConfig, requireToken } from "./config";
 import { checkFiles } from "./check";
 import { init, INIT_USAGE } from "./init";
+import { project, PROJECT_USAGE } from "./project";
 import { pull } from "./pull";
+import { serverMessage } from "./server";
 import { workbench, WORKBENCH_USAGE } from "./workbench";
 
 export type RunContext = {
@@ -17,7 +19,8 @@ export type RunContext = {
 
 const USAGE = `usage: corpus push [--dry-run] | corpus pull [--min-state <untranslated|translated|verified>] | corpus check | corpus build [--out <file>]
        ${INIT_USAGE}
-       ${WORKBENCH_USAGE}`;
+       ${WORKBENCH_USAGE}
+       ${PROJECT_USAGE}`;
 
 export async function run(argv: string[], ctx: RunContext): Promise<number> {
   const [command] = argv;
@@ -32,13 +35,15 @@ export async function run(argv: string[], ctx: RunContext): Promise<number> {
     command === "check" ||
     command === "build" ||
     command === "workbench" ||
-    command === "init"
+    command === "init" ||
+    command === "project"
   ) {
     try {
       if (command === "init") return await init(argv.slice(1), ctx);
       if (command === "push") return await push(argv.slice(1), ctx);
       if (command === "build") return await build(argv.slice(1), ctx);
       if (command === "workbench") return await workbench(argv.slice(1), ctx);
+      if (command === "project") return await project(argv.slice(1), ctx);
       if (command === "pull") return await pull(argv.slice(1), ctx);
       return await check(ctx);
     } catch (error) {
@@ -68,7 +73,7 @@ async function push(args: string[], ctx: RunContext): Promise<number> {
   const config = await loadConfig(ctx.cwd);
   const snapshot = await buildSnapshot(config, ctx.cwd);
   for (const note of pushOnlyNotes(config)) ctx.err(`corpus: ${note}`);
-  const token = requireToken(ctx.env);
+  const token = requireToken(ctx.env, ctx.cwd);
 
   const url = `${config.server.replace(/\/$/, "")}/api/push${dryRun ? "?dryRun" : ""}`;
   let response: Response;
@@ -88,7 +93,9 @@ async function push(args: string[], ctx: RunContext): Promise<number> {
   }
 
   if (response.status === 401) {
-    ctx.err("corpus: unauthorized — check CORPUS_TOKEN for this project");
+    ctx.err(
+      "corpus: unauthorized — the token was refused (CORPUS_TOKEN or .corpus/token, for this project)",
+    );
     return 1;
   }
   if (response.status === 422) {
@@ -108,12 +115,39 @@ async function push(args: string[], ctx: RunContext): Promise<number> {
     return 1;
   }
 
-  const { report } = (await response.json()) as { report: PushReport };
+  const { report, languages } = (await response.json()) as {
+    report: PushReport;
+    languages?: string[];
+  };
   const label = dryRun ? "dry-run" : "pushed";
   ctx.out(
     `${label} ${config.project}: ${report.added} added, ${report.changed} changed, ${report.stale} stale, ${report.archived} archived`,
   );
+  if (languages) {
+    for (const line of languageDrift(config.languages, languages)) {
+      ctx.err(`corpus: ${line}`);
+    }
+  }
   return 0;
+}
+
+// The config declares the project's languages once, at creation; after
+// that the maintainer corner owns them and push only names the drift (§8).
+function languageDrift(declared: string[], actual: string[]): string[] {
+  const lines: string[] = [];
+  const missing = declared.filter((l) => !actual.includes(l));
+  const extra = actual.filter((l) => !declared.includes(l));
+  if (missing.length > 0) {
+    lines.push(
+      `the config declares ${missing.join(", ")}, which the project does not have; add it in the project's settings`,
+    );
+  }
+  if (extra.length > 0) {
+    lines.push(
+      `the project has ${extra.join(", ")}, which the config does not declare`,
+    );
+  }
+  return lines;
 }
 
 // `corpus build`: the snapshot without a server, for authoring the config.
@@ -138,16 +172,6 @@ async function build(args: string[], ctx: RunContext): Promise<number> {
     `built ${config.project}: ${snapshot.strings.length} string(s) (${byType(snapshot.strings) || "none"}), ${snapshot.entities.length} entity(ies) (${byType(snapshot.entities) || "none"})${out ? `, written to ${out}` : ""}`,
   );
   return 0;
-}
-
-// The server's message body for an otherwise-unhandled non-2xx, if any.
-async function serverMessage(response: Response): Promise<string> {
-  try {
-    const body = (await response.json()) as { message?: string };
-    return body.message ? `: ${body.message}` : "";
-  } catch {
-    return "";
-  }
 }
 
 // `corpus check` (§3): exit 1 with file:line: text per finding, 0 when clean.

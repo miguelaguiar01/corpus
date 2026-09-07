@@ -8,7 +8,7 @@ function unauthorized(message: string): Response {
   return Response.json({ error: "unauthorized", message }, { status: 401 });
 }
 
-function bearerToken(header: string | null): string | undefined {
+export function bearerToken(header: string | null): string | undefined {
   if (!header) return undefined;
   const match = /^Bearer (.+)$/.exec(header);
   return match?.[1]?.trim() || undefined;

@@ -55,5 +55,7 @@ export async function POST(request: Request): Promise<Response> {
   const report = applySnapshot(db, auth.project.id, validation.snapshot, {
     dryRun,
   });
-  return Response.json({ report, dryRun });
+  // The project's languages ride along so the CLI can name drift from
+  // the config's (§8); push never changes them (§13).
+  return Response.json({ report, dryRun, languages: auth.project.languages });
 }

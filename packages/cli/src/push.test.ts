@@ -93,6 +93,24 @@ test("--dry-run sends the dryRun flag and labels the output", async () => {
   expect(c.output.join("\n")).toMatch(/dry-run/);
 });
 
+test("languages that differ between the config and the project are named, one line each", async () => {
+  const { server, url } = await startServer(() => ({
+    status: 200,
+    json: {
+      report: { added: 0, changed: 0, stale: 0, archived: 0 },
+      languages: ["en", "de"],
+    },
+  }));
+  active = server;
+  process.env.CORPUS_SERVER = url;
+
+  const c = ctx();
+  expect(await run(["push"], c)).toBe(0);
+  const text = c.output.join("\n");
+  expect(text).toMatch(/the project has de, which the config does not declare/);
+  expect(text).not.toMatch(/the config declares/);
+});
+
 test("a 401 prints an actionable message", async () => {
   const { server, url } = await startServer(() => ({
     status: 401,

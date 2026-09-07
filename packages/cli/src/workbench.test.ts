@@ -9,7 +9,8 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
-import { CORPUS_DIR, prepare } from "./workbench";
+import { prepare } from "./workbench";
+import { CORPUS_DIR } from "./corpus-dir";
 
 const dirs: string[] = [];
 afterEach(() => {

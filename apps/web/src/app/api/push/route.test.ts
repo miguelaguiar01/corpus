@@ -59,8 +59,12 @@ test("a valid push applies and returns the diff report", async () => {
   const { token, slug } = setup();
   const res = await push(token, forProject(slug));
   expect(res.status).toBe(200);
-  const json = (await res.json()) as { report: { added: number } };
+  const json = (await res.json()) as {
+    report: { added: number };
+    languages: string[];
+  };
   expect(json.report.added).toBe(moonlightManor.strings.length);
+  expect(json.languages).toEqual(["pt-PT", "en"]);
 });
 
 test("no token → 401", async () => {
