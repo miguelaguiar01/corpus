@@ -152,3 +152,18 @@ test("an English draft previews as the English sentence with English values", ()
     text: "A Condessa Rosa was seen at the da estufa window at 21h — and was not alone.",
   });
 });
+
+test("a language's map is used whole: a slot it lacks stays literal, never the source's value", () => {
+  expect(
+    previewsFor(
+      "{person} at {hour}",
+      [
+        {
+          values: { person: "a", hour: "21h" },
+          valuesByLanguage: { en: { person: "A" } },
+        },
+      ],
+      { target: "en", source: "pt-PT" },
+    ),
+  ).toEqual([{ ok: true, text: "A at {hour}" }]);
+});
