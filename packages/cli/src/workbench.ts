@@ -13,9 +13,10 @@ import type { RunContext } from "./cli";
 import { option } from "./args";
 import { CliError } from "./config";
 import { CORPUS_DIR, DB_FILE, SECRET_FILE } from "./corpus-dir";
+import { provision, wantsProvision } from "./provision";
 
 export const WORKBENCH_USAGE =
-  "corpus workbench [--port <n>] [--db <path>] [--open]";
+  "corpus workbench [--port <n>] [--db <path>] [--open] [--no-provision]";
 
 const PACKAGE = "@corpus-tool/workbench";
 const HEALTH_TIMEOUT_MS = 30_000;
@@ -154,6 +155,9 @@ export async function workbench(
   ctx.out(
     `  secret    ${prepared.secret}  (join with it once; it is in ${CORPUS_DIR}/${SECRET_FILE})`,
   );
+  if (wantsProvision(ctx.cwd, args)) {
+    ctx.out(`  ${await provision(ctx.cwd, url, prepared.secret)}`);
+  }
   ctx.out("  stop      Ctrl-C");
   if (args.includes("--open")) openBrowser(url);
 
