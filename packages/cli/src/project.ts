@@ -2,7 +2,7 @@ import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import type { RunContext } from "./cli";
 import { option } from "./args";
 import { CliError, loadConfig, readToken } from "./config";
-import { serverMessage } from "./server";
+import { request, serverMessage } from "./server";
 import {
   CORPUS_DIR,
   SECRET_FILE,
@@ -95,7 +95,10 @@ export async function requestProject(
     languages: string[];
   },
 ): Promise<RequestResult> {
-  const response = await post(`${server}/api/projects`, secret, input);
+  const response = await request(`${server}/api/projects`, secret, {
+    method: "POST",
+    body: input,
+  });
   if (response.ok) return { ok: true, ...((await response.json()) as Created) };
   return {
     ok: false,
@@ -140,9 +143,10 @@ async function rotateToken(args: string[], ctx: RunContext): Promise<number> {
   const config = await loadConfig(ctx.cwd);
   const server = serverOf(args, config.server);
   const current = readToken(ctx.env, ctx.cwd);
-  const response = await post(
+  const response = await request(
     `${server}/api/projects/${config.project}/token`,
     current.token,
+    { method: "POST" },
   );
   if (response.status === 401 || response.status === 403) {
     throw new CliError(
@@ -170,25 +174,4 @@ async function rotateToken(args: string[], ctx: RunContext): Promise<number> {
 
 function serverOf(args: string[], fallback: string): string {
   return (option(args, "--server") ?? fallback).replace(/\/$/, "");
-}
-
-async function post(
-  url: string,
-  bearer: string,
-  body?: unknown,
-): Promise<Response> {
-  try {
-    return await fetch(url, {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${bearer}`,
-        ...(body === undefined ? {} : { "content-type": "application/json" }),
-      },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-  } catch (error) {
-    throw new CliError(
-      `could not reach the server at ${url}: ${(error as Error).message}`,
-    );
-  }
 }
