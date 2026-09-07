@@ -20,6 +20,7 @@ import { memoryDb } from "@/db/test-helpers";
 import { createProject } from "@/projects/service";
 import { stringDetail } from "@/strings/detail";
 import { applyTransition } from "@/translations/service";
+import { proposeAdd, proposeDelete, proposeEdit } from "@/proposals/service";
 
 const db = memoryDb();
 vi.mock("@/db", async (importActual) => ({
@@ -201,4 +202,44 @@ test("a verified-only pull writes nothing when nothing is verified", async () =>
   const before = tree(repo);
   expect(await run(["pull"], ctx())).toBe(0);
   expect(tree(repo)).toEqual(before);
+});
+
+test("a pending proposal comes back in exactly its source's files, at its key; nothing else moves", async () => {
+  expect(await run(["push"], ctx())).toBe(0);
+  const before = tree(repo);
+  const [ana] = db.select().from(users).all();
+  const greeting = stringDetail(db, projectId, "app.greeting")!;
+  proposeEdit(db, {
+    stringRowId: greeting.string.id,
+    text: "Bem-vindo, {name}",
+    actor: ana!,
+  });
+  proposeAdd(db, {
+    projectId,
+    key: "step.close",
+    sourcePath: "data/steps.{lang}.json",
+    text: "Fecha a porta.",
+    actor: ana!,
+  });
+  const open = stringDetail(db, projectId, "step.open")!;
+  proposeDelete(db, { stringRowId: open.string.id, actor: ana! });
+  expect(await run(["pull"], ctx())).toBe(0);
+  const after = tree(repo);
+  expect(Object.keys(after).sort()).toEqual(Object.keys(before).sort());
+  expect(JSON.parse(after["i18n/pt-PT.json"]!)).toEqual({
+    app: { title: "Corpus", greeting: "Bem-vindo, {name}" },
+    nav: { catalogue: "Catálogo" },
+  });
+  expect(after["i18n/en.json"]).toBe(before["i18n/en.json"]);
+  expect(JSON.parse(after["data/steps.pt-PT.json"]!)).toEqual([
+    { id: "step.key", text: "Procura a chave {where}.", kind: "task" },
+    { id: "step.close", text: "Fecha a porta." },
+  ]);
+  // The removal left the target file too; the edit and the add did not touch it.
+  expect(
+    JSON.parse(after["data/steps.en.json"]!).map((r: { id: string }) => r.id),
+  ).toEqual(["step.key"]);
+  // Pushing the repository as it now is lands the proposals.
+  expect(await run(["push"], ctx())).toBe(0);
+  expect(await run(["pull", "--check"], ctx())).toBe(0);
 });

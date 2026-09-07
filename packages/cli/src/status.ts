@@ -20,6 +20,7 @@ export type Status = {
   strings: number;
   lastPushAt: string | null;
   version: string;
+  pendingProposals?: number;
   progress: {
     perLanguage: Record<string, Counts>;
     perType: Record<string, Record<string, Counts>>;
@@ -66,6 +67,11 @@ export function render(status: Status, server: string): string[] {
   lines.push(
     `${status.project} on ${server}: ${status.strings} string(s), ${pushed}, server ${status.version}`,
   );
+  if (status.pendingProposals) {
+    lines.push(
+      `${status.pendingProposals} proposal(s) pending: corpus pull writes them`,
+    );
+  }
   const types = Object.keys(status.progress.perType).sort();
   // One first column for every table, so the tables line up.
   const first = Math.max(

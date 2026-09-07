@@ -1,6 +1,11 @@
 import { describe, expect, test } from "vitest";
 import { messagesToEntries, tableToEntries } from "./index";
-import { entriesToMessages, entriesToTable } from "./write";
+import {
+  entriesToMessages,
+  entriesToTable,
+  applyMessagesOps,
+  applyTableOps,
+} from "./write";
 
 const FLAT = `{
   "app.title": "Corpus",
@@ -189,4 +194,44 @@ test("an id that would walk into the prototype is refused", () => {
   expect(
     Object.prototype.hasOwnProperty.call(Object.prototype, "polluted"),
   ).toBe(false);
+});
+
+test("messages ops: an edit sets, an add appends nested when the file nests, a delete prunes an emptied branch; format kept", () => {
+  const file = `{\n\t"app": {\n\t\t"title": "Corpus",\n\t\t"greeting": "Olá {name}"\n\t},\n\t"nav": {\n\t\t"catalogue": "Catálogo"\n\t}\n}\n`;
+  const next = applyMessagesOps(file, [
+    { kind: "edit", id: "app.greeting", text: "Viva {name}" },
+    { kind: "add", id: "app.back", text: "Voltar" },
+    { kind: "delete", id: "nav.catalogue" },
+  ]);
+  expect(next).toBe(
+    `{\n\t"app": {\n\t\t"title": "Corpus",\n\t\t"greeting": "Viva {name}",\n\t\t"back": "Voltar"\n\t}\n}\n`,
+  );
+  expect(
+    applyMessagesOps('{"a": "x"}', [{ kind: "add", id: "b.c", text: "y" }]),
+  ).toBe('{\n  "a": "x",\n  "b.c": "y"\n}');
+  expect(() =>
+    applyMessagesOps('{"a": "x"}\n', [{ kind: "delete", id: "zz" }]),
+  ).toThrow(/no key "zz"/);
+});
+
+test("table ops: edit by id, add a minimal record, delete a record; the one-per-line layout kept", () => {
+  const file = `[\n  { "id": "s1", "text": "Um", "kind": "hint" },\n  { "id": "s2", "text": "Dois", "kind": "task" }\n]\n`;
+  const next = applyTableOps(
+    file,
+    [
+      { kind: "edit", id: "s2", text: "Dois!" },
+      { kind: "add", id: "s3", text: "Três" },
+      { kind: "delete", id: "s1" },
+    ],
+    { id: "id", text: "text" },
+  );
+  expect(next).toBe(
+    `[\n  { "id": "s2", "text": "Dois!", "kind": "task" },\n  { "id": "s3", "text": "Três" }\n]\n`,
+  );
+  expect(() =>
+    applyTableOps(file, [{ kind: "delete", id: "nope" }], {
+      id: "id",
+      text: "text",
+    }),
+  ).toThrow(/no record "nope"/);
 });
