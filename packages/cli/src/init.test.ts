@@ -91,7 +91,7 @@ test("writes a config that the loader accepts, and says what to do next", async 
     path: "src/i18n/{lang}.json",
   });
   expect(p.out.join("\n")).toMatch(/wrote corpus\.config\.ts/);
-  expect(p.out.join("\n")).toMatch(/projects\/new/);
+  expect(p.out.join("\n")).toMatch(/corpus workbench.*\.corpus\/token/);
   expect(p.out.join("\n")).toMatch(/corpus push/);
 });
 

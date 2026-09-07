@@ -5,7 +5,7 @@
 import { chromium, type Page } from "@playwright/test";
 import { buildSnapshot, loadConfig } from "@corpus-tool/cli";
 import { moonlightManor } from "@corpus/contract";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { join, SMOKE_SECRET } from "./session";
@@ -48,16 +48,30 @@ async function main(): Promise<void> {
   const context = await browser.newContext({
     baseURL: base,
     viewport: desktop
-      ? { width: 1600, height: 1000 }
+      ? { width: 1280, height: 800 }
       : { width: 390, height: 844 },
     deviceScaleFactor: 2,
     colorScheme: scheme,
   });
   const page = await context.newPage();
-  // From the top of the page, whatever the last action scrolled to.
+  // From the top of the page, whatever the last action scrolled to. On
+  // desktop the frame ends a little under the content instead of at the
+  // viewport's bottom, so a short page is not mostly empty canvas.
   const shot = async (name: string) => {
     await page.evaluate(() => window.scrollTo(0, 0));
-    await page.screenshot({ path: path.join(out, `${name}-${suffix}.png`) });
+    const file = path.join(out, `${name}-${suffix}.png`);
+    if (!desktop) {
+      await page.screenshot({ path: file });
+      return;
+    }
+    const bottom = await page.evaluate(
+      () => document.querySelector("main")?.getBoundingClientRect().bottom ?? 0,
+    );
+    const height = Math.min(800, Math.max(440, Math.ceil(bottom) + 24));
+    await page.screenshot({
+      path: file,
+      clip: { x: 0, y: 0, width: 1280, height },
+    });
   };
 
   // The entry surfaces, before there is a session or a project.
@@ -69,10 +83,31 @@ async function main(): Promise<void> {
   await page.goto(`${base}/projects/new`, { waitUntil: "networkidle" });
   await shot("new-project");
 
+  const save = async (url: string, text: string) => {
+    await page.goto(url);
+    await page.getByRole("textbox").fill(text);
+    await page.getByRole("button", { name: "Save translation" }).click();
+    await page.waitForURL((next) => next.href !== url);
+  };
+  const verify = async (url: string, language: string) => {
+    await page.goto(url);
+    await page
+      .getByRole("button", { name: `Mark ${language} as verified` })
+      .click();
+    await page.waitForURL((next) => next.href !== url);
+  };
+
   // Corpus translating Corpus (§12): the repo's own chrome catalog, built
-  // by the real snapshot builder from corpus.config.ts.
+  // by the real snapshot builder from corpus.config.ts, seeded with the
+  // committed Portuguese catalogue so the surfaces show real progress.
   const config = await loadConfig(REPO);
   const chrome = await buildSnapshot(config, REPO);
+  const seeded = JSON.parse(
+    readFileSync(
+      path.join(REPO, "apps/web/src/i18n/messages.pt-PT.json"),
+      "utf8",
+    ),
+  ) as Record<string, string>;
   const chromeToken = await createProject(
     page,
     config.project,
@@ -80,40 +115,65 @@ async function main(): Promise<void> {
     config.sourceLanguage,
     config.languages,
   );
-  await page.request.post(`${base}/api/push`, {
-    headers: { authorization: `Bearer ${chromeToken}` },
-    data: chrome,
-  });
+  const pushChrome = (snapshot: typeof chrome) =>
+    page.request.post(`${base}/api/push`, {
+      headers: { authorization: `Bearer ${chromeToken}` },
+      data: snapshot,
+    });
+  await pushChrome({ ...chrome, seedTranslations: { "pt-PT": seeded } });
   const corpus = `${base}/p/${config.project}`;
   const chromeString = (key: string, query: string) =>
     `${corpus}/s/${encodeURIComponent(key)}?${query}`;
-  // One translation saved and one source proofread, so the surfaces have
-  // some history to show.
-  await page.goto(
-    chromeString("nav.catalogue", "queue=untranslated&language=pt-PT"),
-  );
-  await page.getByRole("textbox").fill("Catálogo");
-  await page.getByRole("button", { name: "Save translation" }).click();
-  await page.waitForURL((url) => !url.href.includes("nav.catalogue"));
-  await page.goto(
-    chromeString("app.tagline", "queue=unverifiedSource&language=en"),
-  );
-  await page.getByRole("button", { name: "Mark en as verified" }).click();
-  await page.waitForURL((url) => !url.href.includes("app.tagline"));
 
-  await page.goto(`${base}/`, { waitUntil: "networkidle" });
-  await shot("home");
+  // Enough history for every state to show: sources proofread in
+  // English, a few of the seeded translations verified, more saved by
+  // hand, and one source changed after its translation so a row is stale.
+  for (const key of [
+    "app.title",
+    "app.tagline",
+    "nav.overview",
+    "nav.catalogue",
+    "nav.entities",
+    "nav.settings",
+    "nav.signOut",
+    "dashboard.queuesHeading",
+    "dashboard.progressHeading",
+    "queue.untranslated",
+    "queue.stale",
+    "queue.unverifiedSource",
+    "catalogue.heading",
+    "entities.heading",
+    "settings.heading",
+    "verify.button",
+  ]) {
+    await verify(chromeString(key, "queue=unverifiedSource&language=en"), "en");
+  }
+  for (const key of ["app.title", "nav.overview", "nav.catalogue"]) {
+    await verify(chromeString(key, "language=pt-PT"), "pt-PT");
+  }
+  const drafts: Record<string, string> = {
+    "dashboard.queuesHeading": "O que fazer",
+    "dashboard.progressHeading": "Progresso",
+    "queue.untranslated": "Por traduzir",
+    "queue.stale": "Desatualizadas",
+    "queue.unverifiedSource": "Origem por verificar",
+    "state.verified": "Verificada",
+  };
+  for (const [key, text] of Object.entries(drafts)) {
+    await save(chromeString(key, "queue=untranslated&language=pt-PT"), text);
+  }
+  const changed = structuredClone(chrome);
+  const heading = changed.strings.find((s) => s.id === "entities.heading");
+  if (heading) heading.source = `${heading.source} & relations`;
+  await pushChrome(changed);
+
   await page.goto(corpus, { waitUntil: "networkidle" });
   await shot("dashboard");
-  await page.goto(`${corpus}/catalogue?q=verified`, {
-    waitUntil: "networkidle",
-  });
+  await page.goto(`${corpus}/catalogue`, { waitUntil: "networkidle" });
   await shot("catalogue");
   await page.goto(
     chromeString("verify.button", "queue=untranslated&language=pt-PT"),
-    {
-      waitUntil: "networkidle",
-    },
+    { waitUntil: "networkidle" },
   );
   await page.getByRole("textbox").fill("Marcar {language} como verificado");
   await shot("editor");
@@ -162,6 +222,9 @@ async function main(): Promise<void> {
   await shot("editor-structured");
   await page.goto(`${project}/entities`, { waitUntil: "networkidle" });
   await shot("entities");
+  // Both projects staged: the home page has two cards with real progress.
+  await page.goto(`${base}/`, { waitUntil: "networkidle" });
+  await shot("home");
 
   await browser.close();
   console.log(`${scheme}: screenshots written to ${out}`);

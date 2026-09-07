@@ -3,7 +3,7 @@
 # colour scheme start a fresh standalone server on a throwaway database
 # and let apps/web/e2e/screenshots.ts stage the demo and capture the
 # surfaces. Output: docs/screenshots/<surface>[-desktop]-<scheme>.png at
-# 390px or 1600px, 2x; the README references a subset, the rest is for
+# 390px or 1280px, 2x, the desktop frame ending under the content; the README references a subset, the rest is for
 # PR evidence (CORPUS_SHOTS_DIR points the output elsewhere).
 set -euo pipefail
 cd "$(dirname "$0")/.."

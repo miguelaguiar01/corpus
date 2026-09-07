@@ -109,6 +109,15 @@ loop() {
   npx corpus pull
   same_as_before "verified"
 
+  echo "=== install-smoke: status, validate, pull --lang and pull --check ==="
+  npx corpus status | tee "$TMP/status.log"
+  grep -q "2 string(s)" "$TMP/status.log"
+  npx corpus status --json | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{const j=JSON.parse(s);if(j.progress.perLanguage["pt-PT"].total!==2)throw new Error("status --json: "+s)})'
+  npx corpus validate
+  npx corpus pull --lang pt-PT --min-state untranslated
+  same_as_before "lang"
+  npx corpus pull --check --min-state untranslated
+
   echo "=== install-smoke: push again is a no-op diff ==="
   npx corpus push | tee "$TMP/push2.log"
   grep -q "0 added" "$TMP/push2.log"

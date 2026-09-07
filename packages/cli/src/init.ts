@@ -59,13 +59,12 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   ctx.out("");
   ctx.out("Next:");
   ctx.out(
-    `  1. Start an instance: corpus workbench (needs @corpus-tool/workbench), or use the one at ${server}.`,
+    `  1. corpus workbench (needs @corpus-tool/workbench) starts an instance, creates the project "${project}" and writes its token to .corpus/token.`,
   );
   ctx.out(
-    `  2. Create the project "${project}" at ${server}/projects/new and copy its push token.`,
+    `     For another instance at ${server}: CORPUS_INVITE_SECRET=<its secret> corpus project create prints the token, for CORPUS_TOKEN or .corpus/token.`,
   );
-  ctx.out("  3. export CORPUS_TOKEN=<token>");
-  ctx.out("  4. corpus push");
+  ctx.out("  2. corpus push");
   return 0;
 }
 
