@@ -100,7 +100,11 @@ test("a maintainer takes a string from pushed to verified on a phone", async ({
   await expect(page.getByRole("textbox")).toBeVisible();
   await page.getByRole("link", { name: /pt-PT/ }).click();
   await page.waitForURL((url) => !url.search.includes("language="));
-  await expect(page.getByText(/Proofreading the source/)).toBeVisible();
+  await expect(page.getByRole("textbox")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /pt-PT/ })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
 
   // Signing out ends the session on the server; signing back in with the
   // password lands on the same instance with the same account.
