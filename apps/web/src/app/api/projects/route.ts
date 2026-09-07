@@ -1,8 +1,7 @@
 import { getDb } from "@/db";
+import { MAX_PROJECT_BODY_BYTES } from "@/api/limits";
 import { authenticateInstanceSecret } from "@/api/secret";
 import { provisionProject } from "@/projects/service";
-
-const MAX_BODY_BYTES = 64 * 1024;
 
 type Body = {
   slug: string;
@@ -35,11 +34,11 @@ export async function POST(request: Request): Promise<Response> {
   if (!auth.ok) return auth.response;
 
   const text = await request.text();
-  if (Buffer.byteLength(text) > MAX_BODY_BYTES) {
+  if (Buffer.byteLength(text) > MAX_PROJECT_BODY_BYTES) {
     return bad(
       413,
       "payload-too-large",
-      `body exceeds ${MAX_BODY_BYTES} bytes`,
+      `body exceeds ${MAX_PROJECT_BODY_BYTES} bytes`,
     );
   }
   let body: unknown;

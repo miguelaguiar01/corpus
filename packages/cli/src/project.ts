@@ -35,11 +35,37 @@ export function requireSecret(
   if (env.CORPUS_INVITE_SECRET) return env.CORPUS_INVITE_SECRET;
   const file = secretPath(cwd);
   if (isLoopback(server) && existsSync(file)) {
-    return readFileSync(file, "utf8").trim();
+    const secret = readFileSync(file, "utf8").trim();
+    if (secret) return secret;
+    throw new CliError(`${CORPUS_DIR}/${SECRET_FILE} is empty`);
   }
   throw new CliError(
     `CORPUS_INVITE_SECRET is not set (the instance secret; a local workbench keeps it in ${CORPUS_DIR}/${SECRET_FILE})`,
   );
+}
+
+// The config declares the project's languages once, at creation; after
+// that the maintainer corner owns them and push only names the drift
+// (§8), on one line.
+export function languageDrift(
+  declared: string[],
+  actual: string[],
+): string | undefined {
+  const parts: string[] = [];
+  const missing = declared.filter((l) => !actual.includes(l));
+  const extra = actual.filter((l) => !declared.includes(l));
+  if (missing.length > 0) {
+    parts.push(
+      `the config declares ${missing.join(", ")}, which the project does not have`,
+    );
+  }
+  if (extra.length > 0) {
+    parts.push(
+      `the project has ${extra.join(", ")}, which the config does not declare`,
+    );
+  }
+  if (parts.length === 0) return undefined;
+  return `${parts.join("; ")}; languages are changed in the project's settings`;
 }
 
 export async function project(

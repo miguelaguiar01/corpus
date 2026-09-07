@@ -1,10 +1,12 @@
 import {
+  cpSync,
   mkdirSync,
   mkdtempSync,
-  rmSync,
-  writeFileSync,
   readFileSync,
+  rmSync,
   statSync,
+  symlinkSync,
+  writeFileSync,
 } from "node:fs";
 import { createServer, type Server } from "node:http";
 import os from "node:os";
@@ -13,11 +15,12 @@ import { fileURLToPath } from "node:url";
 import { afterEach, expect, test } from "vitest";
 import { run, type RunContext } from "./cli";
 import { readToken } from "./config";
-import { isLoopback, requireSecret } from "./project";
+import { isLoopback, languageDrift, requireSecret } from "./project";
 
 const REPO = fileURLToPath(
   new URL("../test/fixtures/push-repo", import.meta.url),
 );
+const ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 
 type Captured = { url: string; auth: string | undefined; body: unknown };
 
@@ -62,6 +65,17 @@ afterEach(() => {
 function tmp(): string {
   const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-project-"));
   dirs.push(dir);
+  return dir;
+}
+
+// A private copy of the fixture, its config resolving the workspace's
+// packages through a linked node_modules, so a test can write .corpus/
+// without racing the other files that read the fixture.
+function fixtureCopy(): string {
+  const dir = tmp();
+  cpSync(REPO, dir, { recursive: true });
+  symlinkSync(path.join(ROOT, "node_modules"), path.join(dir, "node_modules"));
+  mkdirSync(path.join(dir, ".corpus"));
   return dir;
 }
 
@@ -147,7 +161,24 @@ test("the secret comes from the env, or from .corpus/secret for a loopback serve
   expect(() => requireSecret({}, tmp(), "http://localhost:3000")).toThrow(
     /\.corpus\/secret/,
   );
+  writeFileSync(path.join(dir, ".corpus/secret"), "\n");
+  expect(() => requireSecret({}, dir, "http://localhost:3000")).toThrow(
+    /\.corpus\/secret is empty/,
+  );
   expect(isLoopback("not a url")).toBe(false);
+});
+
+test("language drift is one line, naming each direction that differs", () => {
+  expect(languageDrift(["en", "fr"], ["en", "fr"])).toBeUndefined();
+  expect(languageDrift(["en", "fr"], ["en"])).toBe(
+    "the config declares fr, which the project does not have; languages are changed in the project's settings",
+  );
+  expect(languageDrift(["en"], ["en", "de"])).toBe(
+    "the project has de, which the config does not declare; languages are changed in the project's settings",
+  );
+  expect(languageDrift(["en", "fr"], ["en", "de"])).toBe(
+    "the config declares fr, which the project does not have; the project has de, which the config does not declare; languages are changed in the project's settings",
+  );
 });
 
 test("the token comes from CORPUS_TOKEN, then .corpus/token, and the message names both", () => {
@@ -183,11 +214,10 @@ test("rotate-token rewrites .corpus/token when that file supplied the old one", 
   }));
   active = server;
   process.env.CORPUS_SERVER = url;
-  const corpusDir = path.join(REPO, ".corpus");
-  mkdirSync(corpusDir, { recursive: true });
-  dirs.push(corpusDir);
+  const cwd = fixtureCopy();
+  const corpusDir = path.join(cwd, ".corpus");
   writeFileSync(path.join(corpusDir, "token"), "old\n");
-  const c = ctx();
+  const c = ctx({ cwd });
   expect(await run(["project", "rotate-token"], c)).toBe(0);
   expect(readFileSync(path.join(corpusDir, "token"), "utf8")).toBe("rotated\n");
   expect(statSync(path.join(corpusDir, "token")).mode & 0o777).toBe(0o600);

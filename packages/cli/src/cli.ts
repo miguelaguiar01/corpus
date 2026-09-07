@@ -5,7 +5,7 @@ import { option } from "./args";
 import { CliError, loadConfig, requireToken } from "./config";
 import { checkFiles } from "./check";
 import { init, INIT_USAGE } from "./init";
-import { project, PROJECT_USAGE } from "./project";
+import { languageDrift, project, PROJECT_USAGE } from "./project";
 import { pull } from "./pull";
 import { serverMessage } from "./server";
 import { workbench, WORKBENCH_USAGE } from "./workbench";
@@ -124,30 +124,10 @@ async function push(args: string[], ctx: RunContext): Promise<number> {
     `${label} ${config.project}: ${report.added} added, ${report.changed} changed, ${report.stale} stale, ${report.archived} archived`,
   );
   if (languages) {
-    for (const line of languageDrift(config.languages, languages)) {
-      ctx.err(`corpus: ${line}`);
-    }
+    const drift = languageDrift(config.languages, languages);
+    if (drift) ctx.err(`corpus: ${drift}`);
   }
   return 0;
-}
-
-// The config declares the project's languages once, at creation; after
-// that the maintainer corner owns them and push only names the drift (§8).
-function languageDrift(declared: string[], actual: string[]): string[] {
-  const lines: string[] = [];
-  const missing = declared.filter((l) => !actual.includes(l));
-  const extra = actual.filter((l) => !declared.includes(l));
-  if (missing.length > 0) {
-    lines.push(
-      `the config declares ${missing.join(", ")}, which the project does not have; add it in the project's settings`,
-    );
-  }
-  if (extra.length > 0) {
-    lines.push(
-      `the project has ${extra.join(", ")}, which the config does not declare`,
-    );
-  }
-  return lines;
 }
 
 // `corpus build`: the snapshot without a server, for authoring the config.
