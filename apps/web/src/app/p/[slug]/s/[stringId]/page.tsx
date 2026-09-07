@@ -12,6 +12,7 @@ import { Section } from "@/components/ui/section";
 import { QueueNav } from "@/components/queue-nav";
 import { SourceView } from "@/components/source-view";
 import { StateChips } from "@/components/state-chips";
+import { languageSwitchPath } from "@/strings/paths";
 import { TargetPane, type Slot } from "@/components/target-pane";
 import { VerifyForm } from "@/components/verify-form";
 import { getProjectBySlug } from "@/projects/service";
@@ -149,7 +150,25 @@ export default async function StringPage({
             {query.warning === "changed" && (
               <Banner tone="warning">{t("verify.warningChanged")}</Banner>
             )}
-            <StateChips languages={project.languages} states={translations} />
+            <StateChips
+              languages={project.languages}
+              states={translations}
+              selected={actedLanguage}
+              hrefFor={languageSwitchPath({
+                slug,
+                key: string.key,
+                sourceLanguage: project.sourceLanguage,
+                queue:
+                  queueKind && queue
+                    ? {
+                        kind: queueKind,
+                        languages: queue.items
+                          .filter((item) => item.stringId === string.id)
+                          .map((item) => item.language),
+                      }
+                    : undefined,
+              })}
+            />
             <MetadataChips
               declarations={declarations}
               metadata={string.metadata ?? {}}
