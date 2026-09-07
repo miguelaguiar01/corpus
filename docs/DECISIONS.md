@@ -344,3 +344,30 @@ one target and the save and verify flow acts on one row.
 ("was seen at the da estufa window", the Portuguese contraction baked
 into a value the English preview used as-is).
 
+## 2026-09-07 — Corpus proposes source strings; the repository accepts them by merge
+
+**Decision:** source text is managed in Corpus as proposals: anyone
+on the instance may propose an edit, a new string into a source file
+they pick, or a removal; `corpus pull` writes pending proposals into
+the source-language files through the adapters, the person reviews
+the diff and merges, and the next push marks them applied. Strings
+from `exec` sources refuse source edits. The truth split keeps the
+repository as the truth once merged; Corpus proposes.
+
+**Why:** the owner wants Corpus to be the inventory where strings are
+edited, added and removed, not only translated. Push is a diff by id
+that overwrites source text and archives what the snapshot lacks, so a
+change made only in Corpus would be undone by the next push;
+proposals that pull writes back reuse pull, the adapters and the
+review-and-merge loop, and add one word to the truth model. Everyone
+may propose because the pull request is the approval. The person
+picks the file for a new string because the config, not Corpus, knows
+where a type lives, and a project may keep several files for one
+type. `exec` sources are refused for the reason pull refuses their
+translations without an import command: Corpus cannot write what it
+did not read. Corpus-owned types and git integration stay deferred
+(§13).
+
+**Context:** #307 (epic), #324; the owner's asks of 2026-09-07 and
+the four answers recorded on the epic.
+
