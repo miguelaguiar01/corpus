@@ -100,18 +100,21 @@ function withHistory() {
       .from(strings)
       .where(eq(strings.stringId, key))
       .get()!.id;
-  applyTransition(db, {
+  const saved = applyTransition(db, {
     stringId: id("ui.continue"),
     language: "en",
     action: { type: "save", text: "Continue" },
     actor: ana,
   });
-  applyTransition(db, {
+  const verified = applyTransition(db, {
     stringId: id("skin.heard-nothing"),
     language: "pt-PT",
     action: { type: "verify" },
     actor: ana,
   });
+  for (const r of [saved, verified]) {
+    if ("error" in r) throw new Error(String(r.error));
+  }
   return { db, p };
 }
 
