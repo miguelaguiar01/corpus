@@ -132,6 +132,9 @@ test("a maintainer takes a string from pushed to verified on a phone", async ({
 
   // The fixture's English values: the draft previews as the English
   // sentence, and a chip says what its slot resolves to (§7).
+  await page.goto(
+    `/p/${moonlightManor.project}/s/skin.seen-at-greenhouse-window?language=en`,
+  );
   await page
     .getByRole("textbox")
     .fill("{person} was seen at the {room_de} window at {hour}.");
