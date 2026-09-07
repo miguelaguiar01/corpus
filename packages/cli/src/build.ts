@@ -11,6 +11,7 @@ import {
   type CorpusConfig,
   type Entity,
   type Snapshot,
+  type Source,
   type StringEntry,
 } from "@corpus/contract";
 import { CliError } from "./config";
@@ -39,15 +40,7 @@ export async function buildSnapshot(
     const file = source.path.replace("{lang}", config.sourceLanguage);
     let entries: StringEntry[];
     try {
-      const data = await readModule(
-        jiti,
-        path.join(cwd, file),
-        source.adapter === "table" ? source.export : undefined,
-      );
-      entries =
-        source.adapter === "messages"
-          ? messagesToEntries(data, { type: source.type })
-          : tableToEntries(data, { type: source.type, map: source.map });
+      entries = await readEntries(jiti, cwd, file, source);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       errors.push(`${file}: ${message}`);
@@ -139,6 +132,26 @@ function collectExec(
       errors.push(`exec "${command}" emitted an invalid entity`);
     else entities.push(entity.data);
   }
+}
+
+export type FileSource = Exclude<Source, { adapter: "exec" }>;
+
+// A catalogue file through its source's adapter: the entries push would
+// send for it, or, for a target file, the translations it holds.
+export async function readEntries(
+  jiti: ReturnType<typeof createJiti>,
+  cwd: string,
+  file: string,
+  source: FileSource,
+): Promise<StringEntry[]> {
+  const data = await readModule(
+    jiti,
+    path.join(cwd, file),
+    source.adapter === "table" ? source.export : undefined,
+  );
+  return source.adapter === "messages"
+    ? messagesToEntries(data, { type: source.type })
+    : tableToEntries(data, { type: source.type, map: source.map });
 }
 
 async function readModule(
