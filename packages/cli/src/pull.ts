@@ -119,7 +119,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     if (source.adapter !== "exec" || !source.importCommand) continue;
     const translations: PullPayload["translations"] = {};
     for (const [language, texts] of Object.entries(payload.translations)) {
-      if (language === config.sourceLanguage) continue;
+      if (!targets.includes(language)) continue;
       translations[language] = Object.fromEntries(
         Object.entries(texts).filter(
           ([id]) => !claimedTypes.has(payload.types[id] ?? ""),
@@ -146,7 +146,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
   if (importers === 0) {
     const dropped = new Set(
       Object.entries(payload.translations)
-        .filter(([language]) => language !== config.sourceLanguage)
+        .filter(([language]) => targets.includes(language))
         .flatMap(([, texts]) => Object.keys(texts))
         .filter((id) => !claimedTypes.has(payload.types[id] ?? "")),
     );

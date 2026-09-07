@@ -85,7 +85,11 @@ test("lang narrows the payload to those target languages", async () => {
 
 test("lang refuses the source language and an unknown one with 422", async () => {
   const { token } = setup();
-  expect((await pull(token, "?lang=pt-PT")).status).toBe(422);
+  const source = await pull(token, "?lang=pt-PT");
+  expect(source.status).toBe(422);
+  expect(((await source.json()) as { message: string }).message).toContain(
+    "(en)",
+  );
   expect((await pull(token, "?lang=de")).status).toBe(422);
   expect((await pull(token, "?lang=en&lang=de")).status).toBe(422);
 });

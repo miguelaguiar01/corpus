@@ -211,8 +211,8 @@ test("a table source with {lang} is written per language, one record per line", 
 
 test("--lang is passed through, repeatable, and refuses the source or an unknown language before any request", async () => {
   const { calls } = await serve();
-  expect(await run(["pull", "--lang", "pt"], ctx())).toBe(0);
-  expect(calls[0]?.url).toBe("/api/pull?minState=verified&lang=pt");
+  expect(await run(["pull", "--lang", "pt", "--lang", "pt"], ctx())).toBe(0);
+  expect(calls[0]?.url).toBe("/api/pull?minState=verified&lang=pt&lang=pt");
   const c = ctx();
   expect(await run(["pull", "--lang", "en"], c)).toBe(1);
   expect(c.output.join("\n")).toMatch(/source language/);
@@ -224,24 +224,38 @@ test("--lang is passed through, repeatable, and refuses the source or an unknown
   expect(calls).toHaveLength(1);
 });
 
-test("--lang writes only that language's files", async () => {
+test("--lang writes only that language's files and hands importers only its entries, whatever the server returns", async () => {
+  // A server that ignores ?lang= and returns fr too: the CLI still
+  // narrows. fr.json is compact, which the writer would reformat.
   await serve(200, {
     ...PAYLOAD,
-    translations: { pt: PAYLOAD.translations.pt },
+    translations: {
+      ...PAYLOAD.translations,
+      fr: { greeting: "Salut {name}", "exec.bye": "Salut {who}" },
+    },
   });
   const { writeFileSync } = await import("node:fs");
-  writeFileSync(path.join(repo, "i18n/fr.json"), "{}\n");
+  const fr = '{"greeting":"Bonjour {name}"}';
+  writeFileSync(path.join(repo, "i18n/fr.json"), fr);
   const configPath = path.join(repo, "corpus.config.ts");
   writeFileSync(
     configPath,
     read("corpus.config.ts").replace('["en", "pt"]', '["en", "pt", "fr"]'),
   );
-  expect(await run(["pull", "--lang", "pt"], ctx())).toBe(0);
-  expect(read("i18n/fr.json")).toBe("{}\n");
+  const c = ctx();
+  expect(await run(["pull", "--lang", "pt"], c)).toBe(0);
+  expect(read("i18n/fr.json")).toBe(fr);
   expect(JSON.parse(read("i18n/pt.json"))).toEqual({
     "app.title": "Corpus",
     greeting: "Olá {name}",
   });
+  const out = c.output.join("\n");
+  expect(out).toContain("i18n/pt.json");
+  expect(out).not.toContain("i18n/fr.json");
+  const imported = JSON.parse(read("imported.json")) as {
+    translations: Record<string, unknown>;
+  };
+  expect(Object.keys(imported.translations)).toEqual(["pt"]);
 });
 
 test("--check writes nothing, runs no importer, lists the files a pull would change, and exits 1", async () => {
