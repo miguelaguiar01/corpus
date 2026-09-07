@@ -1,13 +1,13 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import path from "node:path";
-import { messagesToEntries, tableToEntries } from "@corpus/adapters";
+import { createJiti } from "jiti";
 import {
   validateTranslation,
   type CorpusConfig,
   type ValidationError,
 } from "@corpus/contract";
 import type { RunContext } from "./cli";
-import { writesBack } from "./build";
+import { readEntries, writesBack, type FileSource } from "./build";
 import { CliError, loadConfig } from "./config";
 
 export const VALIDATE_USAGE = "corpus validate [--json]";
@@ -27,40 +27,43 @@ export async function validate(
   ctx: RunContext,
 ): Promise<number> {
   const config = await loadConfig(ctx.cwd);
-  const findings = validateRepo(config, ctx.cwd);
-  const skipped = config.sources.filter((s) => s.adapter === "exec");
-  if (args.includes("--json")) {
-    ctx.out(JSON.stringify(findings, null, 2));
-  } else {
-    for (const f of findings) ctx.err(`${f.file}:${f.key}: ${f.message}`);
-  }
-  for (const source of skipped) {
-    ctx.err(
-      `corpus: exec "${source.command}" is not validated: its translations live where its import command puts them`,
-    );
+  const findings = await validateRepo(config, ctx.cwd);
+  const json = args.includes("--json");
+  if (json) ctx.out(JSON.stringify(findings, null, 2));
+  else for (const f of findings) ctx.err(`${f.file}:${f.key}: ${f.message}`);
+  for (const source of config.sources) {
+    if (source.adapter === "exec") {
+      ctx.err(`corpus: exec "${source.command}" is not validated`);
+    }
   }
   if (findings.length > 0) {
     ctx.err(`corpus: ${findings.length} invalid translation(s)`);
     return 1;
   }
-  if (!args.includes("--json")) ctx.out("validate: every translation is valid");
+  if (!json) ctx.out("validate: every translation is valid");
   return 0;
 }
 
-export function validateRepo(config: CorpusConfig, cwd: string): Finding[] {
+export async function validateRepo(
+  config: CorpusConfig,
+  cwd: string,
+): Promise<Finding[]> {
+  const jiti = createJiti(import.meta.url);
   const findings: Finding[] = [];
   const targets = config.languages.filter((l) => l !== config.sourceLanguage);
   for (const source of config.sources) {
     if (source.adapter === "exec") continue;
     if (!source.path.includes("{lang}") || !writesBack(source.path)) continue;
     const sourceFile = source.path.replace("{lang}", config.sourceLanguage);
-    const sources = texts(cwd, sourceFile, source);
+    const sources = await texts(jiti, cwd, sourceFile, source);
     if (sources === undefined) {
       throw new CliError(`source file ${sourceFile} does not exist`);
     }
+    // A source that does not parse is the source file's finding, once.
+    const brokenSources = new Set<string>();
     for (const language of targets) {
       const file = source.path.replace("{lang}", language);
-      const translations = texts(cwd, file, source);
+      const translations = await texts(jiti, cwd, file, source);
       if (translations === undefined) continue;
       for (const [key, target] of translations) {
         const original = sources.get(key);
@@ -76,8 +79,12 @@ export function validateRepo(config: CorpusConfig, cwd: string): Finding[] {
         const result = validateTranslation(original, target);
         if (result.ok) continue;
         for (const error of result.errors) {
+          const inSource =
+            error.code === "invalid-icu" && error.where === "source";
+          if (inSource && brokenSources.has(key)) continue;
+          if (inSource) brokenSources.add(key);
           findings.push({
-            file,
+            file: inSource ? sourceFile : file,
             key,
             code: error.code,
             message: describe(error),
@@ -89,27 +96,18 @@ export function validateRepo(config: CorpusConfig, cwd: string): Finding[] {
   return findings;
 }
 
-// A catalogue's id → text, through the source's own adapter, so the
-// keys are the ids push would send. Undefined when the file is absent;
-// a file that does not parse is an error naming it.
-function texts(
+// A catalogue's id → text through the source's own adapter, so the keys
+// are the ids push would send. Undefined when the file is absent; a file
+// that does not parse is an error naming it.
+async function texts(
+  jiti: ReturnType<typeof createJiti>,
   cwd: string,
   rel: string,
-  source: Exclude<CorpusConfig["sources"][number], { adapter: "exec" }>,
-): Map<string, string> | undefined {
-  const abs = path.join(cwd, rel);
-  if (!existsSync(abs)) return undefined;
-  let data: unknown;
+  source: FileSource,
+): Promise<Map<string, string> | undefined> {
+  if (!existsSync(path.join(cwd, rel))) return undefined;
   try {
-    data = JSON.parse(readFileSync(abs, "utf8"));
-  } catch (error) {
-    throw new CliError(`${rel}: ${(error as Error).message}`);
-  }
-  try {
-    const entries =
-      source.adapter === "messages"
-        ? messagesToEntries(data, { type: source.type })
-        : tableToEntries(data, { type: source.type, map: source.map });
+    const entries = await readEntries(jiti, cwd, rel, source);
     return new Map(entries.map((e) => [e.id, e.source]));
   } catch (error) {
     throw new CliError(`${rel}: ${(error as Error).message}`);
