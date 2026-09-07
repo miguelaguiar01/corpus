@@ -41,6 +41,13 @@ test("returns the string with its source, type, metadata, and examples", () => {
   expect(detail?.string.source).toContain("foi");
   expect(detail?.string.metadata?.kind).toBe("sighting");
   expect(detail?.string.examples).toHaveLength(2);
+  // Per-language values (§7) are stored as pushed and come back whole.
+  expect(detail?.string.examples?.[0]?.valuesByLanguage?.en).toEqual({
+    person: "Countess Rosa",
+    person_gender: "f",
+    room_de: "greenhouse",
+    hour: "9 pm",
+  });
 });
 
 test("carries the declarations for the string's own type", () => {

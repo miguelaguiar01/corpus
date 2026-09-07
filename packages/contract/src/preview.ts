@@ -16,7 +16,24 @@ export type PreviewSegment = { text: string; value: boolean };
 export type PreviewSegmentsResult =
   { ok: true; segments: PreviewSegment[] } | { ok: false; errors: IcuError[] };
 
-export type PreviewExample = { values: Record<string, string> };
+export type PreviewExample = {
+  values: Record<string, string>;
+  valuesByLanguage?: Record<string, Record<string, string>>;
+};
+
+// The values a preview for `language` should use (§7): that language's
+// when the example carries them, the source language's otherwise; the
+// language returned is the one the values are in, for the heading.
+export function exampleValues(
+  example: PreviewExample,
+  language: string,
+  sourceLanguage: string,
+): { values: Record<string, string>; language: string } {
+  const own = example.valuesByLanguage?.[language];
+  return own
+    ? { values: own, language }
+    : { values: example.values, language: sourceLanguage };
+}
 
 function render(
   nodes: IcuNode[],
@@ -73,6 +90,14 @@ export function renderPreview(
 export function previewsFor(
   message: string,
   examples: PreviewExample[],
+  language?: { target: string; source: string },
 ): PreviewResult[] {
-  return examples.map((example) => renderPreview(message, example.values));
+  return examples.map((example) =>
+    renderPreview(
+      message,
+      language
+        ? exampleValues(example, language.target, language.source).values
+        : example.values,
+    ),
+  );
 }

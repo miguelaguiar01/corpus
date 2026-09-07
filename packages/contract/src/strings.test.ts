@@ -173,3 +173,24 @@ test("ids, types and language codes are restricted to a safe charset", () => {
     false,
   );
 });
+
+test("an example parses with or without per-language values; keys are language codes, values strings", () => {
+  const base = { values: { a: "b" }, rendered: "b" };
+  expect(exampleSchema.safeParse(base).success).toBe(true);
+  const withMap = exampleSchema.safeParse({
+    ...base,
+    valuesByLanguage: { en: { a: "c" } },
+  });
+  expect(withMap.success).toBe(true);
+  if (withMap.success) {
+    expect(withMap.data.valuesByLanguage).toEqual({ en: { a: "c" } });
+  }
+  expect(
+    exampleSchema.safeParse({ ...base, valuesByLanguage: { English: {} } })
+      .success,
+  ).toBe(false);
+  expect(
+    exampleSchema.safeParse({ ...base, valuesByLanguage: { en: { a: 1 } } })
+      .success,
+  ).toBe(false);
+});

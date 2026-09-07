@@ -31,9 +31,15 @@ export const entityId = () =>
       "letters, digits, dot, underscore, hyphen and colon only",
     );
 
+// Slot values in the source language, plus, per target language, the
+// same slots resolved for that language by the client (§7); Corpus
+// derives nothing.
 export const exampleSchema = z.looseObject({
   values: z.record(z.string(), z.string()),
   rendered: z.string(),
+  valuesByLanguage: z
+    .record(languageCode(), z.record(z.string(), z.string()))
+    .optional(),
 });
 
 export const stringEntrySchema = z.looseObject({
