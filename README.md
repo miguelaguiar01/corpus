@@ -60,7 +60,7 @@ CORPUS_INVITE_SECRET="$(openssl rand -hex 24)" docker compose up -d
 
 `compose.yaml` names `ghcr.io/miguelaguiar01/corpus:latest`; set `CORPUS_IMAGE_TAG` to pin a version. The first person to join with the secret becomes the maintainer; anyone with the secret can join, and after that they sign in with their name and password. A maintainer can reset a forgotten password from the settings page. All data lives in the `corpus-data` volume; the container is disposable. Without the image, `docker compose up -d --build` builds it from the checkout.
 
-Two things to know before exposing it: mount a directory, never a single file (SQLite runs in WAL mode and keeps `-wal` and `-shm` files beside the database), and put it behind HTTPS to reach it from other devices, because the session cookie is `Secure` in production. `/api/health` reports the build it is running (the `CORPUS_VERSION` build argument, a tag or a commit from `git describe`), so an instance is traceable to a commit without logging in; without the argument it says `dev`.
+Two things to know before exposing it: mount a directory, never a single file (SQLite runs in WAL mode and keeps `-wal` and `-shm` files beside the database), and put it behind HTTPS to reach it from other devices, because the session cookie is `Secure` for any host other than localhost (set `CORPUS_PUBLIC_URL` to your HTTPS origin behind a proxy). `/api/health` reports the build it is running (the `CORPUS_VERSION` build argument, a tag or a commit from `git describe`), so an instance is traceable to a commit without logging in; without the argument it says `dev`.
 
 ## Connect a repository
 

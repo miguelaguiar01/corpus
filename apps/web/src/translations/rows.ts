@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import type { Db } from "@/db";
 import { strings, stringTranslations } from "@/db/schema";
 
@@ -12,21 +12,22 @@ export function ensureTranslationRows(
   languages: string[],
 ): number {
   if (languages.length === 0) return 0;
-  const active = db
-    .select({ id: strings.id })
-    .from(strings)
-    .where(and(eq(strings.projectId, projectId), eq(strings.archived, false)))
-    .all();
   let inserted = 0;
+  // One statement per language, so a push on a large project pays one
+  // query per target language rather than one insert per string.
   for (const language of languages) {
-    for (const row of active) {
-      const result = db
-        .insert(stringTranslations)
-        .values({ stringId: row.id, language, state: "untranslated" })
-        .onConflictDoNothing()
-        .run();
-      inserted += result.changes;
-    }
+    const result = db.run(sql`
+      insert into ${stringTranslations} (string_id, language, state, updated_at)
+      select ${strings.id}, ${language}, 'untranslated', ${Date.now()}
+      from ${strings}
+      where ${strings.projectId} = ${projectId}
+        and ${strings.archived} = 0
+        and not exists (
+          select 1 from ${stringTranslations} t
+          where t.string_id = ${strings.id} and t.language = ${language}
+        )
+    `);
+    inserted += Number(result.changes);
   }
   return inserted;
 }

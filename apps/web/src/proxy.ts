@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { INVITE_PATH, SESSION_COOKIE, SESSION_TTL_MS } from "@/auth/constants";
+import { secureCookie } from "@/auth/cookie";
 
 // Cheap edge gate (§10; Next 16 calls this file the proxy): visitors
 // without a session cookie are sent to the invite prompt. Actual session
@@ -27,7 +28,11 @@ export function proxy(request: NextRequest) {
   response.cookies.set(SESSION_COOKIE, session, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: secureCookie(
+      request.headers.get("host"),
+      request.headers.get("x-forwarded-proto"),
+      request.nextUrl.protocol,
+    ),
     path: "/",
     maxAge: Math.floor(SESSION_TTL_MS / 1000),
   });
