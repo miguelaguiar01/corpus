@@ -13,6 +13,7 @@ import { join } from "./session";
 const REPO = fileURLToPath(new URL("../../..", import.meta.url));
 
 const base = process.env.CORPUS_SMOKE_URL ?? "http://127.0.0.1:3902";
+const secret = process.env.CORPUS_SMOKE_SECRET ?? "smoke-only-not-a-secret";
 const scheme = process.env.CORPUS_SHOT_SCHEME === "dark" ? "dark" : "light";
 // Phone by default (the design target, §9); desktop for the wide layouts.
 const desktop = process.env.CORPUS_SHOT_VIEWPORT === "desktop";
@@ -20,23 +21,23 @@ const suffix = desktop ? `desktop-${scheme}` : scheme;
 const out = process.env.CORPUS_SHOTS_DIR ?? path.resolve("docs/screenshots");
 mkdirSync(out, { recursive: true });
 
+// Projects come from the provisioning route with the instance secret
+// (§10), as the CLI does; the new-project form is captured empty above.
 async function createProject(
   page: Page,
   slug: string,
   name: string,
-  source: string,
-  languages: string,
+  sourceLanguage: string,
+  languages: string[],
 ): Promise<string> {
-  await page.goto(`${base}/projects/new`);
-  await page.getByLabel("Slug").fill(slug);
-  await page.getByLabel("Name").fill(name);
-  await page.getByLabel("Source language").fill(source);
-  await page.getByLabel("Languages (comma-separated)").fill(languages);
-  await page.getByRole("button", { name: "Create project" }).click();
-  const token = (
-    await page.getByRole("status").locator("code").textContent()
-  )?.trim();
-  if (!token) throw new Error("no push token shown");
+  const response = await page.request.post(`${base}/api/projects`, {
+    headers: { authorization: `Bearer ${secret}` },
+    data: { slug, name, sourceLanguage, languages },
+  });
+  if (!response.ok()) {
+    throw new Error(`project ${slug}: HTTP ${response.status()}`);
+  }
+  const { token } = (await response.json()) as { token: string };
   return token;
 }
 
@@ -76,7 +77,7 @@ async function main(): Promise<void> {
     config.project,
     "Corpus (chrome)",
     config.sourceLanguage,
-    config.languages.join(", "),
+    config.languages,
   );
   await page.request.post(`${base}/api/push`, {
     headers: { authorization: `Bearer ${chromeToken}` },
@@ -125,7 +126,7 @@ async function main(): Promise<void> {
     moonlightManor.project,
     "Moonlight Manor",
     moonlightManor.sourceLanguage,
-    "pt-PT, en",
+    ["pt-PT", "en"],
   );
   await page.request.post(`${base}/api/push`, {
     headers: { authorization: `Bearer ${token}` },

@@ -18,25 +18,17 @@ trap cleanup EXIT
 
 bin/container-smoke --keep
 
-echo "=== dogfood: seed the corpus-chrome project inside the container ==="
-TOKEN="$(openssl rand -hex 24)"
-# The runtime image has node and the app's better-sqlite3; the seed is the
-# same direct insert a maintainer's "new project" performs (§10), minus UI.
-docker exec -e TOKEN="$TOKEN" "$CORPUS_SMOKE_NAME" node -e '
-  const Database = require("/app/node_modules/better-sqlite3");
-  const { createHash } = require("node:crypto");
-  const db = new Database("/data/corpus.db");
-  const hash = createHash("sha256").update(process.env.TOKEN).digest("hex");
-  db.prepare("insert into projects (slug, name, source_language, languages, token_hash, created_at) values (?, ?, ?, ?, ?, ?)")
-    .run("corpus-chrome", "Corpus (chrome)", "en", JSON.stringify(["en", "pt-PT"]), hash, Date.now());
-  console.log("seeded project corpus-chrome");
-'
-
 export CORPUS_SERVER="http://127.0.0.1:$CORPUS_SMOKE_PORT"
-export CORPUS_TOKEN="$TOKEN"
 # The shipped binary, not the source: the dogfood proves the built CLI.
 npm run build -w packages/cli >/dev/null
 corpus() { node packages/cli/dist/bin.js "$@"; }
+
+echo "=== dogfood: create the corpus-chrome project with the instance secret ==="
+# The container's secret (bin/container-smoke); the token is the last
+# line of stdout, as the CLI promises (§3).
+CORPUS_TOKEN="$(CORPUS_INVITE_SECRET=smoke-only-not-a-secret corpus project create --name "Corpus (chrome)" | tail -1)"
+export CORPUS_TOKEN
+[ -n "$CORPUS_TOKEN" ] || { echo "no token from corpus project create" >&2; exit 1; }
 
 echo "=== dogfood: push ==="
 corpus push
