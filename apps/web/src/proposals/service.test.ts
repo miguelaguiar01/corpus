@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { expect, test } from "vitest";
 import type { Db } from "@/db";
 import { memoryDb } from "@/db/test-helpers";
-import { projects, strings, users } from "@/db/schema";
+import { projects, sourceChanges, strings, users } from "@/db/schema";
 import { applySnapshot } from "@/ingest/apply";
 import {
   pendingCount,
@@ -12,7 +12,6 @@ import {
   proposeAdd,
   proposeDelete,
   proposeEdit,
-  reconcileProposals,
   sourceChangesFor,
   withdrawProposal,
 } from "./service";
@@ -117,7 +116,6 @@ test("an add needs a declared source, a valid new key and valid ICU; the file is
   const { db, p, ana } = pushed();
   const base = {
     projectId: p.id,
-    type: "chrome",
     sourcePath: "src/ui/{lang}.json",
     text: "Voltar",
     actor: ana,
@@ -145,10 +143,6 @@ test("an add needs a declared source, a valid new key and valid ICU; the file is
   ).toEqual({
     ok: false,
     reason: "unknown-source",
-  });
-  expect(proposeAdd(db, { ...base, key: "ui.x", type: "clue-skin" })).toEqual({
-    ok: false,
-    reason: "wrong-type",
   });
   expect(proposeAdd(db, { ...base, key: "ui.x", text: "" })).toEqual({
     ok: false,
@@ -201,7 +195,6 @@ test("a push reconciles: applied when the repository agrees, superseded when it 
   proposeAdd(db, {
     projectId: p.id,
     key: "ui.back",
-    type: "chrome",
     sourcePath: "src/ui/{lang}.json",
     text: "Voltar",
     actor: ana,
@@ -209,7 +202,6 @@ test("a push reconciles: applied when the repository agrees, superseded when it 
   proposeAdd(db, {
     projectId: p.id,
     key: "ui.skip",
-    type: "chrome",
     sourcePath: "src/ui/{lang}.json",
     text: "Saltar",
     actor: ana,
@@ -241,6 +233,20 @@ test("a push reconciles: applied when the repository agrees, superseded when it 
   expect(report.proposalsApplied).toBe(3);
   expect(report.proposalsSuperseded).toBe(2);
   expect(pendingCount(db, p.id)).toBe(0);
+  const statusOf = Object.fromEntries(
+    db
+      .select({ key: sourceChanges.key, status: sourceChanges.status })
+      .from(sourceChanges)
+      .all()
+      .map((r) => [r.key, r.status]),
+  );
+  expect(statusOf).toEqual({
+    "ui.continue": "applied",
+    "skin.heard-nothing": "applied",
+    "ui.back": "applied",
+    "skin.seen-at-greenhouse-window": "superseded",
+    "ui.skip": "superseded",
+  });
 
   // An edit whose string is archived by a push is superseded; one whose
   // string is pushed unchanged stays pending.
@@ -253,5 +259,60 @@ test("a push reconciles: applied when the repository agrees, superseded when it 
   proposeEdit(db, { stringRowId: skip.id, text: "Saltar", actor: ana });
   expect(applySnapshot(db, p.id, third).proposalsApplied).toBe(0);
   expect(pendingCount(db, p.id)).toBe(1);
-  void reconcileProposals;
+});
+
+test("an archived string refuses proposals", () => {
+  const { db, ana } = pushed();
+  const ui = row(db, "ui.continue");
+  db.update(strings).set({ archived: true }).where(eq(strings.id, ui.id)).run();
+  expect(
+    proposeEdit(db, { stringRowId: ui.id, text: "Seguir", actor: ana }),
+  ).toEqual({
+    ok: false,
+    reason: "archived",
+  });
+  expect(proposeDelete(db, { stringRowId: ui.id, actor: ana })).toEqual({
+    ok: false,
+    reason: "archived",
+  });
+});
+
+test("a newer proposal keeps the older row as superseded, a delete supersedes an edit on the same string", () => {
+  const { db, ana, rui } = pushed();
+  const ui = row(db, "ui.continue");
+  const edit = proposeEdit(db, {
+    stringRowId: ui.id,
+    text: "Seguir",
+    actor: ana,
+  });
+  if (!edit.ok) throw new Error(edit.reason);
+  const del = proposeDelete(db, { stringRowId: ui.id, actor: rui });
+  if (!del.ok) throw new Error(del.reason);
+  const older = db
+    .select()
+    .from(sourceChanges)
+    .where(eq(sourceChanges.id, edit.proposal.id))
+    .get();
+  expect(older?.status).toBe("superseded");
+  expect(older?.resolvedAt).toBeInstanceOf(Date);
+  expect(pendingForString(db, ui.id)?.kind).toBe("delete");
+});
+
+test("a delete whose string is pushed with other text stays pending; a dry run records no outcome", () => {
+  const { db, p, ana } = pushed();
+  const ui = row(db, "ui.continue");
+  proposeDelete(db, { stringRowId: ui.id, actor: ana });
+  const changed = structuredClone(FIXTURE);
+  changed.strings.find((s) => s.id === "ui.continue")!.source = "Outro";
+  expect(applySnapshot(db, p.id, changed).proposalsSuperseded).toBe(0);
+  expect(pendingForString(db, ui.id)?.kind).toBe("delete");
+
+  const removed = structuredClone(changed);
+  removed.strings = removed.strings.filter((s) => s.id !== "ui.continue");
+  expect(
+    applySnapshot(db, p.id, removed, { dryRun: true }).proposalsApplied,
+  ).toBe(1);
+  expect(pendingCount(db, p.id)).toBe(1);
+  expect(applySnapshot(db, p.id, removed).proposalsApplied).toBe(1);
+  expect(pendingCount(db, p.id)).toBe(0);
 });

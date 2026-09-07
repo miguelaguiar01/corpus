@@ -3,6 +3,9 @@ import { expect, test, vi } from "vitest";
 import { memoryDb } from "@/db/test-helpers";
 import { applySnapshot } from "@/ingest/apply";
 import { provisionProject } from "@/projects/service";
+import { proposeEdit } from "@/proposals/service";
+import { strings, users } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 const db = memoryDb();
 vi.mock("@/db", async (importActual) => ({
@@ -55,6 +58,22 @@ test("the project's numbers with its languages, string count and last push", asy
   expect(json.lastPushAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   expect(json.version).toBe("dev");
   expect(json.pendingProposals).toBe(0);
+  const row = db
+    .select()
+    .from(strings)
+    .where(eq(strings.stringId, "ui.continue"))
+    .all()
+    .at(-1)!;
+  const [ana] = db
+    .insert(users)
+    .values({ name: "ana", maintainer: true })
+    .returning()
+    .all();
+  proposeEdit(db, { stringRowId: row.id, text: "Seguir", actor: ana! });
+  const withOne = (await (await status(created.token)).json()) as {
+    pendingProposals: number;
+  };
+  expect(withOne.pendingProposals).toBe(1);
   expect(json.progress.perLanguage.en?.total).toBe(
     moonlightManor.strings.length,
   );

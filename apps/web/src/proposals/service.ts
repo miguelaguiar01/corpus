@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 import {
   parseIcu,
   stringEntrySchema,
@@ -28,8 +28,7 @@ export type ProposeResult =
         | "invalid-key"
         | "unchanged"
         | "exists"
-        | "unknown-source"
-        | "wrong-type";
+        | "unknown-source";
     };
 
 function validIcu(text: string): boolean {
@@ -112,7 +111,6 @@ export function proposeAdd(
   input: {
     projectId: number;
     key: string;
-    type: string;
     sourcePath: string;
     text: string;
     actor: Actor;
@@ -131,7 +129,6 @@ export function proposeAdd(
     (s) => s.path === input.sourcePath,
   );
   if (!source) return { ok: false, reason: "unknown-source" };
-  if (source.type !== input.type) return { ok: false, reason: "wrong-type" };
   if (!validIcu(input.text)) return { ok: false, reason: "invalid-icu" };
   const existing = db
     .select({ id: strings.id })
@@ -205,7 +202,18 @@ export function pendingProposals(db: Db, projectId: number): Proposal[] {
 }
 
 export function pendingCount(db: Db, projectId: number): number {
-  return pendingProposals(db, projectId).length;
+  return (
+    db
+      .select({ n: count() })
+      .from(sourceChanges)
+      .where(
+        and(
+          eq(sourceChanges.projectId, projectId),
+          eq(sourceChanges.status, "pending"),
+        ),
+      )
+      .get()?.n ?? 0
+  );
 }
 
 // The pending proposal on a string, with its author's name, for the
@@ -279,13 +287,4 @@ export function reconcileProposals(
     }
   }
   return { applied, superseded };
-}
-
-export function proposalsByIds(db: Db, ids: number[]): Proposal[] {
-  if (ids.length === 0) return [];
-  return db
-    .select()
-    .from(sourceChanges)
-    .where(inArray(sourceChanges.id, ids))
-    .all();
 }
