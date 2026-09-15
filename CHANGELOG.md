@@ -20,6 +20,7 @@ Agents draft; people verify.
 
 ### Changed
 
+- A language bar at the top of the string page, inside the queue bar on a desktop, is the editor's switcher: one segment per language, the selected one solid, the source language first with its verified mark. The state chips are display only.
 - The join form refuses any name ending in ` agent`, the name family reserved for agent actors.
 
 ## [0.7.0] - 2026-09-15
@@ -134,7 +135,8 @@ The first published version.
 - The `messages`, `table` and `exec` adapters, and the `corpus/1` snapshot contract with its ICU subset (placeholders and `select`).
 - The package ships plain JavaScript for Node 22 with type declarations; a client's config imports `defineCorpus` from `@corpus-tool/cli`.
 
-[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.8.0
 [0.7.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.7.0
 [0.6.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.6.0
 [0.5.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.5.0

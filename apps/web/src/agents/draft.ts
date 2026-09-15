@@ -10,7 +10,7 @@ import { applyTransition } from "@/translations/service";
 import { validationMessage } from "@/translations/validation-message";
 import { ensureAgentActor } from "./actor";
 
-export type DraftRefusal =
+type DraftRefusal =
   | { reason: "not-found" }
   | { reason: "unknown-language" }
   | { reason: "source-row" }
@@ -19,7 +19,7 @@ export type DraftRefusal =
   | { reason: "invalid-translation"; message: string }
   | { reason: "human-edited" };
 
-export type DraftResult =
+type DraftResult =
   | {
       ok: true;
       key: string;

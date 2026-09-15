@@ -197,7 +197,7 @@ Source text and metadata belong to the repository, which wins once merged; Corpu
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/home-desktop-dark.png">
-    <img src="docs/screenshots/home-desktop-light.png" width="960" alt="The home page: one card per project with its languages, a progress bar per language, and the three queue counts; a New project button for maintainers.">
+    <img src="docs/screenshots/home-desktop-light.png" width="960" alt="The home page: one card per project with its languages, a progress bar per language, and the queue counts; a New project button for maintainers.">
   </picture>
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/editor-desktop-dark.png">
