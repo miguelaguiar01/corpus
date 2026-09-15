@@ -105,7 +105,7 @@ export function stringDetail(
     .from(edits)
     .innerJoin(users, eq(users.id, edits.userId))
     .where(eq(edits.stringId, string.id))
-    .orderBy(desc(edits.at), desc(edits.id))
+    .orderBy(desc(edits.id))
     .all();
   const latestByLanguage = new Map<string, HistoryEntry>();
   for (const entry of history) {

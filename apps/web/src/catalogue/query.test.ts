@@ -34,10 +34,12 @@ test("lists the pushed strings with per-language states (§11)", () => {
   expect(sighting?.states["pt-PT"]).toEqual({
     state: "translated",
     stale: false,
+    agentDraft: false,
   });
   expect(sighting?.states["en"]).toEqual({
     state: "untranslated",
     stale: false,
+    agentDraft: false,
   });
 });
 

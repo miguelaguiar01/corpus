@@ -17,7 +17,7 @@ export function proposalRefusal(
       return apiError(
         422,
         "not-writable",
-        `${key} comes from a source pull cannot write`,
+        `${key} comes from a source that pull cannot write`,
       );
     case "invalid-icu":
       return apiError(422, "invalid-icu", "the text is empty or not valid ICU");

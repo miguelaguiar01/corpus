@@ -64,18 +64,21 @@ export function provisionProject(
   }
 
   const token = newToken();
-  const project = db
-    .insert(projects)
-    .values({
-      slug,
-      name,
-      sourceLanguage: input.sourceLanguage,
-      languages: input.languages,
-      tokenHash: hashToken(token),
-    })
-    .returning()
-    .get();
-  ensureAgentActor(db, project);
+  const project = db.transaction((tx) => {
+    const created = tx
+      .insert(projects)
+      .values({
+        slug,
+        name,
+        sourceLanguage: input.sourceLanguage,
+        languages: input.languages,
+        tokenHash: hashToken(token),
+      })
+      .returning()
+      .get();
+    ensureAgentActor(tx, created);
+    return created;
+  });
   return { ok: true, project, token };
 }
 

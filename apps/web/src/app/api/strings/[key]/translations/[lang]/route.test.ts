@@ -90,3 +90,38 @@ test("the editor's refusals come back as the same reasons", async () => {
     expect((await res.json()).error).toBe(error);
   }
 });
+
+test("an oversized body, an archived string and another project's token are refused", async () => {
+  const { db, token, project } = seeded;
+  const big = await draft(token, CONTINUE, "en", {
+    text: "x".repeat(70 * 1024),
+  });
+  expect(big.status).toBe(413);
+
+  const { strings } = await import("@/db/schema");
+  const { eq } = await import("drizzle-orm");
+  const { stringRowId } = await import("@/agents/test-helpers");
+  db.update(strings)
+    .set({ archived: true })
+    .where(eq(strings.id, stringRowId(db, GREENHOUSE)))
+    .run();
+  const archived = await draft(token, GREENHOUSE, "en", {
+    text: "{person} {room_de} {hour} {person_gender, select, m {a} f {b}}",
+  });
+  expect(archived.status).toBe(409);
+  expect((await archived.json()).error).toBe("archived");
+
+  const { provisionProject } = await import("@/projects/service");
+  const other = provisionProject(db, {
+    slug: "other",
+    name: "Other",
+    sourceLanguage: "pt-PT",
+    languages: ["pt-PT", "en"],
+  });
+  if (!other.ok) throw new Error(other.reason);
+  const foreign = await draft(other.token, CONTINUE, "en", {
+    text: "Continue",
+  });
+  expect(foreign.status).toBe(404);
+  expect(project.slug).toBe("mm");
+});

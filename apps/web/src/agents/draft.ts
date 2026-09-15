@@ -56,7 +56,9 @@ export function agentDraft(
     };
   }
   const row = detail.translations[language];
-  if (!row) return { ok: false, reason: "unknown-language" };
+  // A language added to the project has its rows at once (§9.5); none
+  // here means the string is not in the project's list.
+  if (!row) return { ok: false, reason: "not-found" };
   if (!openToAgent(row)) return { ok: false, reason: "human-edited" };
 
   const actor = ensureAgentActor(db, project);

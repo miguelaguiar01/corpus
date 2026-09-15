@@ -1,6 +1,7 @@
 import { and, asc, eq, exists, gt, inArray, sql, type SQL } from "drizzle-orm";
 import type { Db } from "@/db";
 import { strings, stringTranslations } from "@/db/schema";
+import { agentEditedRows, rowKey } from "@/agents/latest-edit";
 
 import type { TranslationState } from "@/translations/state";
 
@@ -8,9 +9,8 @@ export type { TranslationState };
 export type LanguageState = {
   state: TranslationState;
   stale: boolean;
-  // The row's latest edit was the agent actor's (§10); the catalogue
-  // does not compute it.
-  agentDraft?: boolean;
+  // The row's latest edit was the agent actor's (§10).
+  agentDraft: boolean;
 };
 
 export type CatalogueRow = {
@@ -115,10 +115,15 @@ export function listCatalogue(
         .all()
     : [];
 
+  const agentEdited = agentEditedRows(db);
   const statesByString = new Map<number, Record<string, LanguageState>>();
   for (const row of translations) {
     const states = statesByString.get(row.stringId) ?? {};
-    states[row.language] = { state: row.state, stale: row.stale };
+    states[row.language] = {
+      state: row.state,
+      stale: row.stale,
+      agentDraft: agentEdited.has(rowKey(row.stringId, row.language)),
+    };
     statesByString.set(row.stringId, states);
   }
 

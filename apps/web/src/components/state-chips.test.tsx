@@ -10,8 +10,8 @@ test("renders a chip per language reflecting its state", () => {
     <StateChips
       languages={["pt-PT", "en"]}
       states={{
-        "pt-PT": { state: "verified", stale: false },
-        en: { state: "untranslated", stale: false },
+        "pt-PT": { state: "verified", stale: false, agentDraft: false },
+        en: { state: "untranslated", stale: false, agentDraft: false },
       }}
     />,
   );
@@ -24,7 +24,7 @@ test("shows a stale badge when a language is stale", () => {
   render(
     <StateChips
       languages={["en"]}
-      states={{ en: { state: "translated", stale: true } }}
+      states={{ en: { state: "translated", stale: true, agentDraft: false } }}
     />,
   );
   expect(screen.getByText("stale")).toBeTruthy();
@@ -40,9 +40,9 @@ test("the three states are visibly distinct, not only by colour", () => {
     <StateChips
       languages={["a", "b", "c"]}
       states={{
-        a: { state: "untranslated", stale: false },
-        b: { state: "translated", stale: false },
-        c: { state: "verified", stale: false },
+        a: { state: "untranslated", stale: false, agentDraft: false },
+        b: { state: "translated", stale: false, agentDraft: false },
+        c: { state: "verified", stale: false, agentDraft: false },
       }}
     />,
   );

@@ -149,3 +149,25 @@ test("the source row, an unknown language, an empty text and a lost placeholder 
     reason: "not-found",
   });
 });
+
+test("a verified row that went stale is open to the agent", () => {
+  const { db, project, rui, ana } = pushedProject();
+  personSaves(db, rui, HEARD, "en", "Nothing.");
+  personVerifies(db, ana, HEARD, "en");
+  db.update(stringTranslations)
+    .set({ stale: true })
+    .where(eq(stringTranslations.stringId, stringRowId(db, HEARD)))
+    .run();
+  const result = agentDraft(db, {
+    project,
+    key: HEARD,
+    language: "en",
+    text: "I heard nothing.",
+  });
+  expect(result.ok).toBe(true);
+  expect(stringDetail(db, project.id, HEARD)!.translations.en).toMatchObject({
+    state: "translated",
+    stale: false,
+    agentDraft: true,
+  });
+});
