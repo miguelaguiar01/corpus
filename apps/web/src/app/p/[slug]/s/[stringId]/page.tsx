@@ -13,6 +13,7 @@ import { QueueNav } from "@/components/queue-nav";
 import { SourceView } from "@/components/source-view";
 import { OtherLanguages } from "@/components/other-languages";
 import { ProposalPanel } from "@/components/proposal-panel";
+import { LanguageBar } from "@/components/language-bar";
 import { StateChips } from "@/components/state-chips";
 import { languageSwitchPath } from "@/strings/paths";
 import { TargetPane, type Slot } from "@/components/target-pane";
@@ -134,6 +135,28 @@ export default async function StringPage({
       secondary={target !== undefined}
     />
   );
+  const languageBar = (
+    <LanguageBar
+      languages={project.languages}
+      sourceLanguage={project.sourceLanguage}
+      selected={actedLanguage}
+      states={translations}
+      hrefFor={languageSwitchPath({
+        slug,
+        key: string.key,
+        sourceLanguage: project.sourceLanguage,
+        queue:
+          queueKind && queue
+            ? {
+                kind: queueKind,
+                languages: queue.items
+                  .filter((item) => item.stringId === string.id)
+                  .map((item) => item.language),
+              }
+            : undefined,
+      })}
+    />
+  );
   const proofreading = canVerify && !target && (
     <p className="text-xs text-muted-foreground">
       {t("editor.proofreading", { language: actedLanguage })}
@@ -146,16 +169,21 @@ export default async function StringPage({
   // and the page padded so the bar covers nothing.
   return (
     <Page width="wide" className="space-y-8 pb-32 lg:pb-8">
-      {queue && (
+      {queue ? (
         <div className="hidden lg:block">
           <QueueNav
             slug={slug}
             queue={queue}
             current={{ stringId: string.id, language }}
             inline
-          />
+          >
+            {languageBar}
+          </QueueNav>
         </div>
+      ) : (
+        <div className="hidden lg:block">{languageBar}</div>
       )}
+      <div className="lg:hidden">{languageBar}</div>
       <div
         className={
           editing
@@ -180,25 +208,7 @@ export default async function StringPage({
             {query.warning === "changed" && (
               <Banner tone="warning">{t("verify.warningChanged")}</Banner>
             )}
-            <StateChips
-              languages={project.languages}
-              states={translations}
-              selected={actedLanguage}
-              hrefFor={languageSwitchPath({
-                slug,
-                key: string.key,
-                sourceLanguage: project.sourceLanguage,
-                queue:
-                  queueKind && queue
-                    ? {
-                        kind: queueKind,
-                        languages: queue.items
-                          .filter((item) => item.stringId === string.id)
-                          .map((item) => item.language),
-                      }
-                    : undefined,
-              })}
-            />
+            <StateChips languages={project.languages} states={translations} />
             <MetadataChips
               declarations={declarations}
               metadata={string.metadata ?? {}}

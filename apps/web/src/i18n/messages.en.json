@@ -191,5 +191,7 @@
   "proposal.addSourceOption": "{path} ({type})",
   "proposal.pendingAddsHeading": "Proposed strings",
   "proposal.replaceHint": "A newer proposal replaces the pending one.",
-  "proposal.byInto": "proposed by {author} into {file}"
+  "proposal.byInto": "proposed by {author} into {file}",
+  "editor.languages": "Language",
+  "queue.navLabel": "Queue"
 }
