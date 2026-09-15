@@ -30,6 +30,11 @@ export function StateChips({
                 {t("state.stale")}
               </span>
             )}
+            {value?.agentDraft && state === "translated" && (
+              <span className="rounded-sm border border-border px-1 text-muted-foreground">
+                {t("state.agentDraft")}
+              </span>
+            )}
           </Chip>
         );
       })}

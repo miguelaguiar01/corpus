@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import { memoryDb } from "@/db/test-helpers";
 import { sessions, users } from "@/db/schema";
+import { ensureAgentActor } from "@/agents/actor";
 import {
   createSession,
   endSession,
@@ -165,4 +166,15 @@ test("ending a user's sessions leaves other users' sessions alone", () => {
   endSessionsOf(db, ana.user.id);
   expect(getSessionUser(db, a)).toBeUndefined();
   expect(getSessionUser(db, b)?.name).toBe("bruno");
+});
+
+test("the agent name family is refused at join, and an agent actor never signs in", () => {
+  const db = memoryDb();
+  expect(join(db, "mm agent")).toEqual({ ok: false, reason: "invalid-name" });
+  ensureAgentActor(db, { slug: "mm" });
+  expect(join(db, "mm agent")).toEqual({ ok: false, reason: "invalid-name" });
+  expect(signIn(db, { name: "mm agent", password: "long enough" })).toEqual({
+    ok: false,
+    reason: "invalid-credentials",
+  });
 });

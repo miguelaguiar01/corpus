@@ -1,4 +1,5 @@
 import { LANGUAGE_RE } from "@corpus/contract";
+import { ensureAgentActor } from "@/agents/actor";
 import { createHash, randomBytes } from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { Db } from "@/db";
@@ -63,17 +64,21 @@ export function provisionProject(
   }
 
   const token = newToken();
-  const project = db
-    .insert(projects)
-    .values({
-      slug,
-      name,
-      sourceLanguage: input.sourceLanguage,
-      languages: input.languages,
-      tokenHash: hashToken(token),
-    })
-    .returning()
-    .get();
+  const project = db.transaction((tx) => {
+    const created = tx
+      .insert(projects)
+      .values({
+        slug,
+        name,
+        sourceLanguage: input.sourceLanguage,
+        languages: input.languages,
+        tokenHash: hashToken(token),
+      })
+      .returning()
+      .get();
+    ensureAgentActor(tx, created);
+    return created;
+  });
   return { ok: true, project, token };
 }
 

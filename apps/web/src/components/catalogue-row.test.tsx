@@ -16,8 +16,8 @@ test("links to the string and shows key, type, source and states", () => {
       source={SOURCE}
       languages={["en", "pt-PT"]}
       states={{
-        en: { state: "verified", stale: false },
-        "pt-PT": { state: "untranslated", stale: false },
+        en: { state: "verified", stale: false, agentDraft: false },
+        "pt-PT": { state: "untranslated", stale: false, agentDraft: false },
       }}
     />,
   );

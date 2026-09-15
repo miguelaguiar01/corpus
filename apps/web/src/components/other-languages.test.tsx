@@ -11,9 +11,22 @@ const translations = {
     stale: false,
     text: "Olá",
     version: 1,
+    agentDraft: false,
   },
-  en: { state: "translated" as const, stale: true, text: "Hello", version: 2 },
-  fr: { state: "untranslated" as const, stale: false, text: null, version: 0 },
+  en: {
+    state: "translated" as const,
+    stale: true,
+    text: "Hello",
+    version: 2,
+    agentDraft: false,
+  },
+  fr: {
+    state: "untranslated" as const,
+    stale: false,
+    text: null,
+    version: 0,
+    agentDraft: false,
+  },
 };
 
 test("lists every language but the excluded ones, with text, state and staleness", () => {

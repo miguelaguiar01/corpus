@@ -25,7 +25,8 @@ export type SettingsResult<T = object> =
   | ({ ok: true } & T)
   | {
       ok: false;
-      reason: "forbidden" | "invalid" | "last-maintainer" | "not-found";
+      reason:
+        "forbidden" | "invalid" | "last-maintainer" | "not-found" | "agent";
     };
 
 // A new push token; the old one stops working at once. Returned once.
@@ -84,6 +85,7 @@ export function setMaintainer(
   if (!isMaintainer(db, actor)) return { ok: false, reason: "forbidden" };
   const target = db.select().from(users).where(eq(users.id, userId)).get();
   if (!target) return { ok: false, reason: "not-found" };
+  if (target.agent) return { ok: false, reason: "agent" };
   if (!maintainer && target.maintainer) {
     const remaining = db
       .select({ id: users.id })
@@ -110,5 +112,6 @@ export function resetUserPassword(
   if (!isMaintainer(db, actor)) return { ok: false, reason: "forbidden" };
   const target = db.select().from(users).where(eq(users.id, userId)).get();
   if (!target) return { ok: false, reason: "not-found" };
+  if (target.agent) return { ok: false, reason: "agent" };
   return { ok: true, temporary: resetPassword(db, userId) };
 }

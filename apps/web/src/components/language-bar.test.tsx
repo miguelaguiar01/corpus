@@ -12,9 +12,9 @@ function bar(selected = "en") {
       sourceLanguage="pt-PT"
       selected={selected}
       states={{
-        "pt-PT": { state: "verified", stale: false },
-        en: { state: "untranslated", stale: false },
-        fr: { state: "verified", stale: false },
+        "pt-PT": { state: "verified", stale: false, agentDraft: false },
+        en: { state: "untranslated", stale: false, agentDraft: false },
+        fr: { state: "verified", stale: false, agentDraft: false },
       }}
       hrefFor={(language) =>
         language === "pt-PT" ? "/p/mm/s/k" : `/p/mm/s/k?language=${language}`

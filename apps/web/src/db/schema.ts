@@ -29,6 +29,9 @@ export const users = sqliteTable("users", {
   maintainer: integer("maintainer", { mode: "boolean" })
     .notNull()
     .default(false),
+  // A project's agent actor (§10): writes through the project token are
+  // attributed to it; it never signs in and is never a maintainer.
+  agent: integer("agent", { mode: "boolean" }).notNull().default(false),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
     .$defaultFn(() => new Date()),

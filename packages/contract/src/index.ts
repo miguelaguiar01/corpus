@@ -6,4 +6,5 @@ export * from "./config";
 export * from "./icu";
 export * from "./validate";
 export * from "./preview";
+export * from "./agent";
 export { moonlightManor } from "./fixtures/moonlight-manor";

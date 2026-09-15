@@ -4,6 +4,7 @@ import { stringTranslations, users } from "@/db/schema";
 import { moonlightManor, type Snapshot } from "@corpus/contract";
 import { applySnapshot } from "@/ingest/apply";
 import { memoryDb } from "@/db/test-helpers";
+import { ensureAgentActor } from "@/agents/actor";
 import { createSession, getSessionUser, signIn } from "@/auth/service";
 import { hashPassword } from "@/auth/password";
 import { createProject, findProjectByToken, getProjectBySlug } from "./service";
@@ -200,4 +201,17 @@ test("adding a language gives every active string an untranslated row at once", 
   expect(db.select().from(stringTranslations).all().length).toBe(
     before + moonlightManor.strings.length,
   );
+});
+
+test("the agent actor takes neither the maintainer flag nor a password reset", () => {
+  const { db, ana, project } = seed();
+  const agent = ensureAgentActor(db, project);
+  expect(setMaintainer(db, agent.id, true, ana)).toEqual({
+    ok: false,
+    reason: "agent",
+  });
+  expect(resetUserPassword(db, agent.id, ana)).toEqual({
+    ok: false,
+    reason: "agent",
+  });
 });

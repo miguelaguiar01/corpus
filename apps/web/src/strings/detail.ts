@@ -39,6 +39,9 @@ export type StringDetail = {
       stale: boolean;
       text: string | null;
       version: number;
+      // The latest edit was the agent actor's (§10): open to another
+      // draft through the token, shown as an agent draft.
+      agentDraft: boolean;
     }
   >;
   entities: EntityCard[];
@@ -59,6 +62,7 @@ export type HistoryEntry = {
   id: number;
   language: string;
   actor: string;
+  agent: boolean;
   at: Date;
   oldText: string | null;
   newText: string | null;
@@ -86,6 +90,29 @@ export function stringDetail(
     MetadataValue
   > | null;
 
+  const history = db
+    .select({
+      id: edits.id,
+      language: edits.language,
+      actor: users.name,
+      agent: users.agent,
+      at: edits.at,
+      oldText: edits.oldText,
+      newText: edits.newText,
+      oldState: edits.oldState,
+      newState: edits.newState,
+    })
+    .from(edits)
+    .innerJoin(users, eq(users.id, edits.userId))
+    .where(eq(edits.stringId, string.id))
+    .orderBy(desc(edits.id))
+    .all();
+  const latestByLanguage = new Map<string, HistoryEntry>();
+  for (const entry of history) {
+    if (!latestByLanguage.has(entry.language))
+      latestByLanguage.set(entry.language, entry);
+  }
+
   const translations: StringDetail["translations"] = {};
   for (const row of db
     .select()
@@ -97,25 +124,9 @@ export function stringDetail(
       stale: row.stale,
       text: row.text,
       version: versionOf(row),
+      agentDraft: latestByLanguage.get(row.language)?.agent ?? false,
     };
   }
-
-  const history = db
-    .select({
-      id: edits.id,
-      language: edits.language,
-      actor: users.name,
-      at: edits.at,
-      oldText: edits.oldText,
-      newText: edits.newText,
-      oldState: edits.oldState,
-      newState: edits.newState,
-    })
-    .from(edits)
-    .innerJoin(users, eq(users.id, edits.userId))
-    .where(eq(edits.stringId, string.id))
-    .orderBy(desc(edits.at), desc(edits.id))
-    .all();
 
   return {
     string: {

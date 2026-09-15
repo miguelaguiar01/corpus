@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { projects, strings, users } from "@/db/schema";
 import { applyTransition } from "@/translations/service";
 import { memoryDb } from "@/db/test-helpers";
+import { ensureAgentActor } from "@/agents/actor";
 import { listCatalogue } from "./query";
 
 function pushed() {
@@ -34,10 +35,12 @@ test("lists the pushed strings with per-language states (§11)", () => {
   expect(sighting?.states["pt-PT"]).toEqual({
     state: "translated",
     stale: false,
+    agentDraft: false,
   });
   expect(sighting?.states["en"]).toEqual({
     state: "untranslated",
     stale: false,
+    agentDraft: false,
   });
 });
 
@@ -147,4 +150,29 @@ test("a language and a state together mean that state in that language", () => {
       states: ["verified"],
     }).rows.map((r) => r.stringId),
   ).toEqual(["skin.heard-nothing"]);
+});
+
+test("a row the agent actor last edited reads as an agent draft in the list (§10)", () => {
+  const { db, p } = pushed();
+  const agent = ensureAgentActor(db, p);
+  const target = db
+    .select()
+    .from(strings)
+    .where(eq(strings.stringId, "ui.continue"))
+    .get()!;
+  applyTransition(db, {
+    stringId: target.id,
+    language: "en",
+    action: { type: "save", text: "Continue" },
+    actor: agent,
+  });
+  const row = listCatalogue(db, p.id).rows.find(
+    (r) => r.stringId === "ui.continue",
+  )!;
+  expect(row.states.en).toEqual({
+    state: "translated",
+    stale: false,
+    agentDraft: true,
+  });
+  expect(row.states["pt-PT"]?.agentDraft).toBe(false);
 });

@@ -1,14 +1,17 @@
 import { and, asc, eq } from "drizzle-orm";
 import type { Db } from "@/db";
 import { projects, strings, stringTranslations } from "@/db/schema";
+import { agentEditedRows, rowKey } from "@/agents/latest-edit";
 
-// The three dashboard queues (§9.1) over string × language rows, excluding
+// The dashboard queues (§9.1) over string × language rows, excluding
 // archived strings (§11). Items are ordered by string id then language so
-// next/previous is deterministic.
+// next/previous is deterministic. Agent drafts are the translated rows an
+// agent actor last edited (§10), a pile of their own for a maintainer.
 export const QUEUE_KINDS = [
   "untranslated",
   "stale",
   "unverifiedSource",
+  "agentDrafts",
 ] as const;
 export type QueueKind = (typeof QUEUE_KINDS)[number];
 
@@ -33,15 +36,18 @@ type Row = {
   state: string;
   stale: boolean;
   isSource: boolean;
+  agentEdited: boolean;
 };
 
 const MATCHERS: Record<QueueKind, (row: Row) => boolean> = {
   untranslated: (row) => !row.isSource && row.state === "untranslated",
   stale: (row) => row.stale,
   unverifiedSource: (row) => row.isSource && row.state === "translated",
+  agentDrafts: (row) => row.state === "translated" && row.agentEdited,
 };
 
 function loadRows(db: Db, projectId: number): Row[] {
+  const agentEdited = agentEditedRows(db);
   return db
     .select({
       stringId: stringTranslations.stringId,
@@ -60,6 +66,7 @@ function loadRows(db: Db, projectId: number): Row[] {
     .map(({ sourceLanguage, ...row }) => ({
       ...row,
       isSource: row.language === sourceLanguage,
+      agentEdited: agentEdited.has(rowKey(row.stringId, row.language)),
     }));
 }
 
@@ -74,13 +81,14 @@ export function queueItems(db: Db, projectId: number, kind: QueueKind): Queue {
   return pick(loadRows(db, projectId), kind);
 }
 
-// All three queues from one load, for the dashboard (§9.1).
+// Every queue from one load, for the dashboard (§9.1).
 export function allQueues(db: Db, projectId: number): Record<QueueKind, Queue> {
   const rows = loadRows(db, projectId);
   return {
     untranslated: pick(rows, "untranslated"),
     stale: pick(rows, "stale"),
     unverifiedSource: pick(rows, "unverifiedSource"),
+    agentDrafts: pick(rows, "agentDrafts"),
   };
 }
 
@@ -90,6 +98,7 @@ export function queueCounts(db: Db, projectId: number): QueueCounts {
     untranslated: rows.filter(MATCHERS.untranslated).length,
     stale: rows.filter(MATCHERS.stale).length,
     unverifiedSource: rows.filter(MATCHERS.unverifiedSource).length,
+    agentDrafts: rows.filter(MATCHERS.agentDrafts).length,
   };
 }
 
