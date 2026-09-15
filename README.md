@@ -124,6 +124,22 @@ The catalogue is the inventory, and anyone on the instance can propose a change 
   </picture>
 </p>
 
+## Work with an agent
+
+`corpus mcp` starts a [Model Context Protocol](https://modelcontextprotocol.io) server on stdio from the repository, reading the config and the token like every other command, so an agent in the repository works inside the project with no browser. In Claude Code:
+
+```sh
+claude mcp add corpus -- npx corpus mcp
+```
+
+or in the repository's `.mcp.json`, for any client:
+
+```json
+{ "mcpServers": { "corpus": { "command": "npx", "args": ["corpus", "mcp"] } } }
+```
+
+Its tools are one API call each: `list_queue`, `get_string` (the source with its placeholders, selects and examples, every language's text and state, any pending proposal), `save_draft`, `propose_change`, `propose_removal`, `add_string` and `status`. Three rules hold for everything an agent writes through the project token. It never overwrites a person's work: a draft lands on an untranslated row, a stale one or its own earlier draft, and a row a person edited refuses with `human-edited`, so the agent proposes instead. Every draft is attributed to the project's agent actor, which the history, the chips and the settings list show as such. Nothing but a signed-in maintainer verifies: agent drafts are a queue of their own on the dashboard, and the token has no way to sign anything off. The model stays on the agent's side; Corpus runs none.
+
 ## In CI
 
 Nothing here needs a browser. A job with `CORPUS_TOKEN` in its environment can gate a merge on the translation state:
