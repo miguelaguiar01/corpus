@@ -124,6 +124,13 @@ The catalogue is the inventory, and anyone on the instance can propose a change 
   </picture>
 </p>
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/agent-draft-desktop-dark.png">
+    <img src="docs/screenshots/agent-draft-desktop-light.png" width="960" alt="A string page reached from the agent drafts queue: the English draft an agent saved through the API, its chip marked agent, the verify button for the maintainer, and the history naming the project's agent actor.">
+  </picture>
+</p>
+
 ## Work with an agent
 
 `corpus mcp` starts a [Model Context Protocol](https://modelcontextprotocol.io) server on stdio from the repository, reading the config and the token like every other command, so an agent in the repository works inside the project with no browser. In Claude Code:
@@ -163,7 +170,7 @@ Source text and metadata belong to the repository, which wins once merged; Corpu
 
 | Surface   | What it is for                                                                                                                                            |
 | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Dashboard | The three queues (untranslated, stale, unverified source) and per-language progress by string type. A translator never wonders what to work on.           |
+| Dashboard | The queues (untranslated, stale, unverified source, and agent drafts once there are any) and per-language progress by string type. A translator never wonders what to work on. |
 | Catalogue | Every string, searched (accent-insensitive full text) and filtered by type, state, language, and the project's own metadata.                              |
 | Editor    | The source with its branches, placeholders, metadata, entities and examples on one side; the draft with chips, validation and live previews on the other. |
 | Entities  | Read-only cards for the characters, rooms and other objects the strings refer to.                                                                         |
