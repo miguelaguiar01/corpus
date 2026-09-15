@@ -375,9 +375,12 @@ the four answers recorded on the epic.
 
 **Decision:** the project token gains read and draft rights (queues,
 strings, a draft translation, proposals), bound by three rules: an
-agent never overwrites a row a person edited, every draft is
-attributed to a visible agent actor, and nothing but a signed-in
-maintainer verifies. `corpus mcp` is a stdio server in the CLI package
+agent never overwrites a person's current work (a `stale` row is open
+to it, a seeded or human-edited one is not), every draft is attributed
+to a visible agent actor, and nothing but a signed-in maintainer
+verifies. The actor is a user row per project that cannot sign in, and
+a refused write is refused plainly, with no suggested alternative in
+the response. `corpus mcp` is a stdio server in the CLI package
 whose tools are one API call each. Corpus runs no model of its own.
 
 **Why:** the owner asked for "an MCP for translation". Nothing outside
@@ -390,6 +393,18 @@ only in Corpus, and machine text must never launder itself into a
 history that looks human, hence the first two rules; the third is the
 product's reason to exist. Keeping the model on the agent's side keeps
 Corpus small and the choice of model with the user.
+
+A `stale` row is a person's translation of a source that has since
+moved; refreshing it is the point of an agent, and the person's text
+stays in the history, so the rule guards current work, not every row a
+person ever touched. A seeded row has no edit, so the token cannot tell
+it from a person's and treats it as one. The actor is a user row, not a
+flag on the edit, because the history, the chips and the seen-users
+list already key on the user, so attribution costs nothing new; the
+row can never sign in, or the token would be a way to act as a person.
+Refusals carry no suggestion because the agent's next move (a
+proposal) is the same every time and the API should not make it on
+the agent's behalf.
 
 **Context:** #340 (epic), #341; the owner's ask and answer of
 2026-09-15 ("the mcp should be api first").
