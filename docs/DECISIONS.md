@@ -371,3 +371,25 @@ did not read. Corpus-owned types and git integration stay deferred
 **Context:** #307 (epic), #324; the owner's asks of 2026-09-07 and
 the four answers recorded on the epic.
 
+## 2026-09-15 — Agents draft through the API; the MCP is a thin server over it
+
+**Decision:** the project token gains read and draft rights (queues,
+strings, a draft translation, proposals), bound by three rules: an
+agent never overwrites a row a person edited, every draft is
+attributed to a visible agent actor, and nothing but a signed-in
+maintainer verifies. `corpus mcp` is a stdio server in the CLI package
+whose tools are one API call each. Corpus runs no model of its own.
+
+**Why:** the owner asked for "an MCP for translation". Nothing outside
+the browser could write a translation, so an MCP over the existing
+surface could only read; the API is the work and the MCP falls out of
+it. The state machine already keeps a draft (`translated`) apart from a
+person's sign-off (`verified`), which is the loop an agent should run.
+A leaked token must not be able to overwrite human work that lives
+only in Corpus, and machine text must never launder itself into a
+history that looks human, hence the first two rules; the third is the
+product's reason to exist. Keeping the model on the agent's side keeps
+Corpus small and the choice of model with the user.
+
+**Context:** #340 (epic), #341; the owner's ask and answer of
+2026-09-15 ("the mcp should be api first").
