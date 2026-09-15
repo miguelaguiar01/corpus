@@ -14,6 +14,7 @@ function bar(selected = "en") {
       states={{
         "pt-PT": { state: "verified", stale: false },
         en: { state: "untranslated", stale: false },
+        fr: { state: "verified", stale: false },
       }}
       hrefFor={(language) =>
         language === "pt-PT" ? "/p/mm/s/k" : `/p/mm/s/k?language=${language}`
@@ -42,6 +43,6 @@ test("the source language carries its verified mark, hidden from the name", () =
   expect(source.getAttribute("aria-current")).toBe("page");
   expect(source.querySelector("[aria-hidden]")?.textContent).toBe("✓");
   expect(
-    screen.getByRole("link", { name: "en" }).querySelector("[aria-hidden]"),
+    screen.getByRole("link", { name: "fr" }).querySelector("[aria-hidden]"),
   ).toBeNull();
 });

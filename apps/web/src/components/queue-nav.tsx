@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { neighbours, type Queue, type QueueItem } from "@/catalogue/queues";
 import { stringPath } from "@/strings/paths";
@@ -15,6 +16,7 @@ export function QueueNav({
   queue,
   current,
   inline = false,
+  children,
 }: {
   slug: string;
   queue: Queue;
@@ -22,6 +24,9 @@ export function QueueNav({
   // A slim toolbar under the page header on desktop; thumb height in
   // the fixed bar on a phone.
   inline?: boolean;
+  // Inline only: a control beside the queue's name, left of the
+  // position (the language bar, §9.3).
+  children?: ReactNode;
 }) {
   const stepClass = inline ? STEP_INLINE : STEP;
   const { index, previous, next } = neighbours(queue, current);
@@ -37,6 +42,7 @@ export function QueueNav({
         <Link href={`/p/${slug}`} className="underline">
           {t(QUEUE_LABEL[queue.kind])}
         </Link>
+        {inline && children && <span className="ml-6">{children}</span>}
       </nav>
     );
   }
@@ -63,8 +69,11 @@ export function QueueNav({
       }
     >
       {inline && (
-        <span className="mr-auto text-sm text-muted-foreground">
-          {t(QUEUE_LABEL[queue.kind])}
+        <span className="mr-auto flex items-center gap-6">
+          <span className="text-sm text-muted-foreground">
+            {t(QUEUE_LABEL[queue.kind])}
+          </span>
+          {children}
         </span>
       )}
       {step(previous, t("queue.previous"))}

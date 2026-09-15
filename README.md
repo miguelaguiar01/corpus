@@ -17,7 +17,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/editor-structured-desktop-dark.png">
-    <img src="docs/screenshots/editor-structured-desktop-light.png" width="960" alt="The editor: on the left a source sentence whose gendered select reads inline as visto / vista with a strip naming its keys, the language bar that switches the target, the other languages' current text, and the related trait and characters beneath; on the right the English draft with insertable placeholder and select chips, two live previews built from the example's English values, and the save button.">
+    <img src="docs/screenshots/editor-structured-desktop-light.png" width="960" alt="The editor: the language bar in the queue bar at the top; on the left a source sentence whose gendered select reads inline as visto / vista with a strip naming its keys, the other languages' current text, and the related trait and characters beneath; on the right the English draft with insertable placeholder and select chips, two live previews built from the example's English values, and the save button.">
   </picture>
 </p>
 

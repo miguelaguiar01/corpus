@@ -24,10 +24,7 @@ export function LanguageBar({
   return (
     <nav
       aria-label={t("editor.languages")}
-      className="grid overflow-hidden rounded-md border border-input lg:inline-grid"
-      style={{
-        gridTemplateColumns: `repeat(${languages.length}, minmax(0, 1fr))`,
-      }}
+      className="grid auto-cols-fr grid-flow-col overflow-hidden rounded-md border border-input lg:inline-grid"
     >
       {languages.map((language, index) => {
         const current = language === selected;
@@ -39,11 +36,11 @@ export function LanguageBar({
             href={hrefFor(language)}
             aria-current={current ? "page" : undefined}
             className={cn(
-              "flex min-h-11 items-center justify-center gap-1.5 px-3 text-[15px] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring lg:min-h-8 lg:px-3.5 lg:text-sm",
+              "flex min-h-11 items-center justify-center gap-1.5 px-3 text-base focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring lg:min-h-8 lg:px-3.5 lg:text-sm",
               index > 0 && "border-l border-input",
               current
                 ? "bg-primary font-semibold text-primary-foreground"
-                : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                : "text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:bg-accent",
             )}
           >
             {language}
