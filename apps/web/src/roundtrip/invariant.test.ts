@@ -232,9 +232,12 @@ test("a pending proposal comes back in exactly its source's files, at its key; n
     app: { title: "Corpus", greeting: "Bem-vindo, {name}" },
   });
   // The nested removal reached the target file; nothing else in it moved.
-  expect(JSON.parse(after["i18n/en.json"]!)).toEqual(
-    (({ nav: _nav, ...rest }) => rest)(JSON.parse(before["i18n/en.json"]!)),
-  );
+  const enBefore = JSON.parse(before["i18n/en.json"]!) as Record<
+    string,
+    unknown
+  >;
+  delete enBefore.nav;
+  expect(JSON.parse(after["i18n/en.json"]!)).toEqual(enBefore);
   // Pulling again before the merge is pushed changes nothing more.
   expect(await run(["pull"], ctx())).toBe(0);
   expect(tree(repo)).toEqual(after);
