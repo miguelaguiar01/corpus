@@ -179,6 +179,19 @@ async function main(): Promise<void> {
   await shot("editor");
   await page.goto(`${corpus}/settings`, { waitUntil: "networkidle" });
   await shot("settings");
+  // A source proposal (§9.3, §11): propose a change on a chrome string,
+  // then capture the string page with it pending, and the add form.
+  await page.goto(chromeString("queue.stale", "language=pt-PT"));
+  await page.getByRole("button", { name: "Propose a change" }).click();
+  await page.getByLabel("Proposed source text").fill("Out of date");
+  await page.getByRole("button", { name: "Propose", exact: true }).click();
+  await page.waitForURL(/proposed=1/);
+  await page.goto(chromeString("queue.stale", "language=pt-PT"), {
+    waitUntil: "networkidle",
+  });
+  await shot("proposal");
+  await page.goto(`${corpus}/strings/new`, { waitUntil: "networkidle" });
+  await shot("new-string");
 
   // Structured text: the Moonlight Manor fixture, for selects, entities,
   // and previews the chrome catalog does not have.

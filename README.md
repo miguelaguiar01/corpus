@@ -113,6 +113,17 @@ npx corpus check                      # lint: user-facing literals outside decla
 
 Structured sources, `table` records (a module's default or named export, with the fields to carry as metadata listed in the map) or an `exec` command that emits entries, are described in the [design spec, §3](docs/corpus-design.md). Note that `corpus push` and `corpus pull` run the repository's own `corpus.config.ts` and any `exec` commands it declares, so run them only in repositories you trust, as you would their build scripts.
 
+## Manage the strings, not only their translations
+
+The catalogue is the inventory, and anyone on the instance can propose a change to it: a new source text on a string's page, a string's removal, or a new string into one of the repository's catalogues, chosen from the sources `corpus push` declared. A proposal is pending until `corpus pull` writes it into the source file, you review the diff and merge, and the next `corpus push` sees the repository agreeing and marks it applied. The repository stays the truth once merged; Corpus proposes. `corpus status` counts what is pending, and `corpus pull --check` treats a pending proposal as a change to pull, so a CI gate goes red until it is in.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/proposal-desktop-dark.png">
+    <img src="docs/screenshots/proposal-desktop-light.png" width="960" alt="A string page with a proposed change to its source text: the proposal's text and author under the source, a withdraw button, and the history of proposals below.">
+  </picture>
+</p>
+
 ## In CI
 
 Nothing here needs a browser. A job with `CORPUS_TOKEN` in its environment can gate a merge on the translation state:
@@ -120,11 +131,11 @@ Nothing here needs a browser. A job with `CORPUS_TOKEN` in its environment can g
 ```sh
 npx corpus check                                          # no stray literals
 npx corpus validate                                       # every translation still fits its source
-npx corpus pull --check                                   # the repository carries what is verified
+npx corpus pull --check                                   # the repository carries what is verified, and no proposal waits
 npx corpus status --json | jq -e '.progress.perLanguage["pt-PT"].untranslated == 0'
 ```
 
-`status --json` is the dashboard's numbers as one object: per language and per string type, `untranslated`, `translated`, `verified`, `stale` and `total`, with the string count, the last push and the server's version. A throwaway instance for a test job is `corpus workbench` in the repository, which creates the project and writes the token itself; this repository's CI does exactly that (`bin/install-smoke`), and pushes its interface strings to a fresh container the same way (`bin/dogfood`).
+`status --json` is the dashboard's numbers as one object, plus `pendingProposals`: per language and per string type, `untranslated`, `translated`, `verified`, `stale` and `total`, with the string count, the last push and the server's version. A throwaway instance for a test job is `corpus workbench` in the repository, which creates the project and writes the token itself; this repository's CI does exactly that (`bin/install-smoke`), and pushes its interface strings to a fresh container the same way (`bin/dogfood`).
 
 ## How it works
 
@@ -132,7 +143,7 @@ npx corpus status --json | jq -e '.progress.perLanguage["pt-PT"].untranslated ==
 repository ──corpus push──▶ Corpus (people verify and translate) ──corpus pull──▶ repository files ──PR──▶ merged
 ```
 
-Source text and metadata belong to the repository; translations and workflow states belong to Corpus. The database is a working copy with history: losing it loses only edits not yet pulled.
+Source text and metadata belong to the repository, which wins once merged; Corpus proposes changes to them. Translations and workflow states belong to Corpus. The database is a working copy with history: losing it loses only edits not yet pulled.
 
 | Surface   | What it is for                                                                                                                                            |
 | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
