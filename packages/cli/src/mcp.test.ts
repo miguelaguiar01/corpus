@@ -154,6 +154,7 @@ async function connected() {
 
 test("the client initialises, lists the seven tools and pings", async () => {
   const { client, done } = await connected();
+  expect(client.getInstructions()).toMatch(/human-edited/);
   expect(client.getServerVersion()).toEqual({
     name: "corpus",
     version: "9.9.9",
@@ -247,17 +248,98 @@ test("a refusal is a tool error carrying the server's message; bad arguments and
   ]);
   await expect(
     client.callTool({ name: "save_draft", arguments: { key: "ui.continue" } }),
-  ).rejects.toThrow(/language is missing/);
+  ).rejects.toThrow(/language is missing or not a string/);
   await expect(
     client.callTool({
       name: "get_string",
       arguments: { key: "ui.continue", extra: "x" },
     }),
-  ).rejects.toThrow(/extra/);
+  ).rejects.toThrow(/unknown argument extra/);
+  await expect(
+    client.callTool({ name: "list_queue", arguments: { queue: "bogus" } }),
+  ).rejects.toThrow(
+    /queue must be one of untranslated, stale, unverifiedSource, agentDrafts/,
+  );
   await expect(
     client.callTool({ name: "verify", arguments: {} }),
   ).rejects.toThrow(/unknown tool verify/);
   await done();
+});
+
+test("an unreachable server is a tool error, and the server outlives it", async () => {
+  const toServer = new PassThrough();
+  const fromServer = new PassThrough();
+  const served = serve(
+    toServer,
+    fromServer,
+    apiOver("http://127.0.0.1:9", "tok"),
+    "0",
+  );
+  const client = new Client({ name: "test", version: "0" });
+  await client.connect(streamTransport(fromServer, toServer));
+  const result = await client.callTool({ name: "status", arguments: {} });
+  expect(result.isError).toBe(true);
+  expect(result.content).toEqual([
+    {
+      type: "text",
+      text: expect.stringMatching(
+        /could not reach the server at http:\/\/127\.0\.0\.1:9/,
+      ),
+    },
+  ]);
+  await expect(client.ping()).resolves.toEqual({});
+  await client.close();
+  await served;
+});
+
+test("raw lines: a parse error, a non-object, an unknown method, and a reply larger than a pipe buffer", async () => {
+  const toServer = new PassThrough();
+  const fromServer = new PassThrough();
+  const big = "x".repeat(200 * 1024);
+  const served = serve(
+    toServer,
+    fromServer,
+    async () => ({ content: [{ type: "text", text: big }] }),
+    "0",
+  );
+  const replies: string[] = [];
+  const four = new Promise<void>((resolve) => {
+    createInterface({ input: fromServer }).on("line", (line) => {
+      replies.push(line);
+      if (replies.length === 4) resolve();
+    });
+  });
+  toServer.write("not json\n");
+  toServer.write("42\n");
+  toServer.write('{"jsonrpc":"2.0","id":1,"method":"resources/list"}\n');
+  toServer.write(
+    '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"status","arguments":{}}}\n',
+  );
+  toServer.end();
+  await served;
+  await four;
+  expect(replies.map((r) => JSON.parse(r))).toEqual([
+    {
+      jsonrpc: "2.0",
+      id: null,
+      error: { code: -32700, message: "parse error" },
+    },
+    {
+      jsonrpc: "2.0",
+      id: null,
+      error: { code: -32600, message: "a request is a JSON object" },
+    },
+    {
+      jsonrpc: "2.0",
+      id: 1,
+      error: { code: -32601, message: "method not found: resources/list" },
+    },
+    {
+      jsonrpc: "2.0",
+      id: 2,
+      result: { content: [{ type: "text", text: big }] },
+    },
+  ]);
 });
 
 test("the tool table names every tool once and requires what the API needs", () => {

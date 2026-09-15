@@ -13,7 +13,16 @@ import { request } from "./server";
 
 export const MCP_USAGE = "corpus mcp";
 
-export const PROTOCOL_VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"];
+export const PROTOCOL_VERSIONS = [
+  "2025-11-25",
+  "2025-06-18",
+  "2025-03-26",
+  "2024-11-05",
+];
+
+// What an agent is told at initialize: the rules of §10 in its own terms.
+export const INSTRUCTIONS =
+  "Corpus holds this repository's strings and their translations. A draft you save lands on an untranslated row, a stale row or your own earlier draft; a row a person edited refuses with human-edited, so propose a change instead of retrying. Every draft is attributed to the project's agent actor and waits for a maintainer to verify it; you cannot verify. Placeholders and selects must survive translation.";
 
 type JsonSchema = {
   type: "object";
@@ -66,7 +75,9 @@ export function apiOver(server: string, token: string): Api {
     }
     return {
       content: [{ type: "text", text: JSON.stringify(json, null, 2) }],
-      structuredContent: json as Record<string, unknown>,
+      ...(json && typeof json === "object"
+        ? { structuredContent: json as Record<string, unknown> }
+        : {}),
     };
   };
 }
@@ -229,22 +240,27 @@ export function tools(api: Api): Tool[] {
   ];
 }
 
-type Request = {
+type Message = {
   jsonrpc: "2.0";
   id?: number | string | null;
   method?: string;
   params?: Record<string, unknown>;
 };
 
-function missing(
+function argumentProblem(
   tool: Tool,
   args: Record<string, unknown>,
 ): string | undefined {
   for (const name of tool.inputSchema.required ?? []) {
-    if (typeof args[name] !== "string" || args[name] === "") return name;
+    if (typeof args[name] !== "string" || args[name] === "")
+      return `${name} is missing or not a string`;
   }
-  for (const name of Object.keys(args)) {
-    if (!(name in tool.inputSchema.properties)) return name;
+  for (const [name, value] of Object.entries(args)) {
+    const property = tool.inputSchema.properties[name];
+    if (!property) return `unknown argument ${name}`;
+    if (typeof value !== "string") return `${name} is not a string`;
+    if (property.enum && !property.enum.includes(value))
+      return `${name} must be one of ${property.enum.join(", ")}`;
   }
   return undefined;
 }
@@ -258,14 +274,24 @@ export function serve(
   version: string,
 ): Promise<void> {
   const registry = tools(api);
-  const reply = (id: Request["id"], body: object) => {
-    output.write(`${JSON.stringify({ jsonrpc: "2.0", id, ...body })}\n`);
-  };
-  const error = (id: Request["id"], code: number, message: string) =>
+  // Awaited, so a reply larger than the pipe's buffer is flushed before
+  // the process exits on stdin's close.
+  const reply = (id: Message["id"], body: object) =>
+    new Promise<void>((resolve, reject) => {
+      output.write(
+        `${JSON.stringify({ jsonrpc: "2.0", id, ...body })}\n`,
+        (failure) => (failure ? reject(failure) : resolve()),
+      );
+    });
+  const error = (id: Message["id"], code: number, message: string) =>
     reply(id, { error: { code, message } });
 
-  const handle = async (message: Request) => {
-    const { id, method, params = {} } = message;
+  const handle = async (message: Message) => {
+    const { id, method } = message;
+    const params =
+      message.params && typeof message.params === "object"
+        ? message.params
+        : {};
     if (id === undefined || id === null) return; // a notification
     switch (method) {
       case "initialize": {
@@ -277,6 +303,7 @@ export function serve(
               : PROTOCOL_VERSIONS[0],
             capabilities: { tools: {} },
             serverInfo: { name: "corpus", version },
+            instructions: INSTRUCTIONS,
           },
         });
       }
@@ -296,14 +323,13 @@ export function serve(
         const tool = registry.find((t) => t.name === params.name);
         if (!tool)
           return error(id, -32602, `unknown tool ${String(params.name)}`);
-        const args = (params.arguments ?? {}) as Record<string, unknown>;
-        const problem = missing(tool, args);
-        if (problem)
-          return error(
-            id,
-            -32602,
-            `${tool.name}: ${problem} is missing or not a string`,
-          );
+        const args = (
+          params.arguments && typeof params.arguments === "object"
+            ? params.arguments
+            : {}
+        ) as Record<string, unknown>;
+        const problem = argumentProblem(tool, args);
+        if (problem) return error(id, -32602, `${tool.name}: ${problem}`);
         try {
           return reply(id, { result: await tool.call(args) });
         } catch (caught) {
@@ -325,14 +351,20 @@ export function serve(
     let pending = Promise.resolve();
     lines.on("line", (line) => {
       if (line.trim() === "") return;
-      let message: Request;
+      let parsed: unknown;
       try {
-        message = JSON.parse(line) as Request;
+        parsed = JSON.parse(line);
       } catch {
-        error(null, -32700, "parse error");
+        pending = pending.then(() => error(null, -32700, "parse error"));
         return;
       }
-      pending = pending.then(() => handle(message));
+      if (!parsed || typeof parsed !== "object") {
+        pending = pending.then(() =>
+          error(null, -32600, "a request is a JSON object"),
+        );
+        return;
+      }
+      pending = pending.then(() => handle(parsed as Message));
     });
     lines.on("close", () => {
       void pending.then(resolve);
