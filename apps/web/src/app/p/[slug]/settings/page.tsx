@@ -34,6 +34,7 @@ const ERROR_KEY: Record<string, MessageKey> = {
   forbidden: "settings.errorForbidden",
   invalid: "settings.errorInvalid",
   "last-maintainer": "settings.errorLastMaintainer",
+  agent: "settings.errorAgent",
 };
 
 // Maintainer corner (§9.5): maintainers only; everyone else gets a 404
@@ -209,42 +210,46 @@ export default async function SettingsPage({
                       {person.name}
                     </td>
                     <td className="py-2 pr-3 text-muted-foreground">
-                      {person.maintainer
-                        ? t("settings.roleMaintainer")
-                        : t("settings.roleTranslator")}
+                      {person.agent
+                        ? t("settings.roleAgent")
+                        : person.maintainer
+                          ? t("settings.roleMaintainer")
+                          : t("settings.roleTranslator")}
                     </td>
                     <td className="py-2">
-                      <div className="flex justify-end gap-2">
-                        <form action={resetPasswordAction}>
-                          <input type="hidden" name="slug" value={slug} />
-                          <input
-                            type="hidden"
-                            name="userId"
-                            value={person.id}
-                          />
-                          <Button type="submit" variant="ghost" size="sm">
-                            {t("settings.resetPassword")}
-                          </Button>
-                        </form>
-                        <form action={toggleMaintainer}>
-                          <input type="hidden" name="slug" value={slug} />
-                          <input
-                            type="hidden"
-                            name="userId"
-                            value={person.id}
-                          />
-                          <input
-                            type="hidden"
-                            name="maintainer"
-                            value={person.maintainer ? "0" : "1"}
-                          />
-                          <Button type="submit" variant="outline" size="sm">
-                            {person.maintainer
-                              ? t("settings.demote")
-                              : t("settings.promote")}
-                          </Button>
-                        </form>
-                      </div>
+                      {!person.agent && (
+                        <div className="flex justify-end gap-2">
+                          <form action={resetPasswordAction}>
+                            <input type="hidden" name="slug" value={slug} />
+                            <input
+                              type="hidden"
+                              name="userId"
+                              value={person.id}
+                            />
+                            <Button type="submit" variant="ghost" size="sm">
+                              {t("settings.resetPassword")}
+                            </Button>
+                          </form>
+                          <form action={toggleMaintainer}>
+                            <input type="hidden" name="slug" value={slug} />
+                            <input
+                              type="hidden"
+                              name="userId"
+                              value={person.id}
+                            />
+                            <input
+                              type="hidden"
+                              name="maintainer"
+                              value={person.maintainer ? "0" : "1"}
+                            />
+                            <Button type="submit" variant="outline" size="sm">
+                              {person.maintainer
+                                ? t("settings.demote")
+                                : t("settings.promote")}
+                            </Button>
+                          </form>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}

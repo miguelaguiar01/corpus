@@ -52,15 +52,17 @@ export function ProjectCard({
         })}
       </div>
       <dl className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
-        {(Object.keys(QUEUE_LABEL) as (keyof QueueCounts)[]).map((kind) => (
-          <div
-            key={kind}
-            className="flex flex-row-reverse items-baseline gap-1.5"
-          >
-            <dt className="text-muted-foreground">{t(QUEUE_LABEL[kind])}</dt>
-            <dd className="font-medium">{counts[kind]}</dd>
-          </div>
-        ))}
+        {(Object.keys(QUEUE_LABEL) as (keyof QueueCounts)[])
+          .filter((kind) => kind !== "agentDrafts" || counts.agentDrafts > 0)
+          .map((kind) => (
+            <div
+              key={kind}
+              className="flex flex-row-reverse items-baseline gap-1.5"
+            >
+              <dt className="text-muted-foreground">{t(QUEUE_LABEL[kind])}</dt>
+              <dd className="font-medium">{counts[kind]}</dd>
+            </div>
+          ))}
         {pending > 0 && (
           <div className="flex flex-row-reverse items-baseline gap-1.5">
             <dt className="text-muted-foreground">

@@ -1,0 +1,50 @@
+import type { ProposalResponse } from "@corpus/contract";
+import type { Proposal, ProposeResult } from "@/proposals/service";
+import { apiError } from "./body";
+
+// The proposals service's refusals as API answers (§10, §11), the same
+// reasons the editor shows.
+export function proposalRefusal(
+  result: Extract<ProposeResult, { ok: false }>,
+  key: string,
+): Response {
+  switch (result.reason) {
+    case "not-found":
+      return apiError(404, "not-found", `no string ${key}`);
+    case "archived":
+      return apiError(409, "archived", `${key} is archived`);
+    case "not-writable":
+      return apiError(
+        422,
+        "not-writable",
+        `${key} comes from a source pull cannot write`,
+      );
+    case "invalid-icu":
+      return apiError(422, "invalid-icu", "the text is empty or not valid ICU");
+    case "invalid-key":
+      return apiError(422, "invalid-key", `${key} is not a valid key`);
+    case "unchanged":
+      return apiError(409, "unchanged", "that is the current source text");
+    case "exists":
+      return apiError(409, "exists", `${key} already exists`);
+    case "unknown-source":
+      return apiError(
+        422,
+        "unknown-source",
+        "the file is not a writable source of the project",
+      );
+  }
+}
+
+export function proposalCreated(proposal: Proposal, author: string): Response {
+  const body: ProposalResponse = {
+    id: proposal.id,
+    kind: proposal.kind,
+    key: proposal.key,
+    file: proposal.file,
+    text: proposal.text,
+    status: "pending",
+    author,
+  };
+  return Response.json(body, { status: 201 });
+}

@@ -1,4 +1,5 @@
 import { LANGUAGE_RE } from "@corpus/contract";
+import { ensureAgentActor } from "@/agents/actor";
 import { createHash, randomBytes } from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { Db } from "@/db";
@@ -74,6 +75,7 @@ export function provisionProject(
     })
     .returning()
     .get();
+  ensureAgentActor(db, project);
   return { ok: true, project, token };
 }
 

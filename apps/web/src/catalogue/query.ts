@@ -5,7 +5,13 @@ import { strings, stringTranslations } from "@/db/schema";
 import type { TranslationState } from "@/translations/state";
 
 export type { TranslationState };
-export type LanguageState = { state: TranslationState; stale: boolean };
+export type LanguageState = {
+  state: TranslationState;
+  stale: boolean;
+  // The row's latest edit was the agent actor's (§10); the catalogue
+  // does not compute it.
+  agentDraft?: boolean;
+};
 
 export type CatalogueRow = {
   id: number;

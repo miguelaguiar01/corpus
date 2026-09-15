@@ -6,6 +6,7 @@ import { projects, strings, users } from "@/db/schema";
 import { memoryDb } from "@/db/test-helpers";
 import { applySnapshot } from "@/ingest/apply";
 import { applyTransition } from "@/translations/service";
+import { ensureAgentActor } from "@/agents/actor";
 import { allQueues, neighbours, queueCounts, queueItems } from "./queues";
 
 const FIXTURE = moonlightManor as Snapshot;
@@ -55,6 +56,7 @@ test("after a first push: every target row is untranslated, every source row unv
     untranslated: 3,
     stale: 0,
     unverifiedSource: 3,
+    agentDrafts: 0,
   });
 });
 
@@ -122,6 +124,7 @@ test("archived strings are excluded from every queue", () => {
     untranslated: 2,
     stale: 0,
     unverifiedSource: 2,
+    agentDrafts: 0,
   });
   expect(
     queueItems(db, p.id, "untranslated").items.map((i) => i.stringId),
@@ -149,6 +152,7 @@ test("queues are scoped to the project", () => {
     untranslated: 0,
     stale: 0,
     unverifiedSource: 0,
+    agentDrafts: 0,
   });
 });
 
@@ -156,6 +160,7 @@ test("allQueues returns every queue keyed by kind from one load", () => {
   const { db, p } = pushed();
   const all = allQueues(db, p.id);
   expect(Object.keys(all).sort()).toEqual([
+    "agentDrafts",
     "stale",
     "untranslated",
     "unverifiedSource",
@@ -182,4 +187,35 @@ test("neighbours of an item not in the queue is index null with no links", () =>
     previous: null,
     next: null,
   });
+});
+
+test("agent drafts lists the translated rows an agent last edited, and leaves when a person takes over", () => {
+  const { db, p, maintainer } = pushed();
+  const agent = ensureAgentActor(db, p);
+  const save = (
+    actor: { id: number; maintainer: boolean },
+    key: string,
+    text: string,
+  ) =>
+    applyTransition(db, {
+      stringId: dbId(db, key),
+      language: "en",
+      action: { type: "save", text },
+      actor,
+    });
+  expect(queueCounts(db, p.id).agentDrafts).toBe(0);
+  save(agent, "ui.continue", "Continue");
+  save(maintainer, "skin.heard-nothing", "Nothing.");
+  expect(queueItems(db, p.id, "agentDrafts").items).toEqual([
+    item(db, "ui.continue", "en"),
+  ]);
+  expect(allQueues(db, p.id).agentDrafts.count).toBe(1);
+
+  applyTransition(db, {
+    stringId: dbId(db, "ui.continue"),
+    language: "en",
+    action: { type: "verify" },
+    actor: maintainer,
+  });
+  expect(queueCounts(db, p.id).agentDrafts).toBe(0);
 });

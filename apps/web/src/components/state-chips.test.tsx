@@ -60,3 +60,16 @@ test("the three states are visibly distinct, not only by colour", () => {
   expect(chip("c").textContent).toMatch(/✓/);
   expect(chip("b").textContent).not.toMatch(/✓/);
 });
+
+test("marks a translated row the agent actor last edited", () => {
+  render(
+    <StateChips
+      languages={["en", "fr"]}
+      states={{
+        en: { state: "translated", stale: false, agentDraft: true },
+        fr: { state: "verified", stale: false, agentDraft: true },
+      }}
+    />,
+  );
+  expect(screen.getAllByText("agent")).toHaveLength(1);
+});

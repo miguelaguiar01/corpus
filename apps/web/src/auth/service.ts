@@ -1,5 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { and, eq, gt, lte } from "drizzle-orm";
+import { isAgentName } from "@/agents/actor";
 import type { Db } from "@/db";
 import { sessions, users } from "@/db/schema";
 import { MAX_NAME_LENGTH, SESSION_TTL_MS } from "./constants";
@@ -42,8 +43,12 @@ function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
+// The agent name family (§10) is refused here, in the action, so no
+// person can hold a name a project's actor will need.
 function validName(name: string): boolean {
-  return name.length > 0 && name.length <= MAX_NAME_LENGTH;
+  return (
+    name.length > 0 && name.length <= MAX_NAME_LENGTH && !isAgentName(name)
+  );
 }
 
 // Join the instance (§10): the invite secret admits a new name with a
@@ -108,7 +113,8 @@ export function signIn(
     : undefined;
   const stored = user?.passwordHash ?? DECOY_HASH;
   const ok = verifyPassword(input.password, stored) && user !== undefined;
-  if (!ok || !user) return { ok: false, reason: "invalid-credentials" };
+  if (!ok || !user || user.agent)
+    return { ok: false, reason: "invalid-credentials" };
   return { ok: true, user, mustChangePassword: user.passwordTemporary };
 }
 

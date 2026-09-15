@@ -7,6 +7,7 @@ export const QUEUE_LABEL: Record<QueueKind, MessageKey> = {
   untranslated: "queue.untranslated",
   stale: "queue.stale",
   unverifiedSource: "queue.unverifiedSource",
+  agentDrafts: "queue.agentDrafts",
 };
 
 const QUEUES = (Object.keys(QUEUE_LABEL) as QueueKind[]).map((kind) => ({
@@ -16,7 +17,8 @@ const QUEUES = (Object.keys(QUEUE_LABEL) as QueueKind[]).map((kind) => ({
 
 // The dashboard's queues (§9.1): one stacked list, each row a thumb-height
 // link into the string surface at the queue's first item, carrying the
-// queue so next/previous can flow through it. An empty queue is inert.
+// queue so next/previous can flow through it. An empty queue is inert;
+// the agent drafts queue appears once the project has any (§9.1).
 export function QueueList({
   slug,
   counts,
@@ -28,7 +30,9 @@ export function QueueList({
 }) {
   return (
     <ul className="divide-y divide-border border-y border-border">
-      {QUEUES.map(({ kind, label }) => {
+      {QUEUES.filter(
+        ({ kind }) => kind !== "agentDrafts" || counts.agentDrafts > 0,
+      ).map(({ kind, label }) => {
         const count = counts[kind];
         const item = first[kind];
         const body = (
