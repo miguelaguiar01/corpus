@@ -192,5 +192,6 @@
   "proposal.pendingAddsHeading": "Proposed strings",
   "proposal.replaceHint": "A newer proposal replaces the pending one.",
   "proposal.byInto": "proposed by {author} into {file}",
-  "editor.languages": "Language"
+  "editor.languages": "Language",
+  "queue.navLabel": "Queue"
 }

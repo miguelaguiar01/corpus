@@ -33,6 +33,7 @@ export function QueueNav({
   if (index === null) {
     return (
       <nav
+        aria-label={t("queue.navLabel")}
         className={
           inline
             ? "flex border-b border-border pb-3 text-sm"
@@ -42,7 +43,7 @@ export function QueueNav({
         <Link href={`/p/${slug}`} className="underline">
           {t(QUEUE_LABEL[queue.kind])}
         </Link>
-        {inline && children && <span className="ml-6">{children}</span>}
+        {inline && children && <div className="ml-6">{children}</div>}
       </nav>
     );
   }
@@ -62,6 +63,7 @@ export function QueueNav({
     );
   return (
     <nav
+      aria-label={t("queue.navLabel")}
       className={
         inline
           ? "flex items-center gap-1 border-b border-border pb-3"
@@ -69,12 +71,12 @@ export function QueueNav({
       }
     >
       {inline && (
-        <span className="mr-auto flex items-center gap-6">
+        <div className="mr-auto flex items-center gap-6">
           <span className="text-sm text-muted-foreground">
             {t(QUEUE_LABEL[queue.kind])}
           </span>
           {children}
-        </span>
+        </div>
       )}
       {step(previous, t("queue.previous"))}
       <span className="text-sm text-muted-foreground">
