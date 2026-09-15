@@ -118,6 +118,17 @@ loop() {
   same_as_before "lang"
   npx corpus pull --check --min-state untranslated
 
+  echo "=== install-smoke: corpus mcp answers over stdio on plain node ==="
+  printf '%s\n%s\n%s\n%s\n' \
+    '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}' \
+    '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+    '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
+    '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"status","arguments":{}}}' \
+    | npx corpus mcp 2>/dev/null | tee "$TMP/mcp.log"
+  grep -q '"name":"corpus"' "$TMP/mcp.log"
+  grep -q '"save_draft"' "$TMP/mcp.log"
+  grep -q '"structuredContent":{"project":"' "$TMP/mcp.log"
+
   echo "=== install-smoke: push again is a no-op diff ==="
   npx corpus push | tee "$TMP/push2.log"
   grep -q "0 added" "$TMP/push2.log"

@@ -5,6 +5,7 @@ import { option } from "./args";
 import { CliError, loadConfig, requireToken } from "./config";
 import { checkFiles } from "./check";
 import { init, INIT_USAGE } from "./init";
+import { mcp, MCP_USAGE } from "./mcp";
 import { languageDrift, project, PROJECT_USAGE } from "./project";
 import { pull } from "./pull";
 import { request, serverMessage, UNAUTHORIZED } from "./server";
@@ -24,7 +25,8 @@ const USAGE = `usage: corpus push [--dry-run] | corpus pull [--min-state <untran
        ${WORKBENCH_USAGE}
        ${PROJECT_USAGE}
        ${STATUS_USAGE}
-       ${VALIDATE_USAGE}`;
+       ${VALIDATE_USAGE}
+       ${MCP_USAGE}`;
 
 export async function run(argv: string[], ctx: RunContext): Promise<number> {
   const [command] = argv;
@@ -42,7 +44,8 @@ export async function run(argv: string[], ctx: RunContext): Promise<number> {
     command === "init" ||
     command === "project" ||
     command === "status" ||
-    command === "validate"
+    command === "validate" ||
+    command === "mcp"
   ) {
     try {
       if (command === "init") return await init(argv.slice(1), ctx);
@@ -52,6 +55,7 @@ export async function run(argv: string[], ctx: RunContext): Promise<number> {
       if (command === "project") return await project(argv.slice(1), ctx);
       if (command === "status") return await status(argv.slice(1), ctx);
       if (command === "validate") return await validate(argv.slice(1), ctx);
+      if (command === "mcp") return await mcp(ctx);
       if (command === "pull") return await pull(argv.slice(1), ctx);
       return await check(ctx);
     } catch (error) {

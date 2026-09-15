@@ -404,7 +404,11 @@ list already key on the user, so attribution costs nothing new; the
 row can never sign in, or the token would be a way to act as a person.
 Refusals carry no suggestion because the agent's next move (a
 proposal) is the same every time and the API should not make it on
-the agent's behalf.
+the agent's behalf. `corpus mcp` carries the tools subset of the
+protocol itself (four methods over newline-delimited JSON-RPC) rather
+than depending on the reference SDK at runtime, which installs a web
+server and some ninety packages into every `corpus` install; the SDK's
+client drives the server in the tests.
 
 **Context:** #340 (epic), #341; the owner's ask and answer of
 2026-09-15 ("the mcp should be api first").
