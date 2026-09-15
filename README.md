@@ -113,6 +113,14 @@ npx corpus check                      # lint: user-facing literals outside decla
 
 Structured sources, `table` records (a module's default or named export, with the fields to carry as metadata listed in the map) or an `exec` command that emits entries, are described in the [design spec, §3](docs/corpus-design.md). Note that `corpus push` and `corpus pull` run the repository's own `corpus.config.ts` and any `exec` commands it declares, so run them only in repositories you trust, as you would their build scripts.
 
+## Manage the strings, not only their translations
+
+The catalogue is the inventory, and anyone on the instance can propose a change to it: a new source text on a string's page, a string's removal, or a new string into one of the repository's catalogues, chosen from the sources `corpus push` declared. A proposal is pending until `corpus pull` writes it into the source file, you review the diff and merge, and the next `corpus push` sees the repository agreeing and marks it applied. The repository stays the truth once merged; Corpus proposes. `corpus status` counts what is pending, and `corpus pull --check` treats a pending proposal as a change to pull, so a CI gate goes red until it is in.
+
+<p align="center">
+    <img src="docs/screenshots/proposal-desktop-light.png" width="960" alt="A string page with a proposed change to its source text: the proposal's text and author under the source, a withdraw button, and the history of proposals below.">
+</p>
+
 ## In CI
 
 Nothing here needs a browser. A job with `CORPUS_TOKEN` in its environment can gate a merge on the translation state:

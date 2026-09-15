@@ -7,6 +7,17 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-09-15
+
+Corpus proposes source strings.
+
+### Added
+
+- Anyone on the instance may propose a change to a string's source text, its removal, or a new string into a catalogue chosen among the sources push declared (§9, §11). A proposal is pending until `corpus pull` writes it into the source file and the next `corpus push` sees the repository agreeing; a push that moved on, or archived the string, marks it superseded. One proposal per string or key; a newer one replaces the older, and every outcome reads in the string's history.
+- `corpus pull` writes pending proposals into the source-language files through the adapters, format preserved, and removes a deleted key from the source's target files too; `--check` counts them; `corpus status` shows the pending count. A pull with no pending proposals never writes a source file.
+- The snapshot carries each entry's `file` and the writable `sources`; the pull payload carries `sourceChanges`. All optional; the contract stays `corpus/1`.
+- Strings from `exec` sources, or from `.ts`/`.js` catalogues pull cannot write, refuse proposals with a reason.
+
 ## [0.6.0] - 2026-09-07
 
 The editor speaks the target language.
@@ -108,7 +119,8 @@ The first published version.
 - The `messages`, `table` and `exec` adapters, and the `corpus/1` snapshot contract with its ICU subset (placeholders and `select`).
 - The package ships plain JavaScript for Node 22 with type declarations; a client's config imports `defineCorpus` from `@corpus-tool/cli`.
 
-[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.7.0
 [0.6.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.6.0
 [0.5.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.5.0
 [0.4.1]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.4.1
