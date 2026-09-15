@@ -7,6 +7,22 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-09-15
+
+Agents draft; people verify.
+
+### Added
+
+- The project token reads and drafts (§10): `GET /api/queues`, `GET /api/strings/<key>`, `PUT /api/strings/<key>/translations/<lang>`, `POST /api/strings/<key>/proposals` and `POST /api/proposals`, under three rules. An agent never overwrites a person's current work: a draft lands on an untranslated row, a stale row or the agent's own earlier draft, and a row a person edited (or push seeded) answers `409 human-edited`. Every draft is attributed to the project's agent actor, `<slug> agent`, a user that never signs in, shown as such in the history, the chips and the settings list. Nothing but a signed-in maintainer verifies: the token has no verify route.
+- A fourth queue, **agent drafts**, on the dashboard and the home card once the project has any: the translated rows the agent last edited, for a maintainer to walk and verify.
+- `corpus mcp` starts a Model Context Protocol server on stdio from the repository, reading the config and the token like every other command, with seven tools that are one API call each: `list_queue`, `get_string`, `save_draft`, `propose_change`, `propose_removal`, `add_string` and `status`. Refusals come back as tool errors with the server's message. The README says how to connect Claude Code or any MCP client. Corpus runs no model; the model stays on the agent's side.
+- The contract carries the agent surface's bodies and responses; still `corpus/1`.
+
+### Changed
+
+- A language bar at the top of the string page, inside the queue bar on a desktop, is the editor's switcher: one segment per language, the selected one solid, the source language first with its verified mark. The state chips are display only.
+- The join form refuses any name ending in ` agent`, the name family reserved for agent actors.
+
 ## [0.7.0] - 2026-09-15
 
 Corpus proposes source strings.
@@ -119,7 +135,8 @@ The first published version.
 - The `messages`, `table` and `exec` adapters, and the `corpus/1` snapshot contract with its ICU subset (placeholders and `select`).
 - The package ships plain JavaScript for Node 22 with type declarations; a client's config imports `defineCorpus` from `@corpus-tool/cli`.
 
-[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.8.0
 [0.7.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.7.0
 [0.6.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.6.0
 [0.5.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.5.0

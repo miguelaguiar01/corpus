@@ -223,6 +223,21 @@ async function main(): Promise<void> {
     "Continue",
   );
 
+  // An agent's draft through the API (§10), captured from the agent
+  // drafts queue with its attribution in the history.
+  await page.request.put(
+    `${base}/api/strings/skin.heard-nothing/translations/en`,
+    {
+      headers: { authorization: `Bearer ${token}` },
+      data: { text: "I heard nothing all night." },
+    },
+  );
+  await page.goto(
+    string("skin.heard-nothing", "queue=agentDrafts&language=en"),
+    { waitUntil: "networkidle" },
+  );
+  await shot("agent-draft");
+
   await page.goto(
     string("skin.seen-at-greenhouse-window", "queue=untranslated&language=en"),
     { waitUntil: "networkidle" },

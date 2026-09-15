@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 import type { Db } from "@/db";
 import { users } from "@/db/schema";
 
-export const AGENT_SUFFIX = " agent";
+const AGENT_SUFFIX = " agent";
 
 export function agentName(slug: string): string {
   return `${slug}${AGENT_SUFFIX}`;
@@ -18,7 +18,7 @@ export function isAgentName(name: string): boolean {
   return name.endsWith(AGENT_SUFFIX);
 }
 
-export type AgentActor = { id: number; name: string; maintainer: false };
+type AgentActor = { id: number; name: string; maintainer: false };
 
 export function ensureAgentActor(
   db: Db,

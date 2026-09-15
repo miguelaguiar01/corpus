@@ -125,6 +125,52 @@ test("a maintainer takes a string from pushed to verified on a phone", async ({
   await expect(page.getByText("Removal").first()).toBeVisible();
   await expect(page.getByText("proposed by ana")).toBeVisible();
 
+  // An agent through the API (§10, §15): a draft on an untranslated row,
+  // a refusal on the row ana translated, a proposal; then ana verifies
+  // the draft from the agent drafts queue and sees who drafted it.
+  const agent = (path: string) => `/api/strings/${path}`;
+  const auth = { authorization: `Bearer ${token}` };
+  const drafted = await request.put(
+    agent("skin.heard-nothing/translations/en"),
+    { headers: auth, data: { text: "I heard nothing all night." } },
+  );
+  expect(drafted.ok()).toBeTruthy();
+  expect(await drafted.json()).toMatchObject({
+    state: "translated",
+    actor: `${moonlightManor.project} agent`,
+  });
+  const refused = await request.put(
+    agent("skin.seen-at-greenhouse-window/translations/en"),
+    {
+      headers: auth,
+      data: {
+        text: "{person} was {person_gender, select, m {seen} f {seen}} at the {room_de} window at {hour}.",
+      },
+    },
+  );
+  expect(refused.status()).toBe(409);
+  expect(await refused.json()).toMatchObject({ error: "human-edited" });
+  const proposed = await request.post(agent("ui.continue/proposals"), {
+    headers: auth,
+    data: { kind: "edit", text: "Prosseguir" },
+  });
+  expect(proposed.status()).toBe(201);
+
+  await page.goto(dashboard);
+  await expect(page.getByRole("link", { name: /Agent drafts/ })).toContainText(
+    "1",
+  );
+  await page.getByRole("link", { name: /Agent drafts/ }).click();
+  await page.waitForURL(/queue=agentDrafts/);
+  await expect(
+    page.getByText(`${moonlightManor.project} agent`).first(),
+  ).toBeVisible();
+  await expect(page.getByText("agent", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Mark en as verified" }).click();
+  await page.waitForURL((url) => !url.search.includes("queue=agentDrafts"));
+  await page.goto(dashboard);
+  await expect(page.getByRole("link", { name: /Agent drafts/ })).toHaveCount(0);
+
   // The desktop layouts must not overflow either.
   await page.setViewportSize({ width: 1280, height: 800 });
   await expectNoSidewaysOverflow(page);

@@ -344,7 +344,7 @@ Code:
 - **Diff semantics:** table-driven tests for §8's four cases, including stale marking, archive/unarchive, and seed-ignored-after-edit.
 - **Validation:** the placeholder/select rule table (§5, §7 — placeholders must survive; selects may collapse entirely but not be malformed; branch keys must match source when present) as pure unit tests, enforced client- and server-side.
 - **UI:** component tests for the editor's validation feedback; **one Playwright smoke** (invite → dashboard → queue → translate with placeholder chips → verify as maintainer → progress updates) running in CI from the first milestone that has an editor.
-- **Agents:** the smoke drives the API as an agent (a draft on an `untranslated` row, a refusal on a row a person edited, a proposal) and then, as a maintainer, opens the *agent drafts* queue and verifies the draft, seeing the attribution; a CLI test drives `corpus mcp` over stdio with the protocol's own client against the in-process server and exercises every tool.
+- **Agents:** the smoke drives the API as an agent (a draft on an `untranslated` row, a refusal on a row a person edited, a proposal) and then, as a maintainer, opens the *agent drafts* queue and verifies the draft, seeing the attribution; a CLI test drives `corpus mcp` with the protocol's own client over a stream pair, as stdio carries it, against a recording stand-in for the API and exercises every tool; the install smoke drives the installed binary over stdio.
 - **Dogfood CI job** as §12 — a living integration test on every build.
 
 ---

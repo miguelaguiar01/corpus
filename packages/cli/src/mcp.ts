@@ -13,7 +13,7 @@ import { request } from "./server";
 
 export const MCP_USAGE = "corpus mcp";
 
-export const PROTOCOL_VERSIONS = [
+const PROTOCOL_VERSIONS = [
   "2025-11-25",
   "2025-06-18",
   "2025-03-26",
@@ -21,7 +21,7 @@ export const PROTOCOL_VERSIONS = [
 ];
 
 // What an agent is told at initialize: the rules of §10 in its own terms.
-export const INSTRUCTIONS =
+const INSTRUCTIONS =
   "Corpus holds this repository's strings and their translations. A draft you save lands on an untranslated row, a stale row or your own earlier draft; a row a person edited refuses with human-edited, so propose a change instead of retrying. Every draft is attributed to the project's agent actor and waits for a maintainer to verify it; you cannot verify. Placeholders and selects must survive translation.";
 
 type JsonSchema = {
@@ -34,7 +34,7 @@ type JsonSchema = {
   additionalProperties: false;
 };
 
-export type ToolResult = {
+type ToolResult = {
   content: { type: "text"; text: string }[];
   structuredContent?: Record<string, unknown>;
   isError?: boolean;
@@ -49,7 +49,7 @@ type Tool = {
 
 // One API call with the token; a 2xx is the body, anything else a tool
 // error carrying the server's error and message.
-export type Api = (
+type Api = (
   method: "GET" | "POST" | "PUT",
   path: string,
   body?: unknown,
