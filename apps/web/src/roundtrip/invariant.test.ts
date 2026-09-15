@@ -223,14 +223,22 @@ test("a pending proposal comes back in exactly its source's files, at its key; n
   });
   const open = stringDetail(db, projectId, "step.open")!;
   proposeDelete(db, { stringRowId: open.string.id, actor: ana! });
+  const nav = stringDetail(db, projectId, "nav.catalogue")!;
+  proposeDelete(db, { stringRowId: nav.string.id, actor: ana! });
   expect(await run(["pull"], ctx())).toBe(0);
   const after = tree(repo);
   expect(Object.keys(after).sort()).toEqual(Object.keys(before).sort());
   expect(JSON.parse(after["i18n/pt-PT.json"]!)).toEqual({
     app: { title: "Corpus", greeting: "Bem-vindo, {name}" },
-    nav: { catalogue: "Catálogo" },
   });
-  expect(after["i18n/en.json"]).toBe(before["i18n/en.json"]);
+  // The nested removal reached the target file; nothing else in it moved.
+  expect(JSON.parse(after["i18n/en.json"]!)).toEqual(
+    (({ nav: _nav, ...rest }) => rest)(JSON.parse(before["i18n/en.json"]!)),
+  );
+  // Pulling again before the merge is pushed changes nothing more.
+  expect(await run(["pull"], ctx())).toBe(0);
+  expect(tree(repo)).toEqual(after);
+  expect(await run(["pull", "--check"], ctx())).toBe(0);
   expect(JSON.parse(after["data/steps.pt-PT.json"]!)).toEqual([
     { id: "step.key", text: "Procura a chave {where}.", kind: "task" },
     { id: "step.close", text: "Fecha a porta." },

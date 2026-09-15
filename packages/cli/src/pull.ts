@@ -135,16 +135,17 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
           throw new CliError(`source file ${file} does not exist`);
         continue;
       }
-      // A target file may lack a removed key already; that is not an error.
-      const applicable =
-        target === file
-          ? targetOps
-          : targetOps.filter((o) => existing.includes(JSON.stringify(o.id)));
-      if (applicable.length === 0) continue;
-      const next =
-        source.adapter === "messages"
-          ? applyMessagesOps(existing, applicable)
-          : applyTableOps(existing, applicable, source.map);
+      let next: string;
+      try {
+        next =
+          source.adapter === "messages"
+            ? applyMessagesOps(existing, targetOps)
+            : applyTableOps(existing, targetOps, source.map);
+      } catch (error) {
+        throw new CliError(
+          `${target}: proposal(s) for ${targetOps.map((o) => o.id).join(", ")}: ${(error as Error).message}`,
+        );
+      }
       if (next !== existing) {
         if (!check) writeFileSync(path.join(ctx.cwd, target), next);
         changed.push(target);
@@ -160,11 +161,12 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
         );
       }
     }
-    for (const file of changed) ctx.out(file);
+    const files = [...new Set(changed)];
+    for (const file of files) ctx.out(file);
     ctx.out(
-      `pull --check ${config.project} at ${minState}: ${changed.length} file(s) would change`,
+      `pull --check ${config.project} at ${minState}: ${files.length} file(s) would change`,
     );
-    return changed.length === 0 ? 0 : 1;
+    return files.length === 0 ? 0 : 1;
   }
 
   for (const source of config.sources) {
@@ -209,9 +211,10 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     }
   }
 
-  for (const file of changed) ctx.out(file);
+  const files = [...new Set(changed)];
+  for (const file of files) ctx.out(file);
   ctx.out(
-    `pulled ${config.project} at ${minState}: ${changed.length} file(s) changed`,
+    `pulled ${config.project} at ${minState}: ${files.length} file(s) changed`,
   );
   return 0;
 }

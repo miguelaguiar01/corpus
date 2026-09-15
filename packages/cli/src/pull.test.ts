@@ -408,3 +408,27 @@ test("pending proposals are written into the source file, a removal into the tar
   expect(out).toContain("i18n/en.json");
   expect(out).toContain("i18n/pt.json");
 });
+
+test("a proposal for a table source without {lang} is written to the path itself", async () => {
+  const { writeFileSync } = await import("node:fs");
+  writeFileSync(
+    path.join(repo, "steps.json"),
+    `[\n  { "id": "s1", "text": "Um" }\n]\n`,
+  );
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    read("corpus.config.ts").replace(
+      "sources: [",
+      'sources: [\n    { adapter: "table", type: "step", path: "steps.json", map: { id: "id", text: "text" } },',
+    ),
+  );
+  await serve(200, {
+    ...PAYLOAD,
+    types: { ...PAYLOAD.types, s1: "step" },
+    sourceChanges: [
+      { kind: "edit", id: "s1", type: "step", file: "steps.json", text: "Um!" },
+    ],
+  });
+  expect(await run(["pull"], ctx())).toBe(0);
+  expect(read("steps.json")).toBe(`[\n  { "id": "s1", "text": "Um!" }\n]\n`);
+});

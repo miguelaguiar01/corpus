@@ -209,9 +209,20 @@ test("messages ops: an edit sets, an add appends nested when the file nests, a d
   expect(
     applyMessagesOps('{"a": "x"}', [{ kind: "add", id: "b.c", text: "y" }]),
   ).toBe('{\n  "a": "x",\n  "b.c": "y"\n}');
-  expect(() =>
-    applyMessagesOps('{"a": "x"}\n', [{ kind: "delete", id: "zz" }]),
-  ).toThrow(/no key "zz"/);
+  // A delete of an absent key is nothing, so a second pull and a
+  // target file without the key are fine.
+  expect(applyMessagesOps('{"a": "x"}\n', [{ kind: "delete", id: "zz" }])).toBe(
+    '{\n  "a": "x"\n}\n',
+  );
+});
+
+test("messages ops: a delete that empties a branch prunes it", () => {
+  expect(
+    applyMessagesOps(
+      `{\n  "nav": {\n    "catalogue": "Catálogo"\n  },\n  "app": {\n    "title": "Corpus"\n  }\n}\n`,
+      [{ kind: "delete", id: "nav.catalogue" }],
+    ),
+  ).toBe(`{\n  "app": {\n    "title": "Corpus"\n  }\n}\n`);
 });
 
 test("table ops: edit by id, add a minimal record, delete a record; the one-per-line layout kept", () => {
@@ -228,10 +239,10 @@ test("table ops: edit by id, add a minimal record, delete a record; the one-per-
   expect(next).toBe(
     `[\n  { "id": "s2", "text": "Dois!", "kind": "task" },\n  { "id": "s3", "text": "Três" }\n]\n`,
   );
-  expect(() =>
+  expect(
     applyTableOps(file, [{ kind: "delete", id: "nope" }], {
       id: "id",
       text: "text",
     }),
-  ).toThrow(/no record "nope"/);
+  ).toBe(file);
 });

@@ -182,7 +182,9 @@ export function entriesToTable(
 // Source-side operations (§8, §11): a proposal sets, adds or removes a
 // key in the source-language file, and a removal leaves the target
 // files too. Same format rules as the writers above: structure, key
-// order, indentation and trailing newline come from the file.
+// order, indentation and trailing newline come from the file. An edit
+// of an absent id adds it, as setPath does for a translation; a delete
+// of an absent id is nothing.
 export type SourceOp =
   | { kind: "edit" | "add"; id: string; text: string }
   | { kind: "delete"; id: string };
@@ -211,9 +213,9 @@ export function applyMessagesOps(text: string, ops: SourceOp[]): string {
   for (const op of ops) {
     const path = nested ? op.id.split(".") : [op.id];
     if (op.kind === "delete") {
-      if (!removePath(out, path) && !removePath(out, [op.id])) {
-        throw new Error(`messages: no key ${JSON.stringify(op.id)} to remove`);
-      }
+      // Absent already (a second pull, a target file without the key):
+      // nothing to do; the push that lands the removal marks it applied.
+      if (!removePath(out, path)) removePath(out, [op.id]);
     } else {
       setPath(out, path, op.text);
     }
@@ -236,9 +238,7 @@ export function applyTableOps(
   for (const op of ops) {
     const index = out.findIndex((r) => String(r[map.id]) === op.id);
     if (op.kind === "delete") {
-      if (index < 0)
-        throw new Error(`table: no record ${JSON.stringify(op.id)} to remove`);
-      out = out.filter((_, i) => i !== index);
+      if (index >= 0) out = out.filter((_, i) => i !== index);
     } else if (index >= 0) {
       out[index] = { ...out[index]!, [map.text]: op.text };
     } else {
