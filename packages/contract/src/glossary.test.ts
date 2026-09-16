@@ -53,3 +53,37 @@ test("placeholders and punctuation around a word do not hide it", () => {
   expect(glossaryMatches("", entries)).toEqual([]);
   expect(glossaryMatches("Nada aqui.", [])).toEqual([]);
 });
+
+test("apostrophes and hyphens split words, so a term inside a compound still matches", () => {
+  const terms = [
+    { term: "vítima", target: "victim" },
+    { term: "água", target: "water" },
+    { term: "janela", target: "window" },
+  ];
+  expect(
+    glossaryMatches("A vítima's d'água estufa-janela.", terms).map(
+      (e) => e.term,
+    ),
+  ).toEqual(["vítima", "água", "janela"]);
+});
+
+test("placeholder names, select arguments and branch keys are not words of the source", () => {
+  const terms = [
+    { term: "person", target: "pessoa" },
+    { term: "select", target: "escolher" },
+    { term: "other", target: "outro" },
+    { term: "visto", target: "seen" },
+  ];
+  expect(
+    glossaryMatches(
+      "{person} foi {person_gender, select, m {visto} other {vista}}.",
+      terms,
+    ).map((e) => e.term),
+  ).toEqual(["visto"]);
+});
+
+test("only Latin accents fold; marks that are letters in their script stay", () => {
+  expect(foldTerm("किताब")).toBe("किताब");
+  expect(foldTerm("がき")).not.toBe(foldTerm("かき"));
+  expect(foldTerm("Ção")).toBe("cao");
+});

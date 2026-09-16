@@ -2,6 +2,7 @@
 // same across a project, read from a file the repository owns. Pure:
 // the schema and the matcher, shared by the server and the CLI.
 import { z } from "zod";
+import { parseIcu, type IcuNode } from "./icu";
 
 export const glossaryEntrySchema = z.object({
   term: z.string().min(1),
@@ -17,13 +18,36 @@ export const glossarySchema = z.record(z.string(), glossaryFileSchema);
 export type Glossary = z.infer<typeof glossarySchema>;
 
 // Case- and accent-insensitive comparison on whole words: "Vítima" in
-// a source matches the term "vitima" and the term "vítima" alike.
+// a source matches the term "vitima" and the term "vítima" alike. Only
+// the Latin combining accents are dropped, so scripts whose marks are
+// letters in their own right (Devanagari, Thai, kana voicing) keep them.
 export function foldTerm(text: string): string {
-  return text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 }
 
 function words(text: string): string[] {
-  return foldTerm(text).match(/[\p{L}\p{N}]+(?:['’-][\p{L}\p{N}]+)*/gu) ?? [];
+  return foldTerm(text).match(/[\p{L}\p{N}]+/gu) ?? [];
+}
+
+// The source's own words: the literal text of its ICU tree, never a
+// placeholder name, a select argument or a branch key; a source that
+// does not parse is read as plain text.
+function literalText(source: string): string {
+  const parsed = parseIcu(source);
+  if (!parsed.ok) return source;
+  const parts: string[] = [];
+  const walk = (nodes: IcuNode[]) => {
+    for (const node of nodes) {
+      if (node.kind === "literal") parts.push(node.text);
+      else if (node.kind === "select")
+        for (const branch of Object.values(node.branches)) walk(branch);
+    }
+  };
+  walk(parsed.nodes);
+  return parts.join(" ");
 }
 
 // The entries whose term occurs in the source as whole words, in the
@@ -32,7 +56,7 @@ export function glossaryMatches(
   source: string,
   entries: GlossaryEntry[],
 ): GlossaryEntry[] {
-  const haystack = words(source);
+  const haystack = words(literalText(source));
   return entries.filter((entry) => {
     const needle = words(entry.term);
     if (needle.length === 0 || needle.length > haystack.length) return false;

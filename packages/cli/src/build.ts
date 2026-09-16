@@ -250,16 +250,30 @@ function readGlossary(
     let raw: string;
     try {
       raw = readFileSync(path.resolve(cwd, file), "utf8");
-    } catch {
-      glossary[lang] = [];
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        glossary[lang] = [];
+        continue;
+      }
+      errors.push(`${file}: ${(error as Error).message}`);
       continue;
     }
+    let json: unknown;
     try {
-      glossary[lang] = glossaryFileSchema.parse(JSON.parse(raw));
+      json = JSON.parse(raw);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      errors.push(`${file}: not a glossary: ${message.split("\n")[0]}`);
+      errors.push(`${file}: not a glossary: ${(error as Error).message}`);
+      continue;
     }
+    const parsed = glossaryFileSchema.safeParse(json);
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0];
+      errors.push(
+        `${file}: not a glossary: ${issue ? `${issue.path.join(".")}: ${issue.message}` : "invalid"}`,
+      );
+      continue;
+    }
+    glossary[lang] = parsed.data;
   }
   return glossary;
 }

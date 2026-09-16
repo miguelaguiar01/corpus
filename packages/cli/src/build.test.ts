@@ -257,6 +257,15 @@ test("the glossary file of every target language travels; absent is empty, malfo
     fr: [],
   });
   await expect(
-    buildSnapshot(config({ glossary: { path: "steps.ts" } }), REPO),
-  ).rejects.toThrow(/glossary/);
+    buildSnapshot(
+      config({
+        languages: ["en", "de"],
+        glossary: { path: "i18n/glossary.{lang}.json" },
+      }),
+      REPO,
+    ),
+  ).rejects.toThrow(/i18n\/glossary\.de\.json: not a glossary: 0\.target/);
+  expect(() => config({ glossary: { path: "i18n/glossary.json" } })).toThrow(
+    /\{lang\}/,
+  );
 });
