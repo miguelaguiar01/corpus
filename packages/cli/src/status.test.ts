@@ -166,3 +166,17 @@ test("render names pending proposals when there are any", () => {
   expect(lines[1]).toBe("2 proposal(s) pending: corpus pull writes them");
   expect(render(STATUS, "http://x")[1]).toBe("");
 });
+
+test("render names the writable sources, their absence, or a push that predates them", () => {
+  const at = (status: Status) => render(status, "http://x")[1];
+  expect(at({ ...STATUS, writableSources: ["i18n/{lang}.json"] })).toBe(
+    "writable sources: i18n/{lang}.json",
+  );
+  expect(at({ ...STATUS, writableSources: [] })).toBe(
+    "no writable source: proposals are not possible on this project",
+  );
+  expect(at({ ...STATUS, writableSources: null })).toBe(
+    "last pushed before sources were declared: run corpus push with this CLI, so proposals know where to go",
+  );
+  expect(at(STATUS)).toBe("");
+});

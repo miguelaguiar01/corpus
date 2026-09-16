@@ -1,5 +1,7 @@
 import type { ProposalResponse } from "@corpus/contract";
+import type { Project } from "@/projects/service";
 import type { Proposal, ProposeResult } from "@/proposals/service";
+import { writableSourcesClause } from "./writable-sources";
 import { apiError } from "./body";
 
 // The proposals service's refusals as API answers (§10, §11), the same
@@ -7,6 +9,7 @@ import { apiError } from "./body";
 export function proposalRefusal(
   result: Extract<ProposeResult, { ok: false }>,
   key: string,
+  project: Project,
 ): Response {
   switch (result.reason) {
     case "not-found":
@@ -17,7 +20,7 @@ export function proposalRefusal(
       return apiError(
         422,
         "not-writable",
-        `${key} comes from a source that pull cannot write`,
+        `${key} comes from a source that pull cannot write; ${writableSourcesClause(project)}`,
       );
     case "invalid-icu":
       return apiError(422, "invalid-icu", "the text is empty or not valid ICU");
@@ -31,7 +34,7 @@ export function proposalRefusal(
       return apiError(
         422,
         "unknown-source",
-        "the file is not a writable source of the project",
+        `the file is not a writable source of the project; ${writableSourcesClause(project)}`,
       );
   }
 }

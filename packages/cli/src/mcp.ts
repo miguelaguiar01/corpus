@@ -22,7 +22,7 @@ const PROTOCOL_VERSIONS = [
 
 // What an agent is told at initialize: the rules of §10 in its own terms.
 const INSTRUCTIONS =
-  "Corpus holds this repository's strings and their translations. A draft you save lands on an untranslated row, a stale row or your own earlier draft; a row a person edited refuses with human-edited, so propose a change instead of retrying. Every draft is attributed to the project's agent actor and waits for a maintainer to verify it; you cannot verify. Placeholders and selects must survive translation.";
+  "Corpus holds this repository's strings and their translations. A draft you save lands on an untranslated row, a stale row or your own earlier draft; a row a person edited refuses with human-edited, so propose a change instead of retrying. Every draft is attributed to the project's agent actor and waits for a maintainer to verify it; you cannot verify. Placeholders and selects must survive translation. Proposals go into the project's writable sources, which status lists as writableSources; a project pushed before sources were declared has none until its next corpus push.";
 
 type JsonSchema = {
   type: "object";
@@ -229,7 +229,7 @@ export function tools(api: Api): Tool[] {
     {
       name: "status",
       description:
-        "The project's numbers: strings, last push, pending proposals, progress per language and per string type.",
+        "The project's numbers: strings, last push, pending proposals, the writable sources proposals can go into (null until a push declares them), progress per language and per string type.",
       inputSchema: {
         type: "object",
         properties: {},

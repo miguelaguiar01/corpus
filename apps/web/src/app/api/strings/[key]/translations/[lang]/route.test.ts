@@ -71,7 +71,7 @@ test("a draft lands as translated, attributed to the agent, and is refused where
   expect(refused.status).toBe(409);
   expect(await refused.json()).toEqual({
     error: "human-edited",
-    message: `${HEARD} in en holds a person's work`,
+    message: `${HEARD} in en holds a person's work; propose a change if the source is the problem, otherwise leave the row to its author`,
   });
 });
 

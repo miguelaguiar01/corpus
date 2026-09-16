@@ -34,9 +34,14 @@ test("the project's numbers with its languages, string count and last push", asy
 
   const empty = await status(created.token);
   expect(empty.status).toBe(200);
-  const before = (await empty.json()) as { strings: number; lastPushAt: null };
+  const before = (await empty.json()) as {
+    strings: number;
+    lastPushAt: null;
+    writableSources: null;
+  };
   expect(before.strings).toBe(0);
   expect(before.lastPushAt).toBeNull();
+  expect(before.writableSources).toBeNull();
 
   applySnapshot(db, created.project.id, moonlightManor as Snapshot);
   const res = await status(created.token);
@@ -48,6 +53,7 @@ test("the project's numbers with its languages, string count and last push", asy
     lastPushAt: string;
     version: string;
     pendingProposals: number;
+    writableSources: string[] | null;
     progress: {
       perLanguage: Record<string, { total: number; untranslated: number }>;
     };
@@ -58,6 +64,10 @@ test("the project's numbers with its languages, string count and last push", asy
   expect(json.lastPushAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   expect(json.version).toBe("dev");
   expect(json.pendingProposals).toBe(0);
+  expect(json.writableSources).toEqual([
+    "src/skins/{lang}.json",
+    "src/ui/{lang}.json",
+  ]);
   const row = db
     .select()
     .from(strings)

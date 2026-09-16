@@ -85,7 +85,10 @@ test("the service's refusals: unchanged, invalid ICU, a source pull cannot write
     .run();
   const exec = await propose(token, HEARD, { kind: "delete" });
   expect(exec.status).toBe(422);
-  expect((await exec.json()).error).toBe("not-writable");
+  expect(await exec.json()).toEqual({
+    error: "not-writable",
+    message: `${HEARD} comes from a source that pull cannot write; the writable sources are src/skins/{lang}.json, src/ui/{lang}.json`,
+  });
 
   const bad = await propose(token, CONTINUE, { kind: "rename" });
   expect(bad.status).toBe(422);

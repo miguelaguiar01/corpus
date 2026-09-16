@@ -3,6 +3,7 @@ import { getDb } from "@/db";
 import { authenticateProject } from "@/api/bearer";
 import { progressCounts } from "@/catalogue/progress";
 import { pendingCount } from "@/proposals/service";
+import { writableSources } from "@/api/writable-sources";
 import { pushes, strings } from "@/db/schema";
 import { appVersion } from "@/version";
 
@@ -34,6 +35,7 @@ export async function GET(request: Request): Promise<Response> {
     lastPushAt: lastPush ? lastPush.at.toISOString() : null,
     version: appVersion(process.env),
     pendingProposals: pendingCount(db, project.id),
+    writableSources: writableSources(project),
     progress: progressCounts(db, project.id),
   });
 }

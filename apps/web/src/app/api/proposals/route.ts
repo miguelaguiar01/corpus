@@ -32,6 +32,6 @@ export async function POST(request: Request): Promise<Response> {
     text: body.value.text,
     actor,
   });
-  if (!result.ok) return proposalRefusal(result, body.value.key);
+  if (!result.ok) return proposalRefusal(result, body.value.key, auth.project);
   return proposalCreated(result.proposal, actor.name);
 }

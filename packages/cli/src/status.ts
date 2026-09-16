@@ -21,6 +21,9 @@ export type Status = {
   lastPushAt: string | null;
   version: string;
   pendingProposals?: number;
+  // The declared writable sources (§4): paths, none, or null when the
+  // last push predates the declaration.
+  writableSources?: string[] | null;
   progress: {
     perLanguage: Record<string, Counts>;
     perType: Record<string, Record<string, Counts>>;
@@ -70,6 +73,17 @@ export function render(status: Status, server: string): string[] {
   if (status.pendingProposals) {
     lines.push(
       `${status.pendingProposals} proposal(s) pending: corpus pull writes them`,
+    );
+  }
+  if (status.writableSources === null) {
+    lines.push(
+      "last pushed before sources were declared: run corpus push with this CLI, so proposals know where to go",
+    );
+  } else if (status.writableSources) {
+    lines.push(
+      status.writableSources.length === 0
+        ? "no writable source: proposals are not possible on this project"
+        : `writable sources: ${status.writableSources.join(", ")}`,
     );
   }
   const types = Object.keys(status.progress.perType).sort();
