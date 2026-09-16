@@ -87,3 +87,11 @@ test("only Latin accents fold; marks that are letters in their script stay", () 
   expect(foldTerm("がき")).not.toBe(foldTerm("かき"));
   expect(foldTerm("Ção")).toBe("cao");
 });
+
+test("a marked script keeps its marks inside the word, so a near miss is not a match", () => {
+  const terms = [
+    { term: "कल", target: "yesterday" },
+    { term: "काल", target: "time" },
+  ];
+  expect(glossaryMatches("काल", terms).map((e) => e.term)).toEqual(["काल"]);
+});

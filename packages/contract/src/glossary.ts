@@ -29,7 +29,8 @@ export function foldTerm(text: string): string {
 }
 
 function words(text: string): string[] {
-  return foldTerm(text).match(/[\p{L}\p{N}]+/gu) ?? [];
+  // Marks stay inside a word, so a marked script does not split at them.
+  return foldTerm(text).match(/[\p{L}\p{N}\p{M}]+/gu) ?? [];
 }
 
 // The source's own words: the literal text of its ICU tree, never a
