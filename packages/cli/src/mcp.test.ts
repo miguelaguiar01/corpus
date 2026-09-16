@@ -7,7 +7,8 @@ import { PassThrough } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { afterEach, expect, test } from "vitest";
 import { run, type RunContext } from "./cli";
-import { apiOver, serve, tools } from "./mcp";
+import { apiOver, tools } from "./agent-tools";
+import { serve } from "./mcp";
 
 const REPO = fileURLToPath(
   new URL("../test/fixtures/push-repo", import.meta.url),

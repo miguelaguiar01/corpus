@@ -153,7 +153,18 @@ or in the repository's `.mcp.json`, for any client:
 
 Its tools are one API call each: `list_queue` (a queue's items, narrowed to a language, a string type or both when asked), `get_string` (the source with its placeholders, selects and examples, every language's text and state, any pending proposal), `save_draft`, `propose_change`, `propose_removal`, `add_string` and `status`. Three rules hold for everything an agent writes through the project token. It never overwrites a person's work: a draft lands on an untranslated row, a stale one or its own earlier draft, and a row a person edited refuses with `human-edited` and says what to do: propose a change if the source is the problem, otherwise leave the row to its author. Every draft is attributed to the project's agent actor, which the history, the chips and the settings list show as such. Nothing but a signed-in maintainer verifies: agent drafts are a queue of their own on the dashboard, and the token has no way to sign anything off. The model stays on the agent's side; Corpus runs none.
 
-An agent that has a shell and no MCP client can drive the server as a subprocess: one JSON-RPC message per line on stdin, one reply per line on stdout, nothing else on stdout. This is what `bin/install-smoke` does against a fresh install:
+An agent that has a shell and no MCP client has the same seven operations as subcommands, each printing the API's JSON and exiting 1 with the server's message on a refusal:
+
+```sh
+npx corpus agent queue untranslated --lang pt-PT --type chrome
+npx corpus agent string ui.continue
+npx corpus agent draft ui.continue pt-PT "Continuar"
+npx corpus agent propose ui.continue --text "Prosseguir"     # or --remove
+npx corpus agent add ui.back --file src/i18n/{lang}.json --text "Voltar"
+npx corpus agent status
+```
+
+The MCP server can also be driven as a subprocess: one JSON-RPC message per line on stdin, one reply per line on stdout, nothing else on stdout. This is what `bin/install-smoke` does against a fresh install:
 
 ```sh
 printf '%s\n%s\n%s\n%s\n' \
