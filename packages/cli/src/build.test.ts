@@ -95,6 +95,13 @@ test("the config's string and entity type declarations travel in the snapshot", 
   expect(snapshot.entityTypes).toEqual(declared.entityTypes);
   const bare = await buildSnapshot(config(), REPO);
   expect("stringTypes" in bare).toBe(false);
+  // Type notes travel too, and are always sent so a push replaces them.
+  const noted = await buildSnapshot(
+    config({ typeNotes: { chrome: "Short and plain." } }),
+    REPO,
+  );
+  expect(noted.typeNotes).toEqual({ chrome: "Short and plain." });
+  expect(bare.typeNotes).toEqual({});
 });
 
 test("a table source reads a named export and carries only the listed metadata", async () => {

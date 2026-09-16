@@ -85,6 +85,7 @@
   "string.entitiesHeading": "Related",
   "string.otherLanguagesHeading": "Other languages",
   "string.otherLanguagesNone": "No translation yet",
+  "string.noteLabel": "How every {type} string reads",
   "string.siblingsHeading": "Siblings",
   "string.siblingsCount": "{shown} of {total} strings of this type under the same key prefix",
   "string.historyHeading": "History",

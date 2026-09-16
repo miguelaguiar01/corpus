@@ -124,3 +124,24 @@ test("language codes must be tags such as en or pt-PT", () => {
     corpusConfigSchema.safeParse({ ...base, project: "my project" }).success,
   ).toBe(false);
 });
+
+test("typeNotes is optional in the config and refuses an empty note", () => {
+  const base = corpusConfigSchema.parse({
+    project: "x",
+    server: "https://corpus.example",
+    sourceLanguage: "en",
+    languages: ["en"],
+    sources: [
+      { adapter: "messages", type: "chrome", path: "i18n/{lang}.json" },
+    ],
+  });
+  expect(base.typeNotes).toBeUndefined();
+  expect(
+    corpusConfigSchema.safeParse({ ...base, typeNotes: { chrome: "Plain." } })
+      .success,
+  ).toBe(true);
+  expect(
+    corpusConfigSchema.safeParse({ ...base, typeNotes: { chrome: "" } })
+      .success,
+  ).toBe(false);
+});

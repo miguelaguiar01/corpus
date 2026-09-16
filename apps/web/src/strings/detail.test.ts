@@ -124,3 +124,11 @@ test("an unknown key or another project's key is undefined", () => {
   expect(stringDetail(db, p.id, "nope")).toBeUndefined();
   expect(stringDetail(db, p.id + 1, "ui.continue")).toBeUndefined();
 });
+
+test("the type's note comes with the string, and null for a type without one", () => {
+  const { db, p } = pushed();
+  expect(stringDetail(db, p.id, "skin.heard-nothing")?.string.note).toMatch(
+    /household staff/,
+  );
+  expect(stringDetail(db, p.id, "ui.continue")?.string.note).toBeNull();
+});

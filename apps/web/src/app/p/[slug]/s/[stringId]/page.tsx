@@ -209,6 +209,14 @@ export default async function StringPage({
               {string.key}
             </p>
             <SourceView source={string.source} declarations={declarations} />
+            {string.note && (
+              <Section
+                heading={t("string.noteLabel", { type: string.type })}
+                level={3}
+              >
+                <p className="text-sm">{string.note}</p>
+              </Section>
+            )}
             {string.archived && (
               <Banner tone="info">{t("string.archived")}</Banner>
             )}

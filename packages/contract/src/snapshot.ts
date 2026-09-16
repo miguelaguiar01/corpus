@@ -41,6 +41,9 @@ export const snapshotSchema = z.looseObject({
     .record(z.string(), z.record(z.string(), fieldDeclarationSchema))
     .optional(),
   entityTypes: z.record(z.string(), entityTypeDeclarationSchema).optional(),
+  // Voice and register per string type (§5); the repository's, replaced
+  // whole by a push that carries it.
+  typeNotes: z.record(z.string(), z.string().min(1)).optional(),
   seedTranslations: z
     .record(z.string(), z.record(z.string(), z.string()))
     .optional(),

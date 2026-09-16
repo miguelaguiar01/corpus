@@ -68,6 +68,11 @@ export const projects = sqliteTable("projects", {
     Record<string, EntityTypeDeclaration>
   >(),
   tokenHash: text("token_hash"),
+  // Voice and register per string type (§5), refreshed by a push that
+  // carries them; a push from an older CLI leaves them.
+  typeNotes: text("type_notes", { mode: "json" }).$type<
+    Record<string, string>
+  >(),
   // The writable file sources push declared (§4), where a new string
   // may go (§11).
   sources: text("sources", { mode: "json" }).$type<WritableSource[]>(),

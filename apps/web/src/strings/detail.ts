@@ -30,6 +30,8 @@ export type StringDetail = {
     file: string | null;
     metadata: Record<string, MetadataValue> | null;
     examples: Example[] | null;
+    // The type's voice note (§5), when the project carries one.
+    note: string | null;
   };
   declarations: Record<string, FieldDeclaration>;
   translations: Record<
@@ -138,6 +140,7 @@ export function stringDetail(
       file: string.file,
       metadata,
       examples: string.examples ?? null,
+      note: project.typeNotes?.[string.type] ?? null,
     },
     declarations,
     translations,

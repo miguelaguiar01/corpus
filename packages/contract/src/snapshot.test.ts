@@ -118,3 +118,17 @@ test("a snapshot may declare its writable sources; the fixture does", () => {
   });
   expect(bad.success).toBe(false);
 });
+
+test("typeNotes is an optional map of non-empty sentences per string type (§5)", () => {
+  expect(snapshotSchema.safeParse(MINIMAL).success).toBe(true);
+  const noted = snapshotSchema.safeParse({
+    ...MINIMAL,
+    typeNotes: { chrome: "Short and plain." },
+  });
+  expect(noted.success && noted.data.typeNotes).toEqual({
+    chrome: "Short and plain.",
+  });
+  expect(
+    snapshotSchema.safeParse({ ...MINIMAL, typeNotes: { chrome: "" } }).success,
+  ).toBe(false);
+});
