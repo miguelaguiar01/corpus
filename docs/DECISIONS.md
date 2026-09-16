@@ -412,3 +412,44 @@ client drives the server in the tests.
 
 **Context:** #340 (epic), #341; the owner's ask and answer of
 2026-09-15 ("the mcp should be api first").
+
+## 2026-09-16 — What informs a translator belongs to the repository; the tools have a shell twin
+
+**Decision:** siblings are the other active strings of the same type
+whose key shares the prefix up to the last dot, the ten nearest in key
+order with the total; a voice note lives on the string type only, as a
+top-level `typeNotes` map rather than a key inside `stringTypes.<type>`;
+the glossary is a file per target language the repository owns, pushed
+like strings and never written by pull, shown where its terms occur and
+not enforced; `corpus agent` mirrors the seven MCP tools as subcommands;
+and, reversing part of the 2026-09-15 entry, `409 human-edited` names
+the agent's next move in its message.
+
+**Why:** the first outside MCP user (alibi) translated a set of 38 judge
+quips one at a time with no view of the others, inferred the register
+from the Portuguese, and had no shared list of terms; and it could not
+reach the MCP tools from a running session, because clients load tool
+schemas at start. Siblings by prefix cost no declaration and match how
+every project so far names its keys; a declared grouping can come later
+if a project's keys do not. A note per type is one config line and
+covers the case; per-string notes already exist as `text` fields.
+The glossary follows §2's split: source-side truth lives in the
+repository, so the terms do too, and a push replaces them whole.
+Enforcement waits for a second project to ask. The CLI twin exists so an
+agent with only a shell, or a CI job, works the same way, and the
+restart problem stops mattering; both paths are one API call each and
+share a module, so the cost is usage text, not logic. Ten siblings is a
+screen's worth and enough to hear a set's tone; the nearest ten, not
+the first ten, so every string in a set of forty sees its own
+neighbours. A file per target language keeps each glossary a diff a
+translator of that language can review. `typeNotes` is a map of its
+own because `stringTypes.<type>` maps field names to declarations and
+`note` is a field name projects already use. The 2026-09-15 entry kept
+refusals bare because the next move was "always a proposal"; the first
+user, refused on a person's row, said a newcomer would retry or stall,
+so the message now says it: the move was the same, the reader did not
+know it.
+
+**Context:** #352 (epic), the alibi report of 2026-09-16, the owner's
+four answers of the same day (siblings by type and prefix; type level
+only; yes; yes).
