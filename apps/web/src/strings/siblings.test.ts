@@ -5,7 +5,7 @@ import type { Db } from "@/db";
 import { projects, strings } from "@/db/schema";
 import { memoryDb } from "@/db/test-helpers";
 import { applySnapshot } from "@/ingest/apply";
-import { nearest, siblingPrefix, siblingsOf } from "./siblings";
+import { compareKeys, nearest, siblingPrefix, siblingsOf } from "./siblings";
 
 const FIXTURE = moonlightManor as Snapshot;
 
@@ -33,7 +33,12 @@ function row(db: Db, key: string) {
     .where(eq(strings.stringId, key))
     .get();
   if (!found) throw new Error(`no string ${key}`);
-  return { id: found.id, key: found.stringId, type: found.type };
+  return {
+    id: found.id,
+    key: found.stringId,
+    type: found.type,
+    sourceLanguage: "pt-PT",
+  };
 }
 
 // Forty quips under one prefix, one stranger of another type under it,
@@ -50,6 +55,10 @@ function quips(): Snapshot {
       ...entries,
       { id: "dossier.fail.stranger", type: "clue-skin", source: "Not a quip" },
       { id: "dossier.win.0", type: "chrome", source: "Elsewhere" },
+      { id: "dossier.fail.20.deeper", type: "chrome", source: "A descendant" },
+      { id: "dossier.intro", type: "chrome", source: "A parent-level key" },
+      { id: "Dossier.fail.99", type: "chrome", source: "A case variant" },
+      { id: "dossier_fail.1", type: "chrome", source: "An underscore twin" },
     ],
     entities: [],
   };
@@ -70,9 +79,8 @@ test("siblings share the type and the prefix, exclude the string itself and arch
   );
   expect(greenhouse.total).toBe(1);
   expect(greenhouse.items.map((s) => s.key)).toEqual(["skin.heard-nothing"]);
-  expect(greenhouse.items[0]?.translations.en).toMatchObject({
-    state: "untranslated",
-    text: null,
+  expect(greenhouse.items[0]?.translations).toEqual({
+    en: { state: "untranslated", stale: false, text: null },
   });
   expect(siblingsOf(db, p.id, row(db, "ui.continue"))).toEqual({
     total: 0,
@@ -154,4 +162,24 @@ test("a stranger of another type under the prefix and a same-type string under a
 test("nearest keeps everything when there are ten or fewer", () => {
   const few = [{ key: "a.1" }, { key: "a.3" }];
   expect(nearest(few, "a.2")).toEqual(few);
+});
+
+test("a descendant, a parent-level key, a case variant and an underscore twin are not siblings", () => {
+  const { db, p } = pushed(quips());
+  const all = siblingsOf(db, p.id, row(db, "dossier.fail.20"));
+  expect(all.total).toBe(39);
+  expect(all.items.map((s) => s.key)).not.toContain("dossier.fail.20.deeper");
+  expect(siblingsOf(db, p.id, row(db, "dossier.fail.20.deeper")).total).toBe(0);
+  expect(siblingsOf(db, p.id, row(db, "dossier.intro")).total).toBe(0);
+  expect(siblingsOf(db, p.id, row(db, "Dossier.fail.99")).total).toBe(0);
+  expect(siblingsOf(db, p.id, row(db, "dossier_fail.1")).total).toBe(0);
+});
+
+test("keys are ordered by code point, as the database orders them", () => {
+  expect(compareKeys("a.\u{1F600}", "a.\uE000")).toBeGreaterThan(0);
+  expect(["a.\u{1F600}", "a.\uE000", "a.b"].sort(compareKeys)).toEqual([
+    "a.b",
+    "a.\uE000",
+    "a.\u{1F600}",
+  ]);
 });

@@ -18,7 +18,6 @@ import {
 } from "@/db/schema";
 import type { TranslationState } from "@/translations/state";
 import { versionOf } from "@/translations/version";
-import { siblingsOf, type Siblings } from "./siblings";
 
 export type StringDetail = {
   string: {
@@ -47,7 +46,6 @@ export type StringDetail = {
   >;
   entities: EntityCard[];
   history: HistoryEntry[];
-  siblings: Siblings;
 };
 
 export type EntityCard = {
@@ -151,11 +149,6 @@ export function stringDetail(
       project.entityTypes ?? {},
     ),
     history,
-    siblings: siblingsOf(db, projectId, {
-      id: string.id,
-      key: string.stringId,
-      type: string.type,
-    }),
   };
 }
 

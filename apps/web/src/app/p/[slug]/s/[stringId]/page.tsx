@@ -13,6 +13,7 @@ import { QueueNav } from "@/components/queue-nav";
 import { SourceView } from "@/components/source-view";
 import { OtherLanguages } from "@/components/other-languages";
 import { Siblings } from "@/components/siblings";
+import { siblingsOf } from "@/strings/siblings";
 import { ProposalPanel } from "@/components/proposal-panel";
 import { LanguageBar } from "@/components/language-bar";
 import { StateChips } from "@/components/state-chips";
@@ -72,8 +73,13 @@ export default async function StringPage({
   if (!project) notFound();
   const detail = stringDetail(db, project.id, decodeURIComponent(stringId));
   if (!detail) notFound();
-  const { string, declarations, translations, entities, history, siblings } =
-    detail;
+  const { string, declarations, translations, entities, history } = detail;
+  const siblings = siblingsOf(db, project.id, {
+    id: string.id,
+    key: string.key,
+    type: string.type,
+    sourceLanguage: project.sourceLanguage,
+  });
   const examples = string.examples ?? [];
 
   const queueKind = isQueueKind(query.queue) ? query.queue : undefined;

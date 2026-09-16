@@ -77,11 +77,6 @@ test("what the editor shows: source, placeholders, selects, examples, every lang
       key: "skin.heard-nothing",
       source: "Não ouvi nada a noite toda.",
       translations: {
-        "pt-PT": {
-          state: "translated",
-          stale: false,
-          text: null,
-        },
         en: { state: "untranslated", stale: false, text: null },
       },
     },

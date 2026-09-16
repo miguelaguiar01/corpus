@@ -2,12 +2,12 @@
 // whose key shares its prefix up to the last dot, in key order; the ten
 // nearest, five before and five after where they exist and filled from
 // the other side otherwise, with the total.
-import { and, asc, eq, inArray, like, ne } from "drizzle-orm";
+import { and, eq, gte, inArray, lt, ne } from "drizzle-orm";
 import type { Db } from "@/db";
 import { strings, stringTranslations } from "@/db/schema";
 import type { TranslationState } from "@/translations/state";
 
-export const SIBLINGS_SHOWN = 10;
+const SIBLINGS_SHOWN = 10;
 
 export type Sibling = {
   id: number;
@@ -26,6 +26,18 @@ export function siblingPrefix(key: string): string | null {
   return dot < 0 ? null : key.slice(0, dot);
 }
 
+// Key order by code point, the order SQLite's BINARY collation gives
+// bytes, so the window is taken in the same order the rows came in.
+export function compareKeys(a: string, b: string): number {
+  const as = [...a];
+  const bs = [...b];
+  for (let i = 0; i < Math.min(as.length, bs.length); i++) {
+    const d = as[i]!.codePointAt(0)! - bs[i]!.codePointAt(0)!;
+    if (d !== 0) return d;
+  }
+  return as.length - bs.length;
+}
+
 // The window around the string's own place in key order.
 export function nearest<T extends { key: string }>(
   sorted: T[],
@@ -33,7 +45,7 @@ export function nearest<T extends { key: string }>(
   shown = SIBLINGS_SHOWN,
 ): T[] {
   if (sorted.length <= shown) return sorted;
-  const after = sorted.findIndex((s) => s.key > key);
+  const after = sorted.findIndex((s) => compareKeys(s.key, key) > 0);
   const firstAfter = after < 0 ? sorted.length : after;
   const half = Math.floor(shown / 2);
   let start = firstAfter - half;
@@ -45,10 +57,14 @@ export function nearest<T extends { key: string }>(
 export function siblingsOf(
   db: Db,
   projectId: number,
-  string: { id: number; key: string; type: string },
+  string: { id: number; key: string; type: string; sourceLanguage: string },
 ): Siblings {
   const prefix = siblingPrefix(string.key);
   if (prefix === null) return { total: 0, items: [] };
+  // A range on the key index, case-sensitive and wildcard-free: every
+  // key under `prefix.` sorts between `prefix.` and `prefix/`. Deeper
+  // keys land in the range too and are dropped, since their own prefix
+  // is longer.
   const rows = db
     .select({ id: strings.id, key: strings.stringId, source: strings.source })
     .from(strings)
@@ -58,14 +74,13 @@ export function siblingsOf(
         eq(strings.type, string.type),
         eq(strings.archived, false),
         ne(strings.id, string.id),
-        like(strings.stringId, `${prefix}.%`),
+        gte(strings.stringId, `${prefix}.`),
+        lt(strings.stringId, `${prefix}/`),
       ),
     )
-    .orderBy(asc(strings.stringId))
     .all()
-    // LIKE is a prefix match on the dotted path; keep the direct family
-    // and its descendants alike, as the spec's "shares the prefix" says.
-    .filter((row) => row.key.startsWith(`${prefix}.`));
+    .filter((row) => siblingPrefix(row.key) === prefix)
+    .sort((a, b) => compareKeys(a.key, b.key));
   const shown = nearest(rows, string.key);
   const translations = shown.length
     ? db
@@ -81,6 +96,7 @@ export function siblingsOf(
     : [];
   const byString = new Map<number, Sibling["translations"]>();
   for (const row of translations) {
+    if (row.language === string.sourceLanguage) continue;
     const entry = byString.get(row.stringId) ?? {};
     entry[row.language] = {
       state: row.state,

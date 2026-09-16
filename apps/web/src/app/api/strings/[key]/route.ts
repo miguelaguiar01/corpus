@@ -8,6 +8,7 @@ import { authenticateProject } from "@/api/bearer";
 import { apiError } from "@/api/body";
 import { pendingForString } from "@/proposals/service";
 import { stringDetail } from "@/strings/detail";
+import { siblingsOf } from "@/strings/siblings";
 
 // What the editor shows for one string (§9.3), for an agent (§10).
 export async function GET(
@@ -24,6 +25,12 @@ export async function GET(
   if (!detail) return apiError(404, "not-found", `no string ${key}`);
 
   const pending = pendingForString(db, detail.string.id);
+  const siblings = siblingsOf(db, project.id, {
+    id: detail.string.id,
+    key: detail.string.key,
+    type: detail.string.type,
+    sourceLanguage: project.sourceLanguage,
+  });
   const translations: StringResponse["translations"] = {};
   for (const [language, row] of Object.entries(detail.translations)) {
     translations[language] = {
@@ -53,12 +60,12 @@ export async function GET(
           author: pending.author,
         }
       : null,
-    siblings: detail.siblings.items.map(({ key, source, translations }) => ({
+    siblings: siblings.items.map(({ key, source, translations }) => ({
       key,
       source,
       translations,
     })),
-    siblingCount: detail.siblings.total,
+    siblingCount: siblings.total,
   };
   return Response.json(body);
 }
