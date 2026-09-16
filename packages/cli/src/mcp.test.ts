@@ -108,7 +108,8 @@ function answers(seen: Seen): { status: number; body: unknown } {
       status: 409,
       body: {
         error: "human-edited",
-        message: "skin.taken in en holds a person's work",
+        message:
+          "skin.taken in en holds a person's work; propose a change if the source is the problem; otherwise leave the row to its author",
       },
     };
   }
@@ -243,7 +244,7 @@ test("a refusal is a tool error carrying the server's message; bad arguments and
   expect(refused.content).toEqual([
     {
       type: "text",
-      text: "human-edited: skin.taken in en holds a person's work",
+      text: "human-edited: skin.taken in en holds a person's work; propose a change if the source is the problem; otherwise leave the row to its author",
     },
   ]);
   await expect(

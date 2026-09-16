@@ -75,7 +75,7 @@ export function render(status: Status, server: string): string[] {
       `${status.pendingProposals} proposal(s) pending: corpus pull writes them`,
     );
   }
-  if (status.writableSources === null) {
+  if (status.writableSources === null && status.lastPushAt) {
     lines.push(
       "last pushed before sources were declared: run corpus push with this CLI, so proposals know where to go",
     );

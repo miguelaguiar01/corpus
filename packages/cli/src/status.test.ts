@@ -179,4 +179,5 @@ test("render names the writable sources, their absence, or a push that predates 
     "last pushed before sources were declared: run corpus push with this CLI, so proposals know where to go",
   );
   expect(at(STATUS)).toBe("");
+  expect(at({ ...STATUS, lastPushAt: null, writableSources: null })).toBe("");
 });

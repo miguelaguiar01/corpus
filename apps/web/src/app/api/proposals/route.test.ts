@@ -2,6 +2,8 @@ import { expect, test, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { CONTINUE, pushedProject } from "@/agents/test-helpers";
 import { projects } from "@/db/schema";
+import { applySnapshot } from "@/ingest/apply";
+import { FIXTURE } from "@/agents/test-helpers";
 import { pendingAdds } from "@/proposals/service";
 
 const seeded = pushedProject();
@@ -88,4 +90,18 @@ test("the refusal says when the project has no writable source, or was pushed be
   expect((await (await attempt()).json()).message).toBe(
     "the file is not a writable source of the project; the project was last pushed before sources were declared; run corpus push with this CLI",
   );
+});
+
+test("a push with nothing writable lands as an empty list, not as a predated push", async () => {
+  const { db, project, token } = seeded;
+  applySnapshot(db, project.id, { ...FIXTURE, sources: [] });
+  const res = await add(token, {
+    key: "ui.next",
+    file: "src/ui/pt-PT.json",
+    text: "x",
+  });
+  expect((await res.json()).message).toBe(
+    "the file is not a writable source of the project; the project has no writable source",
+  );
+  applySnapshot(db, project.id, FIXTURE);
 });

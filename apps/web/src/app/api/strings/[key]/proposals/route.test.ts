@@ -6,7 +6,7 @@ import {
   pushedProject,
   stringRowId,
 } from "@/agents/test-helpers";
-import { strings } from "@/db/schema";
+import { projects, strings } from "@/db/schema";
 import { pendingForString } from "@/proposals/service";
 
 const seeded = pushedProject();
@@ -94,5 +94,17 @@ test("the service's refusals: unchanged, invalid ICU, a source pull cannot write
   expect(bad.status).toBe(422);
   expect((await propose(token, "no.such", { kind: "delete" })).status).toBe(
     404,
+  );
+});
+
+test("a string proposal's refusal carries the predated-push clause too", async () => {
+  const { db, project, token } = seeded;
+  db.update(projects)
+    .set({ sources: null })
+    .where(eq(projects.id, project.id))
+    .run();
+  const res = await propose(token, HEARD, { kind: "delete" });
+  expect((await res.json()).message).toBe(
+    `${HEARD} comes from a source that pull cannot write; the project was last pushed before sources were declared; run corpus push with this CLI`,
   );
 });

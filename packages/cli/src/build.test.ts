@@ -219,7 +219,7 @@ test("writableSources: not exec, a .json path, {lang} not required", () => {
   ]);
 });
 
-test("a snapshot with nothing writable carries no sources", async () => {
+test("a snapshot with nothing writable carries an empty sources list", async () => {
   const snapshot = await buildSnapshot(
     config({
       sources: [
@@ -233,5 +233,5 @@ test("a snapshot with nothing writable carries no sources", async () => {
     }),
     REPO,
   );
-  expect("sources" in snapshot).toBe(false);
+  expect(snapshot.sources).toEqual([]);
 });
