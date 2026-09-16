@@ -7,6 +7,26 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-09-16
+
+What the first MCP user found.
+
+### Added
+
+- **Siblings** (§9.3): the other strings of the same type under the same key prefix, the ten nearest in key order with the total, under the source on the string page and on the string response and `get_string` with every target language's text and state, so a set of quips or a run of steps is translated as one.
+- **A voice note per string type** (§5): `typeNotes` in the config, one sentence per type on voice and register, pushed with the declarations and shown under the source and in `get_string`.
+- **A glossary** (§5): `glossary: { path }` in the config names one JSON file per target language of `{ term, target, note? }` entries the repository owns; `corpus build` reads every target's file and a push replaces the project's copy whole. The string page and `get_string` show the entries whose term occurs in the source, matched on whole words case- and accent-insensitively. Not enforced.
+- **`corpus agent`** (§3): the seven MCP tools as subcommands (`queue`, `string`, `draft`, `propose`, `add`, `status`), each printing the API's JSON, for an agent that has a shell and no MCP client.
+- Queue items carry the string's `type`; `GET /api/queues` and `list_queue` narrow by type as well as language.
+- `GET /api/status` and `corpus status` carry the project's writable sources, and say when the last push predates their declaration.
+- The snapshot carries `typeNotes` and `glossary`, the string response carries `note`, `glossary` and `siblings`, and queue items carry `type`. All optional; the contract stays `corpus/1`.
+
+### Changed
+
+- A refusal says what to do next: `409 human-edited` names the agent's move, and `not-writable` / `unknown-source` end with the writable sources, "no writable source", or "last pushed before sources were declared; run corpus push with this CLI".
+- The CLI always sends `sources`, empty included, so a project with nothing writable is told so rather than asked to push again.
+- README: connect the MCP server before the session starts, match the instance's version, push once after upgrading, and how to drive the server as a subprocess.
+
 ## [0.8.0] - 2026-09-15
 
 Agents draft; people verify.
@@ -135,7 +155,8 @@ The first published version.
 - The `messages`, `table` and `exec` adapters, and the `corpus/1` snapshot contract with its ICU subset (placeholders and `select`).
 - The package ships plain JavaScript for Node 22 with type declarations; a client's config imports `defineCorpus` from `@corpus-tool/cli`.
 
-[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.9.0
 [0.8.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.8.0
 [0.7.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.7.0
 [0.6.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.6.0

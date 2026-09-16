@@ -4,7 +4,7 @@
 import { z } from "zod";
 import { parseIcu, type IcuNode } from "./icu";
 
-export const glossaryEntrySchema = z.object({
+const glossaryEntrySchema = z.object({
   term: z.string().min(1),
   target: z.string().min(1),
   note: z.string().min(1).optional(),
