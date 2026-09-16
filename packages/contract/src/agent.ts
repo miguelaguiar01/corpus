@@ -34,6 +34,8 @@ export type StringResponse = {
   selects: string[];
   examples: Example[];
   metadata: Record<string, unknown> | null;
+  // The type's voice note (§5), or null.
+  note: string | null;
   translations: Record<
     string,
     {

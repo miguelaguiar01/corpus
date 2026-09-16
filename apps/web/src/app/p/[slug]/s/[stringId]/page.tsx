@@ -209,6 +209,14 @@ export default async function StringPage({
               {string.key}
             </p>
             <SourceView source={string.source} declarations={declarations} />
+            {string.note && (
+              <p
+                className="text-sm text-muted-foreground"
+                aria-label={t("string.noteLabel", { type: string.type })}
+              >
+                {string.note}
+              </p>
+            )}
             {string.archived && (
               <Banner tone="info">{t("string.archived")}</Banner>
             )}

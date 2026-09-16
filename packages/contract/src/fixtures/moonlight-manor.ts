@@ -7,6 +7,10 @@ export const moonlightManor = {
   contract: "corpus/1",
   project: "moonlight-manor",
   sourceLanguage: "pt-PT",
+  typeNotes: {
+    "clue-skin":
+      "Said by the household staff to the detective: plain, a little wary, never a joke.",
+  },
   sources: [
     { path: "src/skins/{lang}.json", adapter: "messages", type: "clue-skin" },
     { path: "src/ui/{lang}.json", adapter: "messages", type: "chrome" },

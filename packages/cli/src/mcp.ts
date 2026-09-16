@@ -143,7 +143,7 @@ export function tools(api: Api): Tool[] {
     {
       name: "get_string",
       description:
-        "One string as the editor shows it: source text, placeholders and selects, examples with their values per language, every language's text and state, any pending proposal, and its siblings (the ten nearest strings of the same type under the same key prefix, with their translations) so a set reads as one.",
+        "One string as the editor shows it: source text, placeholders and selects, examples with their values per language, every language's text and state, the type's note on voice and register, any pending proposal, and its siblings (the ten nearest strings of the same type under the same key prefix, with their translations) so a set reads as one.",
       inputSchema: {
         type: "object",
         properties: { key },

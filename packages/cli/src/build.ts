@@ -71,6 +71,7 @@ export async function buildSnapshot(
     entities,
     ...(config.stringTypes && { stringTypes: config.stringTypes }),
     ...(config.entityTypes && { entityTypes: config.entityTypes }),
+    typeNotes: config.typeNotes ?? {},
     // Always sent, empty included, so the server can tell "nothing
     // writable" from a push that predates the field (§4).
     sources,

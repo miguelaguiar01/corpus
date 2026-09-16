@@ -42,6 +42,9 @@ export const corpusConfigSchema = z
     stringTypes: z
       .record(z.string(), z.record(z.string(), fieldDeclarationSchema))
       .optional(),
+    // One sentence per string type on voice and register (§5); a map of
+    // its own so it cannot collide with a metadata field named `note`.
+    typeNotes: z.record(z.string(), z.string().min(1)).optional(),
     entityTypes: z.record(z.string(), entityTypeDeclarationSchema).optional(),
     sources: z.array(sourceSchema).min(1),
     // `corpus check` (§3): directories to scan, path prefixes to skip, and

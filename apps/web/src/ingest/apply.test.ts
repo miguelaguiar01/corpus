@@ -307,3 +307,21 @@ test("a push gives existing strings rows for a language added since the last pus
   expect(rows.length).toBe(FIXTURE.strings.length);
   expect(rows.every((r) => r.state === "untranslated")).toBe(true);
 });
+
+test("a push carries the type notes whole; one from an older CLI leaves them", () => {
+  const { db, project } = seed();
+  applySnapshot(db, project.id, moonlightManor as Snapshot);
+  const notes = () =>
+    db.select().from(projects).where(eq(projects.id, project.id)).get()
+      ?.typeNotes;
+  expect(notes()).toEqual(moonlightManor.typeNotes);
+  const older: Snapshot = { ...(moonlightManor as Snapshot) };
+  delete older.typeNotes;
+  applySnapshot(db, project.id, older);
+  expect(notes()).toEqual(moonlightManor.typeNotes);
+  applySnapshot(db, project.id, {
+    ...(moonlightManor as Snapshot),
+    typeNotes: {},
+  });
+  expect(notes()).toEqual({});
+});

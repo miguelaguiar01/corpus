@@ -1,0 +1,1 @@
+ALTER TABLE `projects` ADD `type_notes` text;

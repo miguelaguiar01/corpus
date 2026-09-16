@@ -51,6 +51,7 @@ export async function GET(
     selects: [...selectArgsOf(detail.string.source)],
     examples: detail.string.examples ?? [],
     metadata: detail.string.metadata,
+    note: detail.string.note,
     translations,
     proposal: pending
       ? {
