@@ -85,6 +85,8 @@
   "string.entitiesHeading": "Related",
   "string.otherLanguagesHeading": "Other languages",
   "string.otherLanguagesNone": "No translation yet",
+  "string.siblingsHeading": "Siblings",
+  "string.siblingsCount": "{shown} of {total} strings of this type under the same key prefix",
   "string.historyHeading": "History",
   "source.branches": "Branches",
   "string.archived": "This string is archived. It is read-only.",

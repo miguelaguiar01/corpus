@@ -74,6 +74,14 @@ const STRING = {
   key: "ui.continue",
   source: "Continuar",
   translations: { en: { state: "untranslated", stale: false, text: null } },
+  siblings: [
+    {
+      key: "ui.back",
+      source: "Voltar",
+      translations: { en: { state: "translated", stale: false, text: "Back" } },
+    },
+  ],
+  siblingCount: 1,
 };
 const QUEUES = {
   project: "push-fixture",
