@@ -2,7 +2,8 @@
 
 <p align="center">
   A self-hosted translation workbench for games and apps whose text is structured.<br>
-  Your repository stays the source of truth. Corpus is where people translate and verify it.
+  Your repository stays the source of truth. Corpus is where people translate and verify it,<br>
+  and where an agent, through MCP or the CLI, drafts for them.
 </p>
 
 <p align="center">
@@ -33,6 +34,7 @@ Flat key-value translation tools lose what makes game and app text hard: the pla
 - **A workflow, not a spreadsheet.** Every string and language moves untranslated, translated, verified, with a stale mark when the source changes underneath, an attributed history of every edit, and queues that tell a translator what to work on next.
 - **One command, or one container.** `npx corpus workbench` runs an instance on your machine from two npm packages, database included. For a team it is one image with its database on a volume. No external services; accounts are a name and a password, and one invite secret admits people.
 - **Made for a phone in one hand.** Translators mostly work on phones, so every surface was designed at 390px first, with the desktop layouts built out from there.
+- **Agents draft; people verify.** `corpus mcp` is a Model Context Protocol server for Claude Code or any MCP client; `corpus agent` is the same seven operations as shell commands. An agent reads queues and strings as the editor shows them, saves drafts and proposes source changes, under three rules: it never overwrites a person's work, every draft is attributed, and only a signed-in maintainer verifies. Corpus runs no model.
 
 Corpus translates its own interface with itself. That is the standing demo in these screenshots and a test that runs on every build.
 
@@ -135,7 +137,7 @@ The catalogue is the inventory, and anyone on the instance can propose a change 
 
 `corpus mcp` starts a [Model Context Protocol](https://modelcontextprotocol.io) server on stdio from the repository, reading the config and the token like every other command, so an agent in the repository works inside the project with no browser. Three things first, in this order:
 
-1. **The instance must run the same Corpus version as the CLI.** The token routes the tools call arrived in 0.8.0; an older instance, a `corpus workbench` started from an older `@corpus-tool/workbench` or a container on an older image tag, answers `status` and nothing else. Bump both packages together and start the workbench again, or pull the matching image; `corpus status` prints the server's version.
+1. **The instance must run the same Corpus version as the CLI.** The token routes that the tools call arrived in 0.8.0; an older instance, a `corpus workbench` started from an older `@corpus-tool/workbench` or a container on an older image tag, answers `status` and nothing else. Bump both packages together and start the workbench again, or pull the matching image; `corpus status` prints the server's version.
 2. **Push once after upgrading.** The instance learns which source files can take proposals from a push; until then every proposal is refused as "last pushed before sources were declared". `corpus status` prints the writable sources when it knows them, and says so when a project has none: only `.json` catalogues take proposals, so a project whose text all comes from an exporter never will.
 3. **Register the server before the session starts.** Claude Code loads tool schemas when a session opens, and a running agent cannot restart itself, so `claude mcp add` from inside an agent's session gives that session nothing; expect the same of any other client. Register, then start.
 
@@ -191,7 +193,7 @@ npx corpus status --json | jq -e '.progress.perLanguage["pt-PT"].untranslated ==
 ## How it works
 
 ```
-repository ──corpus push──▶ Corpus (people verify and translate) ──corpus pull──▶ repository files ──PR──▶ merged
+repository ──corpus push──▶ Corpus (agents draft, people verify) ──corpus pull──▶ repository files ──PR──▶ merged
 ```
 
 Source text and metadata belong to the repository, which wins once merged; Corpus proposes changes to them. Translations and workflow states belong to Corpus. The database is a working copy with history: losing it loses only edits not yet pulled.
@@ -283,10 +285,6 @@ The database is created on first start at `apps/web/data/corpus.db` and is gitig
 - [`docs/design.md`](docs/design.md), the visual system.
 - [`docs/DECISIONS.md`](docs/DECISIONS.md), architecture decisions as they were made.
 - [`AGENTS.md`](AGENTS.md), how work happens here: the spec is binding, the gate must pass before a PR, every PR is reviewed by someone other than its author, and the round-trip invariant is never merged red.
-
-## Status
-
-The MVP is complete, the interface has been through two design passes, and Corpus ships on npm as `@corpus-tool/cli` and `@corpus-tool/workbench`, with the image published beside them at the same version. Corpus runs its own translation into Portuguese from this repository on every build, and every release installs both packages into a fresh repository and round-trips them, with and without Docker, before publishing. A first outside project has been through it, and what it asked for next, a CLI that covers the whole loop with no browser and no token pasted, is in.
 
 ## License
 
