@@ -4,6 +4,7 @@
 import { z } from "zod";
 import { identifier } from "./strings";
 import type { Example } from "./strings";
+import type { GlossaryEntry } from "./glossary";
 
 export const QUEUE_KINDS = [
   "untranslated",
@@ -36,6 +37,9 @@ export type StringResponse = {
   metadata: Record<string, unknown> | null;
   // The type's voice note (§5), or null.
   note: string | null;
+  // The glossary entries whose term occurs in the source (§5), per
+  // target language.
+  glossary: Record<string, GlossaryEntry[]>;
   translations: Record<
     string,
     {

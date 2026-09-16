@@ -102,6 +102,7 @@ test("the config's string and entity type declarations travel in the snapshot", 
   );
   expect(noted.typeNotes).toEqual({ chrome: "Short and plain." });
   expect(bare.typeNotes).toEqual({});
+  expect(bare.glossary).toEqual({});
 });
 
 test("a table source reads a named export and carries only the listed metadata", async () => {
@@ -241,4 +242,21 @@ test("a snapshot with nothing writable carries an empty sources list", async () 
     REPO,
   );
   expect(snapshot.sources).toEqual([]);
+});
+
+test("the glossary file of every target language travels; absent is empty, malformed is a build error", async () => {
+  const withFiles = await buildSnapshot(
+    config({
+      languages: ["en", "pt-PT", "fr"],
+      glossary: { path: "i18n/glossary.{lang}.json" },
+    }),
+    REPO,
+  );
+  expect(withFiles.glossary).toEqual({
+    "pt-PT": [{ term: "greeting", target: "saudação", note: "the noun" }],
+    fr: [],
+  });
+  await expect(
+    buildSnapshot(config({ glossary: { path: "steps.ts" } }), REPO),
+  ).rejects.toThrow(/glossary/);
 });

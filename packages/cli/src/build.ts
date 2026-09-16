@@ -8,8 +8,10 @@ import {
   parseIcu,
   snapshotSchema,
   stringEntrySchema,
+  glossaryFileSchema,
   type CorpusConfig,
   type Entity,
+  type Glossary,
   type Snapshot,
   type Source,
   type StringEntry,
@@ -63,6 +65,7 @@ export async function buildSnapshot(
   // The declarations travel with the snapshot (§4): the server renders
   // and validates metadata from them without reading the config.
   const sources = writableSources(config);
+  const glossary = readGlossary(config, cwd, errors);
   const snapshot = {
     contract: "corpus/1" as const,
     project: config.project,
@@ -72,6 +75,7 @@ export async function buildSnapshot(
     ...(config.stringTypes && { stringTypes: config.stringTypes }),
     ...(config.entityTypes && { entityTypes: config.entityTypes }),
     typeNotes: config.typeNotes ?? {},
+    glossary,
     // Always sent, empty included, so the server can tell "nothing
     // writable" from a push that predates the field (§4).
     sources,
@@ -229,4 +233,33 @@ export function pushOnlyNotes(config: CorpusConfig): string[] {
 // .js catalogue pushes fine but nothing can come back to it.
 export function writesBack(sourcePath: string): boolean {
   return sourcePath.toLowerCase().endsWith(".json");
+}
+
+// One glossary file per target language (§5): absent is an empty
+// glossary for that language, malformed is a build error.
+function readGlossary(
+  config: CorpusConfig,
+  cwd: string,
+  errors: string[],
+): Glossary {
+  const glossary: Glossary = {};
+  if (!config.glossary) return glossary;
+  for (const lang of config.languages) {
+    if (lang === config.sourceLanguage) continue;
+    const file = config.glossary.path.replace("{lang}", lang);
+    let raw: string;
+    try {
+      raw = readFileSync(path.resolve(cwd, file), "utf8");
+    } catch {
+      glossary[lang] = [];
+      continue;
+    }
+    try {
+      glossary[lang] = glossaryFileSchema.parse(JSON.parse(raw));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      errors.push(`${file}: not a glossary: ${message.split("\n")[0]}`);
+    }
+  }
+  return glossary;
 }

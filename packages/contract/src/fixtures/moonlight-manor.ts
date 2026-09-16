@@ -11,6 +11,13 @@ export const moonlightManor = {
     "clue-skin":
       "Said by the household staff to the detective: plain, a little wary, never a joke.",
   },
+  glossary: {
+    en: [
+      { term: "janela", target: "window", note: "never 'casement'" },
+      { term: "noite", target: "night" },
+      { term: "vítima", target: "victim", note: "never 'the deceased'" },
+    ],
+  },
   sources: [
     { path: "src/skins/{lang}.json", adapter: "messages", type: "clue-skin" },
     { path: "src/ui/{lang}.json", adapter: "messages", type: "chrome" },

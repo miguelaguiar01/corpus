@@ -52,6 +52,7 @@ export async function GET(
     examples: detail.string.examples ?? [],
     metadata: detail.string.metadata,
     note: detail.string.note,
+    glossary: detail.string.glossary,
     translations,
     proposal: pending
       ? {

@@ -12,6 +12,7 @@ import { Section } from "@/components/ui/section";
 import { QueueNav } from "@/components/queue-nav";
 import { SourceView } from "@/components/source-view";
 import { OtherLanguages } from "@/components/other-languages";
+import { GlossaryTerms } from "@/components/glossary-terms";
 import { Siblings } from "@/components/siblings";
 import { siblingsOf } from "@/strings/siblings";
 import { ProposalPanel } from "@/components/proposal-panel";
@@ -216,6 +217,12 @@ export default async function StringPage({
               >
                 <p className="text-sm">{string.note}</p>
               </Section>
+            )}
+            {target && (
+              <GlossaryTerms
+                entries={string.glossary[target] ?? []}
+                language={target}
+              />
             )}
             {string.archived && (
               <Banner tone="info">{t("string.archived")}</Banner>

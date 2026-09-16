@@ -3,6 +3,7 @@ import type {
   EntityTypeDeclaration,
   Example,
   FieldDeclaration,
+  Glossary,
 } from "@corpus/contract";
 import {
   index,
@@ -73,6 +74,9 @@ export const projects = sqliteTable("projects", {
   typeNotes: text("type_notes", { mode: "json" }).$type<
     Record<string, string>
   >(),
+  // The glossary per target language (§5), refreshed by a push that
+  // carries it; a push from an older CLI leaves it.
+  glossary: text("glossary", { mode: "json" }).$type<Glossary>(),
   // The writable file sources push declared (§4), where a new string
   // may go (§11).
   sources: text("sources", { mode: "json" }).$type<WritableSource[]>(),

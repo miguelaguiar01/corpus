@@ -2,10 +2,12 @@
 // the string, its type's declarations, per-language rows, the entities
 // its ref metadata points at, and the attributed edit history (§11).
 import { and, desc, eq, inArray } from "drizzle-orm";
-import type {
-  Example,
-  FieldDeclaration,
-  MetadataValue,
+import {
+  glossaryMatches,
+  type Example,
+  type FieldDeclaration,
+  type GlossaryEntry,
+  type MetadataValue,
 } from "@corpus/contract";
 import type { Db } from "@/db";
 import {
@@ -32,6 +34,9 @@ export type StringDetail = {
     examples: Example[] | null;
     // The type's voice note (§5), when the project carries one.
     note: string | null;
+    // The glossary entries whose term occurs in the source (§5), per
+    // target language.
+    glossary: Record<string, GlossaryEntry[]>;
   };
   declarations: Record<string, FieldDeclaration>;
   translations: Record<
@@ -141,6 +146,12 @@ export function stringDetail(
       metadata,
       examples: string.examples ?? null,
       note: project.typeNotes?.[string.type] ?? null,
+      glossary: Object.fromEntries(
+        Object.entries(project.glossary ?? {}).map(([lang, entries]) => [
+          lang,
+          glossaryMatches(string.source, entries),
+        ]),
+      ),
     },
     declarations,
     translations,

@@ -86,6 +86,7 @@
   "string.otherLanguagesHeading": "Other languages",
   "string.otherLanguagesNone": "No translation yet",
   "string.noteLabel": "How every {type} string reads",
+  "string.glossaryHeading": "Glossary terms in this string ({language})",
   "string.siblingsHeading": "Siblings",
   "string.siblingsCount": "{shown} of {total} strings of this type under the same key prefix",
   "string.historyHeading": "History",

@@ -325,3 +325,25 @@ test("a push carries the type notes whole; one from an older CLI leaves them", (
   });
   expect(notes()).toEqual({});
 });
+
+test("a push carries the glossary whole; one from an older CLI leaves it", () => {
+  const { db, project } = seed();
+  applySnapshot(db, project.id, moonlightManor as Snapshot);
+  const glossary = () =>
+    db.select().from(projects).where(eq(projects.id, project.id)).get()
+      ?.glossary;
+  expect(glossary()?.en?.map((e) => e.term)).toEqual([
+    "janela",
+    "noite",
+    "vítima",
+  ]);
+  const older: Snapshot = { ...(moonlightManor as Snapshot) };
+  delete older.glossary;
+  applySnapshot(db, project.id, older);
+  expect(glossary()?.en).toHaveLength(3);
+  applySnapshot(db, project.id, {
+    ...(moonlightManor as Snapshot),
+    glossary: {},
+  });
+  expect(glossary()).toEqual({});
+});
