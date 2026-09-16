@@ -58,6 +58,9 @@ test("what the editor shows: source, placeholders, selects, examples, every lang
   expect(body.examples.length).toBeGreaterThan(0);
   expect(body.metadata).toMatchObject({ kind: "sighting" });
   expect(body.note).toMatch(/household staff/);
+  expect(body.glossary).toEqual({
+    en: [{ term: "janela", target: "window", note: "never 'casement'" }],
+  });
   expect(body.translations["pt-PT"]).toMatchObject({
     state: "translated",
     agentDraft: false,

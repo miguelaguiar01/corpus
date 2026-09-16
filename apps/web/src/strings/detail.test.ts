@@ -132,3 +132,16 @@ test("the type's note comes with the string, and null for a type without one", (
   );
   expect(stringDetail(db, p.id, "ui.continue")?.string.note).toBeNull();
 });
+
+test("the glossary entries in the source come per target language", () => {
+  const { db, p } = pushed();
+  const greenhouse = stringDetail(db, p.id, "skin.seen-at-greenhouse-window");
+  expect(greenhouse?.string.glossary.en?.map((e) => e.term)).toEqual([
+    "janela",
+  ]);
+  const night = stringDetail(db, p.id, "skin.heard-nothing");
+  expect(night?.string.glossary.en?.map((e) => e.target)).toEqual(["night"]);
+  expect(stringDetail(db, p.id, "ui.continue")?.string.glossary).toEqual({
+    en: [],
+  });
+});

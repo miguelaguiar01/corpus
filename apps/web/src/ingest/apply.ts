@@ -60,6 +60,7 @@ export function applySnapshot(
           entityTypes: snapshot.entityTypes ?? null,
           sources: snapshot.sources ?? null,
           ...(snapshot.typeNotes && { typeNotes: snapshot.typeNotes }),
+          ...(snapshot.glossary && { glossary: snapshot.glossary }),
         })
         .where(eq(projects.id, projectId))
         .run();

@@ -78,6 +78,13 @@
       "when": 1789576909070,
       "tag": "0010_type-notes",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1789578532819,
+      "tag": "0011_glossary",
+      "breakpoints": true
     }
   ]
 }
