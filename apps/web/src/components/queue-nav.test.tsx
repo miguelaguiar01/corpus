@@ -6,9 +6,9 @@ import { QueueNav } from "./queue-nav";
 afterEach(cleanup);
 
 const items = [
-  { stringId: 1, key: "a", language: "pt-PT" },
-  { stringId: 2, key: "b", language: "pt-PT" },
-  { stringId: 3, key: "c/d", language: "pt-PT" },
+  { stringId: 1, key: "a", language: "pt-PT", type: "chrome" },
+  { stringId: 2, key: "b", language: "pt-PT", type: "chrome" },
+  { stringId: 3, key: "c/d", language: "pt-PT", type: "chrome" },
 ];
 const queue = {
   kind: "unverifiedSource" as const,

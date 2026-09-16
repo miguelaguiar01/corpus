@@ -13,10 +13,11 @@ export const QUEUE_KINDS = [
 ] as const;
 export type QueueKind = (typeof QUEUE_KINDS)[number];
 
-export type QueueItemResponse = { key: string; language: string };
+export type QueueItemResponse = { key: string; language: string; type: string };
 export type QueuesResponse = {
   project: string;
   language: string | null;
+  type: string | null;
   queues: Record<QueueKind, { count: number; items: QueueItemResponse[] }>;
 };
 

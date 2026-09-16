@@ -38,12 +38,17 @@ test("every queue, keyed by kind, with its items; a language narrows them", asyn
     "unverifiedSource",
     "agentDrafts",
   ]);
+  expect(all.type).toBeNull();
   expect(all.queues.untranslated.items).toEqual([
-    { key: "skin.seen-at-greenhouse-window", language: "en" },
+    {
+      key: "skin.seen-at-greenhouse-window",
+      language: "en",
+      type: "clue-skin",
+    },
   ]);
   expect(all.queues.agentDrafts).toEqual({
     count: 1,
-    items: [{ key: CONTINUE, language: "en" }],
+    items: [{ key: CONTINUE, language: "en", type: "chrome" }],
   });
   expect(all.queues.unverifiedSource.count).toBe(3);
 
@@ -57,4 +62,16 @@ test("every queue, keyed by kind, with its items; a language narrows them", asyn
   const fr = await queues(token, "?language=fr");
   expect(fr.status).toBe(422);
   expect((await fr.json()).error).toBe("unknown-language");
+
+  const chrome = (await (
+    await queues(token, "?type=chrome&language=pt-PT")
+  ).json()) as QueuesResponse;
+  expect(chrome.type).toBe("chrome");
+  expect(chrome.queues.unverifiedSource.items).toEqual([
+    { key: CONTINUE, language: "pt-PT", type: "chrome" },
+  ]);
+  const none = (await (
+    await queues(token, "?type=nope")
+  ).json()) as QueuesResponse;
+  expect(none.queues.untranslated.count).toBe(0);
 });

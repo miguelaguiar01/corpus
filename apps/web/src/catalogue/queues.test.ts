@@ -44,7 +44,8 @@ function dbId(db: Db, stringId: string): number {
 }
 
 function item(db: Db, key: string, language: string) {
-  return { stringId: dbId(db, key), key, language };
+  const row = db.select().from(strings).where(eq(strings.stringId, key)).get()!;
+  return { stringId: row.id, key, language, type: row.type };
 }
 
 // Fixture order by insertion (= internal id): greenhouse, heard-nothing, ui.continue.

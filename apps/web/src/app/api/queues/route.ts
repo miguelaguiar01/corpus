@@ -4,15 +4,17 @@ import { authenticateProject } from "@/api/bearer";
 import { apiError } from "@/api/body";
 import { allQueues, QUEUE_KINDS } from "@/catalogue/queues";
 
-// The dashboard's queues for an agent (§9.1, §10), every language or
-// one named by `?language=`.
+// The dashboard's queues for an agent (§9.1, §10), narrowed by
+// `?language=` and `?type=` when given.
 export async function GET(request: Request): Promise<Response> {
   const db = getDb();
   const auth = authenticateProject(db, request);
   if (!auth.ok) return auth.response;
   const { project } = auth;
 
-  const language = new URL(request.url).searchParams.get("language");
+  const params = new URL(request.url).searchParams;
+  const language = params.get("language");
+  const type = params.get("type");
   if (language !== null && !project.languages.includes(language)) {
     return apiError(
       422,
@@ -26,9 +28,15 @@ export async function GET(request: Request): Promise<Response> {
   for (const kind of QUEUE_KINDS) {
     const items = all[kind].items
       .filter((item) => language === null || item.language === language)
-      .map(({ key, language }) => ({ key, language }));
+      .filter((item) => type === null || item.type === type)
+      .map(({ key, language, type }) => ({ key, language, type }));
     queues[kind] = { count: items.length, items };
   }
-  const body: QueuesResponse = { project: project.slug, language, queues };
+  const body: QueuesResponse = {
+    project: project.slug,
+    language,
+    type,
+    queues,
+  };
   return Response.json(body);
 }

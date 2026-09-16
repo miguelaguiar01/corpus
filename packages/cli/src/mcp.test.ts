@@ -79,7 +79,10 @@ const QUEUES = {
   project: "push-fixture",
   language: null,
   queues: {
-    untranslated: { count: 1, items: [{ key: "ui.continue", language: "en" }] },
+    untranslated: {
+      count: 1,
+      items: [{ key: "ui.continue", language: "en", type: "chrome" }],
+    },
     stale: { count: 0, items: [] },
     unverifiedSource: { count: 0, items: [] },
     agentDrafts: { count: 0, items: [] },
@@ -186,11 +189,12 @@ test("every tool is one API call with the token, and answers the server's body",
   const queue = await call("list_queue", {
     queue: "untranslated",
     language: "en",
+    type: "chrome",
   });
   expect(queue.structuredContent).toEqual({
     queue: "untranslated",
     count: 1,
-    items: [{ key: "ui.continue", language: "en" }],
+    items: [{ key: "ui.continue", language: "en", type: "chrome" }],
   });
   const string = await call("get_string", { key: "ui.continue" });
   expect(string.structuredContent).toEqual(STRING);
@@ -214,7 +218,7 @@ test("every tool is one API call with the token, and answers the server's body",
   expect(status.structuredContent).toEqual({ project: "push-fixture" });
 
   expect(seen.map((s) => [s.method, s.path, s.body])).toEqual([
-    ["GET", "/api/queues?language=en", undefined],
+    ["GET", "/api/queues?language=en&type=chrome", undefined],
     ["GET", "/api/strings/ui.continue", undefined],
     ["PUT", "/api/strings/ui.continue/translations/en", { text: "Continue" }],
     [
