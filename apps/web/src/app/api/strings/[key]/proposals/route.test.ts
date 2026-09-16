@@ -6,7 +6,7 @@ import {
   pushedProject,
   stringRowId,
 } from "@/agents/test-helpers";
-import { strings } from "@/db/schema";
+import { projects, strings } from "@/db/schema";
 import { pendingForString } from "@/proposals/service";
 
 const seeded = pushedProject();
@@ -85,11 +85,26 @@ test("the service's refusals: unchanged, invalid ICU, a source pull cannot write
     .run();
   const exec = await propose(token, HEARD, { kind: "delete" });
   expect(exec.status).toBe(422);
-  expect((await exec.json()).error).toBe("not-writable");
+  expect(await exec.json()).toEqual({
+    error: "not-writable",
+    message: `${HEARD} comes from a source that pull cannot write; the writable sources are src/skins/{lang}.json, src/ui/{lang}.json`,
+  });
 
   const bad = await propose(token, CONTINUE, { kind: "rename" });
   expect(bad.status).toBe(422);
   expect((await propose(token, "no.such", { kind: "delete" })).status).toBe(
     404,
+  );
+});
+
+test("a string proposal's refusal carries the predated-push clause too", async () => {
+  const { db, project, token } = seeded;
+  db.update(projects)
+    .set({ sources: null })
+    .where(eq(projects.id, project.id))
+    .run();
+  const res = await propose(token, HEARD, { kind: "delete" });
+  expect((await res.json()).message).toBe(
+    `${HEARD} comes from a source that pull cannot write; the project was last pushed before sources were declared; run corpus push with this CLI`,
   );
 });

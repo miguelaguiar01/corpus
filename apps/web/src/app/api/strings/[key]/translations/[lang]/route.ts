@@ -50,7 +50,7 @@ export async function PUT(
         return apiError(
           409,
           "human-edited",
-          `${key} in ${lang} holds a person's work`,
+          `${key} in ${lang} holds a person's work; propose a change if the source is the problem; otherwise leave the row to its author`,
         );
     }
   }

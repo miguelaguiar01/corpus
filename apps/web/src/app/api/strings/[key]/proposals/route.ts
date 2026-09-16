@@ -32,6 +32,6 @@ export async function POST(
           actor,
         })
       : proposeDelete(db, { stringRowId: detail.string.id, actor });
-  if (!result.ok) return proposalRefusal(result, key);
+  if (!result.ok) return proposalRefusal(result, key, auth.project);
   return proposalCreated(result.proposal, actor.name);
 }
