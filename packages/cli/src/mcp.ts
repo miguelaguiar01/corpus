@@ -7,12 +7,11 @@
 import { readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import type { Readable, Writable } from "node:stream";
-import { apiOver, tools, type Api, type Tool } from "./agent-tools";
+import { apiOver, argumentProblem, tools, type Api } from "./agent-tools";
 import type { RunContext } from "./cli";
 import { loadConfig, requireToken } from "./config";
 
 export const MCP_USAGE = "corpus mcp";
-export { apiOver, tools } from "./agent-tools";
 
 const PROTOCOL_VERSIONS = [
   "2025-11-25",
@@ -31,24 +30,6 @@ type Message = {
   method?: string;
   params?: Record<string, unknown>;
 };
-
-function argumentProblem(
-  tool: Tool,
-  args: Record<string, unknown>,
-): string | undefined {
-  for (const name of tool.inputSchema.required ?? []) {
-    if (typeof args[name] !== "string" || args[name] === "")
-      return `${name} is missing or not a string`;
-  }
-  for (const [name, value] of Object.entries(args)) {
-    const property = tool.inputSchema.properties[name];
-    if (!property) return `unknown argument ${name}`;
-    if (typeof value !== "string") return `${name} is not a string`;
-    if (property.enum && !property.enum.includes(value))
-      return `${name} must be one of ${property.enum.join(", ")}`;
-  }
-  return undefined;
-}
 
 // The server over any pair of streams, so a test can drive it without a
 // process; `corpus mcp` binds it to stdin and stdout.

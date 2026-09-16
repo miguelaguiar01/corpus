@@ -160,7 +160,7 @@ npx corpus agent queue untranslated --lang pt-PT --type chrome
 npx corpus agent string ui.continue
 npx corpus agent draft ui.continue pt-PT "Continuar"
 npx corpus agent propose ui.continue --text "Prosseguir"     # or --remove
-npx corpus agent add ui.back --file src/i18n/messages.{lang}.json --text "Voltar"
+npx corpus agent add ui.back --file src/i18n/{lang}.json --text "Voltar"
 npx corpus agent status
 ```
 

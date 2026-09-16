@@ -2,74 +2,130 @@
 // has a shell and no MCP client. Each prints the API's JSON on stdout;
 // any answer that is not a 2xx prints the server's error and message
 // on stderr and exits 1.
-import { option } from "./args";
 import type { RunContext } from "./cli";
 import { CliError, loadConfig, requireToken } from "./config";
-import { apiOver, tools, type ToolResult } from "./agent-tools";
+import {
+  apiOver,
+  argumentProblem,
+  tools,
+  type ToolResult,
+} from "./agent-tools";
 
 export const AGENT_USAGE =
   "corpus agent queue <untranslated|stale|unverifiedSource|agentDrafts> [--lang <l>] [--type <t>] | string <key> | draft <key> <lang> <text> | propose <key> (--text <t> | --remove) | add <key> --file <f> --text <t> | status";
 
 type Call = { tool: string; args: Record<string, string> };
 
-// The subcommand's words as a tool call; a CliError names what is
-// missing, in the usage's terms.
-export function parseAgent(argv: string[]): Call {
-  const [sub, ...rest] = argv;
-  const positional = rest.filter(
-    (a, i) => !a.startsWith("--") && !(rest[i - 1] ?? "").startsWith("--"),
-  );
-  const need = (value: string | undefined, what: string): string => {
-    if (!value)
+const VALUED = new Set(["--lang", "--type", "--text", "--file"]);
+// `--json` is accepted for symmetry with `corpus status --json`; the
+// output is JSON either way.
+const BARE = new Set(["--remove", "--json"]);
+
+type Words = { positional: string[]; flags: Map<string, string | true> };
+
+// The words after the subcommand: flags that take a value, flags that
+// take none, and everything else in order. An unknown flag, or a
+// valued one without a value, is refused rather than dropped.
+function tokenize(sub: string, rest: string[]): Words {
+  const positional: string[] = [];
+  const flags = new Map<string, string | true>();
+  for (let i = 0; i < rest.length; i++) {
+    const word = rest[i]!;
+    if (!word.startsWith("--")) {
+      positional.push(word);
+      continue;
+    }
+    if (BARE.has(word)) {
+      flags.set(word, true);
+      continue;
+    }
+    if (!VALUED.has(word)) {
       throw new CliError(
-        `corpus agent ${sub}: ${what} is missing\n${AGENT_USAGE}`,
+        `corpus agent ${sub}: unknown option ${word}\n${AGENT_USAGE}`,
       );
-    return value;
+    }
+    const value = rest[i + 1];
+    if (value === undefined || value.startsWith("--")) {
+      throw new CliError(
+        `corpus agent ${sub}: ${word} needs a value\n${AGENT_USAGE}`,
+      );
+    }
+    flags.set(word, value);
+    i++;
+  }
+  return { positional, flags };
+}
+
+export function parseAgent(argv: string[]): Call {
+  const [sub = "", ...rest] = argv;
+  const missing = (what: string): never => {
+    throw new CliError(
+      `corpus agent ${sub}: ${what} is missing\n${AGENT_USAGE}`,
+    );
+  };
+  const { positional, flags } = tokenize(sub, rest);
+  const valued = (name: string): string | undefined => {
+    const v = flags.get(name);
+    return typeof v === "string" ? v : undefined;
+  };
+  const only = (count: number) => {
+    if (positional.length > count) {
+      throw new CliError(
+        `corpus agent ${sub}: unexpected word ${positional[count]}\n${AGENT_USAGE}`,
+      );
+    }
   };
   switch (sub) {
     case "queue": {
+      only(1);
       const args: Record<string, string> = {
-        queue: need(positional[0], "the queue"),
+        queue: positional[0] ?? missing("the queue"),
       };
-      const lang = option(rest, "--lang");
-      const type = option(rest, "--type");
+      const lang = valued("--lang");
+      const type = valued("--type");
       if (lang) args.language = lang;
       if (type) args.type = type;
       return { tool: "list_queue", args };
     }
     case "string":
+      only(1);
       return {
         tool: "get_string",
-        args: { key: need(positional[0], "the key") },
+        args: { key: positional[0] ?? missing("the key") },
       };
-    case "draft":
+    case "draft": {
+      const [key, language, ...text] = positional;
       return {
         tool: "save_draft",
         args: {
-          key: need(positional[0], "the key"),
-          language: need(positional[1], "the language"),
-          text: need(positional.slice(2).join(" "), "the text"),
+          key: key ?? missing("the key"),
+          language: language ?? missing("the language"),
+          text: text.length ? text.join(" ") : missing("the text"),
         },
       };
+    }
     case "propose": {
-      const key = need(positional[0], "the key");
-      if (rest.includes("--remove"))
+      only(1);
+      const key = positional[0] ?? missing("the key");
+      if (flags.has("--remove"))
         return { tool: "propose_removal", args: { key } };
       return {
         tool: "propose_change",
-        args: { key, text: need(option(rest, "--text"), "--text or --remove") },
+        args: { key, text: valued("--text") ?? missing("--text or --remove") },
       };
     }
     case "add":
+      only(1);
       return {
         tool: "add_string",
         args: {
-          key: need(positional[0], "the key"),
-          file: need(option(rest, "--file"), "--file"),
-          text: need(option(rest, "--text"), "--text"),
+          key: positional[0] ?? missing("the key"),
+          file: valued("--file") ?? missing("--file"),
+          text: valued("--text") ?? missing("--text"),
         },
       };
     case "status":
+      only(0);
       return { tool: "status", args: {} };
     default:
       throw new CliError(`usage: ${AGENT_USAGE}`);
@@ -84,6 +140,8 @@ export async function agent(argv: string[], ctx: RunContext): Promise<number> {
     (t) => t.name === call.tool,
   );
   if (!tool) throw new CliError(`no such operation ${call.tool}`);
+  const problem = argumentProblem(tool, call.args);
+  if (problem) throw new CliError(`corpus agent ${argv[0]}: ${problem}`);
   const result: ToolResult = await tool.call(call.args);
   const text = result.content.map((c) => c.text).join("\n");
   if (result.isError) {

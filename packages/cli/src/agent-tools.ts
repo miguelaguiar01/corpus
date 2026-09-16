@@ -224,3 +224,23 @@ export function tools(api: Api): Tool[] {
     },
   ];
 }
+
+// What a call is missing or has wrong, in the tool's terms; undefined
+// when the arguments fit the schema.
+export function argumentProblem(
+  tool: Tool,
+  args: Record<string, unknown>,
+): string | undefined {
+  for (const name of tool.inputSchema.required ?? []) {
+    if (typeof args[name] !== "string" || args[name] === "")
+      return `${name} is missing or not a string`;
+  }
+  for (const [name, value] of Object.entries(args)) {
+    const property = tool.inputSchema.properties[name];
+    if (!property) return `unknown argument ${name}`;
+    if (typeof value !== "string") return `${name} is not a string`;
+    if (property.enum && !property.enum.includes(value))
+      return `${name} must be one of ${property.enum.join(", ")}`;
+  }
+  return undefined;
+}

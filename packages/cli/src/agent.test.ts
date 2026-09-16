@@ -121,6 +121,33 @@ test("a missing word is named in the usage's terms; an unknown subcommand shows 
   expect(() => parseAgent(["verify"])).toThrow(/usage: corpus agent/);
 });
 
+test("flags are read by what they take, wherever they stand; unknown ones and bare valued ones are refused", () => {
+  expect(parseAgent(["propose", "--remove", "ui.continue"])).toEqual({
+    tool: "propose_removal",
+    args: { key: "ui.continue" },
+  });
+  expect(() =>
+    parseAgent(["propose", "ui.continue", "--remove", "extra"]),
+  ).toThrow(/unexpected word extra/);
+  expect(() => parseAgent(["add", "k", "--file", "--text", "x"])).toThrow(
+    /--file needs a value/,
+  );
+  expect(() => parseAgent(["queue", "stale", "--lnag", "pt-PT"])).toThrow(
+    /unknown option --lnag/,
+  );
+  expect(parseAgent(["draft", "--json", "k", "pt-PT", "x"])).toEqual({
+    tool: "save_draft",
+    args: { key: "k", language: "pt-PT", text: "x" },
+  });
+  expect(() =>
+    parseAgent(["draft", "k", "pt-PT", "Continuar", "--agora", "mesmo"]),
+  ).toThrow(/unknown option --agora/);
+  expect(parseAgent(["status", "--json"])).toEqual({
+    tool: "status",
+    args: {},
+  });
+});
+
 test("the JSON goes to stdout with exit 0; a refusal goes to stderr with exit 1", async () => {
   api = await startApi((seen) =>
     seen.path === "/api/status"
@@ -161,6 +188,57 @@ test("the JSON goes to stdout with exit 0; a refusal goes to stderr with exit 1"
       { text: "Continuar" },
     ],
   ]);
+});
+
+test("every subcommand reaches the API as its tool; a bad queue kind and an unreachable server exit 1", async () => {
+  api = await startApi((seen) =>
+    seen.path.startsWith("/api/queues")
+      ? {
+          status: 200,
+          body: {
+            project: "push-fixture",
+            language: "pt-PT",
+            type: null,
+            queues: {
+              untranslated: { count: 0, items: [] },
+              stale: { count: 0, items: [] },
+              unverifiedSource: { count: 0, items: [] },
+              agentDrafts: { count: 0, items: [] },
+            },
+          },
+        }
+      : { status: 201, body: { ok: true, path: seen.path } },
+  );
+  const calls: string[][] = [
+    ["queue", "stale", "--lang", "pt-PT"],
+    ["string", "ui.continue"],
+    ["propose", "ui.continue", "--text", "Prosseguir"],
+    ["propose", "ui.continue", "--remove"],
+    ["add", "ui.back", "--file", "i18n/{lang}.json", "--text", "Back"],
+  ];
+  for (const words of calls) {
+    const { context, out, err } = ctx(api.url);
+    expect(await run(["agent", ...words], context)).toBe(0);
+    expect(err).toEqual([]);
+    expect(out.length).toBeGreaterThan(0);
+  }
+  expect(api.seen.map((s) => [s.method, s.path])).toEqual([
+    ["GET", "/api/queues?language=pt-PT"],
+    ["GET", "/api/strings/ui.continue"],
+    ["POST", "/api/strings/ui.continue/proposals"],
+    ["POST", "/api/strings/ui.continue/proposals"],
+    ["POST", "/api/proposals"],
+  ]);
+
+  const bad = ctx(api.url);
+  expect(await run(["agent", "queue", "nonsense"], bad.context)).toBe(1);
+  expect(bad.err.join("\n")).toMatch(/queue must be one of untranslated/);
+  expect(api.seen).toHaveLength(5);
+
+  api.server.close();
+  const down = ctx("http://127.0.0.1:9");
+  expect(await run(["agent", "status"], down.context)).toBe(1);
+  expect(down.err.join("\n")).toMatch(/could not reach the server/);
 });
 
 test("corpus agent is in the usage and needs the token", async () => {
