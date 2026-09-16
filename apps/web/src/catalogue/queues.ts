@@ -20,7 +20,12 @@ export function isQueueKind(value: unknown): value is QueueKind {
 }
 // stringId is the internal row id; key is the client's snapshot id (§4),
 // which the string route uses.
-export type QueueItem = { stringId: number; key: string; language: string };
+export type QueueItem = {
+  stringId: number;
+  key: string;
+  language: string;
+  type: string;
+};
 export type Queue = {
   kind: QueueKind;
   count: number;
@@ -33,6 +38,7 @@ type Row = {
   stringId: number;
   key: string;
   language: string;
+  type: string;
   state: string;
   stale: boolean;
   isSource: boolean;
@@ -52,6 +58,7 @@ function loadRows(db: Db, projectId: number): Row[] {
     .select({
       stringId: stringTranslations.stringId,
       key: strings.stringId,
+      type: strings.type,
       language: stringTranslations.language,
       state: stringTranslations.state,
       stale: stringTranslations.stale,
@@ -73,7 +80,12 @@ function loadRows(db: Db, projectId: number): Row[] {
 function pick(rows: Row[], kind: QueueKind): Queue {
   const items = rows
     .filter(MATCHERS[kind])
-    .map(({ stringId, key, language }) => ({ stringId, key, language }));
+    .map(({ stringId, key, language, type }) => ({
+      stringId,
+      key,
+      language,
+      type,
+    }));
   return { kind, count: items.length, first: items[0] ?? null, items };
 }
 

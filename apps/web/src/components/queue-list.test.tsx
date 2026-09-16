@@ -6,9 +6,19 @@ import { QueueList } from "./queue-list";
 afterEach(cleanup);
 
 const first = {
-  untranslated: { stringId: 1, key: "skin.seen", language: "en" },
+  untranslated: {
+    stringId: 1,
+    key: "skin.seen",
+    language: "en",
+    type: "chrome",
+  },
   stale: null,
-  unverifiedSource: { stringId: 1, key: "skin.seen", language: "pt-PT" },
+  unverifiedSource: {
+    stringId: 1,
+    key: "skin.seen",
+    language: "pt-PT",
+    type: "chrome",
+  },
   agentDrafts: null,
 };
 
@@ -95,7 +105,12 @@ test("the agent drafts queue appears once the project has any", () => {
       }}
       first={{
         ...first,
-        agentDrafts: { stringId: 3, key: "ui.continue", language: "en" },
+        agentDrafts: {
+          stringId: 3,
+          key: "ui.continue",
+          language: "en",
+          type: "chrome",
+        },
       }}
     />,
   );

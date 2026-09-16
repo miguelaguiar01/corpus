@@ -101,7 +101,7 @@ export function tools(api: Api): Tool[] {
     {
       name: "list_queue",
       description:
-        "The items of one queue: untranslated, stale, unverifiedSource or agentDrafts; narrowed to a language when given. Each item is a key and a language.",
+        "The items of one queue: untranslated, stale, unverifiedSource or agentDrafts; narrowed to a language and a string type when given. Each item is a key, a language and the string's type.",
       inputSchema: {
         type: "object",
         properties: {
@@ -110,15 +110,21 @@ export function tools(api: Api): Tool[] {
             ...language,
             description: `${language.description} Optional.`,
           },
+          type: {
+            type: "string",
+            description:
+              "A string type of the project, as status lists them. Optional.",
+          },
         },
         required: ["queue"],
         additionalProperties: false,
       },
       call: async (args) => {
-        const query = args.language
-          ? `?language=${segment(str(args, "language"))}`
-          : "";
-        const result = await api("GET", `/api/queues${query}`);
+        const query = new URLSearchParams();
+        if (args.language) query.set("language", str(args, "language"));
+        if (args.type) query.set("type", str(args, "type"));
+        const suffix = query.size ? `?${query}` : "";
+        const result = await api("GET", `/api/queues${suffix}`);
         if (result.isError || !result.structuredContent) return result;
         const queues = result.structuredContent.queues as Record<
           string,
