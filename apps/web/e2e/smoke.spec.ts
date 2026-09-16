@@ -203,6 +203,8 @@ test("a maintainer takes a string from pushed to verified on a phone", async ({
     page.getByRole("heading", { name: "Other languages" }),
   ).toBeVisible();
   await expect(page.getByText("No translation yet").first()).toBeVisible();
+  // The type's note reads under the source (§5).
+  await expect(page.getByText(/household staff/)).toBeVisible();
   // Its sibling, the other skin, is a link under the source (§9.3).
   await expect(page.getByRole("heading", { name: "Siblings" })).toBeVisible();
   await expect(
