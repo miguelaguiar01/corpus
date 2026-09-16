@@ -19,6 +19,7 @@ What the first MCP user found.
 - **`corpus agent`** (§3): the seven MCP tools as subcommands (`queue`, `string`, `draft`, `propose`, `add`, `status`), each printing the API's JSON, for an agent that has a shell and no MCP client.
 - Queue items carry the string's `type`; `GET /api/queues` and `list_queue` narrow by type as well as language.
 - `GET /api/status` and `corpus status` carry the project's writable sources, and say when the last push predates their declaration.
+- The snapshot carries `typeNotes` and `glossary`, the string response carries `note`, `glossary` and `siblings`, and queue items carry `type`. All optional; the contract stays `corpus/1`.
 
 ### Changed
 
