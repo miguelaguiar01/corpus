@@ -53,6 +53,12 @@ export async function GET(
           author: pending.author,
         }
       : null,
+    siblings: detail.siblings.items.map(({ key, source, translations }) => ({
+      key,
+      source,
+      translations,
+    })),
+    siblingCount: detail.siblings.total,
   };
   return Response.json(body);
 }

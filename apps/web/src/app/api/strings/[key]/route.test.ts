@@ -71,4 +71,19 @@ test("what the editor shows: source, placeholders, selects, examples, every lang
     text: "Alguém foi visto à janela.",
     author: "mm agent",
   });
+  expect(body.siblingCount).toBe(1);
+  expect(body.siblings).toEqual([
+    {
+      key: "skin.heard-nothing",
+      source: "Não ouvi nada a noite toda.",
+      translations: {
+        "pt-PT": {
+          state: "translated",
+          stale: false,
+          text: null,
+        },
+        en: { state: "untranslated", stale: false, text: null },
+      },
+    },
+  ]);
 });

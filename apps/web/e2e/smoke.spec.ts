@@ -202,7 +202,12 @@ test("a maintainer takes a string from pushed to verified on a phone", async ({
   await expect(
     page.getByRole("heading", { name: "Other languages" }),
   ).toBeVisible();
-  await expect(page.getByText("No translation yet")).toBeVisible();
+  await expect(page.getByText("No translation yet").first()).toBeVisible();
+  // Its sibling, the other skin, is a link under the source (§9.3).
+  await expect(page.getByRole("heading", { name: "Siblings" })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: /skin\.heard-nothing/ }),
+  ).toBeVisible();
   // And from the third language, the English translation saved above
   // reads through.
   await page.goto(

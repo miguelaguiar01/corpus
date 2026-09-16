@@ -49,6 +49,16 @@ export type StringResponse = {
     text: string | null;
     author: string;
   } | null;
+  // The ten nearest siblings (§9.3) and how many there are in all.
+  siblings: {
+    key: string;
+    source: string;
+    translations: Record<
+      string,
+      { state: TranslationState; stale: boolean; text: string | null }
+    >;
+  }[];
+  siblingCount: number;
 };
 
 export const draftBodySchema = z.object({ text: z.string() });

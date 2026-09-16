@@ -12,6 +12,7 @@ import { Section } from "@/components/ui/section";
 import { QueueNav } from "@/components/queue-nav";
 import { SourceView } from "@/components/source-view";
 import { OtherLanguages } from "@/components/other-languages";
+import { Siblings } from "@/components/siblings";
 import { ProposalPanel } from "@/components/proposal-panel";
 import { LanguageBar } from "@/components/language-bar";
 import { StateChips } from "@/components/state-chips";
@@ -71,7 +72,8 @@ export default async function StringPage({
   if (!project) notFound();
   const detail = stringDetail(db, project.id, decodeURIComponent(stringId));
   if (!detail) notFound();
-  const { string, declarations, translations, entities, history } = detail;
+  const { string, declarations, translations, entities, history, siblings } =
+    detail;
   const examples = string.examples ?? [];
 
   const queueKind = isQueueKind(query.queue) ? query.queue : undefined;
@@ -256,6 +258,7 @@ export default async function StringPage({
             exclude={[project.sourceLanguage, actedLanguage]}
             translations={translations}
           />
+          <Siblings slug={slug} siblings={siblings} language={target} />
           {entities.length > 0 && (
             <Section heading={t("string.entitiesHeading")}>
               <EntityCards entities={entities} />
