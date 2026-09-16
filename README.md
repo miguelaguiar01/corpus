@@ -135,9 +135,9 @@ The catalogue is the inventory, and anyone on the instance can propose a change 
 
 `corpus mcp` starts a [Model Context Protocol](https://modelcontextprotocol.io) server on stdio from the repository, reading the config and the token like every other command, so an agent in the repository works inside the project with no browser. Three things first, in this order:
 
-1. **The instance must run the same Corpus version as the CLI.** The token routes the tools call arrived in 0.8.0; a `corpus workbench` started from an older `@corpus-tool/workbench` answers `status` and nothing else. Bump both packages together, then start the workbench again.
-2. **Push once after upgrading.** The instance learns which source files can take proposals from a push; until then every proposal is refused as "last pushed before sources were declared". `corpus status` prints the writable sources when it knows them.
-3. **Register the server before the session starts.** Clients load tool schemas when a session opens, and a running agent cannot restart itself, so `claude mcp add` from inside an agent's session gives that session nothing. Register, then start.
+1. **The instance must run the same Corpus version as the CLI.** The token routes the tools call arrived in 0.8.0; an older instance, a `corpus workbench` started from an older `@corpus-tool/workbench` or a container on an older image tag, answers `status` and nothing else. Bump both packages together and start the workbench again, or pull the matching image; `corpus status` prints the server's version.
+2. **Push once after upgrading.** The instance learns which source files can take proposals from a push; until then every proposal is refused as "last pushed before sources were declared". `corpus status` prints the writable sources when it knows them, and says so when a project has none: only `.json` catalogues take proposals, so a project whose text all comes from an exporter never will.
+3. **Register the server before the session starts.** Claude Code loads tool schemas when a session opens, and a running agent cannot restart itself, so `claude mcp add` from inside an agent's session gives that session nothing; expect the same of any other client. Register, then start.
 
 In Claude Code:
 
@@ -151,9 +151,9 @@ or in the repository's `.mcp.json`, for any client:
 { "mcpServers": { "corpus": { "command": "npx", "args": ["corpus", "mcp"] } } }
 ```
 
-Its tools are one API call each: `list_queue` (a queue's items, narrowed by language and string type), `get_string` (the source with its placeholders, selects and examples, every language's text and state, any pending proposal), `save_draft`, `propose_change`, `propose_removal`, `add_string` and `status`. Three rules hold for everything an agent writes through the project token. It never overwrites a person's work: a draft lands on an untranslated row, a stale one or its own earlier draft, and a row a person edited refuses with `human-edited` and says to propose instead. Every draft is attributed to the project's agent actor, which the history, the chips and the settings list show as such. Nothing but a signed-in maintainer verifies: agent drafts are a queue of their own on the dashboard, and the token has no way to sign anything off. The model stays on the agent's side; Corpus runs none.
+Its tools are one API call each: `list_queue` (a queue's items, narrowed to a language, a string type or both when asked), `get_string` (the source with its placeholders, selects and examples, every language's text and state, any pending proposal), `save_draft`, `propose_change`, `propose_removal`, `add_string` and `status`. Three rules hold for everything an agent writes through the project token. It never overwrites a person's work: a draft lands on an untranslated row, a stale one or its own earlier draft, and a row a person edited refuses with `human-edited` and says what to do: propose a change if the source is the problem, otherwise leave the row to its author. Every draft is attributed to the project's agent actor, which the history, the chips and the settings list show as such. Nothing but a signed-in maintainer verifies: agent drafts are a queue of their own on the dashboard, and the token has no way to sign anything off. The model stays on the agent's side; Corpus runs none.
 
-An agent that has a shell and no MCP client can drive the server as a subprocess: one JSON-RPC message per line on stdin, one reply per line on stdout, nothing else on stdout. This is what the install smoke does:
+An agent that has a shell and no MCP client can drive the server as a subprocess: one JSON-RPC message per line on stdin, one reply per line on stdout, nothing else on stdout. This is what `bin/install-smoke` does against a fresh install:
 
 ```sh
 printf '%s\n%s\n%s\n%s\n' \
