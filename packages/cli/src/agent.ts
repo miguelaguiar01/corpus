@@ -198,6 +198,7 @@ async function agentStdin(ctx: RunContext): Promise<number> {
     if (!tool) {
       answer({
         ...echo,
+        op,
         ok: false,
         error: "bad-line",
         message: `op must be one of ${table.map((t) => t.op).join(", ")}`,

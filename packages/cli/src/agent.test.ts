@@ -338,6 +338,7 @@ test("--stdin runs a batch through one process: one JSON line per operation, in 
     },
     { ok: false, error: "bad-line", message: "not a JSON object" },
     {
+      op: "verify",
       ok: false,
       error: "bad-line",
       message:

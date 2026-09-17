@@ -13,16 +13,17 @@ What the second MCP run found.
 
 ### Added
 
-- `corpus agent --stdin` (§3): many operations through one process, one JSON object per line in and one JSON line per operation out, in order, with the server's error and message on a refusal and an echoed `id`; no start-up per call and no shell quoting around a translation.
-- The string response and `get_string` carry the entities a string refers to, as the editor's cards show them: field, id, type and its label, name, attributes.
-
-### Fixed
-
-- A pull or a proposal edits a messages file in place (§8): a changed value replaces its token, a removed key goes with its comma and the object it empties, an added key lands in its object's own style, inline or expanded, with the file's line ending; every other byte stays. A catalogue that keeps small objects on one line was rewritten whole before, so three proposals read as a hundred changed lines.
+- `corpus agent --stdin` (§3): many operations through one process, one JSON object per line in (`op` is `queue`, `string`, `draft`, `propose`, `remove`, `add` or `status`) and one JSON line per operation out, in order, with the server's error and message on a refusal, `unreachable` when the server is down, and an echoed `id`; no start-up per call and no shell quoting around a translation.
+- The string response and `get_string` carry the entities a string refers to, as the editor's cards show them: field, id, type and its label, name, attributes. The contract gains `entities`; still `corpus/1`.
 
 ### Changed
 
 - The README leads with the agent surface and no longer carries a status paragraph.
+
+### Fixed
+
+- A pull or a proposal edits a messages file in place (§8): a changed value replaces its token, a removed key goes with its comma and the object it empties, an added key lands in its object's own style, inline or expanded, with the file's line ending; every other byte stays. A catalogue that keeps small objects on one line was rewritten whole before, so three proposals read as a hundred changed lines.
+- The CLI exits only once its output has drained, so a long answer through a pipe keeps its tail, and a reader that closed early (`| head`) ends it quietly instead of with a stack trace.
 
 ## [0.9.0] - 2026-09-16
 
