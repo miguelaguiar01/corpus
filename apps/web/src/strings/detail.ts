@@ -4,6 +4,7 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import {
   glossaryMatches,
+  type StringResponse,
   type Example,
   type FieldDeclaration,
   type GlossaryEntry,
@@ -55,15 +56,8 @@ export type StringDetail = {
   history: HistoryEntry[];
 };
 
-export type EntityCard = {
-  // The ref field that named the entity, when reached from a string.
-  field?: string;
-  entityId: string;
-  type: string;
-  typeLabel: string;
-  name: string;
-  attributes: Record<string, string> | null;
-};
+// The wire type is the source of truth (§10); the editor reuses it.
+export type EntityCard = StringResponse["entities"][number];
 
 export type HistoryEntry = {
   id: number;

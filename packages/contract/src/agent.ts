@@ -56,7 +56,8 @@ export type StringResponse = {
     author: string;
   } | null;
   // The entities the string's ref metadata points at (§6), as the
-  // editor's cards show them.
+  // editor's cards show them; `field` is always set on a string's
+  // response and optional only for the editor's entity browser.
   entities: {
     field?: string;
     entityId: string;
