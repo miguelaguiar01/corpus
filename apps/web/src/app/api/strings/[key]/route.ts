@@ -53,6 +53,7 @@ export async function GET(
     metadata: detail.string.metadata,
     note: detail.string.note,
     glossary: detail.string.glossary,
+    entities: detail.entities,
     translations,
     proposal: pending
       ? {

@@ -75,6 +75,9 @@ test("what the editor shows: source, placeholders, selects, examples, every lang
     text: "Alguém foi visto à janela.",
     author: "mm agent",
   });
+  expect(
+    body.entities.map((e) => [e.field, e.entityId, e.typeLabel, e.name]),
+  ).toContainEqual(["requires_trait", "trait:insomnia", "Trait", "Insónia"]);
   expect(body.siblingCount).toBe(1);
   expect(body.siblings).toEqual([
     {
