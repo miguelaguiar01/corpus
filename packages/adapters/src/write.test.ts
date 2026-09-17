@@ -208,11 +208,11 @@ test("messages ops: an edit sets, an add appends nested when the file nests, a d
   );
   expect(
     applyMessagesOps('{"a": "x"}', [{ kind: "add", id: "b.c", text: "y" }]),
-  ).toBe('{\n  "a": "x",\n  "b.c": "y"\n}');
+  ).toBe('{"a": "x", "b.c": "y"}');
   // A delete of an absent key is nothing, so a second pull and a
   // target file without the key are fine.
   expect(applyMessagesOps('{"a": "x"}\n', [{ kind: "delete", id: "zz" }])).toBe(
-    '{\n  "a": "x"\n}\n',
+    '{"a": "x"}\n',
   );
 });
 
@@ -245,4 +245,155 @@ test("table ops: edit by id, add a minimal record, delete a record; the one-per-
       text: "text",
     }),
   ).toBe(file);
+});
+
+// A catalogue that keeps small objects on one line, as a hand-kept file
+// does: every edit must read as the line it changes (§8).
+const INLINE = `{
+  "home": {
+    "subtitle": "uma casa, uma noite",
+    "daily": { "title": "O caso de hoje", "dims": "UM CASO NOVO" },
+    "archive": { "title": "Arquivo", "dims": "OS CASOS QUE JÁ SAÍRAM" }
+  },
+  "langToggle": { "toEnAria": "switch to English", "toEn": "EN", "toPt": "PT" },
+  "caseClient": { "notFound": "este caso não foi encontrado" }
+}
+`;
+
+describe("format-preserving edits on an inline-style file", () => {
+  test("read → write with the same texts is byte-identical", () => {
+    expect(entriesToMessages(INLINE, textsOf(INLINE))).toBe(INLINE);
+    expect(entriesToMessages(INLINE, {}, INLINE)).toBe(INLINE);
+  });
+
+  test("a changed value touches only its token", () => {
+    const out = entriesToMessages(INLINE, {
+      ...textsOf(INLINE),
+      "home.daily.dims": "UM CASO POR DIA",
+    });
+    expect(out).toBe(INLINE.replace('"UM CASO NOVO"', '"UM CASO POR DIA"'));
+  });
+
+  test("proposals read as the lines they change: an edit, a delete inside an inline object, an add", () => {
+    const out = applyMessagesOps(INLINE, [
+      { kind: "edit", id: "caseClient.notFound", text: "caso não encontrado" },
+      { kind: "delete", id: "langToggle.toEnAria" },
+      { kind: "add", id: "home.quickplay", text: "Jogo livre" },
+    ]);
+    expect(out).toBe(`{
+  "home": {
+    "subtitle": "uma casa, uma noite",
+    "daily": { "title": "O caso de hoje", "dims": "UM CASO NOVO" },
+    "archive": { "title": "Arquivo", "dims": "OS CASOS QUE JÁ SAÍRAM" },
+    "quickplay": "Jogo livre"
+  },
+  "langToggle": { "toEn": "EN", "toPt": "PT" },
+  "caseClient": { "notFound": "caso não encontrado" }
+}
+`);
+  });
+
+  test("a new nested id under an inline object stays inline; under an expanded one it expands", () => {
+    expect(
+      applyMessagesOps(INLINE, [
+        { kind: "add", id: "langToggle.more.x", text: "y" },
+      ]),
+    ).toContain(
+      `"langToggle": { "toEnAria": "switch to English", "toEn": "EN", "toPt": "PT", "more": { "x": "y" } }`,
+    );
+    expect(
+      applyMessagesOps(INLINE, [
+        { kind: "add", id: "home.rules.title", text: "Como se joga" },
+      ]),
+    )
+      .toContain(`    "archive": { "title": "Arquivo", "dims": "OS CASOS QUE JÁ SAÍRAM" },
+    "rules": {
+      "title": "Como se joga"
+    }
+  },`);
+  });
+
+  test("deleting the only key of an inline object removes the object; of the file leaves {}", () => {
+    expect(
+      applyMessagesOps(INLINE, [{ kind: "delete", id: "caseClient.notFound" }]),
+    ).toBe(
+      INLINE.replace(
+        `,\n  "caseClient": { "notFound": "este caso não foi encontrado" }`,
+        "",
+      ),
+    );
+    expect(
+      applyMessagesOps('{ "a": "x" }\n', [{ kind: "delete", id: "a" }]),
+    ).toBe("{}\n");
+    expect(
+      applyMessagesOps("{}\n", [{ kind: "add", id: "a", text: "x" }]),
+    ).toBe('{ "a": "x" }\n');
+  });
+
+  test("a single-line file stays single-line", () => {
+    expect(
+      entriesToMessages('{"a":"x","b":"y"}', { a: "x", b: "z", c: "w" }),
+    ).toBe('{"a":"x","b":"z", "c": "w"}');
+  });
+});
+
+describe("edits that must not duplicate, and line endings", () => {
+  test("a flat-key fallback sets the key it made rather than adding a second", () => {
+    const file = `{\n  "ui": "Interface"\n}\n`;
+    const once = applyMessagesOps(file, [
+      { kind: "add", id: "ui.back", text: "Voltar" },
+    ]);
+    const twice = applyMessagesOps(once, [
+      { kind: "edit", id: "ui.back", text: "Recuar" },
+    ]);
+    expect(twice).toBe(`{\n  "ui": "Interface",\n  "ui.back": "Recuar"\n}\n`);
+    expect(
+      entriesToMessages(file, { ui: "Interface", "ui.back": "Voltar" }, once),
+    ).toBe(once);
+  });
+
+  test("a value that is not a string at the path is replaced, not doubled", () => {
+    expect(
+      applyMessagesOps('{ "n": 1 }\n', [
+        { kind: "edit", id: "n", text: "one" },
+      ]),
+    ).toBe('{ "n": "one" }\n');
+  });
+
+  test("a CRLF file keeps CRLF on an add", () => {
+    const file = '{\r\n  "a": "x"\r\n}\r\n';
+    expect(applyMessagesOps(file, [{ kind: "add", id: "b", text: "y" }])).toBe(
+      '{\r\n  "a": "x",\r\n  "b": "y"\r\n}\r\n',
+    );
+    expect(
+      applyMessagesOps(file, [{ kind: "add", id: "c.d", text: "z" }]),
+    ).toBe('{\r\n  "a": "x",\r\n  "c.d": "z"\r\n}\r\n');
+  });
+
+  test("an empty object with whitespace inside takes the entry in place of it", () => {
+    expect(
+      applyMessagesOps("{ }\n", [{ kind: "add", id: "a", text: "x" }]),
+    ).toBe('{ "a": "x" }\n');
+    expect(
+      applyMessagesOps("{\n}\n", [{ kind: "add", id: "a", text: "x" }]),
+    ).toBe('{\n  "a": "x"\n}\n');
+  });
+
+  test("deleting a middle key takes the comma before it, so a neighbour on its line stays put", () => {
+    expect(
+      applyMessagesOps('{ "a": "1", "b": "2", "c": "3" }\n', [
+        { kind: "delete", id: "b" },
+      ]),
+    ).toBe('{ "a": "1", "c": "3" }\n');
+    expect(
+      applyMessagesOps('{\n  "a": "1",\n  "b": "2",\n  "c": "3"\n}\n', [
+        { kind: "delete", id: "b" },
+      ]),
+    ).toBe('{\n  "a": "1",\n  "c": "3"\n}\n');
+    expect(
+      applyMessagesOps('{\n  "a": "1",\n  "b": "2"\n}\n', [
+        { kind: "delete", id: "a" },
+      ]),
+    ).toBe('{\n  "b": "2"\n}\n');
+  });
 });

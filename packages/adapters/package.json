@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@corpus/contract": "*"
+    "@corpus/contract": "*",
+    "jsonc-parser": "^3.3.1"
   }
 }
