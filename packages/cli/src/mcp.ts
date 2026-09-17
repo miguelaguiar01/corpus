@@ -152,7 +152,7 @@ export async function mcp(ctx: RunContext): Promise<number> {
   const token = requireToken(ctx.env, ctx.cwd);
   ctx.err(`corpus mcp: ${config.project} on ${config.server}`);
   await serve(
-    process.stdin,
+    ctx.input ?? process.stdin,
     process.stdout,
     apiOver(config.server, token),
     cliVersion(),

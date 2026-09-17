@@ -21,6 +21,8 @@ export type ToolResult = {
 
 export type Tool = {
   name: string;
+  // The operation's name on `corpus agent --stdin` (§3).
+  op: string;
   description: string;
   inputSchema: JsonSchema;
   call: (args: Record<string, unknown>) => Promise<ToolResult>;
@@ -79,6 +81,7 @@ export function tools(api: Api): Tool[] {
   return [
     {
       name: "list_queue",
+      op: "queue",
       description:
         "The items of one queue: untranslated, stale, unverifiedSource or agentDrafts; narrowed to a language and a string type when given. Each item is a key, a language and the string's type.",
       inputSchema: {
@@ -121,6 +124,7 @@ export function tools(api: Api): Tool[] {
     },
     {
       name: "get_string",
+      op: "string",
       description:
         "One string as the editor shows it: source text, placeholders and selects, examples with their values per language, every language's text and state, the type's note on voice and register, the glossary terms that occur in the source with their target renderings, any pending proposal, and its siblings (the ten nearest strings of the same type under the same key prefix, with their translations) so a set reads as one.",
       inputSchema: {
@@ -133,6 +137,7 @@ export function tools(api: Api): Tool[] {
     },
     {
       name: "save_draft",
+      op: "draft",
       description:
         "Save a translation as a draft for a maintainer to verify. Accepted on an untranslated row, a stale row or your own earlier draft; refused (human-edited) where a person's work is, in which case propose instead. Placeholders and selects must match the source.",
       inputSchema: {
@@ -158,6 +163,7 @@ export function tools(api: Api): Tool[] {
     },
     {
       name: "propose_change",
+      op: "propose",
       description:
         "Propose new source text for a string. Pending until corpus pull writes it into the source file and a person merges.",
       inputSchema: {
@@ -177,6 +183,7 @@ export function tools(api: Api): Tool[] {
     },
     {
       name: "propose_removal",
+      op: "remove",
       description:
         "Propose removing a string from its source file. Pending until corpus pull writes it and a person merges.",
       inputSchema: {
@@ -192,6 +199,7 @@ export function tools(api: Api): Tool[] {
     },
     {
       name: "add_string",
+      op: "add",
       description:
         "Propose a new string into one of the project's writable source files, by the file's path as push declared it or as get_string reports it.",
       inputSchema: {
@@ -213,6 +221,7 @@ export function tools(api: Api): Tool[] {
     },
     {
       name: "status",
+      op: "status",
       description:
         "The project's numbers: strings, last push, pending proposals, the writable sources proposals can go into (null until a push declares them), progress per language and per string type.",
       inputSchema: {

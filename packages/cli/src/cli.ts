@@ -1,4 +1,5 @@
 import { writeFileSync } from "node:fs";
+import type { Readable } from "node:stream";
 import path from "node:path";
 import { buildSnapshot, pushOnlyNotes } from "./build";
 import { option } from "./args";
@@ -19,6 +20,9 @@ export type RunContext = {
   env: NodeJS.ProcessEnv;
   out: (line: string) => void;
   err: (line: string) => void;
+  // Where `corpus agent --stdin` reads its operations; the process's
+  // stdin when absent.
+  input?: Readable;
 };
 
 const USAGE = `usage: corpus push [--dry-run] | corpus pull [--min-state <untranslated|translated|verified>] [--lang <l>]... [--check] | corpus check | corpus build [--out <file>]
