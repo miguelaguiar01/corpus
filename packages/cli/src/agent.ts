@@ -15,18 +15,6 @@ import {
 export const AGENT_USAGE =
   "corpus agent queue <untranslated|stale|unverifiedSource|agentDrafts> [--lang <l>] [--type <t>] | string <key> | draft <key> <lang> <text> | propose <key> (--text <t> | --remove) | add <key> --file <f> --text <t> | status | --stdin";
 
-// The operations of `--stdin`, one JSON object per line: `op` names one
-// of these, the other fields are the tool's arguments by name.
-const STDIN_OPS: Record<string, string> = {
-  queue: "list_queue",
-  string: "get_string",
-  draft: "save_draft",
-  propose: "propose_change",
-  remove: "propose_removal",
-  add: "add_string",
-  status: "status",
-};
-
 type Call = { tool: string; args: Record<string, string> };
 
 const VALUED = new Set(["--lang", "--type", "--text", "--file"]);
@@ -146,7 +134,14 @@ export function parseAgent(argv: string[]): Call {
 }
 
 export async function agent(argv: string[], ctx: RunContext): Promise<number> {
-  if (argv[0] === "--stdin") return agentStdin(ctx);
+  if (argv[0] === "--stdin") {
+    if (argv.length > 1) {
+      throw new CliError(
+        `corpus agent --stdin: unexpected word ${argv[1]}\n${AGENT_USAGE}`,
+      );
+    }
+    return agentStdin(ctx);
+  }
   const call = parseAgent(argv);
   const config = await loadConfig(ctx.cwd);
   const token = requireToken(ctx.env, ctx.cwd);
@@ -169,14 +164,18 @@ export async function agent(argv: string[], ctx: RunContext): Promise<number> {
 // Many operations through one process (§3): JSON lines in, one JSON
 // line out per operation in order, `ok` true with the result or false
 // with the server's error and message; a line that is not an operation
-// answers `bad-line`. Exit 1 when any line failed, so a batch is a
-// check as well as a run.
+// answers `bad-line`, an unreachable server `unreachable`, and the batch
+// goes on. Exit 1 when any line failed, so a batch is a check as well
+// as a run.
 async function agentStdin(ctx: RunContext): Promise<number> {
   const config = await loadConfig(ctx.cwd);
   const token = requireToken(ctx.env, ctx.cwd);
   const table = tools(apiOver(config.server, token));
   let failed = false;
-  const answer = (line: object) => ctx.out(JSON.stringify(line));
+  const answer = (line: Record<string, unknown> & { ok: boolean }) => {
+    if (!line.ok) failed = true;
+    ctx.out(JSON.stringify(line));
+  };
   const lines = createInterface({
     input: ctx.input ?? process.stdin,
     crlfDelay: Infinity,
@@ -187,38 +186,45 @@ async function agentStdin(ctx: RunContext): Promise<number> {
     try {
       parsed = JSON.parse(raw);
     } catch {
-      failed = true;
-      answer({ ok: false, error: "bad-line", message: "not a JSON object" });
-      continue;
+      parsed = undefined;
     }
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      failed = true;
       answer({ ok: false, error: "bad-line", message: "not a JSON object" });
       continue;
     }
     const { op, id, ...args } = parsed as Record<string, unknown>;
     const echo = id === undefined ? {} : { id };
-    const tool = table.find((t) => t.name === STDIN_OPS[String(op)]);
+    const tool = table.find((t) => t.op === op);
     if (!tool) {
-      failed = true;
       answer({
         ...echo,
         ok: false,
         error: "bad-line",
-        message: `op must be one of ${Object.keys(STDIN_OPS).join(", ")}`,
+        message: `op must be one of ${table.map((t) => t.op).join(", ")}`,
       });
       continue;
     }
     const problem = argumentProblem(tool, args);
     if (problem) {
-      failed = true;
       answer({ ...echo, op, ok: false, error: "bad-line", message: problem });
       continue;
     }
-    const result = await tool.call(args);
+    let result: ToolResult;
+    try {
+      result = await tool.call(args);
+    } catch (error) {
+      if (!(error instanceof CliError)) throw error;
+      answer({
+        ...echo,
+        op,
+        ok: false,
+        error: "unreachable",
+        message: error.message,
+      });
+      continue;
+    }
     const text = result.content.map((c) => c.text).join("\n");
     if (result.isError) {
-      failed = true;
       const [error, ...rest] = text.split(": ");
       answer({
         ...echo,
@@ -229,12 +235,7 @@ async function agentStdin(ctx: RunContext): Promise<number> {
       });
       continue;
     }
-    answer({
-      ...echo,
-      op,
-      ok: true,
-      result: result.structuredContent ?? text,
-    });
+    answer({ ...echo, op, ok: true, result: result.structuredContent ?? text });
   }
   return failed ? 1 : 0;
 }

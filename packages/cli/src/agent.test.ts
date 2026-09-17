@@ -367,3 +367,82 @@ test("--stdin with every line answered exits 0 and reads the config once", async
   expect(out).toHaveLength(2);
   expect(api.seen).toHaveLength(2);
 });
+
+test("--stdin answers every line even when the server is down, with extra fields, a non-string id and a typed queue", async () => {
+  api = await startApi((seen) =>
+    seen.path.startsWith("/api/queues")
+      ? {
+          status: 200,
+          body: {
+            project: "push-fixture",
+            language: "pt-PT",
+            type: "chrome",
+            queues: {
+              untranslated: { count: 0, items: [] },
+              stale: { count: 0, items: [] },
+              unverifiedSource: { count: 0, items: [] },
+              agentDrafts: { count: 0, items: [] },
+            },
+          },
+        }
+      : { status: 200, body: { project: "push-fixture" } },
+  );
+  const input = new PassThrough();
+  const { context, out } = ctx(api.url);
+  context.input = input;
+  input.end(
+    [
+      JSON.stringify({
+        id: 7,
+        op: "queue",
+        queue: "stale",
+        language: "pt-PT",
+        type: "chrome",
+      }),
+      JSON.stringify({ op: "status", extra: "x" }),
+    ].join("\n") + "\n",
+  );
+  expect(await run(["agent", "--stdin"], context)).toBe(1);
+  expect(out.map((l) => JSON.parse(l))).toEqual([
+    {
+      id: 7,
+      op: "queue",
+      ok: true,
+      result: { queue: "stale", count: 0, items: [] },
+    },
+    {
+      op: "status",
+      ok: false,
+      error: "bad-line",
+      message: "unknown argument extra",
+    },
+  ]);
+  expect(api.seen[0]!.path).toBe("/api/queues?language=pt-PT&type=chrome");
+
+  api.server.close();
+  const down = ctx("http://127.0.0.1:9");
+  const input2 = new PassThrough();
+  down.context.input = input2;
+  input2.end('{"id":"a","op":"status"}\n{"id":"b","op":"status"}\n');
+  expect(await run(["agent", "--stdin"], down.context)).toBe(1);
+  expect(down.err).toEqual([]);
+  expect(down.out.map((l) => JSON.parse(l))).toMatchObject([
+    { id: "a", op: "status", ok: false, error: "unreachable" },
+    { id: "b", op: "status", ok: false, error: "unreachable" },
+  ]);
+  expect(JSON.parse(down.out[0]!).message).toMatch(
+    /could not reach the server/,
+  );
+});
+
+test("--stdin with nothing on stdin exits 0; extra words after --stdin are refused", async () => {
+  api = await startApi(() => ({ status: 200, body: {} }));
+  const input = new PassThrough();
+  const { context, out, err } = ctx(api.url);
+  context.input = input;
+  input.end("");
+  expect(await run(["agent", "--stdin"], context)).toBe(0);
+  expect(out).toEqual([]);
+  expect(await run(["agent", "--stdin", "junk"], context)).toBe(1);
+  expect(err.join("\n")).toMatch(/unexpected word junk/);
+});

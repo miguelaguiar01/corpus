@@ -166,7 +166,7 @@ npx corpus agent add ui.back --file src/i18n/{lang}.json --text "Voltar"
 npx corpus agent status
 ```
 
-For many operations at once, `corpus agent --stdin` reads one JSON object per line (`op` is `queue`, `string`, `draft`, `propose`, `remove`, `add` or `status`; the other fields are the operation's arguments by name; an optional `id` is echoed back) and answers one JSON line per operation, in order, through one process: no start-up per call and no shell quoting around a translation.
+For many operations at once, `corpus agent --stdin` reads one JSON object per line (`op` is `queue`, `string`, `draft`, `propose`, `remove`, `add` or `status`; the other fields are the operation's arguments by name; an optional `id` is echoed back) and answers one JSON line per operation, in order, through one process: `{ "id", "op", "ok": true, "result" }` or `{ "id", "op", "ok": false, "error", "message" }`, with `bad-line` for a line that is not an operation and `unreachable` when the server is down; the exit code is 1 when any line failed. No start-up per call and no shell quoting around a translation.
 
 ```sh
 printf '%s\n%s\n' \
