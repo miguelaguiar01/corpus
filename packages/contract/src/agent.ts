@@ -55,6 +55,17 @@ export type StringResponse = {
     text: string | null;
     author: string;
   } | null;
+  // The entities the string's ref metadata points at (§6), as the
+  // editor's cards show them; `field` is always set on a string's
+  // response and optional only for the editor's entity browser.
+  entities: {
+    field?: string;
+    entityId: string;
+    type: string;
+    typeLabel: string;
+    name: string;
+    attributes: Record<string, string> | null;
+  }[];
   // The ten nearest siblings (§9.3) and how many there are in all.
   siblings: {
     key: string;

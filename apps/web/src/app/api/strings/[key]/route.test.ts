@@ -32,7 +32,7 @@ test("a string needs the token and must exist", async () => {
   expect((await string(seeded.token, "no.such")).status).toBe(404);
 });
 
-test("what the editor shows: source, placeholders, selects, examples, every language, the pending proposal", async () => {
+test("what the editor shows: the string, every language, the proposal, the note, the glossary, the entities, the siblings", async () => {
   const { db, project, token } = seeded;
   agentDraft(db, {
     project,
@@ -75,6 +75,36 @@ test("what the editor shows: source, placeholders, selects, examples, every lang
     text: "Alguém foi visto à janela.",
     author: "mm agent",
   });
+  expect(body.entities).toEqual([
+    {
+      field: "requires_trait",
+      entityId: "trait:insomnia",
+      type: "trait",
+      typeLabel: "Trait",
+      name: "Insónia",
+      attributes: { summary: "This character wanders the manor at night." },
+    },
+    {
+      field: "mentions",
+      entityId: "character:condessa-rosa",
+      type: "character",
+      typeLabel: "Character",
+      name: "Condessa Rosa",
+      attributes: { title: "Condessa", suspicious: "very" },
+    },
+    {
+      field: "mentions",
+      entityId: "character:doutor-vaz",
+      type: "character",
+      typeLabel: "Character",
+      name: "Doutor Vaz",
+      attributes: null,
+    },
+  ]);
+  const plain = (await (
+    await string(token, CONTINUE)
+  ).json()) as StringResponse;
+  expect(plain.entities).toEqual([]);
   expect(body.siblingCount).toBe(1);
   expect(body.siblings).toEqual([
     {

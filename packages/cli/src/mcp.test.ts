@@ -75,6 +75,7 @@ const STRING = {
   key: "ui.continue",
   source: "Continuar",
   translations: { en: { state: "untranslated", stale: false, text: null } },
+  entities: [],
   siblings: [
     {
       key: "ui.back",
