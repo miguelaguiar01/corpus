@@ -208,11 +208,11 @@ test("messages ops: an edit sets, an add appends nested when the file nests, a d
   );
   expect(
     applyMessagesOps('{"a": "x"}', [{ kind: "add", id: "b.c", text: "y" }]),
-  ).toBe('{\n  "a": "x",\n  "b.c": "y"\n}');
+  ).toBe('{"a": "x", "b.c": "y"}');
   // A delete of an absent key is nothing, so a second pull and a
   // target file without the key are fine.
   expect(applyMessagesOps('{"a": "x"}\n', [{ kind: "delete", id: "zz" }])).toBe(
-    '{\n  "a": "x"\n}\n',
+    '{"a": "x"}\n',
   );
 });
 
@@ -245,4 +245,94 @@ test("table ops: edit by id, add a minimal record, delete a record; the one-per-
       text: "text",
     }),
   ).toBe(file);
+});
+
+// A catalogue that keeps small objects on one line, as a hand-kept file
+// does: every edit must read as the line it changes (§8).
+const INLINE = `{
+  "home": {
+    "subtitle": "uma casa, uma noite",
+    "daily": { "title": "O caso de hoje", "dims": "UM CASO NOVO" },
+    "archive": { "title": "Arquivo", "dims": "OS CASOS QUE JÁ SAÍRAM" }
+  },
+  "langToggle": { "toEnAria": "switch to English", "toEn": "EN", "toPt": "PT" },
+  "caseClient": { "notFound": "este caso não foi encontrado" }
+}
+`;
+
+describe("format-preserving edits on an inline-style file", () => {
+  test("read → write with the same texts is byte-identical", () => {
+    expect(entriesToMessages(INLINE, textsOf(INLINE))).toBe(INLINE);
+    expect(entriesToMessages(INLINE, {}, INLINE)).toBe(INLINE);
+  });
+
+  test("a changed value touches only its token", () => {
+    const out = entriesToMessages(INLINE, {
+      ...textsOf(INLINE),
+      "home.daily.dims": "UM CASO POR DIA",
+    });
+    expect(out).toBe(INLINE.replace('"UM CASO NOVO"', '"UM CASO POR DIA"'));
+  });
+
+  test("proposals read as the lines they change: an edit, a delete inside an inline object, an add", () => {
+    const out = applyMessagesOps(INLINE, [
+      { kind: "edit", id: "caseClient.notFound", text: "caso não encontrado" },
+      { kind: "delete", id: "langToggle.toEnAria" },
+      { kind: "add", id: "home.quickplay", text: "Jogo livre" },
+    ]);
+    expect(out).toBe(`{
+  "home": {
+    "subtitle": "uma casa, uma noite",
+    "daily": { "title": "O caso de hoje", "dims": "UM CASO NOVO" },
+    "archive": { "title": "Arquivo", "dims": "OS CASOS QUE JÁ SAÍRAM" },
+    "quickplay": "Jogo livre"
+  },
+  "langToggle": { "toEn": "EN", "toPt": "PT" },
+  "caseClient": { "notFound": "caso não encontrado" }
+}
+`);
+  });
+
+  test("a new nested id under an inline object stays inline; under an expanded one it expands", () => {
+    expect(
+      applyMessagesOps(INLINE, [
+        { kind: "add", id: "langToggle.more.x", text: "y" },
+      ]),
+    ).toContain(
+      `"langToggle": { "toEnAria": "switch to English", "toEn": "EN", "toPt": "PT", "more": { "x": "y" } }`,
+    );
+    expect(
+      applyMessagesOps(INLINE, [
+        { kind: "add", id: "home.rules.title", text: "Como se joga" },
+      ]),
+    )
+      .toContain(`    "archive": { "title": "Arquivo", "dims": "OS CASOS QUE JÁ SAÍRAM" },
+    "rules": {
+      "title": "Como se joga"
+    }
+  },`);
+  });
+
+  test("deleting the only key of an inline object removes the object; of the file leaves {}", () => {
+    expect(
+      applyMessagesOps(INLINE, [{ kind: "delete", id: "caseClient.notFound" }]),
+    ).toBe(
+      INLINE.replace(
+        `,\n  "caseClient": { "notFound": "este caso não foi encontrado" }`,
+        "",
+      ),
+    );
+    expect(
+      applyMessagesOps('{ "a": "x" }\n', [{ kind: "delete", id: "a" }]),
+    ).toBe("{}\n");
+    expect(
+      applyMessagesOps("{}\n", [{ kind: "add", id: "a", text: "x" }]),
+    ).toBe('{ "a": "x" }\n');
+  });
+
+  test("a single-line file stays single-line", () => {
+    expect(
+      entriesToMessages('{"a":"x","b":"y"}', { a: "x", b: "z", c: "w" }),
+    ).toBe('{"a":"x","b":"z", "c": "w"}');
+  });
 });

@@ -28,6 +28,10 @@ await build({
   platform: "node",
   target: "node22",
   external: Object.keys(pkg.dependencies),
+  // A bundled dependency with both entries (jsonc-parser) must come in as
+  // ESM: its UMD build requires its own files dynamically, which an ESM
+  // bundle cannot do.
+  mainFields: ["module", "main"],
   logLevel: "warning",
 });
 
