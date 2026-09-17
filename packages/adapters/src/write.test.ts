@@ -336,3 +336,64 @@ describe("format-preserving edits on an inline-style file", () => {
     ).toBe('{"a":"x","b":"z", "c": "w"}');
   });
 });
+
+describe("edits that must not duplicate, and line endings", () => {
+  test("a flat-key fallback sets the key it made rather than adding a second", () => {
+    const file = `{\n  "ui": "Interface"\n}\n`;
+    const once = applyMessagesOps(file, [
+      { kind: "add", id: "ui.back", text: "Voltar" },
+    ]);
+    const twice = applyMessagesOps(once, [
+      { kind: "edit", id: "ui.back", text: "Recuar" },
+    ]);
+    expect(twice).toBe(`{\n  "ui": "Interface",\n  "ui.back": "Recuar"\n}\n`);
+    expect(
+      entriesToMessages(file, { ui: "Interface", "ui.back": "Voltar" }, once),
+    ).toBe(once);
+  });
+
+  test("a value that is not a string at the path is replaced, not doubled", () => {
+    expect(
+      applyMessagesOps('{ "n": 1 }\n', [
+        { kind: "edit", id: "n", text: "one" },
+      ]),
+    ).toBe('{ "n": "one" }\n');
+  });
+
+  test("a CRLF file keeps CRLF on an add", () => {
+    const file = '{\r\n  "a": "x"\r\n}\r\n';
+    expect(applyMessagesOps(file, [{ kind: "add", id: "b", text: "y" }])).toBe(
+      '{\r\n  "a": "x",\r\n  "b": "y"\r\n}\r\n',
+    );
+    expect(
+      applyMessagesOps(file, [{ kind: "add", id: "c.d", text: "z" }]),
+    ).toBe('{\r\n  "a": "x",\r\n  "c.d": "z"\r\n}\r\n');
+  });
+
+  test("an empty object with whitespace inside takes the entry in place of it", () => {
+    expect(
+      applyMessagesOps("{ }\n", [{ kind: "add", id: "a", text: "x" }]),
+    ).toBe('{ "a": "x" }\n');
+    expect(
+      applyMessagesOps("{\n}\n", [{ kind: "add", id: "a", text: "x" }]),
+    ).toBe('{\n  "a": "x"\n}\n');
+  });
+
+  test("deleting a middle key takes the comma before it, so a neighbour on its line stays put", () => {
+    expect(
+      applyMessagesOps('{ "a": "1", "b": "2", "c": "3" }\n', [
+        { kind: "delete", id: "b" },
+      ]),
+    ).toBe('{ "a": "1", "c": "3" }\n');
+    expect(
+      applyMessagesOps('{\n  "a": "1",\n  "b": "2",\n  "c": "3"\n}\n', [
+        { kind: "delete", id: "b" },
+      ]),
+    ).toBe('{\n  "a": "1",\n  "c": "3"\n}\n');
+    expect(
+      applyMessagesOps('{\n  "a": "1",\n  "b": "2"\n}\n', [
+        { kind: "delete", id: "a" },
+      ]),
+    ).toBe('{\n  "b": "2"\n}\n');
+  });
+});

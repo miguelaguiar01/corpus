@@ -6,7 +6,9 @@ import { findNodeAtLocation, parseTree, type Node } from "jsonc-parser";
 
 const UNSAFE_SEGMENTS = new Set(["__proto__", "constructor", "prototype"]);
 
-function checkPath(path: string[]): void {
+// An id from the server is data; these segments would walk into the
+// prototype instead of the tree.
+export function checkPath(path: string[]): void {
   if (path.some((segment) => UNSAFE_SEGMENTS.has(segment))) {
     throw new Error(
       `messages: id ${JSON.stringify(path.join("."))} is not a valid key path`,
@@ -20,6 +22,10 @@ function root(text: string): Node {
     throw new Error("messages: file must be a JSON object");
   }
   return tree;
+}
+
+function eolOf(text: string): string {
+  return text.includes("\r\n") ? "\r\n" : "\n";
 }
 
 function isInline(text: string, node: Node): boolean {
@@ -40,14 +46,24 @@ function render(
   inline: boolean,
   indent: string,
   unit: string,
+  eol: string,
 ): string {
   if (segments.length === 0) return JSON.stringify(value);
   const [head, ...rest] = segments;
-  const inner = render(rest, value, inline, indent + unit, unit);
+  const inner = render(rest, value, inline, indent + unit, unit, eol);
   const key = JSON.stringify(head);
   return inline
     ? `{ ${key}: ${inner} }`
-    : `{\n${indent}${unit}${key}: ${inner}\n${indent}}`;
+    : `{${eol}${indent}${unit}${key}: ${inner}${eol}${indent}}`;
+}
+
+// The node's token replaced, whatever it holds.
+function replaceNode(text: string, node: Node, value: string): string {
+  return (
+    text.slice(0, node.offset) +
+    JSON.stringify(value) +
+    text.slice(node.offset + node.length)
+  );
 }
 
 // The value token at `path` replaced. Undefined when there is no
@@ -60,11 +76,7 @@ export function editLeaf(
   checkPath(path);
   const node = findNodeAtLocation(root(text), path);
   if (!node || node.type !== "string") return undefined;
-  return (
-    text.slice(0, node.offset) +
-    JSON.stringify(value) +
-    text.slice(node.offset + node.length)
-  );
+  return replaceNode(text, node, value);
 }
 
 // The property at `path` removed with its comma and the whitespace
@@ -93,21 +105,23 @@ function removeProperty(text: string, path: string[]): string {
       text.slice(object.offset + object.length - 1)
     );
   }
+  // The comma and whitespace before the property go with it, so a
+  // neighbour on the same line keeps its place; the first property
+  // takes what follows it instead.
   const start =
-    index === siblings.length - 1
+    index > 0
       ? siblings[index - 1]!.offset + siblings[index - 1]!.length
       : property.offset;
   const end =
-    index === siblings.length - 1
-      ? property.offset + property.length
-      : siblings[index + 1]!.offset;
+    index > 0 ? property.offset + property.length : siblings[1]!.offset;
   return text.slice(0, start) + text.slice(end);
 }
 
 // A string added at `path`: into the deepest object that exists on the
 // way, the rest of the path as nested objects in that object's style;
-// where a string sits on the way, a flat key at the root instead. An
-// object already at the full path is a collision.
+// where a string sits on the way, a flat key at the root instead, set
+// rather than duplicated when it exists. A value already at the full
+// path is replaced; an object there is a collision.
 export function addLeaf(
   text: string,
   path: string[],
@@ -122,7 +136,7 @@ export function addLeaf(
     const next = findNodeAtLocation(parent, [path[depth]!]);
     if (!next) break;
     if (next.type !== "object") {
-      return insert(text, tree, path.join("."), JSON.stringify(value), unit);
+      return addLeaf(text, [path.join(".")], value, unit);
     }
     parent = next;
   }
@@ -135,18 +149,18 @@ export function addLeaf(
       `messages: id ${JSON.stringify(path.join("."))} collides with a nested key path`,
     );
   }
-  if (existing?.type === "string") {
-    return editLeaf(text, path, value) ?? text;
-  }
+  if (existing) return replaceNode(text, existing, value);
   const last = parent.children?.[parent.children.length - 1];
+  const eol = eolOf(text);
   const rendered = render(
     path.slice(depth + 1),
     value,
     isInline(text, parent),
     last ? indentOf(text, last) : indentOf(text, parent) + unit,
     unit,
+    eol,
   );
-  return insert(text, parent, path[depth]!, rendered, unit);
+  return insert(text, parent, path[depth]!, rendered, unit, eol);
 }
 
 function insert(
@@ -155,21 +169,24 @@ function insert(
   key: string,
   rendered: string,
   unit: string,
+  eol: string,
 ): string {
   const entry = `${JSON.stringify(key)}: ${rendered}`;
   const properties = object.children ?? [];
   if (properties.length === 0) {
+    // Whatever sat between the braces goes; the entry takes its place.
     const open = object.offset + 1;
+    const close = object.offset + object.length - 1;
     const inline = isInline(text, object);
     const body = inline
       ? ` ${entry} `
-      : `\n${indentOf(text, object)}${unit}${entry}\n${indentOf(text, object)}`;
-    return text.slice(0, open) + body + text.slice(open);
+      : `${eol}${indentOf(text, object)}${unit}${entry}${eol}${indentOf(text, object)}`;
+    return text.slice(0, open) + body + text.slice(close);
   }
   const last = properties[properties.length - 1]!;
   const at = last.offset + last.length;
   const separator = isInline(text, object)
     ? ", "
-    : `,\n${indentOf(text, last)}`;
+    : `,${eol}${indentOf(text, last)}`;
   return text.slice(0, at) + separator + entry + text.slice(at);
 }
