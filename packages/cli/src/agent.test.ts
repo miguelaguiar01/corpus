@@ -1,4 +1,5 @@
 import { createServer, type Server } from "node:http";
+import { PassThrough } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { afterEach, expect, test } from "vitest";
 import { parseAgent } from "./agent";
@@ -248,4 +249,121 @@ test("corpus agent is in the usage and needs the token", async () => {
   expect(out.join("\n")).toContain("corpus agent queue");
   expect(await run(["agent", "status"], context)).toBe(1);
   expect(err.join("\n")).toMatch(/CORPUS_TOKEN/);
+});
+
+test("--stdin runs a batch through one process: one JSON line per operation, in order, id echoed, exit 1 when any failed", async () => {
+  api = await startApi((seen) => {
+    if (seen.path === "/api/status")
+      return {
+        status: 200,
+        body: { project: "push-fixture", writableSources: [] },
+      };
+    if (seen.path.endsWith("/translations/pt-PT")) {
+      const text = (seen.body as { text: string }).text;
+      return text.includes("taken")
+        ? {
+            status: 409,
+            body: {
+              error: "human-edited",
+              message:
+                "ui.taken in pt-PT holds a person's work; propose instead",
+            },
+          }
+        : {
+            status: 200,
+            body: {
+              key: "ui.continue",
+              language: "pt-PT",
+              state: "translated",
+              text,
+              actor: "push-fixture agent",
+            },
+          };
+    }
+    return { status: 404, body: { error: "not-found", message: "no" } };
+  });
+  const input = new PassThrough();
+  const { context, out, err } = ctx(api.url);
+  context.input = input;
+  const quoted = 'Olá «{name}», l\'amigo "dele"';
+  input.end(
+    [
+      JSON.stringify({ op: "status" }),
+      JSON.stringify({
+        id: "d1",
+        op: "draft",
+        key: "ui.continue",
+        language: "pt-PT",
+        text: quoted,
+      }),
+      JSON.stringify({
+        id: "d2",
+        op: "draft",
+        key: "ui.taken",
+        language: "pt-PT",
+        text: "taken",
+      }),
+      "not json",
+      JSON.stringify({ op: "verify", key: "x" }),
+      JSON.stringify({ op: "draft", key: "ui.continue" }),
+      "",
+    ].join("\n"),
+  );
+  expect(await run(["agent", "--stdin"], context)).toBe(1);
+  expect(err).toEqual([]);
+  expect(out.map((l) => JSON.parse(l))).toEqual([
+    {
+      op: "status",
+      ok: true,
+      result: { project: "push-fixture", writableSources: [] },
+    },
+    {
+      id: "d1",
+      op: "draft",
+      ok: true,
+      result: {
+        key: "ui.continue",
+        language: "pt-PT",
+        state: "translated",
+        text: quoted,
+        actor: "push-fixture agent",
+      },
+    },
+    {
+      id: "d2",
+      op: "draft",
+      ok: false,
+      error: "human-edited",
+      message: "ui.taken in pt-PT holds a person's work; propose instead",
+    },
+    { ok: false, error: "bad-line", message: "not a JSON object" },
+    {
+      ok: false,
+      error: "bad-line",
+      message:
+        "op must be one of queue, string, draft, propose, remove, add, status",
+    },
+    {
+      op: "draft",
+      ok: false,
+      error: "bad-line",
+      message: "language is missing or not a string",
+    },
+  ]);
+  // The quoted text reached the server untouched.
+  expect((api.seen[1]!.body as { text: string }).text).toBe(quoted);
+});
+
+test("--stdin with every line answered exits 0 and reads the config once", async () => {
+  api = await startApi(() => ({
+    status: 200,
+    body: { project: "push-fixture" },
+  }));
+  const input = new PassThrough();
+  const { context, out } = ctx(api.url);
+  context.input = input;
+  input.end('{"op":"status"}\n{"op":"status"}\n');
+  expect(await run(["agent", "--stdin"], context)).toBe(0);
+  expect(out).toHaveLength(2);
+  expect(api.seen).toHaveLength(2);
 });

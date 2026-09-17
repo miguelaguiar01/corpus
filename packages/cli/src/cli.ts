@@ -19,6 +19,9 @@ export type RunContext = {
   env: NodeJS.ProcessEnv;
   out: (line: string) => void;
   err: (line: string) => void;
+  // Where `corpus agent --stdin` reads its operations; the process's
+  // stdin when absent.
+  input?: NodeJS.ReadableStream;
 };
 
 const USAGE = `usage: corpus push [--dry-run] | corpus pull [--min-state <untranslated|translated|verified>] [--lang <l>]... [--check] | corpus check | corpus build [--out <file>]

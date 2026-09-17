@@ -2,6 +2,7 @@
 // has a shell and no MCP client. Each prints the API's JSON on stdout;
 // any answer that is not a 2xx prints the server's error and message
 // on stderr and exits 1.
+import { createInterface } from "node:readline";
 import type { RunContext } from "./cli";
 import { CliError, loadConfig, requireToken } from "./config";
 import {
@@ -12,7 +13,19 @@ import {
 } from "./agent-tools";
 
 export const AGENT_USAGE =
-  "corpus agent queue <untranslated|stale|unverifiedSource|agentDrafts> [--lang <l>] [--type <t>] | string <key> | draft <key> <lang> <text> | propose <key> (--text <t> | --remove) | add <key> --file <f> --text <t> | status";
+  "corpus agent queue <untranslated|stale|unverifiedSource|agentDrafts> [--lang <l>] [--type <t>] | string <key> | draft <key> <lang> <text> | propose <key> (--text <t> | --remove) | add <key> --file <f> --text <t> | status | --stdin";
+
+// The operations of `--stdin`, one JSON object per line: `op` names one
+// of these, the other fields are the tool's arguments by name.
+const STDIN_OPS: Record<string, string> = {
+  queue: "list_queue",
+  string: "get_string",
+  draft: "save_draft",
+  propose: "propose_change",
+  remove: "propose_removal",
+  add: "add_string",
+  status: "status",
+};
 
 type Call = { tool: string; args: Record<string, string> };
 
@@ -133,6 +146,7 @@ export function parseAgent(argv: string[]): Call {
 }
 
 export async function agent(argv: string[], ctx: RunContext): Promise<number> {
+  if (argv[0] === "--stdin") return agentStdin(ctx);
   const call = parseAgent(argv);
   const config = await loadConfig(ctx.cwd);
   const token = requireToken(ctx.env, ctx.cwd);
@@ -150,4 +164,77 @@ export async function agent(argv: string[], ctx: RunContext): Promise<number> {
   }
   ctx.out(text);
   return 0;
+}
+
+// Many operations through one process (§3): JSON lines in, one JSON
+// line out per operation in order, `ok` true with the result or false
+// with the server's error and message; a line that is not an operation
+// answers `bad-line`. Exit 1 when any line failed, so a batch is a
+// check as well as a run.
+async function agentStdin(ctx: RunContext): Promise<number> {
+  const config = await loadConfig(ctx.cwd);
+  const token = requireToken(ctx.env, ctx.cwd);
+  const table = tools(apiOver(config.server, token));
+  let failed = false;
+  const answer = (line: object) => ctx.out(JSON.stringify(line));
+  const lines = createInterface({
+    input: ctx.input ?? process.stdin,
+    crlfDelay: Infinity,
+  });
+  for await (const raw of lines) {
+    if (raw.trim() === "") continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      failed = true;
+      answer({ ok: false, error: "bad-line", message: "not a JSON object" });
+      continue;
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      failed = true;
+      answer({ ok: false, error: "bad-line", message: "not a JSON object" });
+      continue;
+    }
+    const { op, id, ...args } = parsed as Record<string, unknown>;
+    const echo = id === undefined ? {} : { id };
+    const tool = table.find((t) => t.name === STDIN_OPS[String(op)]);
+    if (!tool) {
+      failed = true;
+      answer({
+        ...echo,
+        ok: false,
+        error: "bad-line",
+        message: `op must be one of ${Object.keys(STDIN_OPS).join(", ")}`,
+      });
+      continue;
+    }
+    const problem = argumentProblem(tool, args);
+    if (problem) {
+      failed = true;
+      answer({ ...echo, op, ok: false, error: "bad-line", message: problem });
+      continue;
+    }
+    const result = await tool.call(args);
+    const text = result.content.map((c) => c.text).join("\n");
+    if (result.isError) {
+      failed = true;
+      const [error, ...rest] = text.split(": ");
+      answer({
+        ...echo,
+        op,
+        ok: false,
+        error: rest.length ? error : "failed",
+        message: rest.length ? rest.join(": ") : text,
+      });
+      continue;
+    }
+    answer({
+      ...echo,
+      op,
+      ok: true,
+      result: result.structuredContent ?? text,
+    });
+  }
+  return failed ? 1 : 0;
 }

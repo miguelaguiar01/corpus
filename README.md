@@ -166,6 +166,15 @@ npx corpus agent add ui.back --file src/i18n/{lang}.json --text "Voltar"
 npx corpus agent status
 ```
 
+For many operations at once, `corpus agent --stdin` reads one JSON object per line (`op` is `queue`, `string`, `draft`, `propose`, `remove`, `add` or `status`; the other fields are the operation's arguments by name; an optional `id` is echoed back) and answers one JSON line per operation, in order, through one process: no start-up per call and no shell quoting around a translation.
+
+```sh
+printf '%s\n%s\n' \
+  '{"op":"status"}' \
+  '{"id":"d1","op":"draft","key":"ui.continue","language":"pt-PT","text":"Continuar"}' \
+  | npx corpus agent --stdin
+```
+
 The MCP server can also be driven as a subprocess: one JSON-RPC message per line on stdin, one reply per line on stdout, nothing else on stdout. This is what `bin/install-smoke` does against a fresh install:
 
 ```sh
