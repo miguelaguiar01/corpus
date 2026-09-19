@@ -95,3 +95,28 @@ test("a marked script keeps its marks inside the word, so a near miss is not a m
   ];
   expect(glossaryMatches("काल", terms).map((e) => e.term)).toEqual(["काल"]);
 });
+
+test("an entry's forms match as the term does, and the entry shows once under its term", () => {
+  const terms = [
+    { term: "assassino", forms: ["assassinos", "assassina"], target: "killer" },
+    { term: "vítima", target: "victim" },
+  ];
+  // The plural of a term with no forms is not the term.
+  expect(
+    glossaryMatches("Mais casos do que os ASSASSINOS e as vítimas.", terms).map(
+      (e) => e.term,
+    ),
+  ).toEqual(["assassino"]);
+  expect(
+    glossaryMatches("A assassina fugiu.", terms).map((e) => e.term),
+  ).toEqual(["assassino"]);
+  expect(
+    glossaryMatches("As vítimas.", [{ ...terms[1]!, forms: ["vítimas"] }]).map(
+      (e) => e.term,
+    ),
+  ).toEqual(["vítima"]);
+  expect(
+    glossaryFileSchema.safeParse([{ term: "x", forms: [""], target: "y" }])
+      .success,
+  ).toBe(false);
+});

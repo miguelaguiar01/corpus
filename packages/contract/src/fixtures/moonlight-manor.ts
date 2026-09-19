@@ -15,7 +15,12 @@ export const moonlightManor = {
     en: [
       { term: "janela", target: "window", note: "never 'casement'" },
       { term: "noite", target: "night" },
-      { term: "vítima", target: "victim", note: "never 'the deceased'" },
+      {
+        term: "vítima",
+        forms: ["vítimas"],
+        target: "victim",
+        note: "never 'the deceased'",
+      },
     ],
   },
   sources: [
