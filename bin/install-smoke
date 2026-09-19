@@ -139,6 +139,14 @@ loop() {
   if npx corpus agent propose farewell 2>"$TMP/propose.err"; then echo "agent propose without --text must fail" >&2; exit 1; fi
   grep -q "text or --remove is missing" "$TMP/propose.err"
 
+  echo "=== install-smoke: corpus agent proposals lists the pending ones ==="
+  npx corpus agent propose farewell --text "Adeus!" | tee "$TMP/proposed.log"
+  grep -q '"status": "pending"' "$TMP/proposed.log"
+  npx corpus agent proposals | tee "$TMP/proposals.log"
+  grep -q '"mine": true' "$TMP/proposals.log"
+  PID=$(node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{const j=JSON.parse(s);process.stdout.write(String(j.proposals[0].id))})' < "$TMP/proposals.log")
+  npx corpus agent withdraw "$PID" | grep -q '"status": "withdrawn"'
+
   echo "=== install-smoke: corpus agent --stdin, a batch through one process ==="
   printf '%s\n%s\n%s\n' \
     '{"op":"status"}' \

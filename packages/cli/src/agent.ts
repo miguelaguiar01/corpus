@@ -13,7 +13,7 @@ import {
 } from "./agent-tools";
 
 export const AGENT_USAGE =
-  "corpus agent queue <untranslated|stale|unverifiedSource|agentDrafts> [--lang <l>] [--type <t>] | string <key> | draft <key> <lang> <text> | propose <key> (--text <t> | --remove) | add <key> --file <f> --text <t> | status | --stdin";
+  "corpus agent queue <untranslated|stale|unverifiedSource|agentDrafts> [--lang <l>] [--type <t>] | string <key> | draft <key> <lang> <text> | propose <key> (--text <t> | --remove) | add <key> --file <f> --text <t> | proposals | withdraw <id> | status | --stdin";
 
 type Call = { tool: string; args: Record<string, string> };
 
@@ -128,6 +128,15 @@ export function parseAgent(argv: string[]): Call {
     case "status":
       only(0);
       return { tool: "status", args: {} };
+    case "proposals":
+      only(0);
+      return { tool: "list_proposals", args: {} };
+    case "withdraw":
+      only(1);
+      return {
+        tool: "withdraw_proposal",
+        args: { id: positional[0] ?? missing("the id") },
+      };
     default:
       throw new CliError(`usage: ${AGENT_USAGE}`);
   }

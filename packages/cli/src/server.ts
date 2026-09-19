@@ -8,7 +8,7 @@ export const UNAUTHORIZED =
 export async function request(
   url: string,
   bearer: string,
-  init: { method?: "GET" | "POST" | "PUT"; body?: unknown } = {},
+  init: { method?: "GET" | "POST" | "PUT" | "DELETE"; body?: unknown } = {},
 ): Promise<Response> {
   try {
     return await fetch(url, {

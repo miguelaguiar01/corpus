@@ -31,7 +31,7 @@ export type Tool = {
 // One API call with the token; a 2xx is the body, anything else a tool
 // error carrying the server's error and message.
 export type Api = (
-  method: "GET" | "POST" | "PUT",
+  method: "GET" | "POST" | "PUT" | "DELETE",
   path: string,
   body?: unknown,
 ) => Promise<ToolResult>;
@@ -230,6 +230,37 @@ export function tools(api: Api): Tool[] {
         additionalProperties: false,
       },
       call: () => api("GET", "/api/status"),
+    },
+    {
+      name: "list_proposals",
+      op: "proposals",
+      description:
+        "The project's pending proposals: id, kind, key, file, text, author, and whether it is yours. A proposal stays pending until the change is pulled, committed and pushed, and the next corpus push marks it applied.",
+      inputSchema: {
+        type: "object",
+        properties: {},
+        additionalProperties: false,
+      },
+      call: () => api("GET", "/api/proposals"),
+    },
+    {
+      name: "withdraw_proposal",
+      op: "withdraw",
+      description:
+        "Withdraw one of your own pending proposals by id; a person's is refused.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          id: {
+            type: "string",
+            description: "The proposal's id, as list_proposals shows it.",
+          },
+        },
+        required: ["id"],
+        additionalProperties: false,
+      },
+      call: (args) =>
+        api("DELETE", `/api/proposals/${segment(str(args, "id"))}`),
     },
   ];
 }

@@ -1,10 +1,50 @@
-import { newStringBodySchema } from "@corpus/contract";
+import {
+  newStringBodySchema,
+  type ProposalListResponse,
+} from "@corpus/contract";
 import { getDb } from "@/db";
 import { ensureAgentActor } from "@/agents/actor";
 import { authenticateProject } from "@/api/bearer";
 import { readBody } from "@/api/body";
 import { proposalCreated, proposalRefusal } from "@/api/proposal-response";
-import { proposeAdd } from "@/proposals/service";
+import { pendingProposals, proposeAdd } from "@/proposals/service";
+import { users } from "@/db/schema";
+import { inArray } from "drizzle-orm";
+
+// The project's pending proposals for an agent (§10, §11), the agent
+// actor's own marked, since those are the ones it may withdraw.
+export async function GET(request: Request): Promise<Response> {
+  const db = getDb();
+  const auth = authenticateProject(db, request);
+  if (!auth.ok) return auth.response;
+  const actor = ensureAgentActor(db, auth.project);
+  const pending = pendingProposals(db, auth.project.id);
+  const authorIds = [...new Set(pending.map((p) => p.authorId))];
+  const names = new Map(
+    (authorIds.length
+      ? db
+          .select({ id: users.id, name: users.name })
+          .from(users)
+          .where(inArray(users.id, authorIds))
+          .all()
+      : []
+    ).map((u) => [u.id, u.name]),
+  );
+  const body: ProposalListResponse = {
+    proposals: pending.map((p) => ({
+      id: p.id,
+      kind: p.kind,
+      key: p.key,
+      file: p.file,
+      text: p.text,
+      status: "pending",
+      author: names.get(p.authorId) ?? "",
+      createdAt: p.createdAt.toISOString(),
+      mine: p.authorId === actor.id,
+    })),
+  };
+  return Response.json(body);
+}
 
 // A new string proposed through the token (§10, §11) into one of the
 // writable sources push declared.

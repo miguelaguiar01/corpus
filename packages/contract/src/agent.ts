@@ -112,4 +112,12 @@ export type ProposalResponse = {
   author: string;
 };
 
+// The project's pending proposals (§11) as the token sees them; `mine`
+// marks the agent actor's own, the only ones it may withdraw.
+export type ProposalListResponse = {
+  proposals: (ProposalResponse & { createdAt: string; mine: boolean })[];
+};
+
+export const withdrawBodySchema = z.object({ id: z.number().int().positive() });
+
 export type ApiError = { error: string; message: string };

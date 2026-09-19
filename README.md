@@ -153,7 +153,7 @@ or in the repository's `.mcp.json`, for any client:
 { "mcpServers": { "corpus": { "command": "npx", "args": ["corpus", "mcp"] } } }
 ```
 
-Its tools are one API call each: `list_queue` (a queue's items, narrowed to a language, a string type or both when asked), `get_string` (the source with its placeholders, selects and examples, every language's text and state, the type's note, the glossary terms in the source, the entities it refers to, its siblings under the same key prefix, and any pending proposal), `save_draft`, `propose_change`, `propose_removal`, `add_string` and `status`. Three rules hold for everything an agent writes through the project token. It never overwrites a person's work: a draft lands on an untranslated row, a stale one or its own earlier draft, and a row a person edited refuses with `human-edited` and says what to do: propose a change if the source is the problem, otherwise leave the row to its author. Every draft is attributed to the project's agent actor, which the history, the chips and the settings list show as such. Nothing but a signed-in maintainer verifies: agent drafts are a queue of their own on the dashboard, and the token has no way to sign anything off. The model stays on the agent's side; Corpus runs none.
+Its tools are one API call each: `list_queue` (a queue's items, narrowed to a language, a string type or both when asked), `get_string` (the source with its placeholders, selects and examples, every language's text and state, the type's note, the glossary terms in the source, the entities it refers to, its siblings under the same key prefix, and any pending proposal), `save_draft`, `propose_change`, `propose_removal`, `add_string`, `list_proposals`, `withdraw_proposal` and `status`. A proposal stays pending until its change is pulled, committed and pushed, and the next `corpus push` marks it applied; `corpus pull` says so when it writes one. Three rules hold for everything an agent writes through the project token. It never overwrites a person's work: a draft lands on an untranslated row, a stale one or its own earlier draft, and a row a person edited refuses with `human-edited` and says what to do: propose a change if the source is the problem, otherwise leave the row to its author. Every draft is attributed to the project's agent actor, which the history, the chips and the settings list show as such. Nothing but a signed-in maintainer verifies: agent drafts are a queue of their own on the dashboard, and the token has no way to sign anything off. The model stays on the agent's side; Corpus runs none.
 
 An agent that has a shell and no MCP client has the same seven operations as subcommands, each printing the API's JSON and exiting 1 with the server's message on a refusal:
 
@@ -163,10 +163,12 @@ npx corpus agent string ui.continue
 npx corpus agent draft ui.continue pt-PT "Continuar"
 npx corpus agent propose ui.continue --text "Prosseguir"     # or --remove
 npx corpus agent add ui.back --file src/i18n/{lang}.json --text "Voltar"
+npx corpus agent proposals                                    # the pending ones, yours marked
+npx corpus agent withdraw 7                                   # one of yours
 npx corpus agent status
 ```
 
-For many operations at once, `corpus agent --stdin` reads one JSON object per line (`op` is `queue`, `string`, `draft`, `propose`, `remove`, `add` or `status`; the other fields are the operation's arguments by name; an optional `id` is echoed back) and answers one JSON line per operation, in order, through one process: `{ "id", "op", "ok": true, "result" }` or `{ "id", "op", "ok": false, "error", "message" }`, with `bad-line` for a line that is not an operation and `unreachable` when the server is down; the exit code is 1 when any line failed. No start-up per call and no shell quoting around a translation.
+For many operations at once, `corpus agent --stdin` reads one JSON object per line (`op` is `queue`, `string`, `draft`, `propose`, `remove`, `add`, `proposals`, `withdraw` or `status`; the other fields are the operation's arguments by name; an optional `id` is echoed back) and answers one JSON line per operation, in order, through one process: `{ "id", "op", "ok": true, "result" }` or `{ "id", "op", "ok": false, "error", "message" }`, with `bad-line` for a line that is not an operation and `unreachable` when the server is down; the exit code is 1 when any line failed. No start-up per call and no shell quoting around a translation.
 
 ```sh
 printf '%s\n%s\n' \

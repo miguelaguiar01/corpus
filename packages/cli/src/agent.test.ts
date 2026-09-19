@@ -106,6 +106,15 @@ test("each subcommand is one tool call with the arguments the API needs", () => 
     args: { key: "ui.back", file: "i18n/{lang}.json", text: "Back" },
   });
   expect(parseAgent(["status"])).toEqual({ tool: "status", args: {} });
+  expect(parseAgent(["proposals"])).toEqual({
+    tool: "list_proposals",
+    args: {},
+  });
+  expect(parseAgent(["withdraw", "7"])).toEqual({
+    tool: "withdraw_proposal",
+    args: { id: "7" },
+  });
+  expect(() => parseAgent(["withdraw"])).toThrow(/the id is missing/);
 });
 
 test("a missing word is named in the usage's terms; an unknown subcommand shows the usage", () => {
@@ -342,7 +351,7 @@ test("--stdin runs a batch through one process: one JSON line per operation, in 
       ok: false,
       error: "bad-line",
       message:
-        "op must be one of queue, string, draft, propose, remove, add, status",
+        "op must be one of queue, string, draft, propose, remove, add, status, proposals, withdraw",
     },
     {
       op: "draft",

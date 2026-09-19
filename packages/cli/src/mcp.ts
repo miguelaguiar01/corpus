@@ -22,7 +22,7 @@ const PROTOCOL_VERSIONS = [
 
 // What an agent is told at initialize: the rules of §10 in its own terms.
 const INSTRUCTIONS =
-  "Corpus holds this repository's strings and their translations. A draft you save lands on an untranslated row, a stale row or your own earlier draft; a row a person edited refuses with human-edited, so propose a change instead of retrying. Every draft is attributed to the project's agent actor and waits for a maintainer to verify it; you cannot verify. Placeholders and selects must survive translation. Proposals go into the project's writable sources, which status lists as writableSources; a project pushed before sources were declared has none until its next corpus push.";
+  "Corpus holds this repository's strings and their translations. A draft you save lands on an untranslated row, a stale row or your own earlier draft; a row a person edited refuses with human-edited, so propose a change instead of retrying. Every draft is attributed to the project's agent actor and waits for a maintainer to verify it; you cannot verify. Placeholders and selects must survive translation. Proposals go into the project's writable sources, which status lists as writableSources; a project pushed before sources were declared has none until its next corpus push. A proposal stays pending until its change is pulled, committed and pushed and the next corpus push sees it; list_proposals shows the pending ones and withdraw_proposal takes back one of yours.";
 
 type Message = {
   jsonrpc: "2.0";

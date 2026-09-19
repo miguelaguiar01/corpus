@@ -216,6 +216,12 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
   ctx.out(
     `pulled ${config.project} at ${minState}: ${files.length} file(s) changed`,
   );
+  const proposals = payload.sourceChanges?.length ?? 0;
+  if (proposals > 0) {
+    ctx.out(
+      `${proposals} proposal(s) written: commit and push, and the next corpus push marks them applied`,
+    );
+  }
   return 0;
 }
 

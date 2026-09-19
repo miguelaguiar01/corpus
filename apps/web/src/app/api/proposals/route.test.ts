@@ -4,7 +4,9 @@ import { CONTINUE, pushedProject } from "@/agents/test-helpers";
 import { projects } from "@/db/schema";
 import { applySnapshot } from "@/ingest/apply";
 import { FIXTURE } from "@/agents/test-helpers";
-import { pendingAdds } from "@/proposals/service";
+import { pendingAdds, proposeEdit } from "@/proposals/service";
+import { stringRowId } from "@/agents/test-helpers";
+import type { ProposalListResponse } from "@corpus/contract";
 
 const seeded = pushedProject();
 vi.mock("@/db", async (importActual) => ({
@@ -12,7 +14,7 @@ vi.mock("@/db", async (importActual) => ({
   getDb: () => seeded.db,
 }));
 
-const { POST } = await import("./route");
+const { GET, POST } = await import("./route");
 
 function add(token: string | undefined, body: unknown) {
   return POST(
@@ -104,4 +106,29 @@ test("a push with nothing writable lands as an empty list, not as a predated pus
     "the file is not a writable source of the project; the project has no writable source",
   );
   applySnapshot(db, project.id, FIXTURE);
+});
+
+test("the pending proposals list every author, the agent actor's own marked", async () => {
+  const { db, token, rui } = seeded;
+  proposeEdit(db, {
+    stringRowId: stringRowId(db, CONTINUE),
+    text: "Seguir",
+    actor: rui,
+  });
+  const res = await GET(
+    new Request("http://corpus.test/api/proposals", {
+      headers: { authorization: `Bearer ${token}` },
+    }),
+  );
+  expect(res.status).toBe(200);
+  const body = (await res.json()) as ProposalListResponse;
+  expect(body.proposals.map((p) => [p.kind, p.key, p.author, p.mine])).toEqual([
+    ["add", "ui.back", "mm agent", true],
+    ["edit", CONTINUE, "rui", false],
+  ]);
+  expect(body.proposals[0]?.createdAt).toMatch(/^\d{4}-/);
+  expect(body.proposals[0]?.status).toBe("pending");
+  expect(
+    (await GET(new Request("http://corpus.test/api/proposals"))).status,
+  ).toBe(401);
 });
