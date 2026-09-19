@@ -1,4 +1,4 @@
-// `corpus agent` (§3): the seven tools as subcommands for an agent that
+// `corpus agent` (§3): the tools as subcommands for an agent that
 // has a shell and no MCP client. Each prints the API's JSON on stdout;
 // any answer that is not a 2xx prints the server's error and message
 // on stderr and exits 1.
@@ -135,7 +135,7 @@ export function parseAgent(argv: string[]): Call {
       only(1);
       return {
         tool: "withdraw_proposal",
-        args: { id: positional[0] ?? missing("the id") },
+        args: { proposal: positional[0] ?? missing("the id") },
       };
     default:
       throw new CliError(`usage: ${AGENT_USAGE}`);

@@ -407,8 +407,8 @@ test("pending proposals are written into the source file, a removal into the tar
   );
   expect(out).toContain("i18n/en.json");
   expect(out).toContain("i18n/pt.json");
-  expect(out).toMatch(
-    /\d+ proposal\(s\) written: commit and push, and the next corpus push marks them applied/,
+  expect(out).toContain(
+    "3 proposal(s) written: commit and push, and the next corpus push marks them applied",
   );
 });
 

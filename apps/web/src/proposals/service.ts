@@ -202,7 +202,7 @@ export function pendingProposals(db: Db, projectId: number): Proposal[] {
         eq(sourceChanges.status, "pending"),
       ),
     )
-    .orderBy(sourceChanges.createdAt)
+    .orderBy(sourceChanges.createdAt, sourceChanges.id)
     .all();
 }
 
@@ -277,7 +277,7 @@ export function pendingAdds(
         eq(sourceChanges.status, "pending"),
       ),
     )
-    .orderBy(sourceChanges.createdAt)
+    .orderBy(sourceChanges.createdAt, sourceChanges.id)
     .all()
     .map((row) => ({ ...row.proposal, author: row.author }));
 }

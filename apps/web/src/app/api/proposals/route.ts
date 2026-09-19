@@ -3,7 +3,7 @@ import {
   type ProposalListResponse,
 } from "@corpus/contract";
 import { getDb } from "@/db";
-import { ensureAgentActor } from "@/agents/actor";
+import { ensureAgentActor, findAgentActor } from "@/agents/actor";
 import { authenticateProject } from "@/api/bearer";
 import { readBody } from "@/api/body";
 import { proposalCreated, proposalRefusal } from "@/api/proposal-response";
@@ -17,7 +17,7 @@ export async function GET(request: Request): Promise<Response> {
   const db = getDb();
   const auth = authenticateProject(db, request);
   if (!auth.ok) return auth.response;
-  const actor = ensureAgentActor(db, auth.project);
+  const actorId = findAgentActor(db, auth.project);
   const pending = pendingProposals(db, auth.project.id);
   const authorIds = [...new Set(pending.map((p) => p.authorId))];
   const names = new Map(
@@ -40,7 +40,7 @@ export async function GET(request: Request): Promise<Response> {
       status: "pending",
       author: names.get(p.authorId) ?? "",
       createdAt: p.createdAt.toISOString(),
-      mine: p.authorId === actor.id,
+      mine: p.authorId === actorId,
     })),
   };
   return Response.json(body);

@@ -118,6 +118,4 @@ export type ProposalListResponse = {
   proposals: (ProposalResponse & { createdAt: string; mine: boolean })[];
 };
 
-export const withdrawBodySchema = z.object({ id: z.number().int().positive() });
-
 export type ApiError = { error: string; message: string };

@@ -34,7 +34,7 @@ Flat key-value translation tools lose what makes game and app text hard: the pla
 - **A workflow, not a spreadsheet.** Every string and language moves untranslated, translated, verified, with a stale mark when the source changes underneath, an attributed history of every edit, and queues that tell a translator what to work on next.
 - **One command, or one container.** `npx corpus workbench` runs an instance on your machine from two npm packages, database included. For a team it is one image with its database on a volume. No external services; accounts are a name and a password, and one invite secret admits people.
 - **Made for a phone in one hand.** Translators mostly work on phones, so every surface was designed at 390px first, with the desktop layouts built out from there.
-- **Agents draft; people verify.** `corpus mcp` is a Model Context Protocol server for Claude Code or any MCP client; `corpus agent` is the same seven operations as shell commands. An agent reads queues and strings as the editor shows them, saves drafts and proposes source changes, under three rules: it never overwrites a person's work, every draft is attributed, and only a signed-in maintainer verifies. Corpus runs no model.
+- **Agents draft; people verify.** `corpus mcp` is a Model Context Protocol server for Claude Code or any MCP client; `corpus agent` is the same operations as shell commands. An agent reads queues and strings as the editor shows them, saves drafts and proposes source changes, under three rules: it never overwrites a person's work, every draft is attributed, and only a signed-in maintainer verifies. Corpus runs no model.
 
 Corpus translates its own interface with itself. That is the standing demo in these screenshots and a test that runs on every build.
 
@@ -155,7 +155,7 @@ or in the repository's `.mcp.json`, for any client:
 
 Its tools are one API call each: `list_queue` (a queue's items, narrowed to a language, a string type or both when asked), `get_string` (the source with its placeholders, selects and examples, every language's text and state, the type's note, the glossary terms in the source, the entities it refers to, its siblings under the same key prefix, and any pending proposal), `save_draft`, `propose_change`, `propose_removal`, `add_string`, `list_proposals`, `withdraw_proposal` and `status`. A proposal stays pending until its change is pulled, committed and pushed, and the next `corpus push` marks it applied; `corpus pull` says so when it writes one. Three rules hold for everything an agent writes through the project token. It never overwrites a person's work: a draft lands on an untranslated row, a stale one or its own earlier draft, and a row a person edited refuses with `human-edited` and says what to do: propose a change if the source is the problem, otherwise leave the row to its author. Every draft is attributed to the project's agent actor, which the history, the chips and the settings list show as such. Nothing but a signed-in maintainer verifies: agent drafts are a queue of their own on the dashboard, and the token has no way to sign anything off. The model stays on the agent's side; Corpus runs none.
 
-An agent that has a shell and no MCP client has the same seven operations as subcommands, each printing the API's JSON and exiting 1 with the server's message on a refusal:
+An agent that has a shell and no MCP client has the same operations as subcommands, each printing the API's JSON and exiting 1 with the server's message on a refusal:
 
 ```sh
 npx corpus agent queue untranslated --lang pt-PT --type chrome
@@ -168,7 +168,7 @@ npx corpus agent withdraw 7                                   # one of yours
 npx corpus agent status
 ```
 
-For many operations at once, `corpus agent --stdin` reads one JSON object per line (`op` is `queue`, `string`, `draft`, `propose`, `remove`, `add`, `proposals`, `withdraw` or `status`; the other fields are the operation's arguments by name; an optional `id` is echoed back) and answers one JSON line per operation, in order, through one process: `{ "id", "op", "ok": true, "result" }` or `{ "id", "op", "ok": false, "error", "message" }`, with `bad-line` for a line that is not an operation and `unreachable` when the server is down; the exit code is 1 when any line failed. No start-up per call and no shell quoting around a translation.
+For many operations at once, `corpus agent --stdin` reads one JSON object per line (`op` is `queue`, `string`, `draft`, `propose`, `remove`, `add`, `proposals`, `withdraw` (with `proposal`, since `id` is the line's own) or `status`; the other fields are the operation's arguments by name; an optional `id` is echoed back) and answers one JSON line per operation, in order, through one process: `{ "id", "op", "ok": true, "result" }` or `{ "id", "op", "ok": false, "error", "message" }`, with `bad-line` for a line that is not an operation and `unreachable` when the server is down; the exit code is 1 when any line failed. No start-up per call and no shell quoting around a translation.
 
 ```sh
 printf '%s\n%s\n' \

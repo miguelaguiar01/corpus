@@ -1,4 +1,4 @@
-// The seven operations an agent has (§3, §10), each one call to the API
+// The operations an agent has (§3, §10), each one call to the API
 // with the project token: the MCP tools and the `corpus agent`
 // subcommands are two spellings of this table.
 import { request } from "./server";
@@ -248,19 +248,20 @@ export function tools(api: Api): Tool[] {
       op: "withdraw",
       description:
         "Withdraw one of your own pending proposals by id; a person's is refused.",
+      // Named `proposal`, not `id`: on stdin `id` is the line's own.
       inputSchema: {
         type: "object",
         properties: {
-          id: {
+          proposal: {
             type: "string",
             description: "The proposal's id, as list_proposals shows it.",
           },
         },
-        required: ["id"],
+        required: ["proposal"],
         additionalProperties: false,
       },
       call: (args) =>
-        api("DELETE", `/api/proposals/${segment(str(args, "id"))}`),
+        api("DELETE", `/api/proposals/${segment(str(args, "proposal"))}`),
     },
   ];
 }
@@ -271,6 +272,12 @@ export function argumentProblem(
   tool: Tool,
   args: Record<string, unknown>,
 ): string | undefined {
+  // A number is taken as its digits: an id from list_proposals comes
+  // back as one.
+  for (const [name, value] of Object.entries(args)) {
+    if (typeof value === "number" && Number.isFinite(value))
+      args[name] = String(value);
+  }
   for (const name of tool.inputSchema.required ?? []) {
     if (typeof args[name] !== "string" || args[name] === "")
       return `${name} is missing or not a string`;

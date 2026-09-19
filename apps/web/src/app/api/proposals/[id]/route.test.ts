@@ -7,6 +7,7 @@ import {
   stringRowId,
 } from "@/agents/test-helpers";
 import { pendingForString, proposeEdit } from "@/proposals/service";
+import { provisionProject } from "@/projects/service";
 
 const seeded = pushedProject();
 vi.mock("@/db", async (importActual) => ({
@@ -59,4 +60,16 @@ test("the agent withdraws its own pending proposal once; a person's, a missing o
 
   expect((await withdraw(token, "999")).status).toBe(404);
   expect((await withdraw(token, "abc")).status).toBe(404);
+
+  // Another project's token never reaches this project's proposals.
+  const other = provisionProject(db, {
+    slug: "other",
+    name: "Other",
+    sourceLanguage: "pt-PT",
+    languages: ["pt-PT", "en"],
+  });
+  if (!other.ok) throw new Error(other.reason);
+  expect((await withdraw(other.token, String(theirs.proposal.id))).status).toBe(
+    404,
+  );
 });

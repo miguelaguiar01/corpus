@@ -175,7 +175,7 @@ async function connected() {
   };
 }
 
-test("the client initialises, lists the seven tools and pings", async () => {
+test("the client initialises, lists the tools and pings", async () => {
   const { client, done } = await connected();
   expect(client.getInstructions()).toMatch(/human-edited/);
   expect(client.getServerVersion()).toEqual({
@@ -241,7 +241,7 @@ test("every tool is one API call with the token, and answers the server's body",
   expect(listed.structuredContent).toEqual({
     proposals: [{ id: 4, kind: "edit", key: "ui.continue", mine: true }],
   });
-  const withdrawn = await call("withdraw_proposal", { id: "4" });
+  const withdrawn = await call("withdraw_proposal", { proposal: "4" });
   expect(withdrawn.structuredContent).toEqual({ id: 4, status: "withdrawn" });
 
   expect(seen.map((s) => [s.method, s.path, s.body])).toEqual([
@@ -387,7 +387,7 @@ test("the tool table names every tool once and requires what the API needs", () 
     ["add_string", ["key", "file", "text"]],
     ["status", []],
     ["list_proposals", []],
-    ["withdraw_proposal", ["id"]],
+    ["withdraw_proposal", ["proposal"]],
   ]);
 });
 

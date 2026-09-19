@@ -112,7 +112,7 @@ test("each subcommand is one tool call with the arguments the API needs", () => 
   });
   expect(parseAgent(["withdraw", "7"])).toEqual({
     tool: "withdraw_proposal",
-    args: { id: "7" },
+    args: { proposal: "7" },
   });
   expect(() => parseAgent(["withdraw"])).toThrow(/the id is missing/);
 });
@@ -443,6 +443,24 @@ test("--stdin answers every line even when the server is down, with extra fields
   expect(JSON.parse(down.out[0]!).message).toMatch(
     /could not reach the server/,
   );
+});
+
+test("--stdin takes a numeric id, as list_proposals returns one", async () => {
+  api = await startApi((seen) =>
+    seen.method === "DELETE" && seen.path === "/api/proposals/4"
+      ? { status: 200, body: { id: 4, status: "withdrawn" } }
+      : { status: 404, body: { error: "not-found", message: "no" } },
+  );
+  const input = new PassThrough();
+  const { context, out } = ctx(api.url);
+  context.input = input;
+  input.end('{"op":"withdraw","proposal":4}\n');
+  expect(await run(["agent", "--stdin"], context)).toBe(0);
+  expect(JSON.parse(out[0]!)).toEqual({
+    op: "withdraw",
+    ok: true,
+    result: { id: 4, status: "withdrawn" },
+  });
 });
 
 test("--stdin with nothing on stdin exits 0; extra words after --stdin are refused", async () => {
