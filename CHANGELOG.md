@@ -7,6 +7,20 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-09-19
+
+What the third MCP run found.
+
+### Added
+
+- A glossary entry may list its `forms` (§5), the plurals and agreements the source may write; each is matched as the term is, and the entry shows once under its term. A name is a term like any other, so a suspect or a room is pinned the same way. The contract's entry shape gains `forms`; still `corpus/1`.
+- Proposals on the agent path (§3, §10): `GET /api/proposals` lists the pending ones with their authors, the agent actor's own marked; `DELETE /api/proposals/<id>` withdraws one of the actor's own. `list_proposals` and `withdraw_proposal` tools (the latter by `proposal`, since on stdin `id` is the line's own), `proposals` and `withdraw` subcommands and stdin ops.
+
+### Changed
+
+- `corpus pull` says what applies a proposal it wrote: commit and push, and the next `corpus push` marks it applied. The MCP instructions and the README say the same.
+- A tool or stdin argument given as a number is taken as its digits, so an id read from `list_proposals` goes straight back in.
+
 ## [0.10.0] - 2026-09-17
 
 What the second MCP run found.
@@ -173,7 +187,8 @@ The first published version.
 - The `messages`, `table` and `exec` adapters, and the `corpus/1` snapshot contract with its ICU subset (placeholders and `select`).
 - The package ships plain JavaScript for Node 22 with type declarations; a client's config imports `defineCorpus` from `@corpus-tool/cli`.
 
-[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.11.0
 [0.10.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.10.0
 [0.9.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.9.0
 [0.8.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.8.0

@@ -272,8 +272,8 @@ export function argumentProblem(
   tool: Tool,
   args: Record<string, unknown>,
 ): string | undefined {
-  // A number is taken as its digits: an id from list_proposals comes
-  // back as one.
+  // A number is taken as its digits, in place, so the call that follows
+  // sees it: an id from list_proposals comes back as one.
   for (const [name, value] of Object.entries(args)) {
     if (typeof value === "number" && Number.isFinite(value))
       args[name] = String(value);
