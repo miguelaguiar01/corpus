@@ -145,3 +145,23 @@ test("the glossary entries in the source come per target language", () => {
     en: [],
   });
 });
+
+test("a glossary form in the source finds its entry", () => {
+  const { db, p } = pushed();
+  applySnapshot(db, p.id, {
+    ...(moonlightManor as Snapshot),
+    strings: [
+      ...moonlightManor.strings,
+      {
+        id: "skin.two-victims",
+        type: "clue-skin",
+        source: "Duas vítimas numa noite.",
+      },
+    ],
+  } as Snapshot);
+  expect(
+    stringDetail(db, p.id, "skin.two-victims")?.string.glossary.en?.map(
+      (e) => e.term,
+    ),
+  ).toEqual(["noite", "vítima"]);
+});

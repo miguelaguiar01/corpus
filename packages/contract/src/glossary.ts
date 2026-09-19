@@ -6,6 +6,9 @@ import { parseIcu, type IcuNode } from "./icu";
 
 const glossaryEntrySchema = z.object({
   term: z.string().min(1),
+  // Other surface forms of the term (plurals, agreements), each matched
+  // as the term is; the entry still shows under its term.
+  forms: z.array(z.string().min(1)).optional(),
   target: z.string().min(1),
   note: z.string().min(1).optional(),
 });
@@ -58,12 +61,14 @@ export function glossaryMatches(
   entries: GlossaryEntry[],
 ): GlossaryEntry[] {
   const haystack = words(literalText(source));
-  return entries.filter((entry) => {
-    const needle = words(entry.term);
+  const occurs = (needle: string[]) => {
     if (needle.length === 0 || needle.length > haystack.length) return false;
     for (let i = 0; i + needle.length <= haystack.length; i++) {
       if (needle.every((w, j) => haystack[i + j] === w)) return true;
     }
     return false;
-  });
+  };
+  return entries.filter((entry) =>
+    [entry.term, ...(entry.forms ?? [])].some((form) => occurs(words(form))),
+  );
 }
