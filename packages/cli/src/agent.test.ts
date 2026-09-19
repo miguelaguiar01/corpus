@@ -106,6 +106,15 @@ test("each subcommand is one tool call with the arguments the API needs", () => 
     args: { key: "ui.back", file: "i18n/{lang}.json", text: "Back" },
   });
   expect(parseAgent(["status"])).toEqual({ tool: "status", args: {} });
+  expect(parseAgent(["proposals"])).toEqual({
+    tool: "list_proposals",
+    args: {},
+  });
+  expect(parseAgent(["withdraw", "7"])).toEqual({
+    tool: "withdraw_proposal",
+    args: { proposal: "7" },
+  });
+  expect(() => parseAgent(["withdraw"])).toThrow(/the id is missing/);
 });
 
 test("a missing word is named in the usage's terms; an unknown subcommand shows the usage", () => {
@@ -342,7 +351,7 @@ test("--stdin runs a batch through one process: one JSON line per operation, in 
       ok: false,
       error: "bad-line",
       message:
-        "op must be one of queue, string, draft, propose, remove, add, status",
+        "op must be one of queue, string, draft, propose, remove, add, status, proposals, withdraw",
     },
     {
       op: "draft",
@@ -434,6 +443,24 @@ test("--stdin answers every line even when the server is down, with extra fields
   expect(JSON.parse(down.out[0]!).message).toMatch(
     /could not reach the server/,
   );
+});
+
+test("--stdin takes a numeric id, as list_proposals returns one", async () => {
+  api = await startApi((seen) =>
+    seen.method === "DELETE" && seen.path === "/api/proposals/4"
+      ? { status: 200, body: { id: 4, status: "withdrawn" } }
+      : { status: 404, body: { error: "not-found", message: "no" } },
+  );
+  const input = new PassThrough();
+  const { context, out } = ctx(api.url);
+  context.input = input;
+  input.end('{"op":"withdraw","proposal":4}\n');
+  expect(await run(["agent", "--stdin"], context)).toBe(0);
+  expect(JSON.parse(out[0]!)).toEqual({
+    op: "withdraw",
+    ok: true,
+    result: { id: 4, status: "withdrawn" },
+  });
 });
 
 test("--stdin with nothing on stdin exits 0; extra words after --stdin are refused", async () => {

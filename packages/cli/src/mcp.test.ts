@@ -101,6 +101,15 @@ const QUEUES = {
 
 function answers(seen: Seen): { status: number; body: unknown } {
   if (seen.path.startsWith("/api/queues")) return { status: 200, body: QUEUES };
+  if (seen.path === "/api/proposals" && seen.method === "GET")
+    return {
+      status: 200,
+      body: {
+        proposals: [{ id: 4, kind: "edit", key: "ui.continue", mine: true }],
+      },
+    };
+  if (seen.path === "/api/proposals/4" && seen.method === "DELETE")
+    return { status: 200, body: { id: 4, status: "withdrawn" } };
   if (seen.path === "/api/status")
     return { status: 200, body: { project: "push-fixture" } };
   if (seen.path === "/api/strings/ui.continue")
@@ -166,7 +175,7 @@ async function connected() {
   };
 }
 
-test("the client initialises, lists the seven tools and pings", async () => {
+test("the client initialises, lists the tools and pings", async () => {
   const { client, done } = await connected();
   expect(client.getInstructions()).toMatch(/human-edited/);
   expect(client.getServerVersion()).toEqual({
@@ -182,6 +191,8 @@ test("the client initialises, lists the seven tools and pings", async () => {
     "propose_removal",
     "add_string",
     "status",
+    "list_proposals",
+    "withdraw_proposal",
   ]);
   for (const tool of listed) {
     expect(tool.description).toBeTruthy();
@@ -226,6 +237,12 @@ test("every tool is one API call with the token, and answers the server's body",
   });
   const status = await call("status");
   expect(status.structuredContent).toEqual({ project: "push-fixture" });
+  const listed = await call("list_proposals");
+  expect(listed.structuredContent).toEqual({
+    proposals: [{ id: 4, kind: "edit", key: "ui.continue", mine: true }],
+  });
+  const withdrawn = await call("withdraw_proposal", { proposal: "4" });
+  expect(withdrawn.structuredContent).toEqual({ id: 4, status: "withdrawn" });
 
   expect(seen.map((s) => [s.method, s.path, s.body])).toEqual([
     ["GET", "/api/queues?language=en&type=chrome", undefined],
@@ -243,6 +260,8 @@ test("every tool is one API call with the token, and answers the server's body",
       { key: "ui.back", file: "i18n/{lang}.json", text: "Back" },
     ],
     ["GET", "/api/status", undefined],
+    ["GET", "/api/proposals", undefined],
+    ["DELETE", "/api/proposals/4", undefined],
   ]);
   expect(new Set(seen.map((s) => s.auth))).toEqual(new Set(["Bearer tok-1"]));
   await done();
@@ -367,6 +386,8 @@ test("the tool table names every tool once and requires what the API needs", () 
     ["propose_removal", ["key"]],
     ["add_string", ["key", "file", "text"]],
     ["status", []],
+    ["list_proposals", []],
+    ["withdraw_proposal", ["proposal"]],
   ]);
 });
 

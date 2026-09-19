@@ -20,6 +20,19 @@ export function isAgentName(name: string): boolean {
 
 type AgentActor = { id: number; name: string; maintainer: false };
 
+// The actor's id when the project has one; a read must not create it.
+export function findAgentActor(
+  db: Db,
+  project: { slug: string },
+): number | undefined {
+  const row = db
+    .select({ id: users.id, agent: users.agent })
+    .from(users)
+    .where(eq(users.name, agentName(project.slug)))
+    .get();
+  return row?.agent ? row.id : undefined;
+}
+
 export function ensureAgentActor(
   db: Db,
   project: { slug: string },

@@ -109,6 +109,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
   // The pending proposals (§8, §11): each into the source-language file
   // of the source it names, a removal into that source's target files
   // too; a file that matches no source is refused by name.
+  let proposalsWritten = 0;
   for (const [file, ops] of proposalsByFile(payload.sourceChanges ?? [])) {
     const source = config.sources.find(
       (s): s is Exclude<typeof s, { adapter: "exec" }> =>
@@ -121,6 +122,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
       );
       continue;
     }
+    proposalsWritten += ops.length;
     const files: [string, SourceOp[]][] = [[file, ops]];
     const removals = ops.filter((o) => o.kind === "delete");
     if (removals.length > 0 && source.path.includes("{lang}")) {
@@ -216,6 +218,11 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
   ctx.out(
     `pulled ${config.project} at ${minState}: ${files.length} file(s) changed`,
   );
+  if (proposalsWritten > 0) {
+    ctx.out(
+      `${proposalsWritten} proposal(s) written: commit and push, and the next corpus push marks them applied`,
+    );
+  }
   return 0;
 }
 
