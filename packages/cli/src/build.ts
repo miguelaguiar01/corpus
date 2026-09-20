@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { createJiti } from "jiti";
+import { z } from "zod";
 import { messagesToEntries, tableToEntries } from "@corpus/adapters";
 import {
   entitySchema,
@@ -20,6 +21,17 @@ import {
 import { CliError } from "./config";
 
 type Sourced = { entry: StringEntry; file: string };
+// What an exporter says the repository already holds for its strings
+// (§3, §8): per target language, id to text; taken as seeds once the
+// snapshot's ids are known.
+type ExecSeeds = {
+  command: string;
+  translations: Record<string, Record<string, string>>;
+};
+const execTranslationsSchema = z.record(
+  z.string(),
+  z.record(z.string(), z.string()),
+);
 
 // Reads the configured sources, feeds the pure adapters (and custom exec
 // exporters), and assembles a corpus/1 envelope validated locally before
@@ -31,11 +43,12 @@ export async function buildSnapshot(
   const jiti = createJiti(import.meta.url);
   const sourced: Sourced[] = [];
   const entities: Entity[] = [];
+  const execSeeds: ExecSeeds[] = [];
   const errors: string[] = [];
 
   for (const source of config.sources) {
     if (source.adapter === "exec") {
-      collectExec(source.command, cwd, sourced, entities, errors);
+      collectExec(source.command, cwd, sourced, entities, execSeeds, errors);
       continue;
     }
     // Push reads the source-language file; a table path may carry {lang}
@@ -79,6 +92,7 @@ export async function buildSnapshot(
     config,
     cwd,
     new Set(sourced.map((s) => s.entry.id)),
+    execSeeds,
     errors,
   );
   const snapshot = {
@@ -130,6 +144,7 @@ function collectExec(
   cwd: string,
   sourced: Sourced[],
   entities: Entity[],
+  execSeeds: ExecSeeds[],
   errors: string[],
 ): void {
   const result = spawnSync(command, { shell: true, cwd, encoding: "utf8" });
@@ -146,7 +161,11 @@ function collectExec(
     errors.push(`exec "${command}" did not emit valid JSON`);
     return;
   }
-  const out = parsed as { strings?: unknown[]; entities?: unknown[] };
+  const out = parsed as {
+    strings?: unknown[];
+    entities?: unknown[];
+    translations?: unknown;
+  };
   for (const raw of out.strings ?? []) {
     const parsedEntry = stringEntrySchema.safeParse(raw);
     if (!parsedEntry.success) {
@@ -164,6 +183,16 @@ function collectExec(
     if (!entity.success)
       errors.push(`exec "${command}" emitted an invalid entity`);
     else entities.push(entity.data);
+  }
+  if (out.translations !== undefined) {
+    const translations = execTranslationsSchema.safeParse(out.translations);
+    if (translations.success) {
+      execSeeds.push({ command, translations: translations.data });
+    } else {
+      errors.push(
+        `exec "${command}" emitted invalid translations: a map of language to id to text`,
+      );
+    }
   }
 }
 
@@ -296,17 +325,41 @@ function readGlossary(
 
 // The repository's existing target-language catalogues (§8): every
 // writable source with {lang} in its path is read once per target
-// language, and the texts travel as seeds. The server imports a seed as
-// translated only where it holds no edit for the row, so a push after
-// the first is harmless; a file that will not read is a build error.
+// language, and the texts travel as seeds; an exec source has no file to
+// read, so what its exporter emits as `translations` is taken under the
+// same rules. The server imports a seed as translated only where it holds
+// no edit for the row, so a push after the first is harmless; a file that
+// will not read, or a language the exporter should not name, is a build
+// error.
 async function readSeeds(
   jiti: ReturnType<typeof createJiti>,
   config: CorpusConfig,
   cwd: string,
   ids: Set<string>,
+  execSeeds: ExecSeeds[],
   errors: string[],
 ): Promise<Record<string, Record<string, string>>> {
   const seeds: Record<string, Record<string, string>> = {};
+  for (const { command, translations } of execSeeds) {
+    for (const [lang, texts] of Object.entries(translations)) {
+      if (lang === config.sourceLanguage) {
+        errors.push(
+          `exec "${command}" emitted translations for the source language ${lang}`,
+        );
+        continue;
+      }
+      if (!config.languages.includes(lang)) {
+        errors.push(
+          `exec "${command}" emitted translations for ${lang}, which the config does not declare`,
+        );
+        continue;
+      }
+      for (const [id, text] of Object.entries(texts)) {
+        if (!ids.has(id) || text.trim() === "") continue;
+        (seeds[lang] ??= {})[id] = text;
+      }
+    }
+  }
   for (const source of config.sources) {
     if (source.adapter === "exec" || !source.path.includes("{lang}")) continue;
     if (!writesBack(source.path)) continue;
