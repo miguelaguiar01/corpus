@@ -112,6 +112,27 @@ describe("entriesToMessages", () => {
     expect(JSON.parse(out)).toEqual({ ui: "Interface", "ui.back": "Voltar" });
   });
 
+  test("the flat key lands at the root, however deep the literal sits, on the empty-file path and the splice path alike", () => {
+    const template = `{\n  "a": {\n    "b": "x"\n  }\n}\n`;
+    const texts = { "a.b": "y", "a.b.c": "z" };
+    const expected = { a: { b: "y" }, "a.b.c": "z" };
+    const fromEmpty = entriesToMessages(template, texts, "");
+    expect(JSON.parse(fromEmpty)).toEqual(expected);
+    expect(JSON.parse(entriesToMessages(template, texts))).toEqual(expected);
+    // The id reads back as itself, not as a.a.b.c.
+    expect(
+      messagesToEntries(JSON.parse(fromEmpty), { type: "t" }).map((e) => e.id),
+    ).toEqual(["a.b", "a.b.c"]);
+    // An object already under the flat name is a collision, not overwritten.
+    expect(() =>
+      entriesToMessages(
+        `{"a": "x", "a.b": {"c": "w"}}`,
+        { a: "x", "a.b.c": "w", "a.b": "y" },
+        "",
+      ),
+    ).toThrow(/"a.b" collides/);
+  });
+
   test("an id that names a nested subtree is an error, not a silent overwrite", () => {
     expect(() =>
       entriesToMessages(NESTED, { ...textsOf(NESTED), ui: "Interface" }),

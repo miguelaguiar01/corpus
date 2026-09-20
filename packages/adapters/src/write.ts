@@ -59,21 +59,26 @@ function setPath(tree: Tree, path: string[], value: string): void {
   for (const key of path.slice(0, -1)) {
     const next = node[key];
     if (typeof next === "string") {
-      // A literal sits where nesting would go: fall back to a flat key.
-      node[path.join(".")] = value;
+      // A literal sits where nesting would go: a flat key at the root, as
+      // the splice writes it, so the id reads back as itself.
+      const flat = path.join(".");
+      if (typeof tree[flat] === "object") collision(flat);
+      tree[flat] = value;
       return;
     }
     node = next ?? (node[key] = {});
   }
   const last = path[path.length - 1]!;
-  if (typeof node[last] === "object") {
-    // An id equal to a nested key path cannot live in this file's shape;
-    // failing loudly beats overwriting the subtree.
-    throw new Error(
-      `messages: id ${JSON.stringify(path.join("."))} collides with a nested key path`,
-    );
-  }
+  if (typeof node[last] === "object") collision(path.join("."));
   node[last] = value;
+}
+
+// An id equal to a nested key path cannot live in this file's shape;
+// failing loudly beats overwriting the subtree.
+function collision(id: string): never {
+  throw new Error(
+    `messages: id ${JSON.stringify(id)} collides with a nested key path`,
+  );
 }
 
 export function entriesToMessages(
