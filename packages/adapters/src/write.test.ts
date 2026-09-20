@@ -123,6 +123,10 @@ describe("entriesToMessages", () => {
     expect(
       messagesToEntries(JSON.parse(fromEmpty), { type: "t" }).map((e) => e.id),
     ).toEqual(["a.b", "a.b.c"]);
+    // An object already under the flat name is a collision, not overwritten.
+    expect(() =>
+      entriesToMessages(`{"a": "x", "a.b": {"c": "w"}}`, { "a.b": "y" }, ""),
+    ).toThrow(/"a.b" collides/);
   });
 
   test("an id that names a nested subtree is an error, not a silent overwrite", () => {
