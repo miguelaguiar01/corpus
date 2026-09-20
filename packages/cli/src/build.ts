@@ -74,7 +74,13 @@ export async function buildSnapshot(
   // and validates metadata from them without reading the config.
   const sources = writableSources(config);
   const glossary = readGlossary(config, cwd, errors);
-  const seedTranslations = await readSeeds(jiti, config, cwd, errors);
+  const seedTranslations = await readSeeds(
+    jiti,
+    config,
+    cwd,
+    new Set(sourced.map((s) => s.entry.id)),
+    errors,
+  );
   const snapshot = {
     contract: "corpus/1" as const,
     project: config.project,
@@ -297,6 +303,7 @@ async function readSeeds(
   jiti: ReturnType<typeof createJiti>,
   config: CorpusConfig,
   cwd: string,
+  ids: Set<string>,
   errors: string[],
 ): Promise<Record<string, Record<string, string>>> {
   const seeds: Record<string, Record<string, string>> = {};
@@ -309,6 +316,9 @@ async function readSeeds(
       if (!existsSync(path.join(cwd, file))) continue;
       try {
         for (const entry of await readEntries(jiti, cwd, file, source)) {
+          // A key the source no longer has, or an empty value an
+          // extraction tool left, is not a translation.
+          if (!ids.has(entry.id) || entry.source.trim() === "") continue;
           (seeds[lang] ??= {})[entry.id] = entry.source;
         }
       } catch (error) {

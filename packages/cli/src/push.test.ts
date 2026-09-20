@@ -61,7 +61,16 @@ function ctx(
 test("push builds, uploads with the bearer token, and prints the report", async () => {
   const { server, url, calls } = await startServer(() => ({
     status: 200,
-    json: { report: { added: 2, changed: 0, stale: 0, archived: 0 } },
+    json: {
+      report: {
+        added: 2,
+        changed: 0,
+        stale: 0,
+        archived: 0,
+        seeded: 1,
+        seedsIgnored: 1,
+      },
+    },
   }));
   active = server;
   process.env.CORPUS_SERVER = url;
@@ -72,7 +81,9 @@ test("push builds, uploads with the bearer token, and prints the report", async 
   expect(calls[0]?.auth).toBe("Bearer good");
   expect(calls[0]?.url).toBe("/api/push");
   expect((calls[0]?.body as { project: string }).project).toBe("push-fixture");
-  expect(c.output.join("\n")).toContain("2 added");
+  expect(c.output.join("\n")).toContain(
+    "2 added, 0 changed, 0 stale, 0 archived, 1 translation(s) seeded from the repository (1 kept as Corpus has them)",
+  );
 });
 
 test("--dry-run sends the dryRun flag and labels the output", async () => {

@@ -1,4 +1,5 @@
 {
   "app.title": "Corpus",
-  "nav.overview": "Visão geral"
+  "greeting": "",
+  "gone.key": "Sumido"
 }

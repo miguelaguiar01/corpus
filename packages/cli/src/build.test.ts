@@ -276,8 +276,10 @@ test("the glossary file of every target language travels; absent is empty, malfo
 
 test("existing target-language catalogues travel as seeds; a missing one is nothing, a broken one an error", async () => {
   const snapshot = await buildSnapshot(config(), REPO);
+  // An empty value (greeting) and a key the source lacks (gone.key) do
+  // not travel.
   expect(snapshot.seedTranslations).toEqual({
-    "pt-PT": { "app.title": "Corpus", "nav.overview": "Visão geral" },
+    "pt-PT": { "app.title": "Corpus" },
   });
   const none = await buildSnapshot(config({ languages: ["en", "fr"] }), REPO);
   expect("seedTranslations" in none).toBe(false);

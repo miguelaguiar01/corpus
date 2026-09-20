@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import type { Snapshot } from "@corpus/contract";
 import type { Db } from "@/db";
 import {
@@ -334,16 +334,24 @@ function applySeeds(
         seedsIgnored += 1;
         continue;
       }
-      db.update(stringTranslations)
+      // A seed the row already holds is nothing: no write, no count, and
+      // the editor's "changed since you opened it" stays quiet.
+      const { changes } = db
+        .update(stringTranslations)
         .set({ text, state: "translated", updatedAt: new Date() })
         .where(
           and(
             eq(stringTranslations.stringId, rowId),
             eq(stringTranslations.language, language),
+            or(
+              isNull(stringTranslations.text),
+              ne(stringTranslations.text, text),
+              ne(stringTranslations.state, "translated"),
+            ),
           ),
         )
         .run();
-      seeded += 1;
+      seeded += changes;
     }
   }
   return { seeded, seedsIgnored };

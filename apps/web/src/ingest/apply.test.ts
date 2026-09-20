@@ -347,3 +347,38 @@ test("a push carries the glossary whole; one from an older CLI leaves it", () =>
   });
   expect(glossary()).toEqual({});
 });
+
+test("a seed the row already holds is not a write and not a count", () => {
+  const { db, project } = seed();
+  const seeded = {
+    ...(moonlightManor as Snapshot),
+    seedTranslations: { en: { "ui.continue": "Continue" } },
+  };
+  const first = applySnapshot(db, project.id, seeded);
+  expect(first.seeded).toBe(1);
+  const row = () => stringRow(db, "ui.continue")!;
+  const before = db
+    .select()
+    .from(stringTranslations)
+    .where(
+      and(
+        eq(stringTranslations.stringId, row().id),
+        eq(stringTranslations.language, "en"),
+      ),
+    )
+    .get()!;
+  const again = applySnapshot(db, project.id, seeded);
+  expect(again.seeded).toBe(0);
+  expect(again.seedsIgnored).toBe(0);
+  const after = db
+    .select()
+    .from(stringTranslations)
+    .where(
+      and(
+        eq(stringTranslations.stringId, row().id),
+        eq(stringTranslations.language, "en"),
+      ),
+    )
+    .get()!;
+  expect(after.updatedAt.getTime()).toBe(before.updatedAt.getTime());
+});
