@@ -14,7 +14,11 @@ export async function PUT(
   const auth = authenticateProject(db, request);
   if (!auth.ok) return auth.response;
 
-  const body = await readBody(request, draftBodySchema);
+  const body = await readBody(request, draftBodySchema, (field) =>
+    field === "state"
+      ? "the token cannot verify; a signed-in maintainer does, in the workbench"
+      : undefined,
+  );
   if (!body.ok) return body.response;
   const { key, lang } = await context.params;
 
