@@ -273,3 +273,26 @@ test("the glossary file of every target language travels; absent is empty, malfo
     /\{lang\}/,
   );
 });
+
+test("existing target-language catalogues travel as seeds; a missing one is nothing, a broken one an error", async () => {
+  const snapshot = await buildSnapshot(config(), REPO);
+  // An empty value (greeting) and a key the source lacks (gone.key) do
+  // not travel.
+  expect(snapshot.seedTranslations).toEqual({
+    "pt-PT": { "app.title": "Corpus" },
+  });
+  const none = await buildSnapshot(config({ languages: ["en", "fr"] }), REPO);
+  expect("seedTranslations" in none).toBe(false);
+  await expect(
+    buildSnapshot(
+      config({
+        sources: [
+          { adapter: "messages", type: "chrome", path: "seeded/{lang}.json" },
+        ],
+      }),
+      REPO,
+    ),
+  ).rejects.toThrow(
+    /seeded\/pt-PT\.json: messages: value at a must be a string/,
+  );
+});

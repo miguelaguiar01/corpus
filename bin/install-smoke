@@ -99,6 +99,7 @@ loop() {
   echo "=== install-smoke: push ==="
   npx corpus push | tee "$TMP/push.log"
   grep -q "2 added" "$TMP/push.log"
+  grep -q "1 translation(s) seeded from the repository" "$TMP/push.log"
   eval "$check"
 
   echo "=== install-smoke: pull at untranslated must reproduce the repository ==="
@@ -132,6 +133,9 @@ loop() {
 
   echo "=== install-smoke: corpus agent, the tools as subcommands ==="
   npx corpus agent status | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{const j=JSON.parse(s);if(!Array.isArray(j.writableSources))throw new Error("agent status: "+s)})'
+  # The seeded row is a person's as far as the token knows.
+  if npx corpus agent draft greeting pt-PT "Viva {name}" 2>"$TMP/seeded.err"; then echo "a draft on a seeded row must be refused" >&2; exit 1; fi
+  grep -q "human-edited" "$TMP/seeded.err"
   npx corpus agent draft farewell pt-PT "Adeus" | tee "$TMP/draft.log"
   grep -q '"actor": "install-smoke agent"' "$TMP/draft.log"
   npx corpus agent queue agentDrafts --lang pt-PT | tee "$TMP/queue.log"
@@ -150,12 +154,12 @@ loop() {
   echo "=== install-smoke: corpus agent --stdin, a batch through one process ==="
   printf '%s\n%s\n%s\n' \
     '{"op":"status"}' \
-    '{"id":"d1","op":"draft","key":"greeting","language":"pt-PT","text":"Olá «{name}», l'\''amigo"}' \
+    '{"id":"d1","op":"draft","key":"farewell","language":"pt-PT","text":"Adeus «amigo», l'\''amigo"}' \
     '{"op":"queue","queue":"agentDrafts","language":"pt-PT"}' \
     | npx corpus agent --stdin | tee "$TMP/batch.log"
   [ "$(wc -l < "$TMP/batch.log")" = "3" ]
   grep -q '"id":"d1","op":"draft","ok":true' "$TMP/batch.log"
-  grep -q '"greeting"' "$TMP/batch.log"
+  grep -q '"farewell"' "$TMP/batch.log"
 
   echo "=== install-smoke: push again is a no-op diff ==="
   npx corpus push | tee "$TMP/push2.log"
