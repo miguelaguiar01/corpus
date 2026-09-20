@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+### Added
+
+- An `exec` exporter's output may carry `translations`, per target language the text the repository already holds for its strings, and `corpus push` seeds them as it does a file's (§3, §8): only ids the snapshot has, never empty text, only declared target languages; the source language or an undeclared one is a build error.
+
 ### Changed
 
 - `corpus init` adds `.corpus/` to `.gitignore`, creating the file when there is none, as the workbench does: a team on a shared instance writes the token by hand after `project create` and never starts the workbench.

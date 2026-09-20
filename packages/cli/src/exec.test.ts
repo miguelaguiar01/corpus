@@ -5,12 +5,12 @@ import { buildSnapshot } from "./build";
 
 const REPO = fileURLToPath(new URL("../test/fixtures/repo", import.meta.url));
 
-function withExec(command: string): CorpusConfig {
+function withExec(command: string, languages = ["en"]): CorpusConfig {
   return defineCorpus({
     project: "fixture-project",
     server: "https://corpus.example",
     sourceLanguage: "en",
-    languages: ["en"],
+    languages,
     sources: [{ adapter: "exec", command }],
   });
 }
@@ -35,4 +35,34 @@ test("non-JSON output fails the build, naming the command", async () => {
   await expect(buildSnapshot(withExec("node junk.mjs"), REPO)).rejects.toThrow(
     /node junk\.mjs.*JSON/s,
   );
+});
+
+test("an exporter's translations travel as seeds: the snapshot's ids only, never empty", async () => {
+  const snapshot = await buildSnapshot(
+    withExec("node export-seeds.mjs", ["en", "pt-PT"]),
+    REPO,
+  );
+  expect(snapshot.seedTranslations).toEqual({
+    "pt-PT": { "exec.greeting": "Bem-vindo, {who}." },
+  });
+  // An exporter that says nothing about translations seeds nothing.
+  const plain = await buildSnapshot(
+    withExec("node export.mjs", ["en", "pt-PT"]),
+    REPO,
+  );
+  expect("seedTranslations" in plain).toBe(false);
+});
+
+test("translations for the source language or an undeclared one fail the build, naming the command", async () => {
+  await expect(
+    buildSnapshot(withExec("node export-seeds-bad.mjs", ["en", "pt-PT"]), REPO),
+  ).rejects.toThrow(
+    /export-seeds-bad\.mjs" emitted translations for the source language en[\s\S]*export-seeds-bad\.mjs" emitted translations for fr, which the config does not declare/,
+  );
+  await expect(
+    buildSnapshot(
+      withExec("node export-seeds-junk.mjs", ["en", "pt-PT"]),
+      REPO,
+    ),
+  ).rejects.toThrow(/export-seeds-junk\.mjs" emitted invalid translations/);
 });
