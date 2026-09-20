@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+### Changed
+
+- Glossary terms in a script written without spaces between words (Chinese, Japanese, Thai, Lao, Khmer, Burmese, Tibetan) match as a run of characters (§5); a Latin term still matches as whole words.
+
 ### Fixed
 
 - Pull into an empty target file: an id that crosses a string leaf two or more levels down (`a.b.c` where `a.b` is text) is written as a flat key at the root, as the in-place splice already wrote it, instead of inside the nested node where it read back as `a.a.b.c`.
