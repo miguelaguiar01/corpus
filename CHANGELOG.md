@@ -7,6 +7,24 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-09-20
+
+What a clean install and the round trip found.
+
+### Added
+
+- `corpus push` carries the translations the repository already has (§8): every target language's file of every writable source with `{lang}` in its path travels as seeds, imported as translated where Corpus holds no edit for the row, and the push line says how many were seeded and how many Corpus kept as its own.
+
+### Changed
+
+- `corpus workbench` creates `.gitignore` with `.corpus/` when there is none, rather than printing a note, so a first start never leaves a token one `git add .` from a commit.
+- A token route refuses a body field it does not take by name instead of dropping it; a `state` on a draft is told that the token cannot verify and a signed-in maintainer does, in the workbench. The contract's draft and proposal body schemas are strict; still `corpus/1`.
+- The README and the spec say that an `exec` import command receives only the rows a pull selected and must merge them; the published CLI README carries the commands, the agent section and the CI section; the stdin operations' argument names are listed. Both READMEs now say which commands run the repository's `corpus.config.ts` (every one but `init`) and which run its `exec` commands (`push`, `build`, `pull`); 0.11.0's README understated the first set.
+
+### Fixed
+
+- A string from a source pull cannot write (a `.ts` catalogue) carries no `file`, so a proposal on it is refused up front rather than accepted and left pending; strings already on an instance take the change at their next push.
+
 ## [0.11.0] - 2026-09-19
 
 What the third MCP run found.
@@ -187,7 +205,8 @@ The first published version.
 - The `messages`, `table` and `exec` adapters, and the `corpus/1` snapshot contract with its ICU subset (placeholders and `select`).
 - The package ships plain JavaScript for Node 22 with type declarations; a client's config imports `defineCorpus` from `@corpus-tool/cli`.
 
-[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.12.0
 [0.11.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.11.0
 [0.10.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.10.0
 [0.9.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.9.0
