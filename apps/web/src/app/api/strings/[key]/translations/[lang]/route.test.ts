@@ -125,3 +125,32 @@ test("an oversized body, an archived string and another project's token are refu
   expect(foreign.status).toBe(404);
   expect(project.slug).toBe("mm");
 });
+
+test("a body with a state is told the token cannot verify; any other unknown field is named", async () => {
+  const { token } = seeded;
+  const verified = await draft(token, CONTINUE, "en", {
+    text: "Continue",
+    state: "verified",
+  });
+  expect(verified.status).toBe(422);
+  expect(await verified.json()).toEqual({
+    error: "invalid",
+    message:
+      "the token cannot verify; a signed-in maintainer does, in the workbench",
+  });
+  const other = await draft(token, CONTINUE, "en", {
+    text: "Continue",
+    foo: 1,
+  });
+  expect(other.status).toBe(422);
+  expect((await other.json()).message).toBe("unknown field foo");
+});
+
+test("a state with no text is still told the rule, whatever else the body lacks", async () => {
+  const { token } = seeded;
+  const alone = await draft(token, CONTINUE, "en", { state: "verified" });
+  expect(alone.status).toBe(422);
+  expect((await alone.json()).message).toBe(
+    "the token cannot verify; a signed-in maintainer does, in the workbench",
+  );
+});

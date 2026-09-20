@@ -132,3 +132,15 @@ test("the pending proposals list every author, the agent actor's own marked", as
     (await GET(new Request("http://corpus.test/api/proposals"))).status,
   ).toBe(401);
 });
+
+test("an unknown field on a new string is refused, not dropped", async () => {
+  const { token } = seeded;
+  const res = await add(token, {
+    key: "ui.forward",
+    file: "src/ui/pt-PT.json",
+    text: "Avançar",
+    state: "verified",
+  });
+  expect(res.status).toBe(422);
+  expect((await res.json()).message).toBe("unknown field state");
+});

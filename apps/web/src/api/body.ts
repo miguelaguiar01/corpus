@@ -13,10 +13,13 @@ export function apiError(
 }
 
 // A small JSON body under the project cap (§10), parsed and checked
-// against its schema; the token routes share one reading of it.
+// against its schema; the token routes share one reading of it. A
+// field the schema does not take is named; `explain` may say why for
+// one the route knows an agent will try.
 export async function readBody<T>(
   request: Request,
   schema: ZodType<T>,
+  explain: (field: string) => string | undefined = () => undefined,
   cap = MAX_PROJECT_BODY_BYTES,
 ): Promise<BodyResult<T>> {
   const declared = Number(request.headers.get("content-length") ?? 0);
@@ -36,6 +39,24 @@ export async function readBody<T>(
   }
   const parsed = schema.safeParse(raw);
   if (!parsed.success) {
+    // Unknown fields first, whatever else is wrong: a body that carries
+    // a `state` and no text is asking to verify, and is told so.
+    const unknown = parsed.error.issues.find(
+      (i) => i.code === "unrecognized_keys",
+    );
+    if (unknown?.code === "unrecognized_keys") {
+      const keys = unknown.keys;
+      const why = keys.map(explain).find((w) => w !== undefined);
+      return {
+        ok: false,
+        response: apiError(
+          422,
+          "invalid",
+          why ??
+            `unknown field${keys.length > 1 ? "s" : ""} ${keys.join(", ")}`,
+        ),
+      };
+    }
     const issue = parsed.error.issues[0];
     const where = issue?.path.length ? `${issue.path.join(".")}: ` : "";
     return {

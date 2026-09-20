@@ -78,7 +78,9 @@ export type StringResponse = {
   siblingCount: number;
 };
 
-export const draftBodySchema = z.object({ text: z.string() });
+// Strict: a field the route does not take is refused, not dropped, so
+// a `state` on a draft is told why rather than ignored (§10).
+export const draftBodySchema = z.strictObject({ text: z.string() });
 export type DraftBody = z.infer<typeof draftBodySchema>;
 
 export type DraftResponse = {
@@ -90,12 +92,12 @@ export type DraftResponse = {
 };
 
 export const stringProposalBodySchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("edit"), text: z.string() }),
-  z.object({ kind: z.literal("delete") }),
+  z.strictObject({ kind: z.literal("edit"), text: z.string() }),
+  z.strictObject({ kind: z.literal("delete") }),
 ]);
 export type StringProposalBody = z.infer<typeof stringProposalBodySchema>;
 
-export const newStringBodySchema = z.object({
+export const newStringBodySchema = z.strictObject({
   key: identifier(),
   file: z.string().min(1),
   text: z.string(),
