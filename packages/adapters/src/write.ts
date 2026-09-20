@@ -59,8 +59,9 @@ function setPath(tree: Tree, path: string[], value: string): void {
   for (const key of path.slice(0, -1)) {
     const next = node[key];
     if (typeof next === "string") {
-      // A literal sits where nesting would go: fall back to a flat key.
-      node[path.join(".")] = value;
+      // A literal sits where nesting would go: a flat key at the root, as
+      // the splice writes it, so the id reads back as itself.
+      tree[path.join(".")] = value;
       return;
     }
     node = next ?? (node[key] = {});

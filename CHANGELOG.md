@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+### Fixed
+
+- Pull into an empty target file: an id that crosses a string leaf two or more levels down (`a.b.c` where `a.b` is text) is written as a flat key at the root, as the in-place splice already wrote it, instead of inside the nested node where it read back as `a.a.b.c`.
+
 ## [0.13.0] - 2026-09-20
 
 What the 0.12.0 check found.
