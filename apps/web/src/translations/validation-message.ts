@@ -16,6 +16,12 @@ export function validationMessage(error: ValidationError): string {
       return t("editor.missingBranch", { arg: error.arg, key: error.key });
     case "unexpected-branch":
       return t("editor.unexpectedBranch", { arg: error.arg, key: error.key });
+    case "unknown-plural":
+      return t("editor.unknownPlural", { arg: error.arg });
+    case "missing-category":
+      return t("editor.missingCategory", { arg: error.arg, key: error.key });
+    case "unexpected-category":
+      return t("editor.unexpectedCategory", { arg: error.arg, key: error.key });
     case "invalid-icu":
       return t("editor.invalidIcu", { message: error.message });
   }

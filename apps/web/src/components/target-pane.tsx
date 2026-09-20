@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import {
   exampleValues,
   parseIcu,
+  pluralCategoriesOf,
   renderPreviewSegments,
   validateTranslation,
   type Example,
@@ -20,27 +21,47 @@ import { validationMessage } from "@/translations/validation-message";
 
 export type Slot = { name: string; description?: string };
 
-// The source's select arguments, each with every key any of its selects
-// uses, in source order (validation unions them the same way): a chip
-// per argument inserts the whole skeleton so no braces are typed by hand.
-function selectsOf(source: string): { arg: string; keys: string[] }[] {
+type Branching = { kind: "select" | "plural"; arg: string; keys: string[] };
+
+// The source's select and plural arguments, each with every key any of
+// its uses has, in source order (validation unions them the same way):
+// a chip per argument inserts the whole skeleton so no braces are typed
+// by hand. A plural's keys are the target language's categories, since
+// those are what validation asks for, plus the source's exact =N ones.
+function branchingOf(source: string, language: string): Branching[] {
   const parsed = parseIcu(source);
   if (!parsed.ok) return [];
-  const byArg = new Map<string, Set<string>>();
+  const byArg = new Map<string, Branching>();
   for (const node of parsed.nodes) {
-    if (node.kind !== "select") continue;
-    const keys = byArg.get(node.arg) ?? new Set<string>();
-    for (const key of Object.keys(node.branches)) keys.add(key);
-    byArg.set(node.arg, keys);
+    if (node.kind !== "select" && node.kind !== "plural") continue;
+    const entry = byArg.get(node.arg) ?? {
+      kind: node.kind,
+      arg: node.arg,
+      keys: node.kind === "plural" ? pluralCategoriesOf(language) : [],
+    };
+    for (const key of Object.keys(node.branches)) {
+      if (entry.keys.includes(key)) continue;
+      if (node.kind === "select") entry.keys.push(key);
+      // Exact branches read first, before the categories, in source order.
+      else if (key.startsWith("=")) {
+        const exacts = entry.keys.filter((k) => k.startsWith("=")).length;
+        entry.keys.splice(exacts, 0, key);
+      }
+    }
+    if (entry.kind === "plural" && !entry.keys.includes("other"))
+      entry.keys.push("other");
+    byArg.set(node.arg, entry);
   }
-  return [...byArg].map(([arg, keys]) => ({ arg, keys: [...keys] }));
+  return [...byArg.values()];
 }
 
-function selectSkeleton(arg: string, keys: string[]) {
-  const head = `{${arg}, select, ${keys[0]} {`;
+// A plural's branches open with # so the count is there to keep.
+function skeleton({ kind, arg, keys }: Branching) {
+  const fill = kind === "plural" ? "#" : "";
+  const head = `{${arg}, ${kind}, ${keys[0]} {${fill}`;
   const rest = keys
     .slice(1)
-    .map((key) => ` ${key} {}`)
+    .map((key) => ` ${key} {${fill}}`)
     .join("");
   return { token: `${head}}${rest}}`, caret: head.length };
 }
@@ -92,9 +113,9 @@ export function TargetPane({
     resolved[0]?.language === language ? resolved[0].values[slot] : undefined;
   const validation = blank
     ? { ok: true as const }
-    : validateTranslation(source, text);
+    : validateTranslation(source, text, language);
   const errors = validation.ok ? [] : validation.errors;
-  const selects = selectsOf(source);
+  const selects = branchingOf(source, language);
 
   const insert = (token: string, caretOffset?: number) => {
     const el = ref.current;
@@ -164,7 +185,7 @@ export function TargetPane({
           aria-label={t("editor.selects")}
         >
           {selects.map((select) => {
-            const skeleton = selectSkeleton(select.arg, select.keys);
+            const token = skeleton(select);
             return (
               <button
                 key={select.arg}
@@ -174,13 +195,15 @@ export function TargetPane({
                   className:
                     "min-h-8 hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
                 })}
-                title={t("editor.insertSelect", {
-                  arg: select.arg,
-                  keys: select.keys.join(", "),
-                })}
-                onClick={() => insert(skeleton.token, skeleton.caret)}
+                title={t(
+                  select.kind === "plural"
+                    ? "editor.insertPlural"
+                    : "editor.insertSelect",
+                  { arg: select.arg, keys: select.keys.join(", ") },
+                )}
+                onClick={() => insert(token.token, token.caret)}
               >
-                {`{${select.arg}, select}`}
+                {`{${select.arg}, ${select.kind}}`}
               </button>
             );
           })}
@@ -198,7 +221,7 @@ export function TargetPane({
             {t("editor.previewHeading", { language: previewLanguage })}
           </h3>
           <ul className="space-y-1.5">
-            {previews(text, blank, examples, resolved).map(
+            {previews(text, blank, examples, resolved, language).map(
               (segments, index) => (
                 <li key={index} className="text-base leading-relaxed">
                   {segments.map((segment, i) =>
@@ -247,10 +270,15 @@ function previews(
   blank: boolean,
   examples: Example[],
   resolved: ReturnType<typeof exampleValues>[],
+  language: string,
 ): PreviewSegment[][] {
   return examples.flatMap((example, index) => {
     if (blank) return [[{ text: example.rendered, value: false }]];
-    const result = renderPreviewSegments(text, resolved[index]!.values);
+    const result = renderPreviewSegments(
+      text,
+      resolved[index]!.values,
+      language,
+    );
     return result.ok ? [result.segments] : [];
   });
 }

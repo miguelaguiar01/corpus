@@ -23,7 +23,7 @@ test("a bad contract id fails", () => {
 
 test("an invalid ICU source is reported against its entry id", () => {
   const snap = clone();
-  snap.strings[1]!.source = "{n, plural, one {x} other {y}}";
+  snap.strings[1]!.source = "{n, plural, one {x}}";
   const result = validateSnapshot(snap);
   expect(result.ok).toBe(false);
   if (!result.ok) {

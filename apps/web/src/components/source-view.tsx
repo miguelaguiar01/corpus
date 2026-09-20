@@ -8,10 +8,11 @@ import { t } from "@/i18n";
 import { cn } from "@/lib/utils";
 
 // The source (§9.3) reads as one sentence at one size: placeholders as
-// mono chips, each select as its branches inline ("visto / vista") with
-// the argument on demand, and a strip below that names every argument
-// and key. Punctuation stays attached. A source that fails to parse
-// (impossible after push validation) shows as text.
+// mono chips, each select or plural as its branches inline ("visto /
+// vista", "# marca / # marcas") with the argument on demand, and a strip
+// below that names every argument and key. Punctuation stays attached. A
+// source that fails to parse (impossible after push validation) shows as
+// text.
 export function SourceView({
   source,
   declarations,
@@ -24,7 +25,9 @@ export function SourceView({
   const parsed = parseIcu(source);
   if (!parsed.ok) return <p className={className}>{source}</p>;
   const slots = slotDescriptions(declarations);
-  const selects = parsed.nodes.filter((node) => node.kind === "select");
+  const selects = parsed.nodes.filter(
+    (node) => node.kind === "select" || node.kind === "plural",
+  );
   return (
     <div className="space-y-3">
       <p className={className}>{renderNodes(parsed.nodes, slots)}</p>
@@ -80,10 +83,11 @@ const SLASH = "\u00a0/\u00a0";
 function renderNodes(nodes: IcuNode[], slots: Map<string, string>) {
   return nodes.map((node, index) => {
     if (node.kind === "literal") return node.text;
-    if (node.kind === "placeholder") {
+    if (node.kind === "placeholder" || node.kind === "count") {
+      const name = node.kind === "placeholder" ? node.name : node.arg;
       return (
-        <span key={index} className={PLACEHOLDER} title={slots.get(node.name)}>
-          {`{${node.name}}`}
+        <span key={index} className={PLACEHOLDER} title={slots.get(name)}>
+          {node.kind === "placeholder" ? `{${name}}` : "#"}
         </span>
       );
     }

@@ -1,6 +1,7 @@
 import {
   placeholdersOf,
   selectArgsOf,
+  pluralArgsOf,
   type StringResponse,
 } from "@corpus/contract";
 import { getDb } from "@/db";
@@ -49,6 +50,7 @@ export async function GET(
     archived: detail.string.archived,
     placeholders: [...placeholdersOf(detail.string.source)],
     selects: [...selectArgsOf(detail.string.source)],
+    plurals: [...pluralArgsOf(detail.string.source)],
     examples: detail.string.examples ?? [],
     metadata: detail.string.metadata,
     note: detail.string.note,

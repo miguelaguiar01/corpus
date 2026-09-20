@@ -76,7 +76,7 @@ test("no token → 401", async () => {
 test("an invalid snapshot → 422 with per-entry errors and nothing applied", async () => {
   const { token, slug } = setup();
   const bad = forProject(slug);
-  bad.strings[0]!.source = "{n, plural, one {x} other {y}}";
+  bad.strings[0]!.source = "{n, plural, one {x}}";
   const res = await push(token, bad);
   expect(res.status).toBe(422);
   const json = (await res.json()) as { errors: { id: string }[] };

@@ -4,8 +4,12 @@ import { validateTranslation, type ValidationError } from "./validate";
 
 const SIGHTING = moonlightManor.strings[0]!.source;
 
-function errorsOf(source: string, target: string): ValidationError[] {
-  const result = validateTranslation(source, target);
+function errorsOf(
+  source: string,
+  target: string,
+  language?: string,
+): ValidationError[] {
+  const result = validateTranslation(source, target, language);
   return result.ok ? [] : result.errors;
 }
 
@@ -113,10 +117,73 @@ describe("selects may collapse but not be malformed", () => {
     expect(typeof (errors[0] as { position: number }).position).toBe("number");
   });
 
-  test("plural is outside the subset on the target side too", () => {
+  test("a target may pluralise a value the source has, and a count must survive as {n} or as a plural on n", () => {
     expect(
-      errorsOf("{n} items", "{n, plural, one {item} other {items}}"),
-    ).toMatchObject([{ code: "invalid-icu", where: "target" }]);
+      validateTranslation(
+        "{n} items",
+        "{n, plural, one {# item} other {# items}}",
+      ),
+    ).toEqual({ ok: true });
+    const PLURAL = "{n, plural, one {Falta # marca.} other {Faltam # marcas.}}";
+    expect(validateTranslation(PLURAL, "{n} marks left.")).toEqual({
+      ok: true,
+    });
+    expect(validateTranslation(PLURAL, "{n, plural, other {残り#個}}")).toEqual(
+      {
+        ok: true,
+      },
+    );
+    expect(errorsOf(PLURAL, "Marks left.")).toEqual([
+      { code: "missing-placeholder", name: "n" },
+    ]);
+    expect(errorsOf("Continue", "{n, plural, one {x} other {y}}")).toEqual([
+      { code: "unknown-plural", arg: "n" },
+    ]);
+  });
+
+  test("with the target language, a plural must carry the categories that language uses; =N is free", () => {
+    const PLURAL = "{n, plural, one {Falta # marca.} other {Faltam # marcas.}}";
+    expect(
+      validateTranslation(
+        PLURAL,
+        "{n, plural, one {# mark} other {# marks}}",
+        "en",
+      ),
+    ).toEqual({ ok: true });
+    expect(
+      validateTranslation(
+        PLURAL,
+        "{n, plural, =0 {None} one {# mark} other {# marks}}",
+        "en",
+      ),
+    ).toEqual({ ok: true });
+    expect(
+      errorsOf(PLURAL, "{n, plural, one {# метка} other {# меток}}", "ru"),
+    ).toEqual([
+      { code: "missing-category", arg: "n", key: "few" },
+      { code: "missing-category", arg: "n", key: "many" },
+    ]);
+    expect(
+      errorsOf(
+        PLURAL,
+        "{n, plural, one {# mark} few {# marks} other {# marks}}",
+        "en",
+      ),
+    ).toEqual([{ code: "unexpected-category", arg: "n", key: "few" }]);
+    // No language, or one the runtime does not know: only the shape is checked.
+    expect(
+      validateTranslation(PLURAL, "{n, plural, few {x} other {y}}"),
+    ).toEqual({ ok: true });
+    expect(
+      validateTranslation(
+        PLURAL,
+        "{n, plural, few {x} other {y}}",
+        "not a tag",
+      ),
+    ).toEqual({ ok: true });
+    expect(
+      validateTranslation(PLURAL, "{n, plural, few {x} other {y}}", "tlh"),
+    ).toEqual({ ok: true });
   });
 });
 

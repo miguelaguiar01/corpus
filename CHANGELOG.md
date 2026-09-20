@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+### Added
+
+- ICU **plural** in the subset (§5): `{n, plural, one {…} other {…}}` with CLDR categories, `=N` exact branches and `#` for the count, single-level like select. A count must survive a translation, as `{n}` or as a plural on `n`; a translation may pluralise any value the source has; a plural's categories are checked against the target language's, by the runtime's CLDR data, on save, on a token draft and in `corpus validate`. Previews resolve a plural by the example's count (§7). The string response carries `plurals`; still `corpus/1`. The §13 decision is taken: a real project's count strings needed it.
+
 ### Changed
 
 - Glossary terms in a script written without spaces between words (Chinese, Japanese, Thai, Lao, Khmer, Burmese, Tibetan) match as a run of characters (§5); a Latin term still matches as whole words.

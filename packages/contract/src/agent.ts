@@ -33,6 +33,9 @@ export type StringResponse = {
   archived: boolean;
   placeholders: string[];
   selects: string[];
+  // The counts the source pluralises on (§5); additive, since a client
+  // ignores fields it does not know (§4).
+  plurals: string[];
   examples: Example[];
   metadata: Record<string, unknown> | null;
   // The type's voice note (§5), or null.

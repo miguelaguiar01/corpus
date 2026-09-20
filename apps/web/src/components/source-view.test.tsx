@@ -75,3 +75,21 @@ test("an undeclared placeholder still renders as a chip, without a tooltip", () 
   render(<SourceView source="Olá {name}" declarations={{}} />);
   expect(screen.getByText("{name}").getAttribute("title")).toBeNull();
 });
+
+test("a plural reads inline as its branches with # as the count, and the strip names its keys", () => {
+  const { container } = render(
+    <SourceView
+      source="{n, plural, one {Falta # marca.} other {Faltam # marcas.}}"
+      declarations={{}}
+    />,
+  );
+  const [plural] = within(container.querySelector("p")!).getAllByRole("group");
+  expect(plural?.getAttribute("aria-label")).toBe("n");
+  expect(plural?.textContent).toBe(
+    "Falta # marca.\u00a0/\u00a0Faltam # marcas.",
+  );
+  expect(screen.queryByText(/plural,/)).toBeNull();
+  const strip = screen.getByRole("group", { name: "Branches" });
+  expect(strip.textContent).toContain("oneFalta # marca.");
+  expect(strip.textContent).toContain("otherFaltam # marcas.");
+});
