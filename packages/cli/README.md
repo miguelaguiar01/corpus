@@ -18,7 +18,7 @@ npx corpus pull           # verified translations back into the repository's fil
 ## The commands
 
 - `corpus push [--dry-run]`: the repository's strings into Corpus by id; the translations the repository's target-language catalogues already hold travel too, and land where Corpus has no edit of its own.
-- `corpus pull [--min-state <s>] [--lang <l>]... [--check]`: verified translations (or looser) back into the files, and pending source proposals into the source files; `--check` lists what would change and exits 1 if anything would.
+- `corpus pull [--min-state <s>] [--lang <l>]... [--check]`: verified translations (or looser) back into the files, and pending source proposals into the source files; `--check` lists what would change and exits 1 if anything would. An `exec` source's `importCommand` receives on stdin only the rows this pull selected, never the whole catalogue, so it must merge them into its file and leave every other entry alone: a command that rewrites its file from the payload loses every row the pull did not select.
 - `corpus status [--json]`: the dashboard's numbers, the writable sources, the pending proposals.
 - `corpus validate [--json]`: every translation still fits its source, offline. `corpus check`: no user-facing literal outside the declared sources.
 - `corpus build [--out <file>]`: the snapshot with no server, for authoring the config.
@@ -32,7 +32,7 @@ npx corpus pull           # verified translations back into the repository's fil
 claude mcp add corpus -- npx corpus mcp
 ```
 
-`corpus agent` is the same operations as shell commands (`queue`, `string`, `draft`, `propose`, `add`, `proposals`, `withdraw`, `status`), and `corpus agent --stdin` runs many of them through one process, one JSON object per line in and one JSON line per operation out. An agent reads queues and strings as the editor shows them, saves drafts and proposes source changes, under three rules: it never overwrites a person's work, every draft is attributed, and only a signed-in maintainer verifies. The instance must run the same version as the CLI, and a project pushed before 0.7.0 needs one push before proposals know where to go.
+`corpus agent` is the same operations as shell commands (`queue`, `string`, `draft`, `propose`, `add`, `proposals`, `withdraw`, `status`), and `corpus agent --stdin` runs many of them through one process, one JSON object per line in and one JSON line per operation out. Each line names its `op` and carries the operation's arguments by name: `queue` with `queue` (`untranslated`, `stale`, `unverifiedSource` or `agentDrafts`) and, optionally, `language` and `type`; `string` with `key`; `draft` with `key`, `language` and `text`; `propose` with `key` and `text`; `remove` with `key`; `add` with `key`, `file` and `text`; `withdraw` with `proposal`; `proposals` and `status` with none; an optional `id` is echoed back on the answer. An agent reads queues and strings as the editor shows them, saves drafts and proposes source changes, under three rules: it never overwrites a person's work, every draft is attributed, and only a signed-in maintainer verifies. The instance must run the same version as the CLI, and a project pushed before 0.7.0 needs one push before proposals know where to go.
 
 ## In CI
 
