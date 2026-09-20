@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { createJiti } from "jiti";
 import { messagesToEntries, tableToEntries } from "@corpus/adapters";
@@ -74,6 +74,7 @@ export async function buildSnapshot(
   // and validates metadata from them without reading the config.
   const sources = writableSources(config);
   const glossary = readGlossary(config, cwd, errors);
+  const seedTranslations = await readSeeds(jiti, config, cwd, errors);
   const snapshot = {
     contract: "corpus/1" as const,
     project: config.project,
@@ -84,6 +85,7 @@ export async function buildSnapshot(
     ...(config.entityTypes && { entityTypes: config.entityTypes }),
     typeNotes: config.typeNotes ?? {},
     glossary,
+    ...(Object.keys(seedTranslations).length > 0 && { seedTranslations }),
     // Always sent, empty included, so the server can tell "nothing
     // writable" from a push that predates the field (§4).
     sources,
@@ -284,4 +286,36 @@ function readGlossary(
     glossary[lang] = parsed.data;
   }
   return glossary;
+}
+
+// The repository's existing target-language catalogues (§8): every
+// writable source with {lang} in its path is read once per target
+// language, and the texts travel as seeds. The server imports a seed as
+// translated only where it holds no edit for the row, so a push after
+// the first is harmless; a file that will not read is a build error.
+async function readSeeds(
+  jiti: ReturnType<typeof createJiti>,
+  config: CorpusConfig,
+  cwd: string,
+  errors: string[],
+): Promise<Record<string, Record<string, string>>> {
+  const seeds: Record<string, Record<string, string>> = {};
+  for (const source of config.sources) {
+    if (source.adapter === "exec" || !source.path.includes("{lang}")) continue;
+    if (!writesBack(source.path)) continue;
+    for (const lang of config.languages) {
+      if (lang === config.sourceLanguage) continue;
+      const file = source.path.replace("{lang}", lang);
+      if (!existsSync(path.join(cwd, file))) continue;
+      try {
+        for (const entry of await readEntries(jiti, cwd, file, source)) {
+          (seeds[lang] ??= {})[entry.id] = entry.source;
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        errors.push(`${file}: ${message}`);
+      }
+    }
+  }
+  return seeds;
 }
