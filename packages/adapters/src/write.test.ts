@@ -125,7 +125,11 @@ describe("entriesToMessages", () => {
     ).toEqual(["a.b", "a.b.c"]);
     // An object already under the flat name is a collision, not overwritten.
     expect(() =>
-      entriesToMessages(`{"a": "x", "a.b": {"c": "w"}}`, { "a.b": "y" }, ""),
+      entriesToMessages(
+        `{"a": "x", "a.b": {"c": "w"}}`,
+        { a: "x", "a.b.c": "w", "a.b": "y" },
+        "",
+      ),
     ).toThrow(/"a.b" collides/);
   });
 
