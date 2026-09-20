@@ -18,8 +18,8 @@ What a clean install and the round trip found.
 ### Changed
 
 - `corpus workbench` creates `.gitignore` with `.corpus/` when there is none, rather than printing a note, so a first start never leaves a token one `git add .` from a commit.
-- A token route refuses a body field it does not take by name instead of dropping it; a `state` on a draft is told that the token cannot verify and a signed-in maintainer does, in the workbench.
-- The README and the spec say that an `exec` import command receives only the rows a pull selected and must merge them; the published CLI README carries the commands, the agent section and the CI section; the stdin operations' argument names are listed.
+- A token route refuses a body field it does not take by name instead of dropping it; a `state` on a draft is told that the token cannot verify and a signed-in maintainer does, in the workbench. The contract's draft and proposal body schemas are strict; still `corpus/1`.
+- The README and the spec say that an `exec` import command receives only the rows a pull selected and must merge them; the published CLI README carries the commands, the agent section and the CI section; the stdin operations' argument names are listed. Both READMEs now say which commands run the repository's `corpus.config.ts` (every one but `init`) and which run its `exec` commands (`push`, `build`, `pull`); 0.11.0's README understated the first set.
 
 ### Fixed
 
