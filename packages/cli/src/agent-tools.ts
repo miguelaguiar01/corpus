@@ -40,12 +40,7 @@ export function apiOver(server: string, token: string): Api {
   const base = server.replace(/\/$/, "");
   return async (method, path, body) => {
     const response = await request(`${base}${path}`, token, { method, body });
-    let json: unknown = null;
-    try {
-      json = await response.json();
-    } catch {
-      json = null;
-    }
+    const json: unknown = await response.json().catch(() => null);
     if (!response.ok) {
       const failure = (json ?? {}) as { error?: string; message?: string };
       const text =

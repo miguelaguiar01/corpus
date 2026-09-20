@@ -10,6 +10,7 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "noEmit": true,
+    "types": ["node"],
     "paths": {
       "@corpus-tool/cli": ["./packages/cli/src/index.ts"]
     }
