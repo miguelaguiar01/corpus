@@ -350,10 +350,10 @@ test("a plural chip inserts the target language's categories with # in each bran
   const exact = pluralPane(
     "en",
     "",
-    "{n, plural, =0 {Nenhuma.} one {#} other {#}}",
+    "{n, plural, =0 {Nenhuma.} =1 {Uma.} one {#} other {#}}",
   );
   fireEvent.click(screen.getByRole("button", { name: "{n, plural}" }));
-  expect(exact.value).toBe("{n, plural, =0 {#} one {#} other {#}}");
+  expect(exact.value).toBe("{n, plural, =0 {#} =1 {#} one {#} other {#}}");
 });
 
 test("a plural draft previews each example through its count's branch, and a missing category is named", () => {
