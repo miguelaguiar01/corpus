@@ -150,12 +150,12 @@ loop() {
   echo "=== install-smoke: corpus agent --stdin, a batch through one process ==="
   printf '%s\n%s\n%s\n' \
     '{"op":"status"}' \
-    '{"id":"d1","op":"draft","key":"greeting","language":"pt-PT","text":"Olá «{name}», l'\''amigo"}' \
+    '{"id":"d1","op":"draft","key":"farewell","language":"pt-PT","text":"Adeus «amigo», l'\''amigo"}' \
     '{"op":"queue","queue":"agentDrafts","language":"pt-PT"}' \
     | npx corpus agent --stdin | tee "$TMP/batch.log"
   [ "$(wc -l < "$TMP/batch.log")" = "3" ]
   grep -q '"id":"d1","op":"draft","ok":true' "$TMP/batch.log"
-  grep -q '"greeting"' "$TMP/batch.log"
+  grep -q '"farewell"' "$TMP/batch.log"
 
   echo "=== install-smoke: push again is a no-op diff ==="
   npx corpus push | tee "$TMP/push2.log"
