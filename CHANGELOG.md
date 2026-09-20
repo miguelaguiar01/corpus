@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-09-20
+
+What the 0.12.0 check found.
+
 ### Added
 
 - An `exec` exporter's output may carry `translations`, per target language the text the repository already holds for its strings, and `corpus push` seeds them as it does a file's (§3, §8): only ids the snapshot has, never empty text, only declared target languages; the source language or an undeclared one is a build error.
@@ -214,7 +218,8 @@ The first published version.
 - The `messages`, `table` and `exec` adapters, and the `corpus/1` snapshot contract with its ICU subset (placeholders and `select`).
 - The package ships plain JavaScript for Node 22 with type declarations; a client's config imports `defineCorpus` from `@corpus-tool/cli`.
 
-[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.13.0
 [0.12.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.12.0
 [0.11.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.11.0
 [0.10.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.10.0
