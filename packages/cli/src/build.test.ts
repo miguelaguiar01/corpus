@@ -185,8 +185,12 @@ test("entries carry the file they were read from and the snapshot its writable s
   const snapshot = await buildSnapshot(config(), REPO);
   const byId = Object.fromEntries(snapshot.strings.map((s) => [s.id, s.file]));
   expect(byId["app.title"]).toBe("i18n/en.json");
-  expect(byId["step-1"]).toBe("steps.ts");
-  // steps.ts is not JSON, so only the messages source can take a string.
+  // steps.ts is not JSON: pull cannot write it, so its entries carry no
+  // file and a proposal on them is refused up front (§4).
+  expect(byId["step-1"]).toBeUndefined();
+  expect("file" in snapshot.strings.find((s) => s.id === "step-1")!).toBe(
+    false,
+  );
   expect(snapshot.sources).toEqual([
     { path: "i18n/{lang}.json", adapter: "messages", type: "chrome" },
   ]);

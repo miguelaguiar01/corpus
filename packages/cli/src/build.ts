@@ -49,9 +49,17 @@ export async function buildSnapshot(
       errors.push(`${file}: ${message}`);
       continue;
     }
-    // The file rides with the entry (§4), so a proposal can come back to it.
+    // The file rides with the entry (§4) so a proposal can come back to
+    // it, and only where pull can write it: a .ts catalogue carries none,
+    // so a proposal on its strings is refused up front, not left pending.
+    const writable = writesBack(source.path);
     for (const entry of entries) {
-      validateEntry({ ...entry, file }, file, sourced, errors);
+      validateEntry(
+        { ...entry, ...(writable ? { file } : {}) },
+        file,
+        sourced,
+        errors,
+      );
     }
   }
 
