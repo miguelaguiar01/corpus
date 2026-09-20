@@ -73,11 +73,12 @@ test("the bin, the database and a generated secret, kept out of git", () => {
   expect(second.notes).toEqual([]);
 });
 
-test("--db picks the database path; no .gitignore is a reminder", () => {
+test("--db picks the database path; no .gitignore means one is created with the line", () => {
   const dir = repo();
   const prepared = prepare(dir, { db: "data/local.db" });
   expect(prepared.dbPath).toBe(path.join(dir, "data/local.db"));
-  expect(prepared.notes).toContain(
-    "keep .corpus/ out of version control (no .gitignore found)",
-  );
+  expect(prepared.notes).toContain("created .gitignore with .corpus/");
+  expect(readFileSync(path.join(dir, ".gitignore"), "utf8")).toBe(".corpus/\n");
+  // A second start finds the line and says nothing.
+  expect(prepare(dir, { db: "data/local.db" }).notes).toEqual([]);
 });

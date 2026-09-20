@@ -56,7 +56,7 @@ npx corpus push          # the repository's text is in Corpus
 npx corpus status        # how far along each language is, from the terminal
 ```
 
-Open the URL, join with the secret, a display name and a password, and you are the maintainer: translate, verify, then `npx corpus pull` writes the verified translations back into the repository's files. The database, the secret and the token live under `.corpus/`, which the command adds to `.gitignore`; delete the directory to start over. Updating is `npm update` of the two packages, which always share a version.
+Open the URL, join with the secret, a display name and a password, and you are the maintainer: translate, verify, then `npx corpus pull` writes the verified translations back into the repository's files. The database, the secret and the token live under `.corpus/`, which the command adds to `.gitignore`, creating the file when there is none; delete the directory to start over. Updating is `npm update` of the two packages, which always share a version.
 
 ## For a team
 
