@@ -102,6 +102,8 @@ test("refuses to overwrite an existing config, of any filename", async () => {
   expect(code).toBe(1);
   expect(p.err.join("\n")).toMatch(/corpus\.config\.mjs already exists/);
   expect(existsSync(path.join(p.dir, "corpus.config.ts"))).toBe(false);
+  // A refusal writes nothing, .gitignore included.
+  expect(existsSync(path.join(p.dir, ".gitignore"))).toBe(false);
 });
 
 test("a missing flag names the flag and shows the usage", async () => {
@@ -153,4 +155,32 @@ test("the messages path must carry the language placeholder", async () => {
   );
   expect(code).toBe(1);
   expect(p.err.join("\n")).toMatch(/--messages must contain \{lang\}/);
+});
+
+test(".gitignore ignores .corpus/ after init: created, extended, or left as it is", async () => {
+  const none = project();
+  stubCli(none.dir);
+  expect(await run(FLAGS, none.ctx)).toBe(0);
+  expect(readFileSync(path.join(none.dir, ".gitignore"), "utf8")).toBe(
+    ".corpus/\n",
+  );
+  expect(none.out).toContain("created .gitignore with .corpus/");
+
+  const lacking = project();
+  stubCli(lacking.dir);
+  writeFileSync(path.join(lacking.dir, ".gitignore"), "node_modules");
+  expect(await run(FLAGS, lacking.ctx)).toBe(0);
+  expect(readFileSync(path.join(lacking.dir, ".gitignore"), "utf8")).toBe(
+    "node_modules\n.corpus/\n",
+  );
+  expect(lacking.out).toContain("added .corpus/ to .gitignore");
+
+  const has = project();
+  stubCli(has.dir);
+  writeFileSync(path.join(has.dir, ".gitignore"), "node_modules\n.corpus\n");
+  expect(await run(FLAGS, has.ctx)).toBe(0);
+  expect(readFileSync(path.join(has.dir, ".gitignore"), "utf8")).toBe(
+    "node_modules\n.corpus\n",
+  );
+  expect(has.out.join("\n")).not.toMatch(/gitignore/);
 });

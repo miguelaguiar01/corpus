@@ -13,7 +13,7 @@ npx corpus push           # the repository's strings, and the translations it al
 npx corpus pull           # verified translations back into the repository's files
 ```
 
-`init` writes `corpus.config.ts`. `workbench` starts an instance from the companion package, creates the project the config declares, writes the token to `.corpus/token` and adds `.corpus/` to `.gitignore`, creating the file when there is none. Open the URL, join with the printed secret, translate and verify; `pull` writes the verified rows back, format-preserving, and a second pull changes nothing. For a team's instance, `CORPUS_INVITE_SECRET=<secret> npx corpus project create` prints the project's token once, for `CORPUS_TOKEN` or `.corpus/token`.
+`init` writes `corpus.config.ts` and adds `.corpus/` to `.gitignore`, creating the file when there is none, as `workbench` does too. `workbench` starts an instance from the companion package, creates the project the config declares and writes the token to `.corpus/token`. Open the URL, join with the printed secret, translate and verify; `pull` writes the verified rows back, format-preserving, and a second pull changes nothing. For a team's instance, `CORPUS_INVITE_SECRET=<secret> npx corpus project create` prints the project's token once, for `CORPUS_TOKEN` or `.corpus/token`.
 
 ## The commands
 

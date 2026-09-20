@@ -4,6 +4,7 @@ import { corpusConfigSchema } from "@corpus/contract";
 import { option } from "./args";
 import type { RunContext } from "./cli";
 import { CliError, CONFIG_FILENAMES } from "./config";
+import { ignoreCorpusDir } from "./corpus-dir";
 
 export const INIT_USAGE =
   "corpus init --project <slug> --source <lang> --languages <a,b> --messages <path with {lang}> [--server <url>] [--type <name>]";
@@ -56,6 +57,8 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   const file = path.join(ctx.cwd, CONFIG_FILENAMES[0]);
   writeFileSync(file, render(parsed.data));
   ctx.out(`wrote ${CONFIG_FILENAMES[0]}`);
+  const ignored = ignoreCorpusDir(ctx.cwd);
+  if (ignored) ctx.out(ignored);
   ctx.out("");
   ctx.out("Next:");
   ctx.out(
