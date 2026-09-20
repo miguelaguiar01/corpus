@@ -102,6 +102,8 @@ test("refuses to overwrite an existing config, of any filename", async () => {
   expect(code).toBe(1);
   expect(p.err.join("\n")).toMatch(/corpus\.config\.mjs already exists/);
   expect(existsSync(path.join(p.dir, "corpus.config.ts"))).toBe(false);
+  // A refusal writes nothing, .gitignore included.
+  expect(existsSync(path.join(p.dir, ".gitignore"))).toBe(false);
 });
 
 test("a missing flag names the flag and shows the usage", async () => {
