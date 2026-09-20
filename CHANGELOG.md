@@ -13,6 +13,7 @@ contract (`corpus/1`) is the only one.
 
 ### Changed
 
+- Tooling: eslint 10, `@eslint/js` 10, TypeScript 6.0 and vitest 5 (#238). TypeScript 6 no longer includes every `@types` package by itself, so the base tsconfig names Node's and `@types/node` is a root devDependency; the CLI declares the esbuild its build imports. TypeScript 7 waits for typescript-eslint to accept it.
 - Glossary terms in a script written without spaces between words (Chinese, Japanese, Thai, Lao, Khmer, Burmese, Tibetan) match as a run of characters (§5); a Latin term still matches as whole words.
 
 ### Fixed
