@@ -145,3 +145,12 @@ test("a body with a state is told the token cannot verify; any other unknown fie
   expect(other.status).toBe(422);
   expect((await other.json()).message).toBe("unknown field foo");
 });
+
+test("a state with no text is still told the rule, whatever else the body lacks", async () => {
+  const { token } = seeded;
+  const alone = await draft(token, CONTINUE, "en", { state: "verified" });
+  expect(alone.status).toBe(422);
+  expect((await alone.json()).message).toBe(
+    "the token cannot verify; a signed-in maintainer does, in the workbench",
+  );
+});
