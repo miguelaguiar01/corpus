@@ -120,3 +120,27 @@ test("an entry's forms match as the term does, and the entry shows once under it
       .success,
   ).toBe(false);
 });
+
+test("a term in a script written without spaces matches as a run of characters", () => {
+  const terms = [
+    { term: "被害者", target: "victim" },
+    { term: "書斎", target: "study" },
+    { term: "庭師", target: "gardener" },
+    { term: "ผู้ตาย", target: "the deceased" },
+    { term: "vítima", target: "victim" },
+  ];
+  expect(
+    glossaryMatches("{person}は書斎で被害者を見た。", terms).map((e) => e.term),
+  ).toEqual(["被害者", "書斎"]);
+  expect(
+    glossaryMatches("พบผู้ตายในห้องสมุด", terms).map((e) => e.term),
+  ).toEqual(["ผู้ตาย"]);
+  // A Latin term still needs its whole word, beside an unspaced script or not.
+  expect(
+    glossaryMatches("A vitimazinha 被害者", terms).map((e) => e.term),
+  ).toEqual(["被害者"]);
+  // Katakana is matched as written: no folding across the syllabaries.
+  expect(
+    glossaryMatches("ニワシ", [{ term: "にわし", target: "gardener" }]),
+  ).toEqual([]);
+});

@@ -36,6 +36,11 @@ function words(text: string): string[] {
   return foldTerm(text).match(/[\p{L}\p{N}\p{M}]+/gu) ?? [];
 }
 
+// Scripts written without spaces between words: a term in one of them has
+// no word boundary to match on, so it is matched as a run of characters.
+const UNSPACED =
+  /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}\p{Script=Tibetan}]/u;
+
 // The source's own words: the literal text of its ICU tree, never a
 // placeholder name, a select argument or a branch key; a source that
 // does not parse is read as plain text.
@@ -55,13 +60,18 @@ function literalText(source: string): string {
 }
 
 // The entries whose term occurs in the source as whole words, in the
-// glossary's order; a multi-word term matches as a run of words.
+// glossary's order; a multi-word term matches as a run of words, and a
+// term in a script written without spaces as a run of characters.
 export function glossaryMatches(
   source: string,
   entries: GlossaryEntry[],
 ): GlossaryEntry[] {
-  const haystack = words(literalText(source));
-  const occurs = (needle: string[]) => {
+  const literal = literalText(source);
+  const haystack = words(literal);
+  const folded = foldTerm(literal);
+  const occurs = (form: string) => {
+    if (UNSPACED.test(form)) return folded.includes(foldTerm(form));
+    const needle = words(form);
     if (needle.length === 0 || needle.length > haystack.length) return false;
     for (let i = 0; i + needle.length <= haystack.length; i++) {
       if (needle.every((w, j) => haystack[i + j] === w)) return true;
@@ -69,6 +79,6 @@ export function glossaryMatches(
     return false;
   };
   return entries.filter((entry) =>
-    [entry.term, ...(entry.forms ?? [])].some((form) => occurs(words(form))),
+    [entry.term, ...(entry.forms ?? [])].some(occurs),
   );
 }
