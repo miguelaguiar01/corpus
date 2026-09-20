@@ -17,10 +17,10 @@ npx corpus pull           # verified translations back into the repository's fil
 
 ## The commands
 
-- `corpus push [--dry-run]`: the repository's strings into Corpus by id; existing target-language catalogues travel as translations on the first push.
+- `corpus push [--dry-run]`: the repository's strings into Corpus by id; the translations the repository's target-language catalogues already hold travel too, and land where Corpus has no edit of its own.
 - `corpus pull [--min-state <s>] [--lang <l>]... [--check]`: verified translations (or looser) back into the files, and pending source proposals into the source files; `--check` lists what would change and exits 1 if anything would.
 - `corpus status [--json]`: the dashboard's numbers, the writable sources, the pending proposals.
-- `corpus validate`: every translation still fits its source, offline. `corpus check`: no user-facing literal outside the declared sources.
+- `corpus validate [--json]`: every translation still fits its source, offline. `corpus check`: no user-facing literal outside the declared sources.
 - `corpus build [--out <file>]`: the snapshot with no server, for authoring the config.
 - `corpus project create | rotate-token`, `corpus init`, `corpus workbench`.
 
@@ -38,4 +38,4 @@ claude mcp add corpus -- npx corpus mcp
 
 A job with `CORPUS_TOKEN` can gate a merge: `corpus check`, `corpus validate`, `corpus pull --check`, and `corpus status --json` for the numbers.
 
-`push`, `pull`, `build` and `validate` execute the repository's own `corpus.config.ts` and any `exec` commands it declares, by design: run them only in repositories you trust, as you would their build scripts. The full guide, the design spec and the changelog live in the [repository](https://github.com/miguelaguiar01/corpus).
+Every command but `init` executes the repository's own `corpus.config.ts`, and `push`, `build` and `pull` run the `exec` commands it declares, by design: run them only in repositories you trust, as you would their build scripts. The full guide, the design spec and the changelog live in the [repository](https://github.com/miguelaguiar01/corpus).
