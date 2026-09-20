@@ -167,3 +167,53 @@ test("a language's map is used whole: a slot it lacks stays literal, never the s
     ),
   ).toEqual([{ ok: true, text: "A at {hour}" }]);
 });
+
+test("a plural renders its count's branch: exact first, then the language's category, then other, with # as the count", () => {
+  const message =
+    "{n, plural, =0 {No marks left.} one {# mark left.} other {# marks left.}}";
+  expect(renderPreview(message, { n: "0" }, "en")).toEqual({
+    ok: true,
+    text: "No marks left.",
+  });
+  expect(renderPreview(message, { n: "1" }, "en")).toEqual({
+    ok: true,
+    text: "1 mark left.",
+  });
+  expect(renderPreview(message, { n: "3" }, "en")).toEqual({
+    ok: true,
+    text: "3 marks left.",
+  });
+  // The count is the example's value, so the segments tell it apart.
+  expect(renderPreviewSegments(message, { n: "3" }, "en")).toEqual({
+    ok: true,
+    segments: [
+      { text: "3", value: true },
+      { text: " marks left.", value: false },
+    ],
+  });
+  // No value: other, with # left as written.
+  expect(renderPreview(message, {})).toEqual({
+    ok: true,
+    text: "# marks left.",
+  });
+  // The language decides the category: 3 is few in Russian, other in English.
+  const ru =
+    "{n, plural, one {# метка} few {# метки} many {# меток} other {# метки}}";
+  expect(renderPreview(ru, { n: "3" }, "ru")).toEqual({
+    ok: true,
+    text: "3 метки",
+  });
+  expect(renderPreview(ru, { n: "5" }, "ru")).toEqual({
+    ok: true,
+    text: "5 меток",
+  });
+  expect(
+    previewsFor(message, [{ values: { n: "1" } }, { values: { n: "2" } }], {
+      target: "en",
+      source: "pt-PT",
+    }),
+  ).toEqual([
+    { ok: true, text: "1 mark left." },
+    { ok: true, text: "2 marks left." },
+  ]);
+});

@@ -316,3 +316,52 @@ test("a chip with no description and a value shows the value alone; with neither
     screen.getByRole("button", { name: "{nowhere}" }).getAttribute("title"),
   ).toBeNull();
 });
+
+const PLURAL = "{n, plural, one {Falta # marca.} other {Faltam # marcas.}}";
+
+function pluralPane(language: string, initialText = "") {
+  render(
+    <TargetPane
+      action={vi.fn()}
+      source={PLURAL}
+      slots={[]}
+      language={language}
+      initialText={initialText}
+      slug="mm"
+      stringKey="k"
+      openedVersion={1}
+      examples={[
+        { values: { n: "1" }, rendered: "Falta 1 marca." },
+        { values: { n: "3" }, rendered: "Faltam 3 marcas." },
+      ]}
+      sourceLanguage="pt-PT"
+    />,
+  );
+  return screen.getByRole("textbox") as HTMLTextAreaElement;
+}
+
+test("a plural chip inserts the target language's categories with # in each branch, caret after the first #", () => {
+  const textarea = pluralPane("ru");
+  fireEvent.click(screen.getByRole("button", { name: "{n, plural}" }));
+  expect(textarea.value).toBe(
+    "{n, plural, one {#} few {#} many {#} other {#}}",
+  );
+});
+
+test("a plural draft previews each example through its count's branch, and a missing category is named", () => {
+  pluralPane("en", "{n, plural, one {# mark left.} other {# marks left.}}");
+  expect(previewText()).toContain("1 mark left.");
+  expect(previewText()).toContain("3 marks left.");
+  cleanup();
+  pluralPane("ru", "{n, plural, one {# метка} other {# меток}}");
+  expect(
+    screen.getByText("Plural n is missing the few branch this language uses"),
+  ).toBeTruthy();
+  expect(
+    (
+      screen.getByRole("button", {
+        name: "Save translation",
+      }) as HTMLButtonElement
+    ).disabled,
+  ).toBe(true);
+});

@@ -45,7 +45,11 @@ export function transitionFlow(db: Db, input: TransitionFlowInput): FlowResult {
     : null;
 
   if (action.type === "save") {
-    const validation = validateTranslation(detail.string.source, action.text);
+    const validation = validateTranslation(
+      detail.string.source,
+      action.text,
+      language,
+    );
     if (!validation.ok) {
       return { kind: "redirect", to: here({ error: "invalid-translation" }) };
     }

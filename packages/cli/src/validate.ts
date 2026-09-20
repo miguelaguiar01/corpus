@@ -76,7 +76,7 @@ export async function validateRepo(
           });
           continue;
         }
-        const result = validateTranslation(original, target);
+        const result = validateTranslation(original, target, language);
         if (result.ok) continue;
         for (const error of result.errors) {
           const inSource =
@@ -128,5 +128,11 @@ export function describe(error: ValidationError): string {
       return `select on {${error.arg}} lacks the branch ${error.key}`;
     case "unexpected-branch":
       return `select on {${error.arg}} has the branch ${error.key}, which the source does not`;
+    case "unknown-plural":
+      return `plural on {${error.arg}}, which the source has no value for`;
+    case "missing-category":
+      return `plural on {${error.arg}} lacks the ${error.key} branch its language uses`;
+    case "unexpected-category":
+      return `plural on {${error.arg}} has the branch ${error.key}, which its language does not use`;
   }
 }

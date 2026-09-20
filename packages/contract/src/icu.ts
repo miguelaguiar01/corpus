@@ -1,12 +1,16 @@
-// ICU MessageFormat subset (§5): {name} placeholders and single-level
-// {arg, select, key {…} …}. Everything else — plural, nesting, other
-// argument types — is rejected at push time. Braces are always
+// ICU MessageFormat subset (§5): {name} placeholders, single-level
+// {arg, select, key {…} …} and single-level {n, plural, one {…} other {…}}
+// with =N exact branches and # for the number. Everything else — nesting,
+// other argument types — is rejected at push time. Braces are always
 // structural; the subset has no quote-escaping.
 
 export type IcuNode =
   | { kind: "literal"; text: string }
   | { kind: "placeholder"; name: string }
-  | { kind: "select"; arg: string; branches: Record<string, IcuNode[]> };
+  | { kind: "select"; arg: string; branches: Record<string, IcuNode[]> }
+  | { kind: "plural"; arg: string; branches: Record<string, IcuNode[]> }
+  // `#` inside a plural branch: the number itself.
+  | { kind: "count"; arg: string };
 
 export type IcuError = { message: string; position: number };
 
@@ -16,6 +20,16 @@ export type IcuParseResult =
 const NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 // A branch key is a word, or a bare number (`1 {marca} other {marcas}`).
 const KEY_RE = /^(?:[A-Za-z_][A-Za-z0-9_]*|[0-9]+)$/;
+// A plural branch is a CLDR category or an exact number (`=1 {…}`).
+export const PLURAL_CATEGORIES = [
+  "zero",
+  "one",
+  "two",
+  "few",
+  "many",
+  "other",
+] as const;
+const PLURAL_KEY_RE = /^(?:zero|one|two|few|many|other|=[0-9]+)$/;
 
 class ParseFailure extends Error {
   constructor(
@@ -31,7 +45,8 @@ class Parser {
 
   constructor(private readonly source: string) {}
 
-  parseSequence(inBranch: boolean): IcuNode[] {
+  // Inside a plural's branch, `#` is the number; anywhere else it is text.
+  parseSequence(inBranch: boolean, pluralArg?: string): IcuNode[] {
     const nodes: IcuNode[] = [];
     let literal = "";
     let literalStart = this.pos;
@@ -55,6 +70,13 @@ class Parser {
       if (ch === "{") {
         flush();
         nodes.push(this.parseArgument(inBranch));
+        literalStart = this.pos;
+        continue;
+      }
+      if (ch === "#" && pluralArg !== undefined) {
+        flush();
+        nodes.push({ kind: "count", arg: pluralArg });
+        this.pos += 1;
         literalStart = this.pos;
         continue;
       }
@@ -92,26 +114,23 @@ class Parser {
     // '{arg, type, ...}'
     this.pos += 1; // consume ','
     const type = this.readUntil([",", "}"]).trim();
-    if (type === "plural") {
-      throw new ParseFailure("plural is not in the v1 subset", start);
-    }
-    if (type !== "select") {
+    if (type !== "select" && type !== "plural") {
       throw new ParseFailure(
-        `argument type ${JSON.stringify(type)} is not supported; only select is`,
+        `argument type ${JSON.stringify(type)} is not supported; only select and plural are`,
         start,
       );
     }
     if (inBranch) {
-      throw new ParseFailure("selects cannot nest", start);
+      throw new ParseFailure(`${type}s cannot nest`, start);
     }
     if (!NAME_RE.test(name)) {
       throw new ParseFailure(
-        `invalid select argument name ${JSON.stringify(name)}`,
+        `invalid ${type} argument name ${JSON.stringify(name)}`,
         start,
       );
     }
     if (this.source[this.pos] !== ",") {
-      throw new ParseFailure("select needs branches", start);
+      throw new ParseFailure(`${type} needs branches`, start);
     }
     this.pos += 1; // consume ','
 
@@ -120,27 +139,35 @@ class Parser {
       this.skipWhitespace();
       const ch = this.source[this.pos];
       if (ch === undefined) {
-        throw new ParseFailure("unclosed select", start);
+        throw new ParseFailure(`unclosed ${type}`, start);
       }
       if (ch === "}") {
         this.pos += 1;
         if (Object.keys(branches).length === 0) {
-          throw new ParseFailure("select needs at least one branch", start);
+          throw new ParseFailure(`${type} needs at least one branch`, start);
         }
-        return { kind: "select", arg: name, branches };
+        if (type === "plural" && !("other" in branches)) {
+          throw new ParseFailure("plural needs an other branch", start);
+        }
+        return { kind: type, arg: name, branches };
       }
       const key = this.readUntil(["{", "}"]).trim();
       if (this.source[this.pos] !== "{") {
-        throw new ParseFailure("select needs branches", start);
+        throw new ParseFailure(`${type} needs branches`, start);
       }
-      if (!KEY_RE.test(key)) {
+      if (!(type === "plural" ? PLURAL_KEY_RE : KEY_RE).test(key)) {
         throw new ParseFailure(
-          `invalid branch key ${JSON.stringify(key)}`,
+          type === "plural"
+            ? `invalid plural branch key ${JSON.stringify(key)}: a category (${PLURAL_CATEGORIES.join(", ")}) or =N`
+            : `invalid branch key ${JSON.stringify(key)}`,
           this.pos,
         );
       }
       this.pos += 1; // consume '{'
-      branches[key] = this.parseSequence(true);
+      branches[key] = this.parseSequence(
+        true,
+        type === "plural" ? name : undefined,
+      );
       this.pos += 1; // consume '}'
     }
   }
@@ -179,13 +206,14 @@ function collect(
   nodes: IcuNode[],
   placeholders: Set<string>,
   selectArgs: Set<string>,
+  pluralArgs: Set<string> = new Set(),
 ): void {
   for (const node of nodes) {
     if (node.kind === "placeholder") placeholders.add(node.name);
-    if (node.kind === "select") {
-      selectArgs.add(node.arg);
+    if (node.kind === "select" || node.kind === "plural") {
+      (node.kind === "select" ? selectArgs : pluralArgs).add(node.arg);
       for (const branch of Object.values(node.branches)) {
-        collect(branch, placeholders, selectArgs);
+        collect(branch, placeholders, selectArgs, pluralArgs);
       }
     }
   }
@@ -203,4 +231,42 @@ export function selectArgsOf(source: string): Set<string> {
   const selectArgs = new Set<string>();
   if (result.ok) collect(result.nodes, new Set(), selectArgs);
   return selectArgs;
+}
+
+export function pluralArgsOf(source: string): Set<string> {
+  const result = parseIcu(source);
+  const pluralArgs = new Set<string>();
+  if (result.ok) collect(result.nodes, new Set(), new Set(), pluralArgs);
+  return pluralArgs;
+}
+
+// The plural categories a language uses, by the runtime's CLDR data;
+// none for a tag the runtime does not know, so nothing is enforced.
+export function pluralCategoriesOf(language: string): string[] {
+  try {
+    return new Intl.PluralRules(language).resolvedOptions().pluralCategories;
+  } catch {
+    return [];
+  }
+}
+
+// The branch a plural takes for a value (§7): an exact `=N` first, then
+// the language's category, then `other`.
+export function pluralBranch(
+  branches: Record<string, unknown>,
+  value: string,
+  language?: string,
+): string {
+  const exact = `=${value.trim()}`;
+  if (exact in branches) return exact;
+  const n = Number(value);
+  if (Number.isFinite(n)) {
+    try {
+      const category = new Intl.PluralRules(language).select(n);
+      if (category in branches) return category;
+    } catch {
+      // An unknown tag: fall through to `other`.
+    }
+  }
+  return "other";
 }

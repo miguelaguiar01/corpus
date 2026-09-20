@@ -1,5 +1,12 @@
 import { expect, test } from "vitest";
-import { parseIcu, placeholdersOf, selectArgsOf } from "./icu";
+import {
+  parseIcu,
+  placeholdersOf,
+  pluralArgsOf,
+  pluralBranch,
+  pluralCategoriesOf,
+  selectArgsOf,
+} from "./icu";
 
 const SIGHTING =
   "{person} foi {person_gender, select, m {visto} f {vista}} à janela {room_de} às {hour} — e não estava {person_gender, select, m {sozinho} f {sozinha}}.";
@@ -45,7 +52,7 @@ test("select branches may contain placeholders", () => {
 });
 
 test.each([
-  ["plural", "{n, plural, one {# item} other {# items}}", /plural/],
+  ["plural without other", "{n, plural, one {# item}}", /other/],
   ["nested select", "{a, select, x {{b, select, y {t}}}}", /nest/i],
   ["unbalanced open brace", "olá {name", /unclosed|unbalanced/i],
   ["stray close brace", "olá } mundo", /unmatched/i],
@@ -104,4 +111,80 @@ test("a select branch key is a word or a number, nothing in between", () => {
   expect(parseIcu("{n, select, 12abc {x} other {y}}").ok).toBe(false);
   expect(parseIcu("{n, select, 0 {x} other {y}}").ok).toBe(true);
   expect(parseIcu("{1, select, one {x} other {y}}").ok).toBe(false);
+});
+
+test("a plural parses with categories, =N exact branches and # for the count", () => {
+  const result = parseIcu(
+    "{n, plural, =0 {Nenhuma marca.} one {Falta # marca.} other {Faltam # marcas.}}",
+  );
+  expect(result.ok).toBe(true);
+  if (!result.ok) throw new Error("parse failed");
+  expect(result.nodes).toEqual([
+    {
+      kind: "plural",
+      arg: "n",
+      branches: {
+        "=0": [{ kind: "literal", text: "Nenhuma marca." }],
+        one: [
+          { kind: "literal", text: "Falta " },
+          { kind: "count", arg: "n" },
+          { kind: "literal", text: " marca." },
+        ],
+        other: [
+          { kind: "literal", text: "Faltam " },
+          { kind: "count", arg: "n" },
+          { kind: "literal", text: " marcas." },
+        ],
+      },
+    },
+  ]);
+  expect([...pluralArgsOf("{n, plural, one {#} other {#}} {m}")]).toEqual([
+    "n",
+  ]);
+});
+
+test("# outside a plural branch is text; a plural needs other and known keys; plurals cannot nest", () => {
+  const plain = parseIcu("Ticket #{n} {g, select, m {#} other {#}}");
+  expect(plain.ok).toBe(true);
+  if (!plain.ok) throw new Error("parse failed");
+  expect(plain.nodes[0]).toEqual({ kind: "literal", text: "Ticket #" });
+  const select = plain.nodes.find((node) => node.kind === "select");
+  expect(select?.kind === "select" && select.branches.m).toEqual([
+    { kind: "literal", text: "#" },
+  ]);
+  expect(parseIcu("{n, plural, one {x}}")).toMatchObject({
+    ok: false,
+    errors: [{ message: "plural needs an other branch" }],
+  });
+  expect(parseIcu("{n, plural, some {x} other {y}}")).toMatchObject({
+    ok: false,
+    errors: [
+      { message: expect.stringMatching(/invalid plural branch key "some"/) },
+    ],
+  });
+  expect(parseIcu("{n, plural, 1 {x} other {y}}").ok).toBe(false);
+  expect(
+    parseIcu("{n, plural, one {{m, plural, other {y}}} other {z}}"),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ message: "plurals cannot nest" }],
+  });
+  expect(
+    parseIcu("{n, plural, one {{g, select, m {a} f {b}}} other {z}}"),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ message: "selects cannot nest" }],
+  });
+});
+
+test("pluralCategoriesOf follows the runtime's CLDR data and is empty for an unknown tag; pluralBranch picks exact, then category, then other", () => {
+  expect(pluralCategoriesOf("en")).toEqual(["one", "other"]);
+  expect(pluralCategoriesOf("ja")).toEqual(["other"]);
+  expect(pluralCategoriesOf("not a tag")).toEqual([]);
+  const branches = { "=0": [], one: [], few: [], other: [] };
+  expect(pluralBranch(branches, "0", "ru")).toBe("=0");
+  expect(pluralBranch(branches, "1", "ru")).toBe("one");
+  expect(pluralBranch(branches, "3", "ru")).toBe("few");
+  expect(pluralBranch(branches, "3", "en")).toBe("other");
+  expect(pluralBranch(branches, "many", "en")).toBe("other");
 });

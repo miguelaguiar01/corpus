@@ -47,7 +47,7 @@ export function agentDraft(
   if (!detail) return { ok: false, reason: "not-found" };
   if (detail.string.archived) return { ok: false, reason: "archived" };
   if (text.trim() === "") return { ok: false, reason: "empty-text" };
-  const validation = validateTranslation(detail.string.source, text);
+  const validation = validateTranslation(detail.string.source, text, language);
   if (!validation.ok) {
     return {
       ok: false,
