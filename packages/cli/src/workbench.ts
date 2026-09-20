@@ -80,7 +80,10 @@ export function prepare(cwd: string, options: { db?: string } = {}): Prepared {
       notes.push(`added ${line} to .gitignore`);
     }
   } else {
-    notes.push(`keep ${line} out of version control (no .gitignore found)`);
+    // A repository with no .gitignore is one `git add .` from committing
+    // the token: the file is created rather than the note left to chance.
+    writeFileSync(gitignore, `${line}\n`);
+    notes.push(`created .gitignore with ${line}`);
   }
   return { bin, version: manifest.version, dbPath, secret, notes };
 }
