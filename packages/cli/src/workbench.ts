@@ -1,18 +1,17 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import {
-  appendFileSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import type { RunContext } from "./cli";
 import { option } from "./args";
 import { CliError } from "./config";
-import { CORPUS_DIR, DB_FILE, SECRET_FILE } from "./corpus-dir";
+import {
+  CORPUS_DIR,
+  DB_FILE,
+  SECRET_FILE,
+  ignoreCorpusDir,
+} from "./corpus-dir";
 import { provision, wantsProvision } from "./provision";
 
 export const WORKBENCH_USAGE =
@@ -67,24 +66,8 @@ export function prepare(cwd: string, options: { db?: string } = {}): Prepared {
     options.db ?? path.join(CORPUS_DIR, DB_FILE),
   );
 
-  const gitignore = path.join(cwd, ".gitignore");
-  const line = `${CORPUS_DIR}/`;
-  if (existsSync(gitignore)) {
-    const lines = readFileSync(gitignore, "utf8").split(/\r?\n/);
-    if (!lines.some((l) => l.trim() === line || l.trim() === CORPUS_DIR)) {
-      const text = readFileSync(gitignore, "utf8");
-      appendFileSync(
-        gitignore,
-        `${text.endsWith("\n") || text === "" ? "" : "\n"}${line}\n`,
-      );
-      notes.push(`added ${line} to .gitignore`);
-    }
-  } else {
-    // A repository with no .gitignore is one `git add .` from committing
-    // the token: the file is created rather than the note left to chance.
-    writeFileSync(gitignore, `${line}\n`);
-    notes.push(`created .gitignore with ${line}`);
-  }
+  const ignored = ignoreCorpusDir(cwd);
+  if (ignored) notes.push(ignored);
   return { bin, version: manifest.version, dbPath, secret, notes };
 }
 

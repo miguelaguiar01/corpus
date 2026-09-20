@@ -7,6 +7,11 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+### Changed
+
+- `corpus init` adds `.corpus/` to `.gitignore`, creating the file when there is none, as the workbench does: a team on a shared instance writes the token by hand after `project create` and never starts the workbench.
+- The published CLI README names the `--stdin` operations' arguments and says an `exec` import command receives only the selected rows and must merge them.
+
 ## [0.12.0] - 2026-09-20
 
 What a clean install and the round trip found.
