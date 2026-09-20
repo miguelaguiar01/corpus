@@ -134,7 +134,7 @@ loop() {
   echo "=== install-smoke: corpus agent, the tools as subcommands ==="
   npx corpus agent status | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{const j=JSON.parse(s);if(!Array.isArray(j.writableSources))throw new Error("agent status: "+s)})'
   # The seeded row is a person's as far as the token knows.
-  if npx corpus agent draft greeting pt-PT "Viva" 2>"$TMP/seeded.err"; then echo "a draft on a seeded row must be refused" >&2; exit 1; fi
+  if npx corpus agent draft greeting pt-PT "Viva {name}" 2>"$TMP/seeded.err"; then echo "a draft on a seeded row must be refused" >&2; exit 1; fi
   grep -q "human-edited" "$TMP/seeded.err"
   npx corpus agent draft farewell pt-PT "Adeus" | tee "$TMP/draft.log"
   grep -q '"actor": "install-smoke agent"' "$TMP/draft.log"
