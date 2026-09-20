@@ -108,3 +108,10 @@ test("a string proposal's refusal carries the predated-push clause too", async (
     `${HEARD} comes from a source that pull cannot write; the project was last pushed before sources were declared; run corpus push with this CLI`,
   );
 });
+
+test("an unknown field on a string proposal is refused by name", async () => {
+  const { token } = seeded;
+  const res = await propose(token, CONTINUE, { kind: "delete", text: "x" });
+  expect(res.status).toBe(422);
+  expect((await res.json()).message).toBe("unknown field text");
+});
