@@ -240,14 +240,25 @@ export function pluralArgsOf(source: string): Set<string> {
   return pluralArgs;
 }
 
-// The plural categories a language uses, by the runtime's CLDR data;
-// none for a tag the runtime does not know, so nothing is enforced.
-export function pluralCategoriesOf(language: string): string[] {
+// Whether the runtime has plural data for a tag: a well-formed tag it
+// lacks (`tlh`, `qaa`) would otherwise resolve to the default locale.
+function known(language: string): boolean {
   try {
-    return new Intl.PluralRules(language).resolvedOptions().pluralCategories;
+    return Intl.PluralRules.supportedLocalesOf([language]).length > 0;
   } catch {
-    return [];
+    return false;
   }
+}
+
+// The plural categories a language uses, by the runtime's CLDR data, in
+// CLDR order whatever order the runtime lists them; none for a tag the
+// runtime does not know, so nothing is enforced.
+export function pluralCategoriesOf(language: string): string[] {
+  if (!known(language)) return [];
+  const has = new Set(
+    new Intl.PluralRules(language).resolvedOptions().pluralCategories,
+  );
+  return PLURAL_CATEGORIES.filter((category) => has.has(category));
 }
 
 // The branch a plural takes for a value (§7): an exact `=N` first, then
@@ -260,13 +271,9 @@ export function pluralBranch(
   const exact = `=${value.trim()}`;
   if (exact in branches) return exact;
   const n = Number(value);
-  if (Number.isFinite(n)) {
-    try {
-      const category = new Intl.PluralRules(language).select(n);
-      if (category in branches) return category;
-    } catch {
-      // An unknown tag: fall through to `other`.
-    }
+  if (Number.isFinite(n) && (language === undefined || known(language))) {
+    const category = new Intl.PluralRules(language).select(n);
+    if (category in branches) return category;
   }
   return "other";
 }

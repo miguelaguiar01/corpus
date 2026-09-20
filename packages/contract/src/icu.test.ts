@@ -181,6 +181,10 @@ test("pluralCategoriesOf follows the runtime's CLDR data and is empty for an unk
   expect(pluralCategoriesOf("en")).toEqual(["one", "other"]);
   expect(pluralCategoriesOf("ja")).toEqual(["other"]);
   expect(pluralCategoriesOf("not a tag")).toEqual([]);
+  // A well-formed tag the runtime has no data for is unknown too.
+  expect(pluralCategoriesOf("tlh")).toEqual([]);
+  expect(pluralCategoriesOf("ru")).toEqual(["one", "few", "many", "other"]);
+  expect(pluralBranch({ one: [], other: [] }, "1", "tlh")).toBe("other");
   const branches = { "=0": [], one: [], few: [], other: [] };
   expect(pluralBranch(branches, "0", "ru")).toBe("=0");
   expect(pluralBranch(branches, "1", "ru")).toBe("one");

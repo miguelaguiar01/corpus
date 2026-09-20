@@ -40,9 +40,10 @@ function branchingOf(source: string, language: string): Branching[] {
       keys: node.kind === "plural" ? pluralCategoriesOf(language) : [],
     };
     for (const key of Object.keys(node.branches)) {
-      if (node.kind === "select" || key.startsWith("=")) {
-        if (!entry.keys.includes(key)) entry.keys.push(key);
-      }
+      if (entry.keys.includes(key)) continue;
+      if (node.kind === "select") entry.keys.push(key);
+      // An exact branch reads first, before the categories.
+      else if (key.startsWith("=")) entry.keys.unshift(key);
     }
     if (entry.kind === "plural" && !entry.keys.includes("other"))
       entry.keys.push("other");

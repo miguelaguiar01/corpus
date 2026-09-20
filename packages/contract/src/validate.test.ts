@@ -181,6 +181,9 @@ describe("selects may collapse but not be malformed", () => {
         "not a tag",
       ),
     ).toEqual({ ok: true });
+    expect(
+      validateTranslation(PLURAL, "{n, plural, few {x} other {y}}", "tlh"),
+    ).toEqual({ ok: true });
   });
 });
 

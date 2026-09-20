@@ -319,11 +319,11 @@ test("a chip with no description and a value shows the value alone; with neither
 
 const PLURAL = "{n, plural, one {Falta # marca.} other {Faltam # marcas.}}";
 
-function pluralPane(language: string, initialText = "") {
+function pluralPane(language: string, initialText = "", source = PLURAL) {
   render(
     <TargetPane
       action={vi.fn()}
-      source={PLURAL}
+      source={source}
       slots={[]}
       language={language}
       initialText={initialText}
@@ -346,6 +346,14 @@ test("a plural chip inserts the target language's categories with # in each bran
   expect(textarea.value).toBe(
     "{n, plural, one {#} few {#} many {#} other {#}}",
   );
+  cleanup();
+  const exact = pluralPane(
+    "en",
+    "",
+    "{n, plural, =0 {Nenhuma.} one {#} other {#}}",
+  );
+  fireEvent.click(screen.getByRole("button", { name: "{n, plural}" }));
+  expect(exact.value).toBe("{n, plural, =0 {#} one {#} other {#}}");
 });
 
 test("a plural draft previews each example through its count's branch, and a missing category is named", () => {
