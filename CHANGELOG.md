@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-09-20
+
+Plural, and the open tickets.
+
 ### Added
 
 - ICU **plural** in the subset (§5): `{n, plural, one {…} other {…}}` with CLDR categories, `=N` exact branches and `#` for the count, single-level like select. A count must survive a translation, as `{n}` or as a plural on `n`; a translation may pluralise any value the source has; a plural's categories are checked against the target language's, by the runtime's CLDR data, on save, on a token draft and in `corpus validate`. Previews resolve a plural by the example's count (§7). The string response carries `plurals`; still `corpus/1`. The §13 decision is taken: a real project's count strings needed it.
@@ -231,7 +235,8 @@ The first published version.
 - The `messages`, `table` and `exec` adapters, and the `corpus/1` snapshot contract with its ICU subset (placeholders and `select`).
 - The package ships plain JavaScript for Node 22 with type declarations; a client's config imports `defineCorpus` from `@corpus-tool/cli`.
 
-[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.14.0
 [0.13.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.13.0
 [0.12.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.12.0
 [0.11.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.11.0
