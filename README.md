@@ -90,6 +90,7 @@ export default defineCorpus({
   ],
   check: {
     include: ["src"],
+    ignore: ["**/*.test.tsx"],
     allow: ["^(Nvidia NVENC|AMD AMF|HEVC 10bit)$"],
   },
 });

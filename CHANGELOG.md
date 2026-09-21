@@ -20,7 +20,7 @@ contract (`corpus/1`) is the only one.
 
 ### Added
 
-- `corpus check` names `check.allow` when at least half of five or more findings are single words: on Jellyfin, 62 of 75 were product names (`Nvidia NVENC`, `AMD AMF`) shown as they are in every language. The README's configuration example and §3 show the allow list.
+- `corpus check` names `check.allow` when at least half of five or more findings are single words: on Jellyfin, 61 of 74 findings are one token, catalogue keys used as text, encoder presets and names such as `AC-4` and `XMLTV`, most of which belong in the allow list rather than the catalogue. The README's configuration example and §3 show the allow list.
 - i18next's plural forms are siblings (§9.3): a key ending in `_plural`, `_zero`, `_one`, `_two`, `_few`, `_many` or `_other` is shown with its base key and the other forms in the siblings section and in `get_string`, beside the prefix siblings; a sentence key, which has no prefix, still shows its family. Outline has 64 such pairs.
 - A rich-text tag's name may be a bare number (§5): react-i18next indexes a `Trans` element's children as `<1>`, `<2>`, and Outline writes `<2>{sharedParent.sourceTitle}</2>`; a translation that drops one is now a `missing-tag` finding instead of the tag passing as text.
 - `corpus init` takes `--syntax <icu|i18next>` and, without it, reads the syntax from the source file: values with `{{ }}` and no ICU argument mean i18next, written on the source and said in the output. Outline's config needed a hand edit for it.

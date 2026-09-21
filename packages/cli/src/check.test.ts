@@ -196,10 +196,6 @@ test("check says when none of the included directories exists, instead of a clea
 });
 
 test("check hints at check.allow when most findings are single words or names", async () => {
-  const { mkdtempSync, mkdirSync, writeFileSync, rmSync } =
-    await import("node:fs");
-  const os = await import("node:os");
-  const path = await import("node:path");
   const { run } = await import("./cli");
   const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-check-"));
   const check = async (lines: string[]) => {
