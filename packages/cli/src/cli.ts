@@ -214,6 +214,12 @@ async function check(ctx: RunContext): Promise<number> {
     return 1;
   }
   for (const f of findings) ctx.err(`${f.file}:${f.line}: ${f.text}`);
+  const tokens = findings.filter((f) => !/\s/.test(f.text)).length;
+  if (findings.length >= 5 && tokens * 2 >= findings.length) {
+    ctx.err(
+      `corpus: ${tokens} of the ${findings.length} findings are single words or names; a name that stays untranslated goes in check.allow (regular expressions)`,
+    );
+  }
   if (findings.length > 0) {
     ctx.err(
       `corpus: ${findings.length} user-facing literal(s) outside declared sources`,

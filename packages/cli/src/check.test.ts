@@ -194,3 +194,54 @@ test("check says when none of the included directories exists, instead of a clea
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("check hints at check.allow when most findings are single words or names", async () => {
+  const { run } = await import("./cli");
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-check-"));
+  const check = async (lines: string[]) => {
+    writeFileSync(
+      path.join(dir, "src", "a.tsx"),
+      `export const A = () => <>${lines.map((l) => `<p>${l}</p>`).join("")}</>;\n`,
+    );
+    const err: string[] = [];
+    await run(["check"], {
+      cwd: dir,
+      env: {},
+      out: () => {},
+      err: (l) => err.push(l),
+    });
+    return err.join("\n");
+  };
+  try {
+    mkdirSync(path.join(dir, "i18n"));
+    mkdirSync(path.join(dir, "src"));
+    writeFileSync(path.join(dir, "i18n", "en.json"), "{}\n");
+    writeFileSync(
+      path.join(dir, "corpus.config.mjs"),
+      `export default { project: "p", server: "http://localhost:3000", sourceLanguage: "en", languages: ["en"], sources: [{ adapter: "messages", type: "chrome", path: "i18n/{lang}.json" }] };\n`,
+    );
+    const names = ["Nvidia", "AMD", "HEVC", "Intel", "VP9", "AV1"];
+    const sentences = [
+      "Save the file",
+      "Open a door",
+      "Close it now",
+      "Try again later",
+    ];
+    const hinted = await check([...names, ...sentences]);
+    expect(hinted).toMatch(
+      /corpus: 6 of the 10 findings are single words or names; a name that stays untranslated goes in check\.allow \(regular expressions\)/,
+    );
+    expect(hinted).toMatch(/10 user-facing literal\(s\) outside/);
+    expect(
+      await check([
+        ...names.slice(0, 4),
+        ...sentences,
+        "One more line",
+        "And another",
+      ]),
+    ).not.toMatch(/check\.allow/);
+    expect(await check(names.slice(0, 3))).not.toMatch(/check\.allow/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

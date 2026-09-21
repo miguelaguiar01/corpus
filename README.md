@@ -88,8 +88,15 @@ export default defineCorpus({
   sources: [
     { adapter: "messages", type: "chrome", path: "src/i18n/{lang}.json" },
   ],
+  check: {
+    include: ["src"],
+    ignore: ["**/*.test.tsx"],
+    allow: ["^(Nvidia NVENC|AMD AMF|HEVC 10bit)$"],
+  },
 });
 ```
+
+`check` is what `corpus check` scans: `include` the directories with your components (`src` when absent), `ignore` path prefixes or globs (`**/*.test.tsx`), and `allow` regular expressions for text that is not chrome, such as a product name shown as it is in every language; when most of the findings are single words, `check` says so and names the option.
 
 The project exists on the instance before the first push. `corpus workbench` creates it when it starts in a repository with a config and no `.corpus/token`; against any other instance, the instance secret creates it and prints the token once, alone on the last line, for `CORPUS_TOKEN` or `.corpus/token`:
 
