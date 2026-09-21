@@ -13,6 +13,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- `corpus check` treats a react-i18next `Trans` element as a catalogue call: its text children, the strings in braces under it and its user-facing props are the translation's key in the natural-key style, not findings; text beside it still is. On Outline, 109 of 251 findings were `Trans` children.
 - The string page finds a key with a space or any encoded character again: the App Router hands a page its segment percent-encoded, unlike a route handler, so the page decodes it once (guarded; bad encoding is a 404). A change in this batch had removed the decode on the belief that Next decodes page params; it does not, verified on a dev server, and every natural key was a 404 in the workbench.
 
 ### Added
