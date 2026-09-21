@@ -2,6 +2,7 @@ import { expect, test } from "vitest";
 import {
   exampleSchema,
   fieldDeclarationSchema,
+  libraryOf,
   stringEntrySchema,
 } from "./strings";
 
@@ -214,4 +215,12 @@ test("an entry may name the file it was read from", () => {
   expect(stringEntrySchema.safeParse({ ...entry, file: "" }).success).toBe(
     false,
   );
+});
+
+test("libraryOf prefers the library, falls back to the old name, and defaults to plain ICU", () => {
+  expect(libraryOf({ library: "i18next", syntax: "icu" })).toBe("i18next");
+  expect(libraryOf({ syntax: "i18next" })).toBe("i18next");
+  expect(libraryOf({ library: "i18next" })).toBe("i18next");
+  expect(libraryOf({})).toBe("icu");
+  expect(libraryOf(undefined)).toBe("icu");
 });
