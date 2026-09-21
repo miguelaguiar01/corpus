@@ -6,7 +6,7 @@ import { STATE_KEY, STATE_VARIANT } from "./state-label";
 
 // Past this many, the rest fold away: a project of dozens of languages
 // would otherwise put every text under the editor on every string.
-export const OTHER_LANGUAGES_SHOWN = 5;
+const OTHER_LANGUAGES_SHOWN = 5;
 
 // The same sentence in the other languages (§9.3): every language of
 // the project except the source and the one being read, so a
@@ -41,22 +41,24 @@ export function OtherLanguages({
   );
 
   function row(language: string) {
-    const row = translations[language];
-    const state = row?.state ?? "untranslated";
-    const hasText = Boolean(row?.text);
+    const entry = translations[language];
+    const state = entry?.state ?? "untranslated";
+    const hasText = Boolean(entry?.text);
     return (
       <div key={language} className="flex flex-wrap items-baseline gap-2">
         <dt className="flex items-center gap-1.5">
           <span className="font-medium">{language}</span>
           <Chip variant={STATE_VARIANT[state]}>{t(STATE_KEY[state])}</Chip>
-          {row?.stale && <Chip variant="state-stale">{t("state.stale")}</Chip>}
+          {entry?.stale && (
+            <Chip variant="state-stale">{t("state.stale")}</Chip>
+          )}
         </dt>
         <dd
           className={
             hasText ? "text-base leading-relaxed" : "text-muted-foreground"
           }
         >
-          {hasText ? row?.text : t("string.otherLanguagesNone")}
+          {hasText ? entry?.text : t("string.otherLanguagesNone")}
         </dd>
       </div>
     );
