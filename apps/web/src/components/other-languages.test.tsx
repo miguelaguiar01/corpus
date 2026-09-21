@@ -81,3 +81,30 @@ test("a translated language wears the translated chip, not the untranslated one"
     screen.getByText("Untranslated").className,
   );
 });
+
+test("past five, the rest fold behind their count and open on demand", () => {
+  const many = Object.fromEntries(
+    ["a", "b", "c", "d", "e", "f", "g", "h"].map((l) => [
+      l,
+      {
+        state: "translated" as const,
+        stale: false,
+        text: `text ${l}`,
+        version: 1,
+        agentDraft: false,
+      },
+    ]),
+  );
+  render(
+    <OtherLanguages
+      languages={["src", ...Object.keys(many)]}
+      exclude={["src"]}
+      translations={many}
+    />,
+  );
+  for (const l of ["a", "b", "c", "d", "e"])
+    expect(screen.getByText(`text ${l}`)).toBeTruthy();
+  const summary = screen.getByText("3 more languages");
+  expect(summary.closest("details")?.open).toBe(false);
+  expect(screen.getByText("text h")).toBeTruthy();
+});

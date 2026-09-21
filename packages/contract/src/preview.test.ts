@@ -217,3 +217,15 @@ test("a plural renders its count's branch: exact first, then the language's cate
     { ok: true, text: "2 marks left." },
   ]);
 });
+
+test("capitalise: false keeps a leading value as given, for chrome rendered through the engine", () => {
+  expect(renderPreview("{name} joined", { name: "ana" })).toEqual({
+    ok: true,
+    text: "Ana joined",
+  });
+  expect(
+    renderPreview("{name} joined", { name: "ana" }, "en", {
+      capitalise: false,
+    }),
+  ).toEqual({ ok: true, text: "ana joined" });
+});

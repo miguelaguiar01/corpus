@@ -72,10 +72,16 @@ function render(
   }
 }
 
+// The engine habit of §7, a value that opens the sentence capitalised,
+// is for previews of a project's text; chrome rendered through the same
+// engine keeps its values as given.
+export type RenderOptions = { capitalise?: boolean };
+
 export function renderPreviewSegments(
   message: string,
   values: Record<string, string>,
   language?: string,
+  options: RenderOptions = {},
 ): PreviewSegmentsResult {
   const parsed = parseIcu(message);
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
@@ -84,7 +90,11 @@ export function renderPreviewSegments(
   // Capitalise the first character of the whole render, wherever it
   // falls: an empty leading value must not stop it.
   const first = segments.find((segment) => segment.text.length > 0);
-  if (parsed.nodes[0]?.kind === "placeholder" && first) {
+  if (
+    options.capitalise !== false &&
+    parsed.nodes[0]?.kind === "placeholder" &&
+    first
+  ) {
     first.text = first.text[0]!.toUpperCase() + first.text.slice(1);
   }
   return { ok: true, segments };
@@ -94,8 +104,9 @@ export function renderPreview(
   message: string,
   values: Record<string, string>,
   language?: string,
+  options: RenderOptions = {},
 ): PreviewResult {
-  const result = renderPreviewSegments(message, values, language);
+  const result = renderPreviewSegments(message, values, language, options);
   if (!result.ok) return result;
   return { ok: true, text: result.segments.map((s) => s.text).join("") };
 }
