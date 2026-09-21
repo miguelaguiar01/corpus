@@ -12,11 +12,26 @@ const TABLE_FROM_LANGUAGES = 8;
 // Per-language progress: a block per language broken down by string
 // type, or, from eight languages on, a table of one row each with the
 // breakdown behind the row (§9.1).
-export function ProgressByType({ progress }: { progress: Progress }) {
+export function ProgressByType({
+  progress,
+  sourceLanguage,
+}: {
+  progress: Progress;
+  sourceLanguage?: string;
+}) {
   const languages = Object.keys(progress.perLanguage);
   if (languages.length === 0) return null;
   const types = Object.keys(progress.perType);
   if (languages.length >= TABLE_FROM_LANGUAGES) {
+    // The table answers "what needs a translator" (§9.1), so it leads
+    // with the language that has the most left to do; the source
+    // language is pinned, since its rows are the project's own text.
+    const ordered = [...languages].sort((a, b) => {
+      if (a === sourceLanguage) return -1;
+      if (b === sourceLanguage) return 1;
+      const left = (l: string) => progress.perLanguage[l]?.untranslated ?? 0;
+      return left(b) - left(a) || a.localeCompare(b);
+    });
     return (
       <div className="space-y-3">
         <ProgressLegend />
@@ -31,7 +46,7 @@ export function ProgressByType({ progress }: { progress: Progress }) {
             </tr>
           </thead>
           <tbody>
-            {languages.map((language) => (
+            {ordered.map((language) => (
               <ProgressRow
                 key={language}
                 language={language}

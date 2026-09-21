@@ -106,3 +106,52 @@ test("a table row opens its per-type breakdown behind a disclosure; one type has
   expect(screen.queryByRole("button")).toBeNull();
   expect(screen.getAllByRole("meter")).toHaveLength(9);
 });
+
+test("the table leads with the language that has the most left to do, the source language first of all", () => {
+  const perLanguage = {
+    "pt-PT": counts(4, 0, 4),
+    ca: counts(0, 3, 4),
+    de: counts(0, 0, 4),
+    en: counts(0, 2, 4),
+    fr: counts(0, 0, 4),
+    it: counts(1, 1, 4),
+    ja: counts(0, 1, 4),
+    ko: counts(0, 4, 4),
+    nl: counts(0, 3, 4),
+  };
+  render(
+    <ProgressByType
+      progress={{ perLanguage, perType: { chrome: perLanguage } }}
+      sourceLanguage="pt-PT"
+    />,
+  );
+  const rows = screen
+    .getAllByRole("rowheader")
+    .map((cell) => cell.textContent?.replace(/[▸▾]/g, "").trim());
+  // pt-PT pinned, then most untranslated first, ties by code: de and fr
+  // have four, ja three, en and it two, ca and nl one, ko none.
+  expect(rows).toEqual([
+    "pt-PT",
+    "de",
+    "fr",
+    "ja",
+    "en",
+    "it",
+    "ca",
+    "nl",
+    "ko",
+  ]);
+});
+
+test("under the table threshold the blocks keep the project's own order", () => {
+  const perLanguage = { "pt-PT": counts(1, 2, 3), en: counts(0, 0, 3) };
+  render(
+    <ProgressByType
+      progress={{ perLanguage, perType: { chrome: perLanguage } }}
+      sourceLanguage="pt-PT"
+    />,
+  );
+  expect(
+    screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent),
+  ).toEqual(["pt-PT", "en"]);
+});

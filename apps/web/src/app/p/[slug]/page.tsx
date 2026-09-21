@@ -73,7 +73,10 @@ export default async function ProjectHome({
           )}
         </Section>
         <Section heading={t("dashboard.progressHeading")}>
-          <ProgressByType progress={progress} />
+          <ProgressByType
+            progress={progress}
+            sourceLanguage={project.sourceLanguage}
+          />
         </Section>
       </div>
     </Page>
