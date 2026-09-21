@@ -162,12 +162,13 @@ class Parser {
     return nodes;
   }
 
-  // {{ name }} or {{name, format}} at the cursor, consumed (i18next).
+  // {{ name }}, {{name, format}} or the unescaped {{- name}} at the
+  // cursor, consumed (i18next).
   private parseDoubleBrace(): IcuNode {
     const start = this.pos;
     const end = this.source.indexOf("}}", this.pos + 2);
     if (end < 0) throw new ParseFailure("unclosed '{{'", start);
-    const inner = this.source.slice(this.pos + 2, end);
+    const inner = this.source.slice(this.pos + 2, end).replace(/^\s*-/, "");
     const name = (inner.split(",")[0] ?? "").trim();
     if (!I18NEXT_NAME_RE.test(name)) {
       throw new ParseFailure(

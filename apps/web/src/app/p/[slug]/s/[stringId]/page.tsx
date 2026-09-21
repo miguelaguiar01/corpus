@@ -210,7 +210,7 @@ export default async function StringPage({
           }
         >
           <header className="space-y-3">
-            <p className="break-words font-mono text-xs text-muted-foreground">
+            <p className="whitespace-pre-wrap break-words font-mono text-xs text-muted-foreground">
               {string.key}
             </p>
             <SourceView

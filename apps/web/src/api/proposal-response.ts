@@ -23,7 +23,11 @@ export function proposalRefusal(
         `${key} comes from a source that pull cannot write; ${writableSourcesClause(project)}`,
       );
     case "invalid-icu":
-      return apiError(422, "invalid-icu", "the text is empty or not valid ICU");
+      return apiError(
+        422,
+        "invalid-icu",
+        "the text is empty or does not parse as a source in the string's syntax",
+      );
     case "invalid-key":
       return apiError(422, "invalid-key", `${key} is not a valid key`);
     case "unchanged":

@@ -305,6 +305,13 @@ test("a placeholder or argument name may be a bare number, as ICU allows", () =>
   expect([...selectArgsOf("{0, select, 1 {one} other {many}}")]).toEqual(["0"]);
 });
 
+test("i18next's unescaped form {{- name}} is the placeholder name", () => {
+  expect([
+    ...placeholdersOf("Hello {{- name}} and {{-user.name}}", "i18next"),
+  ]).toEqual(["name", "user.name"]);
+  expect(parseIcu("{{-}}", "i18next").ok).toBe(false);
+});
+
 test("i18next syntax: {{name}} is a placeholder, a single brace is text, there are no arguments", () => {
   const result = parseIcu(
     "{{ count }} documents starred by {{user.name}} on {{date, short}} {not a placeholder} and #1 <em>{{ templateName }}</em>",
