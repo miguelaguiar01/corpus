@@ -260,7 +260,7 @@ test("a tag name may be a number, as react-i18next indexes Trans children", () =
     ),
   ).toMatchObject({ ok: false, errors: [{ code: "missing-tag", name: "2" }] });
   // i18next's own strings write the same tags.
-  expect(parseIcu("Shared by <2>{{ name }}</2>", "i18next").ok).toBe(true);
+  expect([...tagsOf("Shared by <2>{{ name }}</2>", "i18next")]).toEqual(["2"]);
 });
 
 test("an unclosed, mismatched or stray tag is a parse error naming it", () => {
