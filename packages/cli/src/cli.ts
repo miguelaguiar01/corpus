@@ -1,7 +1,12 @@
 import { writeFileSync } from "node:fs";
 import type { Readable } from "node:stream";
 import path from "node:path";
-import { buildSnapshot, pushOnlyNotes } from "./build";
+import {
+  buildSnapshotReport,
+  describeRefused,
+  pushOnlyNotes,
+  type Refused,
+} from "./build";
 import { option } from "./args";
 import { CliError, loadConfig, requireToken } from "./config";
 import { checkFiles } from "./check";
@@ -97,7 +102,8 @@ type PushReport = {
 async function push(args: string[], ctx: RunContext): Promise<number> {
   const dryRun = args.includes("--dry-run");
   const config = await loadConfig(ctx.cwd);
-  const snapshot = await buildSnapshot(config, ctx.cwd);
+  const { snapshot, refused } = await buildSnapshotReport(config, ctx.cwd);
+  for (const entry of refused) ctx.err(`corpus: ${describeRefused(entry)}`);
   for (const note of pushOnlyNotes(config)) ctx.err(`corpus: ${note}`);
   const token = requireToken(ctx.env, ctx.cwd);
 
@@ -143,13 +149,26 @@ async function push(args: string[], ctx: RunContext): Promise<number> {
     const drift = languageDrift(config.languages, languages);
     if (drift) ctx.err(`corpus: ${drift}`);
   }
-  return 0;
+  return refusedExit(
+    refused,
+    ctx,
+    dryRun
+      ? "would not be pushed; a refused string the project holds would be archived until it parses"
+      : "not pushed; a refused string the project holds is archived until it parses",
+  );
+}
+
+function refusedExit(refused: Refused[], ctx: RunContext, fate: string) {
+  if (refused.length === 0) return 0;
+  ctx.err(`corpus: ${refused.length} string(s) refused and ${fate}`);
+  return 1;
 }
 
 // `corpus build`: the snapshot without a server, for authoring the config.
 async function build(args: string[], ctx: RunContext): Promise<number> {
   const config = await loadConfig(ctx.cwd);
-  const snapshot = await buildSnapshot(config, ctx.cwd);
+  const { snapshot, refused } = await buildSnapshotReport(config, ctx.cwd);
+  for (const entry of refused) ctx.err(`corpus: ${describeRefused(entry)}`);
   for (const note of pushOnlyNotes(config)) ctx.err(`corpus: ${note}`);
   const out = option(args, "--out");
   if (out) {
@@ -167,7 +186,7 @@ async function build(args: string[], ctx: RunContext): Promise<number> {
   ctx.out(
     `built ${config.project}: ${snapshot.strings.length} string(s) (${byType(snapshot.strings) || "none"}), ${snapshot.entities.length} entity(ies) (${byType(snapshot.entities) || "none"})${out ? `, written to ${out}` : ""}`,
   );
-  return 0;
+  return refusedExit(refused, ctx, "left out of the snapshot");
 }
 
 // `corpus check` (§3): exit 1 with file:line: text per finding, 0 when clean.

@@ -177,6 +177,29 @@ test("an unexpected non-2xx renders the server's message", async () => {
   expect(c.output.join("\n")).toContain("token is for a different project");
 });
 
+test("a source string that does not parse is refused, the rest is pushed, and the exit code is 1", async () => {
+  const { server, url, calls } = await startServer(() => ({
+    status: 200,
+    json: { report: { added: 1, changed: 0, stale: 0, archived: 0 } },
+  }));
+  active = server;
+  process.env.CORPUS_SERVER = url;
+  const bad = fileURLToPath(
+    new URL("../test/fixtures/push-bad", import.meta.url),
+  );
+  const c = ctx({ cwd: bad });
+  const code = await run(["push"], c);
+  expect(code).toBe(1);
+  const body = calls[0]?.body as { strings: { id: string }[] };
+  expect(body.strings.map((s) => s.id)).toEqual(["app.title"]);
+  const out = c.output.join("\n");
+  expect(out).toMatch(/i18n\/en\.json \[stray\]: invalid ICU: /);
+  expect(out).toContain("pushed push-bad: 1 added");
+  expect(out).toContain(
+    "corpus: 1 string(s) refused and not pushed; a refused string the project holds is archived until it parses",
+  );
+});
+
 test("push builds and validates before it asks for the token", async () => {
   const broken = fileURLToPath(
     new URL("../test/fixtures/broken", import.meta.url),

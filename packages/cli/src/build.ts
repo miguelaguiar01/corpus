@@ -21,6 +21,8 @@ import {
 import { CliError } from "./config";
 
 type Sourced = { entry: StringEntry; file: string };
+export type Refused = { file: string; id: string; message: string };
+export type BuildReport = { snapshot: Snapshot; refused: Refused[] };
 // What an exporter says the repository already holds for its strings
 // (§3, §8): per target language, id to text; taken as seeds once the
 // snapshot's ids are known.
@@ -33,22 +35,52 @@ const execTranslationsSchema = z.record(
   z.record(z.string(), z.string()),
 );
 
-// Reads the configured sources, feeds the pure adapters (and custom exec
-// exporters), and assembles a corpus/1 envelope validated locally before
-// any upload (§3, §8).
+// The strict build: a refused entry fails it, for a caller that wants
+// the whole catalogue or nothing.
 export async function buildSnapshot(
   config: CorpusConfig,
   cwd: string,
 ): Promise<Snapshot> {
+  const { snapshot, refused } = await buildSnapshotReport(config, cwd);
+  if (refused.length > 0) {
+    throw new CliError(
+      `snapshot build failed:\n  ${refused.map(describeRefused).join("\n  ")}`,
+    );
+  }
+  return snapshot;
+}
+
+export function describeRefused({ file, id, message }: Refused): string {
+  return `${file} [${id}]: ${message}`;
+}
+
+// Reads the configured sources, feeds the pure adapters (and custom exec
+// exporters), and assembles a corpus/1 envelope validated locally before
+// any upload (§3, §8). A source string that does not parse is refused by
+// entry; anything else that fails, a file that will not read, a
+// duplicate id, an exporter that exits non-zero, fails the build.
+export async function buildSnapshotReport(
+  config: CorpusConfig,
+  cwd: string,
+): Promise<BuildReport> {
   const jiti = createJiti(import.meta.url);
   const sourced: Sourced[] = [];
   const entities: Entity[] = [];
   const execSeeds: ExecSeeds[] = [];
   const errors: string[] = [];
+  const refused: Refused[] = [];
 
   for (const source of config.sources) {
     if (source.adapter === "exec") {
-      collectExec(source.command, cwd, sourced, entities, execSeeds, errors);
+      collectExec(
+        source.command,
+        cwd,
+        sourced,
+        entities,
+        execSeeds,
+        errors,
+        refused,
+      );
       continue;
     }
     // Push reads the source-language file; a table path may carry {lang}
@@ -75,7 +107,7 @@ export async function buildSnapshot(
         },
         file,
         sourced,
-        errors,
+        refused,
       );
     }
   }
@@ -125,22 +157,31 @@ export async function buildSnapshot(
   if (errors.length > 0) {
     throw new CliError(`snapshot build failed:\n  ${errors.join("\n  ")}`);
   }
-  return parsed.data as Snapshot;
+  return { snapshot: parsed.data as Snapshot, refused };
 }
 
 function validateEntry(
   entry: StringEntry,
   file: string,
   sourced: Sourced[],
-  errors: string[],
+  refused: Refused[],
 ): void {
-  const icu = parseIcu(entry.source, entry.syntax ?? "icu");
-  if (!icu.ok) {
-    errors.push(
-      `${file} [${entry.id}]: invalid ${entry.syntax ?? "ICU"}: ${icu.errors[0]?.message}`,
-    );
+  const syntax = entry.syntax ?? "icu";
+  const icu = parseIcu(entry.source, syntax);
+  if (icu.ok) sourced.push({ entry, file });
+  else {
+    // A whole i18next catalogue read as ICU is refused string by string;
+    // the hint names the declaration before the push archives them.
+    const hint =
+      syntax === "icu" && entry.source.includes("{{")
+        ? `; {{ }} is i18next's interpolation: declare syntax: "i18next" on the source`
+        : "";
+    refused.push({
+      file,
+      id: entry.id,
+      message: `invalid ${syntax === "icu" ? "ICU" : syntax}: ${icu.errors[0]?.message}${hint}`,
+    });
   }
-  sourced.push({ entry, file });
 }
 
 function collectExec(
@@ -150,6 +191,7 @@ function collectExec(
   entities: Entity[],
   execSeeds: ExecSeeds[],
   errors: string[],
+  refused: Refused[],
 ): void {
   const result = spawnSync(command, { shell: true, cwd, encoding: "utf8" });
   if (result.status !== 0) {
@@ -180,7 +222,7 @@ function collectExec(
     // pick what it rewrites, and an exec source is not rewritable.
     const entry = { ...parsedEntry.data };
     delete entry.file;
-    validateEntry(entry, `exec:${command}`, sourced, errors);
+    validateEntry(entry, `exec:${command}`, sourced, refused);
   }
   for (const raw of out.entities ?? []) {
     const entity = entitySchema.safeParse(raw);
