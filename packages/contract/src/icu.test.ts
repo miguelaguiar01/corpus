@@ -1,4 +1,5 @@
 import { expect, test } from "vitest";
+import { validateTranslation } from "./validate";
 import {
   branchingNodes,
   parseIcu,
@@ -231,6 +232,35 @@ test("rich-text tags parse as nodes with their children, nest, and self-close; a
   // A tag may hold a placeholder and sit inside a branch.
   const inside = parseIcu("{g, select, m {<b>{name}</b>} other {{name}}}");
   expect(inside.ok).toBe(true);
+});
+
+test("a tag name may be a number, as react-i18next indexes Trans children", () => {
+  const result = parseIcu("Shared by <2>{name}</2> <0/>");
+  expect(result.ok).toBe(true);
+  if (!result.ok) throw new Error("parse failed");
+  expect(result.nodes).toEqual([
+    { kind: "literal", text: "Shared by " },
+    {
+      kind: "tag",
+      name: "2",
+      children: [{ kind: "placeholder", name: "name" }],
+    },
+    { kind: "literal", text: " " },
+    { kind: "tag", name: "0", children: [] },
+  ]);
+  expect(parseIcu("<2>x")).toMatchObject({
+    ok: false,
+    errors: [{ message: "unclosed <2>" }],
+  });
+  expect(
+    validateTranslation(
+      "Shared by <2>{name}</2>",
+      "Partilhado por {name}",
+      "pt-PT",
+    ),
+  ).toMatchObject({ ok: false, errors: [{ code: "missing-tag", name: "2" }] });
+  // i18next's own strings write the same tags.
+  expect([...tagsOf("Shared by <2>{{ name }}</2>", "i18next")]).toEqual(["2"]);
 });
 
 test("an unclosed, mismatched or stray tag is a parse error naming it", () => {
