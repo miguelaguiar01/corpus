@@ -43,7 +43,7 @@ test("a maintainer takes a string from pushed to verified on a phone", async ({
   const dashboard = `/p/${moonlightManor.project}`;
   await page.goto(dashboard);
   await expect(page.getByRole("link", { name: /Untranslated/ })).toContainText(
-    "3",
+    "4",
   );
   await expectNoSidewaysOverflow(page);
 
@@ -67,7 +67,7 @@ test("a maintainer takes a string from pushed to verified on a phone", async ({
 
   await page.goto(dashboard);
   await expect(page.getByRole("link", { name: /Untranslated/ })).toContainText(
-    "2",
+    "3",
   );
 
   await page.getByRole("link", { name: /Unverified source/ }).click();
@@ -83,8 +83,8 @@ test("a maintainer takes a string from pushed to verified on a phone", async ({
   await page.goto(dashboard);
   await expect(
     page.getByRole("link", { name: /Unverified source/ }),
-  ).toContainText("2");
-  await expect(page.getByText("1 verified, 2 translated of 3")).toBeVisible();
+  ).toContainText("3");
+  await expect(page.getByText("1 verified, 3 translated of 4")).toBeVisible();
 
   // Source proposals (§9, §11): a change, the mark, a withdrawal, a new
   // string, a removal. Nothing here changes a translation.
@@ -250,5 +250,5 @@ test("a maintainer takes a string from pushed to verified on a phone", async ({
   await page.waitForURL(/\/invite/);
   await signIn(page, "ana");
   await page.goto(dashboard);
-  await expect(page.getByText("1 verified, 2 translated of 3")).toBeVisible();
+  await expect(page.getByText("1 verified, 3 translated of 4")).toBeVisible();
 });

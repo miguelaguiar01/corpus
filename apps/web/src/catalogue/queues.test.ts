@@ -71,9 +71,9 @@ const IDS = FIXTURE.strings.map((s) => s.id);
 test("after a first push: every target row is untranslated, every source row unverified, nothing stale", () => {
   const { db, p } = pushed();
   expect(queueCounts(db, p.id)).toEqual({
-    untranslated: 3,
+    untranslated: 4,
     stale: 0,
-    unverifiedSource: 3,
+    unverifiedSource: 4,
     agentDrafts: 0,
   });
 });
@@ -83,7 +83,7 @@ test("items are ordered by string id then language, and first is the head of the
   const queue = queueItems(db, p.id, "untranslated");
   expect(queue.items).toEqual(IDS.map((id) => item(db, id, "en")));
   expect(queue.first).toEqual(queue.items[0]);
-  expect(queue.count).toBe(3);
+  expect(queue.count).toBe(4);
 });
 
 test("unverified source lists source-language rows still in translated", () => {
@@ -96,7 +96,7 @@ test("unverified source lists source-language rows still in translated", () => {
   });
   const queue = queueItems(db, p.id, "unverifiedSource");
   expect(queue.items).toEqual(IDS.slice(1).map((id) => item(db, id, "pt-PT")));
-  expect(queueCounts(db, p.id).unverifiedSource).toBe(2);
+  expect(queueCounts(db, p.id).unverifiedSource).toBe(3);
 });
 
 test("a saved target leaves the untranslated queue", () => {
@@ -108,7 +108,7 @@ test("a saved target leaves the untranslated queue", () => {
     actor: maintainer,
   });
   expect(queueItems(db, p.id, "untranslated").items).toEqual(
-    [IDS[0], IDS[2]].map((id) => item(db, id!, "en")),
+    [IDS[0], IDS[2], IDS[3]].map((id) => item(db, id!, "en")),
   );
 });
 
@@ -139,9 +139,9 @@ test("archived strings are excluded from every queue", () => {
     .where(eq(strings.id, dbId(db, IDS[0]!)))
     .run();
   expect(queueCounts(db, p.id)).toEqual({
-    untranslated: 2,
+    untranslated: 3,
     stale: 0,
-    unverifiedSource: 2,
+    unverifiedSource: 3,
     agentDrafts: 0,
   });
   expect(
@@ -191,10 +191,10 @@ test("allQueues returns every queue keyed by kind from one load", () => {
 test("neighbours finds the previous and next items around the current one", () => {
   const { db, p } = pushed();
   const queue = queueItems(db, p.id, "unverifiedSource");
-  const [a, b, c] = queue.items;
+  const [a, b, c, d] = queue.items;
   expect(neighbours(queue, b!)).toEqual({ index: 1, previous: a, next: c });
   expect(neighbours(queue, a!)).toEqual({ index: 0, previous: null, next: b });
-  expect(neighbours(queue, c!)).toEqual({ index: 2, previous: b, next: null });
+  expect(neighbours(queue, d!)).toEqual({ index: 3, previous: c, next: null });
 });
 
 test("neighbours of an item not in the queue is index null with no links", () => {

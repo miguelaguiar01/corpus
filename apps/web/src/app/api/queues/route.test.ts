@@ -47,6 +47,13 @@ test("every queue, keyed by kind, with its items; a language narrows them", asyn
       source: moonlightManor.strings[0]!.source,
       text: null,
     },
+    {
+      key: "ui.marks-left",
+      language: "en",
+      type: "chrome",
+      source: moonlightManor.strings[3]!.source,
+      text: null,
+    },
   ]);
   expect(all.queues.agentDrafts).toEqual({
     count: 1,
@@ -60,14 +67,14 @@ test("every queue, keyed by kind, with its items; a language narrows them", asyn
       },
     ],
   });
-  expect(all.queues.unverifiedSource.count).toBe(3);
+  expect(all.queues.unverifiedSource.count).toBe(4);
 
   const en = (await (
     await queues(token, "?language=en")
   ).json()) as QueuesResponse;
   expect(en.language).toBe("en");
   expect(en.queues.unverifiedSource.count).toBe(0);
-  expect(en.queues.untranslated.count).toBe(1);
+  expect(en.queues.untranslated.count).toBe(2);
 
   const fr = await queues(token, "?language=fr");
   expect(fr.status).toBe(422);
@@ -84,6 +91,13 @@ test("every queue, keyed by kind, with its items; a language narrows them", asyn
       type: "chrome",
       source: "Continuar",
       // A source row holds no text of its own; the source is the string's.
+      text: null,
+    },
+    {
+      key: "ui.marks-left",
+      language: "pt-PT",
+      type: "chrome",
+      source: moonlightManor.strings[3]!.source,
       text: null,
     },
   ]);

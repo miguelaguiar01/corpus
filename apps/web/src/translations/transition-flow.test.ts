@@ -61,7 +61,7 @@ test("a maintainer verifying from the queue moves on to the next item", () => {
   expect(stringDetail(db, p.id, KEYS[0]!)?.translations["pt-PT"]?.state).toBe(
     "verified",
   );
-  expect(queueCounts(db, p.id).unverifiedSource).toBe(2);
+  expect(queueCounts(db, p.id).unverifiedSource).toBe(3);
 });
 
 test("verifying the last item in the queue returns to the dashboard", () => {
@@ -69,7 +69,7 @@ test("verifying the last item in the queue returns to the dashboard", () => {
   const result = verifyFlow(db, {
     project: p,
     user: ana,
-    key: KEYS[2]!,
+    key: KEYS[3]!,
     queue: "unverifiedSource",
   });
   expect(result).toEqual({ kind: "redirect", to: "/p/mm" });

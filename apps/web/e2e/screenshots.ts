@@ -148,6 +148,12 @@ async function main(): Promise<void> {
   ]) {
     await verify(chromeString(key, "queue=unverifiedSource&language=en"), "en");
   }
+  // "Corpus" is the same in both languages, so its Portuguese row seeds
+  // as untranslated (§8); a person saying so makes it a translation.
+  await save(
+    chromeString("app.title", "queue=untranslated&language=pt-PT"),
+    "Corpus",
+  );
   for (const key of ["app.title", "nav.overview", "nav.catalogue"]) {
     await verify(chromeString(key, "language=pt-PT"), "pt-PT");
   }
@@ -248,6 +254,15 @@ async function main(): Promise<void> {
       "{person} was seen at the {room_de} window at {hour} — and was not alone.",
     );
   await shot("editor-structured");
+  await page.goto(string("ui.marks-left", "queue=untranslated&language=en"), {
+    waitUntil: "networkidle",
+  });
+  await page
+    .getByRole("textbox")
+    .fill(
+      "{n, plural, =0 {No marks left to find.} one {# mark left.} other {# marks left.}}",
+    );
+  await shot("editor-plural");
   await page.goto(`${project}/entities`, { waitUntil: "networkidle" });
   await shot("entities");
   // Both projects staged: the home page has two cards with real progress.
