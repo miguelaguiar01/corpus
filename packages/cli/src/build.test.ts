@@ -94,6 +94,21 @@ test("a source that does not parse is refused by entry and the rest is built", a
   expect(good.refused).toEqual([]);
 });
 
+test("a tag that does not close is refused with a hint at what a tag is", async () => {
+  const { refused } = await buildSnapshotReport(
+    config({
+      sources: [
+        { adapter: "messages", type: "chrome", path: "tags/{lang}.json" },
+      ],
+    }),
+    REPO,
+  );
+  expect(refused.map((r) => `${r.id}: ${r.message}`)).toEqual([
+    "prose: invalid ICU: unclosed <baseurl>; a <name> is a rich-text tag (§5): close it with </baseurl>, or write the brackets so they do not open a tag",
+    "stray: invalid ICU: unexpected </em>; a <name> is a rich-text tag (§5): remove it, or open a matching <em>",
+  ]);
+});
+
 test("an i18next catalogue read as ICU is refused with a hint at the syntax declaration", async () => {
   const { refused } = await buildSnapshotReport(
     config({
