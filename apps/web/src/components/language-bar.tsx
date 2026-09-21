@@ -3,10 +3,7 @@ import type { LanguageState } from "@/catalogue/query";
 import { t } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { LanguagePicker } from "./language-picker";
-
-// §9.3: about two rows of segments on a phone; past that the wrapped
-// bar takes the first screen before the string does.
-const PICKER_FROM = 12;
+import { MANY_LANGUAGES } from "./many-languages";
 
 // The language switcher (§9.3) under the threshold: one segment per
 // language, the selected one solid, the source language first with its
@@ -28,7 +25,7 @@ export function LanguageBar({
   hrefFor: (language: string) => string;
 }) {
   // The picker is a client component, so it takes links, not a function.
-  if (languages.length >= PICKER_FROM) {
+  if (languages.length >= MANY_LANGUAGES) {
     return (
       <LanguagePicker
         source={{

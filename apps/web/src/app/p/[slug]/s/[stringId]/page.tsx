@@ -239,7 +239,14 @@ export default async function StringPage({
             {query.warning === "changed" && (
               <Banner tone="warning">{t("verify.warningChanged")}</Banner>
             )}
-            <StateChips languages={project.languages} states={translations} />
+            <StateChips
+              languages={project.languages}
+              states={translations}
+              shown={[project.sourceLanguage, actedLanguage].filter(
+                (l, i, all) => all.indexOf(l) === i,
+              )}
+              foldable
+            />
             <MetadataChips
               declarations={declarations}
               metadata={string.metadata ?? {}}
