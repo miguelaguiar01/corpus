@@ -140,7 +140,7 @@ export function serve(
 
 // The CLI's own version, beside this module in the source tree and in
 // the published dist alike.
-function cliVersion(): string {
+export function cliVersion(): string {
   const manifest = JSON.parse(
     readFileSync(new URL("../package.json", import.meta.url), "utf8"),
   ) as { version: string };
