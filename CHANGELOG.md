@@ -290,7 +290,8 @@ The first published version.
 - The `messages`, `table` and `exec` adapters, and the `corpus/1` snapshot contract with its ICU subset (placeholders and `select`).
 - The package ships plain JavaScript for Node 22 with type declarations; a client's config imports `defineCorpus` from `@corpus-tool/cli`.
 
-[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.16.0
 [0.15.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.15.0
 [0.14.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.14.0
 [0.13.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.13.0
