@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { parseIcu } from "@corpus/contract";
+import { parseIcu, type Syntax } from "@corpus/contract";
+import { chipText } from "@/components/source-view";
 import { Button } from "@/components/ui/button";
 import { Chip, chipVariants } from "@/components/ui/chip";
 import { Field } from "@/components/ui/field";
@@ -47,6 +48,7 @@ export function ProposalPanel({
   stringKey,
   language,
   source,
+  syntax = "icu",
   slots,
   writable,
   pending,
@@ -58,6 +60,7 @@ export function ProposalPanel({
   stringKey: string;
   language?: string;
   source: string;
+  syntax?: Syntax;
   slots: Slot[];
   writable: boolean;
   pending?: PendingProposal;
@@ -72,7 +75,7 @@ export function ProposalPanel({
   const [open, setOpen] = useState(false);
   const [text, setText] = useState(source);
   const ref = useRef<HTMLTextAreaElement>(null);
-  const parsed = parseIcu(text);
+  const parsed = parseIcu(text, syntax);
   const valid = text.trim() !== "" && parsed.ok && text !== source;
   const insert = (token: string) => {
     const el = ref.current;
@@ -154,9 +157,9 @@ export function ProposalPanel({
                         className: "min-h-8 hover:bg-accent",
                       })}
                       title={slot.description}
-                      onClick={() => insert(`{${slot.name}}`)}
+                      onClick={() => insert(chipText(slot.name, syntax))}
                     >
-                      {`{${slot.name}}`}
+                      {chipText(slot.name, syntax)}
                     </button>
                   ))}
                 </div>

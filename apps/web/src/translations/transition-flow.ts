@@ -49,6 +49,7 @@ export function transitionFlow(db: Db, input: TransitionFlowInput): FlowResult {
       detail.string.source,
       action.text,
       language,
+      detail.string.syntax,
     );
     if (!validation.ok) {
       return { kind: "redirect", to: here({ error: "invalid-translation" }) };

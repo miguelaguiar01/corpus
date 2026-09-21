@@ -420,3 +420,25 @@ test("a select wrapped in a tag still gets its chip", () => {
   fireEvent.click(screen.getByRole("button", { name: "{g, select}" }));
   expect(textarea.value).toBe("{g, select, m {} f {}}");
 });
+
+test("an i18next string's chips insert {{name}}, and its validation reads {{ name }} as the placeholder", () => {
+  render(
+    <TargetPane
+      action={vi.fn()}
+      source="{{ count }} documents starred"
+      syntax="i18next"
+      slots={[{ name: "count" }]}
+      language="pt-PT"
+      initialText=""
+      slug="mm"
+      stringKey="k"
+      openedVersion={1}
+      sourceLanguage="en"
+    />,
+  );
+  const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
+  fireEvent.click(screen.getByRole("button", { name: "{{count}}" }));
+  expect(textarea.value).toBe("{{count}}");
+  fireEvent.change(textarea, { target: { value: "documentos marcados" } });
+  expect(screen.getByText("Missing {{count}}")).toBeTruthy();
+});

@@ -125,10 +125,12 @@ export default async function StringPage({
       described.set(name, spec.description);
     }
   }
-  const slots: Slot[] = [...placeholdersOf(string.source)].map((name) => ({
-    name,
-    description: described.get(name),
-  }));
+  const slots: Slot[] = [...placeholdersOf(string.source, string.syntax)].map(
+    (name) => ({
+      name,
+      description: described.get(name),
+    }),
+  );
   const errorKey = query.error
     ? (ERROR_KEY[query.error] ?? "verify.errorGeneric")
     : undefined;
@@ -211,7 +213,11 @@ export default async function StringPage({
             <p className="break-words font-mono text-xs text-muted-foreground">
               {string.key}
             </p>
-            <SourceView source={string.source} declarations={declarations} />
+            <SourceView
+              source={string.source}
+              syntax={string.syntax}
+              declarations={declarations}
+            />
             {string.note && (
               <Section
                 heading={t("string.noteLabel", { type: string.type })}
@@ -260,6 +266,7 @@ export default async function StringPage({
                 stringKey={string.key}
                 language={target}
                 source={string.source}
+                syntax={string.syntax}
                 slots={slots}
                 writable={string.file !== null}
                 pending={pendingProposal}
@@ -313,6 +320,7 @@ export default async function StringPage({
               <TargetPane
                 action={saveString}
                 source={string.source}
+                syntax={string.syntax}
                 slots={slots}
                 language={target}
                 initialText={targetRow.text ?? ""}

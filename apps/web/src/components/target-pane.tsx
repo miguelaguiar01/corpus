@@ -11,7 +11,9 @@ import {
   validateTranslation,
   type Example,
   type PreviewSegment,
+  type Syntax,
 } from "@corpus/contract";
+import { chipText } from "@/components/source-view";
 import type { QueueKind } from "@/catalogue/queues";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
@@ -30,8 +32,12 @@ type Branching = { kind: "select" | "plural"; arg: string; keys: string[] };
 // a chip per argument inserts the whole skeleton so no braces are typed
 // by hand. A plural's keys are the target language's categories, since
 // those are what validation asks for, plus the source's exact =N ones.
-function branchingOf(source: string, language: string): Branching[] {
-  const parsed = parseIcu(source);
+function branchingOf(
+  source: string,
+  language: string,
+  syntax: Syntax,
+): Branching[] {
+  const parsed = parseIcu(source, syntax);
   if (!parsed.ok) return [];
   const byArg = new Map<string, Branching>();
   for (const node of branchingNodes(parsed.nodes)) {
@@ -74,6 +80,7 @@ function skeleton({ kind, arg, keys }: Branching) {
 export function TargetPane({
   action,
   source,
+  syntax = "icu",
   slots,
   language,
   initialText,
@@ -86,6 +93,7 @@ export function TargetPane({
 }: {
   action: (formData: FormData) => void | Promise<void>;
   source: string;
+  syntax?: Syntax;
   slots: Slot[];
   language: string;
   initialText: string;
@@ -114,10 +122,10 @@ export function TargetPane({
     resolved[0]?.language === language ? resolved[0].values[slot] : undefined;
   const validation = blank
     ? { ok: true as const }
-    : validateTranslation(source, text, language);
+    : validateTranslation(source, text, language, syntax);
   const errors = validation.ok ? [] : validation.errors;
-  const selects = branchingOf(source, language);
-  const tags = [...tagsOf(source)];
+  const selects = branchingOf(source, language, syntax);
+  const tags = [...tagsOf(source, syntax)];
 
   const insert = (token: string, caretOffset?: number) => {
     const el = ref.current;
@@ -173,9 +181,9 @@ export function TargetPane({
                   .filter(Boolean)
                   .join("\n") || undefined
               }
-              onClick={() => insert(`{${slot.name}}`)}
+              onClick={() => insert(chipText(slot.name, syntax))}
             >
-              {`{${slot.name}}`}
+              {chipText(slot.name, syntax)}
             </button>
           ))}
         </div>
@@ -246,7 +254,7 @@ export function TargetPane({
             {t("editor.previewHeading", { language: previewLanguage })}
           </h3>
           <ul className="space-y-1.5">
-            {previews(text, blank, examples, resolved, language).map(
+            {previews(text, blank, examples, resolved, language, syntax).map(
               (segments, index) => (
                 <li key={index} className="text-base leading-relaxed">
                   {segments.map((segment, i) =>
@@ -268,7 +276,7 @@ export function TargetPane({
         <Banner tone="error">
           <ul className="space-y-0.5">
             {errors.map((error, index) => (
-              <li key={index}>{validationMessage(error)}</li>
+              <li key={index}>{validationMessage(error, syntax)}</li>
             ))}
           </ul>
         </Banner>
@@ -296,6 +304,7 @@ function previews(
   examples: Example[],
   resolved: ReturnType<typeof exampleValues>[],
   language: string,
+  syntax: Syntax,
 ): PreviewSegment[][] {
   return examples.flatMap((example, index) => {
     if (blank) return [[{ text: example.rendered, value: false }]];
@@ -303,6 +312,7 @@ function previews(
       text,
       resolved[index]!.values,
       language,
+      { syntax },
     );
     return result.ok ? [result.segments] : [];
   });

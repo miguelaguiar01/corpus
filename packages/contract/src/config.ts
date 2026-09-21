@@ -2,7 +2,12 @@
 // never discovers strings.
 import { z } from "zod";
 import { entityTypeDeclarationSchema } from "./snapshot";
-import { fieldDeclarationSchema, identifier, languageCode } from "./strings";
+import {
+  fieldDeclarationSchema,
+  identifier,
+  languageCode,
+  syntaxSchema,
+} from "./strings";
 
 export const sourceSchema = z.discriminatedUnion("adapter", [
   z.looseObject({
@@ -11,11 +16,14 @@ export const sourceSchema = z.discriminatedUnion("adapter", [
     path: z
       .string()
       .refine((p) => p.includes("{lang}"), "path must contain {lang}"),
+    // The message syntax the files write (§5); ICU when absent.
+    syntax: syntaxSchema.optional(),
   }),
   z.looseObject({
     adapter: z.literal("table"),
     type: identifier(),
     path: z.string().min(1),
+    syntax: syntaxSchema.optional(),
     // The module's default export, or the named export `export` names.
     export: z.string().min(1).optional(),
     // Fields beside id and text become metadata: all of them, or only

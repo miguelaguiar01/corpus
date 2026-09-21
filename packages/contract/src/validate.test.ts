@@ -8,8 +8,9 @@ function errorsOf(
   source: string,
   target: string,
   language?: string,
+  syntax?: "icu" | "i18next",
 ): ValidationError[] {
-  const result = validateTranslation(source, target, language);
+  const result = validateTranslation(source, target, language, syntax);
   return result.ok ? [] : result.errors;
 }
 
@@ -218,6 +219,35 @@ describe("rich-text tags", () => {
       validateTranslation(
         "{g, select, m {<b>he</b>} other {they}}",
         "<b>{g, select, m {he} other {they}}</b>",
+      ),
+    ).toEqual({ ok: true });
+  });
+});
+
+describe("i18next syntax", () => {
+  test("a placeholder must survive, spaces inside the braces or not; a single brace is text", () => {
+    expect(
+      validateTranslation(
+        "{{ count }} documents starred",
+        "{{count}} documentos marcados",
+        undefined,
+        "i18next",
+      ),
+    ).toEqual({ ok: true });
+    expect(
+      errorsOf(
+        "{{ count }} documents starred",
+        "documentos marcados",
+        undefined,
+        "i18next",
+      ),
+    ).toEqual([{ code: "missing-placeholder", name: "count" }]);
+    expect(
+      validateTranslation(
+        "Press {enter}",
+        "Prima {enter}",
+        undefined,
+        "i18next",
       ),
     ).toEqual({ ok: true });
   });

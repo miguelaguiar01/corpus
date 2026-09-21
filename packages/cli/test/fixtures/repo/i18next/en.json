@@ -1,0 +1,5 @@
+{
+  "{{ count }} documents starred": "{{ count }} documents starred",
+  "Delete <em>{{ name }}</em>?": "Delete <em>{{ name }}</em>?",
+  "Press {enter}": "Press {enter}"
+}

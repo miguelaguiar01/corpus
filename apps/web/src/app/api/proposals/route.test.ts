@@ -66,7 +66,7 @@ test("an existing key, an unknown file, a bad key and a bad body are refused", a
   expect(unknown.status).toBe(422);
   expect((await unknown.json()).error).toBe("unknown-source");
   const badKey = await add(token, {
-    key: "ui\nnext",
+    key: "ui\u0007next",
     file: "src/ui/pt-PT.json",
     text: "x",
   });

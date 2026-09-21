@@ -47,12 +47,19 @@ export function agentDraft(
   if (!detail) return { ok: false, reason: "not-found" };
   if (detail.string.archived) return { ok: false, reason: "archived" };
   if (text.trim() === "") return { ok: false, reason: "empty-text" };
-  const validation = validateTranslation(detail.string.source, text, language);
+  const validation = validateTranslation(
+    detail.string.source,
+    text,
+    language,
+    detail.string.syntax,
+  );
   if (!validation.ok) {
     return {
       ok: false,
       reason: "invalid-translation",
-      message: validation.errors.map(validationMessage).join("; "),
+      message: validation.errors
+        .map((error) => validationMessage(error, detail.string.syntax))
+        .join("; "),
     };
   }
   const row = detail.translations[language];

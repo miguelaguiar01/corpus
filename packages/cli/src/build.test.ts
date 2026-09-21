@@ -296,3 +296,43 @@ test("existing target-language catalogues travel as seeds; a missing one is noth
     /seeded\/pt-PT\.json: messages: value at a must be a string/,
   );
 });
+
+test("a source with the i18next syntax pushes {{name}} strings, each entry carrying the syntax", async () => {
+  const snapshot = await buildSnapshot(
+    config({
+      sources: [
+        {
+          adapter: "messages",
+          type: "ui",
+          path: "i18next/{lang}.json",
+          syntax: "i18next",
+        },
+      ],
+    }),
+    REPO,
+  );
+  expect(snapshot.strings.map((s) => s.syntax)).toEqual([
+    "i18next",
+    "i18next",
+    "i18next",
+  ]);
+  expect(snapshot.sources).toEqual([
+    {
+      path: "i18next/{lang}.json",
+      adapter: "messages",
+      type: "ui",
+      syntax: "i18next",
+    },
+  ]);
+  // The same file read as ICU is refused, so the syntax is what admits it.
+  await expect(
+    buildSnapshot(
+      config({
+        sources: [
+          { adapter: "messages", type: "ui", path: "i18next/{lang}.json" },
+        ],
+      }),
+      REPO,
+    ),
+  ).rejects.toThrow(/invalid ICU/);
+});

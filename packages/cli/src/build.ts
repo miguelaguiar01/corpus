@@ -68,7 +68,11 @@ export async function buildSnapshot(
     const writable = writesBack(source.path);
     for (const entry of entries) {
       validateEntry(
-        { ...entry, ...(writable ? { file } : {}) },
+        {
+          ...entry,
+          ...(writable ? { file } : {}),
+          ...(source.syntax ? { syntax: source.syntax } : {}),
+        },
         file,
         sourced,
         errors,
@@ -130,10 +134,10 @@ function validateEntry(
   sourced: Sourced[],
   errors: string[],
 ): void {
-  const icu = parseIcu(entry.source);
+  const icu = parseIcu(entry.source, entry.syntax ?? "icu");
   if (!icu.ok) {
     errors.push(
-      `${file} [${entry.id}]: invalid ICU: ${icu.errors[0]?.message}`,
+      `${file} [${entry.id}]: invalid ${entry.syntax ?? "ICU"}: ${icu.errors[0]?.message}`,
     );
   }
   sourced.push({ entry, file });
@@ -245,7 +249,14 @@ async function readModule(
 export function writableSources(config: CorpusConfig): WritableSource[] {
   return config.sources.flatMap((source) =>
     source.adapter !== "exec" && writesBack(source.path)
-      ? [{ path: source.path, adapter: source.adapter, type: source.type }]
+      ? [
+          {
+            path: source.path,
+            adapter: source.adapter,
+            type: source.type,
+            ...(source.syntax ? { syntax: source.syntax } : {}),
+          },
+        ]
       : [],
   );
 }

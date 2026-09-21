@@ -3,7 +3,7 @@
 // Additive to corpus/1.
 import { z } from "zod";
 import { stringId } from "./strings";
-import type { Example } from "./strings";
+import type { Example, Syntax } from "./strings";
 import type { GlossaryEntry } from "./glossary";
 
 export const QUEUE_KINDS = [
@@ -47,6 +47,9 @@ export type StringResponse = {
   plurals: string[];
   // The rich-text tags the source wraps text in (§5); additive.
   tags: string[];
+  // The message syntax the source and its translations are written in
+  // (§5): "icu", or "i18next" for {{name}} interpolation.
+  syntax: Syntax;
   // Every value the source takes, placeholders then counts, in source
   // order, with the type's declaration for the slot and the first
   // example's value per language (§5, §7); additive.

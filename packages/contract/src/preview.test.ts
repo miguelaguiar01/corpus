@@ -237,3 +237,16 @@ test("a preview shows what a tag wraps, without the tag", () => {
     }),
   ).toEqual({ ok: true, text: "Accept the terms for Ana. " });
 });
+
+test("an i18next message previews with its values substituted", () => {
+  expect(
+    renderPreview(
+      "{{ count }} documents starred by {{user.name}}",
+      { count: "3", "user.name": "Ana" },
+      "en",
+      {
+        syntax: "i18next",
+      },
+    ),
+  ).toEqual({ ok: true, text: "3 documents starred by Ana" });
+});

@@ -143,7 +143,7 @@ test("a string id may be the sentence itself, as i18next's natural keys are; con
   expect(ok.success).toBe(true);
   const bad = snapshotSchema.safeParse({
     ...moonlightManor,
-    strings: [{ id: "line\nbreak", type: "ui", source: "x" }],
+    strings: [{ id: "bell\u0007here", type: "ui", source: "x" }],
   });
   expect(bad.success).toBe(false);
   expect(

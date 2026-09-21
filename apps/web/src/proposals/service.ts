@@ -3,6 +3,7 @@ import {
   parseIcu,
   stringEntrySchema,
   type SourceChange,
+  type Syntax,
 } from "@corpus/contract";
 import type { Db } from "@/db";
 import { projects, sourceChanges, strings, users } from "@/db/schema";
@@ -31,8 +32,8 @@ export type ProposeResult =
         | "unknown-source";
     };
 
-function validIcu(text: string): boolean {
-  return text.trim() !== "" && parseIcu(text).ok;
+function validIcu(text: string, syntax: Syntax = "icu"): boolean {
+  return text.trim() !== "" && parseIcu(text, syntax).ok;
 }
 
 // One pending proposal per string or key (§11): a newer one replaces
@@ -66,7 +67,7 @@ function forString(
   if (row.archived) return { ok: false, reason: "archived" };
   if (!row.file) return { ok: false, reason: "not-writable" };
   if (kind === "edit") {
-    if (text === undefined || !validIcu(text))
+    if (text === undefined || !validIcu(text, row.syntax ?? "icu"))
       return { ok: false, reason: "invalid-icu" };
     if (text === row.source) return { ok: false, reason: "unchanged" };
   }
@@ -129,7 +130,8 @@ export function proposeAdd(
     (s) => s.path === input.sourcePath,
   );
   if (!source) return { ok: false, reason: "unknown-source" };
-  if (!validIcu(input.text)) return { ok: false, reason: "invalid-icu" };
+  if (!validIcu(input.text, source.syntax ?? "icu"))
+    return { ok: false, reason: "invalid-icu" };
   const existing = db
     .select({ id: strings.id })
     .from(strings)

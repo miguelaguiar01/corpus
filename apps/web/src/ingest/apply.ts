@@ -86,6 +86,7 @@ export function applySnapshot(
             metadata: entry.metadata,
             examples: entry.examples,
             file: entry.file ?? null,
+            syntax: entry.syntax ?? null,
           })
           .returning()
           .get();
@@ -117,6 +118,7 @@ export function applySnapshot(
             metadata: entry.metadata,
             examples: entry.examples,
             file: entry.file ?? null,
+            syntax: entry.syntax ?? null,
             archived: false,
           })
           .where(eq(strings.id, currentRowId.get(id)!))
@@ -133,6 +135,7 @@ export function applySnapshot(
             metadata: entry.metadata,
             examples: entry.examples,
             file: entry.file ?? null,
+            syntax: entry.syntax ?? null,
             archived: false,
           })
           .where(eq(strings.id, rowId))

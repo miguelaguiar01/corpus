@@ -1,0 +1,1 @@
+ALTER TABLE `strings` ADD `syntax` text;

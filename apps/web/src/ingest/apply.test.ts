@@ -461,3 +461,26 @@ test("an edit in another project on the same row number does not block a seed; a
   expect(again.seeded).toBe(0);
   expect(mine()?.updatedAt?.getTime()).toBe(stamp);
 });
+
+test("a string's syntax is stored, and an i18next source is validated as such", () => {
+  const { db, project } = seed();
+  const entry = {
+    id: "{{ count }} starred",
+    type: "ui",
+    source: "{{ count }} starred",
+    syntax: "i18next" as const,
+  };
+  applySnapshot(db, project.id, {
+    ...FIXTURE,
+    strings: [...FIXTURE.strings, entry],
+  });
+  const row = db
+    .select()
+    .from(strings)
+    .where(
+      and(eq(strings.projectId, project.id), eq(strings.stringId, entry.id)),
+    )
+    .get();
+  expect(row?.syntax).toBe("i18next");
+  expect(stringRow(db, "ui.continue")?.syntax).toBeNull();
+});

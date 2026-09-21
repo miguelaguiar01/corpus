@@ -121,7 +121,7 @@ export function tools(api: Api): Tool[] {
       name: "get_string",
       op: "string",
       description:
-        "One string as the editor shows it: source text, placeholders, selects, plurals and the rich-text tags a translation must keep, each slot with what the repository declares for it (description and role) and its first example value per language, examples with their values per language, every language's text and state, the type's note on voice and register, the glossary terms that occur in the source with their target renderings, the entities it refers to (characters, rooms and the like) with their names and attributes, any pending proposal, and its siblings (the ten nearest strings of the same type under the same key prefix, with their translations) so a set reads as one.",
+        "One string as the editor shows it: source text, its syntax (icu, or i18next with {{name}} interpolation, which a translation must write the same way), placeholders, selects, plurals and the rich-text tags a translation must keep, each slot with what the repository declares for it (description and role) and its first example value per language, examples with their values per language, every language's text and state, the type's note on voice and register, the glossary terms that occur in the source with their target renderings, the entities it refers to (characters, rooms and the like) with their names and attributes, any pending proposal, and its siblings (the ten nearest strings of the same type under the same key prefix, with their translations) so a set reads as one.",
       inputSchema: {
         type: "object",
         properties: { key },
