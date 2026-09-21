@@ -83,6 +83,18 @@ const SLASH = "\u00a0/\u00a0";
 function renderNodes(nodes: IcuNode[], slots: Map<string, string>) {
   return nodes.map((node, index) => {
     if (node.kind === "literal") return node.text;
+    if (node.kind === "tag") {
+      return (
+        <span
+          key={index}
+          className="rounded-sm border border-dashed border-input px-0.5"
+          title={`<${node.name}>`}
+          data-tag={node.name}
+        >
+          {renderNodes(node.children, slots)}
+        </span>
+      );
+    }
     if (node.kind === "placeholder" || node.kind === "count") {
       const name = node.kind === "placeholder" ? node.name : node.arg;
       return (

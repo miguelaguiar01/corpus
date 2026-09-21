@@ -138,5 +138,9 @@ export function describe(error: ValidationError): string {
       return `plural on {${error.arg}} lacks the ${error.key} branch its language uses`;
     case "unexpected-category":
       return `plural on {${error.arg}} has the branch ${error.key}, which its language does not use`;
+    case "missing-tag":
+      return `missing the <${error.name}> tag`;
+    case "unexpected-tag":
+      return `unexpected <${error.name}> tag, which the source does not have`;
   }
 }

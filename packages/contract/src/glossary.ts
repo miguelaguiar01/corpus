@@ -51,7 +51,8 @@ function literalText(source: string): string {
   const walk = (nodes: IcuNode[]) => {
     for (const node of nodes) {
       if (node.kind === "literal") parts.push(node.text);
-      else if (node.kind === "select")
+      else if (node.kind === "tag") walk(node.children);
+      else if (node.kind === "select" || node.kind === "plural")
         for (const branch of Object.values(node.branches)) walk(branch);
     }
   };

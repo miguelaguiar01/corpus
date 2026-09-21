@@ -373,3 +373,31 @@ test("a plural draft previews each example through its count's branch, and a mis
     ).disabled,
   ).toBe(true);
 });
+
+test("a tag chip inserts the open and close tags with the caret between them; a dropped tag is named and disables save", () => {
+  render(
+    <TargetPane
+      action={vi.fn()}
+      source="See the <link>docs</link>."
+      slots={[]}
+      language="en"
+      initialText=""
+      slug="mm"
+      stringKey="k"
+      openedVersion={1}
+      sourceLanguage="pt-PT"
+    />,
+  );
+  const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
+  fireEvent.click(screen.getByRole("button", { name: "<link>" }));
+  expect(textarea.value).toBe("<link></link>");
+  fireEvent.change(textarea, { target: { value: "See the docs." } });
+  expect(screen.getByText("Missing the <link> tag")).toBeTruthy();
+  expect(
+    (
+      screen.getByRole("button", {
+        name: "Save translation",
+      }) as HTMLButtonElement
+    ).disabled,
+  ).toBe(true);
+});

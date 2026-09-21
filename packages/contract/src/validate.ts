@@ -6,7 +6,9 @@
 // count the source pluralises on is a value like a placeholder: it must
 // survive, as `{n}` or as a plural on n, and a target may pluralise any
 // value the source has; with the target language given, a plural's
-// categories must be the ones that language uses.
+// categories must be the ones that language uses. A rich-text tag is a
+// component the client renders: every tag in the source must occur in
+// the target and none may be added, wherever it moves.
 // Errors are data (code + params); callers render them through their
 // own message catalog.
 import { parseIcu, pluralCategoriesOf, type IcuNode } from "./icu";
@@ -25,7 +27,9 @@ export type ValidationError =
   | { code: "unexpected-branch"; arg: string; key: string }
   | { code: "unknown-plural"; arg: string }
   | { code: "missing-category"; arg: string; key: string }
-  | { code: "unexpected-category"; arg: string; key: string };
+  | { code: "unexpected-category"; arg: string; key: string }
+  | { code: "missing-tag"; name: string }
+  | { code: "unexpected-tag"; name: string };
 
 export type ValidationResult =
   { ok: true } | { ok: false; errors: ValidationError[] };
@@ -34,6 +38,7 @@ type Shape = {
   placeholders: Set<string>;
   selects: Map<string, Set<string>>;
   plurals: Map<string, Set<string>>;
+  tags: Set<string>;
 };
 
 function shapeOf(
@@ -42,10 +47,15 @@ function shapeOf(
     placeholders: new Set(),
     selects: new Map(),
     plurals: new Map(),
+    tags: new Set(),
   },
 ): Shape {
   for (const node of nodes) {
     if (node.kind === "placeholder") shape.placeholders.add(node.name);
+    if (node.kind === "tag") {
+      shape.tags.add(node.name);
+      shapeOf(node.children, shape);
+    }
     if (node.kind === "select" || node.kind === "plural") {
       const map = node.kind === "select" ? shape.selects : shape.plurals;
       const keys = map.get(node.arg) ?? new Set<string>();
@@ -104,6 +114,12 @@ export function validateTranslation(
   for (const name of actual.placeholders) {
     if (!expectedValues.has(name))
       errors.push({ code: "unexpected-placeholder", name });
+  }
+  for (const name of expected.tags) {
+    if (!actual.tags.has(name)) errors.push({ code: "missing-tag", name });
+  }
+  for (const name of actual.tags) {
+    if (!expected.tags.has(name)) errors.push({ code: "unexpected-tag", name });
   }
   const categories = language === undefined ? [] : pluralCategoriesOf(language);
   for (const [arg, keys] of actual.plurals) {

@@ -22,6 +22,10 @@ export function validationMessage(error: ValidationError): string {
       return t("editor.missingCategory", { arg: error.arg, key: error.key });
     case "unexpected-category":
       return t("editor.unexpectedCategory", { arg: error.arg, key: error.key });
+    case "missing-tag":
+      return t("editor.missingTag", { name: error.name });
+    case "unexpected-tag":
+      return t("editor.unexpectedTag", { name: error.name });
     case "invalid-icu":
       return t("editor.invalidIcu", { message: error.message });
   }

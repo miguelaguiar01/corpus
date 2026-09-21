@@ -1,8 +1,11 @@
 // ICU MessageFormat subset (§5): {name} placeholders, single-level
 // {arg, select, key {…} …} and single-level {n, plural, one {…} other {…}}
-// with =N exact branches and # for the number. Everything else — nesting,
-// other argument types — is rejected at push time. Braces are always
-// structural; the subset has no quote-escaping.
+// with =N exact branches and # for the number, and rich-text tags,
+// <name>…</name> or <name/>, which the client renders with a component
+// and a translation must keep. Everything else — nesting of select and
+// plural, other argument types — is rejected at push time. Braces are
+// always structural; the subset has no quote-escaping; a < that opens
+// no tag is text.
 
 export type IcuNode =
   | { kind: "literal"; text: string }
@@ -10,7 +13,9 @@ export type IcuNode =
   | { kind: "select"; arg: string; branches: Record<string, IcuNode[]> }
   | { kind: "plural"; arg: string; branches: Record<string, IcuNode[]> }
   // `#` inside a plural branch: the number itself.
-  | { kind: "count"; arg: string };
+  | { kind: "count"; arg: string }
+  // <name>children</name>, or <name/> with none.
+  | { kind: "tag"; name: string; children: IcuNode[] };
 
 export type IcuError = { message: string; position: number };
 
@@ -30,6 +35,8 @@ export const PLURAL_CATEGORIES = [
   "other",
 ] as const;
 const PLURAL_KEY_RE = /^(?:zero|one|two|few|many|other|=[0-9]+)$/;
+// A tag as the rich-text libraries write it: <link>, <checkoutDocs/>.
+const TAG_RE = /^<(\/?)([A-Za-z][A-Za-z0-9_-]*)(\/?)>/;
 
 class ParseFailure extends Error {
   constructor(
@@ -46,7 +53,12 @@ class Parser {
   constructor(private readonly source: string) {}
 
   // Inside a plural's branch, `#` is the number; anywhere else it is text.
-  parseSequence(inBranch: boolean, pluralArg?: string): IcuNode[] {
+  // Inside a tag, the sequence ends at its closing tag.
+  parseSequence(
+    inBranch: boolean,
+    pluralArg?: string,
+    closing?: string,
+  ): IcuNode[] {
     const nodes: IcuNode[] = [];
     let literal = "";
     let literalStart = this.pos;
@@ -61,11 +73,44 @@ class Parser {
     while (this.pos < this.source.length) {
       const ch = this.source[this.pos];
       if (ch === "}") {
+        if (closing !== undefined) {
+          throw new ParseFailure(`unclosed <${closing}>`, literalStart);
+        }
         if (!inBranch) {
           throw new ParseFailure("unmatched '}'", this.pos);
         }
         flush();
         return nodes;
+      }
+      if (ch === "<") {
+        const tag = this.readTag();
+        if (tag === undefined) {
+          literal += ch;
+          this.pos += 1;
+          continue;
+        }
+        flush();
+        if (tag.kind === "close") {
+          if (closing === undefined || tag.name !== closing) {
+            throw new ParseFailure(
+              closing === undefined
+                ? `unexpected </${tag.name}>`
+                : `unexpected </${tag.name}>; <${closing}> is open`,
+              tag.start,
+            );
+          }
+          return nodes;
+        }
+        nodes.push({
+          kind: "tag",
+          name: tag.name,
+          children:
+            tag.kind === "self"
+              ? []
+              : this.parseSequence(inBranch, pluralArg, tag.name),
+        });
+        literalStart = this.pos;
+        continue;
       }
       if (ch === "{") {
         flush();
@@ -83,11 +128,27 @@ class Parser {
       literal += ch;
       this.pos += 1;
     }
+    if (closing !== undefined) {
+      throw new ParseFailure(`unclosed <${closing}>`, literalStart);
+    }
     if (inBranch) {
       throw new ParseFailure("unclosed branch '{'", literalStart);
     }
     flush();
     return nodes;
+  }
+
+  // A tag at the cursor, consumed, or nothing when the < is text.
+  private readTag():
+    | { kind: "open" | "close" | "self"; name: string; start: number }
+    | undefined {
+    const match = TAG_RE.exec(this.source.slice(this.pos));
+    if (!match) return undefined;
+    const start = this.pos;
+    this.pos += match[0].length;
+    const kind =
+      match[1] === "/" ? "close" : match[3] === "/" ? "self" : "open";
+    return { kind, name: match[2]!, start };
   }
 
   private parseArgument(inBranch: boolean): IcuNode {
@@ -207,16 +268,28 @@ function collect(
   placeholders: Set<string>,
   selectArgs: Set<string>,
   pluralArgs: Set<string> = new Set(),
+  tags: Set<string> = new Set(),
 ): void {
   for (const node of nodes) {
     if (node.kind === "placeholder") placeholders.add(node.name);
     if (node.kind === "select" || node.kind === "plural") {
       (node.kind === "select" ? selectArgs : pluralArgs).add(node.arg);
       for (const branch of Object.values(node.branches)) {
-        collect(branch, placeholders, selectArgs, pluralArgs);
+        collect(branch, placeholders, selectArgs, pluralArgs, tags);
       }
     }
+    if (node.kind === "tag") {
+      tags.add(node.name);
+      collect(node.children, placeholders, selectArgs, pluralArgs, tags);
+    }
   }
+}
+
+export function tagsOf(source: string): Set<string> {
+  const result = parseIcu(source);
+  const tags = new Set<string>();
+  if (result.ok) collect(result.nodes, new Set(), new Set(), new Set(), tags);
+  return tags;
 }
 
 export function placeholdersOf(source: string): Set<string> {

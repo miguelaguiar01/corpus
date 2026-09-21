@@ -198,3 +198,27 @@ describe("the source side", () => {
     expect(validateTranslation(SIGHTING, SIGHTING)).toEqual({ ok: true });
   });
 });
+
+describe("rich-text tags", () => {
+  const SOURCE = "Received {code} from <url></url>. See the <link>docs</link>.";
+  test("every tag must survive, wherever it moves; none may be added", () => {
+    expect(
+      validateTranslation(
+        SOURCE,
+        "<link>Docs</link>: <url></url> answered {code}.",
+      ),
+    ).toEqual({ ok: true });
+    expect(errorsOf(SOURCE, "Received {code} from <url></url>.")).toEqual([
+      { code: "missing-tag", name: "link" },
+    ]);
+    expect(errorsOf("Plain {code}", "<b>{code}</b>")).toEqual([
+      { code: "unexpected-tag", name: "b" },
+    ]);
+    expect(
+      validateTranslation(
+        "{g, select, m {<b>he</b>} other {they}}",
+        "<b>{g, select, m {he} other {they}}</b>",
+      ),
+    ).toEqual({ ok: true });
+  });
+});

@@ -93,3 +93,17 @@ test("a plural reads inline as its branches with # as the count, and the strip n
   expect(strip.textContent).toContain("oneFalta # marca.");
   expect(strip.textContent).toContain("otherFaltam # marcas.");
 });
+
+test("a rich-text tag renders what it wraps in a marked span named by the tag", () => {
+  const { container } = render(
+    <SourceView
+      source="Received {statusCode} from <url></url>. See the <link>docs</link>."
+      declarations={{}}
+    />,
+  );
+  const link = container.querySelector('[data-tag="link"]')!;
+  expect(link.textContent).toBe("docs");
+  expect(link.getAttribute("title")).toBe("<link>");
+  expect(container.querySelector('[data-tag="url"]')?.textContent).toBe("");
+  expect(screen.queryByText(/<link>/)).toBeNull();
+});
