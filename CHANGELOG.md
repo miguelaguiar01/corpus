@@ -10,6 +10,7 @@ contract (`corpus/1`) is the only one.
 ### Changed
 
 - The README's agent section connects any MCP client, not only Claude Code: the server's command and working directory, then the entry for Claude Code, Claude Desktop, Cursor, VS Code, OpenAI's Codex CLI and Agents SDK, Gemini CLI, and a client of one's own.
+- The language bar wraps its segments, so a project of dozens of languages takes rows on a phone instead of overprinting them.
 - The dashboard shows a table of one row per language from eight languages on, instead of a block per language; Homarr's 36 blocks of one bar each were a wall.
 - The other languages under the editor show the first five open and fold the rest behind their count; Homarr's string pages carried 34 texts under every editor. Corpus's own chrome renders its messages through the contract's engine, so the self catalogue may use select and plural (the fold's count is the first).
 

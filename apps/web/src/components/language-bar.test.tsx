@@ -46,3 +46,19 @@ test("the source language carries its verified mark, hidden from the name", () =
     screen.getByRole("link", { name: "fr" }).querySelector("[aria-hidden]"),
   ).toBeNull();
 });
+
+test("dozens of languages are all present as links and the bar wraps them", () => {
+  const languages = Array.from({ length: 36 }, (_, i) => `l${i}`);
+  render(
+    <LanguageBar
+      languages={languages}
+      sourceLanguage="l0"
+      selected="l7"
+      states={{}}
+      hrefFor={(l) => `/p/mm/s/k?language=${l}`}
+    />,
+  );
+  const nav = screen.getByRole("navigation");
+  expect(nav.className).toContain("flex-wrap");
+  expect(screen.getAllByRole("link")).toHaveLength(36);
+});
