@@ -129,14 +129,22 @@ export function ignoreMatcher(patterns: string[]): (rel: string) => boolean {
   return (rel) => tests.some((test) => test(rel));
 }
 
-export type CheckResult = { findings: Finding[]; scanned: string[] };
+// `scanned` is the included directories that exist, each with how many
+// files the walk read under it: the caller says so when a directory
+// parsed none, since a clean bill over unread code is a lie.
+export type Scanned = { dir: string; parsed: number };
+export type CheckResult = { findings: Finding[]; scanned: Scanned[] };
 
-// The included directories that exist are the ones scanned; the caller
-// says so when none does, since a clean bill over nothing is a lie.
+// This is a syntax-tree lint, and only JSX carries the markup it reads.
+const EXTENSIONS = [".jsx", ".tsx"] as const;
+export const READS = EXTENSIONS.join(" and ");
+const PARSES = new RegExp(`(?:${EXTENSIONS.map((e) => `\\${e}`).join("|")})$`);
+
 export function checkFiles(root: string, options: CheckOptions): CheckResult {
   const ignored = ignoreMatcher(options.ignore ?? []);
   const findings: Finding[] = [];
-  const scanned: string[] = [];
+  const scanned: Scanned[] = [];
+  let parsed = 0;
   const walk = (dir: string) => {
     for (const name of readdirSync(dir).sort()) {
       const abs = path.join(dir, name);
@@ -144,7 +152,8 @@ export function checkFiles(root: string, options: CheckOptions): CheckResult {
       if (ignored(rel)) continue;
       if (statSync(abs).isDirectory()) {
         if (!SKIP_DIRS.has(name)) walk(abs);
-      } else if (/\.[jt]sx$/.test(name)) {
+      } else if (PARSES.test(name)) {
+        parsed += 1;
         for (const f of findLiterals(readFileSync(abs, "utf8"), rel, {
           allow: options.allow,
         })) {
@@ -157,8 +166,9 @@ export function checkFiles(root: string, options: CheckOptions): CheckResult {
     const abs = path.join(root, inc);
     try {
       if (statSync(abs).isDirectory()) {
-        scanned.push(inc);
+        parsed = 0;
         walk(abs);
+        scanned.push({ dir: inc, parsed });
       }
     } catch {
       // A configured directory that does not exist is not scanned; the

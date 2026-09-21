@@ -9,7 +9,7 @@ import {
 } from "./build";
 import { option } from "./args";
 import { CliError, loadConfig, requireToken } from "./config";
-import { checkFiles } from "./check";
+import { checkFiles, READS } from "./check";
 import { init, INIT_USAGE } from "./init";
 import { agent, AGENT_USAGE } from "./agent";
 import { MCP_USAGE, cliVersion, mcp } from "./mcp";
@@ -213,6 +213,17 @@ async function check(ctx: RunContext): Promise<number> {
     );
     return 1;
   }
+  // A tree of .vue or .svelte components parses to nothing here, and a
+  // clean bill over code the command never read is worse than a finding:
+  // every such directory is named, and parsing nothing at all is fatal.
+  const unread = scanned.filter((s) => s.parsed === 0).map((s) => s.dir);
+  const parsed = scanned.reduce((n, s) => n + s.parsed, 0);
+  if (unread.length > 0) {
+    ctx.err(
+      `corpus: check parsed no files in ${unread.join(", ")}; it reads ${READS}`,
+    );
+  }
+  if (parsed === 0) return 1;
   for (const f of findings) ctx.err(`${f.file}:${f.line}: ${f.text}`);
   const tokens = findings.filter((f) => !/\s/.test(f.text)).length;
   if (findings.length >= 5 && tokens * 2 >= findings.length) {
@@ -226,6 +237,8 @@ async function check(ctx: RunContext): Promise<number> {
     );
     return 1;
   }
-  ctx.out("check: no user-facing literals outside declared sources");
+  ctx.out(
+    `check: no user-facing literals outside declared sources in ${parsed} file(s)`,
+  );
   return 0;
 }
