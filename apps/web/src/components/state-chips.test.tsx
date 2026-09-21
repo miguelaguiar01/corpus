@@ -73,3 +73,59 @@ test("marks a translated row the agent actor last edited", () => {
   );
   expect(screen.getAllByText("agent")).toHaveLength(1);
 });
+
+function many(count: number) {
+  const languages = Array.from({ length: count }, (_, i) => `l${i}`);
+  const states = Object.fromEntries(
+    languages.map((l, i) => [
+      l,
+      {
+        state: i === 0 ? "verified" : i < 3 ? "translated" : "untranslated",
+        stale: i === 2,
+        agentDraft: false,
+      },
+    ]),
+  ) as Parameters<typeof StateChips>[0]["states"];
+  return { languages, states };
+}
+
+test("under the threshold every language keeps its chip", () => {
+  const { languages, states } = many(11);
+  render(<StateChips languages={languages} states={states} />);
+  expect(screen.getAllByText(/^l\d+$/)).toHaveLength(11);
+  expect(screen.queryByText(/untranslated$/i)).toBeNull();
+});
+
+test("from the threshold the strip is a count per state, with no disclosure where it cannot have one", () => {
+  const { languages, states } = many(12);
+  const { container } = render(
+    <StateChips languages={languages} states={states} />,
+  );
+  expect(screen.queryAllByText(/^l\d+$/)).toHaveLength(0);
+  expect(screen.getByText("9 untranslated")).toBeTruthy();
+  expect(screen.getByText("2 translated")).toBeTruthy();
+  expect(screen.getByText("1 verified")).toBeTruthy();
+  expect(screen.getByText("1 stale")).toBeTruthy();
+  expect(container.querySelector("details")).toBeNull();
+});
+
+test("foldable: the named languages keep their chips, the rest are counted, and the full strip is behind the disclosure", () => {
+  const { languages, states } = many(12);
+  const { container } = render(
+    <StateChips
+      languages={languages}
+      states={states}
+      shown={["l0", "l5"]}
+      foldable
+    />,
+  );
+  const details = container.querySelector("details");
+  expect(details).toBeTruthy();
+  const summary = details!.querySelector("summary")!;
+  expect(summary.textContent).toContain("l0");
+  expect(summary.textContent).toContain("l5");
+  expect(summary.textContent).toContain("8 untranslated");
+  expect(summary.textContent).toContain("2 translated");
+  expect(summary.textContent).not.toContain("l7");
+  expect(screen.getAllByText(/^l\d+$/)).toHaveLength(14);
+});
