@@ -64,6 +64,11 @@ function quips(): Snapshot {
   };
 }
 
+test("a key with whitespace is a sentence and has no prefix", () => {
+  expect(siblingPrefix("Are you sure? Deleting it is permanent.")).toBeNull();
+  expect(siblingPrefix("{{ count }} documents starred_plural")).toBeNull();
+});
+
 test("the prefix is the key up to its last dot; a dotless key has none", () => {
   expect(siblingPrefix("dossier.fail.0")).toBe("dossier.fail");
   expect(siblingPrefix("ui.continue")).toBe("ui");

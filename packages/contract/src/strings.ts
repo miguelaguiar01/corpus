@@ -26,6 +26,18 @@ export const identifier = () =>
     .string()
     .min(1)
     .regex(IDENTIFIER_RE, "letters, digits, dot, underscore and hyphen only");
+// A string id is any text without control characters: a dotted
+// identifier, or, as i18next's natural keys, the sentence itself. It
+// travels in URLs and tool arguments, which encode; only its length
+// is bounded.
+export const STRING_ID_RE = /^[^\p{Cc}]+$/u;
+export const MAX_STRING_ID_LENGTH = 1000;
+export const stringId = () =>
+  z
+    .string()
+    .min(1)
+    .max(MAX_STRING_ID_LENGTH)
+    .regex(STRING_ID_RE, "text without control characters");
 export const languageCode = () =>
   z
     .string()
@@ -54,7 +66,7 @@ export const exampleSchema = z.looseObject({
 });
 
 export const stringEntrySchema = z.looseObject({
-  id: identifier(),
+  id: stringId(),
   type: identifier(),
   source: z.string(),
   metadata: z.record(z.string(), metadataValueSchema).optional(),

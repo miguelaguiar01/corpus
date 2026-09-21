@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Added
 
+- A string id may be any text without control characters, up to a thousand characters (§4): i18next's natural keys, the English sentence itself with its spaces and punctuation, push as they are; 1578 of Outline's 1920 keys. A key with whitespace has no sibling prefix (§9.3), since its dots end clauses.
 - A placeholder or argument name may be a bare number (`{0}`, `{1}`), as ICU allows and Jellyfin's catalogue writes in 85 strings (§5).
 - A language code may use underscores as i18next and Crowdin write it (`en_US`, `zh_CN`); it is kept as written in paths, the config, the API and the UI, and given to the runtime's locale data in its BCP 47 form (§3).
 
