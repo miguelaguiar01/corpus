@@ -1,11 +1,13 @@
 import { expect, test } from "vitest";
 import {
+  branchingNodes,
   parseIcu,
   placeholdersOf,
   pluralArgsOf,
   pluralBranch,
   pluralCategoriesOf,
   selectArgsOf,
+  tagsOf,
 } from "./icu";
 
 const SIGHTING =
@@ -191,4 +193,65 @@ test("pluralCategoriesOf follows the runtime's CLDR data and is empty for an unk
   expect(pluralBranch(branches, "3", "ru")).toBe("few");
   expect(pluralBranch(branches, "3", "en")).toBe("other");
   expect(pluralBranch(branches, "many", "en")).toBe("other");
+});
+
+test("rich-text tags parse as nodes with their children, nest, and self-close; a lone < is text", () => {
+  const result = parseIcu(
+    "By continuing you accept the <link>terms of <b>use</b></link>. <icon/> a < b",
+  );
+  expect(result.ok).toBe(true);
+  if (!result.ok) throw new Error("parse failed");
+  expect(result.nodes).toEqual([
+    { kind: "literal", text: "By continuing you accept the " },
+    {
+      kind: "tag",
+      name: "link",
+      children: [
+        { kind: "literal", text: "terms of " },
+        {
+          kind: "tag",
+          name: "b",
+          children: [{ kind: "literal", text: "use" }],
+        },
+      ],
+    },
+    { kind: "literal", text: ". " },
+    { kind: "tag", name: "icon", children: [] },
+    { kind: "literal", text: " a < b" },
+  ]);
+  expect([...tagsOf("Received {n} from <url></url>. <checkoutDocs/>")]).toEqual(
+    ["url", "checkoutDocs"],
+  );
+  // A tag may hold a placeholder and sit inside a branch.
+  const inside = parseIcu("{g, select, m {<b>{name}</b>} other {{name}}}");
+  expect(inside.ok).toBe(true);
+});
+
+test("an unclosed, mismatched or stray tag is a parse error naming it", () => {
+  expect(parseIcu("<link>terms")).toMatchObject({
+    ok: false,
+    errors: [{ message: "unclosed <link>" }],
+  });
+  expect(parseIcu("<a>x</b>")).toMatchObject({
+    ok: false,
+    errors: [{ message: "unexpected </b>; <a> is open" }],
+  });
+  expect(parseIcu("x</b>")).toMatchObject({
+    ok: false,
+    errors: [{ message: "unexpected </b>" }],
+  });
+  expect(parseIcu("{g, select, m {<b>x} other {y}}")).toMatchObject({
+    ok: false,
+    errors: [{ message: "unclosed <b>" }],
+  });
+  // A stray brace inside a tag is the brace's error, as outside one.
+  expect(parseIcu("<b>x}</b>")).toMatchObject({
+    ok: false,
+    errors: [{ message: "unmatched '}'" }],
+  });
+  const both = parseIcu(
+    "<b>{n, plural, other {#}}</b> {g, select, m {x} other {y}}",
+  );
+  if (!both.ok) throw new Error("parse failed");
+  expect(branchingNodes(both.nodes).map((n) => n.arg)).toEqual(["n", "g"]);
 });

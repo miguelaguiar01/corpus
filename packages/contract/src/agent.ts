@@ -45,6 +45,8 @@ export type StringResponse = {
   // The counts the source pluralises on (§5); additive, since a client
   // ignores fields it does not know (§4).
   plurals: string[];
+  // The rich-text tags the source wraps text in (§5); additive.
+  tags: string[];
   // Every value the source takes, placeholders then counts, in source
   // order, with the type's declaration for the slot and the first
   // example's value per language (§5, §7); additive.

@@ -53,6 +53,9 @@ function render(
           ? { text: node.kind === "count" ? "#" : `{${name}}`, value: false }
           : { text: value, value: true },
       );
+    } else if (node.kind === "tag") {
+      // The component is the client's; the preview shows what it wraps.
+      render(node.children, values, out, language);
     } else if (node.kind === "plural") {
       const value = values[node.arg];
       const key =

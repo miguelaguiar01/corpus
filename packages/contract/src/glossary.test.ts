@@ -144,3 +144,13 @@ test("a term in a script written without spaces matches as a run of characters",
     glossaryMatches("ニワシ", [{ term: "にわし", target: "gardener" }]),
   ).toEqual([]);
 });
+
+test("a term inside a rich-text tag is found; the tag's name is not a word", () => {
+  const terms = [
+    { term: "vítima", target: "victim" },
+    { term: "link", target: "ligação" },
+  ];
+  expect(
+    glossaryMatches("Veja a <link>vítima</link>.", terms).map((e) => e.term),
+  ).toEqual(["vítima"]);
+});

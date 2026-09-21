@@ -229,3 +229,11 @@ test("capitalise: false keeps a leading value as given, for chrome rendered thro
     }),
   ).toEqual({ ok: true, text: "ana joined" });
 });
+
+test("a preview shows what a tag wraps, without the tag", () => {
+  expect(
+    renderPreview("Accept the <link>terms</link> for {name}. <icon/>", {
+      name: "Ana",
+    }),
+  ).toEqual({ ok: true, text: "Accept the terms for Ana. " });
+});

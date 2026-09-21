@@ -2,10 +2,12 @@
 
 import { useRef, useState } from "react";
 import {
+  branchingNodes,
   exampleValues,
   parseIcu,
   pluralCategoriesOf,
   renderPreviewSegments,
+  tagsOf,
   validateTranslation,
   type Example,
   type PreviewSegment,
@@ -32,8 +34,7 @@ function branchingOf(source: string, language: string): Branching[] {
   const parsed = parseIcu(source);
   if (!parsed.ok) return [];
   const byArg = new Map<string, Branching>();
-  for (const node of parsed.nodes) {
-    if (node.kind !== "select" && node.kind !== "plural") continue;
+  for (const node of branchingNodes(parsed.nodes)) {
     const entry = byArg.get(node.arg) ?? {
       kind: node.kind,
       arg: node.arg,
@@ -116,6 +117,7 @@ export function TargetPane({
     : validateTranslation(source, text, language);
   const errors = validation.ok ? [] : validation.errors;
   const selects = branchingOf(source, language);
+  const tags = [...tagsOf(source)];
 
   const insert = (token: string, caretOffset?: number) => {
     const el = ref.current;
@@ -207,6 +209,29 @@ export function TargetPane({
               </button>
             );
           })}
+        </div>
+      )}
+      {tags.length > 0 && (
+        <div
+          className="flex flex-wrap gap-1.5"
+          role="group"
+          aria-label={t("editor.tags")}
+        >
+          {tags.map((name) => (
+            <button
+              key={name}
+              type="button"
+              className={chipVariants({
+                variant: "key",
+                className:
+                  "min-h-8 hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+              })}
+              title={t("editor.insertTag", { name })}
+              onClick={() => insert(`<${name}></${name}>`, name.length + 2)}
+            >
+              {`<${name}>`}
+            </button>
+          ))}
         </div>
       )}
       {examples.length > 0 && (

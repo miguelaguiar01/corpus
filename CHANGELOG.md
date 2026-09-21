@@ -22,6 +22,7 @@ contract (`corpus/1`) is the only one.
 
 ### Added
 
+- Rich-text tags in the ICU subset (§5): `<link>terms</link>` and `<icon/>`, as next-intl, FormatJS and Lingui write them. They parse as nodes, nest, may hold placeholders and sit in a branch; a translation must keep every tag and may add none (`missing-tag`, `unexpected-tag`); the editor shows a tag as what it wraps in a marked span and a chip inserts its pair; previews show what a tag wraps; the string response carries `tags`. On Homarr, eight strings carry tags that nothing checked before. Still `corpus/1`.
 - `corpus init` takes the languages from the files that fill the messages path's `{lang}` when `--languages` is omitted, the source first, and warns about a code the runtime has no locale data for (a translation tool's pseudo-locale, such as Crowdin's `cr`, passes the tag's grammar and is not a language).
 - `corpus --version` (`-v`, `version`) prints the CLI's version. The READMEs say a release-age policy in the package manager refuses a fresh release for its window.
 - Queue items carry the string's source and the row's current text (§10), so a queue read is enough to translate a batch and the agent drafts queue reads back as a review list; `list_queue` and `corpus agent queue` carry them as they are. Additive; still `corpus/1`.

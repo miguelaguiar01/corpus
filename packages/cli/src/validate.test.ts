@@ -128,6 +128,12 @@ test("describe words every error code", () => {
   expect(describe({ code: "unexpected-branch", arg: "g", key: "x" })).toBe(
     "select on {g} has the branch x, which the source does not",
   );
+  expect(describe({ code: "missing-tag", name: "link" })).toBe(
+    "missing the <link> tag",
+  );
+  expect(describe({ code: "unexpected-tag", name: "b" })).toBe(
+    "unexpected <b> tag, which the source does not have",
+  );
 });
 
 test("a dropped placeholder, a malformed select and an orphan key are findings, one line each", async () => {
