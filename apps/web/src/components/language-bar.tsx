@@ -2,6 +2,9 @@ import Link from "next/link";
 import type { LanguageState } from "@/catalogue/query";
 import { t } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { LanguagePicker } from "./language-picker";
+
+const PICKER_FROM = 40; // §9.3
 
 // The language switcher (§9.3): one segment per language of the
 // project, the selected one solid, the source language first with its
@@ -23,6 +26,23 @@ export function LanguageBar({
   states: Record<string, LanguageState>;
   hrefFor: (language: string) => string;
 }) {
+  // The picker is a client component, so it takes links, not a function.
+  if (languages.length >= PICKER_FROM) {
+    return (
+      <LanguagePicker
+        source={{
+          code: sourceLanguage,
+          href: hrefFor(sourceLanguage),
+          verified: states[sourceLanguage]?.state === "verified",
+          current: selected === sourceLanguage,
+        }}
+        selected={selected}
+        targets={languages
+          .filter((l) => l !== sourceLanguage)
+          .map((code) => ({ code, href: hrefFor(code) }))}
+      />
+    );
+  }
   return (
     <nav
       aria-label={t("editor.languages")}
