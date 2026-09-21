@@ -17,20 +17,22 @@ export function ProgressByType({
   sourceLanguage,
 }: {
   progress: Progress;
-  sourceLanguage?: string;
+  sourceLanguage: string;
 }) {
   const languages = Object.keys(progress.perLanguage);
   if (languages.length === 0) return null;
   const types = Object.keys(progress.perType);
   if (languages.length >= TABLE_FROM_LANGUAGES) {
     // The table answers "what needs a translator" (§9.1), so it leads
-    // with the language that has the most left to do; the source
-    // language is pinned, since its rows are the project's own text.
+    // with the language that has the most untranslated rows; the source
+    // language is pinned, since its rows are the project's own text. The
+    // tie-break compares code units rather than collating, so the order
+    // does not depend on the locale the instance happens to run under.
+    const left = (l: string) => progress.perLanguage[l]?.untranslated ?? 0;
     const ordered = [...languages].sort((a, b) => {
       if (a === sourceLanguage) return -1;
       if (b === sourceLanguage) return 1;
-      const left = (l: string) => progress.perLanguage[l]?.untranslated ?? 0;
-      return left(b) - left(a) || a.localeCompare(b);
+      return left(b) - left(a) || (a < b ? -1 : a > b ? 1 : 0);
     });
     return (
       <div className="space-y-3">

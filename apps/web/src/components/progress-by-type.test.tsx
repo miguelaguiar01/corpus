@@ -23,14 +23,14 @@ const progress = {
 };
 
 test("renders a section per language with its summary", () => {
-  render(<ProgressByType progress={progress} />);
+  render(<ProgressByType progress={progress} sourceLanguage="pt-PT" />);
   expect(screen.getByRole("heading", { name: "pt-PT" })).toBeTruthy();
   expect(screen.getByRole("heading", { name: "en" })).toBeTruthy();
   expect(screen.getByText("1 verified, 2 translated of 3")).toBeTruthy();
 });
 
 test("renders a labelled bar per string type under each language", () => {
-  render(<ProgressByType progress={progress} />);
+  render(<ProgressByType progress={progress} sourceLanguage="pt-PT" />);
   const bars = screen.getAllByRole("meter");
   expect(bars).toHaveLength(4);
   const skin = screen.getAllByRole("meter", { name: "clue-skin" });
@@ -39,7 +39,7 @@ test("renders a labelled bar per string type under each language", () => {
 });
 
 test("names the three fills once, in a legend", () => {
-  render(<ProgressByType progress={progress} />);
+  render(<ProgressByType progress={progress} sourceLanguage="pt-PT" />);
   const legend = screen.getByRole("list", { name: "Legend" });
   expect(legend.textContent).toBe("VerifiedTranslatedUntranslated");
 });
@@ -143,8 +143,14 @@ test("the table leads with the language that has the most left to do, the source
   ]);
 });
 
-test("under the table threshold the blocks keep the project's own order", () => {
-  const perLanguage = { "pt-PT": counts(1, 2, 3), en: counts(0, 0, 3) };
+test("under the table threshold the blocks keep the order the counts came in", () => {
+  // Ordering would move every one of these: en has the most left, and
+  // the source language is last rather than pinned.
+  const perLanguage = {
+    fr: counts(0, 2, 3),
+    en: counts(0, 0, 3),
+    "pt-PT": counts(3, 0, 3),
+  };
   render(
     <ProgressByType
       progress={{ perLanguage, perType: { chrome: perLanguage } }}
@@ -153,5 +159,5 @@ test("under the table threshold the blocks keep the project's own order", () => 
   );
   expect(
     screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent),
-  ).toEqual(["pt-PT", "en"]);
+  ).toEqual(["fr", "en", "pt-PT"]);
 });
