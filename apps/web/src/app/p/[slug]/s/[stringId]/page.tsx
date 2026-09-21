@@ -72,7 +72,9 @@ export default async function StringPage({
   const db = getDb();
   const project = getProjectBySlug(db, slug);
   if (!project) notFound();
-  const detail = stringDetail(db, project.id, decodeURIComponent(stringId));
+  // Next decodes the segment already; a second decode would break a key
+  // with a percent sign, which a natural key may carry.
+  const detail = stringDetail(db, project.id, stringId);
   if (!detail) notFound();
   const { string, declarations, translations, entities, history } = detail;
   const siblings = siblingsOf(db, project.id, {
@@ -206,7 +208,7 @@ export default async function StringPage({
           }
         >
           <header className="space-y-3">
-            <p className="font-mono text-xs text-muted-foreground">
+            <p className="break-words font-mono text-xs text-muted-foreground">
               {string.key}
             </p>
             <SourceView source={string.source} declarations={declarations} />

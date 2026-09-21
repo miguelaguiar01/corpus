@@ -134,7 +134,6 @@ test("an add needs a declared source, a valid new key and valid ICU; the file is
     ok: false,
     reason: "exists",
   });
-  // A space is a natural key now; a control character is not a key.
   expect(proposeAdd(db, { ...base, key: "bad\tkey" })).toEqual({
     ok: false,
     reason: "invalid-key",
