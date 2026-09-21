@@ -7,7 +7,9 @@ import { cn } from "@/lib/utils";
 // project, the selected one solid, the source language first with its
 // verified mark; each a link to the same string in that language, the
 // queue kept when the row is in it (languageSwitchPath). Full width and
-// thumb height on a phone, a slim inline control on a desktop.
+// thumb height on a phone, a slim inline control on a desktop; the
+// segments wrap, so dozens of languages take rows rather than shrink
+// into each other.
 export function LanguageBar({
   languages,
   sourceLanguage,
@@ -24,9 +26,9 @@ export function LanguageBar({
   return (
     <nav
       aria-label={t("editor.languages")}
-      className="grid auto-cols-fr grid-flow-col overflow-hidden rounded-md border border-input lg:inline-grid"
+      className="flex flex-wrap overflow-hidden rounded-md border border-input lg:inline-flex"
     >
-      {languages.map((language, index) => {
+      {languages.map((language) => {
         const current = language === selected;
         const verified =
           language === sourceLanguage && states[language]?.state === "verified";
@@ -36,8 +38,7 @@ export function LanguageBar({
             href={hrefFor(language)}
             aria-current={current ? "page" : undefined}
             className={cn(
-              "flex min-h-11 items-center justify-center gap-1.5 px-3 text-base focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring lg:min-h-8 lg:px-3.5 lg:text-sm",
-              index > 0 && "border-l border-input",
+              "-mb-px -mr-px flex min-h-11 flex-1 items-center justify-center gap-1.5 border-b border-r border-input px-3 text-base focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring lg:min-h-8 lg:flex-none lg:px-3.5 lg:text-sm",
               current
                 ? "bg-primary font-semibold text-primary-foreground"
                 : "text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:bg-accent",
