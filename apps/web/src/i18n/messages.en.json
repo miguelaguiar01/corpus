@@ -179,7 +179,7 @@
   "proposal.withdraw": "Withdraw",
   "proposal.by": "proposed by {author}",
   "proposal.notWritable": "This string comes from a source Corpus cannot write back to (an exec command or a non-JSON catalogue), so its source is edited in the repository.",
-  "proposal.invalidIcu": "The text must parse as a source: balanced braces and the ICU subset.",
+  "proposal.invalidIcu": "The text must parse as a source.",
   "proposal.kindEdit": "Change",
   "proposal.kindAdd": "New string",
   "proposal.kindDelete": "Removal",
