@@ -148,6 +148,12 @@ async function main(): Promise<void> {
   ]) {
     await verify(chromeString(key, "queue=unverifiedSource&language=en"), "en");
   }
+  // "Corpus" is the same in both languages, so its Portuguese row seeds
+  // as untranslated (§8); a person saying so makes it a translation.
+  await save(
+    chromeString("app.title", "queue=untranslated&language=pt-PT"),
+    "Corpus",
+  );
   for (const key of ["app.title", "nav.overview", "nav.catalogue"]) {
     await verify(chromeString(key, "language=pt-PT"), "pt-PT");
   }

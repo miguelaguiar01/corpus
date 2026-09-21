@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Changed
 
+- The Moonlight Manor fixture carries a plural string (`ui.marks-left`, three examples with counts), so the install smoke, the screenshots and every test that walks the fixture exercise one; the README's screens show the editor on it.
 - A source string that does not parse no longer blocks the push (§8): `corpus build` and `corpus push` name it with its file and key, leave it out, go on with the rest, and exit 1 with the count so CI notices; a refused string the project already holds is archived like any absent id until it parses. Outline's one stray `</em>` had refused all 1920 strings. A file that does not read, a duplicate id or an exporter that fails still fails the whole build.
 
 ### Fixed
