@@ -1,8 +1,8 @@
 import { moonlightManor, type Snapshot } from "@corpus/contract";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { expect, test } from "vitest";
 import type { Db } from "@/db";
-import { projects, strings, users } from "@/db/schema";
+import { projects, strings, stringTranslations, users } from "@/db/schema";
 import { memoryDb } from "@/db/test-helpers";
 import { applySnapshot } from "@/ingest/apply";
 import { applyTransition } from "@/translations/service";
@@ -45,7 +45,24 @@ function dbId(db: Db, stringId: string): number {
 
 function item(db: Db, key: string, language: string) {
   const row = db.select().from(strings).where(eq(strings.stringId, key)).get()!;
-  return { stringId: row.id, key, language, type: row.type };
+  const translation = db
+    .select()
+    .from(stringTranslations)
+    .where(
+      and(
+        eq(stringTranslations.stringId, row.id),
+        eq(stringTranslations.language, language),
+      ),
+    )
+    .get()!;
+  return {
+    stringId: row.id,
+    key,
+    language,
+    type: row.type,
+    source: row.source,
+    text: translation.text,
+  };
 }
 
 // Fixture order by insertion (= internal id): greenhouse, heard-nothing, ui.continue.

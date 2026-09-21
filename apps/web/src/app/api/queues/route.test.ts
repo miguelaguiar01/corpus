@@ -1,4 +1,4 @@
-import type { QueuesResponse } from "@corpus/contract";
+import { moonlightManor, type QueuesResponse } from "@corpus/contract";
 import { expect, test, vi } from "vitest";
 import { agentDraft } from "@/agents/draft";
 import { CONTINUE, personSaves, pushedProject } from "@/agents/test-helpers";
@@ -44,11 +44,21 @@ test("every queue, keyed by kind, with its items; a language narrows them", asyn
       key: "skin.seen-at-greenhouse-window",
       language: "en",
       type: "clue-skin",
+      source: moonlightManor.strings[0]!.source,
+      text: null,
     },
   ]);
   expect(all.queues.agentDrafts).toEqual({
     count: 1,
-    items: [{ key: CONTINUE, language: "en", type: "chrome" }],
+    items: [
+      {
+        key: CONTINUE,
+        language: "en",
+        type: "chrome",
+        source: "Continuar",
+        text: "Continue",
+      },
+    ],
   });
   expect(all.queues.unverifiedSource.count).toBe(3);
 
@@ -68,7 +78,14 @@ test("every queue, keyed by kind, with its items; a language narrows them", asyn
   ).json()) as QueuesResponse;
   expect(chrome.type).toBe("chrome");
   expect(chrome.queues.unverifiedSource.items).toEqual([
-    { key: CONTINUE, language: "pt-PT", type: "chrome" },
+    {
+      key: CONTINUE,
+      language: "pt-PT",
+      type: "chrome",
+      source: "Continuar",
+      // A source row holds no text of its own; the source is the string's.
+      text: null,
+    },
   ]);
   const none = (await (
     await queues(token, "?type=nope")

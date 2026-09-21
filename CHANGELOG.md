@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Added
 
+- Queue items carry the string's source and the row's current text (§10), so a queue read is enough to translate a batch and the agent drafts queue reads back as a review list; `list_queue` and `corpus agent queue` carry them as they are. Additive; still `corpus/1`.
 - The string response carries `slots` (§10): every value the source takes, placeholders then counts, with the description and role the repository declares for the slot and the first example's value per language, so an agent reads what the editor's chips show on hover instead of guessing a value's shape from its name. Additive; still `corpus/1`.
 
 ## [0.14.0] - 2026-09-20
