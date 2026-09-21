@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-09-21
+
+What the full Álibi run and Homarr found.
+
 ### Changed
 
 - The README's agent section connects any MCP client, not only Claude Code: the server's command and working directory, then the entry for Claude Code, Claude Desktop, Cursor, VS Code, OpenAI's Codex CLI and Agents SDK, Gemini CLI, and a client of one's own.
@@ -256,7 +260,8 @@ The first published version.
 - The `messages`, `table` and `exec` adapters, and the `corpus/1` snapshot contract with its ICU subset (placeholders and `select`).
 - The package ships plain JavaScript for Node 22 with type declarations; a client's config imports `defineCorpus` from `@corpus-tool/cli`.
 
-[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.15.0
 [0.14.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.14.0
 [0.13.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.13.0
 [0.12.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.12.0
