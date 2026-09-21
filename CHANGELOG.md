@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+### Changed
+
+- `corpus build` and `corpus push` say what a rich-text tag is when they refuse a string for one, and what to do about it: close the tag, write the brackets so they do not open one, close the tag that is actually open, or remove a stray closing tag. Jellyfin's `https://example.com/<baseurl>` is prose that spells a tag, and the message said only "unclosed <baseurl>".
+
 ### Fixed
 
 - A push that changes nothing says nothing about seeds: the identical-seed count classifies what the push carried rather than what it wrote, so every push after the first read `0 translation(s) seeded from the repository (4297 identical to the source, kept untranslated)`. A push that seeds nothing but adds, changes or archives still says how many of the repository's translations it kept untranslated as identical to the source, which is the answer to "why is this language at nought when its file is full".

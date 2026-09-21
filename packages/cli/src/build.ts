@@ -16,6 +16,7 @@ import {
   type Snapshot,
   type Source,
   type StringEntry,
+  type Syntax,
   type WritableSource,
 } from "@corpus/contract";
 import { CliError } from "./config";
@@ -170,18 +171,40 @@ function validateEntry(
   const icu = parseIcu(entry.source, syntax);
   if (icu.ok) sourced.push({ entry, file });
   else {
-    // A whole i18next catalogue read as ICU is refused string by string;
-    // the hint names the declaration before the push archives them.
-    const hint =
-      syntax === "icu" && entry.source.includes("{{")
-        ? `; {{ }} is i18next's interpolation: declare syntax: "i18next" on the source`
-        : "";
+    const message = icu.errors[0]?.message ?? "";
     refused.push({
       file,
       id: entry.id,
-      message: `invalid ${syntax === "icu" ? "ICU" : syntax}: ${icu.errors[0]?.message}${hint}`,
+      message: `invalid ${syntax === "icu" ? "ICU" : syntax}: ${message}${hint(entry.source, syntax, message)}`,
     });
   }
+}
+
+// What to do about a refusal, where the text alone does not say it: a
+// catalogue in the wrong syntax is refused string by string, and prose
+// that spells a tag (`https://example.com/<baseurl>`) reads as one. The
+// tag shapes are tested first: `{{` is i18next's interpolation but also
+// an ICU branch that opens with a placeholder (`{n, plural, other
+// {{count} apples}}`), and that catalogue is not in the wrong syntax.
+function hint(source: string, syntax: Syntax, message: string): string {
+  const unclosed = /^unclosed <([^>]+)>$/.exec(message);
+  if (unclosed) {
+    return `; a <name> is a rich-text tag: close it with </${unclosed[1]}>, or write the brackets so they do not open a tag`;
+  }
+  const mismatched = /^unexpected <\/([^>]+)>; <([^>]+)> is open$/.exec(
+    message,
+  );
+  if (mismatched) {
+    return `; a <name> is a rich-text tag: <${mismatched[2]}> is open here, so write </${mismatched[2]}>, or remove both tags`;
+  }
+  const stray = /^unexpected <\/([^>]+)>$/.exec(message);
+  if (stray) {
+    return `; a <name> is a rich-text tag: remove it, or open a matching <${stray[1]}>`;
+  }
+  if (syntax === "icu" && source.includes("{{")) {
+    return `; {{ }} is i18next's interpolation: declare syntax: "i18next" on the source`;
+  }
+  return "";
 }
 
 function collectExec(
