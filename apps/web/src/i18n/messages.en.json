@@ -88,6 +88,8 @@
   "state.translatedCount": "{n} translated",
   "state.verifiedCount": "{n} verified",
   "state.staleCount": "{n} stale",
+  "state.agentDraftCount": "{n} agent",
+  "state.eachLanguage": "each of the {n} languages",
   "string.examplesHeading": "Examples",
   "string.entitiesHeading": "Related",
   "string.otherLanguagesHeading": "Other languages",

@@ -89,6 +89,19 @@ function many(count: number) {
   return { languages, states };
 }
 
+test("an agent draft is counted, as a chip shows it under the threshold", () => {
+  const languages = Array.from({ length: 12 }, (_, i) => `l${i}`);
+  const states = Object.fromEntries(
+    languages.map((l, i) => [
+      l,
+      { state: "translated", stale: false, agentDraft: i < 4 },
+    ]),
+  ) as Parameters<typeof StateChips>[0]["states"];
+  render(<StateChips languages={languages} states={states} />);
+  expect(screen.getByText("12 translated")).toBeTruthy();
+  expect(screen.getByText("4 agent")).toBeTruthy();
+});
+
 test("under the threshold every language keeps its chip", () => {
   const { languages, states } = many(11);
   render(<StateChips languages={languages} states={states} />);
@@ -127,5 +140,8 @@ test("foldable: the named languages keep their chips, the rest are counted, and 
   expect(summary.textContent).toContain("8 untranslated");
   expect(summary.textContent).toContain("2 translated");
   expect(summary.textContent).not.toContain("l7");
+  // The control says what it opens, so its name is not a language code.
+  expect(summary.textContent).toContain("each of the 12 languages");
+  // The named chips appear twice: in the summary, and in the full strip.
   expect(screen.getAllByText(/^l\d+$/)).toHaveLength(14);
 });

@@ -22,19 +22,30 @@ export function StateChips({
   foldable?: boolean;
 }) {
   if (languages.length >= MANY_LANGUAGES) {
+    const rest = languages.filter((l) => !shown.includes(l));
     const summary = (
-      <div className="flex flex-wrap items-center gap-1.5">
-        <Strip languages={shown} states={states} />
-        <Counts
-          languages={languages.filter((l) => !shown.includes(l))}
-          states={states}
-        />
-      </div>
+      <>
+        <Strip languages={shown} states={states} inline />
+        <Counts languages={rest} states={states} />
+      </>
     );
-    if (!foldable) return summary;
+    if (!foldable) {
+      return (
+        <div className="flex flex-wrap items-center gap-1.5">{summary}</div>
+      );
+    }
+    // The marker stays, and the label says what opening gives, since the
+    // chips alone are data and name the control after a language code.
     return (
       <details>
-        <summary className="cursor-pointer list-none">{summary}</summary>
+        <summary className="cursor-pointer">
+          <span className="ml-1 inline-flex flex-wrap items-center gap-1.5 align-middle">
+            {summary}
+            <span className="text-xs text-muted-foreground">
+              {t("state.eachLanguage", { n: languages.length })}
+            </span>
+          </span>
+        </summary>
         <div className="mt-2">
           <Strip languages={languages} states={states} />
         </div>
@@ -54,10 +65,12 @@ function Counts({
 }) {
   const counts = { untranslated: 0, translated: 0, verified: 0 };
   let stale = 0;
+  let drafts = 0;
   for (const language of languages) {
     const value = states[language];
     counts[value?.state ?? "untranslated"] += 1;
     if (value?.stale) stale += 1;
+    if (value?.agentDraft && value.state === "translated") drafts += 1;
   }
   return (
     <>
@@ -70,6 +83,11 @@ function Counts({
       )}
       {stale > 0 && (
         <Chip variant="state-stale">{t("state.staleCount", { n: stale })}</Chip>
+      )}
+      {drafts > 0 && (
+        <Chip variant="outline">
+          {t("state.agentDraftCount", { n: drafts })}
+        </Chip>
       )}
     </>
   );
@@ -85,36 +103,53 @@ const COUNT_KEY = {
 function Strip({
   languages,
   states,
+  inline = false,
 }: {
   languages: string[];
   states: Record<string, LanguageState>;
+  inline?: boolean;
 }) {
+  if (inline) {
+    return (
+      <>
+        {languages.map((language) => (
+          <LanguageChip key={language} language={language} states={states} />
+        ))}
+      </>
+    );
+  }
   return (
     <div className="flex flex-wrap gap-1.5">
-      {languages.map((language) => {
-        const value = states[language];
-        const state = value?.state ?? "untranslated";
-        return (
-          <Chip
-            key={language}
-            variant={STATE_VARIANT[state]}
-            title={t(STATE_KEY[state])}
-          >
-            {state === "verified" && <span aria-hidden="true">✓</span>}
-            <span className="font-medium">{language}</span>
-            {value?.stale && (
-              <span className="rounded-sm bg-state-stale px-1 text-state-stale-foreground">
-                {t("state.stale")}
-              </span>
-            )}
-            {value?.agentDraft && state === "translated" && (
-              <span className="rounded-sm border border-border px-1 text-muted-foreground">
-                {t("state.agentDraft")}
-              </span>
-            )}
-          </Chip>
-        );
-      })}
+      {languages.map((language) => (
+        <LanguageChip key={language} language={language} states={states} />
+      ))}
     </div>
+  );
+}
+
+function LanguageChip({
+  language,
+  states,
+}: {
+  language: string;
+  states: Record<string, LanguageState>;
+}) {
+  const value = states[language];
+  const state = value?.state ?? "untranslated";
+  return (
+    <Chip variant={STATE_VARIANT[state]} title={t(STATE_KEY[state])}>
+      {state === "verified" && <span aria-hidden="true">✓</span>}
+      <span className="font-medium">{language}</span>
+      {value?.stale && (
+        <span className="rounded-sm bg-state-stale px-1 text-state-stale-foreground">
+          {t("state.stale")}
+        </span>
+      )}
+      {value?.agentDraft && state === "translated" && (
+        <span className="rounded-sm border border-border px-1 text-muted-foreground">
+          {t("state.agentDraft")}
+        </span>
+      )}
+    </Chip>
   );
 }
