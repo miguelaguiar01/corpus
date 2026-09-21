@@ -9,7 +9,7 @@ import {
 } from "./build";
 import { option } from "./args";
 import { CliError, loadConfig, requireToken } from "./config";
-import { checkFiles } from "./check";
+import { checkFiles, READS } from "./check";
 import { init, INIT_USAGE } from "./init";
 import { agent, AGENT_USAGE } from "./agent";
 import { MCP_USAGE, cliVersion, mcp } from "./mcp";
@@ -202,7 +202,7 @@ async function check(ctx: RunContext): Promise<number> {
   const config = await loadConfig(ctx.cwd);
   const options = config.check ?? {};
   const include = options.include ?? ["src"];
-  const { findings, scanned } = checkFiles(ctx.cwd, {
+  const { findings, scanned, parsed } = checkFiles(ctx.cwd, {
     include,
     ignore: options.ignore,
     allow: (options.allow ?? []).map((source) => new RegExp(source, "u")),
@@ -210,6 +210,14 @@ async function check(ctx: RunContext): Promise<number> {
   if (scanned.length === 0) {
     ctx.err(
       `corpus: check scanned nothing: none of ${include.join(", ")} exists; set check.include in corpus.config.ts to the directories with your components`,
+    );
+    return 1;
+  }
+  // A tree of .vue or .svelte components parses to nothing here, and a
+  // clean bill over code the command never read is worse than a finding.
+  if (parsed === 0) {
+    ctx.err(
+      `corpus: check parsed no files in ${scanned.join(", ")}; it reads ${READS}; set check.include in corpus.config.ts to the directories with your components`,
     );
     return 1;
   }
@@ -226,6 +234,8 @@ async function check(ctx: RunContext): Promise<number> {
     );
     return 1;
   }
-  ctx.out("check: no user-facing literals outside declared sources");
+  ctx.out(
+    `check: no user-facing literals outside declared sources in ${parsed} file(s)`,
+  );
   return 0;
 }

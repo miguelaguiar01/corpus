@@ -245,3 +245,82 @@ test("check hints at check.allow when most findings are single words or names", 
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("checkFiles counts the files it parsed, so a clean bill can be honest", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-check-"));
+  try {
+    mkdirSync(path.join(dir, "src", "components"), { recursive: true });
+    writeFileSync(
+      path.join(dir, "src", "components", "a.vue"),
+      `<template><p>Stray text</p></template>\n`,
+    );
+    writeFileSync(
+      path.join(dir, "src", "components", "b.ts"),
+      `export const b = "not jsx";\n`,
+    );
+    expect(checkFiles(dir, { include: ["src"] })).toMatchObject({
+      findings: [],
+      scanned: ["src"],
+      parsed: 0,
+    });
+    writeFileSync(
+      path.join(dir, "src", "components", "c.tsx"),
+      `export const C = () => <p>Real finding</p>;\n`,
+    );
+    const second = checkFiles(dir, { include: ["src"] });
+    expect(second.parsed).toBe(1);
+    expect(second.findings.map((f) => f.text)).toEqual(["Real finding"]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("check refuses a clean bill when it parsed nothing, and counts the files when it did", async () => {
+  const { run } = await import("./cli");
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-check-"));
+  const ctx = () => {
+    const out: string[] = [];
+    const err: string[] = [];
+    return {
+      out,
+      err,
+      c: {
+        cwd: dir,
+        env: {},
+        out: (l: string) => out.push(l),
+        err: (l: string) => err.push(l),
+      },
+    };
+  };
+  try {
+    mkdirSync(path.join(dir, "i18n"));
+    mkdirSync(path.join(dir, "src"));
+    writeFileSync(path.join(dir, "i18n", "en.json"), "{}\n");
+    writeFileSync(
+      path.join(dir, "corpus.config.mjs"),
+      `export default { project: "p", server: "http://localhost:3000", sourceLanguage: "en", languages: ["en"], sources: [{ adapter: "messages", type: "chrome", path: "i18n/{lang}.json" }] };\n`,
+    );
+    writeFileSync(
+      path.join(dir, "src", "a.vue"),
+      `<template><p>Stray text</p></template>\n`,
+    );
+    const vue = ctx();
+    expect(await run(["check"], vue.c)).toBe(1);
+    expect(vue.out).toEqual([]);
+    expect(vue.err.join("\n")).toMatch(
+      /corpus: check parsed no files in src; it reads \.jsx and \.tsx/,
+    );
+
+    writeFileSync(
+      path.join(dir, "src", "b.tsx"),
+      `export const B = () => <p>{x}</p>;\n`,
+    );
+    const mixed = ctx();
+    expect(await run(["check"], mixed.c)).toBe(0);
+    expect(mixed.out.join("\n")).toMatch(
+      /no user-facing literals outside declared sources in 1 file\(s\)/,
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

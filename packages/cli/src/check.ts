@@ -129,14 +129,24 @@ export function ignoreMatcher(patterns: string[]): (rel: string) => boolean {
   return (rel) => tests.some((test) => test(rel));
 }
 
-export type CheckResult = { findings: Finding[]; scanned: string[] };
+export type CheckResult = {
+  findings: Finding[];
+  scanned: string[];
+  parsed: number;
+};
 
-// The included directories that exist are the ones scanned; the caller
-// says so when none does, since a clean bill over nothing is a lie.
+// The extensions the walk parses: this is a syntax-tree lint, and only
+// JSX carries the markup it reads.
+export const READS = ".jsx and .tsx";
+
+// The included directories that exist are the ones scanned, and `parsed`
+// is how many files the walk actually read: the caller says so when
+// either is empty, since a clean bill over nothing is a lie.
 export function checkFiles(root: string, options: CheckOptions): CheckResult {
   const ignored = ignoreMatcher(options.ignore ?? []);
   const findings: Finding[] = [];
   const scanned: string[] = [];
+  let parsed = 0;
   const walk = (dir: string) => {
     for (const name of readdirSync(dir).sort()) {
       const abs = path.join(dir, name);
@@ -145,6 +155,7 @@ export function checkFiles(root: string, options: CheckOptions): CheckResult {
       if (statSync(abs).isDirectory()) {
         if (!SKIP_DIRS.has(name)) walk(abs);
       } else if (/\.[jt]sx$/.test(name)) {
+        parsed += 1;
         for (const f of findLiterals(readFileSync(abs, "utf8"), rel, {
           allow: options.allow,
         })) {
@@ -165,5 +176,5 @@ export function checkFiles(root: string, options: CheckOptions): CheckResult {
       // caller says so when that leaves nothing.
     }
   }
-  return { findings, scanned };
+  return { findings, scanned, parsed };
 }
