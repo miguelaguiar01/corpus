@@ -196,8 +196,10 @@ test("an orphan key is summarised once across the target files; --json keeps one
   const findings = JSON.parse(j.stdout.join("\n")) as {
     file: string;
     key: string;
+    sourceFile: string;
   }[];
   expect(findings).toHaveLength(4);
+  expect(findings.every((f) => f.sourceFile === "i18n/en.json")).toBe(true);
   expect(findings.map((f) => f.file).sort()).toEqual([
     "i18n/de.json",
     "i18n/fr.json",
@@ -248,4 +250,28 @@ test("an empty or blank target value is a key the target lacks, not a dropped pl
   expect(err).not.toContain("gone");
   expect(err).toContain("i18n/pt.json:farewell: missing {name}");
   expect(err).toMatch(/1 invalid translation\(s\)/);
+});
+
+test("the same orphan key under two sources is two lines, one per source", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    readFileSync(path.join(repo, "corpus.config.ts"), "utf8").replace(
+      '{ adapter: "messages", type: "chrome", path: "i18n/{lang}.json" },',
+      '{ adapter: "messages", type: "chrome", path: "i18n/{lang}.json" }, { adapter: "messages", type: "extra", path: "extra/{lang}.json" },',
+    ),
+  );
+  mkdirSync(path.join(repo, "extra"));
+  write("i18n/en.json", { greeting: "Hello {name}" });
+  write("i18n/pt.json", { greeting: "Olá {name}", gone: "Adeus" });
+  write("extra/en.json", { more: "More" });
+  write("extra/pt.json", { more: "Mais", gone: "Adeus" });
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(1);
+  expect(c.stderr.filter((l) => l.includes("no longer has"))).toEqual([
+    "i18n/en.json:gone: the source no longer has this key; 1 target file(s) carry it",
+    "extra/en.json:gone: the source no longer has this key; 1 target file(s) carry it",
+  ]);
+  expect(c.stderr.join("\n")).toMatch(
+    /corpus: 2 orphan key\(s\) in 2 file\(s\)$/m,
+  );
 });

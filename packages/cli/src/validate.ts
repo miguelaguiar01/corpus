@@ -18,8 +18,7 @@ export type Finding = {
   key: string;
   code: ValidationError["code"] | "orphan";
   message: string;
-  // An orphan's source file, so the summary can name where the key went.
-  source?: string;
+  sourceFile?: string;
 };
 
 // `corpus validate` (§3): the editor's checks (§5, §7) over the target
@@ -34,12 +33,13 @@ export async function validate(
   const json = args.includes("--json");
   const invalid = findings.filter((f) => f.code !== "orphan");
   const orphans = findings.filter((f) => f.code === "orphan");
+  const byKey = orphansByKey(orphans);
   if (json) ctx.out(JSON.stringify(findings, null, 2));
   else {
     for (const f of invalid) ctx.err(`${f.file}:${f.key}: ${f.message}`);
-    for (const [key, files] of orphansByKey(orphans)) {
+    for (const { first, targets } of byKey.values()) {
       ctx.err(
-        `${files.source}:${key}: the source no longer has this key; ${files.targets} target file(s) carry it`,
+        `${first.sourceFile}:${first.key}: ${first.message}; ${targets} target file(s) carry it`,
       );
     }
   }
@@ -52,7 +52,7 @@ export async function validate(
     const parts = [
       invalid.length ? `${invalid.length} invalid translation(s)` : "",
       orphans.length
-        ? `${orphansByKey(orphans).size} orphan key(s) in ${new Set(orphans.map((f) => f.file)).size} file(s)`
+        ? `${byKey.size} orphan key(s) in ${new Set(orphans.map((f) => f.file)).size} file(s)`
         : "",
     ].filter(Boolean);
     ctx.err(`corpus: ${parts.join(", ")}`);
@@ -62,19 +62,17 @@ export async function validate(
   return 0;
 }
 
-// Outline removed 22 keys from English that 27 target files still
-// carry: one line per key, not per file.
+// One line per orphan key of a source: two sources' target files may
+// both keep a key neither source has.
 function orphansByKey(
   orphans: Finding[],
-): Map<string, { source: string; targets: number }> {
-  const byKey = new Map<string, { source: string; targets: number }>();
+): Map<string, { first: Finding; targets: number }> {
+  const byKey = new Map<string, { first: Finding; targets: number }>();
   for (const f of orphans) {
-    const entry = byKey.get(f.key) ?? {
-      source: f.source ?? f.file,
-      targets: 0,
-    };
+    const id = `${f.sourceFile}\0${f.key}`;
+    const entry = byKey.get(id) ?? { first: f, targets: 0 };
     entry.targets += 1;
-    byKey.set(f.key, entry);
+    byKey.set(id, entry);
   }
   return byKey;
 }
@@ -112,7 +110,7 @@ export async function validateRepo(
             key,
             code: "orphan",
             message: "the source no longer has this key",
-            source: sourceFile,
+            sourceFile,
           });
           continue;
         }
