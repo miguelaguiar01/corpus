@@ -51,6 +51,19 @@ describe("findLiterals", () => {
     ]);
   });
 
+  test("a string in braces as a prop's value follows the prop rule, not the child rule", () => {
+    const source = `
+      export const X = () => (
+        <Stack align={"start"} size={"sm"} c={"dimmed"} title={"Project settings"}>
+          <Text variant={\`subtle\`}>{"Loading dashboard"}</Text>
+        </Stack>
+      );`;
+    expect(findLiterals(source, "x.tsx").map((f) => f.text)).toEqual([
+      "Project settings",
+      "Loading dashboard",
+    ]);
+  });
+
   test("an allow pattern silences matching texts", () => {
     const source = `export const X = () => <p>Corpus</p>;`;
     expect(findLiterals(source, "x.tsx", { allow: [/^Corpus$/] })).toEqual([]);
@@ -92,10 +105,11 @@ describe("checkFiles", () => {
       path.join(dir, "node_modules", "x", "n.tsx"),
       `export const N = () => <p>Dependency text</p>;\n`,
     );
-    const findings = checkFiles(dir, {
-      include: ["src"],
+    const { findings, scanned } = checkFiles(dir, {
+      include: ["src", "missing"],
       ignore: ["src/generated"],
     });
+    expect(scanned).toEqual(["src"]);
     expect(findings.map((f) => `${f.file}:${f.line}: ${f.text}`)).toEqual([
       "src/components/a.tsx:1: Hello there",
     ]);
@@ -126,4 +140,36 @@ test("ignore entries may be globs; a plain entry is still a prefix", async () =>
   expect(odd("src/a/b.tsx")).toBe(false);
   expect(odd("src/x+y1.tsx")).toBe(true);
   expect(odd("src/x+y12.tsx")).toBe(false);
+});
+
+test("check says when none of the included directories exists, instead of a clean bill", async () => {
+  const { mkdtempSync, mkdirSync, writeFileSync, rmSync } =
+    await import("node:fs");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const { run } = await import("./cli");
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-check-"));
+  try {
+    mkdirSync(path.join(dir, "i18n"));
+    writeFileSync(path.join(dir, "i18n", "en.json"), "{}\n");
+    writeFileSync(
+      path.join(dir, "corpus.config.mjs"),
+      `export default { project: "p", server: "http://localhost:3000", sourceLanguage: "en", languages: ["en"], sources: [{ adapter: "messages", type: "chrome", path: "i18n/{lang}.json" }] };\n`,
+    );
+    const out: string[] = [];
+    const err: string[] = [];
+    const code = await run(["check"], {
+      cwd: dir,
+      env: {},
+      out: (l) => out.push(l),
+      err: (l) => err.push(l),
+    });
+    expect(code).toBe(1);
+    expect(out).toEqual([]);
+    expect(err.join("\n")).toMatch(
+      /check scanned nothing: none of src exists; set check\.include/,
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

@@ -170,11 +170,18 @@ async function build(args: string[], ctx: RunContext): Promise<number> {
 async function check(ctx: RunContext): Promise<number> {
   const config = await loadConfig(ctx.cwd);
   const options = config.check ?? {};
-  const findings = checkFiles(ctx.cwd, {
-    include: options.include ?? ["src"],
+  const include = options.include ?? ["src"];
+  const { findings, scanned } = checkFiles(ctx.cwd, {
+    include,
     ignore: options.ignore,
     allow: (options.allow ?? []).map((source) => new RegExp(source, "u")),
   });
+  if (scanned.length === 0) {
+    ctx.err(
+      `corpus: check scanned nothing: none of ${include.join(", ")} exists; set check.include in corpus.config.ts to the directories with your components`,
+    );
+    return 1;
+  }
   for (const f of findings) ctx.err(`${f.file}:${f.line}: ${f.text}`);
   if (findings.length > 0) {
     ctx.err(

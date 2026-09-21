@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- `corpus check` reads a string in braces as a prop's value (`size={"sm"}`, `align={"start"}`) under the prop rule, so only a user-facing prop makes it a finding; on a Mantine codebase that was 160 of 190 findings. With none of the included directories present (Homarr has no `src`), it says nothing was scanned and exits 1 instead of reporting no literals.
 - `corpus validate` treats an empty or blank target value as a key the target lacks, as push does, instead of reporting every source placeholder missing (462 of the 595 findings on a Crowdin-exported catalogue were that).
 
 ### Added
