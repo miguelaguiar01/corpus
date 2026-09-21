@@ -130,7 +130,7 @@ describe("checkFiles", () => {
       include: ["src", "missing"],
       ignore: ["src/generated"],
     });
-    expect(scanned).toEqual(["src"]);
+    expect(scanned).toEqual([{ dir: "src", parsed: 1 }]);
     expect(findings.map((f) => `${f.file}:${f.line}: ${f.text}`)).toEqual([
       "src/components/a.tsx:1: Hello there",
     ]);
@@ -260,15 +260,14 @@ test("checkFiles counts the files it parsed, so a clean bill can be honest", () 
     );
     expect(checkFiles(dir, { include: ["src"] })).toMatchObject({
       findings: [],
-      scanned: ["src"],
-      parsed: 0,
+      scanned: [{ dir: "src", parsed: 0 }],
     });
     writeFileSync(
       path.join(dir, "src", "components", "c.tsx"),
       `export const C = () => <p>Real finding</p>;\n`,
     );
     const second = checkFiles(dir, { include: ["src"] });
-    expect(second.parsed).toBe(1);
+    expect(second.scanned).toEqual([{ dir: "src", parsed: 1 }]);
     expect(second.findings.map((f) => f.text)).toEqual(["Real finding"]);
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -311,12 +310,49 @@ test("check refuses a clean bill when it parsed nothing, and counts the files wh
       /corpus: check parsed no files in src; it reads \.jsx and \.tsx/,
     );
 
+    // A second include that does parse must not buy a clean bill for the
+    // first: the unread directory is still named, on a passing run. Its
+    // own project, since a config is loaded once per process.
+    const two = mkdtempSync(path.join(os.tmpdir(), "corpus-check-"));
+    try {
+      mkdirSync(path.join(two, "i18n"));
+      mkdirSync(path.join(two, "app"));
+      mkdirSync(path.join(two, "src"));
+      writeFileSync(path.join(two, "i18n", "en.json"), "{}\n");
+      writeFileSync(
+        path.join(two, "src", "a.vue"),
+        `<template><p>Stray text</p></template>\n`,
+      );
+      writeFileSync(
+        path.join(two, "app", "ok.tsx"),
+        `export const O = () => <p>{x}</p>;\n`,
+      );
+      writeFileSync(
+        path.join(two, "corpus.config.mjs"),
+        `export default { project: "p", server: "http://localhost:3000", sourceLanguage: "en", languages: ["en"], sources: [{ adapter: "messages", type: "chrome", path: "i18n/{lang}.json" }], check: { include: ["app", "src"] } };\n`,
+      );
+      const out: string[] = [];
+      const err: string[] = [];
+      const code = await run(["check"], {
+        cwd: two,
+        env: {},
+        out: (l: string) => out.push(l),
+        err: (l: string) => err.push(l),
+      });
+      expect(code).toBe(0);
+      expect(err.join("\n")).toMatch(/parsed no files in src/);
+      expect(out.join("\n")).toMatch(/in 1 file\(s\)/);
+    } finally {
+      rmSync(two, { recursive: true, force: true });
+    }
+
     writeFileSync(
       path.join(dir, "src", "b.tsx"),
       `export const B = () => <p>{x}</p>;\n`,
     );
     const mixed = ctx();
     expect(await run(["check"], mixed.c)).toBe(0);
+    expect(mixed.err.join("\n")).not.toMatch(/parsed no files/);
     expect(mixed.out.join("\n")).toMatch(
       /no user-facing literals outside declared sources in 1 file\(s\)/,
     );

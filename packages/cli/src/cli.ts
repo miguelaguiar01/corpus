@@ -202,7 +202,7 @@ async function check(ctx: RunContext): Promise<number> {
   const config = await loadConfig(ctx.cwd);
   const options = config.check ?? {};
   const include = options.include ?? ["src"];
-  const { findings, scanned, parsed } = checkFiles(ctx.cwd, {
+  const { findings, scanned } = checkFiles(ctx.cwd, {
     include,
     ignore: options.ignore,
     allow: (options.allow ?? []).map((source) => new RegExp(source, "u")),
@@ -214,13 +214,16 @@ async function check(ctx: RunContext): Promise<number> {
     return 1;
   }
   // A tree of .vue or .svelte components parses to nothing here, and a
-  // clean bill over code the command never read is worse than a finding.
-  if (parsed === 0) {
+  // clean bill over code the command never read is worse than a finding:
+  // every such directory is named, and parsing nothing at all is fatal.
+  const unread = scanned.filter((s) => s.parsed === 0).map((s) => s.dir);
+  const parsed = scanned.reduce((n, s) => n + s.parsed, 0);
+  if (unread.length > 0) {
     ctx.err(
-      `corpus: check parsed no files in ${scanned.join(", ")}; it reads ${READS}; set check.include in corpus.config.ts to the directories with your components`,
+      `corpus: check parsed no files in ${unread.join(", ")}; it reads ${READS}`,
     );
-    return 1;
   }
+  if (parsed === 0) return 1;
   for (const f of findings) ctx.err(`${f.file}:${f.line}: ${f.text}`);
   const tokens = findings.filter((f) => !/\s/.test(f.text)).length;
   if (findings.length >= 5 && tokens * 2 >= findings.length) {

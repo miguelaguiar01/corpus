@@ -9,7 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
-- `corpus check` no longer gives a clean bill over components it cannot parse: it reads `.jsx` and `.tsx`, so a tree of Vue or Svelte single-file components parsed to nothing while the command reported no literals and exited 0 (Vikunja: 224 `.vue` files, 0 `.tsx`, untranslated English in its templates). It now says how many files it read, and a scanned directory that holds nothing it can parse is an error naming what it reads.
+- `corpus check` no longer gives a clean bill over components it cannot parse: it reads `.jsx` and `.tsx`, so a tree of Vue or Svelte single-file components parsed to nothing while the command reported no literals and exited 0 (Vikunja: 224 `.vue` files, 0 `.tsx`, untranslated English in its templates). It now says how many files it read, names every scanned directory it parsed nothing in, and exits 1 when it parsed nothing at all.
 
 ## [0.16.0] - 2026-09-21
 
