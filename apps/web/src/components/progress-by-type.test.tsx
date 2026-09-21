@@ -73,7 +73,9 @@ test("a table row opens its per-type breakdown behind a disclosure; one type has
     languages.map((l) => [l, counts(1, 1, 4)]),
   );
   const perType = {
-    chrome: Object.fromEntries(languages.map((l) => [l, counts(1, 0, 2)])),
+    chrome: Object.fromEntries(
+      languages.map((l) => [l, l === "c" ? counts(2, 0, 2) : counts(1, 0, 2)]),
+    ),
     "clue-skin": Object.fromEntries(languages.map((l) => [l, counts(0, 1, 2)])),
   };
   render(<ProgressByType progress={{ perLanguage, perType }} />);
@@ -84,8 +86,14 @@ test("a table row opens its per-type breakdown behind a disclosure; one type has
   await user.click(toggles[2]!);
   expect(toggles[2]?.getAttribute("aria-expanded")).toBe("true");
   expect(screen.getAllByRole("meter")).toHaveLength(11);
-  expect(screen.getByRole("meter", { name: "chrome" })).toBeTruthy();
-  expect(screen.getByRole("meter", { name: "clue-skin" })).toBeTruthy();
+  expect(
+    screen.getByRole("meter", { name: "chrome" }).getAttribute("aria-valuenow"),
+  ).toBe("2");
+  expect(
+    screen
+      .getByRole("meter", { name: "clue-skin" })
+      .getAttribute("aria-valuenow"),
+  ).toBe("1");
   await user.click(toggles[2]!);
   expect(screen.getAllByRole("meter")).toHaveLength(9);
   cleanup();

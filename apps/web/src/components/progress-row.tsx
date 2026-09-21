@@ -55,7 +55,7 @@ export function ProgressRow({
       </tr>
       {open && (
         <tr>
-          <td colSpan={3} className="pb-2 pl-6">
+          <td colSpan={2} className="pb-2 pl-6">
             <dl className="space-y-1.5">
               {types.map(({ type, p: tp }) => (
                 <div key={type} className="flex items-center gap-3 text-sm">
@@ -69,6 +69,7 @@ export function ProgressRow({
               ))}
             </dl>
           </td>
+          <td className="hidden sm:table-cell" />
         </tr>
       )}
     </>
