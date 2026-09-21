@@ -87,6 +87,31 @@ test("push builds, uploads with the bearer token, and prints the report", async 
   );
 });
 
+test("a push that seeds nothing says nothing about seeds, identical ones included", async () => {
+  const { server, url } = await startServer(() => ({
+    status: 200,
+    json: {
+      report: {
+        added: 0,
+        changed: 0,
+        stale: 0,
+        archived: 0,
+        seeded: 0,
+        seedsIgnored: 0,
+        seedsIdentical: 4297,
+      },
+    },
+  }));
+  active = server;
+  process.env.CORPUS_SERVER = url;
+
+  const c = ctx();
+  expect(await run(["push"], c)).toBe(0);
+  const out = c.output.join("\n");
+  expect(out).toContain("0 added, 0 changed, 0 stale, 0 archived");
+  expect(out).not.toMatch(/seed/i);
+});
+
 test("--dry-run sends the dryRun flag and labels the output", async () => {
   const { server, url, calls } = await startServer(() => ({
     status: 200,

@@ -146,10 +146,13 @@ async function push(args: string[], ctx: RunContext): Promise<number> {
       ? `${report.seedsIdentical} identical to the source, kept untranslated`
       : "",
   ].filter(Boolean);
-  const seeded =
-    report.seeded || report.seedsIdentical
-      ? `, ${report.seeded ?? 0} translation(s) seeded from the repository${notes.length ? ` (${notes.join("; ")})` : ""}`
-      : "";
+  // The identical count classifies what the push carried, not what it
+  // wrote, so a push that seeded nothing says nothing about seeds: the
+  // same catalogue arrives on every push and its figures would outlive
+  // the work.
+  const seeded = report.seeded
+    ? `, ${report.seeded} translation(s) seeded from the repository${notes.length ? ` (${notes.join("; ")})` : ""}`
+    : "";
   ctx.out(
     `${label} ${config.project}: ${report.added} added, ${report.changed} changed, ${report.stale} stale, ${report.archived} archived${seeded}`,
   );
