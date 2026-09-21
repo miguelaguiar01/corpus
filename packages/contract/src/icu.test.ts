@@ -274,3 +274,39 @@ test("a placeholder or argument name may be a bare number, as ICU allows", () =>
   ]);
   expect([...selectArgsOf("{0, select, 1 {one} other {many}}")]).toEqual(["0"]);
 });
+
+test("i18next syntax: {{name}} is a placeholder, a single brace is text, there are no arguments", () => {
+  const result = parseIcu(
+    "{{ count }} documents starred by {{user.name}} on {{date, short}} {not a placeholder} and #1 <em>{{ templateName }}</em>",
+    "i18next",
+  );
+  expect(result.ok).toBe(true);
+  if (!result.ok) throw new Error("parse failed");
+  expect([
+    ...placeholdersOf(
+      "{{ count }} documents starred by {{user.name}} on {{date, short}} {not a placeholder} and #1 <em>{{ templateName }}</em>",
+      "i18next",
+    ),
+  ]).toEqual(["count", "user.name", "date", "templateName"]);
+  expect(
+    result.nodes.some(
+      (n) => n.kind === "literal" && n.text.includes("{not a placeholder}"),
+    ),
+  ).toBe(true);
+  expect(result.nodes.some((n) => n.kind === "tag" && n.name === "em")).toBe(
+    true,
+  );
+  expect([...placeholdersOf("{{ count }} and {{count}}", "i18next")]).toEqual([
+    "count",
+  ]);
+  expect(parseIcu("open {{name", "i18next")).toMatchObject({
+    ok: false,
+    errors: [{ message: "unclosed '{{'" }],
+  });
+  expect(parseIcu("{{ two words }}", "i18next")).toMatchObject({
+    ok: false,
+    errors: [{ message: expect.stringMatching(/invalid placeholder name/) }],
+  });
+  // The same text under ICU is an error, so the syntax is not optional.
+  expect(parseIcu("{{ count }} items", "icu").ok).toBe(false);
+});

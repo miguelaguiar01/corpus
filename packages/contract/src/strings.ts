@@ -26,11 +26,11 @@ export const identifier = () =>
     .string()
     .min(1)
     .regex(IDENTIFIER_RE, "letters, digits, dot, underscore and hyphen only");
-// A string id is any text without control characters: a dotted
-// identifier, or, as i18next's natural keys, the sentence itself. It
-// travels in URLs and tool arguments, which encode; only its length
-// is bounded.
-export const STRING_ID_RE = /^[^\p{Cc}]+$/u;
+// A string id is any text without control characters, a line break
+// or a tab aside: a dotted identifier, or, as i18next's natural keys,
+// the sentence itself, which may run over lines. It travels in URLs
+// and tool arguments, which encode; only its length is bounded.
+export const STRING_ID_RE = /^(?:[^\p{Cc}]|[\t\n\r])+$/u;
 export const MAX_STRING_ID_LENGTH = 1000;
 export const stringId = () =>
   z
@@ -43,6 +43,12 @@ export const languageCode = () =>
     .string()
     .min(1)
     .regex(LANGUAGE_RE, "a language tag such as en, pt-PT or en_US");
+// The message syntax a source writes (§5): ICU, or i18next's
+// {{name}} interpolation, stored and written back as written.
+export const SYNTAXES = ["icu", "i18next"] as const;
+export type Syntax = (typeof SYNTAXES)[number];
+export const syntaxSchema = z.enum(SYNTAXES);
+
 // Entity ids carry their type: character:condessa-rosa (§6).
 export const ENTITY_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 export const entityId = () =>
@@ -74,6 +80,8 @@ export const stringEntrySchema = z.looseObject({
   // The repository path the entry was read from (§4): what lets a
   // proposal be written back to the right file. Exec entries have none.
   file: z.string().min(1).optional(),
+  // The syntax the text is written in (§5); ICU when absent.
+  syntax: syntaxSchema.optional(),
 });
 
 // description is mandatory on every declaration — it renders as the

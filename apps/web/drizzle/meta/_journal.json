@@ -85,6 +85,13 @@
       "when": 1789578532819,
       "tag": "0011_glossary",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1790009078476,
+      "tag": "0012_string-syntax",
+      "breakpoints": true
     }
   ]
 }

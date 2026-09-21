@@ -7,7 +7,7 @@
 // always structural; the subset has no quote-escaping; a < that opens
 // no tag is text.
 
-import { localeOf } from "./strings";
+import { localeOf, type Syntax } from "./strings";
 
 export type IcuNode =
   | { kind: "literal"; text: string }
@@ -41,6 +41,9 @@ export const PLURAL_CATEGORIES = [
 const PLURAL_KEY_RE = /^(?:zero|one|two|few|many|other|=[0-9]+)$/;
 // A tag as the rich-text libraries write it: <link>, <checkoutDocs/>.
 const TAG_RE = /^<(\/?)([A-Za-z][A-Za-z0-9_-]*)(\/?)>/;
+// i18next's interpolation name: an identifier, dotted into an object
+// ({{user.name}}); a format after a comma ({{date, short}}) is ignored.
+const I18NEXT_NAME_RE = /^[A-Za-z_$][A-Za-z0-9_.$]*$/;
 
 class ParseFailure extends Error {
   constructor(
@@ -54,7 +57,10 @@ class ParseFailure extends Error {
 class Parser {
   private pos = 0;
 
-  constructor(private readonly source: string) {}
+  constructor(
+    private readonly source: string,
+    private readonly syntax: Syntax,
+  ) {}
 
   // Inside a plural's branch, `#` is the number; anywhere else it is text.
   // Inside a tag, the sequence ends at its closing tag.
@@ -76,7 +82,7 @@ class Parser {
 
     while (this.pos < this.source.length) {
       const ch = this.source[this.pos];
-      if (ch === "}") {
+      if (ch === "}" && this.syntax === "icu") {
         if (!inBranch) {
           throw new ParseFailure("unmatched '}'", this.pos);
         }
@@ -117,6 +123,19 @@ class Parser {
         continue;
       }
       if (ch === "{") {
+        // i18next: {{name}} is a placeholder, a single brace is text,
+        // and there are no arguments, so nothing else opens here.
+        if (this.syntax === "i18next") {
+          if (this.source[this.pos + 1] !== "{") {
+            literal += ch;
+            this.pos += 1;
+            continue;
+          }
+          flush();
+          nodes.push(this.parseDoubleBrace());
+          literalStart = this.pos;
+          continue;
+        }
         flush();
         nodes.push(this.parseArgument(inBranch));
         literalStart = this.pos;
@@ -140,6 +159,23 @@ class Parser {
     }
     flush();
     return nodes;
+  }
+
+  // {{ name }} or {{name, format}} at the cursor, consumed (i18next).
+  private parseDoubleBrace(): IcuNode {
+    const start = this.pos;
+    const end = this.source.indexOf("}}", this.pos + 2);
+    if (end < 0) throw new ParseFailure("unclosed '{{'", start);
+    const inner = this.source.slice(this.pos + 2, end);
+    const name = (inner.split(",")[0] ?? "").trim();
+    if (!I18NEXT_NAME_RE.test(name)) {
+      throw new ParseFailure(
+        `invalid placeholder name ${JSON.stringify(name)}`,
+        start,
+      );
+    }
+    this.pos = end + 2;
+    return { kind: "placeholder", name };
   }
 
   // A tag at the cursor, consumed, or nothing when the < is text.
@@ -253,9 +289,15 @@ class Parser {
   }
 }
 
-export function parseIcu(source: string): IcuParseResult {
+export function parseIcu(
+  source: string,
+  syntax: Syntax = "icu",
+): IcuParseResult {
   try {
-    return { ok: true, nodes: new Parser(source).parseSequence(false) };
+    return {
+      ok: true,
+      nodes: new Parser(source, syntax).parseSequence(false),
+    };
   } catch (error) {
     if (error instanceof ParseFailure) {
       return {
@@ -303,29 +345,38 @@ export function branchingNodes(
   return out;
 }
 
-export function tagsOf(source: string): Set<string> {
-  const result = parseIcu(source);
+export function tagsOf(source: string, syntax: Syntax = "icu"): Set<string> {
+  const result = parseIcu(source, syntax);
   const tags = new Set<string>();
   if (result.ok) collect(result.nodes, new Set(), new Set(), new Set(), tags);
   return tags;
 }
 
-export function placeholdersOf(source: string): Set<string> {
-  const result = parseIcu(source);
+export function placeholdersOf(
+  source: string,
+  syntax: Syntax = "icu",
+): Set<string> {
+  const result = parseIcu(source, syntax);
   const placeholders = new Set<string>();
   if (result.ok) collect(result.nodes, placeholders, new Set());
   return placeholders;
 }
 
-export function selectArgsOf(source: string): Set<string> {
-  const result = parseIcu(source);
+export function selectArgsOf(
+  source: string,
+  syntax: Syntax = "icu",
+): Set<string> {
+  const result = parseIcu(source, syntax);
   const selectArgs = new Set<string>();
   if (result.ok) collect(result.nodes, new Set(), selectArgs);
   return selectArgs;
 }
 
-export function pluralArgsOf(source: string): Set<string> {
-  const result = parseIcu(source);
+export function pluralArgsOf(
+  source: string,
+  syntax: Syntax = "icu",
+): Set<string> {
+  const result = parseIcu(source, syntax);
   const pluralArgs = new Set<string>();
   if (result.ok) collect(result.nodes, new Set(), new Set(), pluralArgs);
   return pluralArgs;

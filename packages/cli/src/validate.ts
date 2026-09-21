@@ -5,6 +5,7 @@ import {
   validateTranslation,
   type CorpusConfig,
   type ValidationError,
+  type Syntax,
 } from "@corpus/contract";
 import type { RunContext } from "./cli";
 import { readEntries, writesBack, type FileSource } from "./build";
@@ -80,7 +81,12 @@ export async function validateRepo(
           });
           continue;
         }
-        const result = validateTranslation(original, target, language);
+        const result = validateTranslation(
+          original,
+          target,
+          language,
+          source.syntax ?? "icu",
+        );
         if (result.ok) continue;
         for (const error of result.errors) {
           const inSource =
@@ -91,7 +97,7 @@ export async function validateRepo(
             file: inSource ? sourceFile : file,
             key,
             code: error.code,
-            message: describe(error),
+            message: describe(error, source.syntax ?? "icu"),
           });
         }
       }
@@ -118,14 +124,19 @@ async function texts(
   }
 }
 
-export function describe(error: ValidationError): string {
+export function describe(
+  error: ValidationError,
+  syntax: Syntax = "icu",
+): string {
+  const written = (name: string) =>
+    syntax === "i18next" ? `{{${name}}}` : `{${name}}`;
   switch (error.code) {
     case "invalid-icu":
-      return `invalid ICU in the ${error.where} at ${error.position}: ${error.message}`;
+      return `invalid ${syntax === "i18next" ? "i18next" : "ICU"} in the ${error.where} at ${error.position}: ${error.message}`;
     case "missing-placeholder":
-      return `missing {${error.name}}`;
+      return `missing ${written(error.name)}`;
     case "unexpected-placeholder":
-      return `unexpected {${error.name}}`;
+      return `unexpected ${written(error.name)}`;
     case "unknown-select":
       return `select on {${error.arg}}, which the source does not select on`;
     case "missing-branch":

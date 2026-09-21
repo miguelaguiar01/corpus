@@ -8,6 +8,7 @@
 // opens the sentence is capitalised. Everything else is verbatim —
 // previews are for meaning, not grammar (§7).
 import { parseIcu, pluralBranch, type IcuError, type IcuNode } from "./icu";
+import type { Syntax } from "./strings";
 
 export type PreviewResult =
   { ok: true; text: string } | { ok: false; errors: IcuError[] };
@@ -78,7 +79,7 @@ function render(
 // The engine habit of §7, a value that opens the sentence capitalised,
 // is for previews of a project's text; chrome rendered through the same
 // engine keeps its values as given.
-export type RenderOptions = { capitalise?: boolean };
+export type RenderOptions = { capitalise?: boolean; syntax?: Syntax };
 
 export function renderPreviewSegments(
   message: string,
@@ -86,7 +87,7 @@ export function renderPreviewSegments(
   language?: string,
   options: RenderOptions = {},
 ): PreviewSegmentsResult {
-  const parsed = parseIcu(message);
+  const parsed = parseIcu(message, options.syntax ?? "icu");
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
   const segments: PreviewSegment[] = [];
   render(parsed.nodes, values, segments, language);
@@ -118,6 +119,7 @@ export function previewsFor(
   message: string,
   examples: PreviewExample[],
   language?: { target: string; source: string },
+  options: RenderOptions = {},
 ): PreviewResult[] {
   return examples.map((example) =>
     renderPreview(
@@ -126,6 +128,7 @@ export function previewsFor(
         ? exampleValues(example, language.target, language.source).values
         : example.values,
       language?.target,
+      options,
     ),
   );
 }

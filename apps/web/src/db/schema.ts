@@ -4,6 +4,7 @@ import type {
   Example,
   FieldDeclaration,
   Glossary,
+  Syntax,
 } from "@corpus/contract";
 import {
   index,
@@ -102,6 +103,8 @@ export const strings = sqliteTable(
     examples: text("examples", { mode: "json" }).$type<Example[]>(),
     // The repository file the entry was read from (§4); null for exec.
     file: text("file"),
+    // The message syntax the text is written in (§5); null is ICU.
+    syntax: text("syntax").$type<Syntax>(),
     archived: integer("archived", { mode: "boolean" }).notNull().default(false),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()

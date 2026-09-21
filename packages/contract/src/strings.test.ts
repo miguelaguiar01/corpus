@@ -173,7 +173,11 @@ test("types are restricted to a safe charset; an id is any text without control 
     stringEntrySchema.safeParse({ ...entry, id: "Are you sure?" }).success,
   ).toBe(true);
   expect(
-    stringEntrySchema.safeParse({ ...entry, id: "tab\there" }).success,
+    stringEntrySchema.safeParse({ ...entry, id: "runs over\ntwo lines" })
+      .success,
+  ).toBe(true);
+  expect(
+    stringEntrySchema.safeParse({ ...entry, id: "bell\u0007here" }).success,
   ).toBe(false);
   expect(stringEntrySchema.safeParse({ ...entry, id: "" }).success).toBe(false);
 });

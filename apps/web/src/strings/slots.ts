@@ -4,6 +4,7 @@ import {
   type Example,
   type FieldDeclaration,
   type StringResponse,
+  type Syntax,
 } from "@corpus/contract";
 
 // Every value a source takes, placeholders then counts, in source order,
@@ -15,6 +16,7 @@ export function slotsOf(
   declarations: Record<string, FieldDeclaration>,
   examples: Example[] | null | undefined,
   sourceLanguage: string,
+  syntax: Syntax = "icu",
 ): StringResponse["slots"] {
   const declared: Record<string, { description: string; role?: string }> = {};
   for (const declaration of Object.values(declarations)) {
@@ -22,8 +24,8 @@ export function slotsOf(
       Object.assign(declared, declaration.slots);
   }
   const example = examples?.[0];
-  const names = [...placeholdersOf(source)];
-  for (const arg of pluralArgsOf(source)) {
+  const names = [...placeholdersOf(source, syntax)];
+  for (const arg of pluralArgsOf(source, syntax)) {
     if (!names.includes(arg)) names.push(arg);
   }
   return names.map((name) => {

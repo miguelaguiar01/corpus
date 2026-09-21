@@ -9,6 +9,7 @@ import {
   type FieldDeclaration,
   type GlossaryEntry,
   type MetadataValue,
+  type Syntax,
 } from "@corpus/contract";
 import type { Db } from "@/db";
 import {
@@ -31,6 +32,8 @@ export type StringDetail = {
     archived: boolean;
     // The repository file it came from (§4); null when pull cannot write it.
     file: string | null;
+    // The message syntax the text is written in (§5).
+    syntax: Syntax;
     metadata: Record<string, MetadataValue> | null;
     examples: Example[] | null;
     // The type's voice note (§5), when the project carries one.
@@ -137,13 +140,14 @@ export function stringDetail(
       source: string.source,
       archived: string.archived,
       file: string.file,
+      syntax: string.syntax ?? "icu",
       metadata,
       examples: string.examples ?? null,
       note: project.typeNotes?.[string.type] ?? null,
       glossary: Object.fromEntries(
         Object.entries(project.glossary ?? {}).map(([lang, entries]) => [
           lang,
-          glossaryMatches(string.source, entries),
+          glossaryMatches(string.source, entries, string.syntax ?? "icu"),
         ]),
       ),
     },

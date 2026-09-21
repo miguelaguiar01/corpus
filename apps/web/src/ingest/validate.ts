@@ -40,12 +40,12 @@ export function validateSnapshot(body: unknown): ValidationResult {
     }
     stringIds.add(entry.id);
 
-    const icu = parseIcu(entry.source);
+    const icu = parseIcu(entry.source, entry.syntax ?? "icu");
     if (!icu.ok) {
       const first = icu.errors[0];
       errors.push({
         id: entry.id,
-        message: `invalid ICU at ${first?.position}: ${first?.message}`,
+        message: `invalid ${entry.syntax ?? "ICU"} at ${first?.position}: ${first?.message}`,
       });
     }
 

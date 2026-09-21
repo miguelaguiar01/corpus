@@ -164,3 +164,27 @@ test("a language code may use underscores, as i18next and Crowdin write it", () 
   expect(config.languages).toEqual(["en_US", "pt_PT", "zh_CN"]);
   expect(localeOf("en_US")).toBe("en-US");
 });
+
+test("a source may declare its message syntax", () => {
+  const config = defineCorpus({
+    project: "kb",
+    server: "https://corpus.example",
+    sourceLanguage: "en",
+    languages: ["en", "fr"],
+    sources: [
+      {
+        adapter: "messages",
+        type: "ui",
+        path: "locales/{lang}/translation.json",
+        syntax: "i18next",
+      },
+    ],
+  });
+  expect(config.sources[0]).toMatchObject({ syntax: "i18next" });
+  expect(
+    corpusConfigSchema.safeParse({
+      ...config,
+      sources: [{ ...config.sources[0], syntax: "handlebars" }],
+    }).success,
+  ).toBe(false);
+});

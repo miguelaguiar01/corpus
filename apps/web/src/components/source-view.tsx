@@ -3,6 +3,7 @@ import {
   parseIcu,
   type FieldDeclaration,
   type IcuNode,
+  type Syntax,
 } from "@corpus/contract";
 import { chipVariants } from "@/components/ui/chip";
 import { t } from "@/i18n";
@@ -16,20 +17,22 @@ import { cn } from "@/lib/utils";
 // text.
 export function SourceView({
   source,
+  syntax = "icu",
   declarations,
   className = "text-xl lg:text-2xl",
 }: {
   source: string;
+  syntax?: Syntax;
   declarations: Record<string, FieldDeclaration>;
   className?: string;
 }) {
-  const parsed = parseIcu(source);
+  const parsed = parseIcu(source, syntax);
   if (!parsed.ok) return <p className={className}>{source}</p>;
   const slots = slotDescriptions(declarations);
   const selects = branchingNodes(parsed.nodes);
   return (
     <div className="space-y-3">
-      <p className={className}>{renderNodes(parsed.nodes, slots)}</p>
+      <p className={className}>{renderNodes(parsed.nodes, slots, syntax)}</p>
       {selects.length > 0 && (
         <dl
           role="group"
@@ -43,7 +46,7 @@ export function SourceView({
                 <dd key={key} className="flex items-baseline gap-1">
                   <span className="font-mono">{key}</span>
                   <span className="text-foreground">
-                    {renderNodes(branch, slots)}
+                    {renderNodes(branch, slots, syntax)}
                   </span>
                 </dd>
               ))}
@@ -79,7 +82,11 @@ const PLACEHOLDER = cn(
 // Word, slash, word stay together; a long branch still wraps.
 const SLASH = "\u00a0/\u00a0";
 
-function renderNodes(nodes: IcuNode[], slots: Map<string, string>) {
+function renderNodes(
+  nodes: IcuNode[],
+  slots: Map<string, string>,
+  syntax: Syntax,
+) {
   return nodes.map((node, index) => {
     if (node.kind === "literal") return node.text;
     if (node.kind === "tag") {
@@ -91,7 +98,7 @@ function renderNodes(nodes: IcuNode[], slots: Map<string, string>) {
           data-tag={node.name}
         >
           {node.children.length > 0 ? (
-            renderNodes(node.children, slots)
+            renderNodes(node.children, slots, syntax)
           ) : (
             <span className="font-mono text-[0.6em] text-muted-foreground">
               {`<${node.name}>`}
@@ -104,7 +111,7 @@ function renderNodes(nodes: IcuNode[], slots: Map<string, string>) {
       const name = node.kind === "placeholder" ? node.name : node.arg;
       return (
         <span key={index} className={PLACEHOLDER} title={slots.get(name)}>
-          {node.kind === "placeholder" ? `{${name}}` : "#"}
+          {node.kind === "placeholder" ? chipText(name, syntax) : "#"}
         </span>
       );
     }
@@ -113,10 +120,15 @@ function renderNodes(nodes: IcuNode[], slots: Map<string, string>) {
         {Object.values(node.branches).map((branch, i) => (
           <span key={i}>
             {i > 0 && <span className="text-muted-foreground">{SLASH}</span>}
-            {renderNodes(branch, slots)}
+            {renderNodes(branch, slots, syntax)}
           </span>
         ))}
       </span>
     );
   });
+}
+
+// A placeholder as the source writes it, so the chip reads as the text.
+export function chipText(name: string, syntax: Syntax): string {
+  return syntax === "i18next" ? `{{${name}}}` : `{${name}}`;
 }
