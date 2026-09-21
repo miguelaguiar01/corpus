@@ -3,11 +3,57 @@ import { t } from "@/i18n";
 import { ProgressBar } from "./progress-bar";
 import { ProgressLegend } from "./progress-legend";
 
-// Per-language progress broken down by string type (§9.1).
+// Past this many languages the blocks become a table: a project of
+// dozens of languages with one string type is otherwise a wall of one
+// bar each (§9.1).
+const TABLE_FROM_LANGUAGES = 8;
+
+// Per-language progress: a block per language broken down by string
+// type, or, from eight languages on, a table of one row each (§9.1).
 export function ProgressByType({ progress }: { progress: Progress }) {
   const languages = Object.keys(progress.perLanguage);
   if (languages.length === 0) return null;
   const types = Object.keys(progress.perType);
+  if (languages.length >= TABLE_FROM_LANGUAGES) {
+    return (
+      <div className="space-y-3">
+        <ProgressLegend />
+        <table className="w-full text-sm">
+          <thead className="sr-only">
+            <tr>
+              <th scope="col">{t("progress.languageColumn")}</th>
+              <th scope="col">{t("progress.progressColumn")}</th>
+              <th scope="col" className="hidden sm:table-cell">
+                {t("progress.summaryColumn")}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {languages.map((language) => {
+              const p = progress.perLanguage[language]!;
+              return (
+                <tr key={language} className="border-t border-border">
+                  <th scope="row" className="w-16 py-1.5 text-left font-medium">
+                    {language}
+                  </th>
+                  <td className="py-1.5 pr-3">
+                    <ProgressBar p={p} label={language} className="h-1.5" />
+                  </td>
+                  <td className="hidden w-48 py-1.5 text-right text-xs text-muted-foreground sm:table-cell">
+                    {t("progress.summary", {
+                      verified: p.verified,
+                      translated: p.translated,
+                      total: p.total,
+                    })}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
   return (
     <div className="space-y-6">
       <ProgressLegend />
