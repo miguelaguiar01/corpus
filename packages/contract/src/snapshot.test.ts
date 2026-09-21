@@ -132,3 +132,24 @@ test("typeNotes is an optional map of non-empty sentences per string type (§5)"
     snapshotSchema.safeParse({ ...MINIMAL, typeNotes: { chrome: "" } }).success,
   ).toBe(false);
 });
+
+test("a string id may be the sentence itself, as i18next's natural keys are; control characters are refused", () => {
+  const sentence =
+    "Are you sure about that? Deleting the <em>{{ templateName }}</em> template is permanent.";
+  const ok = snapshotSchema.safeParse({
+    ...moonlightManor,
+    strings: [{ id: sentence, type: "ui", source: sentence }],
+  });
+  expect(ok.success).toBe(true);
+  const bad = snapshotSchema.safeParse({
+    ...moonlightManor,
+    strings: [{ id: "line\nbreak", type: "ui", source: "x" }],
+  });
+  expect(bad.success).toBe(false);
+  expect(
+    snapshotSchema.safeParse({
+      ...moonlightManor,
+      strings: [{ id: "x".repeat(1001), type: "ui", source: "x" }],
+    }).success,
+  ).toBe(false);
+});

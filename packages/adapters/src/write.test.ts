@@ -418,3 +418,15 @@ describe("edits that must not duplicate, and line endings", () => {
     ).toBe('{\n  "b": "2"\n}\n');
   });
 });
+
+test("a flat catalogue whose keys are sentences, dots and all, reads and writes as flat keys", () => {
+  const file = `{\n  "Copy": "Copiar",\n  "Deleting it is permanent. Continue?": "Apagar é definitivo. Continuar?"\n}\n`;
+  const entries = messagesToEntries(JSON.parse(file), { type: "ui" });
+  expect(entries.map((e) => e.id)).toEqual([
+    "Copy",
+    "Deleting it is permanent. Continue?",
+  ]);
+  const texts = Object.fromEntries(entries.map((e) => [e.id, e.source]));
+  expect(entriesToMessages(file, texts)).toBe(file);
+  expect(entriesToMessages(file, texts, "")).toBe(file);
+});

@@ -21,7 +21,10 @@ export type Sibling = {
 
 export type Siblings = { total: number; items: Sibling[] };
 
+// A key with whitespace is a sentence, not a path, and has no prefix:
+// its dots end clauses, not segments.
 export function siblingPrefix(key: string): string | null {
+  if (/\s/.test(key)) return null;
   const dot = key.lastIndexOf(".");
   return dot < 0 ? null : key.slice(0, dot);
 }

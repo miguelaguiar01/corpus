@@ -160,18 +160,22 @@ test("declarations round-trip through parse", () => {
   expect(fieldDeclarationSchema.parse(decl)).toEqual(decl);
 });
 
-test("ids, types and language codes are restricted to a safe charset", () => {
+test("types are restricted to a safe charset; an id is any text without control characters", () => {
   const entry = { id: "ui.continue", type: "chrome", source: "Continue" };
   expect(stringEntrySchema.safeParse(entry).success).toBe(true);
   expect(
     stringEntrySchema.safeParse({ ...entry, type: "__proto__" }).success,
   ).toBe(false);
   expect(stringEntrySchema.safeParse({ ...entry, id: "a/b" }).success).toBe(
-    false,
+    true,
   );
-  expect(stringEntrySchema.safeParse({ ...entry, id: ".x" }).success).toBe(
-    false,
-  );
+  expect(
+    stringEntrySchema.safeParse({ ...entry, id: "Are you sure?" }).success,
+  ).toBe(true);
+  expect(
+    stringEntrySchema.safeParse({ ...entry, id: "tab\there" }).success,
+  ).toBe(false);
+  expect(stringEntrySchema.safeParse({ ...entry, id: "" }).success).toBe(false);
 });
 
 test("an example parses with or without per-language values; keys are language codes, values strings", () => {

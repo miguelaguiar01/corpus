@@ -134,7 +134,7 @@ test("an add needs a declared source, a valid new key and valid ICU; the file is
     ok: false,
     reason: "exists",
   });
-  expect(proposeAdd(db, { ...base, key: "bad key" })).toEqual({
+  expect(proposeAdd(db, { ...base, key: "bad\tkey" })).toEqual({
     ok: false,
     reason: "invalid-key",
   });

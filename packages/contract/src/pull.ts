@@ -5,7 +5,7 @@
 // other, which is what makes the push∘pull round trip possible.
 import { z } from "zod";
 import { CONTRACT_VERSION } from "./snapshot";
-import { identifier } from "./strings";
+import { identifier, stringId } from "./strings";
 
 export const MIN_STATES = ["untranslated", "translated", "verified"] as const;
 export type MinState = (typeof MIN_STATES)[number];
@@ -18,7 +18,7 @@ export type SourceChangeKind = (typeof SOURCE_CHANGE_KINDS)[number];
 export const sourceChangeSchema = z
   .looseObject({
     kind: z.enum(SOURCE_CHANGE_KINDS),
-    id: identifier(),
+    id: stringId(),
     type: identifier(),
     file: z.string().min(1),
     text: z.string().optional(),

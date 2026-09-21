@@ -2,7 +2,7 @@
 // schemas, responses as types, shared by the server and `corpus mcp`.
 // Additive to corpus/1.
 import { z } from "zod";
-import { identifier } from "./strings";
+import { stringId } from "./strings";
 import type { Example } from "./strings";
 import type { GlossaryEntry } from "./glossary";
 
@@ -121,7 +121,7 @@ export const stringProposalBodySchema = z.discriminatedUnion("kind", [
 export type StringProposalBody = z.infer<typeof stringProposalBodySchema>;
 
 export const newStringBodySchema = z.strictObject({
-  key: identifier(),
+  key: stringId(),
   file: z.string().min(1),
   text: z.string(),
 });
