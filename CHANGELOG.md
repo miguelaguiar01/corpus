@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+### Added
+
+- The string response carries `slots` (§10): every value the source takes, placeholders then counts, with the description and role the repository declares for the slot and the first example's value per language, so an agent reads what the editor's chips show on hover instead of guessing a value's shape from its name. Additive; still `corpus/1`.
+
 ## [0.14.0] - 2026-09-20
 
 Plural, and the open tickets.

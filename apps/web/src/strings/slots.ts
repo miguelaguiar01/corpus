@@ -1,0 +1,46 @@
+import {
+  placeholdersOf,
+  pluralArgsOf,
+  type Example,
+  type FieldDeclaration,
+  type StringResponse,
+} from "@corpus/contract";
+
+// Every value a source takes, placeholders then counts, in source order,
+// with what the type declares for the slot (§5) and the first example's
+// value per language (§7): what a translator reads off the chips, for
+// an agent that has no chips.
+export function slotsOf(
+  source: string,
+  declarations: Record<string, FieldDeclaration>,
+  examples: Example[] | null | undefined,
+  sourceLanguage: string,
+): StringResponse["slots"] {
+  const declared: Record<string, { description: string; role?: string }> = {};
+  for (const declaration of Object.values(declarations)) {
+    if (declaration.type === "placeholders")
+      Object.assign(declared, declaration.slots);
+  }
+  const example = examples?.[0];
+  const names = [...placeholdersOf(source)];
+  for (const arg of pluralArgsOf(source)) {
+    if (!names.includes(arg)) names.push(arg);
+  }
+  return names.map((name) => {
+    const values: Record<string, string> = {};
+    const own = example?.values[name];
+    if (own !== undefined) values[sourceLanguage] = own;
+    for (const [language, map] of Object.entries(
+      example?.valuesByLanguage ?? {},
+    )) {
+      const value = map[name];
+      if (value !== undefined) values[language] = value;
+    }
+    return {
+      name,
+      description: declared[name]?.description ?? null,
+      role: declared[name]?.role ?? null,
+      values,
+    };
+  });
+}

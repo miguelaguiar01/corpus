@@ -36,6 +36,15 @@ export type StringResponse = {
   // The counts the source pluralises on (§5); additive, since a client
   // ignores fields it does not know (§4).
   plurals: string[];
+  // Every value the source takes, placeholders then counts, in source
+  // order, with the type's declaration for the slot and the first
+  // example's value per language (§5, §7); additive.
+  slots: {
+    name: string;
+    description: string | null;
+    role: string | null;
+    values: Record<string, string>;
+  }[];
   examples: Example[];
   metadata: Record<string, unknown> | null;
   // The type's voice note (§5), or null.
