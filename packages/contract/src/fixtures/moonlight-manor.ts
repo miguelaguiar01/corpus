@@ -142,6 +142,31 @@ export const moonlightManor = {
       source: "Continuar",
       metadata: { note: "Button label at the end of a conversation." },
     },
+    {
+      id: "ui.marks-left",
+      type: "chrome",
+      file: "src/ui/pt-PT.json",
+      source:
+        "{n, plural, =0 {Nenhuma marca por encontrar.} one {Falta # marca.} other {Faltam # marcas.}}",
+      metadata: { note: "Under the dossier, counting the marks still hidden." },
+      examples: [
+        {
+          values: { n: "0" },
+          valuesByLanguage: { en: { n: "0" } },
+          rendered: "Nenhuma marca por encontrar.",
+        },
+        {
+          values: { n: "1" },
+          valuesByLanguage: { en: { n: "1" } },
+          rendered: "Falta 1 marca.",
+        },
+        {
+          values: { n: "3" },
+          valuesByLanguage: { en: { n: "3" } },
+          rendered: "Faltam 3 marcas.",
+        },
+      ],
+    },
   ],
   entities: [
     {

@@ -73,7 +73,7 @@ test("minState loosens the filter", async () => {
   const body = (await res.json()) as {
     translations: Record<string, Record<string, string>>;
   };
-  expect(Object.keys(body.translations["pt-PT"]!)).toHaveLength(3);
+  expect(Object.keys(body.translations["pt-PT"]!)).toHaveLength(4);
 });
 
 test("lang narrows the payload to those target languages", async () => {

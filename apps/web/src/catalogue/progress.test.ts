@@ -27,16 +27,16 @@ function pushed() {
 test("counts match a hand-computed expectation for the fixture", () => {
   const { db, p } = pushed();
   const { perLanguage } = progressCounts(db, p.id);
-  // 3 strings: source pt-PT all translated, target en all untranslated.
+  // 4 strings: source pt-PT all translated, target en all untranslated.
   expect(perLanguage["pt-PT"]).toMatchObject({
-    translated: 3,
+    translated: 4,
     untranslated: 0,
-    total: 3,
+    total: 4,
   });
   expect(perLanguage["en"]).toMatchObject({
-    untranslated: 3,
+    untranslated: 4,
     translated: 0,
-    total: 3,
+    total: 4,
   });
 });
 
@@ -47,8 +47,8 @@ test("progress excludes archived strings", () => {
   applySnapshot(db, p.id, fewer); // archives ui.continue
 
   const { perLanguage } = progressCounts(db, p.id);
-  expect(perLanguage["pt-PT"]?.total).toBe(2);
-  expect(perLanguage["en"]?.total).toBe(2);
+  expect(perLanguage["pt-PT"]?.total).toBe(3);
+  expect(perLanguage["en"]?.total).toBe(3);
 });
 
 test("stale is counted after a source change", () => {
@@ -63,7 +63,7 @@ test("progress is broken down per string type", () => {
   const { db, p } = pushed();
   const { perType } = progressCounts(db, p.id);
   expect(perType["clue-skin"]?.["pt-PT"]?.total).toBe(2);
-  expect(perType["chrome"]?.["pt-PT"]?.total).toBe(1);
+  expect(perType["chrome"]?.["pt-PT"]?.total).toBe(2);
 });
 
 test("search composes with facet filters at the query layer", () => {

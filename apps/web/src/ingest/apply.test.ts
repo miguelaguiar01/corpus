@@ -97,7 +97,7 @@ test("a string dropped from the snapshot is archived; entity is removed", () => 
   const report = applySnapshot(db, project.id, fewer);
   expect(report.archived).toBe(1);
   expect(report.entitiesRemoved).toBe(1);
-  expect(stringRow(db, "ui.continue")?.archived).toBe(true);
+  expect(stringRow(db, "ui.marks-left")?.archived).toBe(true);
 });
 
 test("an archived string returning is unarchived", () => {
@@ -106,7 +106,7 @@ test("an archived string returning is unarchived", () => {
   const fewer = structuredClone(FIXTURE);
   fewer.strings.pop();
   applySnapshot(db, project.id, fewer);
-  expect(stringRow(db, "ui.continue")?.archived).toBe(true);
+  expect(stringRow(db, "ui.marks-left")?.archived).toBe(true);
 
   const report = applySnapshot(db, project.id, FIXTURE);
   expect(report.unarchived).toBe(1);

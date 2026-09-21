@@ -9,11 +9,9 @@ import { applyTransition } from "@/translations/service";
 import { pullPayload } from "./payload";
 
 const FIXTURE = moonlightManor as Snapshot;
-const [GREENHOUSE, HEARD, CONTINUE] = FIXTURE.strings.map((s) => s.id) as [
-  string,
-  string,
-  string,
-];
+const [GREENHOUSE, HEARD, CONTINUE, MARKS] = FIXTURE.strings.map(
+  (s) => s.id,
+) as [string, string, string, string];
 
 function pushed() {
   const db = memoryDb();
@@ -72,7 +70,7 @@ test("at untranslated, every row with text is included: the whole source and any
     minState: "untranslated",
   });
   expect(Object.keys(payload.translations["pt-PT"]!).sort()).toEqual(
-    [GREENHOUSE, HEARD, CONTINUE].sort(),
+    [GREENHOUSE, HEARD, CONTINUE, MARKS].sort(),
   );
   expect(payload.translations["pt-PT"]![GREENHOUSE]).toBe(
     FIXTURE.strings[0]!.source,
@@ -85,13 +83,14 @@ test("at untranslated, every row with text is included: the whole source and any
     [GREENHOUSE]: "clue-skin",
     [HEARD]: "clue-skin",
     [CONTINUE]: "chrome",
+    [MARKS]: "chrome",
   });
 });
 
 test("at translated, untranslated rows drop out and the source stays", () => {
   const { db, p } = pushed();
   const payload = pullPayload(db, p, "translated");
-  expect(Object.keys(payload.translations["pt-PT"]!)).toHaveLength(3);
+  expect(Object.keys(payload.translations["pt-PT"]!)).toHaveLength(4);
   expect(payload.translations["en"]).toEqual({
     [CONTINUE]: "Continue",
     [HEARD]: "Heard nothing.",

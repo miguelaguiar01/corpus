@@ -36,7 +36,7 @@ test("history lists a project's pushes newest first with their counts", () => {
   });
   const history = pushHistory(db, p!.id);
   expect(history.map((h) => [h.stringCount, h.added, h.archived])).toEqual([
-    [2, 0, 1],
-    [3, 3, 0],
+    [2, 0, 2],
+    [4, 4, 0],
   ]);
 });

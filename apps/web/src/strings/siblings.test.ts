@@ -93,10 +93,9 @@ test("siblings share the type and the prefix, exclude the string itself and arch
   expect(greenhouse.items[0]?.translations).toEqual({
     en: { state: "untranslated", stale: false, text: null },
   });
-  expect(siblingsOf(db, p.id, row(db, "ui.continue"))).toEqual({
-    total: 0,
-    items: [],
-  });
+  expect(
+    siblingsOf(db, p.id, row(db, "ui.continue")).items.map((s) => s.key),
+  ).toEqual(["ui.marks-left"]);
   db.update(strings)
     .set({ archived: true })
     .where(eq(strings.stringId, "skin.heard-nothing"))
