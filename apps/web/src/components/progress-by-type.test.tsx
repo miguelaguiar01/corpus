@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test } from "vitest";
 import { ProgressByType } from "./progress-by-type";
 
@@ -63,4 +64,45 @@ test("from eight languages on, a table with one row and one bar per language", (
   expect(screen.getAllByRole("meter")).toHaveLength(9);
   expect(screen.getByRole("rowheader", { name: "i" })).toBeTruthy();
   expect(screen.queryByRole("heading", { name: "a" })).toBeNull();
+});
+
+test("a table row opens its per-type breakdown behind a disclosure; one type has none", async () => {
+  const user = userEvent.setup();
+  const languages = ["a", "b", "c", "d", "e", "f", "g", "h", "i"];
+  const perLanguage = Object.fromEntries(
+    languages.map((l) => [l, counts(1, 1, 4)]),
+  );
+  const perType = {
+    chrome: Object.fromEntries(
+      languages.map((l) => [l, l === "c" ? counts(2, 0, 2) : counts(1, 0, 2)]),
+    ),
+    "clue-skin": Object.fromEntries(languages.map((l) => [l, counts(0, 1, 2)])),
+  };
+  render(<ProgressByType progress={{ perLanguage, perType }} />);
+  expect(screen.getAllByRole("meter")).toHaveLength(9);
+  const toggles = screen.getAllByRole("button", { expanded: false });
+  expect(toggles).toHaveLength(9);
+  expect(toggles[2]?.textContent).toContain("c");
+  await user.click(toggles[2]!);
+  expect(toggles[2]?.getAttribute("aria-expanded")).toBe("true");
+  expect(screen.getAllByRole("meter")).toHaveLength(11);
+  expect(
+    screen.getByRole("meter", { name: "chrome" }).getAttribute("aria-valuenow"),
+  ).toBe("2");
+  expect(
+    screen
+      .getByRole("meter", { name: "clue-skin" })
+      .getAttribute("aria-valuenow"),
+  ).toBe("1");
+  await user.click(toggles[2]!);
+  expect(screen.getAllByRole("meter")).toHaveLength(9);
+  cleanup();
+
+  render(
+    <ProgressByType
+      progress={{ perLanguage, perType: { chrome: perType.chrome } }}
+    />,
+  );
+  expect(screen.queryByRole("button")).toBeNull();
+  expect(screen.getAllByRole("meter")).toHaveLength(9);
 });
