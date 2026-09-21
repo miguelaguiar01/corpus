@@ -91,7 +91,15 @@ const QUEUES = {
   queues: {
     untranslated: {
       count: 1,
-      items: [{ key: "ui.continue", language: "en", type: "chrome" }],
+      items: [
+        {
+          key: "ui.continue",
+          language: "en",
+          type: "chrome",
+          source: "Continuar",
+          text: null,
+        },
+      ],
     },
     stale: { count: 0, items: [] },
     unverifiedSource: { count: 0, items: [] },
@@ -215,7 +223,15 @@ test("every tool is one API call with the token, and answers the server's body",
   expect(queue.structuredContent).toEqual({
     queue: "untranslated",
     count: 1,
-    items: [{ key: "ui.continue", language: "en", type: "chrome" }],
+    items: [
+      {
+        key: "ui.continue",
+        language: "en",
+        type: "chrome",
+        source: "Continuar",
+        text: null,
+      },
+    ],
   });
   const string = await call("get_string", { key: "ui.continue" });
   expect(string.structuredContent).toEqual(STRING);
