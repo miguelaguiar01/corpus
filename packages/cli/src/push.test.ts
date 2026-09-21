@@ -87,6 +87,58 @@ test("push builds, uploads with the bearer token, and prints the report", async 
   );
 });
 
+test("a push that seeds nothing says nothing about seeds, identical ones included", async () => {
+  const { server, url } = await startServer(() => ({
+    status: 200,
+    json: {
+      report: {
+        added: 0,
+        changed: 0,
+        stale: 0,
+        archived: 0,
+        seeded: 0,
+        seedsIgnored: 0,
+        seedsIdentical: 4297,
+      },
+    },
+  }));
+  active = server;
+  process.env.CORPUS_SERVER = url;
+
+  const c = ctx();
+  expect(await run(["push"], c)).toBe(0);
+  const out = c.output.join("\n");
+  expect(out).toContain("0 added, 0 changed, 0 stale, 0 archived");
+  expect(out).not.toMatch(/seed/i);
+});
+
+test("a first push whose seeds are all the source text still says why those rows are untranslated", async () => {
+  const { server, url } = await startServer(() => ({
+    status: 200,
+    json: {
+      report: {
+        added: 1920,
+        changed: 0,
+        stale: 0,
+        archived: 0,
+        seeded: 0,
+        seedsIgnored: 13,
+        seedsIdentical: 3840,
+      },
+    },
+  }));
+  active = server;
+  process.env.CORPUS_SERVER = url;
+
+  const c = ctx();
+  expect(await run(["push"], c)).toBe(0);
+  const out = c.output.join("\n");
+  expect(out).toContain(
+    "1920 added, 0 changed, 0 stale, 0 archived, 13 repository translation(s) kept as Corpus has them; 3840 repository translation(s) identical to the source, kept untranslated",
+  );
+  expect(out).not.toMatch(/0 translation\(s\) seeded/);
+});
+
 test("--dry-run sends the dryRun flag and labels the output", async () => {
   const { server, url, calls } = await startServer(() => ({
     status: 200,

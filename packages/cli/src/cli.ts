@@ -140,15 +140,29 @@ async function push(args: string[], ctx: RunContext): Promise<number> {
     languages?: string[];
   };
   const label = dryRun ? "dry-run" : "pushed";
-  const notes = [
-    report.seedsIgnored ? `${report.seedsIgnored} kept as Corpus has them` : "",
-    report.seedsIdentical
-      ? `${report.seedsIdentical} identical to the source, kept untranslated`
+  const ignored = report.seedsIgnored;
+  const identical = report.seedsIdentical;
+  const beside = [
+    ignored ? `${ignored} kept as Corpus has them` : "",
+    identical ? `${identical} identical to the source, kept untranslated` : "",
+  ].filter(Boolean);
+  const alone = [
+    ignored
+      ? `${ignored} repository translation(s) kept as Corpus has them`
+      : "",
+    identical
+      ? `${identical} repository translation(s) identical to the source, kept untranslated`
       : "",
   ].filter(Boolean);
-  const seeded =
-    report.seeded || report.seedsIdentical
-      ? `, ${report.seeded ?? 0} translation(s) seeded from the repository${notes.length ? ` (${notes.join("; ")})` : ""}`
+  // Seed counts describe the catalogue the push carried, not what it
+  // wrote, so they ride on a push that did something: a first push whose
+  // every seed is the source text says why those rows are untranslated,
+  // and a push that changes nothing says nothing about seeds at all.
+  const applied = report.added || report.changed || report.archived;
+  const seeded = report.seeded
+    ? `, ${report.seeded} translation(s) seeded from the repository${beside.length ? ` (${beside.join("; ")})` : ""}`
+    : applied && alone.length
+      ? `, ${alone.join("; ")}`
       : "";
   ctx.out(
     `${label} ${config.project}: ${report.added} added, ${report.changed} changed, ${report.stale} stale, ${report.archived} archived${seeded}`,
