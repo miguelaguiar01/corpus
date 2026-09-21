@@ -4,7 +4,9 @@ import { t } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { LanguagePicker } from "./language-picker";
 
-const PICKER_FROM = 40; // §9.3
+// §9.3: about two rows of segments on a phone; past that the wrapped
+// bar takes the first screen before the string does.
+const PICKER_FROM = 12;
 
 // The language switcher (§9.3): one segment per language of the
 // project, the selected one solid, the source language first with its
