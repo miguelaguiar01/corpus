@@ -336,10 +336,32 @@ test("without --syntax, a source file with {{ }} and no ICU argument is read as 
     expect(q.out.join("\n")).not.toMatch(/syntax/);
   }
 
-  // A source file that does not parse leaves the syntax unset, no error.
+  // A source file that does not parse, or none, leaves the syntax unset.
   const r = project();
   stubCli(r.dir);
   mkdirSync(path.join(r.dir, "src", "i18n"), { recursive: true });
   writeFileSync(path.join(r.dir, "src", "i18n", "pt-PT.json"), "{ not json");
   expect(await run(FLAGS, r.ctx)).toBe(0);
+  expect((await loadConfig(r.dir)).sources[0]).not.toHaveProperty("syntax");
+  const none = project();
+  stubCli(none.dir);
+  expect(await run(FLAGS, none.ctx)).toBe(0);
+  expect((await loadConfig(none.dir)).sources[0]).not.toHaveProperty("syntax");
+});
+
+test("a .ts catalogue is read for the syntax through the same loader as push", async () => {
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "src", "i18n"), { recursive: true });
+  writeFileSync(
+    path.join(p.dir, "src", "i18n", "pt-PT.ts"),
+    'export default { a: "Olá {{ name }}" };\n',
+  );
+  const flags = FLAGS.map((f) =>
+    f === "src/i18n/{lang}.json" ? "src/i18n/{lang}.ts" : f,
+  );
+  expect(await run(flags, p.ctx)).toBe(0);
+  expect((await loadConfig(p.dir)).sources[0]).toMatchObject({
+    syntax: "i18next",
+  });
 });

@@ -1,6 +1,6 @@
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { messagesToEntries } from "@corpus/adapters";
+import { createJiti } from "jiti";
 import {
   corpusConfigSchema,
   LANGUAGE_RE,
@@ -9,6 +9,7 @@ import {
 } from "@corpus/contract";
 import { option } from "./args";
 import type { RunContext } from "./cli";
+import { readEntries } from "./build";
 import { CliError, CONFIG_FILENAMES } from "./config";
 import { ignoreCorpusDir } from "./corpus-dir";
 
@@ -72,7 +73,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       );
     }
   }
-  const syntax = syntaxFor(args, ctx.cwd, messages, sourceLanguage);
+  const syntax = await syntaxFor(args, ctx.cwd, messages, sourceLanguage, type);
   const parsed = corpusConfigSchema.safeParse({
     project,
     server,
@@ -141,16 +142,15 @@ export default defineCorpus({
 
 const ICU_ARGUMENT_RE = /\{\s*[^{},]+\s*,\s*(?:select|plural)\s*,/;
 
-// The syntax the catalogue writes (§3, §5): the flag, or, without it,
-// what the source file's values show, {{ }} and no ICU argument being
-// i18next. A file that is absent or does not parse decides nothing;
-// push will say what is wrong with it.
-function syntaxFor(
+// A source file that is absent or does not read decides nothing: push
+// will say what is wrong with it.
+async function syntaxFor(
   args: string[],
   cwd: string,
   pattern: string,
   sourceLanguage: string,
-): { value: Syntax; detected?: string } | undefined {
+  type: string,
+): Promise<{ value: Syntax; detected?: string } | undefined> {
   if (args.includes("--syntax")) {
     const given = option(args, "--syntax");
     if (given !== "icu" && given !== "i18next") {
@@ -161,10 +161,12 @@ function syntaxFor(
   const file = pattern.replace("{lang}", sourceLanguage);
   let texts: string[];
   try {
-    texts = messagesToEntries(
-      JSON.parse(readFileSync(path.join(cwd, file), "utf8")),
-      { type: "x" },
-    ).map((entry) => entry.source);
+    const entries = await readEntries(createJiti(import.meta.url), cwd, file, {
+      adapter: "messages",
+      type,
+      path: pattern,
+    });
+    texts = entries.map((entry) => entry.source);
   } catch {
     return undefined;
   }
