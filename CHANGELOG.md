@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+### Fixed
+
+- The string page finds a key with a space or any encoded character again: the App Router hands a page its segment percent-encoded, unlike a route handler, so the page decodes it once (guarded; bad encoding is a 404). A change in this batch had removed the decode on the belief that Next decodes page params; it does not, verified on a dev server, and every natural key was a 404 in the workbench.
+
 ### Added
 
 - A source may declare `syntax: "i18next"` (§3, §5): `{{name}}` and `{{ name }}` are placeholders (a dotted name and a format after a comma as i18next writes them), a single brace is text, and the text is stored and written back as written, so an i18next catalogue's round trip holds; the string carries its syntax to the editor, the agent's `get_string`, validation, previews and `corpus validate`, and the chips insert `{{name}}`. Outline's 365 interpolated strings push.

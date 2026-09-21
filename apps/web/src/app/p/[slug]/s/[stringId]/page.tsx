@@ -18,7 +18,7 @@ import { siblingsOf } from "@/strings/siblings";
 import { ProposalPanel } from "@/components/proposal-panel";
 import { LanguageBar } from "@/components/language-bar";
 import { StateChips } from "@/components/state-chips";
-import { languageSwitchPath } from "@/strings/paths";
+import { keyFromSegment, languageSwitchPath } from "@/strings/paths";
 import { TargetPane, type Slot } from "@/components/target-pane";
 import { VerifyForm } from "@/components/verify-form";
 import { getProjectBySlug } from "@/projects/service";
@@ -72,9 +72,9 @@ export default async function StringPage({
   const db = getDb();
   const project = getProjectBySlug(db, slug);
   if (!project) notFound();
-  // Next decodes the segment already; a second decode would break a key
-  // with a percent sign, which a natural key may carry.
-  const detail = stringDetail(db, project.id, stringId);
+  const key = keyFromSegment(stringId);
+  if (key === null) notFound();
+  const detail = stringDetail(db, project.id, key);
   if (!detail) notFound();
   const { string, declarations, translations, entities, history } = detail;
   const siblings = siblingsOf(db, project.id, {

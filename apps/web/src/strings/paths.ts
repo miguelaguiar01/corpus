@@ -29,3 +29,15 @@ export function stringPath(
   const suffix = params.size ? `?${params}` : "";
   return `/p/${slug}/s/${encodeURIComponent(key)}${suffix}`;
 }
+
+// The key a page's dynamic segment carries. The App Router hands a
+// page its params percent-encoded (`New%20template`), unlike a route
+// handler, which gets them decoded; so the page decodes once, and a
+// segment that is not valid encoding is no key.
+export function keyFromSegment(segment: string): string | null {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return null;
+  }
+}
