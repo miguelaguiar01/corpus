@@ -401,3 +401,22 @@ test("a tag chip inserts the open and close tags with the caret between them; a 
     ).disabled,
   ).toBe(true);
 });
+
+test("a select wrapped in a tag still gets its chip", () => {
+  render(
+    <TargetPane
+      action={vi.fn()}
+      source="<b>{g, select, m {he} f {she}}</b> left"
+      slots={[]}
+      language="en"
+      initialText=""
+      slug="mm"
+      stringKey="k"
+      openedVersion={1}
+      sourceLanguage="pt-PT"
+    />,
+  );
+  const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
+  fireEvent.click(screen.getByRole("button", { name: "{g, select}" }));
+  expect(textarea.value).toBe("{g, select, m {} f {}}");
+});

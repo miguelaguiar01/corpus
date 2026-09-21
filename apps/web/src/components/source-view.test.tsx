@@ -104,6 +104,21 @@ test("a rich-text tag renders what it wraps in a marked span named by the tag", 
   const link = container.querySelector('[data-tag="link"]')!;
   expect(link.textContent).toBe("docs");
   expect(link.getAttribute("title")).toBe("<link>");
-  expect(container.querySelector('[data-tag="url"]')?.textContent).toBe("");
+  // An empty tag shows its name, so it does not vanish into a dashed dot.
+  expect(container.querySelector('[data-tag="url"]')?.textContent).toBe(
+    "<url>",
+  );
   expect(screen.queryByText(/<link>/)).toBeNull();
+});
+
+test("a plural wrapped in a tag still lists its branches in the strip", () => {
+  render(
+    <SourceView
+      source="<b>{n, plural, one {# item} other {# items}}</b>"
+      declarations={{}}
+    />,
+  );
+  const strip = screen.getByRole("group", { name: "Branches" });
+  expect(strip.textContent).toContain("one# item");
+  expect(strip.textContent).toContain("other# items");
 });

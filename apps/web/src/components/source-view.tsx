@@ -1,4 +1,5 @@
 import {
+  branchingNodes,
   parseIcu,
   type FieldDeclaration,
   type IcuNode,
@@ -25,9 +26,7 @@ export function SourceView({
   const parsed = parseIcu(source);
   if (!parsed.ok) return <p className={className}>{source}</p>;
   const slots = slotDescriptions(declarations);
-  const selects = parsed.nodes.filter(
-    (node) => node.kind === "select" || node.kind === "plural",
-  );
+  const selects = branchingNodes(parsed.nodes);
   return (
     <div className="space-y-3">
       <p className={className}>{renderNodes(parsed.nodes, slots)}</p>
@@ -91,7 +90,13 @@ function renderNodes(nodes: IcuNode[], slots: Map<string, string>) {
           title={`<${node.name}>`}
           data-tag={node.name}
         >
-          {renderNodes(node.children, slots)}
+          {node.children.length > 0 ? (
+            renderNodes(node.children, slots)
+          ) : (
+            <span className="font-mono text-[0.6em] text-muted-foreground">
+              {`<${node.name}>`}
+            </span>
+          )}
         </span>
       );
     }

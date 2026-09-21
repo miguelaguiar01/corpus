@@ -73,11 +73,11 @@ class Parser {
     while (this.pos < this.source.length) {
       const ch = this.source[this.pos];
       if (ch === "}") {
-        if (closing !== undefined) {
-          throw new ParseFailure(`unclosed <${closing}>`, literalStart);
-        }
         if (!inBranch) {
           throw new ParseFailure("unmatched '}'", this.pos);
+        }
+        if (closing !== undefined) {
+          throw new ParseFailure(`unclosed <${closing}>`, literalStart);
         }
         flush();
         return nodes;
@@ -283,6 +283,20 @@ function collect(
       collect(node.children, placeholders, selectArgs, pluralArgs, tags);
     }
   }
+}
+
+// The select and plural nodes of a tree in source order, through tags,
+// which may wrap them; a branch's own nodes are not entered, since
+// select and plural do not nest.
+export function branchingNodes(
+  nodes: IcuNode[],
+): Extract<IcuNode, { kind: "select" | "plural" }>[] {
+  const out: Extract<IcuNode, { kind: "select" | "plural" }>[] = [];
+  for (const node of nodes) {
+    if (node.kind === "select" || node.kind === "plural") out.push(node);
+    else if (node.kind === "tag") out.push(...branchingNodes(node.children));
+  }
+  return out;
 }
 
 export function tagsOf(source: string): Set<string> {

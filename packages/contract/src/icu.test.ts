@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
 import {
+  branchingNodes,
   parseIcu,
   placeholdersOf,
   pluralArgsOf,
@@ -243,4 +244,14 @@ test("an unclosed, mismatched or stray tag is a parse error naming it", () => {
     ok: false,
     errors: [{ message: "unclosed <b>" }],
   });
+  // A stray brace inside a tag is the brace's error, as outside one.
+  expect(parseIcu("<b>x}</b>")).toMatchObject({
+    ok: false,
+    errors: [{ message: "unmatched '}'" }],
+  });
+  const both = parseIcu(
+    "<b>{n, plural, other {#}}</b> {g, select, m {x} other {y}}",
+  );
+  if (!both.ok) throw new Error("parse failed");
+  expect(branchingNodes(both.nodes).map((n) => n.arg)).toEqual(["n", "g"]);
 });

@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import {
+  branchingNodes,
   exampleValues,
   parseIcu,
   pluralCategoriesOf,
@@ -33,8 +34,7 @@ function branchingOf(source: string, language: string): Branching[] {
   const parsed = parseIcu(source);
   if (!parsed.ok) return [];
   const byArg = new Map<string, Branching>();
-  for (const node of parsed.nodes) {
-    if (node.kind !== "select" && node.kind !== "plural") continue;
+  for (const node of branchingNodes(parsed.nodes)) {
     const entry = byArg.get(node.arg) ?? {
       kind: node.kind,
       arg: node.arg,
