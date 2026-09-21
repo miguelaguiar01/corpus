@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+### Changed
+
+- A source string that does not parse no longer blocks the push (§8): `corpus build` and `corpus push` name it with its file and key, leave it out, go on with the rest, and exit 1 with the count so CI notices; a refused string the project already holds is archived like any absent id until it parses. Outline's one stray `</em>` had refused all 1920 strings. A file that does not read, a duplicate id or an exporter that fails still fails the whole build.
+
 ### Fixed
 
 - The string page finds a key with a space or any encoded character again: the App Router hands a page its segment percent-encoded, unlike a route handler, so the page decodes it once (guarded; bad encoding is a 404). A change in this batch had removed the decode on the belief that Next decodes page params; it does not, verified on a dev server, and every natural key was a 404 in the workbench.

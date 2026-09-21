@@ -5,7 +5,7 @@ import {
   type CorpusConfig,
 } from "@corpus/contract";
 import { expect, test } from "vitest";
-import { buildSnapshot, writableSources } from "./build";
+import { buildSnapshot, buildSnapshotReport, writableSources } from "./build";
 
 const REPO = fileURLToPath(new URL("../test/fixtures/repo", import.meta.url));
 
@@ -74,6 +74,34 @@ test("invalid ICU in a source errors with the file path and key", async () => {
   });
   await expect(buildSnapshot(bad, REPO)).rejects.toThrow(
     /bad\/en\.json.*broken/s,
+  );
+});
+
+test("a source that does not parse is refused by entry and the rest is built", async () => {
+  const bad = config({
+    sources: [{ adapter: "messages", type: "chrome", path: "bad/{lang}.json" }],
+  });
+  const { snapshot, refused } = await buildSnapshotReport(bad, REPO);
+  expect(snapshot.strings.map((s) => s.id)).toEqual(["fine"]);
+  expect(refused).toEqual([
+    {
+      file: "bad/en.json",
+      id: "broken",
+      message: expect.stringMatching(/^invalid ICU: /),
+    },
+  ]);
+  const good = await buildSnapshotReport(config(), REPO);
+  expect(good.refused).toEqual([]);
+});
+
+test("a file that does not read, or a duplicate id, still fails the whole build", async () => {
+  const missing = config({
+    sources: [
+      { adapter: "messages", type: "chrome", path: "nowhere/{lang}.json" },
+    ],
+  });
+  await expect(buildSnapshotReport(missing, REPO)).rejects.toThrow(
+    /nowhere\/en\.json/,
   );
 });
 

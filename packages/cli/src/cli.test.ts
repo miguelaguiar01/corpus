@@ -68,6 +68,21 @@ const PUSH_ONLY = fileURLToPath(
   new URL("../test/fixtures/push-only", import.meta.url),
 );
 
+test("corpus build lists a refused entry, builds the rest and exits 1", async () => {
+  const bad = fileURLToPath(
+    new URL("../test/fixtures/push-bad", import.meta.url),
+  );
+  const c = ctx({ cwd: bad });
+  const code = await run(["build"], c);
+  expect(code).toBe(1);
+  const out = c.output.join("\n");
+  expect(out).toMatch(/i18n\/en\.json \[stray\]: invalid ICU: /);
+  expect(out).toContain("built push-bad: 1 string(s)");
+  expect(out).toContain(
+    "corpus: 1 string(s) refused and left out of the snapshot",
+  );
+});
+
 test("corpus build summarises the snapshot without a server and names push-only sources", async () => {
   const c = ctx({ cwd: PUSH_ONLY, env: {} });
   const code = await run(["build"], c);
