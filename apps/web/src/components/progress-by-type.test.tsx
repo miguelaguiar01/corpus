@@ -49,3 +49,18 @@ test("renders nothing for a project with no rows", () => {
   );
   expect(container.innerHTML).toBe("");
 });
+
+test("from eight languages on, a table with one row and one bar per language", () => {
+  const perLanguage = Object.fromEntries(
+    ["a", "b", "c", "d", "e", "f", "g", "h", "i"].map((l) => [
+      l,
+      counts(1, 1, 4),
+    ]),
+  );
+  const perType = { chrome: perLanguage };
+  render(<ProgressByType progress={{ perLanguage, perType }} />);
+  expect(screen.getByRole("table")).toBeTruthy();
+  expect(screen.getAllByRole("meter")).toHaveLength(9);
+  expect(screen.getByRole("rowheader", { name: "i" })).toBeTruthy();
+  expect(screen.queryByRole("heading", { name: "a" })).toBeNull();
+});

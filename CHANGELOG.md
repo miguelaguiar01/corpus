@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Changed
 
+- The dashboard shows a table of one row per language from eight languages on, instead of a block per language; Homarr's 36 blocks of one bar each were a wall.
 - The other languages under the editor show the first five open and fold the rest behind their count; Homarr's string pages carried 34 texts under every editor. Corpus's own chrome renders its messages through the contract's engine, so the self catalogue may use select and plural (the fold's count is the first).
 
 ### Fixed
