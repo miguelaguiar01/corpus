@@ -26,7 +26,7 @@ npx corpus pull           # verified translations back into the repository's fil
 
 ## Work with an agent
 
-`corpus mcp` is a Model Context Protocol server on stdio for Claude Code or any MCP client; register it before the session starts:
+`corpus mcp` is a Model Context Protocol server on stdio for any MCP client: Claude Code, Claude Desktop, Cursor, VS Code, OpenAI's Codex CLI or Agents SDK, Gemini CLI, or an agent of your own. The command is `npx corpus mcp`, started in the repository, registered before the session starts; the repository README shows each client's entry. In Claude Code:
 
 ```sh
 claude mcp add corpus -- npx corpus mcp

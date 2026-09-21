@@ -139,19 +139,41 @@ The catalogue is the inventory, and anyone on the instance can propose a change 
 
 1. **The instance must run the same Corpus version as the CLI.** The token routes that the tools call arrived in 0.8.0; an older instance, a `corpus workbench` started from an older `@corpus-tool/workbench` or a container on an older image tag, answers `status` and nothing else. Bump both packages together and start the workbench again, or pull the matching image; `corpus status` prints the server's version.
 2. **Push once after upgrading.** The instance learns which source files can take proposals from a push; until then every proposal is refused as "last pushed before sources were declared". `corpus status` prints the writable sources when it knows them, and says so when a project has none: only `.json` catalogues take proposals, so a project whose text all comes from an exporter never will.
-3. **Register the server before the session starts.** Claude Code loads tool schemas when a session opens, and a running agent cannot restart itself, so `claude mcp add` from inside an agent's session gives that session nothing; expect the same of any other client. Register, then start.
+3. **Register the server before the session starts.** A client loads tool schemas when a session opens, and a running agent cannot restart itself, so registering from inside an agent's session gives that session nothing. Register, then start.
 
-In Claude Code:
+### Connecting a client
 
-```sh
-claude mcp add corpus -- npx corpus mcp
-```
+Any MCP client that speaks stdio can run it. The server is the command `npx corpus mcp`, started in the repository: the working directory is how it finds `corpus.config.ts` and `.corpus/token`. A client that starts servers elsewhere (a desktop app) needs a command that changes into the repository first, `sh -c "cd /path/to/repo && npx corpus mcp"`, or `CORPUS_TOKEN` in the server entry's environment beside an absolute path to the config's directory. The entries below are the same server in each client's spelling.
 
-or in the repository's `.mcp.json`, for any client:
+**Claude Code.** `claude mcp add corpus -- npx corpus mcp`, or the repository's `.mcp.json`, which the whole team shares through git:
 
 ```json
 { "mcpServers": { "corpus": { "command": "npx", "args": ["corpus", "mcp"] } } }
 ```
+
+**Claude Desktop.** The same `mcpServers` entry in `claude_desktop_config.json`, with the `sh -c "cd … && npx corpus mcp"` command, since the app does not start in the repository.
+
+**Cursor.** The same `mcpServers` entry in the repository's `.cursor/mcp.json`.
+
+**VS Code (Copilot agent mode).** The repository's `.vscode/mcp.json`:
+
+```json
+{ "servers": { "corpus": { "type": "stdio", "command": "npx", "args": ["corpus", "mcp"] } } }
+```
+
+**OpenAI Codex CLI.** In `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.corpus]
+command = "npx"
+args = ["corpus", "mcp"]
+```
+
+**OpenAI Agents SDK, or an agent of your own.** A stdio server with the same command; in the Python SDK, `MCPServerStdio(params={"command": "npx", "args": ["corpus", "mcp"], "cwd": "/path/to/repo"})`.
+
+**Gemini CLI.** The same `mcpServers` entry, with `"cwd": "/path/to/repo"`, in `~/.gemini/settings.json` or the repository's `.gemini/settings.json`.
+
+**Anything else.** The server speaks the tools subset of MCP over newline-delimited JSON-RPC on stdio (`initialize`, `tools/list`, `tools/call`), so a client with no configuration file spawns `npx corpus mcp` and speaks it directly, as the CLI's own test does. An agent with a shell and no MCP client at all has the same operations as `corpus agent` subcommands, below.
 
 Its tools are one API call each: `list_queue` (a queue's items, narrowed to a language, a string type or both when asked), `get_string` (the source with its placeholders, selects and examples, every language's text and state, the type's note, the glossary terms in the source, the entities it refers to, its siblings under the same key prefix, and any pending proposal), `save_draft`, `propose_change`, `propose_removal`, `add_string`, `list_proposals`, `withdraw_proposal` and `status`. A proposal stays pending until its change is pulled, committed and pushed, and the next `corpus push` marks it applied; `corpus pull` says so when it writes one. Three rules hold for everything an agent writes through the project token. It never overwrites a person's work: a draft lands on an untranslated row, a stale one or its own earlier draft, and a row a person edited refuses with `human-edited` and says what to do: propose a change if the source is the problem, otherwise leave the row to its author. Every draft is attributed to the project's agent actor, which the history, the chips and the settings list show as such. Nothing but a signed-in maintainer verifies: agent drafts are a queue of their own on the dashboard, and the token has no way to sign anything off. The model stays on the agent's side; Corpus runs none.
 
