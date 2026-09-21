@@ -110,7 +110,7 @@ test("an archived string returning is unarchived", () => {
 
   const report = applySnapshot(db, project.id, FIXTURE);
   expect(report.unarchived).toBe(1);
-  expect(stringRow(db, "ui.continue")?.archived).toBe(false);
+  expect(stringRow(db, "ui.marks-left")?.archived).toBe(false);
 });
 
 test("a mid-apply failure rolls back the whole push (atomic, §8)", () => {

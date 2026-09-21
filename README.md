@@ -263,7 +263,7 @@ Source text and metadata belong to the repository, which wins once merged; Corpu
 </p>
 
 <details>
-<summary>More screens: home, a plain string in the editor, the entity browser, settings, and a phone</summary>
+<summary>More screens: home, a plain string in the editor, the entity browser, a plural in the editor, settings, and a phone</summary>
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/home-desktop-dark.png">
@@ -277,11 +277,10 @@ Source text and metadata belong to the repository, which wins once merged; Corpu
     <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/entities-desktop-dark.png">
     <img src="docs/screenshots/entities-desktop-light.png" width="960" alt="The entity browser: cards grouped by entity type with a count per type, each card naming the entity and listing its attributes in two aligned columns.">
   </picture>
-
-<picture>
+  <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/editor-plural-desktop-dark.png">
-    <img src="docs/screenshots/editor-plural-desktop-light.png" width="960" alt="The editor on a plural string: the source's branches shown one per line with the count as a chip, the English draft with its own categories, and the previews resolved by each example's count.">
-</picture>
+    <img src="docs/screenshots/editor-plural-desktop-light.png" width="960" alt="The editor on a plural string: the source's three branches read inline with the count as a chip and a strip naming their keys; on the right the English draft with its own categories, the plural chip, and three previews, one per example count.">
+  </picture>
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-desktop-dark.png">
     <img src="docs/screenshots/settings-desktop-light.png" width="960" alt="Settings: sections for the push token, languages, push history, and the people on the instance, each with a line explaining it.">
