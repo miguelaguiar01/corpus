@@ -7,6 +7,8 @@
 // always structural; the subset has no quote-escaping; a < that opens
 // no tag is text.
 
+import { localeOf } from "./strings";
+
 export type IcuNode =
   | { kind: "literal"; text: string }
   | { kind: "placeholder"; name: string }
@@ -331,7 +333,7 @@ export function pluralArgsOf(source: string): Set<string> {
 // lacks (`tlh`, `qaa`) would otherwise resolve to the default locale.
 function known(language: string): boolean {
   try {
-    return Intl.PluralRules.supportedLocalesOf([language]).length > 0;
+    return Intl.PluralRules.supportedLocalesOf([localeOf(language)]).length > 0;
   } catch {
     return false;
   }
@@ -343,7 +345,7 @@ function known(language: string): boolean {
 export function pluralCategoriesOf(language: string): string[] {
   if (!known(language)) return [];
   const has = new Set(
-    new Intl.PluralRules(language).resolvedOptions().pluralCategories,
+    new Intl.PluralRules(localeOf(language)).resolvedOptions().pluralCategories,
   );
   return PLURAL_CATEGORIES.filter((category) => has.has(category));
 }
@@ -359,7 +361,9 @@ export function pluralBranch(
   if (exact in branches) return exact;
   const n = Number(value);
   if (Number.isFinite(n) && (language === undefined || known(language))) {
-    const category = new Intl.PluralRules(language).select(n);
+    const category = new Intl.PluralRules(
+      language === undefined ? undefined : localeOf(language),
+    ).select(n);
     if (category in branches) return category;
   }
   return "other";

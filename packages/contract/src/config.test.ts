@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
 import { corpusConfigSchema, defineCorpus } from "./config";
+import { localeOf } from "./strings";
 
 test("the §3 example config validates and round-trips", () => {
   const config = defineCorpus({
@@ -144,4 +145,22 @@ test("typeNotes is optional in the config and refuses an empty note", () => {
     corpusConfigSchema.safeParse({ ...base, typeNotes: { chrome: "" } })
       .success,
   ).toBe(false);
+});
+
+test("a language code may use underscores, as i18next and Crowdin write it", () => {
+  const config = defineCorpus({
+    project: "outline",
+    server: "https://corpus.example",
+    sourceLanguage: "en_US",
+    languages: ["en_US", "pt_PT", "zh_CN"],
+    sources: [
+      {
+        adapter: "messages",
+        type: "ui",
+        path: "locales/{lang}/translation.json",
+      },
+    ],
+  });
+  expect(config.languages).toEqual(["en_US", "pt_PT", "zh_CN"]);
+  expect(localeOf("en_US")).toBe("en-US");
 });

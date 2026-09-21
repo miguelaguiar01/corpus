@@ -257,3 +257,27 @@ test("--languages without a value is refused, as before; a given code is checked
     /cr is not a language tag the runtime knows/,
   );
 });
+
+test("underscore language directories are read and known to the runtime", async () => {
+  const p = project();
+  stubCli(p.dir);
+  for (const code of ["en_US", "pt_PT"]) {
+    mkdirSync(path.join(p.dir, "locales", code), { recursive: true });
+    writeFileSync(
+      path.join(p.dir, "locales", code, "translation.json"),
+      "{}\n",
+    );
+  }
+  const flags = [
+    "init",
+    "--project",
+    "kb",
+    "--source",
+    "en_US",
+    "--messages",
+    "locales/{lang}/translation.json",
+  ];
+  expect(await run(flags, p.ctx)).toBe(0);
+  expect((await loadConfig(p.dir)).languages).toEqual(["en_US", "pt_PT"]);
+  expect(p.err.join("\n")).not.toMatch(/not a language tag/);
+});

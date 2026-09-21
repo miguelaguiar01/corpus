@@ -10,16 +10,27 @@ export const metadataValueSchema = z.union([
 
 // Identifiers travel into object keys, JSON paths and file names on both
 // sides, so they are restricted to letters, digits, dot, underscore and
-// hyphen; a language code is a BCP 47 tag (en, pt-PT, zh-Hant-TW).
+// hyphen; a language code is a BCP 47 tag (en, pt-PT, zh-Hant-TW), or
+// the same with underscores as i18next and Crowdin write it (en_US),
+// kept as written everywhere but where the runtime's locale data is
+// asked.
 export const IDENTIFIER_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
-export const LANGUAGE_RE = /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/;
+export const LANGUAGE_RE = /^[A-Za-z]{2,3}([-_][A-Za-z0-9]{2,8})*$/;
+
+// The BCP 47 form of a code for `Intl`, which refuses an underscore.
+export function localeOf(code: string): string {
+  return code.replace(/_/g, "-");
+}
 export const identifier = () =>
   z
     .string()
     .min(1)
     .regex(IDENTIFIER_RE, "letters, digits, dot, underscore and hyphen only");
 export const languageCode = () =>
-  z.string().min(1).regex(LANGUAGE_RE, "a language tag such as en or pt-PT");
+  z
+    .string()
+    .min(1)
+    .regex(LANGUAGE_RE, "a language tag such as en, pt-PT or en_US");
 // Entity ids carry their type: character:condessa-rosa (§6).
 export const ENTITY_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 export const entityId = () =>

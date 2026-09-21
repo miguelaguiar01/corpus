@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+### Added
+
+- A language code may use underscores as i18next and Crowdin write it (`en_US`, `zh_CN`); it is kept as written in paths, the config, the API and the UI, and given to the runtime's locale data in its BCP 47 form (§3).
+
 ## [0.15.0] - 2026-09-21
 
 What the full Álibi run and Homarr found.
