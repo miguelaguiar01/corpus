@@ -5,8 +5,8 @@
 //
 // Known gaps, by design of a heuristic: a plain string variable used as
 // a JSX child, template literals with substitutions, calls such as
-// toast("Saved"), and the `value` prop are not findings; HTML entity
-// text can be a false positive. A react-i18next `Trans` element is a
+// toast("Saved"), and the `value` prop are not findings. A
+// react-i18next `Trans` element is a
 // catalogue call: its children are the key, so nothing under it is one.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
@@ -30,6 +30,68 @@ const USER_FACING_PROPS = new Set([
 const SKIP_DIRS = new Set(["node_modules", ".next", "dist", ".git"]);
 const LETTERS = /\p{L}.*\p{L}/su;
 
+// An entity is markup, not letters: without this `&nbsp;` and `&middot;`
+// read as words and a spacing-only text is a finding (43 of Outline's
+// 142). Only the letters test sees the decoded text; a finding still
+// carries the line as the author wrote it. An entity this table does not
+// know, or one that stands for a letter, is left as written, so text
+// made of those still reads as words.
+const ENTITIES: Record<string, string> = {
+  nbsp: " ",
+  ensp: " ",
+  emsp: " ",
+  thinsp: " ",
+  zwj: "",
+  zwnj: "",
+  shy: "-",
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  middot: "·",
+  bull: "•",
+  hellip: "…",
+  ndash: "–",
+  mdash: "—",
+  times: "×",
+  divide: "÷",
+  deg: "°",
+  plusmn: "±",
+  laquo: "«",
+  raquo: "»",
+  lsquo: "\u2018",
+  rsquo: "\u2019",
+  ldquo: "\u201c",
+  rdquo: "\u201d",
+  copy: "©",
+  reg: "®",
+  trade: "™",
+  euro: "€",
+  pound: "£",
+  yen: "¥",
+  cent: "¢",
+  sect: "§",
+  para: "¶",
+  dagger: "†",
+  permil: "‰",
+  larr: "←",
+  uarr: "↑",
+  rarr: "→",
+  darr: "↓",
+};
+const ENTITY_RE = /&(#\d+|#[xX][0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);/g;
+
+function decoded(text: string): string {
+  return text.replace(ENTITY_RE, (whole, body: string) => {
+    if (!body.startsWith("#")) return ENTITIES[body] ?? whole;
+    const digits = body.slice(body[1] === "x" || body[1] === "X" ? 2 : 1);
+    const code = parseInt(digits, body[1] === "x" || body[1] === "X" ? 16 : 10);
+    if (!Number.isInteger(code) || code < 1 || code > 0x10ffff) return whole;
+    return String.fromCodePoint(code);
+  });
+}
+
 export function findLiterals(
   source: string,
   file: string,
@@ -50,7 +112,7 @@ export function findLiterals(
   const findings: Finding[] = [];
   const report = (pos: number, raw: string) => {
     const text = raw.trim();
-    if (!LETTERS.test(text)) return;
+    if (!LETTERS.test(decoded(text))) return;
     if (options.allow?.some((pattern) => pattern.test(text))) return;
     const line = sf.getLineAndCharacterOfPosition(pos).line + 1;
     if (silenced.has(line)) return;

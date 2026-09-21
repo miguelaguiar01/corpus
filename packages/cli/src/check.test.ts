@@ -85,6 +85,25 @@ describe("findLiterals", () => {
     ]);
   });
 
+  test("an entity is not letters: a text of only entities is no finding", () => {
+    const source = `
+      export const X = () => (
+        <p>
+          <span>&nbsp;</span>
+          <span>&middot;</span>
+          <span>&nbsp;&bull;&nbsp;</span>
+          <span>&#8212;</span>
+          <span>&#x2014;</span>
+          <span>&frobnicate;</span>
+          <b>&nbsp;Save now</b>
+        </p>
+      );`;
+    expect(findLiterals(source, "x.tsx").map((f) => f.text)).toEqual([
+      "&frobnicate;",
+      "&nbsp;Save now",
+    ]);
+  });
+
   test("an allow pattern silences matching texts", () => {
     const source = `export const X = () => <p>Corpus</p>;`;
     expect(findLiterals(source, "x.tsx", { allow: [/^Corpus$/] })).toEqual([]);

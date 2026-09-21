@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- `corpus check` reads an HTML entity as the character it stands for, not as its name, so a text of nothing but spacing and punctuation entities is no longer a finding: `&nbsp;`, `&middot;` and `&nbsp;&bull;&nbsp;` were 43 of Outline's 142 findings, and `nbsp` passed the "two letters" test. A numeric reference decodes too; an entity the table does not know is left as written, so `&frobnicate;` still reads as words.
 - `corpus check` no longer gives a clean bill over components it cannot parse: it reads `.jsx` and `.tsx`, so a tree of Vue or Svelte single-file components parsed to nothing while the command reported no literals and exited 0 (Vikunja: 224 `.vue` files, 0 `.tsx`, untranslated English in its templates). It now says how many files it read, names every scanned directory it parsed nothing in, and exits 1 when it parsed nothing at all.
 
 ## [0.16.0] - 2026-09-21
