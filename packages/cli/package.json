@@ -42,7 +42,7 @@
   "dependencies": {
     "jiti": "^2.4.0",
     "typescript": "^6.0.3",
-    "zod": "^4.5.4"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@corpus/adapters": "*",
