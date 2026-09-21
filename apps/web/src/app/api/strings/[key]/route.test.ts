@@ -54,6 +54,26 @@ test("what the editor shows: the string, every language, the proposal, the note,
   expect(body.sourceLanguage).toBe("pt-PT");
   expect(body.file).toBe("src/skins/pt-PT.json");
   expect(body.placeholders).toEqual(["person", "room_de", "hour"]);
+  expect(body.slots).toEqual([
+    {
+      name: "person",
+      description: "Full name with article",
+      role: "np-def",
+      values: { "pt-PT": "a Condessa Rosa", en: "Countess Rosa" },
+    },
+    {
+      name: "room_de",
+      description: "Room with 'de' contraction baked in",
+      role: "de-contraction",
+      values: { "pt-PT": "da estufa", en: "greenhouse" },
+    },
+    {
+      name: "hour",
+      description: "Time of the sighting, e.g. 21h",
+      role: null,
+      values: { "pt-PT": "21h", en: "9 pm" },
+    },
+  ]);
   expect(body.selects).toEqual(["person_gender"]);
   expect(body.examples.length).toBeGreaterThan(0);
   expect(body.metadata).toMatchObject({ kind: "sighting" });

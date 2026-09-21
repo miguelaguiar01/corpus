@@ -7,6 +7,7 @@ import {
 import { getDb } from "@/db";
 import { authenticateProject } from "@/api/bearer";
 import { apiError } from "@/api/body";
+import { slotsOf } from "@/strings/slots";
 import { pendingForString } from "@/proposals/service";
 import { stringDetail } from "@/strings/detail";
 import { siblingsOf } from "@/strings/siblings";
@@ -51,6 +52,12 @@ export async function GET(
     placeholders: [...placeholdersOf(detail.string.source)],
     selects: [...selectArgsOf(detail.string.source)],
     plurals: [...pluralArgsOf(detail.string.source)],
+    slots: slotsOf(
+      detail.string.source,
+      detail.declarations,
+      detail.string.examples,
+      project.sourceLanguage,
+    ),
     examples: detail.string.examples ?? [],
     metadata: detail.string.metadata,
     note: detail.string.note,
