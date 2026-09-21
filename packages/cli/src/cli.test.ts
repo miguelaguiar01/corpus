@@ -118,8 +118,12 @@ test("corpus build names a .ts catalogue as one pull cannot write back", async (
   );
 });
 
-test("--version prints the CLI's version alone", async () => {
-  const c = ctx();
+test("--version prints the CLI's version alone, on stdout", async () => {
+  const c = ctx({
+    err: (s) => {
+      throw new Error(`stderr: ${s}`);
+    },
+  });
   expect(await run(["--version"], c)).toBe(0);
   expect(c.output).toEqual([expect.stringMatching(/^\d+\.\d+\.\d+/)]);
   const short = ctx();
