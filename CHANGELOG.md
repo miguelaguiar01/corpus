@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Added
 
+- A placeholder or argument name may be a bare number (`{0}`, `{1}`), as ICU allows and Jellyfin's catalogue writes in 85 strings (§5).
 - A language code may use underscores as i18next and Crowdin write it (`en_US`, `zh_CN`); it is kept as written in paths, the config, the API and the UI, and given to the runtime's locale data in its BCP 47 form (§3).
 
 ## [0.15.0] - 2026-09-21

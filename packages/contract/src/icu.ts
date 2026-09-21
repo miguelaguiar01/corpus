@@ -24,7 +24,9 @@ export type IcuError = { message: string; position: number };
 export type IcuParseResult =
   { ok: true; nodes: IcuNode[] } | { ok: false; errors: IcuError[] };
 
-const NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+// An argument name is an identifier or, as ICU allows and older
+// catalogues write, a bare number ({0}, {1}).
+const NAME_RE = /^(?:[A-Za-z_][A-Za-z0-9_]*|[0-9]+)$/;
 // A branch key is a word, or a bare number (`1 {marca} other {marcas}`).
 const KEY_RE = /^(?:[A-Za-z_][A-Za-z0-9_]*|[0-9]+)$/;
 // A plural branch is a CLDR category or an exact number (`=1 {…}`).
