@@ -299,9 +299,9 @@ function applyEntities(
 // seedTranslations (§8): a repo's existing target catalogs import as
 // `translated`, but only where Corpus has no edit history for the
 // string×language — after the first edit, Corpus wins. A seed equal to
-// the source text is what an exporter writes where a language has no
-// translation: its text is kept, so the file round-trips, and the row
-// stays `untranslated`, so it is counted as work. Unknown ids, unknown
+// the source text is an exporter's filler for a missing translation:
+// the text is kept for the round trip, the row stays `untranslated`.
+// Unknown ids, unknown
 // languages, and the source language are skipped and counted, never
 // errors. Runs after the string writes so the rows exist.
 function applySeeds(
