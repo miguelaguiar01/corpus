@@ -6,47 +6,38 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { t } from "@/i18n";
 
-// The language switcher past a few dozen languages (§9.3): the source
-// segment stays a link with its verified mark, the selected language is
-// the control, and the rest sit in a list that filters on the code, so
-// a project of a hundred languages does not spend the first screen on
-// its bar.
+const SEGMENT =
+  "flex min-h-11 items-center justify-center gap-1.5 px-3 text-base focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring lg:min-h-8 lg:px-3.5 lg:text-sm";
+
 export function LanguagePicker({
-  languages,
-  sourceLanguage,
+  source,
   selected,
-  sourceVerified,
-  hrefFor,
+  targets,
 }: {
-  languages: string[];
-  sourceLanguage: string;
+  source: { code: string; href: string; verified: boolean; current: boolean };
   selected: string;
-  sourceVerified: boolean;
-  hrefFor: (language: string) => string;
+  targets: { code: string; href: string }[];
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const targets = languages.filter((l) => l !== sourceLanguage);
   const needle = query.trim().toLowerCase();
-  const shown = targets.filter((l) => l.toLowerCase().includes(needle));
-  const segment =
-    "flex min-h-11 items-center justify-center gap-1.5 px-3 text-base lg:min-h-8 lg:px-3.5 lg:text-sm";
+  const shown = targets.filter((l) => l.code.toLowerCase().includes(needle));
   return (
     <nav
       aria-label={t("editor.languages")}
-      className="relative flex overflow-visible rounded-md border border-input lg:inline-flex"
+      className="relative flex rounded-md border border-input lg:inline-flex"
     >
       <Link
-        href={hrefFor(sourceLanguage)}
-        aria-current={selected === sourceLanguage ? "page" : undefined}
-        className={`${segment} border-r border-input ${
-          selected === sourceLanguage
+        href={source.href}
+        aria-current={source.current ? "page" : undefined}
+        className={`${SEGMENT} border-r border-input ${
+          source.current
             ? "bg-primary font-semibold text-primary-foreground"
-            : "text-muted-foreground hover:bg-accent hover:text-foreground"
+            : "text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:bg-accent"
         }`}
       >
-        {sourceLanguage}
-        {sourceVerified && (
+        {source.code}
+        {source.verified && (
           <span
             aria-hidden="true"
             className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-state-verified text-[10px] text-state-verified-foreground"
@@ -57,12 +48,13 @@ export function LanguagePicker({
       </Link>
       <Button
         variant="ghost"
+        size="sm"
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className={`${segment} flex-1 rounded-none font-semibold`}
+        className={`${SEGMENT} h-auto flex-1 rounded-none py-0 font-semibold`}
       >
-        {selected === sourceLanguage ? t("editor.pickLanguage") : selected}
+        {source.current ? t("editor.pickLanguage") : selected}
         <span aria-hidden="true">▾</span>
       </Button>
       {open && (
@@ -82,16 +74,16 @@ export function LanguagePicker({
               {t("editor.noLanguageMatches")}
             </p>
           ) : (
-            shown.map((language) => (
+            shown.map(({ code, href }) => (
               <Link
-                key={language}
-                href={hrefFor(language)}
+                key={code}
+                href={href}
                 role="option"
-                aria-selected={language === selected}
+                aria-selected={code === selected}
                 onClick={() => setOpen(false)}
                 className="block rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground aria-selected:font-medium"
               >
-                {language}
+                {code}
               </Link>
             ))
           )}

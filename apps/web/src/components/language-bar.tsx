@@ -4,8 +4,7 @@ import { t } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { LanguagePicker } from "./language-picker";
 
-// Below this the segments wrap; from here the bar is a picker (§9.3).
-const PICKER_FROM = 40;
+const PICKER_FROM = 40; // §9.3
 
 // The language switcher (§9.3): one segment per language of the
 // project, the selected one solid, the source language first with its
@@ -27,14 +26,20 @@ export function LanguageBar({
   states: Record<string, LanguageState>;
   hrefFor: (language: string) => string;
 }) {
+  // The picker is a client component, so it takes links, not a function.
   if (languages.length >= PICKER_FROM) {
     return (
       <LanguagePicker
-        languages={languages}
-        sourceLanguage={sourceLanguage}
+        source={{
+          code: sourceLanguage,
+          href: hrefFor(sourceLanguage),
+          verified: states[sourceLanguage]?.state === "verified",
+          current: selected === sourceLanguage,
+        }}
         selected={selected}
-        sourceVerified={states[sourceLanguage]?.state === "verified"}
-        hrefFor={hrefFor}
+        targets={languages
+          .filter((l) => l !== sourceLanguage)
+          .map((code) => ({ code, href: hrefFor(code) }))}
       />
     );
   }

@@ -103,7 +103,7 @@ test("the picker lists the languages, filters on the code as you type, links eac
   expect(
     screen.getByRole("option", { name: "l7" }).getAttribute("aria-selected"),
   ).toBe("true");
-  await user.type(screen.getByRole("textbox"), "l1");
+  await user.type(screen.getByRole("textbox"), "L1");
   const shown = screen.getAllByRole("option").map((o) => o.textContent);
   expect(shown).toEqual([
     "l1",
