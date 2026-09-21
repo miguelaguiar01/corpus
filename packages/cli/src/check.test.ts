@@ -64,6 +64,27 @@ describe("findLiterals", () => {
     ]);
   });
 
+  test("a react-i18next Trans element's children and props are the key, not findings; text beside it still is", () => {
+    const source = `
+      import { Trans } from "react-i18next";
+      export function Page({ name }: { name: string }) {
+        return (
+          <section title="Documents">
+            <Trans>Delete document</Trans>
+            <Trans i18nKey="shared" title="Shared with you">
+              Hello <strong>{name}</strong>, {"welcome back"}
+            </Trans>
+            <I18n.Trans>Nested member</I18n.Trans>
+            <p>Stray</p>
+          </section>
+        );
+      }`;
+    expect(findLiterals(source, "page.tsx").map((f) => f.text)).toEqual([
+      "Documents",
+      "Stray",
+    ]);
+  });
+
   test("an allow pattern silences matching texts", () => {
     const source = `export const X = () => <p>Corpus</p>;`;
     expect(findLiterals(source, "x.tsx", { allow: [/^Corpus$/] })).toEqual([]);

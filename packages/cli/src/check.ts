@@ -6,7 +6,8 @@
 // Known gaps, by design of a heuristic: a plain string variable used as
 // a JSX child, template literals with substitutions, calls such as
 // toast("Saved"), and the `value` prop are not findings; HTML entity
-// text can be a false positive.
+// text can be a false positive. A react-i18next `Trans` element is a
+// catalogue call: its children are the key, so nothing under it is one.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
@@ -56,6 +57,7 @@ export function findLiterals(
     findings.push({ file, line, text });
   };
   const visit = (node: ts.Node) => {
+    if (isTransElement(node)) return;
     if (ts.isJsxText(node)) {
       const leading = node.text.length - node.text.trimStart().length;
       report(node.getStart(sf) + leading, node.text);
@@ -83,6 +85,17 @@ export function findLiterals(
   };
   visit(sf);
   return findings;
+}
+
+function isTransElement(node: ts.Node): boolean {
+  const tag = ts.isJsxElement(node)
+    ? node.openingElement.tagName
+    : ts.isJsxSelfClosingElement(node)
+      ? node.tagName
+      : undefined;
+  if (!tag) return false;
+  const name = ts.isPropertyAccessExpression(tag) ? tag.name : tag;
+  return ts.isIdentifier(name) && name.text === "Trans";
 }
 
 // An ignore entry is a path prefix, or a glob when it has * or ?: **/
