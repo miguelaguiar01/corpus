@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Changed
 
+- The READMEs name each package manager's release-age setting and its allow list, and say what each does with a same-day release: yarn and npm refuse the install, pnpm takes it and records the exclusion itself. Outline and Jellyfin set a window explicitly, Vikunja inherits pnpm's default, and allow-listing `@corpus-tool/*` is the decision a team makes once, so the docs say how rather than only that it happens.
 - `corpus build` and `corpus push` say what a rich-text tag is when they refuse a string for one, and what to do about it: close the tag, write the brackets so they do not open one, close the tag that is actually open, or remove a stray closing tag. Jellyfin's `https://example.com/<baseurl>` is prose that spells a tag, and the message said only "unclosed <baseurl>".
 
 ### Fixed
