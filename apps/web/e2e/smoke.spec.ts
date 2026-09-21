@@ -177,17 +177,24 @@ test("a maintainer takes a string from pushed to verified on a phone", async ({
   await page.goto(`/p/${moonlightManor.project}/catalogue`);
   await expectNoSidewaysOverflow(page);
   await page.getByRole("link", { name: /seen-at-greenhouse-window/ }).click();
+  await page.waitForURL(/\/s\//);
   await expectNoSidewaysOverflow(page);
 
   // The language bar switches the target on the string itself (§9.3).
-  await page.getByRole("link", { name: "en", exact: true }).click();
+  // Scoped to the bar: the catalogue's language facet offers the same
+  // codes, and the page renders the bar once per breakpoint.
+  const languageBar = page
+    .getByRole("navigation", { name: "Language" })
+    .filter({ visible: true })
+    .first();
+  await languageBar.getByRole("link", { name: "en", exact: true }).click();
   await page.waitForURL(/language=en/);
   await expect(page.getByRole("textbox")).toBeVisible();
-  await page.getByRole("link", { name: "pt-PT", exact: true }).click();
+  await languageBar.getByRole("link", { name: "pt-PT", exact: true }).click();
   await page.waitForURL((url) => !url.search.includes("language="));
   await expect(page.getByRole("textbox")).toHaveCount(0);
   await expect(
-    page.getByRole("link", { name: "pt-PT", exact: true }),
+    languageBar.getByRole("link", { name: "pt-PT", exact: true }),
   ).toHaveAttribute("aria-current", "page");
 
   // A third language: while editing one target, the other is readable
