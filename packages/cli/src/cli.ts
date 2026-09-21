@@ -95,6 +95,7 @@ type PushReport = {
   archived: number;
   seeded?: number;
   seedsIgnored?: number;
+  seedsIdentical?: number;
 };
 
 // The snapshot is built and validated before the token is needed, so a
@@ -139,9 +140,16 @@ async function push(args: string[], ctx: RunContext): Promise<number> {
     languages?: string[];
   };
   const label = dryRun ? "dry-run" : "pushed";
-  const seeded = report.seeded
-    ? `, ${report.seeded} translation(s) seeded from the repository${report.seedsIgnored ? ` (${report.seedsIgnored} kept as Corpus has them)` : ""}`
-    : "";
+  const notes = [
+    report.seedsIgnored ? `${report.seedsIgnored} kept as Corpus has them` : "",
+    report.seedsIdentical
+      ? `${report.seedsIdentical} identical to the source, kept untranslated`
+      : "",
+  ].filter(Boolean);
+  const seeded =
+    report.seeded || report.seedsIdentical
+      ? `, ${report.seeded ?? 0} translation(s) seeded from the repository${notes.length ? ` (${notes.join("; ")})` : ""}`
+      : "";
   ctx.out(
     `${label} ${config.project}: ${report.added} added, ${report.changed} changed, ${report.stale} stale, ${report.archived} archived${seeded}`,
   );
