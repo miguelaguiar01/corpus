@@ -21,6 +21,7 @@ contract (`corpus/1`) is the only one.
 
 ### Added
 
+- The language bar becomes a picker from forty languages (§9.3): the source segment with its verified mark, the selected language as the control, and the rest in a list that filters on the code as you type; Jellyfin's 108 languages took the first screen as a wrapped bar, four rows on a desktop and fifteen on a phone. Below forty the wrapped bar is unchanged.
 - `corpus check` names `check.allow` when at least half of five or more findings are single words: on Jellyfin, 61 of 74 findings are one token, catalogue keys used as text, encoder presets and names such as `AC-4` and `XMLTV`, most of which belong in the allow list rather than the catalogue. The README's configuration example and §3 show the allow list.
 - i18next's plural forms are siblings (§9.3): a key ending in `_plural`, `_zero`, `_one`, `_two`, `_few`, `_many` or `_other` is shown with its base key and the other forms in the siblings section and in `get_string`, beside the prefix siblings; a sentence key, which has no prefix, still shows its family. Outline has 64 such pairs.
 - A rich-text tag's name may be a bare number (§5): react-i18next indexes a `Trans` element's children as `<1>`, `<2>`, and Outline writes `<2>{sharedParent.sourceTitle}</2>`; a translation that drops one is now a `missing-tag` finding instead of the tag passing as text.
