@@ -282,28 +282,28 @@ test("underscore language directories are read and known to the runtime", async 
   expect(p.err.join("\n")).not.toMatch(/not a language tag/);
 });
 
-test("--syntax i18next is written on the source; icu writes nothing extra; another value is refused", async () => {
+test("--library i18next is written on the source; icu writes nothing extra; another value is refused", async () => {
   const p = project();
   stubCli(p.dir);
-  expect(await run([...FLAGS, "--syntax", "i18next"], p.ctx)).toBe(0);
+  expect(await run([...FLAGS, "--library", "i18next"], p.ctx)).toBe(0);
   const config = await loadConfig(p.dir);
-  expect(config.sources[0]).toMatchObject({ syntax: "i18next" });
-  expect(p.out.join("\n")).toMatch(/syntax: i18next/);
+  expect(config.sources[0]).toMatchObject({ library: "i18next" });
+  expect(p.out.join("\n")).toMatch(/library: i18next/);
 
   const q = project();
   stubCli(q.dir);
-  expect(await run([...FLAGS, "--syntax", "icu"], q.ctx)).toBe(0);
+  expect(await run([...FLAGS, "--library", "icu"], q.ctx)).toBe(0);
   const text = readFileSync(path.join(q.dir, "corpus.config.ts"), "utf8");
-  expect(text).not.toContain("syntax");
+  expect(text).not.toContain("library");
 
   const r = project();
   stubCli(r.dir);
-  expect(await run([...FLAGS, "--syntax", "gettext"], r.ctx)).toBe(1);
-  expect(r.err.join("\n")).toMatch(/--syntax.*icu.*i18next/);
+  expect(await run([...FLAGS, "--library", "gettext"], r.ctx)).toBe(1);
+  expect(r.err.join("\n")).toMatch(/--library.*icu.*i18next/);
   expect(existsSync(path.join(r.dir, "corpus.config.ts"))).toBe(false);
 });
 
-test("without --syntax, a source file with {{ }} and no ICU argument is read as i18next, and said", async () => {
+test("without --library, a source file with {{ }} and no ICU argument is read as i18next, and said", async () => {
   const p = project();
   stubCli(p.dir);
   mkdirSync(path.join(p.dir, "src", "i18n"), { recursive: true });
@@ -313,9 +313,9 @@ test("without --syntax, a source file with {{ }} and no ICU argument is read as 
   );
   expect(await run(FLAGS, p.ctx)).toBe(0);
   const config = await loadConfig(p.dir);
-  expect(config.sources[0]).toMatchObject({ syntax: "i18next" });
+  expect(config.sources[0]).toMatchObject({ library: "i18next" });
   expect(p.out.join("\n")).toMatch(
-    /syntax: i18next, from \{\{ \}\} in src\/i18n\/pt-PT\.json/,
+    /library: i18next, from \{\{ \}\} in src\/i18n\/pt-PT\.json/,
   );
 
   for (const values of [
@@ -332,8 +332,8 @@ test("without --syntax, a source file with {{ }} and no ICU argument is read as 
     );
     expect(await run(FLAGS, q.ctx)).toBe(0);
     const config = await loadConfig(q.dir);
-    expect(config.sources[0]).not.toHaveProperty("syntax");
-    expect(q.out.join("\n")).not.toMatch(/syntax/);
+    expect(config.sources[0]).not.toHaveProperty("library");
+    expect(q.out.join("\n")).not.toMatch(/library/);
   }
 
   // A source file that does not parse, or none, leaves the syntax unset.
@@ -342,14 +342,14 @@ test("without --syntax, a source file with {{ }} and no ICU argument is read as 
   mkdirSync(path.join(r.dir, "src", "i18n"), { recursive: true });
   writeFileSync(path.join(r.dir, "src", "i18n", "pt-PT.json"), "{ not json");
   expect(await run(FLAGS, r.ctx)).toBe(0);
-  expect((await loadConfig(r.dir)).sources[0]).not.toHaveProperty("syntax");
+  expect((await loadConfig(r.dir)).sources[0]).not.toHaveProperty("library");
   const none = project();
   stubCli(none.dir);
   expect(await run(FLAGS, none.ctx)).toBe(0);
-  expect((await loadConfig(none.dir)).sources[0]).not.toHaveProperty("syntax");
+  expect((await loadConfig(none.dir)).sources[0]).not.toHaveProperty("library");
 });
 
-test("a .ts catalogue is read for the syntax through the same loader as push", async () => {
+test("a .ts catalogue is read for the library through the same loader as push", async () => {
   const p = project();
   stubCli(p.dir);
   mkdirSync(path.join(p.dir, "src", "i18n"), { recursive: true });
@@ -362,6 +362,18 @@ test("a .ts catalogue is read for the syntax through the same loader as push", a
   );
   expect(await run(flags, p.ctx)).toBe(0);
   expect((await loadConfig(p.dir)).sources[0]).toMatchObject({
-    syntax: "i18next",
+    library: "i18next",
   });
+});
+
+test("--syntax still works and says it is the old name", async () => {
+  const p = project();
+  stubCli(p.dir);
+  expect(await run([...FLAGS, "--syntax", "i18next"], p.ctx)).toBe(0);
+  expect((await loadConfig(p.dir)).sources[0]).toMatchObject({
+    library: "i18next",
+  });
+  expect(p.err.join("\n")).toMatch(
+    /--syntax is the old name for --library; it goes at 1\.0/,
+  );
 });

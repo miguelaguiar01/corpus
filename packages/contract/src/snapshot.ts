@@ -7,7 +7,7 @@ import {
   identifier,
   languageCode,
   entityId,
-  syntaxSchema,
+  librarySchema,
 } from "./strings";
 import { glossarySchema } from "./glossary";
 
@@ -29,8 +29,10 @@ export const writableSourceSchema = z.looseObject({
   path: z.string().min(1),
   adapter: z.enum(["messages", "table"]),
   type: identifier(),
-  // The syntax a new string in this file is written in (§5, §11).
-  syntax: syntaxSchema.optional(),
+  // The library a new string in this file is written for (§5, §11);
+  // `syntax` is the old name, sent beside it until 1.0.
+  library: librarySchema.optional(),
+  syntax: librarySchema.optional(),
 });
 
 // stringTypes/entityTypes travel in the snapshot so the server can

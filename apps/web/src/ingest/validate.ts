@@ -1,4 +1,9 @@
-import { parseIcu, snapshotSchema, type Snapshot } from "@corpus/contract";
+import {
+  libraryOf,
+  parseIcu,
+  snapshotSchema,
+  type Snapshot,
+} from "@corpus/contract";
 
 export type EntryError = { id: string; message: string };
 
@@ -40,12 +45,13 @@ export function validateSnapshot(body: unknown): ValidationResult {
     }
     stringIds.add(entry.id);
 
-    const icu = parseIcu(entry.source, entry.syntax ?? "icu");
+    const library = libraryOf(entry);
+    const icu = parseIcu(entry.source, library);
     if (!icu.ok) {
       const first = icu.errors[0];
       errors.push({
         id: entry.id,
-        message: `invalid ${entry.syntax ?? "ICU"} at ${first?.position}: ${first?.message}`,
+        message: `invalid ${library === "icu" ? "ICU" : library} at ${first?.position}: ${first?.message}`,
       });
     }
 

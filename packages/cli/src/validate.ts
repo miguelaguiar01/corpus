@@ -8,7 +8,12 @@ import {
   type Syntax,
 } from "@corpus/contract";
 import type { RunContext } from "./cli";
-import { readEntries, writesBack, type FileSource } from "./build";
+import {
+  deprecations,
+  readEntries,
+  writesBack,
+  type FileSource,
+} from "./build";
 import { CliError, loadConfig } from "./config";
 
 export const VALIDATE_USAGE = "corpus validate [--json]";
@@ -43,6 +48,7 @@ export async function validate(
       );
     }
   }
+  for (const note of deprecations(config)) ctx.err(`corpus: ${note}`);
   for (const source of config.sources) {
     if (source.adapter === "exec") {
       ctx.err(`corpus: exec "${source.command}" is not validated`);

@@ -5,7 +5,12 @@ import {
   type CorpusConfig,
 } from "@corpus/contract";
 import { expect, test } from "vitest";
-import { buildSnapshot, buildSnapshotReport, writableSources } from "./build";
+import {
+  buildSnapshot,
+  buildSnapshotReport,
+  deprecations,
+  writableSources,
+} from "./build";
 
 const REPO = fileURLToPath(new URL("../test/fixtures/repo", import.meta.url));
 
@@ -380,6 +385,8 @@ test("a source with the i18next syntax pushes {{name}} strings, each entry carry
       path: "i18next/{lang}.json",
       adapter: "messages",
       type: "ui",
+      // Both names until 1.0 (§4): an older server reads `syntax`.
+      library: "i18next",
       syntax: "i18next",
     },
   ]);
@@ -394,4 +401,39 @@ test("a source with the i18next syntax pushes {{name}} strings, each entry carry
       REPO,
     ),
   ).rejects.toThrow(/invalid ICU/);
+});
+
+test("a config that still says syntax builds the same and is named once", async () => {
+  const old = config({
+    sources: [
+      {
+        adapter: "messages",
+        type: "ui",
+        path: "i18next/{lang}.json",
+        syntax: "i18next",
+      },
+    ],
+  });
+  const { snapshot } = await buildSnapshotReport(old, REPO);
+  expect(snapshot.strings[0]).toMatchObject({
+    library: "i18next",
+    syntax: "i18next",
+  });
+  expect(deprecations(old)).toEqual([
+    "syntax is the old name for library, on i18next/{lang}.json; it goes at 1.0",
+  ]);
+  expect(
+    deprecations(
+      config({
+        sources: [
+          {
+            adapter: "messages",
+            type: "ui",
+            path: "i18next/{lang}.json",
+            library: "i18next",
+          },
+        ],
+      }),
+    ),
+  ).toEqual([]);
 });

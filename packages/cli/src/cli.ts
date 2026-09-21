@@ -3,6 +3,7 @@ import type { Readable } from "node:stream";
 import path from "node:path";
 import {
   buildSnapshotReport,
+  deprecations,
   describeRefused,
   pushOnlyNotes,
   type Refused,
@@ -105,6 +106,7 @@ async function push(args: string[], ctx: RunContext): Promise<number> {
   const config = await loadConfig(ctx.cwd);
   const { snapshot, refused } = await buildSnapshotReport(config, ctx.cwd);
   for (const entry of refused) ctx.err(`corpus: ${describeRefused(entry)}`);
+  for (const note of deprecations(config)) ctx.err(`corpus: ${note}`);
   for (const note of pushOnlyNotes(config)) ctx.err(`corpus: ${note}`);
   const token = requireToken(ctx.env, ctx.cwd);
 
@@ -191,6 +193,7 @@ async function build(args: string[], ctx: RunContext): Promise<number> {
   const config = await loadConfig(ctx.cwd);
   const { snapshot, refused } = await buildSnapshotReport(config, ctx.cwd);
   for (const entry of refused) ctx.err(`corpus: ${describeRefused(entry)}`);
+  for (const note of deprecations(config)) ctx.err(`corpus: ${note}`);
   for (const note of pushOnlyNotes(config)) ctx.err(`corpus: ${note}`);
   const out = option(args, "--out");
   if (out) {

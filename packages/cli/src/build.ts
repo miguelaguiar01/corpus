@@ -6,6 +6,7 @@ import { z } from "zod";
 import { messagesToEntries, tableToEntries } from "@corpus/adapters";
 import {
   entitySchema,
+  libraryOf,
   parseIcu,
   snapshotSchema,
   stringEntrySchema,
@@ -14,9 +15,9 @@ import {
   type Entity,
   type Glossary,
   type Snapshot,
+  type Library,
   type Source,
   type StringEntry,
-  type Syntax,
   type WritableSource,
 } from "@corpus/contract";
 import { CliError } from "./config";
@@ -104,7 +105,7 @@ export async function buildSnapshotReport(
         {
           ...entry,
           ...(writable ? { file } : {}),
-          ...(source.syntax ? { syntax: source.syntax } : {}),
+          ...libraryFields(source),
         },
         file,
         sourced,
@@ -167,7 +168,7 @@ function validateEntry(
   sourced: Sourced[],
   refused: Refused[],
 ): void {
-  const syntax = entry.syntax ?? "icu";
+  const syntax = libraryOf(entry);
   const icu = parseIcu(entry.source, syntax);
   if (icu.ok) sourced.push({ entry, file });
   else {
@@ -186,7 +187,7 @@ function validateEntry(
 // tag shapes are tested first: `{{` is i18next's interpolation but also
 // an ICU branch that opens with a placeholder (`{n, plural, other
 // {{count} apples}}`), and that catalogue is not in the wrong syntax.
-function hint(source: string, syntax: Syntax, message: string): string {
+function hint(source: string, syntax: Library, message: string): string {
   const unclosed = /^unclosed <([^>]+)>$/.exec(message);
   if (unclosed) {
     return `; a <name> is a rich-text tag: close it with </${unclosed[1]}>, or write the brackets so they do not open a tag`;
@@ -265,6 +266,16 @@ function collectExec(
   }
 }
 
+// A source's library travels under both names until 1.0 (§4): a server
+// older than the field still reads a newer CLI's push correctly.
+function libraryFields(source: FileSource): {
+  library?: Library;
+  syntax?: Library;
+} {
+  const library = libraryOf(source);
+  return library === "icu" ? {} : { library, syntax: library };
+}
+
 export type FileSource = Exclude<Source, { adapter: "exec" }>;
 
 // A catalogue file through its source's adapter: the entries push would
@@ -319,11 +330,26 @@ export function writableSources(config: CorpusConfig): WritableSource[] {
             path: source.path,
             adapter: source.adapter,
             type: source.type,
-            ...(source.syntax ? { syntax: source.syntax } : {}),
+            ...libraryFields(source),
           },
         ]
       : [],
   );
+}
+
+// A config that still says `syntax` keeps working and hears the new
+// name once, naming every source that uses it (§3).
+export function deprecations(config: CorpusConfig): string[] {
+  const named = config.sources.flatMap((source) =>
+    source.adapter !== "exec" && source.syntax !== undefined
+      ? [source.path]
+      : [],
+  );
+  return named.length === 0
+    ? []
+    : [
+        `syntax is the old name for library, on ${named.join(", ")}; it goes at 1.0`,
+      ];
 }
 
 // Sources that cannot take translations back (§8): pull says so too,
