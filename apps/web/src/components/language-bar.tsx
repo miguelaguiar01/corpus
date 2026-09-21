@@ -8,13 +8,12 @@ import { LanguagePicker } from "./language-picker";
 // bar takes the first screen before the string does.
 const PICKER_FROM = 12;
 
-// The language switcher (§9.3): one segment per language of the
-// project, the selected one solid, the source language first with its
+// The language switcher (§9.3) under the threshold: one segment per
+// language, the selected one solid, the source language first with its
 // verified mark; each a link to the same string in that language, the
 // queue kept when the row is in it (languageSwitchPath). Full width and
 // thumb height on a phone, a slim inline control on a desktop; the
-// segments wrap, so dozens of languages take rows rather than shrink
-// into each other.
+// segments wrap rather than shrink into each other.
 export function LanguageBar({
   languages,
   sourceLanguage,
