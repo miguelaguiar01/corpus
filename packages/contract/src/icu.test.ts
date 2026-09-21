@@ -60,6 +60,7 @@ test.each([
   ["stray close brace", "olá } mundo", /unmatched/i],
   ["empty placeholder name", "olá {}", /name/i],
   ["invalid placeholder name", "olá {two words}", /name/i],
+  ["a name that starts with a digit but is not a number", "olá {1a}", /name/i],
   ["select without branches", "{g, select,}", /branch/i],
   ["unknown argument type", "{n, number}", /select|supported/i],
 ])("rejects %s with a specific error", (_label, source, pattern) => {
@@ -112,7 +113,9 @@ test("a select branch key may be a number", () => {
 test("a select branch key is a word or a number, nothing in between", () => {
   expect(parseIcu("{n, select, 12abc {x} other {y}}").ok).toBe(false);
   expect(parseIcu("{n, select, 0 {x} other {y}}").ok).toBe(true);
-  expect(parseIcu("{1, select, one {x} other {y}}").ok).toBe(false);
+  // A numeric argument name is ICU; a digit-led word is not a name.
+  expect(parseIcu("{1, select, one {x} other {y}}").ok).toBe(true);
+  expect(parseIcu("{1a, select, one {x} other {y}}").ok).toBe(false);
 });
 
 test("a plural parses with categories, =N exact branches and # for the count", () => {
@@ -257,4 +260,17 @@ test("an unclosed, mismatched or stray tag is a parse error naming it", () => {
   );
   if (!both.ok) throw new Error("parse failed");
   expect(branchingNodes(both.nodes).map((n) => n.arg)).toEqual(["n", "g"]);
+});
+
+test("a placeholder or argument name may be a bare number, as ICU allows", () => {
+  const result = parseIcu(
+    "Added {0}; {1} and {2} other artists {0, select, 1 {one} other {many}}",
+  );
+  expect(result.ok).toBe(true);
+  expect([...placeholdersOf("Added {0}; {1} and {2}")]).toEqual([
+    "0",
+    "1",
+    "2",
+  ]);
+  expect([...selectArgsOf("{0, select, 1 {one} other {many}}")]).toEqual(["0"]);
 });
