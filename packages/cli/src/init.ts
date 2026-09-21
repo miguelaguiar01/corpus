@@ -1,13 +1,13 @@
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { corpusConfigSchema } from "@corpus/contract";
+import { corpusConfigSchema, LANGUAGE_RE } from "@corpus/contract";
 import { option } from "./args";
 import type { RunContext } from "./cli";
 import { CliError, CONFIG_FILENAMES } from "./config";
 import { ignoreCorpusDir } from "./corpus-dir";
 
 export const INIT_USAGE =
-  "corpus init --project <slug> --source <lang> --languages <a,b> --messages <path with {lang}> [--server <url>] [--type <name>]";
+  "corpus init --project <slug> --source <lang> --messages <path with {lang}> [--languages <a,b>] [--server <url>] [--type <name>]";
 
 // `corpus init` writes a corpus.config.ts from flags alone, so it scripts;
 // it validates the config before writing and never overwrites one.
@@ -29,10 +29,6 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   };
   const project = required("--project");
   const sourceLanguage = required("--source");
-  const languages = required("--languages")
-    .split(",")
-    .map((code) => code.trim())
-    .filter(Boolean);
   const messages = required("--messages");
   const server = option(args, "--server") ?? "http://localhost:3000";
   const type = option(args, "--type") ?? "chrome";
@@ -40,6 +36,26 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     throw new CliError(
       `--messages must contain {lang}, such as src/i18n/{lang}.json`,
     );
+  }
+  const given = option(args, "--languages");
+  const languages =
+    given && !given.startsWith("--")
+      ? given
+          .split(",")
+          .map((code) => code.trim())
+          .filter(Boolean)
+      : languagesFromFiles(ctx.cwd, messages, sourceLanguage);
+  if (languages.length === 0) {
+    throw new CliError(
+      `no ${messages} file to take the languages from; pass --languages`,
+    );
+  }
+  for (const code of languages) {
+    if (!knownLanguage(code)) {
+      ctx.err(
+        `corpus: ${code} is not a language tag the runtime knows; kept, but check it is a language and not a tool's pseudo-locale`,
+      );
+    }
   }
   const parsed = corpusConfigSchema.safeParse({
     project,
@@ -92,4 +108,53 @@ export default defineCorpus({
   ],
 });
 `;
+}
+
+// The languages a messages path names (§3): every file or directory
+// that fills its {lang}, the source first, so a repository that already
+// carries its catalogues is not asked to list them by hand.
+export function languagesFromFiles(
+  cwd: string,
+  pattern: string,
+  sourceLanguage: string,
+): string[] {
+  const at = pattern.indexOf("{lang}");
+  const before = pattern.slice(0, at);
+  const after = pattern.slice(at + "{lang}".length);
+  const dir = path.join(cwd, path.dirname(`${before}x`));
+  const prefix = path.basename(`${before}x`).slice(0, -1);
+  const afterFirst = after.split("/")[0] ?? "";
+  const found = new Set<string>();
+  let names: string[];
+  try {
+    names = readdirSync(dir);
+  } catch {
+    return [];
+  }
+  for (const name of names) {
+    if (!name.startsWith(prefix) || !name.endsWith(afterFirst)) continue;
+    const code = name.slice(prefix.length, name.length - afterFirst.length);
+    // A glossary or a fixture beside the catalogues is not a language.
+    if (!LANGUAGE_RE.test(code)) continue;
+    const rest =
+      pattern.slice(0, at + "{lang}".length).replace("{lang}", code) + after;
+    if (existsSync(path.join(cwd, rest))) found.add(code);
+  }
+  const rest = [...found].filter((c) => c !== sourceLanguage).sort();
+  return found.has(sourceLanguage)
+    ? [sourceLanguage, ...rest]
+    : rest.length > 0
+      ? [sourceLanguage, ...rest]
+      : [];
+}
+
+// Whether the runtime has locale data for a tag: a pseudo-locale a
+// translation tool exports (Crowdin's `cr`) passes the tag's grammar
+// but has none.
+function knownLanguage(code: string): boolean {
+  try {
+    return Intl.PluralRules.supportedLocalesOf([code]).length > 0;
+  } catch {
+    return false;
+  }
 }

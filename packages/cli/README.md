@@ -6,7 +6,7 @@ The `corpus` command for [Corpus](https://github.com/miguelaguiar01/corpus), a s
 
 ```sh
 npm install --save-dev @corpus-tool/cli @corpus-tool/workbench
-npx corpus init --project my-game --source en --languages en,pt-PT \
+npx corpus init --project my-game --source en \
   --messages "src/i18n/{lang}.json" --server http://localhost:3000
 npx corpus workbench      # starts the instance, creates the project, writes .corpus/token
 npx corpus push           # the repository's strings, and the translations it already has
