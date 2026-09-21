@@ -46,7 +46,10 @@ test("names the three fills once, in a legend", () => {
 
 test("renders nothing for a project with no rows", () => {
   const { container } = render(
-    <ProgressByType progress={{ perLanguage: {}, perType: {} }} />,
+    <ProgressByType
+      progress={{ perLanguage: {}, perType: {} }}
+      sourceLanguage="pt-PT"
+    />,
   );
   expect(container.innerHTML).toBe("");
 });
@@ -59,7 +62,12 @@ test("from eight languages on, a table with one row and one bar per language", (
     ]),
   );
   const perType = { chrome: perLanguage };
-  render(<ProgressByType progress={{ perLanguage, perType }} />);
+  render(
+    <ProgressByType
+      progress={{ perLanguage, perType }}
+      sourceLanguage="pt-PT"
+    />,
+  );
   expect(screen.getByRole("table")).toBeTruthy();
   expect(screen.getAllByRole("meter")).toHaveLength(9);
   expect(screen.getByRole("rowheader", { name: "i" })).toBeTruthy();
@@ -78,7 +86,12 @@ test("a table row opens its per-type breakdown behind a disclosure; one type has
     ),
     "clue-skin": Object.fromEntries(languages.map((l) => [l, counts(0, 1, 2)])),
   };
-  render(<ProgressByType progress={{ perLanguage, perType }} />);
+  render(
+    <ProgressByType
+      progress={{ perLanguage, perType }}
+      sourceLanguage="pt-PT"
+    />,
+  );
   expect(screen.getAllByRole("meter")).toHaveLength(9);
   const toggles = screen.getAllByRole("button", { expanded: false });
   expect(toggles).toHaveLength(9);
@@ -101,6 +114,7 @@ test("a table row opens its per-type breakdown behind a disclosure; one type has
   render(
     <ProgressByType
       progress={{ perLanguage, perType: { chrome: perType.chrome } }}
+      sourceLanguage="pt-PT"
     />,
   );
   expect(screen.queryByRole("button")).toBeNull();
