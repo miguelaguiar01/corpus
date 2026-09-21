@@ -40,8 +40,8 @@ const PLURAL_SUFFIXES = [
   "_other",
 ];
 
-// i18next's plural forms are keys beside the base (`starred`,
-// `starred_plural`, `starred_one`): one family, whatever the key's shape.
+// One family whatever the key's shape: a sentence key has no prefix
+// but has its plural forms.
 export function pluralFamily(key: string): { base: string; keys: string[] } {
   const suffix = PLURAL_SUFFIXES.find(
     (s) => key.endsWith(s) && key.length > s.length,

@@ -212,7 +212,6 @@ test("an i18next plural suffix names a family: the base key and every suffix for
   expect(pluralFamily("{{ count }} documents starred_plural").base).toBe(
     "{{ count }} documents starred",
   );
-  // A key without a suffix is its own base; a suffix alone is not one.
   expect(pluralFamily("x").base).toBe("x");
   expect(pluralFamily("_one").base).toBe("_one");
 });
@@ -249,7 +248,6 @@ test("suffix plural keys are siblings of their base and of each other, beside th
   });
   const keys = (key: string) =>
     siblingsOf(db, p.id, row(db, key)).items.map((s) => s.key);
-  // A sentence key has no prefix, but its family still shows.
   expect(keys("{{ count }} documents starred_plural")).toEqual([
     "{{ count }} documents starred",
     "{{ count }} documents starred_other",
@@ -258,7 +256,6 @@ test("suffix plural keys are siblings of their base and of each other, beside th
     "{{ count }} documents starred_other",
     "{{ count }} documents starred_plural",
   ]);
-  // A dotted key's family joins its prefix siblings, once each.
   expect(keys("a.b")).toEqual(["a.b_other", "a.c"]);
   expect(keys("a.b_other")).toEqual(["a.b", "a.c"]);
   expect(siblingsOf(db, p.id, row(db, "a.b")).total).toBe(2);

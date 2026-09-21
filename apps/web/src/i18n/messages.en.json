@@ -92,7 +92,7 @@
   "string.noteLabel": "How every {type} string reads",
   "string.glossaryHeading": "Glossary terms in this string ({language})",
   "string.siblingsHeading": "Siblings",
-  "string.siblingsCount": "{shown} of {total} strings of this type under the same key prefix",
+  "string.siblingsCount": "{shown} of {total} strings of this type under the same key prefix or in the same plural family",
   "string.historyHeading": "History",
   "source.branches": "Branches",
   "string.archived": "This string is archived. It is read-only.",
