@@ -6,9 +6,10 @@ import { ProgressLegend } from "./progress-legend";
 // Past this many languages the blocks become a table: a project of
 // dozens of languages with one string type is otherwise a wall of one
 // bar each (§9.1).
-export const TABLE_FROM_LANGUAGES = 8;
+const TABLE_FROM_LANGUAGES = 8;
 
-// Per-language progress broken down by string type (§9.1).
+// Per-language progress: a block per language broken down by string
+// type, or, from eight languages on, a table of one row each (§9.1).
 export function ProgressByType({ progress }: { progress: Progress }) {
   const languages = Object.keys(progress.perLanguage);
   if (languages.length === 0) return null;
@@ -22,7 +23,9 @@ export function ProgressByType({ progress }: { progress: Progress }) {
             <tr>
               <th scope="col">{t("progress.languageColumn")}</th>
               <th scope="col">{t("progress.progressColumn")}</th>
-              <th scope="col">{t("progress.summaryColumn")}</th>
+              <th scope="col" className="hidden sm:table-cell">
+                {t("progress.summaryColumn")}
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -36,7 +39,7 @@ export function ProgressByType({ progress }: { progress: Progress }) {
                   <td className="py-1.5 pr-3">
                     <ProgressBar p={p} label={language} className="h-1.5" />
                   </td>
-                  <td className="w-48 py-1.5 text-right text-xs text-muted-foreground">
+                  <td className="hidden w-48 py-1.5 text-right text-xs text-muted-foreground sm:table-cell">
                     {t("progress.summary", {
                       verified: p.verified,
                       translated: p.translated,
