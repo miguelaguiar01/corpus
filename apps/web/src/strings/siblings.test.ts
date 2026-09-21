@@ -5,7 +5,13 @@ import type { Db } from "@/db";
 import { projects, strings } from "@/db/schema";
 import { memoryDb } from "@/db/test-helpers";
 import { applySnapshot } from "@/ingest/apply";
-import { compareKeys, nearest, siblingPrefix, siblingsOf } from "./siblings";
+import {
+  compareKeys,
+  nearest,
+  pluralFamily,
+  siblingPrefix,
+  siblingsOf,
+} from "./siblings";
 
 const FIXTURE = moonlightManor as Snapshot;
 
@@ -187,4 +193,73 @@ test("keys are ordered by code point, as the database orders them", () => {
     "a.\uE000",
     "a.\u{1F600}",
   ]);
+});
+
+test("an i18next plural suffix names a family: the base key and every suffix form", () => {
+  expect(pluralFamily("a.b_one")).toEqual({
+    base: "a.b",
+    keys: [
+      "a.b",
+      "a.b_plural",
+      "a.b_zero",
+      "a.b_one",
+      "a.b_two",
+      "a.b_few",
+      "a.b_many",
+      "a.b_other",
+    ],
+  });
+  expect(pluralFamily("{{ count }} documents starred_plural").base).toBe(
+    "{{ count }} documents starred",
+  );
+  // A key without a suffix is its own base; a suffix alone is not one.
+  expect(pluralFamily("x").base).toBe("x");
+  expect(pluralFamily("_one").base).toBe("_one");
+});
+
+test("suffix plural keys are siblings of their base and of each other, beside the prefix siblings", () => {
+  const { db, p } = pushed({
+    ...FIXTURE,
+    strings: [
+      {
+        id: "{{ count }} documents starred",
+        type: "chrome",
+        source: "{{ count }} documents starred",
+      },
+      {
+        id: "{{ count }} documents starred_plural",
+        type: "chrome",
+        source: "{{ count }} documents starred",
+      },
+      {
+        id: "{{ count }} documents starred_other",
+        type: "chrome",
+        source: "{{ count }} documents starred",
+      },
+      {
+        id: "{{ count }} documents starred_one",
+        type: "clue-skin",
+        source: "Another type",
+      },
+      { id: "a.b", type: "chrome", source: "A" },
+      { id: "a.b_other", type: "chrome", source: "As" },
+      { id: "a.c", type: "chrome", source: "C" },
+      { id: "a.b_one.deeper", type: "chrome", source: "Deeper" },
+    ],
+  });
+  const keys = (key: string) =>
+    siblingsOf(db, p.id, row(db, key)).items.map((s) => s.key);
+  // A sentence key has no prefix, but its family still shows.
+  expect(keys("{{ count }} documents starred_plural")).toEqual([
+    "{{ count }} documents starred",
+    "{{ count }} documents starred_other",
+  ]);
+  expect(keys("{{ count }} documents starred")).toEqual([
+    "{{ count }} documents starred_other",
+    "{{ count }} documents starred_plural",
+  ]);
+  // A dotted key's family joins its prefix siblings, once each.
+  expect(keys("a.b")).toEqual(["a.b_other", "a.c"]);
+  expect(keys("a.b_other")).toEqual(["a.b", "a.c"]);
+  expect(siblingsOf(db, p.id, row(db, "a.b")).total).toBe(2);
 });
