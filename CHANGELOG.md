@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+### Added
+
+- A wiki that teaches Corpus, written in `docs/wiki/` and published to the repository's GitHub wiki. Every command and config a page shows comes from a file this repository type checks and runs, and `bin/wiki-check` in the gate fails when a page and its file disagree, so the wiki cannot drift from the tool. The first pages are what Corpus is, install and first push, and the daily loop.
+
 ### Changed
 
 - A source declares the **library** it is written for rather than a message syntax: `library: "icu" | "i18next"` on a `messages` or `table` source, with one value carrying how placeholders are spelled, how plurals are written and what is escaped, so a library Corpus learns next is one value rather than a field per difference. `syntax` is the old name, still accepted and mapped to the same values, named once per command and going at 1.0; `corpus init` takes `--library` and still takes `--syntax`. A push carries both names until 1.0, so a workbench pinned to an older image reads a newer CLI's push correctly. Still `corpus/1`.

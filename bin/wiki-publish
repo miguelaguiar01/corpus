@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# bin/wiki-publish — push docs/wiki/*.md to the GitHub wiki.
+#
+# The wiki is a separate repository (corpus.wiki.git) that no gate can
+# see, so the pages are written here, checked here by bin/wiki-check,
+# and copied there by this script. Nobody edits the wiki in the browser:
+# the next publish would overwrite it.
+#
+# Usage: bin/wiki-publish [--dry-run]
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+bin/wiki-check
+
+REMOTE="${CORPUS_WIKI_REMOTE:-git@github.com:miguelaguiar01/corpus.wiki.git}"
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+
+git clone --quiet "$REMOTE" "$TMP/wiki"
+rm -f "$TMP/wiki"/*.md
+cp docs/wiki/*.md "$TMP/wiki/"
+
+cd "$TMP/wiki"
+if git diff --quiet && git diff --cached --quiet && [ -z "$(git status --porcelain)" ]; then
+  echo "wiki-publish: the wiki already matches docs/wiki"
+  exit 0
+fi
+
+git add -A
+git status --short
+
+if [ "${1:-}" = "--dry-run" ]; then
+  echo "wiki-publish: dry run, nothing pushed"
+  exit 0
+fi
+
+git -c user.name="$(git -C "$OLDPWD" config user.name)" \
+    -c user.email="$(git -C "$OLDPWD" config user.email)" \
+    commit --quiet -m "Publish the wiki from docs/wiki"
+git push --quiet origin HEAD
+echo "wiki-publish: pushed $(ls *.md | wc -l) page(s)"

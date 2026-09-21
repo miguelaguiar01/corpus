@@ -16,9 +16,10 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    // Plain Node scripts: the package build steps and the workbench's
-    // CommonJS bin, which starts Next's CommonJS server.
-    files: ["packages/*/build.mjs", "packages/*/bin/*.cjs"],
+    // Plain Node scripts: the package build steps, the workbench's
+    // CommonJS bin, which starts Next's CommonJS server, and the
+    // repository's own scripts under bin/.
+    files: ["packages/*/build.mjs", "packages/*/bin/*.cjs", "bin/*.mjs"],
     languageOptions: {
       globals: {
         process: "readonly",
