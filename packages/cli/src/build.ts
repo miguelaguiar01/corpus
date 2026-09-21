@@ -195,7 +195,7 @@ function hint(source: string, syntax: Syntax, message: string): string {
     message,
   );
   if (mismatched) {
-    return `; a <name> is a rich-text tag: it closes <${mismatched[2]}>, so write </${mismatched[2]}> here, or remove it`;
+    return `; a <name> is a rich-text tag: <${mismatched[2]}> is open here, so write </${mismatched[2]}>, or remove both tags`;
   }
   const stray = /^unexpected <\/([^>]+)>$/.exec(message);
   if (stray) {

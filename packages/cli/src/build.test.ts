@@ -95,7 +95,7 @@ test("a source that does not parse is refused by entry and the rest is built", a
 });
 
 test("a tag that does not close is refused with a hint at what a tag is", async () => {
-  const { refused } = await buildSnapshotReport(
+  const { refused, snapshot } = await buildSnapshotReport(
     config({
       sources: [
         { adapter: "messages", type: "chrome", path: "tags/{lang}.json" },
@@ -105,18 +105,10 @@ test("a tag that does not close is refused with a hint at what a tag is", async 
   );
   expect(refused.map((r) => `${r.id}: ${r.message}`)).toEqual([
     "prose: invalid ICU: unclosed <baseurl>; a <name> is a rich-text tag: close it with </baseurl>, or write the brackets so they do not open a tag",
-    "mismatched: invalid ICU: unexpected </b>; <a> is open; a <name> is a rich-text tag: it closes <a>, so write </a> here, or remove it",
+    "mismatched: invalid ICU: unexpected </b>; <a> is open; a <name> is a rich-text tag: <a> is open here, so write </a>, or remove both tags",
     "plural: invalid ICU: unclosed <b>; a <name> is a rich-text tag: close it with </b>, or write the brackets so they do not open a tag",
     "stray: invalid ICU: unexpected </em>; a <name> is a rich-text tag: remove it, or open a matching <em>",
   ]);
-  const { snapshot } = await buildSnapshotReport(
-    config({
-      sources: [
-        { adapter: "messages", type: "chrome", path: "tags/{lang}.json" },
-      ],
-    }),
-    REPO,
-  );
   expect(snapshot.strings.map((s) => s.id)).toEqual(["fine"]);
 });
 
