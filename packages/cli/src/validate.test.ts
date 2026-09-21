@@ -157,8 +157,55 @@ test("a dropped placeholder, a malformed select and an orphan key are findings, 
   expect(err).toContain(
     "i18n/pt.json:seen: select on {who} has the branch dog, which the source does not",
   );
-  expect(err).toContain("i18n/pt.json:gone: the source no longer has this key");
-  expect(err).toMatch(/4 invalid translation\(s\)/);
+  expect(err).toContain(
+    "i18n/en.json:gone: the source no longer has this key; 1 target file(s) carry it",
+  );
+  expect(err).toMatch(
+    /3 invalid translation\(s\), 1 orphan key\(s\) in 1 file\(s\)/,
+  );
+});
+
+test("an orphan key is summarised once across the target files; --json keeps one finding per file", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    readFileSync(path.join(repo, "corpus.config.ts"), "utf8").replace(
+      '["en", "pt"]',
+      '["en", "pt", "de", "fr"]',
+    ),
+  );
+  write("i18n/en.json", { greeting: "Hello {name}" });
+  write("i18n/pt.json", {
+    greeting: "Olá {name}",
+    gone: "Adeus",
+    old: "Velho",
+  });
+  write("i18n/de.json", { greeting: "Hallo {name}", gone: "Tschüss" });
+  write("i18n/fr.json", { greeting: "Bonjour {name}", old: "Vieux" });
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(1);
+  const lines = c.stderr.filter((l) => l.includes("no longer has"));
+  expect(lines).toEqual([
+    "i18n/en.json:gone: the source no longer has this key; 2 target file(s) carry it",
+    "i18n/en.json:old: the source no longer has this key; 2 target file(s) carry it",
+  ]);
+  expect(c.stderr.join("\n")).toMatch(
+    /corpus: 2 orphan key\(s\) in 3 file\(s\)$/m,
+  );
+  const j = ctx();
+  expect(await run(["validate", "--json"], j)).toBe(1);
+  const findings = JSON.parse(j.stdout.join("\n")) as {
+    file: string;
+    key: string;
+    sourceFile: string;
+  }[];
+  expect(findings).toHaveLength(4);
+  expect(findings.every((f) => f.sourceFile === "i18n/en.json")).toBe(true);
+  expect(findings.map((f) => f.file).sort()).toEqual([
+    "i18n/de.json",
+    "i18n/fr.json",
+    "i18n/pt.json",
+    "i18n/pt.json",
+  ]);
 });
 
 test("--json prints the findings as data", async () => {
@@ -203,4 +250,28 @@ test("an empty or blank target value is a key the target lacks, not a dropped pl
   expect(err).not.toContain("gone");
   expect(err).toContain("i18n/pt.json:farewell: missing {name}");
   expect(err).toMatch(/1 invalid translation\(s\)/);
+});
+
+test("the same orphan key under two sources is two lines, one per source", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    readFileSync(path.join(repo, "corpus.config.ts"), "utf8").replace(
+      '{ adapter: "messages", type: "chrome", path: "i18n/{lang}.json" },',
+      '{ adapter: "messages", type: "chrome", path: "i18n/{lang}.json" }, { adapter: "messages", type: "extra", path: "extra/{lang}.json" },',
+    ),
+  );
+  mkdirSync(path.join(repo, "extra"));
+  write("i18n/en.json", { greeting: "Hello {name}" });
+  write("i18n/pt.json", { greeting: "Olá {name}", gone: "Adeus" });
+  write("extra/en.json", { more: "More" });
+  write("extra/pt.json", { more: "Mais", gone: "Adeus" });
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(1);
+  expect(c.stderr.filter((l) => l.includes("no longer has"))).toEqual([
+    "i18n/en.json:gone: the source no longer has this key; 1 target file(s) carry it",
+    "extra/en.json:gone: the source no longer has this key; 1 target file(s) carry it",
+  ]);
+  expect(c.stderr.join("\n")).toMatch(
+    /corpus: 2 orphan key\(s\) in 2 file\(s\)$/m,
+  );
 });
