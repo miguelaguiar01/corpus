@@ -6,7 +6,7 @@ import {
   fieldDeclarationSchema,
   identifier,
   languageCode,
-  syntaxSchema,
+  librarySchema,
 } from "./strings";
 
 export const sourceSchema = z.discriminatedUnion("adapter", [
@@ -16,14 +16,17 @@ export const sourceSchema = z.discriminatedUnion("adapter", [
     path: z
       .string()
       .refine((p) => p.includes("{lang}"), "path must contain {lang}"),
-    // The message syntax the files write (§5); ICU when absent.
-    syntax: syntaxSchema.optional(),
+    // The library the files are written for (§3, §5); plain ICU when
+    // absent. `syntax` is the old name, accepted until 1.0.
+    library: librarySchema.optional(),
+    syntax: librarySchema.optional(),
   }),
   z.looseObject({
     adapter: z.literal("table"),
     type: identifier(),
     path: z.string().min(1),
-    syntax: syntaxSchema.optional(),
+    library: librarySchema.optional(),
+    syntax: librarySchema.optional(),
     // The module's default export, or the named export `export` names.
     export: z.string().min(1).optional(),
     // Fields beside id and text become metadata: all of them, or only
@@ -78,7 +81,26 @@ export const corpusConfigSchema = z
   .refine((c) => c.languages.includes(c.sourceLanguage), {
     message: "languages must include sourceLanguage",
     path: ["sourceLanguage"],
-  });
+  })
+  // A source that sets both names disagrees with itself; the config
+  // says so rather than picking one.
+  .refine(
+    (c) =>
+      c.sources.every(
+        (source) =>
+          !(
+            "library" in source &&
+            source.library !== undefined &&
+            "syntax" in source &&
+            source.syntax !== undefined
+          ),
+      ),
+    {
+      message:
+        "a source sets library or syntax, not both; syntax is the old name for library",
+      path: ["sources"],
+    },
+  );
 
 export type CorpusConfig = z.infer<typeof corpusConfigSchema>;
 export type Source = z.infer<typeof sourceSchema>;

@@ -7,7 +7,7 @@
 // always structural; the subset has no quote-escaping; a < that opens
 // no tag is text.
 
-import { localeOf, type Syntax } from "./strings";
+import { localeOf, type Library } from "./strings";
 
 export type IcuNode =
   | { kind: "literal"; text: string }
@@ -60,7 +60,7 @@ class Parser {
 
   constructor(
     private readonly source: string,
-    private readonly syntax: Syntax,
+    private readonly syntax: Library,
   ) {}
 
   // Inside a plural's branch, `#` is the number; anywhere else it is text.
@@ -298,7 +298,7 @@ class Parser {
 
 export function parseIcu(
   source: string,
-  syntax: Syntax = "icu",
+  syntax: Library = "icu",
 ): IcuParseResult {
   try {
     return {
@@ -352,7 +352,7 @@ export function branchingNodes(
   return out;
 }
 
-export function tagsOf(source: string, syntax: Syntax = "icu"): Set<string> {
+export function tagsOf(source: string, syntax: Library = "icu"): Set<string> {
   const result = parseIcu(source, syntax);
   const tags = new Set<string>();
   if (result.ok) collect(result.nodes, new Set(), new Set(), new Set(), tags);
@@ -361,7 +361,7 @@ export function tagsOf(source: string, syntax: Syntax = "icu"): Set<string> {
 
 export function placeholdersOf(
   source: string,
-  syntax: Syntax = "icu",
+  syntax: Library = "icu",
 ): Set<string> {
   const result = parseIcu(source, syntax);
   const placeholders = new Set<string>();
@@ -371,7 +371,7 @@ export function placeholdersOf(
 
 export function selectArgsOf(
   source: string,
-  syntax: Syntax = "icu",
+  syntax: Library = "icu",
 ): Set<string> {
   const result = parseIcu(source, syntax);
   const selectArgs = new Set<string>();
@@ -381,7 +381,7 @@ export function selectArgsOf(
 
 export function pluralArgsOf(
   source: string,
-  syntax: Syntax = "icu",
+  syntax: Library = "icu",
 ): Set<string> {
   const result = parseIcu(source, syntax);
   const pluralArgs = new Set<string>();

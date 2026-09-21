@@ -509,3 +509,18 @@ test("a string's syntax is stored, and an i18next source is validated as such", 
   expect(row?.syntax).toBe("i18next");
   expect(stringRow(db, "ui.continue")?.syntax).toBeNull();
 });
+
+test("a push that names only the library stores it, as one that names only the old syntax does", () => {
+  const { db, project } = seed();
+  applySnapshot(db, project.id, {
+    ...FIXTURE,
+    strings: [
+      { id: "a", type: "chrome", source: "Hi {{ name }}", library: "i18next" },
+      { id: "b", type: "chrome", source: "Hi {{ name }}", syntax: "i18next" },
+      { id: "c", type: "chrome", source: "Hi {name}" },
+    ],
+  });
+  expect(stringRow(db, "a")?.syntax).toBe("i18next");
+  expect(stringRow(db, "b")?.syntax).toBe("i18next");
+  expect(stringRow(db, "c")?.syntax).toBeNull();
+});

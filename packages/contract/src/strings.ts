@@ -43,11 +43,29 @@ export const languageCode = () =>
     .string()
     .min(1)
     .regex(LANGUAGE_RE, "a language tag such as en, pt-PT or en_US");
-// The message syntax a source writes (§5): ICU, or i18next's
-// {{name}} interpolation, stored and written back as written.
-export const SYNTAXES = ["icu", "i18next"] as const;
-export type Syntax = (typeof SYNTAXES)[number];
-export const syntaxSchema = z.enum(SYNTAXES);
+// The i18n library a source is written for (§3, §5). One value carries
+// how placeholders are spelled, how plurals are written and what is
+// escaped: `icu` is plain ICU MessageFormat, as next-intl, FormatJS and
+// Lingui write it; `i18next` is its {{name}} interpolation, stored and
+// written back as written.
+export const LIBRARIES = ["icu", "i18next"] as const;
+export type Library = (typeof LIBRARIES)[number];
+export const librarySchema = z.enum(LIBRARIES);
+
+// What a source, an entry or a declaration is written for: the library
+// it names, the old `syntax` if that is all it has, plain ICU otherwise.
+export function libraryOf(
+  value: { library?: Library; syntax?: Library } | undefined,
+): Library {
+  return value?.library ?? value?.syntax ?? "icu";
+}
+
+/** @deprecated a source declares its `library`; goes at 1.0. */
+export const SYNTAXES = LIBRARIES;
+/** @deprecated use {@link Library}. */
+export type Syntax = Library;
+/** @deprecated use {@link librarySchema}. */
+export const syntaxSchema = librarySchema;
 
 // Entity ids carry their type: character:condessa-rosa (§6).
 export const ENTITY_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
@@ -80,8 +98,11 @@ export const stringEntrySchema = z.looseObject({
   // The repository path the entry was read from (§4): what lets a
   // proposal be written back to the right file. Exec entries have none.
   file: z.string().min(1).optional(),
-  // The syntax the text is written in (§5); ICU when absent.
-  syntax: syntaxSchema.optional(),
+  // The library the text is written for (§5); plain ICU when absent.
+  // `syntax` is the old name, sent beside it until 1.0 so an older
+  // server reads a newer CLI's push correctly (§4).
+  library: librarySchema.optional(),
+  syntax: librarySchema.optional(),
 });
 
 // description is mandatory on every declaration — it renders as the

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { parseIcu, type Syntax } from "@corpus/contract";
+import { parseIcu, type Library } from "@corpus/contract";
 import { chipText } from "@/components/source-view";
 import { Button } from "@/components/ui/button";
 import { Chip, chipVariants } from "@/components/ui/chip";
@@ -60,7 +60,7 @@ export function ProposalPanel({
   stringKey: string;
   language?: string;
   source: string;
-  syntax?: Syntax;
+  syntax?: Library;
   slots: Slot[];
   writable: boolean;
   pending?: PendingProposal;

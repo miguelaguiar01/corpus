@@ -12,7 +12,7 @@
 // Errors are data (code + params); callers render them through their
 // own message catalog.
 import { parseIcu, pluralCategoriesOf, type IcuNode } from "./icu";
-import type { Syntax } from "./strings";
+import type { Library } from "./strings";
 
 export type ValidationError =
   | {
@@ -78,7 +78,7 @@ export function validateTranslation(
   source: string,
   target: string,
   language?: string,
-  syntax: Syntax = "icu",
+  syntax: Library = "icu",
 ): ValidationResult {
   const parsedSource = parseIcu(source, syntax);
   if (!parsedSource.ok) {

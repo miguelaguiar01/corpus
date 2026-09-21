@@ -3,7 +3,7 @@
 // the schema and the matcher, shared by the server and the CLI.
 import { z } from "zod";
 import { parseIcu, type IcuNode } from "./icu";
-import type { Syntax } from "./strings";
+import type { Library } from "./strings";
 
 const glossaryEntrySchema = z.object({
   term: z.string().min(1),
@@ -45,7 +45,7 @@ const UNSPACED =
 // The source's own words: the literal text of its ICU tree, never a
 // placeholder name, a select argument or a branch key; a source that
 // does not parse is read as plain text.
-function literalText(source: string, syntax: Syntax): string {
+function literalText(source: string, syntax: Library): string {
   const parsed = parseIcu(source, syntax);
   if (!parsed.ok) return source;
   const parts: string[] = [];
@@ -67,7 +67,7 @@ function literalText(source: string, syntax: Syntax): string {
 export function glossaryMatches(
   source: string,
   entries: GlossaryEntry[],
-  syntax: Syntax = "icu",
+  syntax: Library = "icu",
 ): GlossaryEntry[] {
   const literal = literalText(source, syntax);
   const haystack = words(literal);

@@ -1,5 +1,5 @@
 import { and, eq, inArray } from "drizzle-orm";
-import type { Snapshot } from "@corpus/contract";
+import { libraryOf, type Library, type Snapshot } from "@corpus/contract";
 import type { Db } from "@/db";
 import {
   edits,
@@ -29,6 +29,14 @@ class DryRunRollback extends Error {
   constructor(readonly report: IngestReport) {
     super("dry-run rollback");
   }
+}
+
+// The column holds the library the string is written for; a push may
+// name it as `library` or, until 1.0, as the old `syntax` (§4). Plain
+// ICU is null, as it has been since the column existed.
+function entryLibrary(entry: Snapshot["strings"][number]): Library | null {
+  const library = libraryOf(entry);
+  return library === "icu" ? null : library;
 }
 
 // Apply a validated snapshot to a project in one transaction (§8). The
@@ -87,7 +95,7 @@ export function applySnapshot(
             metadata: entry.metadata,
             examples: entry.examples,
             file: entry.file ?? null,
-            syntax: entry.syntax ?? null,
+            syntax: entryLibrary(entry),
           })
           .returning()
           .get();
@@ -119,7 +127,7 @@ export function applySnapshot(
             metadata: entry.metadata,
             examples: entry.examples,
             file: entry.file ?? null,
-            syntax: entry.syntax ?? null,
+            syntax: entryLibrary(entry),
             archived: false,
           })
           .where(eq(strings.id, currentRowId.get(id)!))
@@ -136,7 +144,7 @@ export function applySnapshot(
             metadata: entry.metadata,
             examples: entry.examples,
             file: entry.file ?? null,
-            syntax: entry.syntax ?? null,
+            syntax: entryLibrary(entry),
             archived: false,
           })
           .where(eq(strings.id, rowId))

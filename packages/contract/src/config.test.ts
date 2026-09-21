@@ -188,3 +188,34 @@ test("a source may declare its message syntax", () => {
     }).success,
   ).toBe(false);
 });
+
+test("a source declares its library; syntax is the old name and both together is an error", () => {
+  const source = (extra: Record<string, unknown>) => ({
+    project: "p",
+    server: "https://corpus.example",
+    sourceLanguage: "en",
+    languages: ["en", "pt-PT"],
+    sources: [
+      { adapter: "messages", type: "ui", path: "i18n/{lang}.json", ...extra },
+    ],
+  });
+  expect(corpusConfigSchema.safeParse(source({})).success).toBe(true);
+  expect(
+    corpusConfigSchema.safeParse(source({ library: "i18next" })).success,
+  ).toBe(true);
+  expect(
+    corpusConfigSchema.safeParse(source({ syntax: "i18next" })).success,
+  ).toBe(true);
+  expect(
+    corpusConfigSchema.safeParse(source({ library: "gettext" })).success,
+  ).toBe(false);
+  const both = corpusConfigSchema.safeParse(
+    source({ library: "i18next", syntax: "i18next" }),
+  );
+  expect(both.success).toBe(false);
+  if (!both.success) {
+    expect(both.error.issues[0]?.message).toMatch(
+      /library or syntax, not both/,
+    );
+  }
+});

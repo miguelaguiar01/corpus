@@ -2,13 +2,19 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { createJiti } from "jiti";
 import {
+  libraryOf,
   validateTranslation,
   type CorpusConfig,
   type ValidationError,
-  type Syntax,
+  type Library,
 } from "@corpus/contract";
 import type { RunContext } from "./cli";
-import { readEntries, writesBack, type FileSource } from "./build";
+import {
+  deprecations,
+  readEntries,
+  writesBack,
+  type FileSource,
+} from "./build";
 import { CliError, loadConfig } from "./config";
 
 export const VALIDATE_USAGE = "corpus validate [--json]";
@@ -43,6 +49,7 @@ export async function validate(
       );
     }
   }
+  for (const note of deprecations(config)) ctx.err(`corpus: ${note}`);
   for (const source of config.sources) {
     if (source.adapter === "exec") {
       ctx.err(`corpus: exec "${source.command}" is not validated`);
@@ -118,7 +125,7 @@ export async function validateRepo(
           original,
           target,
           language,
-          source.syntax ?? "icu",
+          libraryOf(source),
         );
         if (result.ok) continue;
         for (const error of result.errors) {
@@ -130,7 +137,7 @@ export async function validateRepo(
             file: inSource ? sourceFile : file,
             key,
             code: error.code,
-            message: describe(error, source.syntax ?? "icu"),
+            message: describe(error, libraryOf(source)),
           });
         }
       }
@@ -159,7 +166,7 @@ async function texts(
 
 export function describe(
   error: ValidationError,
-  syntax: Syntax = "icu",
+  syntax: Library = "icu",
 ): string {
   const written = (name: string) =>
     syntax === "i18next" ? `{{${name}}}` : `{${name}}`;

@@ -3,7 +3,8 @@ import {
   parseIcu,
   stringEntrySchema,
   type SourceChange,
-  type Syntax,
+  type Library,
+  libraryOf,
 } from "@corpus/contract";
 import type { Db } from "@/db";
 import { projects, sourceChanges, strings, users } from "@/db/schema";
@@ -32,7 +33,7 @@ export type ProposeResult =
         | "unknown-source";
     };
 
-function validIcu(text: string, syntax: Syntax = "icu"): boolean {
+function validIcu(text: string, syntax: Library = "icu"): boolean {
   return text.trim() !== "" && parseIcu(text, syntax).ok;
 }
 
@@ -130,7 +131,7 @@ export function proposeAdd(
     (s) => s.path === input.sourcePath,
   );
   if (!source) return { ok: false, reason: "unknown-source" };
-  if (!validIcu(input.text, source.syntax ?? "icu"))
+  if (!validIcu(input.text, libraryOf(source)))
     return { ok: false, reason: "invalid-icu" };
   const existing = db
     .select({ id: strings.id })

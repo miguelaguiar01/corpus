@@ -3,7 +3,7 @@ import {
   parseIcu,
   type FieldDeclaration,
   type IcuNode,
-  type Syntax,
+  type Library,
 } from "@corpus/contract";
 import { chipVariants } from "@/components/ui/chip";
 import { t } from "@/i18n";
@@ -22,7 +22,7 @@ export function SourceView({
   className = "text-xl lg:text-2xl",
 }: {
   source: string;
-  syntax?: Syntax;
+  syntax?: Library;
   declarations: Record<string, FieldDeclaration>;
   className?: string;
 }) {
@@ -85,7 +85,7 @@ const SLASH = "\u00a0/\u00a0";
 function renderNodes(
   nodes: IcuNode[],
   slots: Map<string, string>,
-  syntax: Syntax,
+  syntax: Library,
 ) {
   return nodes.map((node, index) => {
     if (node.kind === "literal") return node.text;
@@ -129,6 +129,6 @@ function renderNodes(
 }
 
 // A placeholder as the source writes it, so the chip reads as the text.
-export function chipText(name: string, syntax: Syntax): string {
+export function chipText(name: string, syntax: Library): string {
   return syntax === "i18next" ? `{{${name}}}` : `{${name}}`;
 }

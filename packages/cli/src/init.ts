@@ -5,7 +5,7 @@ import {
   corpusConfigSchema,
   LANGUAGE_RE,
   localeOf,
-  type Syntax,
+  type Library,
 } from "@corpus/contract";
 import { option } from "./args";
 import type { RunContext } from "./cli";
@@ -14,7 +14,7 @@ import { CliError, CONFIG_FILENAMES } from "./config";
 import { ignoreCorpusDir } from "./corpus-dir";
 
 export const INIT_USAGE =
-  "corpus init --project <slug> --source <lang> --messages <path with {lang}> [--languages <a,b>] [--server <url>] [--type <name>] [--syntax <icu|i18next>]";
+  "corpus init --project <slug> --source <lang> --messages <path with {lang}> [--languages <a,b>] [--server <url>] [--type <name>] [--library <icu|i18next>]";
 
 // `corpus init` writes a corpus.config.ts from flags alone, so it scripts;
 // it validates the config before writing and never overwrites one.
@@ -73,7 +73,14 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       );
     }
   }
-  const syntax = await syntaxFor(args, ctx.cwd, messages, sourceLanguage, type);
+  const library = await libraryFor(
+    args,
+    ctx.cwd,
+    messages,
+    sourceLanguage,
+    type,
+    ctx,
+  );
   const parsed = corpusConfigSchema.safeParse({
     project,
     server,
@@ -84,7 +91,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
         adapter: "messages",
         type,
         path: messages,
-        ...(syntax?.value === "i18next" ? { syntax: "i18next" } : {}),
+        ...(library?.value === "i18next" ? { library: "i18next" } : {}),
       },
     ],
   });
@@ -97,9 +104,9 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   const file = path.join(ctx.cwd, CONFIG_FILENAMES[0]);
   writeFileSync(file, render(parsed.data));
   ctx.out(`wrote ${CONFIG_FILENAMES[0]}`);
-  if (syntax?.value === "i18next") {
+  if (library?.value === "i18next") {
     ctx.out(
-      `syntax: i18next${syntax.detected ? `, from {{ }} in ${syntax.detected}` : ""}`,
+      `library: i18next${library.detected ? `, from {{ }} in ${library.detected}` : ""}`,
     );
   }
   const ignored = ignoreCorpusDir(ctx.cwd);
@@ -121,11 +128,16 @@ function render(config: {
   server: string;
   sourceLanguage: string;
   languages: string[];
-  sources: { adapter: string; type?: string; path?: string; syntax?: Syntax }[];
+  sources: {
+    adapter: string;
+    type?: string;
+    path?: string;
+    library?: Library;
+  }[];
 }): string {
   const q = (value: string) => JSON.stringify(value);
   const source = config.sources[0]!;
-  const syntax = source.syntax ? `, syntax: ${q(source.syntax)}` : "";
+  const library = source.library ? `, library: ${q(source.library)}` : "";
   return `import { defineCorpus } from "@corpus-tool/cli";
 
 export default defineCorpus({
@@ -134,7 +146,7 @@ export default defineCorpus({
   sourceLanguage: ${q(config.sourceLanguage)},
   languages: [${config.languages.map(q).join(", ")}],
   sources: [
-    { adapter: "messages", type: ${q(source.type ?? "chrome")}, path: ${q(source.path ?? "")}${syntax} },
+    { adapter: "messages", type: ${q(source.type ?? "chrome")}, path: ${q(source.path ?? "")}${library} },
   ],
 });
 `;
@@ -144,17 +156,31 @@ const ICU_ARGUMENT_RE = /\{\s*[^{},]+\s*,\s*(?:select|plural)\s*,/;
 
 // A source file that is absent or does not read decides nothing: push
 // will say what is wrong with it.
-async function syntaxFor(
+async function libraryFor(
   args: string[],
   cwd: string,
   pattern: string,
   sourceLanguage: string,
   type: string,
-): Promise<{ value: Syntax; detected?: string } | undefined> {
-  if (args.includes("--syntax")) {
-    const given = option(args, "--syntax");
+  ctx: RunContext,
+): Promise<{ value: Library; detected?: string } | undefined> {
+  if (args.includes("--library") && args.includes("--syntax")) {
+    throw new CliError(
+      `--library and --syntax are the same flag under two names; pass --library\nusage: ${INIT_USAGE}`,
+    );
+  }
+  const flag = args.includes("--library")
+    ? "--library"
+    : args.includes("--syntax")
+      ? "--syntax"
+      : undefined;
+  if (flag) {
+    if (flag === "--syntax") {
+      ctx.err("corpus: --syntax is the old name for --library; it goes at 1.0");
+    }
+    const given = option(args, flag);
     if (given !== "icu" && given !== "i18next") {
-      throw new CliError(`--syntax takes icu or i18next\nusage: ${INIT_USAGE}`);
+      throw new CliError(`${flag} takes icu or i18next\nusage: ${INIT_USAGE}`);
     }
     return { value: given };
   }
