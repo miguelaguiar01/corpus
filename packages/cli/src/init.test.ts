@@ -184,3 +184,76 @@ test(".gitignore ignores .corpus/ after init: created, extended, or left as it i
   );
   expect(has.out.join("\n")).not.toMatch(/gitignore/);
 });
+
+test("with no --languages, the codes come from the files that fill {lang}, the source first; a code the runtime does not know is warned about", async () => {
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "src", "i18n"), { recursive: true });
+  for (const code of ["pt-PT", "en", "de", "cr"]) {
+    writeFileSync(path.join(p.dir, "src", "i18n", `${code}.json`), "{}\n");
+  }
+  writeFileSync(path.join(p.dir, "src", "i18n", "glossary.en.json"), "[]\n");
+  const flags = FLAGS.filter(
+    (f, i) => f !== "--languages" && FLAGS[i - 1] !== "--languages",
+  );
+  expect(await run(flags, p.ctx)).toBe(0);
+  const config = await loadConfig(p.dir);
+  expect(config.languages).toEqual(["pt-PT", "cr", "de", "en"]);
+  expect(p.err.join("\n")).toMatch(
+    /cr is not a language tag the runtime knows/,
+  );
+  expect(p.err.join("\n")).not.toMatch(/de is not/);
+});
+
+test("with no --languages and no files, init says what to pass", async () => {
+  const p = project();
+  stubCli(p.dir);
+  const flags = FLAGS.filter(
+    (f, i) => f !== "--languages" && FLAGS[i - 1] !== "--languages",
+  );
+  expect(await run(flags, p.ctx)).toBe(1);
+  expect(p.err.join("\n")).toMatch(
+    /no src\/i18n\/\{lang\}\.json file to take the languages from; pass --languages/,
+  );
+});
+
+test("a {lang} directory segment is read too", async () => {
+  const p = project();
+  stubCli(p.dir);
+  for (const code of ["en", "fr"]) {
+    mkdirSync(path.join(p.dir, "locales", code), { recursive: true });
+    writeFileSync(path.join(p.dir, "locales", code, "common.json"), "{}\n");
+  }
+  mkdirSync(path.join(p.dir, "locales", "stale"), { recursive: true });
+  const flags = [
+    "init",
+    "--project",
+    "shop",
+    "--source",
+    "en",
+    "--messages",
+    "locales/{lang}/common.json",
+  ];
+  expect(await run(flags, p.ctx)).toBe(0);
+  expect((await loadConfig(p.dir)).languages).toEqual(["en", "fr"]);
+});
+
+test("--languages without a value is refused, as before; a given code is checked too", async () => {
+  const bare = project();
+  stubCli(bare.dir);
+  const flags = FLAGS.filter(
+    (f, i) => f !== "--languages" && FLAGS[i - 1] !== "--languages",
+  );
+  expect(await run([...flags, "--languages"], bare.ctx)).toBe(1);
+  expect(bare.err.join("\n")).toMatch(/--languages needs a value/);
+  const comma = project();
+  stubCli(comma.dir);
+  expect(await run([...flags, "--languages", ","], comma.ctx)).toBe(1);
+  expect(comma.err.join("\n")).toMatch(/--languages needs a value/);
+  const given = project();
+  stubCli(given.dir);
+  expect(await run([...flags, "--languages", "pt-PT,cr"], given.ctx)).toBe(0);
+  expect(given.err.join("\n")).toMatch(
+    /cr is not a language tag the runtime knows/,
+  );
+});
