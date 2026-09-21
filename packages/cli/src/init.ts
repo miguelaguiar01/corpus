@@ -164,6 +164,11 @@ async function libraryFor(
   type: string,
   ctx: RunContext,
 ): Promise<{ value: Library; detected?: string } | undefined> {
+  if (args.includes("--library") && args.includes("--syntax")) {
+    throw new CliError(
+      `--library and --syntax are the same flag under two names; pass --library\nusage: ${INIT_USAGE}`,
+    );
+  }
   const flag = args.includes("--library")
     ? "--library"
     : args.includes("--syntax")

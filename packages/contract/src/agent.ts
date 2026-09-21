@@ -3,7 +3,7 @@
 // Additive to corpus/1.
 import { z } from "zod";
 import { stringId } from "./strings";
-import type { Example, Syntax } from "./strings";
+import type { Example, Library } from "./strings";
 import type { GlossaryEntry } from "./glossary";
 
 export const QUEUE_KINDS = [
@@ -49,7 +49,7 @@ export type StringResponse = {
   tags: string[];
   // The message syntax the source and its translations are written in
   // (§5): "icu", or "i18next" for {{name}} interpolation.
-  syntax: Syntax;
+  syntax: Library;
   // Every value the source takes, placeholders then counts, in source
   // order, with the type's declaration for the slot and the first
   // example's value per language (§5, §7); additive.

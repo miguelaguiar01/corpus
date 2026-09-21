@@ -11,7 +11,7 @@ import {
   validateTranslation,
   type Example,
   type PreviewSegment,
-  type Syntax,
+  type Library,
 } from "@corpus/contract";
 import { chipText } from "@/components/source-view";
 import type { QueueKind } from "@/catalogue/queues";
@@ -35,7 +35,7 @@ type Branching = { kind: "select" | "plural"; arg: string; keys: string[] };
 function branchingOf(
   source: string,
   language: string,
-  syntax: Syntax,
+  syntax: Library,
 ): Branching[] {
   const parsed = parseIcu(source, syntax);
   if (!parsed.ok) return [];
@@ -93,7 +93,7 @@ export function TargetPane({
 }: {
   action: (formData: FormData) => void | Promise<void>;
   source: string;
-  syntax?: Syntax;
+  syntax?: Library;
   slots: Slot[];
   language: string;
   initialText: string;
@@ -304,7 +304,7 @@ function previews(
   examples: Example[],
   resolved: ReturnType<typeof exampleValues>[],
   language: string,
-  syntax: Syntax,
+  syntax: Library,
 ): PreviewSegment[][] {
   return examples.flatMap((example, index) => {
     if (blank) return [[{ text: example.rendered, value: false }]];

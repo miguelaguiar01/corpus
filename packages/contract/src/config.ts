@@ -44,11 +44,6 @@ export const sourceSchema = z.discriminatedUnion("adapter", [
   }),
 ]);
 
-// A source that sets both names disagrees with itself; the CLI says so
-// rather than picking one.
-const oneName = (source: Record<string, unknown>) =>
-  source["library"] === undefined || source["syntax"] === undefined;
-
 export const corpusConfigSchema = z
   .looseObject({
     project: identifier(),
@@ -87,11 +82,25 @@ export const corpusConfigSchema = z
     message: "languages must include sourceLanguage",
     path: ["sourceLanguage"],
   })
-  .refine((c) => c.sources.every(oneName), {
-    message:
-      "a source sets library or syntax, not both; syntax is the old name for library",
-    path: ["sources"],
-  });
+  // A source that sets both names disagrees with itself; the config
+  // says so rather than picking one.
+  .refine(
+    (c) =>
+      c.sources.every(
+        (source) =>
+          !(
+            "library" in source &&
+            source.library !== undefined &&
+            "syntax" in source &&
+            source.syntax !== undefined
+          ),
+      ),
+    {
+      message:
+        "a source sets library or syntax, not both; syntax is the old name for library",
+      path: ["sources"],
+    },
+  );
 
 export type CorpusConfig = z.infer<typeof corpusConfigSchema>;
 export type Source = z.infer<typeof sourceSchema>;

@@ -275,3 +275,33 @@ test("the same orphan key under two sources is two lines, one per source", async
     /corpus: 2 orphan key\(s\) in 2 file\(s\)$/m,
   );
 });
+
+test("an i18next source is validated as i18next under either name", async () => {
+  const config = (field: string) =>
+    writeFileSync(
+      path.join(repo, "corpus.config.mjs"),
+      `export default { project: "p", server: "http://localhost:3000", sourceLanguage: "en", languages: ["en", "pt"], sources: [{ adapter: "messages", type: "ui", path: "i18n/{lang}.json"${field} }] };\n`,
+    );
+  rmSync(path.join(repo, "corpus.config.ts"), { force: true });
+  write("i18n/en.json", { greet: "Hello {{ name }}" });
+  write("i18n/pt.json", { greet: "Olá {{ name }}" });
+
+  config(`, library: "i18next"`);
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(0);
+  expect(c.stderr.join("\n")).not.toMatch(/invalid/);
+  expect(c.stderr.join("\n")).not.toMatch(/syntax is the old name/);
+});
+
+test("the old name validates the same way, and says it is the old name", async () => {
+  rmSync(path.join(repo, "corpus.config.ts"), { force: true });
+  writeFileSync(
+    path.join(repo, "corpus.config.mjs"),
+    `export default { project: "p", server: "http://localhost:3000", sourceLanguage: "en", languages: ["en", "pt"], sources: [{ adapter: "messages", type: "ui", path: "i18n/{lang}.json", syntax: "i18next" }] };\n`,
+  );
+  write("i18n/en.json", { greet: "Hello {{ name }}" });
+  write("i18n/pt.json", { greet: "Olá {{ name }}" });
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(0);
+  expect(c.stderr.join("\n")).toMatch(/syntax is the old name for library/);
+});

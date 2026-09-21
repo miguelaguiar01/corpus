@@ -8,7 +8,7 @@
 // opens the sentence is capitalised. Everything else is verbatim —
 // previews are for meaning, not grammar (§7).
 import { parseIcu, pluralBranch, type IcuError, type IcuNode } from "./icu";
-import type { Syntax } from "./strings";
+import type { Library } from "./strings";
 
 export type PreviewResult =
   { ok: true; text: string } | { ok: false; errors: IcuError[] };
@@ -79,7 +79,7 @@ function render(
 // The engine habit of §7, a value that opens the sentence capitalised,
 // is for previews of a project's text; chrome rendered through the same
 // engine keeps its values as given.
-export type RenderOptions = { capitalise?: boolean; syntax?: Syntax };
+export type RenderOptions = { capitalise?: boolean; syntax?: Library };
 
 export function renderPreviewSegments(
   message: string,

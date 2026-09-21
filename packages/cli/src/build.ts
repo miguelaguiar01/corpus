@@ -203,7 +203,7 @@ function hint(source: string, syntax: Library, message: string): string {
     return `; a <name> is a rich-text tag: remove it, or open a matching <${stray[1]}>`;
   }
   if (syntax === "icu" && source.includes("{{")) {
-    return `; {{ }} is i18next's interpolation: declare syntax: "i18next" on the source`;
+    return `; {{ }} is i18next's interpolation: declare library: "i18next" on the source`;
   }
   return "";
 }

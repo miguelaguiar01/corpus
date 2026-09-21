@@ -1,5 +1,5 @@
 import { and, eq, inArray } from "drizzle-orm";
-import { libraryOf, type Snapshot } from "@corpus/contract";
+import { libraryOf, type Library, type Snapshot } from "@corpus/contract";
 import type { Db } from "@/db";
 import {
   edits,
@@ -31,17 +31,17 @@ class DryRunRollback extends Error {
   }
 }
 
-// Apply a validated snapshot to a project in one transaction (§8). The
-// whole thing rolls back if any step throws, so a push is all-or-nothing.
-// dryRun applies then rolls back, returning the exact report.
 // The column holds the library the string is written for; a push may
 // name it as `library` or, until 1.0, as the old `syntax` (§4). Plain
 // ICU is null, as it has been since the column existed.
-function entryLibrary(entry: Snapshot["strings"][number]) {
+function entryLibrary(entry: Snapshot["strings"][number]): Library | null {
   const library = libraryOf(entry);
   return library === "icu" ? null : library;
 }
 
+// Apply a validated snapshot to a project in one transaction (§8). The
+// whole thing rolls back if any step throws, so a push is all-or-nothing.
+// dryRun applies then rolls back, returning the exact report.
 export function applySnapshot(
   db: Db,
   projectId: number,

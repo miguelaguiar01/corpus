@@ -127,7 +127,7 @@ test("an i18next catalogue read as ICU is refused with a hint at the syntax decl
     REPO,
   );
   expect(refused.length).toBeGreaterThan(0);
-  expect(refused[0]?.message).toMatch(/declare syntax: "i18next"/);
+  expect(refused[0]?.message).toMatch(/declare library: "i18next"/);
 });
 
 test("a file that does not read still fails the whole build", async () => {

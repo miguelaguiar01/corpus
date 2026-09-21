@@ -1,4 +1,4 @@
-import type { Syntax, ValidationError } from "@corpus/contract";
+import type { Library, ValidationError } from "@corpus/contract";
 import { chipText } from "@/components/source-view";
 import { t } from "@/i18n";
 
@@ -7,7 +7,7 @@ import { t } from "@/i18n";
 // the editor and on the page after a server-side rejection.
 export function validationMessage(
   error: ValidationError,
-  syntax: Syntax = "icu",
+  syntax: Library = "icu",
 ): string {
   switch (error.code) {
     case "missing-placeholder":

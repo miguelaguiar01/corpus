@@ -9,7 +9,7 @@ import {
   type FieldDeclaration,
   type GlossaryEntry,
   type MetadataValue,
-  type Syntax,
+  type Library,
 } from "@corpus/contract";
 import type { Db } from "@/db";
 import {
@@ -33,7 +33,7 @@ export type StringDetail = {
     // The repository file it came from (§4); null when pull cannot write it.
     file: string | null;
     // The message syntax the text is written in (§5).
-    syntax: Syntax;
+    syntax: Library;
     metadata: Record<string, MetadataValue> | null;
     examples: Example[] | null;
     // The type's voice note (§5), when the project carries one.
