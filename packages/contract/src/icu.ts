@@ -162,22 +162,27 @@ class Parser {
     return nodes;
   }
 
-  // {{ name }}, {{name, format}} or the unescaped {{- name}} at the
-  // cursor, consumed (i18next).
+  // {{ name }} or {{name, format}} at the cursor, consumed (i18next).
+  // The unescaped form {{- name}} inserts its value raw where {{name}}
+  // escapes it, so the dash stays in the name: a translation must keep
+  // the form, and a chip writes it back.
   private parseDoubleBrace(): IcuNode {
     const start = this.pos;
     const end = this.source.indexOf("}}", this.pos + 2);
     if (end < 0) throw new ParseFailure("unclosed '{{'", start);
-    const inner = this.source.slice(this.pos + 2, end).replace(/^\s*-/, "");
-    const name = (inner.split(",")[0] ?? "").trim();
-    if (!I18NEXT_NAME_RE.test(name)) {
+    const inner = this.source.slice(this.pos + 2, end);
+    const unescaped = inner.startsWith("-");
+    const key = (
+      (unescaped ? inner.slice(1) : inner).split(",")[0] ?? ""
+    ).trim();
+    if (!I18NEXT_NAME_RE.test(key)) {
       throw new ParseFailure(
-        `invalid placeholder name ${JSON.stringify(name)}`,
+        `invalid placeholder name ${JSON.stringify(key)}`,
         start,
       );
     }
     this.pos = end + 2;
-    return { kind: "placeholder", name };
+    return { kind: "placeholder", name: unescaped ? `-${key}` : key };
   }
 
   // A tag at the cursor, consumed, or nothing when the < is text.
