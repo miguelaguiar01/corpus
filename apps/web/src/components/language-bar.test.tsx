@@ -48,8 +48,8 @@ test("the source language carries its verified mark, hidden from the name", () =
   ).toBeNull();
 });
 
-test("dozens of languages are all present as links and the bar wraps them", () => {
-  const languages = Array.from({ length: 36 }, (_, i) => `l${i}`);
+test("under the threshold every language is a link and the bar wraps them", () => {
+  const languages = Array.from({ length: 11 }, (_, i) => `l${i}`);
   render(
     <LanguageBar
       languages={languages}
@@ -61,7 +61,7 @@ test("dozens of languages are all present as links and the bar wraps them", () =
   );
   const nav = screen.getByRole("navigation");
   expect(nav.className).toContain("flex-wrap");
-  expect(screen.getAllByRole("link")).toHaveLength(36);
+  expect(screen.getAllByRole("link")).toHaveLength(11);
 });
 
 function many(count: number, selected = "l7") {
@@ -77,13 +77,13 @@ function many(count: number, selected = "l7") {
   );
 }
 
-test("below forty languages the bar stays segments; from forty it is a picker", async () => {
-  many(39);
-  expect(screen.getAllByRole("link")).toHaveLength(39);
+test("below twelve languages the bar stays segments; from twelve it is a picker", async () => {
+  many(11);
+  expect(screen.getAllByRole("link")).toHaveLength(11);
   expect(screen.queryByRole("button")).toBeNull();
   cleanup();
 
-  many(40);
+  many(12);
   const links = screen.getAllByRole("link");
   expect(links).toHaveLength(1);
   expect(links[0]?.textContent?.replace("✓", "").trim()).toBe("l0");
@@ -96,32 +96,20 @@ test("below forty languages the bar stays segments; from forty it is a picker", 
 
 test("the picker lists the languages, filters on the code as you type, links each, and closes on a pick", async () => {
   const user = userEvent.setup();
-  many(40);
+  many(12);
   await user.click(screen.getByRole("button"));
   expect(screen.getByRole("listbox")).toBeTruthy();
-  expect(screen.getAllByRole("option")).toHaveLength(39);
+  expect(screen.getAllByRole("option")).toHaveLength(11);
   expect(
     screen.getByRole("option", { name: "l7" }).getAttribute("aria-selected"),
   ).toBe("true");
   await user.type(screen.getByRole("textbox"), "L1");
   const shown = screen.getAllByRole("option").map((o) => o.textContent);
-  expect(shown).toEqual([
-    "l1",
-    "l10",
-    "l11",
-    "l12",
-    "l13",
-    "l14",
-    "l15",
-    "l16",
-    "l17",
-    "l18",
-    "l19",
-  ]);
-  expect(screen.getByRole("option", { name: "l12" }).getAttribute("href")).toBe(
-    "/p/mm/s/k?language=l12",
+  expect(shown).toEqual(["l1", "l10", "l11"]);
+  expect(screen.getByRole("option", { name: "l10" }).getAttribute("href")).toBe(
+    "/p/mm/s/k?language=l10",
   );
-  await user.click(screen.getByRole("option", { name: "l12" }));
+  await user.click(screen.getByRole("option", { name: "l10" }));
   expect(screen.queryByRole("listbox")).toBeNull();
   await user.click(screen.getByRole("button"));
   await user.type(screen.getByRole("textbox"), "zz");
