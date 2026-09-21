@@ -1,5 +1,7 @@
 {
   "fine": "All good",
   "prose": "For example: https://example.com/<baseurl>",
+  "mismatched": "Say <a>this</b> now",
+  "plural": "{n, plural, other {{n} <b>apples}}",
   "stray": "Delete this</em> now"
 }

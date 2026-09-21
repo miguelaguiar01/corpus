@@ -182,18 +182,27 @@ function validateEntry(
 
 // What to do about a refusal, where the text alone does not say it: a
 // catalogue in the wrong syntax is refused string by string, and prose
-// that spells a tag (`https://example.com/<baseurl>`) reads as one.
+// that spells a tag (`https://example.com/<baseurl>`) reads as one. The
+// tag shapes are tested first: `{{` is i18next's interpolation but also
+// an ICU branch that opens with a placeholder (`{n, plural, other
+// {{count} apples}}`), and that catalogue is not in the wrong syntax.
 function hint(source: string, syntax: Syntax, message: string): string {
-  if (syntax === "icu" && source.includes("{{")) {
-    return `; {{ }} is i18next's interpolation: declare syntax: "i18next" on the source`;
-  }
   const unclosed = /^unclosed <([^>]+)>$/.exec(message);
   if (unclosed) {
-    return `; a <name> is a rich-text tag (§5): close it with </${unclosed[1]}>, or write the brackets so they do not open a tag`;
+    return `; a <name> is a rich-text tag: close it with </${unclosed[1]}>, or write the brackets so they do not open a tag`;
   }
-  const stray = /^unexpected <\/([^>]+)>/.exec(message);
+  const mismatched = /^unexpected <\/([^>]+)>; <([^>]+)> is open$/.exec(
+    message,
+  );
+  if (mismatched) {
+    return `; a <name> is a rich-text tag: it closes <${mismatched[2]}>, so write </${mismatched[2]}> here, or remove it`;
+  }
+  const stray = /^unexpected <\/([^>]+)>$/.exec(message);
   if (stray) {
-    return `; a <name> is a rich-text tag (§5): remove it, or open a matching <${stray[1]}>`;
+    return `; a <name> is a rich-text tag: remove it, or open a matching <${stray[1]}>`;
+  }
+  if (syntax === "icu" && source.includes("{{")) {
+    return `; {{ }} is i18next's interpolation: declare syntax: "i18next" on the source`;
   }
   return "";
 }

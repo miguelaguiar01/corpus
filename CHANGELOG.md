@@ -9,7 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Changed
 
-- A source string refused for a tag that does not close says what a tag is and what to do: close it, write the brackets so they do not open one, or, for a stray closing tag, remove it. Jellyfin's `https://example.com/<baseurl>` is prose that spells a tag, and the message said only "unclosed <baseurl>".
+- `corpus build` and `corpus push` say what a rich-text tag is when they refuse a string for one, and what to do about it: close the tag, write the brackets so they do not open one, close the tag that is actually open, or remove a stray closing tag. Jellyfin's `https://example.com/<baseurl>` is prose that spells a tag, and the message said only "unclosed <baseurl>".
 
 ### Fixed
 
