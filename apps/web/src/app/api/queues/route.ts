@@ -29,7 +29,13 @@ export async function GET(request: Request): Promise<Response> {
     const items = all[kind].items
       .filter((item) => language === null || item.language === language)
       .filter((item) => type === null || item.type === type)
-      .map(({ key, language, type }) => ({ key, language, type }));
+      .map(({ key, language, type, source, text }) => ({
+        key,
+        language,
+        type,
+        source,
+        text,
+      }));
     queues[kind] = { count: items.length, items };
   }
   const body: QueuesResponse = {

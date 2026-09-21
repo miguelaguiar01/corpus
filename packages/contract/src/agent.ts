@@ -14,7 +14,16 @@ export const QUEUE_KINDS = [
 ] as const;
 export type QueueKind = (typeof QUEUE_KINDS)[number];
 
-export type QueueItemResponse = { key: string; language: string; type: string };
+// An item carries its source and the row's current text (null when
+// none), so a queue read is enough to translate a batch and the agent
+// drafts queue reads back as a review list; additive.
+export type QueueItemResponse = {
+  key: string;
+  language: string;
+  type: string;
+  source: string;
+  text: string | null;
+};
 export type QueuesResponse = {
   project: string;
   language: string | null;

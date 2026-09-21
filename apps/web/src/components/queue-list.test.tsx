@@ -11,6 +11,8 @@ const first = {
     key: "skin.seen",
     language: "en",
     type: "chrome",
+    source: "x",
+    text: null,
   },
   stale: null,
   unverifiedSource: {
@@ -18,6 +20,8 @@ const first = {
     key: "skin.seen",
     language: "pt-PT",
     type: "chrome",
+    source: "x",
+    text: null,
   },
   agentDrafts: null,
 };
@@ -110,6 +114,8 @@ test("the agent drafts queue appears once the project has any", () => {
           key: "ui.continue",
           language: "en",
           type: "chrome",
+          source: "x",
+          text: null,
         },
       }}
     />,

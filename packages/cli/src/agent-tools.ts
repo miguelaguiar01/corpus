@@ -78,7 +78,7 @@ export function tools(api: Api): Tool[] {
       name: "list_queue",
       op: "queue",
       description:
-        "The items of one queue: untranslated, stale, unverifiedSource or agentDrafts; narrowed to a language and a string type when given. Each item is a key, a language and the string's type.",
+        "The items of one queue: untranslated, stale, unverifiedSource or agentDrafts; narrowed to a language and a string type when given. Each item is a key, a language, the string's type, its source text and the row's current text (null when there is none), so a batch can be translated from the queue alone and the agent drafts queue reads back as a review list.",
       inputSchema: {
         type: "object",
         properties: {

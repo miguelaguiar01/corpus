@@ -25,6 +25,8 @@ export type QueueItem = {
   key: string;
   language: string;
   type: string;
+  source: string;
+  text: string | null;
 };
 export type Queue = {
   kind: QueueKind;
@@ -39,6 +41,8 @@ type Row = {
   key: string;
   language: string;
   type: string;
+  source: string;
+  text: string | null;
   state: string;
   stale: boolean;
   isSource: boolean;
@@ -60,6 +64,8 @@ function loadRows(db: Db, projectId: number): Row[] {
       key: strings.stringId,
       type: strings.type,
       language: stringTranslations.language,
+      source: strings.source,
+      text: stringTranslations.text,
       state: stringTranslations.state,
       stale: stringTranslations.stale,
       sourceLanguage: projects.sourceLanguage,
@@ -80,11 +86,13 @@ function loadRows(db: Db, projectId: number): Row[] {
 function pick(rows: Row[], kind: QueueKind): Queue {
   const items = rows
     .filter(MATCHERS[kind])
-    .map(({ stringId, key, language, type }) => ({
+    .map(({ stringId, key, language, type, source, text }) => ({
       stringId,
       key,
       language,
       type,
+      source,
+      text,
     }));
   return { kind, count: items.length, first: items[0] ?? null, items };
 }
