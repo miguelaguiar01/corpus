@@ -1,4 +1,10 @@
+import { gzipSync } from "node:zlib";
 import { CliError } from "./config";
+
+// A body from this size on travels gzipped: a repository's catalogue
+// with its translations as seeds is megabytes of JSON that shrink
+// tenfold, and the server inflates under its own cap.
+export const GZIP_FROM_BYTES = 256 * 1024;
 
 export const UNAUTHORIZED =
   "unauthorized — the token was refused (CORPUS_TOKEN or .corpus/token, for this project)";
@@ -10,16 +16,17 @@ export async function request(
   bearer: string,
   init: { method?: "GET" | "POST" | "PUT" | "DELETE"; body?: unknown } = {},
 ): Promise<Response> {
+  const json = init.body === undefined ? undefined : JSON.stringify(init.body);
+  const gzip = json !== undefined && Buffer.byteLength(json) >= GZIP_FROM_BYTES;
   try {
     return await fetch(url, {
       method: init.method ?? "GET",
       headers: {
         authorization: `Bearer ${bearer}`,
-        ...(init.body === undefined
-          ? {}
-          : { "content-type": "application/json" }),
+        ...(json === undefined ? {} : { "content-type": "application/json" }),
+        ...(gzip ? { "content-encoding": "gzip" } : {}),
       },
-      body: init.body === undefined ? undefined : JSON.stringify(init.body),
+      body: json === undefined ? undefined : gzip ? gzipSync(json) : json,
     });
   } catch (error) {
     throw new CliError(

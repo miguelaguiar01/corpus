@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- A push whose seeds already match no longer costs a write per seed: the server reads the project's rows once and updates only where a seed differs (Homarr's no-op push of 98,402 seeds went from 12 s of updates to a comparison), and the edits it checks are the project's own. The CLI gzips a request body from 256 KiB and the server inflates it under the cap, which is now 32 MiB on the inflated body (8 MiB before; Homarr's push was 3% under it).
 - `corpus check` reads a string in braces as a prop's value (`size={"sm"}`, `align={"start"}`) under the prop rule, so only a user-facing prop makes it a finding; on a Mantine codebase that was 160 of 190 findings. With none of the included directories present (Homarr has no `src`), it says nothing was scanned and exits 1 instead of reporting no literals.
 - `corpus validate` treats an empty or blank target value as a key the target lacks, as push does, instead of reporting every source placeholder missing (462 of the 595 findings on a Crowdin-exported catalogue were that).
 

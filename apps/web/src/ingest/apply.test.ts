@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { expect, test } from "vitest";
 import type { Db } from "@/db";
 import {
+  edits,
   entities,
   projects,
   pushes,
@@ -381,4 +382,82 @@ test("a seed the row already holds is not a write and not a count", () => {
     )
     .get()!;
   expect(after.updatedAt.getTime()).toBe(before.updatedAt.getTime());
+});
+
+test("an edit in another project on the same row number does not block a seed; a matching seed writes nothing", () => {
+  const { db, project } = seed();
+  const [other] = db
+    .insert(projects)
+    .values({
+      slug: "other",
+      name: "Other",
+      sourceLanguage: "pt-PT",
+      languages: ["pt-PT", "en"],
+    })
+    .returning()
+    .all();
+  const [editor] = db.insert(users).values({ name: "rui" }).returning().all();
+  // The other project pushes first, so its rows take the low ids, and a
+  // person edits its ui.continue in en.
+  applySnapshot(db, other!.id, { ...FIXTURE, project: "other" });
+  const otherRow = db
+    .select()
+    .from(strings)
+    .where(
+      and(
+        eq(strings.projectId, other!.id),
+        eq(strings.stringId, "ui.continue"),
+      ),
+    )
+    .get()!;
+  db.insert(edits)
+    .values({
+      stringId: otherRow.id,
+      language: "en",
+      userId: editor!.id,
+      oldText: null,
+      newText: "Go on",
+      oldState: "untranslated",
+      newState: "translated",
+    })
+    .run();
+  const first = applySnapshot(
+    db,
+    project.id,
+    withSeeds({ en: { "ui.continue": "Continue" } }),
+  );
+  expect(first.seeded).toBe(1);
+  // Two projects hold a ui.continue, so the row is looked up by project.
+  const mine = () => {
+    const string = db
+      .select()
+      .from(strings)
+      .where(
+        and(
+          eq(strings.projectId, project.id),
+          eq(strings.stringId, "ui.continue"),
+        ),
+      )
+      .get()!;
+    return db
+      .select()
+      .from(stringTranslations)
+      .where(
+        and(
+          eq(stringTranslations.stringId, string.id),
+          eq(stringTranslations.language, "en"),
+        ),
+      )
+      .get();
+  };
+  const row = mine();
+  expect(row?.text).toBe("Continue");
+  const stamp = row?.updatedAt?.getTime();
+  const again = applySnapshot(
+    db,
+    project.id,
+    withSeeds({ en: { "ui.continue": "Continue" } }),
+  );
+  expect(again.seeded).toBe(0);
+  expect(mine()?.updatedAt?.getTime()).toBe(stamp);
 });

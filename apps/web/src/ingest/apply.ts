@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, ne, or } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { Snapshot } from "@corpus/contract";
 import type { Db } from "@/db";
 import {
@@ -314,12 +314,33 @@ function applySeeds(
       .all()
       .map((row) => [row.stringId, row.id]),
   );
+  const rowKey = (rowId: number, language: string) =>
+    `${rowId}\u0000${language}`;
   const edited = new Set(
     db
       .select({ stringId: edits.stringId, language: edits.language })
       .from(edits)
+      .innerJoin(strings, eq(strings.id, edits.stringId))
+      .where(eq(strings.projectId, projectId))
       .all()
-      .map((edit) => `${edit.stringId}\u0000${edit.language}`),
+      .map((edit) => rowKey(edit.stringId, edit.language)),
+  );
+  // What every row holds, read once: a repository pushes its whole
+  // catalogue as seeds on every push, and a push that changes nothing
+  // must cost a comparison, not a write per row.
+  const current = new Map(
+    db
+      .select({
+        stringId: stringTranslations.stringId,
+        language: stringTranslations.language,
+        text: stringTranslations.text,
+        state: stringTranslations.state,
+      })
+      .from(stringTranslations)
+      .innerJoin(strings, eq(strings.id, stringTranslations.stringId))
+      .where(eq(strings.projectId, projectId))
+      .all()
+      .map((row) => [rowKey(row.stringId, row.language), row]),
   );
 
   for (const [language, texts] of Object.entries(seeds)) {
@@ -329,13 +350,15 @@ function applySeeds(
       if (
         !known ||
         rowId === undefined ||
-        edited.has(`${rowId}\u0000${language}`)
+        edited.has(rowKey(rowId, language))
       ) {
         seedsIgnored += 1;
         continue;
       }
       // A seed the row already holds is nothing: no write, no count, and
       // the editor's "changed since you opened it" stays quiet.
+      const row = current.get(rowKey(rowId, language));
+      if (row && row.text === text && row.state === "translated") continue;
       const { changes } = db
         .update(stringTranslations)
         .set({ text, state: "translated", updatedAt: new Date() })
@@ -343,11 +366,6 @@ function applySeeds(
           and(
             eq(stringTranslations.stringId, rowId),
             eq(stringTranslations.language, language),
-            or(
-              isNull(stringTranslations.text),
-              ne(stringTranslations.text, text),
-              ne(stringTranslations.state, "translated"),
-            ),
           ),
         )
         .run();
