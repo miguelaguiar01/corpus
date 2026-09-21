@@ -70,7 +70,12 @@ export function findLiterals(
       ts.isJsxExpression(node) &&
       node.expression &&
       (ts.isStringLiteral(node.expression) ||
-        ts.isNoSubstitutionTemplateLiteral(node.expression))
+        ts.isNoSubstitutionTemplateLiteral(node.expression)) &&
+      // A string in braces is text only as a child; as a prop's value
+      // (`size={"sm"}`, `align={"start"}`) it is the prop's, and only a
+      // user-facing prop carries text a person reads.
+      (!ts.isJsxAttribute(node.parent) ||
+        USER_FACING_PROPS.has(node.parent.name.getText(sf)))
     ) {
       report(node.expression.getStart(sf), node.expression.text);
     }
@@ -111,9 +116,14 @@ export function ignoreMatcher(patterns: string[]): (rel: string) => boolean {
   return (rel) => tests.some((test) => test(rel));
 }
 
-export function checkFiles(root: string, options: CheckOptions): Finding[] {
+export type CheckResult = { findings: Finding[]; scanned: string[] };
+
+// The included directories that exist are the ones scanned; the caller
+// says so when none does, since a clean bill over nothing is a lie.
+export function checkFiles(root: string, options: CheckOptions): CheckResult {
   const ignored = ignoreMatcher(options.ignore ?? []);
   const findings: Finding[] = [];
+  const scanned: string[] = [];
   const walk = (dir: string) => {
     for (const name of readdirSync(dir).sort()) {
       const abs = path.join(dir, name);
@@ -133,10 +143,14 @@ export function checkFiles(root: string, options: CheckOptions): Finding[] {
   for (const inc of options.include) {
     const abs = path.join(root, inc);
     try {
-      if (statSync(abs).isDirectory()) walk(abs);
+      if (statSync(abs).isDirectory()) {
+        scanned.push(inc);
+        walk(abs);
+      }
     } catch {
-      // A configured directory that does not exist is simply empty.
+      // A configured directory that does not exist is not scanned; the
+      // caller says so when that leaves nothing.
     }
   }
-  return findings;
+  return { findings, scanned };
 }
