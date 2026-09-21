@@ -49,7 +49,7 @@ npx corpus init --project my-game --source en --languages en,pt-PT \
 npx corpus workbench
 ```
 
-`init` writes `corpus.config.ts`, the whole configuration for a repository whose strings are a plain message catalog. `workbench` starts an instance at http://localhost:3000, creates the project the config declares, and prints the invite secret it generated; the project's token is written to `.corpus/token`, so in another shell:
+`init` writes `corpus.config.ts`, the whole configuration for a repository whose strings are a plain message catalog. `workbench` starts an instance at http://localhost:3000, creates the project the config declares, and prints the invite secret it generated; the project's token is written to `.corpus/token`, so in another shell: A package manager with a release-age policy (pnpm's `minimumReleaseAge`, say) refuses a version published inside its window; install the previous release, or wait it out.
 
 ```sh
 npx corpus push          # the repository's text is in Corpus

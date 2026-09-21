@@ -117,3 +117,16 @@ test("corpus build names a .ts catalogue as one pull cannot write back", async (
     "corpus: i18n/{lang}.ts is not JSON: pull writes JSON only, so its translations cannot be written back",
   );
 });
+
+test("--version prints the CLI's version alone, on stdout", async () => {
+  const c = ctx({
+    err: (s) => {
+      throw new Error(`stderr: ${s}`);
+    },
+  });
+  expect(await run(["--version"], c)).toBe(0);
+  expect(c.output).toEqual([expect.stringMatching(/^\d+\.\d+\.\d+/)]);
+  const short = ctx();
+  await run(["-v"], short);
+  expect(short.output).toEqual(c.output);
+});

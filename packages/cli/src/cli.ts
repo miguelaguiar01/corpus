@@ -7,7 +7,7 @@ import { CliError, loadConfig, requireToken } from "./config";
 import { checkFiles } from "./check";
 import { init, INIT_USAGE } from "./init";
 import { agent, AGENT_USAGE } from "./agent";
-import { mcp, MCP_USAGE } from "./mcp";
+import { MCP_USAGE, cliVersion, mcp } from "./mcp";
 import { languageDrift, project, PROJECT_USAGE } from "./project";
 import { pull } from "./pull";
 import { request, serverMessage, UNAUTHORIZED } from "./server";
@@ -39,6 +39,10 @@ export async function run(argv: string[], ctx: RunContext): Promise<number> {
 
   if (command === "--help" || command === "-h" || command === "help") {
     ctx.out(USAGE);
+    return 0;
+  }
+  if (command === "--version" || command === "-v" || command === "version") {
+    ctx.out(cliVersion());
     return 0;
   }
   if (
