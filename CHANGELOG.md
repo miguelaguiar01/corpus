@@ -13,6 +13,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- A seed equal to the source text no longer counts as translated (§8): an exporter fills a missing row with the source (Crowdin writes the English where a language has none, and Outline read 1907 of 1920 translated in every language), so the row keeps the text, for the round trip, and stays `untranslated`, so the dashboard and the queues count it as work; saving it in the editor makes it translated. The push report carries `seedsIdentical` and the push line says how many were kept untranslated.
 - `corpus check` treats a react-i18next `Trans` element as a catalogue call: its text children, the strings in braces under it and its user-facing props are the translation's key in the natural-key style, not findings; text beside it still is. On Outline, 109 of 251 findings were `Trans` children.
 - The string page finds a key with a space or any encoded character again: the App Router hands a page its segment percent-encoded, unlike a route handler, so the page decodes it once (guarded; bad encoding is a 404). A change in this batch had removed the decode on the belief that Next decodes page params; it does not, verified on a dev server, and every natural key was a 404 in the workbench.
 

@@ -69,6 +69,7 @@ test("push builds, uploads with the bearer token, and prints the report", async 
         archived: 0,
         seeded: 1,
         seedsIgnored: 1,
+        seedsIdentical: 3,
       },
     },
   }));
@@ -82,7 +83,7 @@ test("push builds, uploads with the bearer token, and prints the report", async 
   expect(calls[0]?.url).toBe("/api/push");
   expect((calls[0]?.body as { project: string }).project).toBe("push-fixture");
   expect(c.output.join("\n")).toContain(
-    "2 added, 0 changed, 0 stale, 0 archived, 1 translation(s) seeded from the repository (1 kept as Corpus has them)",
+    "2 added, 0 changed, 0 stale, 0 archived, 1 translation(s) seeded from the repository (1 kept as Corpus has them; 3 identical to the source, kept untranslated)",
   );
 });
 

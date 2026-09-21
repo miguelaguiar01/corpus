@@ -18,6 +18,7 @@ export type IngestReport = DiffReport & {
   entitiesRemoved: number;
   seeded: number;
   seedsIgnored: number;
+  seedsIdentical: number;
   proposalsApplied: number;
   proposalsSuperseded: number;
 };
@@ -297,25 +298,33 @@ function applyEntities(
 
 // seedTranslations (§8): a repo's existing target catalogs import as
 // `translated`, but only where Corpus has no edit history for the
-// string×language — after the first edit, Corpus wins. Unknown ids,
-// unknown languages, and the source language are skipped and counted,
-// never errors. Runs after the string writes so the rows exist.
+// string×language — after the first edit, Corpus wins. A seed equal to
+// the source text is an exporter's filler for a missing translation:
+// the text is kept for the round trip, the row stays `untranslated`.
+// Unknown ids, unknown
+// languages, and the source language are skipped and counted, never
+// errors. Runs after the string writes so the rows exist.
 function applySeeds(
   db: Db,
   projectId: number,
   targetLanguages: string[],
   snapshot: Snapshot,
-): { seeded: number; seedsIgnored: number } {
+): { seeded: number; seedsIgnored: number; seedsIdentical: number } {
   const seeds = snapshot.seedTranslations ?? {};
   let seeded = 0;
   let seedsIgnored = 0;
-  const rowIdByStringId = new Map(
+  let seedsIdentical = 0;
+  const byStringId = new Map(
     db
-      .select({ id: strings.id, stringId: strings.stringId })
+      .select({
+        id: strings.id,
+        stringId: strings.stringId,
+        source: strings.source,
+      })
       .from(strings)
       .where(eq(strings.projectId, projectId))
       .all()
-      .map((row) => [row.stringId, row.id]),
+      .map((row) => [row.stringId, row]),
   );
   const rowKey = (rowId: number, language: string) =>
     `${rowId}\u0000${language}`;
@@ -349,22 +358,26 @@ function applySeeds(
   for (const [language, texts] of Object.entries(seeds)) {
     const known = targetLanguages.includes(language);
     for (const [stringId, text] of Object.entries(texts)) {
-      const rowId = rowIdByStringId.get(stringId);
+      const string = byStringId.get(stringId);
       if (
         !known ||
-        rowId === undefined ||
-        edited.has(rowKey(rowId, language))
+        string === undefined ||
+        edited.has(rowKey(string.id, language))
       ) {
         seedsIgnored += 1;
         continue;
       }
+      const rowId = string.id;
+      const identical = text === string.source;
+      if (identical) seedsIdentical += 1;
+      const state = identical ? "untranslated" : "translated";
       // A seed the row already holds is nothing: no write, no count, and
       // the editor's "changed since you opened it" stays quiet.
       const row = current.get(rowKey(rowId, language));
-      if (row && row.text === text && row.state === "translated") continue;
+      if (row && row.text === text && row.state === state) continue;
       const { changes } = db
         .update(stringTranslations)
-        .set({ text, state: "translated", updatedAt: new Date() })
+        .set({ text, state, updatedAt: new Date() })
         .where(
           and(
             eq(stringTranslations.stringId, rowId),
@@ -372,8 +385,8 @@ function applySeeds(
           ),
         )
         .run();
-      seeded += changes;
+      if (!identical) seeded += changes;
     }
   }
-  return { seeded, seedsIgnored };
+  return { seeded, seedsIgnored, seedsIdentical };
 }

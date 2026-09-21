@@ -201,6 +201,31 @@ test("seedTranslations on a first push import as translated and are counted", ()
   );
 });
 
+test("a seed equal to the source keeps its text as untranslated, is counted apart, and a re-push is a no-op", () => {
+  const { db, project } = seed();
+  const same = FIXTURE.strings.find((s) => s.id === "ui.continue")!.source;
+  const seeds = withSeeds({
+    en: { "ui.continue": same, "skin.heard-nothing": "Heard nothing." },
+  });
+  const report = applySnapshot(db, project.id, seeds);
+  expect(report.seeded).toBe(1);
+  expect(report.seedsIdentical).toBe(1);
+  expect(report.seedsIgnored).toBe(0);
+  expect(translationOf(db, "ui.continue", "en")).toMatchObject({
+    state: "untranslated",
+    text: same,
+  });
+  expect(translationOf(db, "skin.heard-nothing", "en")).toMatchObject({
+    state: "translated",
+    text: "Heard nothing.",
+  });
+  const before = translationOf(db, "ui.continue", "en")?.updatedAt;
+  const again = applySnapshot(db, project.id, seeds);
+  expect(again.seeded).toBe(0);
+  expect(again.seedsIdentical).toBe(1);
+  expect(translationOf(db, "ui.continue", "en")?.updatedAt).toEqual(before);
+});
+
 test("a row with Corpus edit history keeps its text over a later seed", () => {
   const { db, project } = seed();
   applySnapshot(db, project.id, FIXTURE);
