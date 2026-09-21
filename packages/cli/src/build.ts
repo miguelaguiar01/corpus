@@ -21,8 +21,6 @@ import {
 import { CliError } from "./config";
 
 type Sourced = { entry: StringEntry; file: string };
-// A source string whose text does not parse (§8): left out of the
-// snapshot and named, so one typo does not hold the other thousand.
 export type Refused = { file: string; id: string; message: string };
 export type BuildReport = { snapshot: Snapshot; refused: Refused[] };
 // What an exporter says the repository already holds for its strings
@@ -168,13 +166,20 @@ function validateEntry(
   sourced: Sourced[],
   refused: Refused[],
 ): void {
-  const icu = parseIcu(entry.source, entry.syntax ?? "icu");
+  const syntax = entry.syntax ?? "icu";
+  const icu = parseIcu(entry.source, syntax);
   if (icu.ok) sourced.push({ entry, file });
   else {
+    // A whole i18next catalogue read as ICU is refused string by string;
+    // the hint names the declaration before the push archives them.
+    const hint =
+      syntax === "icu" && entry.source.includes("{{")
+        ? `; {{ }} is i18next's interpolation: declare syntax: "i18next" on the source`
+        : "";
     refused.push({
       file,
       id: entry.id,
-      message: `invalid ${entry.syntax ?? "ICU"}: ${icu.errors[0]?.message}`,
+      message: `invalid ${syntax === "icu" ? "ICU" : syntax}: ${icu.errors[0]?.message}${hint}`,
     });
   }
 }

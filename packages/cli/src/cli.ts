@@ -152,12 +152,12 @@ async function push(args: string[], ctx: RunContext): Promise<number> {
   return refusedExit(
     refused,
     ctx,
-    "not pushed; a refused string the project holds is archived until it parses",
+    dryRun
+      ? "would not be pushed; a refused string the project holds would be archived until it parses"
+      : "not pushed; a refused string the project holds is archived until it parses",
   );
 }
 
-// The rest went through, so a refusal is an exit code for CI and a
-// count line, after the report.
 function refusedExit(refused: Refused[], ctx: RunContext, fate: string) {
   if (refused.length === 0) return 0;
   ctx.err(`corpus: ${refused.length} string(s) refused and ${fate}`);

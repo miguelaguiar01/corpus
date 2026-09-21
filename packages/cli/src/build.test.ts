@@ -94,7 +94,20 @@ test("a source that does not parse is refused by entry and the rest is built", a
   expect(good.refused).toEqual([]);
 });
 
-test("a file that does not read, or a duplicate id, still fails the whole build", async () => {
+test("an i18next catalogue read as ICU is refused with a hint at the syntax declaration", async () => {
+  const { refused } = await buildSnapshotReport(
+    config({
+      sources: [
+        { adapter: "messages", type: "ui", path: "i18next/{lang}.json" },
+      ],
+    }),
+    REPO,
+  );
+  expect(refused.length).toBeGreaterThan(0);
+  expect(refused[0]?.message).toMatch(/declare syntax: "i18next"/);
+});
+
+test("a file that does not read still fails the whole build", async () => {
   const missing = config({
     sources: [
       { adapter: "messages", type: "chrome", path: "nowhere/{lang}.json" },
