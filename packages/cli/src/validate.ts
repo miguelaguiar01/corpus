@@ -18,6 +18,8 @@ export type Finding = {
   key: string;
   code: ValidationError["code"] | "orphan";
   message: string;
+  // An orphan's source file, so the summary can name where the key went.
+  source?: string;
 };
 
 // `corpus validate` (§3): the editor's checks (§5, §7) over the target
@@ -30,19 +32,51 @@ export async function validate(
   const config = await loadConfig(ctx.cwd);
   const findings = await validateRepo(config, ctx.cwd);
   const json = args.includes("--json");
+  const invalid = findings.filter((f) => f.code !== "orphan");
+  const orphans = findings.filter((f) => f.code === "orphan");
   if (json) ctx.out(JSON.stringify(findings, null, 2));
-  else for (const f of findings) ctx.err(`${f.file}:${f.key}: ${f.message}`);
+  else {
+    for (const f of invalid) ctx.err(`${f.file}:${f.key}: ${f.message}`);
+    for (const [key, files] of orphansByKey(orphans)) {
+      ctx.err(
+        `${files.source}:${key}: the source no longer has this key; ${files.targets} target file(s) carry it`,
+      );
+    }
+  }
   for (const source of config.sources) {
     if (source.adapter === "exec") {
       ctx.err(`corpus: exec "${source.command}" is not validated`);
     }
   }
   if (findings.length > 0) {
-    ctx.err(`corpus: ${findings.length} invalid translation(s)`);
+    const parts = [
+      invalid.length ? `${invalid.length} invalid translation(s)` : "",
+      orphans.length
+        ? `${orphansByKey(orphans).size} orphan key(s) in ${new Set(orphans.map((f) => f.file)).size} file(s)`
+        : "",
+    ].filter(Boolean);
+    ctx.err(`corpus: ${parts.join(", ")}`);
     return 1;
   }
   if (!json) ctx.out("validate: every translation is valid");
   return 0;
+}
+
+// Outline removed 22 keys from English that 27 target files still
+// carry: one line per key, not per file.
+function orphansByKey(
+  orphans: Finding[],
+): Map<string, { source: string; targets: number }> {
+  const byKey = new Map<string, { source: string; targets: number }>();
+  for (const f of orphans) {
+    const entry = byKey.get(f.key) ?? {
+      source: f.source ?? f.file,
+      targets: 0,
+    };
+    entry.targets += 1;
+    byKey.set(f.key, entry);
+  }
+  return byKey;
 }
 
 export async function validateRepo(
@@ -78,6 +112,7 @@ export async function validateRepo(
             key,
             code: "orphan",
             message: "the source no longer has this key",
+            source: sourceFile,
           });
           continue;
         }
