@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+### Fixed
+
+- `corpus validate` treats an empty or blank target value as a key the target lacks, as push does, instead of reporting every source placeholder missing (462 of the 595 findings on a Crowdin-exported catalogue were that).
+
 ### Added
 
 - Queue items carry the string's source and the row's current text (§10), so a queue read is enough to translate a batch and the agent drafts queue reads back as a review list; `list_queue` and `corpus agent queue` carry them as they are. Additive; still `corpus/1`.

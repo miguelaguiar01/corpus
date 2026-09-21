@@ -177,3 +177,24 @@ test("a target file that is not JSON is an error naming it", async () => {
   expect(await run(["validate"], c)).toBe(1);
   expect(c.stderr.join("\n")).toMatch(/i18n\/pt\.json/);
 });
+
+test("an empty or blank target value is a key the target lacks, not a dropped placeholder", async () => {
+  write("i18n/en.json", {
+    "app.title": "Corpus",
+    greeting: "Hello {name}",
+    farewell: "Bye {name}",
+  });
+  write("i18n/pt.json", {
+    "app.title": "Corpus",
+    greeting: "",
+    farewell: "Adeus",
+    gone: "  ",
+  });
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(1);
+  const err = c.stderr.join("\n");
+  expect(err).not.toContain("greeting");
+  expect(err).not.toContain("gone");
+  expect(err).toContain("i18n/pt.json:farewell: missing {name}");
+  expect(err).toMatch(/1 invalid translation\(s\)/);
+});

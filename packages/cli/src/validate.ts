@@ -66,6 +66,10 @@ export async function validateRepo(
       const translations = await texts(jiti, cwd, file, source);
       if (translations === undefined) continue;
       for (const [key, target] of translations) {
+        // An empty value is a key the target lacks: what an extraction
+        // tool leaves for an untranslated row, and what push seeds as
+        // untranslated (§8), never a dropped placeholder.
+        if (target.trim() === "") continue;
         const original = sources.get(key);
         if (original === undefined) {
           findings.push({
