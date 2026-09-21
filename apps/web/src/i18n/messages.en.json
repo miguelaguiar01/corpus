@@ -85,6 +85,7 @@
   "string.entitiesHeading": "Related",
   "string.otherLanguagesHeading": "Other languages",
   "string.otherLanguagesNone": "No translation yet",
+  "string.otherLanguagesMore": "{count, plural, one {# more language} other {# more languages}}",
   "string.noteLabel": "How every {type} string reads",
   "string.glossaryHeading": "Glossary terms in this string ({language})",
   "string.siblingsHeading": "Siblings",

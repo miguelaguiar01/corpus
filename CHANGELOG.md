@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+### Changed
+
+- The other languages under the editor show the first five open and fold the rest behind their count; Homarr's string pages carried 34 texts under every editor. Corpus's own chrome renders its messages through the contract's engine, so the self catalogue may use select and plural (the fold's count is the first).
+
 ### Fixed
 
 - A push whose seeds already match no longer costs a write per seed: the server reads the project's rows once and updates only where a seed differs (Homarr's no-op push of 98,402 seeds went from 12 s of updates to a comparison), and the edits it checks are the project's own. The CLI gzips a request body from 256 KiB and the server inflates it under the cap, which is now 32 MiB on the inflated body (8 MiB before; Homarr's push was 3% under it).

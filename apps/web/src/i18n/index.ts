@@ -5,13 +5,15 @@
 //   1. Add a flat dot-separated key to messages.en.json (the key is the
 //      snapshot string ID — renaming a key is a delete + create, §4).
 //   2. Use t("your.key") — an unknown key is a type error.
-//   3. Message syntax is restricted to the ICU subset of §5: {placeholder}
-//      interpolation (pass values as the second argument). `select` support
-//      is added when a chrome string first needs it.
+//   3. Message syntax is the ICU subset of §5, rendered by the contract's
+//      own engine: {placeholder} interpolation, select and plural (pass
+//      the values as the second argument; a plural picks its branch by
+//      English's categories, since the chrome renders the source language).
 //
 // messages.pt-PT.json is the Portuguese catalogue the dogfood loop pulls
 // back and rewrites through the writer (§12, §15); the chrome still
 // renders the source language.
+import { renderPreview } from "@corpus/contract";
 import messages from "./messages.en.json";
 
 export type MessageKey = keyof typeof messages;
@@ -22,8 +24,9 @@ export function t(
 ): string {
   const message = messages[key];
   if (values === undefined) return message;
-  return message.replace(/\{(\w+)\}/g, (match, name: string) => {
-    const value = values[name];
-    return value === undefined ? match : String(value);
-  });
+  const strings = Object.fromEntries(
+    Object.entries(values).map(([name, value]) => [name, String(value)]),
+  );
+  const rendered = renderPreview(message, strings, "en", { capitalise: false });
+  return rendered.ok ? rendered.text : message;
 }
