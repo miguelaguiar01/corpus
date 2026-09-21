@@ -2,6 +2,7 @@ import type { Progress } from "@/catalogue/progress";
 import { t } from "@/i18n";
 import { ProgressBar } from "./progress-bar";
 import { ProgressLegend } from "./progress-legend";
+import { ProgressRow } from "./progress-row";
 
 // Past this many languages the blocks become a table: a project of
 // dozens of languages with one string type is otherwise a wall of one
@@ -9,7 +10,8 @@ import { ProgressLegend } from "./progress-legend";
 const TABLE_FROM_LANGUAGES = 8;
 
 // Per-language progress: a block per language broken down by string
-// type, or, from eight languages on, a table of one row each (§9.1).
+// type, or, from eight languages on, a table of one row each with the
+// breakdown behind the row (§9.1).
 export function ProgressByType({ progress }: { progress: Progress }) {
   const languages = Object.keys(progress.perLanguage);
   if (languages.length === 0) return null;
@@ -29,26 +31,17 @@ export function ProgressByType({ progress }: { progress: Progress }) {
             </tr>
           </thead>
           <tbody>
-            {languages.map((language) => {
-              const p = progress.perLanguage[language]!;
-              return (
-                <tr key={language} className="border-t border-border">
-                  <th scope="row" className="w-16 py-1.5 text-left font-medium">
-                    {language}
-                  </th>
-                  <td className="py-1.5 pr-3">
-                    <ProgressBar p={p} label={language} className="h-1.5" />
-                  </td>
-                  <td className="hidden w-48 py-1.5 text-right text-xs text-muted-foreground sm:table-cell">
-                    {t("progress.summary", {
-                      verified: p.verified,
-                      translated: p.translated,
-                      total: p.total,
-                    })}
-                  </td>
-                </tr>
-              );
-            })}
+            {languages.map((language) => (
+              <ProgressRow
+                key={language}
+                language={language}
+                p={progress.perLanguage[language]!}
+                types={types.flatMap((type) => {
+                  const tp = progress.perType[type]?.[language];
+                  return tp ? [{ type, p: tp }] : [];
+                })}
+              />
+            ))}
           </tbody>
         </table>
       </div>
