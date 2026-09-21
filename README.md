@@ -49,14 +49,14 @@ npx corpus init --project my-game --source en \
 npx corpus workbench
 ```
 
-`init` writes `corpus.config.ts`, the whole configuration for a repository whose strings are a plain message catalog. `workbench` starts an instance at http://localhost:3000, creates the project the config declares, and prints the invite secret it generated; the project's token is written to `.corpus/token`, so in another shell: A package manager with a release-age policy (pnpm's `minimumReleaseAge`, say) refuses a version published inside its window; install the previous release, or wait it out.
+`init` writes `corpus.config.ts`, the whole configuration for a repository whose strings are a plain message catalog; it reads the languages from the files that fill `{lang}`, and the syntax from the source file's values (`{{ }}` with no ICU argument is i18next, said in the output), or takes `--languages` and `--syntax <icu|i18next>`. `workbench` starts an instance at http://localhost:3000, creates the project the config declares, and prints the invite secret it generated; the project's token is written to `.corpus/token`, so in another shell:
 
 ```sh
 npx corpus push          # the repository's text is in Corpus
 npx corpus status        # how far along each language is, from the terminal
 ```
 
-Open the URL, join with the secret, a display name and a password, and you are the maintainer: translate, verify, then `npx corpus pull` writes the verified translations back into the repository's files. The database, the secret and the token live under `.corpus/`, which `init` and `workbench` both add to `.gitignore`, creating the file when there is none, so the token is ignored on the team path too, where `project create` prints it and the workbench never runs; delete the directory to start over. Updating is `npm update` of the two packages, which always share a version.
+Open the URL, join with the secret, a display name and a password, and you are the maintainer: translate, verify, then `npx corpus pull` writes the verified translations back into the repository's files. The database, the secret and the token live under `.corpus/`, which `init` and `workbench` both add to `.gitignore`, creating the file when there is none, so the token is ignored on the team path too, where `project create` prints it and the workbench never runs; delete the directory to start over. Updating is `npm update` of the two packages, which always share a version. A package manager with a release-age policy (pnpm's `minimumReleaseAge`, say) refuses a version published inside its window; install the previous release, or wait it out.
 
 ## For a team
 

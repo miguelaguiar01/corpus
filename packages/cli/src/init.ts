@@ -1,13 +1,20 @@
 import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { corpusConfigSchema, LANGUAGE_RE, localeOf } from "@corpus/contract";
+import { createJiti } from "jiti";
+import {
+  corpusConfigSchema,
+  LANGUAGE_RE,
+  localeOf,
+  type Syntax,
+} from "@corpus/contract";
 import { option } from "./args";
 import type { RunContext } from "./cli";
+import { readEntries } from "./build";
 import { CliError, CONFIG_FILENAMES } from "./config";
 import { ignoreCorpusDir } from "./corpus-dir";
 
 export const INIT_USAGE =
-  "corpus init --project <slug> --source <lang> --messages <path with {lang}> [--languages <a,b>] [--server <url>] [--type <name>]";
+  "corpus init --project <slug> --source <lang> --messages <path with {lang}> [--languages <a,b>] [--server <url>] [--type <name>] [--syntax <icu|i18next>]";
 
 // `corpus init` writes a corpus.config.ts from flags alone, so it scripts;
 // it validates the config before writing and never overwrites one.
@@ -66,12 +73,20 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       );
     }
   }
+  const syntax = await syntaxFor(args, ctx.cwd, messages, sourceLanguage, type);
   const parsed = corpusConfigSchema.safeParse({
     project,
     server,
     sourceLanguage,
     languages,
-    sources: [{ adapter: "messages", type, path: messages }],
+    sources: [
+      {
+        adapter: "messages",
+        type,
+        path: messages,
+        ...(syntax?.value === "i18next" ? { syntax: "i18next" } : {}),
+      },
+    ],
   });
   if (!parsed.success) {
     const issues = parsed.error.issues
@@ -82,6 +97,11 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   const file = path.join(ctx.cwd, CONFIG_FILENAMES[0]);
   writeFileSync(file, render(parsed.data));
   ctx.out(`wrote ${CONFIG_FILENAMES[0]}`);
+  if (syntax?.value === "i18next") {
+    ctx.out(
+      `syntax: i18next${syntax.detected ? `, from {{ }} in ${syntax.detected}` : ""}`,
+    );
+  }
   const ignored = ignoreCorpusDir(ctx.cwd);
   if (ignored) ctx.out(ignored);
   ctx.out("");
@@ -101,10 +121,11 @@ function render(config: {
   server: string;
   sourceLanguage: string;
   languages: string[];
-  sources: { adapter: string; type?: string; path?: string }[];
+  sources: { adapter: string; type?: string; path?: string; syntax?: Syntax }[];
 }): string {
   const q = (value: string) => JSON.stringify(value);
   const source = config.sources[0]!;
+  const syntax = source.syntax ? `, syntax: ${q(source.syntax)}` : "";
   return `import { defineCorpus } from "@corpus-tool/cli";
 
 export default defineCorpus({
@@ -113,10 +134,45 @@ export default defineCorpus({
   sourceLanguage: ${q(config.sourceLanguage)},
   languages: [${config.languages.map(q).join(", ")}],
   sources: [
-    { adapter: "messages", type: ${q(source.type ?? "chrome")}, path: ${q(source.path ?? "")} },
+    { adapter: "messages", type: ${q(source.type ?? "chrome")}, path: ${q(source.path ?? "")}${syntax} },
   ],
 });
 `;
+}
+
+const ICU_ARGUMENT_RE = /\{\s*[^{},]+\s*,\s*(?:select|plural)\s*,/;
+
+// A source file that is absent or does not read decides nothing: push
+// will say what is wrong with it.
+async function syntaxFor(
+  args: string[],
+  cwd: string,
+  pattern: string,
+  sourceLanguage: string,
+  type: string,
+): Promise<{ value: Syntax; detected?: string } | undefined> {
+  if (args.includes("--syntax")) {
+    const given = option(args, "--syntax");
+    if (given !== "icu" && given !== "i18next") {
+      throw new CliError(`--syntax takes icu or i18next\nusage: ${INIT_USAGE}`);
+    }
+    return { value: given };
+  }
+  const file = pattern.replace("{lang}", sourceLanguage);
+  let texts: string[];
+  try {
+    const entries = await readEntries(createJiti(import.meta.url), cwd, file, {
+      adapter: "messages",
+      type,
+      path: pattern,
+    });
+    texts = entries.map((entry) => entry.source);
+  } catch {
+    return undefined;
+  }
+  const braces = texts.some((text) => text.includes("{{"));
+  const icu = texts.some((text) => ICU_ARGUMENT_RE.test(text));
+  return braces && !icu ? { value: "i18next", detected: file } : undefined;
 }
 
 // The languages a messages path names (§3): every file or directory
