@@ -85,6 +85,56 @@ describe("findLiterals", () => {
     ]);
   });
 
+  test("an entity is not letters: a text of only entities is no finding", () => {
+    const source = `
+      export const X = () => (
+        <p>
+          <span>&nbsp;</span>
+          <span>&middot;</span>
+          <span>&nbsp;&bull;&nbsp;</span>
+          <span>&#8212;</span>
+          <span>&#x2014;</span>
+          <span>&frobnicate;</span>
+          <b>&nbsp;Save now</b>
+        </p>
+      );`;
+    expect(findLiterals(source, "x.tsx").map((f) => f.text)).toEqual([
+      "&frobnicate;",
+      "&nbsp;Save now",
+    ]);
+    // A quoted attribute is markup too; a string in braces is not, since
+    // React renders it as written.
+    expect(
+      findLiterals(
+        `export const X = () => <img alt="&nbsp;&middot;" />;`,
+        "x.tsx",
+      ),
+    ).toEqual([]);
+    expect(
+      findLiterals(
+        `export const X = () => <p>{"&nbsp;&middot;"}</p>;`,
+        "x.tsx",
+      ).map((f) => f.text),
+    ).toEqual(["&nbsp;&middot;"]);
+    // Uppercase hex decodes; an out-of-range reference is left as
+    // written and does not throw.
+    expect(
+      findLiterals(`export const X = () => <p>&#X2014;&#8212;</p>;`, "x.tsx"),
+    ).toEqual([]);
+    expect(
+      findLiterals(
+        `export const X = () => <p>&#1114112; Save now</p>;`,
+        "x.tsx",
+      ).map((f) => f.text),
+    ).toEqual(["&#1114112; Save now"]);
+    // A lone ampersand is text, and does not disturb the decoding.
+    expect(
+      findLiterals(`export const X = () => <p>a & b</p>;`, "x.tsx").map(
+        (f) => f.text,
+      ),
+    ).toEqual(["a & b"]);
+  });
+
   test("an allow pattern silences matching texts", () => {
     const source = `export const X = () => <p>Corpus</p>;`;
     expect(findLiterals(source, "x.tsx", { allow: [/^Corpus$/] })).toEqual([]);
