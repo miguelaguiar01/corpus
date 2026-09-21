@@ -186,6 +186,9 @@ test("pluralCategoriesOf follows the runtime's CLDR data and is empty for an unk
   // A well-formed tag the runtime has no data for is unknown too.
   expect(pluralCategoriesOf("tlh")).toEqual([]);
   expect(pluralCategoriesOf("ru")).toEqual(["one", "few", "many", "other"]);
+  // An underscore code is the same language to the runtime.
+  expect(pluralCategoriesOf("ru_RU")).toEqual(["one", "few", "many", "other"]);
+  expect(pluralBranch({ few: [], other: [] }, "3", "ru_RU")).toBe("few");
   expect(pluralBranch({ one: [], other: [] }, "1", "tlh")).toBe("other");
   const branches = { "=0": [], one: [], few: [], other: [] };
   expect(pluralBranch(branches, "0", "ru")).toBe("=0");

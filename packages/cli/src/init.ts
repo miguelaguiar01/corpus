@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { corpusConfigSchema, LANGUAGE_RE } from "@corpus/contract";
+import { corpusConfigSchema, LANGUAGE_RE, localeOf } from "@corpus/contract";
 import { option } from "./args";
 import type { RunContext } from "./cli";
 import { CliError, CONFIG_FILENAMES } from "./config";
@@ -158,7 +158,7 @@ export function languagesFromFiles(
 // but has none.
 function knownLanguage(code: string): boolean {
   try {
-    return Intl.PluralRules.supportedLocalesOf([code]).length > 0;
+    return Intl.PluralRules.supportedLocalesOf([localeOf(code)]).length > 0;
   } catch {
     return false;
   }

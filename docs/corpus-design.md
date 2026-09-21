@@ -76,7 +76,7 @@ export default defineCorpus({
   project: "moonlight-manor",
   server: "https://corpus.example",           // token via CORPUS_TOKEN env
   sourceLanguage: "pt-PT",
-  languages: ["pt-PT", "en"],
+  languages: ["pt-PT", "en"],  // BCP 47 tags; underscores as i18next writes them (en_US) are kept as written
   stringTypes: { /* §5: metadata field declarations per type */ },
   typeNotes: { "clue-skin": "Dry, said by staff; keep it short." },  // §5
   entityTypes: { /* §6 */ },
