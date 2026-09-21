@@ -37,14 +37,23 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       `--messages must contain {lang}, such as src/i18n/{lang}.json`,
     );
   }
+  // The flag given without a value is an error, as for every option
+  // (args.ts); only its absence means "read the files".
+  const present = args.includes("--languages");
   const given = option(args, "--languages");
-  const languages =
-    given && !given.startsWith("--")
-      ? given
+  const listed =
+    given === undefined || given.startsWith("--")
+      ? []
+      : given
           .split(",")
           .map((code) => code.trim())
-          .filter(Boolean)
-      : languagesFromFiles(ctx.cwd, messages, sourceLanguage);
+          .filter(Boolean);
+  if (present && listed.length === 0) {
+    throw new CliError(`--languages needs a value\nusage: ${INIT_USAGE}`);
+  }
+  const languages = present
+    ? listed
+    : languagesFromFiles(ctx.cwd, messages, sourceLanguage);
   if (languages.length === 0) {
     throw new CliError(
       `no ${messages} file to take the languages from; pass --languages`,
@@ -141,11 +150,7 @@ export function languagesFromFiles(
     if (existsSync(path.join(cwd, rest))) found.add(code);
   }
   const rest = [...found].filter((c) => c !== sourceLanguage).sort();
-  return found.has(sourceLanguage)
-    ? [sourceLanguage, ...rest]
-    : rest.length > 0
-      ? [sourceLanguage, ...rest]
-      : [];
+  return found.size > 0 ? [sourceLanguage, ...rest] : [];
 }
 
 // Whether the runtime has locale data for a tag: a pseudo-locale a

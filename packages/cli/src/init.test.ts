@@ -237,3 +237,23 @@ test("a {lang} directory segment is read too", async () => {
   expect(await run(flags, p.ctx)).toBe(0);
   expect((await loadConfig(p.dir)).languages).toEqual(["en", "fr"]);
 });
+
+test("--languages without a value is refused, as before; a given code is checked too", async () => {
+  const bare = project();
+  stubCli(bare.dir);
+  const flags = FLAGS.filter(
+    (f, i) => f !== "--languages" && FLAGS[i - 1] !== "--languages",
+  );
+  expect(await run([...flags, "--languages"], bare.ctx)).toBe(1);
+  expect(bare.err.join("\n")).toMatch(/--languages needs a value/);
+  const comma = project();
+  stubCli(comma.dir);
+  expect(await run([...flags, "--languages", ","], comma.ctx)).toBe(1);
+  expect(comma.err.join("\n")).toMatch(/--languages needs a value/);
+  const given = project();
+  stubCli(given.dir);
+  expect(await run([...flags, "--languages", "pt-PT,cr"], given.ctx)).toBe(0);
+  expect(given.err.join("\n")).toMatch(
+    /cr is not a language tag the runtime knows/,
+  );
+});
