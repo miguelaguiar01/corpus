@@ -39,8 +39,9 @@ export const PLURAL_CATEGORIES = [
   "other",
 ] as const;
 const PLURAL_KEY_RE = /^(?:zero|one|two|few|many|other|=[0-9]+)$/;
-// A tag as the rich-text libraries write it: <link>, <checkoutDocs/>.
-const TAG_RE = /^<(\/?)([A-Za-z][A-Za-z0-9_-]*)(\/?)>/;
+// A tag as the rich-text libraries write it: <link>, <checkoutDocs/>,
+// and react-i18next's <2> for an indexed Trans child.
+const TAG_RE = /^<(\/?)([A-Za-z][A-Za-z0-9_-]*|[0-9]+)(\/?)>/;
 // i18next's interpolation name: an identifier, dotted into an object
 // ({{user.name}}); a format after a comma ({{date, short}}) is ignored.
 const I18NEXT_NAME_RE = /^[A-Za-z_$][A-Za-z0-9_.$]*$/;

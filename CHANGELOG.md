@@ -18,6 +18,7 @@ contract (`corpus/1`) is the only one.
 
 ### Added
 
+- A rich-text tag's name may be a bare number (§5): react-i18next indexes a `Trans` element's children as `<1>`, `<2>`, and Outline writes `<2>{{ sharedParent.sourceTitle }}</2>`; a translation that drops one is now a `missing-tag` finding instead of the tag passing as text.
 - `corpus init` takes `--syntax <icu|i18next>` and, without it, reads the syntax from the source file: values with `{{ }}` and no ICU argument mean i18next, written on the source and said in the output. Outline's config needed a hand edit for it.
 - A source may declare `syntax: "i18next"` (§3, §5): `{{name}}` and `{{ name }}` are placeholders (a dotted name and a format after a comma as i18next writes them), a single brace is text, and the text is stored and written back as written, so an i18next catalogue's round trip holds; the string carries its syntax to the editor, the agent's `get_string`, validation, previews and `corpus validate`, and the chips insert `{{name}}`. Outline's 365 interpolated strings push.
 - A string id may be any text without control characters, a line break or a tab aside, up to a thousand characters (§4): i18next's natural keys, the English sentence itself with its spaces and punctuation, push as they are; 1578 of Outline's 1920 keys. A key with whitespace has no sibling prefix (§9.3), since its dots end clauses.
