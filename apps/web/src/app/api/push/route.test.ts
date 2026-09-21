@@ -1,3 +1,4 @@
+import { gzipSync } from "node:zlib";
 import { moonlightManor } from "@corpus/contract";
 import { MAX_BODY_BYTES } from "@/api/limits";
 import { expect, test, vi } from "vitest";
@@ -95,4 +96,39 @@ test("a body over the cap → 413 before it is parsed", async () => {
   snap.strings[0]!.source = "x".repeat(MAX_BODY_BYTES + 1);
   const res = await push(token, snap);
   expect(res.status).toBe(413);
+});
+
+function pushGzipped(token: string, body: unknown) {
+  return POST(
+    new Request("http://corpus.test/api/push", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "content-encoding": "gzip",
+        authorization: `Bearer ${token}`,
+      },
+      body: new Uint8Array(gzipSync(JSON.stringify(body))),
+    }),
+  );
+}
+
+test("a gzipped body is inflated and applied; the cap holds on the inflated size; bad gzip is a 400", async () => {
+  const { token, slug } = setup();
+  const res = await pushGzipped(token, forProject(slug));
+  expect(res.status).toBe(200);
+  const big = forProject(slug);
+  big.strings[0]!.source = "x".repeat(MAX_BODY_BYTES + 1);
+  expect((await pushGzipped(token, big)).status).toBe(413);
+  const junk = await POST(
+    new Request("http://corpus.test/api/push", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "content-encoding": "gzip",
+        authorization: `Bearer ${token}`,
+      },
+      body: "not gzip",
+    }),
+  );
+  expect(junk.status).toBe(400);
 });

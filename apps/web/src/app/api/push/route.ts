@@ -1,5 +1,6 @@
 import { getDb } from "@/db";
 import { authenticateProject } from "@/api/bearer";
+import { gunzipSync } from "node:zlib";
 import { MAX_BODY_BYTES } from "@/api/limits";
 import { applySnapshot } from "@/ingest/apply";
 import { validateSnapshot } from "@/ingest/validate";
@@ -21,8 +22,25 @@ export async function POST(request: Request): Promise<Response> {
 
   const declared = Number(request.headers.get("content-length") ?? 0);
   if (declared > MAX_BODY_BYTES) return tooLarge();
-  const text = await request.text();
-  if (Buffer.byteLength(text) > MAX_BODY_BYTES) return tooLarge();
+  let text: string;
+  if (request.headers.get("content-encoding") === "gzip") {
+    // The cap holds on the inflated body, whatever the wire size.
+    try {
+      text = gunzipSync(Buffer.from(await request.arrayBuffer()), {
+        maxOutputLength: MAX_BODY_BYTES,
+      }).toString("utf8");
+    } catch (error) {
+      if ((error as { code?: string }).code === "ERR_BUFFER_TOO_LARGE")
+        return tooLarge();
+      return Response.json(
+        { error: "bad-request", message: "body is not valid gzip" },
+        { status: 400 },
+      );
+    }
+  } else {
+    text = await request.text();
+    if (Buffer.byteLength(text) > MAX_BODY_BYTES) return tooLarge();
+  }
 
   let body: unknown;
   try {
