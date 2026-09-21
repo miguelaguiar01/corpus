@@ -7,6 +7,8 @@
 // always structural; the subset has no quote-escaping; a < that opens
 // no tag is text.
 
+import { localeOf } from "./strings";
+
 export type IcuNode =
   | { kind: "literal"; text: string }
   | { kind: "placeholder"; name: string }
@@ -21,8 +23,6 @@ export type IcuError = { message: string; position: number };
 
 export type IcuParseResult =
   { ok: true; nodes: IcuNode[] } | { ok: false; errors: IcuError[] };
-
-import { localeOf } from "./strings";
 
 const NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 // A branch key is a word, or a bare number (`1 {marca} other {marcas}`).
