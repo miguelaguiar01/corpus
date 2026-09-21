@@ -5,9 +5,9 @@
 //
 // Known gaps, by design of a heuristic: a plain string variable used as
 // a JSX child, template literals with substitutions, calls such as
-// toast("Saved"), and the `value` prop are not findings. A
-// react-i18next `Trans` element is a
-// catalogue call: its children are the key, so nothing under it is one.
+// toast("Saved"), and the `value` prop are not findings. A react-i18next
+// `Trans` element is a catalogue call: its children are the key, so
+// nothing under it is one.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
@@ -33,17 +33,19 @@ const LETTERS = /\p{L}.*\p{L}/su;
 // An entity is markup, not letters: without this `&nbsp;` and `&middot;`
 // read as words and a spacing-only text is a finding (43 of Outline's
 // 142). Only the letters test sees the decoded text; a finding still
-// carries the line as the author wrote it. An entity this table does not
-// know, or one that stands for a letter, is left as written, so text
-// made of those still reads as words.
+// carries the line as the author wrote it. A named entity this table
+// does not know is left as written, so text made of those still reads as
+// words; a numeric reference always decodes, letter or not. JSX decodes
+// entities in text and in a quoted attribute, and not inside braces, so
+// neither does this.
 const ENTITIES: Record<string, string> = {
-  nbsp: " ",
-  ensp: " ",
-  emsp: " ",
-  thinsp: " ",
+  nbsp: "\u00a0",
+  ensp: "\u2002",
+  emsp: "\u2003",
+  thinsp: "\u2009",
   zwj: "",
   zwnj: "",
-  shy: "-",
+  shy: "\u00ad",
   amp: "&",
   lt: "<",
   gt: ">",
@@ -79,15 +81,45 @@ const ENTITIES: Record<string, string> = {
   uarr: "↑",
   rarr: "→",
   darr: "↓",
+  harr: "↔",
+  minus: "−",
+  Dagger: "‡",
+  lsaquo: "\u2039",
+  rsaquo: "\u203a",
+  sbquo: "\u201a",
+  bdquo: "\u201e",
+  prime: "\u2032",
+  Prime: "\u2033",
+  sup1: "¹",
+  sup2: "²",
+  sup3: "³",
+  frac14: "¼",
+  frac12: "½",
+  frac34: "¾",
+  iexcl: "¡",
+  iquest: "¿",
+  micro: "µ",
+  hearts: "♥",
+  diams: "♦",
+  clubs: "♣",
+  spades: "♠",
+  loz: "◊",
+  starf: "★",
+  check: "✓",
+  cross: "✗",
+  infin: "∞",
+  ne: "≠",
+  le: "≤",
+  ge: "≥",
 };
 const ENTITY_RE = /&(#\d+|#[xX][0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);/g;
 
 function decoded(text: string): string {
   return text.replace(ENTITY_RE, (whole, body: string) => {
     if (!body.startsWith("#")) return ENTITIES[body] ?? whole;
-    const digits = body.slice(body[1] === "x" || body[1] === "X" ? 2 : 1);
-    const code = parseInt(digits, body[1] === "x" || body[1] === "X" ? 16 : 10);
-    if (!Number.isInteger(code) || code < 1 || code > 0x10ffff) return whole;
+    const hex = body[1] === "x" || body[1] === "X";
+    const code = parseInt(body.slice(hex ? 2 : 1), hex ? 16 : 10);
+    if (code < 1 || code > 0x10ffff) return whole;
     return String.fromCodePoint(code);
   });
 }
@@ -110,9 +142,11 @@ export function findLiterals(
     if (line.includes("corpus-ignore")) silenced.add(index + 1).add(index + 2);
   });
   const findings: Finding[] = [];
-  const report = (pos: number, raw: string) => {
+  // `markup` is false for a string literal in braces, which React
+  // renders as written, entities and all.
+  const report = (pos: number, raw: string, markup = true) => {
     const text = raw.trim();
-    if (!LETTERS.test(decoded(text))) return;
+    if (!LETTERS.test(markup ? decoded(text) : text)) return;
     if (options.allow?.some((pattern) => pattern.test(text))) return;
     const line = sf.getLineAndCharacterOfPosition(pos).line + 1;
     if (silenced.has(line)) return;
@@ -141,7 +175,7 @@ export function findLiterals(
       (!ts.isJsxAttribute(node.parent) ||
         USER_FACING_PROPS.has(node.parent.name.getText(sf)))
     ) {
-      report(node.expression.getStart(sf), node.expression.text);
+      report(node.expression.getStart(sf), node.expression.text, false);
     }
     ts.forEachChild(node, visit);
   };
