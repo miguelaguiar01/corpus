@@ -148,7 +148,8 @@ export function checkFiles(root: string, options: CheckOptions): CheckResult {
         walk(abs);
       }
     } catch {
-      // A configured directory that does not exist is simply empty.
+      // A configured directory that does not exist is not scanned; the
+      // caller says so when that leaves nothing.
     }
   }
   return { findings, scanned };
