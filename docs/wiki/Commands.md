@@ -41,7 +41,7 @@ The token is `CORPUS_TOKEN`, then `.corpus/token`. The instance secret is `CORPU
 
 ## The ones you run daily
 
-**`corpus push`** sends the repository to the instance: strings added, changed, archived, and the translations the repository already has as seeds. `--dry-run` reports what it would do and writes nothing. A string that will not parse is refused by name and the push continues; the exit is 1 so CI notices. When a whole file is refused, or five strings are refused for the same reason, nothing is pushed at all — that is the configuration rather than the strings, and pushing the rest would archive every one of them.
+**`corpus push`** sends the repository to the instance: strings added, changed, archived, and the translations the repository already has as seeds. `--dry-run` reports what it would do and writes nothing. A string that will not parse is refused by name and the push continues; the exit is 1 so CI notices. When a whole file is refused, or five strings are refused with the same advice, nothing is pushed at all: one cause is likely behind all of them, and pushing the rest would archive every one.
 
 **`corpus pull`** writes translations back through the same adapters, format-preserving. `--min-state` sets the floor, `verified` by default; `--lang` narrows to one language and repeats. `--check` writes nothing and exits 1 if a pull would have changed a file, which includes a proposal waiting to land.
 

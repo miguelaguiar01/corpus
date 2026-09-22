@@ -59,10 +59,10 @@ export async function buildSnapshot(
   return snapshot;
 }
 
-// Refusals this many of them deep, all with the same advice, are the
-// configuration rather than the strings: five strings each asking for
-// the same declaration is five typos, and more is a file being read
-// the wrong way.
+// Refusals this many of them deep, all with the same advice, are one
+// cause rather than that many: a mistyped library, or the same tag left
+// open in five strings. Below it, a refusal is a string's own problem
+// and the build goes on without it.
 export const SAME_CAUSE = 5;
 
 // Why the build should stop rather than push what parsed (#491).
@@ -97,7 +97,7 @@ function ruinedReasons(sourced: Sourced[], refused: Refused[]): string[] {
   for (const [cause, count] of byCause) {
     if (count >= SAME_CAUSE) {
       reasons.push(
-        `${count} strings were refused for the same reason, which is at or past the ${SAME_CAUSE} that means the configuration rather than the strings:${cause}`,
+        `${count} strings were refused with the same advice, at or past the ${SAME_CAUSE} that stops a build, since one cause is likely behind all of them —${cause.replace(/^;\s*/, " ")}`,
       );
     }
   }
@@ -274,8 +274,12 @@ function hint(source: string, syntax: Library, message: string): string {
   if (stray) {
     return `; a <name> is a rich-text tag: remove it, or open a matching <${stray[1]}>`;
   }
-  if (syntax === "icu" && source.includes("{{")) {
+  if (syntax !== "i18next" && source.includes("{{")) {
     return `; {{ }} is i18next's interpolation: declare library: "i18next" on the source`;
+  }
+  // The mirror: an ICU catalogue read as something with no arguments.
+  if (syntax !== "icu" && /\{\s*[^{},]+\s*,\s*[a-z]+/.test(source)) {
+    return `; {name, plural, …} is an ICU argument: declare library: "icu" on the source, or leave the field out`;
   }
   return "";
 }

@@ -28,13 +28,15 @@ corpus: 1 string(s) refused and not pushed; a refused string the project holds i
 
 A string did not parse as a message. The lines above name each one and why. The rest of the push landed. `--dry-run` says "would not be pushed" instead, and archives nothing.
 
+The commonest cause on a repository that has never used Corpus is a `{` that means a brace rather than a placeholder, and the second commonest is a tag the source opens and never closes. `corpus build` reproduces it offline.
+
 ## `corpus: snapshot build failed` with a list of refusals
 
-Nothing was pushed. Either every string in a file was refused, or five were refused for the same reason — both mean the configuration is wrong rather than the strings, most often a `library` that is not declared. Pushing what parsed would archive every refused string, and a proposal pending on an archived string is superseded for good, so the build stops instead.
+Nothing was pushed. Either every string in a file was refused, or five were refused with the same advice — one cause is likely behind all of them. Pushing what parsed would archive every refused string, and a proposal pending on an archived string is superseded for good, so the build stops instead of doing that quietly.
 
-The refusals are listed above the summary, and their advice is what to act on: `declare library: "i18next" on the source` means exactly that.
+The refusals are listed above the summary and their advice is what to act on. `declare library: "i18next" on the source` means exactly that, and it is the usual answer: a catalogue read under the wrong library refuses a fraction of itself rather than the whole file, so the repetition is the signal.
 
-The commonest cause on a repository that has never used Corpus is a `{` that means a brace rather than a placeholder, and the second commonest is a tag the source opens and never closes. `corpus build` reproduces it offline.
+Five strings that share one honest mistake stop the build the same way — the same tag left open in five places, say. Fix it once and all five go.
 
 ## `corpus: check parsed no files in …`
 

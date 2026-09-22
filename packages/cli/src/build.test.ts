@@ -171,10 +171,11 @@ test("one bad entry among four still pushes the three", async () => {
   expect(refused.map((r) => r.id)).toEqual(["bad"]);
 });
 
-test("many refusals with one cause are the configuration, not the strings", async () => {
+test("many refusals with one cause stop the build, at any share of the file", async () => {
   // The shape that catches a real project: Outline read as ICU refuses
-  // a fifth of its catalogue, under any per-file share, but nearly
-  // every refusal says the same thing.
+  // a fifth of its catalogue, which no per-file share would notice,
+  // while nearly every refusal gives the same advice. This fixture is
+  // 5 of 60, so it fails for the cause and not for the proportion.
   const building = buildSnapshotReport(
     config({
       sources: [
@@ -184,7 +185,7 @@ test("many refusals with one cause are the configuration, not the strings", asyn
     REPO,
   );
   await expect(building).rejects.toThrow(
-    /5 strings were refused for the same reason, which is at or past the 5/,
+    /5 strings were refused with the same advice, at or past the 5/,
   );
   await expect(building).rejects.toThrow(/declare library: "i18next"/);
 });
