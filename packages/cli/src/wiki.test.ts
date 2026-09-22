@@ -189,6 +189,86 @@ test("the workbench page shows the banner the workbench prints", async () => {
   }
 });
 
+test("the CI page shows what check and validate really say", async () => {
+  const project = repo();
+  mkdirSync(path.join(project.dir, "src", "i18n"), { recursive: true });
+  mkdirSync(path.join(project.dir, "src", "components"), { recursive: true });
+  writeFileSync(
+    path.join(project.dir, "src", "i18n", "en.json"),
+    `${JSON.stringify(
+      {
+        "editor.save": "Save",
+        "editor.unsaved":
+          "You have {count, plural, one {# change} other {# changes}}",
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  // A translation that dropped the count, which is what validate is for.
+  writeFileSync(
+    path.join(project.dir, "src", "i18n", "pt-PT.json"),
+    `${JSON.stringify(
+      {
+        "editor.save": "Guardar",
+        "editor.unsaved": "Tem alterações por guardar",
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  // A component that says something to a person without going through
+  // the catalogue, which is what check is for.
+  writeFileSync(
+    path.join(project.dir, "src", "components", "Toolbar.tsx"),
+    'export function Toolbar() {\n  return <button title="Save the document">Save</button>;\n}\n',
+  );
+  writeFileSync(
+    path.join(project.dir, "corpus.config.mjs"),
+    `export default { project: "acme-app", server: "http://localhost:3000", sourceLanguage: "en", languages: ["en", "pt-PT"], sources: [{ adapter: "messages", type: "ui", path: "src/i18n/{lang}.json" }], check: { include: ["src"] } };\n`,
+  );
+
+  expect(await run(["check"], project.ctx)).toBe(1);
+  recorded("check.out", `${project.out.join("\n")}\n`);
+
+  const validating: string[] = [];
+  expect(
+    await run(["validate"], {
+      ...project.ctx,
+      out: (line: string) => validating.push(line),
+      err: (line: string) => validating.push(line),
+    }),
+  ).toBe(1);
+  recorded("validate.out", `${validating.join("\n")}\n`);
+});
+
+test("every corpus command the CI workflow runs is one the CLI has", async () => {
+  // The page's workflow is only worth showing if its commands are real.
+  // A subcommand the CLI does not know falls through to the usage text,
+  // and a flag that is not in the usage line for its command is one
+  // nobody can run.
+  const workflow = readFileSync(path.join(examples, "ci.yml"), "utf8");
+  const usage: string[] = [];
+  await run(["--help"], {
+    ...repo().ctx,
+    out: (line: string) => usage.push(line),
+  });
+  const text = usage.join("\n");
+  const commands = [...workflow.matchAll(/npx corpus ([^\n]+)/g)].map((found) =>
+    found[1]!.trim().split(/\s+/),
+  );
+  expect(commands.length).toBeGreaterThan(0);
+  for (const [command, ...flags] of commands) {
+    const line = text
+      .split("\n")
+      .find((row) => row.includes(`corpus ${command}`));
+    expect(line, `the CLI has no ${command} command`).toBeDefined();
+    for (const flag of flags) {
+      expect(line, `corpus ${command} has no ${flag}`).toContain(flag);
+    }
+  }
+});
+
 test("every config the wiki shows is a config the CLI accepts", async () => {
   const jiti = createJiti(import.meta.url);
   const configs = [examples, recordings].flatMap((dir) =>

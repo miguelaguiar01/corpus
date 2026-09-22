@@ -15,4 +15,8 @@
 - [The workbench](The-workbench)
 - [A team instance](A-team-instance)
 
-Still being written: metadata and the glossary, Corpus in CI, the MCP server, a translator's guide, the command reference, troubleshooting, and concepts.
+**In CI**
+
+- [Corpus in CI](Corpus-in-CI)
+
+Still being written: metadata and the glossary, users and tokens, the MCP server, agents, a translator's guide, the command reference, troubleshooting, and concepts.

@@ -204,16 +204,7 @@ printf '%s\n%s\n%s\n%s\n' \
 
 ## In CI
 
-Nothing here needs a browser. A job with `CORPUS_TOKEN` in its environment can gate a merge on the translation state:
-
-```sh
-npx corpus check                                          # no stray literals
-npx corpus validate                                       # every translation still fits its source
-npx corpus pull --check                                   # the repository carries what is verified, and no proposal waits
-npx corpus status --json | jq -e '.progress.perLanguage["pt-PT"].untranslated == 0'
-```
-
-`status --json` is the dashboard's numbers as one object, plus `pendingProposals`: per language and per string type, `untranslated`, `translated`, `verified`, `stale` and `total`, with the string count, the last push and the server's version. A throwaway instance for a test job is `corpus workbench` in the repository, which creates the project and writes the token itself; this repository's CI does exactly that (`bin/install-smoke`), and pushes its interface strings to a fresh container the same way (`bin/dogfood`).
+Nothing here needs a browser. `corpus check` and `corpus validate` read only the repository, so they run on a fork's pull request; `corpus pull --check` gates a merge on the repository carrying what is verified, and `corpus push` runs on the default branch. [Corpus in CI](https://github.com/miguelaguiar01/corpus/wiki/Corpus-in-CI) has a complete workflow, what each step costs, and which ones need the token.
 
 ## How it works
 
