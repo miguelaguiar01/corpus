@@ -1,4 +1,4 @@
-Translators need a URL they can open on a phone, which `corpus workbench` does not give them: it listens on localhost. For a team, run the published container image.
+Translators need a URL they can open, and `corpus workbench` does not give them one: it listens on localhost. For a team, run the published container image.
 
 It is the same application at the same version, with its database on a volume.
 

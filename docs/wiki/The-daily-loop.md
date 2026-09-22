@@ -51,6 +51,6 @@ Both are described in [Corpus in CI](Corpus-in-CI).
 
 1. A developer adds three strings to `en.json` and merges. CI pushes; the three appear as untranslated in every language.
 2. A developer rewords one existing string. Its translations go stale, and translators see them in the stale queue with the old text still there.
-3. A translator works the untranslated queue on a phone; a maintainer verifies.
+3. A translator works the untranslated queue; a maintainer verifies.
 4. CI runs `corpus pull --check` on every pull request and fails when the repository is behind, so someone runs `corpus pull` and merges the translations.
 5. A translator proposes better English for a confusing string. It arrives in the next `corpus pull` as a diff in `en.json`, is reviewed like any change, and the next push marks it applied.
