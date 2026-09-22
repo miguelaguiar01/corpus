@@ -4,6 +4,6 @@ Corpus is a self-hosted translation workbench for the text an application shows 
 - Wiring it in: [The config file](The-config-file), [Sources and adapters](Sources-and-adapters), [Your i18n library](Your-i18n-library).
 - Running it: [The workbench](The-workbench), [A team instance](A-team-instance).
 
-Being written next: metadata and the glossary, Corpus in CI, the MCP server, a translator's guide, the command reference, troubleshooting, and concepts. A link to one of those below is a page that does not exist yet.
+Being written next: metadata and the glossary, Corpus in CI, the MCP server, a translator's guide, the command reference, troubleshooting, and concepts. Those are not linked here yet; a link to one from another page is a page that does not exist.
 
 The [design spec](https://github.com/miguelaguiar01/corpus/blob/main/docs/corpus-design.md) is the normative reference. This wiki teaches; where a rule matters, the wiki says what happens and links to the section that defines it.

@@ -16,13 +16,13 @@ Corpus workbench 0.16.0 is running at http://localhost:3000
   stop      Ctrl-C
 ```
 
-Three things now exist under `.corpus/`, which `init` added to your `.gitignore`:
+Three things now exist under `.corpus/`, which `init` and `workbench` both add to your `.gitignore`, creating the file when there is none:
 
 - **`corpus.db`**, the database, with `corpus.db-wal` and `corpus.db-shm` beside it while it runs. SQLite in write-ahead mode keeps all three, which matters when you copy them.
 - **`secret`**, the instance secret. Anyone with it can join.
-- **`token`**, the project token. Every command that talks to the instance uses it.
+- **`token`**, the project token. Every command that pushes or pulls uses it.
 
-The first run creates the project your config names. Later runs find it and leave it alone; `--no-provision` skips that step entirely.
+The first run creates the project your config names and writes its token. Later runs see the token and skip the step; `--no-provision` skips it too.
 
 ## The flags
 
@@ -45,7 +45,7 @@ A maintainer can make other people maintainers. Maintainers are the ones who can
 
 `corpus workbench` listens on localhost. A translator on another machine cannot reach it, and that is the point: it is a development instance.
 
-To let other people in, run the container image instead, which [A team instance](A-team-instance) covers. Do not expose the workbench with a tunnel and call it done: the session cookie is only marked `Secure` when the request is HTTPS or the host is loopback, so over plain HTTP from another host, sessions do not behave.
+To let other people in, run the container image instead, which [A team instance](A-team-instance) covers. Do not expose the workbench with a tunnel and call it done: the session cookie is marked `Secure` for any host that is not loopback, so over plain HTTP from another machine the browser drops it and nobody stays signed in.
 
 ## Backing it up
 
@@ -65,8 +65,8 @@ The database is the instance. To move one, copy those files and point `--db` at 
 npx corpus workbench --db /srv/corpus/corpus.db
 ```
 
-Nothing else travels: the secret and the token are per directory, and a new directory gets new ones. Accounts, projects, translations and history are all in the database.
+Accounts, projects, translations and history are all in the database. The secret is per directory and the new one gets its own. The token does not come back on its own: the project already exists, so the start says so and asks you to rotate its token on the project's settings page and save it to `.corpus/token`.
 
 ## Upgrading
 
-`npm update @corpus-tool/cli @corpus-tool/workbench` and start it again. Migrations run at startup, and the boot log names the database it opened. Upgrading is one way: a database a newer version has opened should not be handed back to an older one.
+`npm update @corpus-tool/cli @corpus-tool/workbench` and start it again. Migrations run at startup, and the boot log names the database it opened. Nothing stops you putting an older version back and nothing makes it work: the migrations only go forward, and there is no check that would tell you.

@@ -40,7 +40,7 @@ volumes:
   corpus-data:
 ```
 
-`CORPUS_IMAGE_TAG` pins a version; `latest` is the default and is rarely what a team wants. Without the image, `docker compose up -d --build` builds it from the checkout.
+`CORPUS_IMAGE_TAG` pins a version, written the way the image is tagged, without the release tag's leading `v`: `0.16.0`. `latest` is the default and is rarely what a team wants. Without the image, `docker compose up -d --build` builds it from the checkout.
 
 ## Two things before you expose it
 
@@ -75,13 +75,15 @@ curl -s https://corpus.example/api/health
 CORPUS_INVITE_SECRET=<the instance secret> npx corpus project create --name "Acme app"
 ```
 
+It talks to the `server` your config names, so run it where that config is, or point `CORPUS_SERVER` at the instance.
+
 Put that token in `CORPUS_TOKEN` in your CI, and in `.corpus/token` locally. `npx corpus project rotate-token` replaces it, authenticating with the current one.
 
 ## Installing the CLI on release day
 
-A package manager with a release-age policy will refuse a version published inside its window, and the three write it differently: pnpm's `minimumReleaseAge` in `pnpm-workspace.yaml`, yarn's `npmMinimalAgeGate` in `.yarnrc.yml`, npm's `min-release-age` in `.npmrc`. Each has an allow list for the packages a team trusts on release day: `minimumReleaseAgeExclude`, `npmPreapprovedPackages` and `min-release-age-exclude[]`, where `@corpus-tool/cli` and `@corpus-tool/workbench` are worth naming once.
+A package manager with a release-age policy holds back a version published inside its window, and the three write it differently: pnpm's `minimumReleaseAge` in `pnpm-workspace.yaml`, yarn's `npmMinimalAgeGate` in `.yarnrc.yml`, npm's `min-release-age` in `.npmrc`. Each has an allow list for the packages a team trusts on release day: `minimumReleaseAgeExclude`, `npmPreapprovedPackages` and `min-release-age-exclude[]`, where `@corpus-tool/cli` and `@corpus-tool/workbench` are worth naming once.
 
-Yarn and npm refuse the install outright. pnpm installs the fresh version and writes the exclusion into `pnpm-workspace.yaml` itself, pinned to that version and saying so, unless `minimumReleaseAgeStrict` is on.
+Yarn and npm refuse the install outright. pnpm installs the fresh version and writes the exclusion into `pnpm-workspace.yaml` itself, pinned to that version and saying so, unless `minimumReleaseAgeStrict` is on, when it asks first and fails where there is no terminal to ask. Otherwise install the previous release, or wait the window out.
 
 ## Backups
 
@@ -92,8 +94,8 @@ The volume is the instance. Stop the container, copy the whole `/data` directory
 Pull the new tag and recreate the container:
 
 ```sh
-CORPUS_IMAGE_TAG=v0.16.0 docker compose pull
-CORPUS_IMAGE_TAG=v0.16.0 docker compose up -d
+CORPUS_IMAGE_TAG=0.16.0 docker compose pull
+CORPUS_IMAGE_TAG=0.16.0 docker compose up -d
 ```
 
 Migrations run at startup. Upgrade the CLI to the same version at the same time: the two are released together and a push carries what the instance expects.

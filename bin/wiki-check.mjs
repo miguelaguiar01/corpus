@@ -55,9 +55,17 @@ for (const page of pages) {
   const rewritten = text.replace(block, (whole, from, lang, body) => {
     found += 1;
     shown.add(from);
+    // A marker may reach out of docs/wiki for a file the repository
+    // ships, but no further: --fix pastes what it finds into a page
+    // that gets published.
+    const source = path.resolve(wiki, from);
+    if (!source.startsWith(`${root}${path.sep}`)) {
+      problems.push(`${page} names ${from}, which is outside the repository`);
+      return whole;
+    }
     let onDisk;
     try {
-      onDisk = readFileSync(path.join(wiki, from), "utf8");
+      onDisk = readFileSync(source, "utf8");
     } catch {
       problems.push(`${page} names ${from}, which does not exist`);
       return whole;
@@ -127,7 +135,7 @@ for (const problem of left) console.error(`wiki-check: ${problem}`);
 if (left.length > 0) process.exit(1);
 if (fixing) process.exit(0);
 console.log(
-  `wiki-check: ${pages.length} page(s), ${shown.size} checked block(s), prose only: ${
+  `wiki-check: ${pages.length} page(s), ${shown.size} checked block(s), no checked block: ${
     prose.length > 0 ? prose.join(", ") : "none"
   }`,
 );
