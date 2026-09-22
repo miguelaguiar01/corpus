@@ -121,6 +121,9 @@ export type DraftResponse = {
   state: "translated";
   text: string;
   actor: string;
+  // What the saved plural still lacks, a category its language uses,
+  // one message per branch; absent when nothing is (#556).
+  incomplete?: string[];
 };
 
 export const stringProposalBodySchema = z.discriminatedUnion("kind", [

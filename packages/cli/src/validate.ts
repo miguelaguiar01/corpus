@@ -23,6 +23,9 @@ export type Finding = {
   file: string;
   key: string;
   code: ValidationError["code"] | "orphan";
+  // A plural missing a category its language uses is incomplete, not
+  // invalid (#556): printed apart, and never the reason for exit 1.
+  severity: "invalid" | "incomplete";
   message: string;
   sourceFile?: string;
 };
@@ -37,7 +40,10 @@ export async function validate(
   const config = await loadConfig(ctx.cwd);
   const findings = await validateRepo(config, ctx.cwd);
   const json = args.includes("--json");
-  const invalid = findings.filter((f) => f.code !== "orphan");
+  const invalid = findings.filter(
+    (f) => f.code !== "orphan" && f.severity === "invalid",
+  );
+  const incomplete = findings.filter((f) => f.severity === "incomplete");
   const orphans = findings.filter((f) => f.code === "orphan");
   const byKey = orphansByKey(orphans);
   if (json) ctx.out(JSON.stringify(findings, null, 2));
@@ -48,6 +54,7 @@ export async function validate(
         `${first.sourceFile}:${first.key}: ${first.message}; ${targets} target file(s) carry it`,
       );
     }
+    for (const f of incomplete) ctx.err(`${f.file}:${f.key}: ${f.message}`);
   }
   for (const note of deprecations(config)) ctx.err(`corpus: ${note}`);
   for (const source of config.sources) {
@@ -61,11 +68,20 @@ export async function validate(
       orphans.length
         ? `${byKey.size} orphan key(s) in ${new Set(orphans.map((f) => f.file)).size} file(s)`
         : "",
+      incomplete.length
+        ? `${incomplete.length} incomplete plural(s), a category the language uses and the translation lacks`
+        : "",
     ].filter(Boolean);
     ctx.err(`corpus: ${parts.join(", ")}`);
-    return 1;
+    if (invalid.length > 0 || orphans.length > 0) return 1;
   }
-  if (!json) ctx.out("validate: every translation is valid");
+  if (!json) {
+    ctx.out(
+      incomplete.length > 0
+        ? `validate: no invalid translation; ${incomplete.length} incomplete plural(s) listed above`
+        : "validate: every translation is valid",
+    );
+  }
   return 0;
 }
 
@@ -116,6 +132,7 @@ export async function validateRepo(
             file,
             key,
             code: "orphan",
+            severity: "invalid",
             message: "the source no longer has this key",
             sourceFile,
           });
@@ -127,6 +144,15 @@ export async function validateRepo(
           language,
           libraryOf(source),
         );
+        for (const error of result.incomplete ?? []) {
+          findings.push({
+            file,
+            key,
+            code: error.code,
+            severity: "incomplete",
+            message: describe(error, libraryOf(source)),
+          });
+        }
         if (result.ok) continue;
         for (const error of result.errors) {
           const inSource =
@@ -137,6 +163,7 @@ export async function validateRepo(
             file: inSource ? sourceFile : file,
             key,
             code: error.code,
+            severity: "invalid",
             message: describe(error, libraryOf(source)),
           });
         }

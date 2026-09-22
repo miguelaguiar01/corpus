@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+### Changed
+
+- A plural missing a category its language uses is **incomplete**, not invalid: the editor warns and saves, `corpus validate` prints it after the invalid ones, counts it apart (`1 invalid translation(s), 957 incomplete plural(s)`) and exits 1 only for invalid translations and orphan keys, `--json` carries `severity`, and an agent's draft answer (the API, MCP `save_draft`, `corpus agent draft`) names what the saved plural still lacks under `incomplete`. On Mastodon's 110 languages 1,540 of 1,806 findings were this, 957 of them the `many` that CLDR 42 gave the Romance languages for large round numbers; the 117 placeholder and tag defects a maintainer acts on were on page 20. ICU falls back to `other`, so nothing breaks at runtime. A category the language does not use stays invalid: it is dead text.
+
 ### Added
 
 - A placeholder may carry a format: `{count, number}`, `{d, date, short}`, `{t, time}`, with the style after a second comma. react-intl and svelte-i18n write these every day, and 0.17.0 refused them: 10 of Mastodon's strings and 11 of Immich's, plus 4 Immich translations flagged. A translation keeps the name and the type and may change the style (`{d, date, long}` for `{d, date, short}` is fine; `{d, time}` or a bare `{d}` is not, and the message says which). The chip inserts the source's form; a preview formats the example's value through `Intl` for the language when it can.

@@ -22,7 +22,7 @@ corpus: 2 user-facing literal(s) outside declared sources
 
 Both the button's text and its `title` count: an attribute a screen reader speaks is text a person reads. What it does not count is anything `check.allow` matches, which is where product names, units and codes go.
 
-`corpus validate` parses every translation in the repository against its source and reports what would break at runtime — a lost placeholder, a plural category the language does not have, a tag the source does not open:
+`corpus validate` parses every translation in the repository against its source and reports what would break at runtime (a plural missing a category its language uses is listed apart as incomplete and does not fail the run, since ICU falls back to `other`) — a lost placeholder, a plural category the language does not have, a tag the source does not open:
 
 <!-- from: recorded/validate.out -->
 ```text

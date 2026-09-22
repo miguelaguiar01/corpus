@@ -124,6 +124,9 @@ export function TargetPane({
     ? { ok: true as const }
     : validateTranslation(source, text, language, syntax);
   const errors = validation.ok ? [] : validation.errors;
+  // A plural missing a category its language uses saves with a warning
+  // (#556); the chip for the category is still offered.
+  const incomplete = validation.incomplete ?? [];
   const selects = branchingOf(source, language, syntax);
   const tags = [...tagsOf(source, syntax)];
 
@@ -276,6 +279,15 @@ export function TargetPane({
         <Banner tone="error">
           <ul className="space-y-0.5">
             {errors.map((error, index) => (
+              <li key={index}>{validationMessage(error, syntax)}</li>
+            ))}
+          </ul>
+        </Banner>
+      )}
+      {incomplete.length > 0 && (
+        <Banner tone="warning">
+          <ul className="space-y-0.5">
+            {incomplete.map((error, index) => (
               <li key={index}>{validationMessage(error, syntax)}</li>
             ))}
           </ul>

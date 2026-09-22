@@ -40,8 +40,13 @@ export type ValidationError =
   | { code: "missing-tag"; name: string }
   | { code: "unexpected-tag"; name: string };
 
+// A plural missing a category its language uses is incomplete rather
+// than invalid (#556): ICU falls back to `other`, and a many-language
+// catalogue ships that way. It rides beside the result, apart, and an
+// editor warns where it would have refused.
 export type ValidationResult =
-  { ok: true } | { ok: false; errors: ValidationError[] };
+  | { ok: true; incomplete?: ValidationError[] }
+  | { ok: false; errors: ValidationError[]; incomplete?: ValidationError[] };
 
 type Shape = {
   placeholders: Set<string>;
@@ -185,5 +190,12 @@ export function validateTranslation(
     }
   }
 
-  return errors.length === 0 ? { ok: true } : { ok: false, errors };
+  const incomplete = errors.filter((e) => e.code === "missing-category");
+  const invalid = errors.filter((e) => e.code !== "missing-category");
+  if (invalid.length === 0) {
+    return incomplete.length === 0 ? { ok: true } : { ok: true, incomplete };
+  }
+  return incomplete.length === 0
+    ? { ok: false, errors: invalid }
+    : { ok: false, errors: invalid, incomplete };
 }

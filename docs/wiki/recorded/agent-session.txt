@@ -95,7 +95,7 @@ $ corpus agent proposals
         "text": "Save the document",
         "status": "pending",
         "author": "acme-app agent",
-        "createdAt": "2026-09-22T21:28:13.417Z",
+        "createdAt": "2026-09-22T21:43:28.279Z",
         "mine": true
       }
     ]

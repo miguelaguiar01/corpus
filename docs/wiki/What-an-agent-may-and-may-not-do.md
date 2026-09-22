@@ -10,7 +10,7 @@ human-edited: editor.save in pt-PT holds a person's work; propose a change if th
 
 Retrying will not help, and that is the point. The refusal names the two ways forward: if the English is the problem, propose a change to it; otherwise the row belongs to whoever wrote it.
 
-The other six refusals are structural. `invalid-translation` says what broke — a lost placeholder, a plural category the language needs and the draft does not have. `empty-text` refuses a blank. `archived` refuses a string the repository no longer has. `source-row` refuses an edit to the source language, which comes from the repository and is changed by proposing, not by drafting. `not-found` is a key the project does not have, and `unknown-language` a language it does not declare, which between them are what a typo looks like.
+The other six refusals are structural. `invalid-translation` says what broke — a lost placeholder, a plural branch the language does not use (a branch it uses and the draft lacks is saved and named as `incomplete` in the answer). `empty-text` refuses a blank. `archived` refuses a string the repository no longer has. `source-row` refuses an edit to the source language, which comes from the repository and is changed by proposing, not by drafting. `not-found` is a key the project does not have, and `unknown-language` a language it does not declare, which between them are what a typo looks like.
 
 ## Every draft is attributed
 
