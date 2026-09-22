@@ -75,7 +75,7 @@ curl -s https://corpus.example/api/health
 CORPUS_INVITE_SECRET=<the instance secret> npx corpus project create --name "Acme app"
 ```
 
-It talks to the `server` your config names, so run it where that config is, or point `CORPUS_SERVER` at the instance.
+It talks to the `server` your config names, so run it where that config is, or pass `--server <url>`.
 
 Put that token in `CORPUS_TOKEN` in your CI, and in `.corpus/token` locally. `npx corpus project rotate-token` replaces it, authenticating with the current one.
 

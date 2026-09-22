@@ -20,7 +20,7 @@ Three things now exist under `.corpus/`, which `init` and `workbench` both add t
 
 - **`corpus.db`**, the database, with `corpus.db-wal` and `corpus.db-shm` beside it while it runs. SQLite in write-ahead mode keeps all three, which matters when you copy them.
 - **`secret`**, the instance secret. Anyone with it can join.
-- **`token`**, the project token. Every command that pushes or pulls uses it.
+- **`token`**, the project token. Everything that works on the project uses it: `push`, `pull`, `status`, `corpus agent` and `corpus mcp`. `CORPUS_TOKEN` is read first, which is how CI passes it.
 
 The first run creates the project your config names and writes its token. Later runs see the token and skip the step; `--no-provision` skips it too.
 
