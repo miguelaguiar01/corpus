@@ -190,6 +190,28 @@ test("many refusals with one cause stop the build, at any share of the file", as
   await expect(building).rejects.toThrow(/declare library: "i18next"/);
 });
 
+test("an ICU catalogue read as i18next is told which library it is", async () => {
+  // The mirror of the i18next hint, which had no test and has been
+  // wrong twice: an ICU select or plural whose branch opens with a
+  // placeholder holds `{{`, which the i18next reader refuses, so those
+  // strings drop and every other one pushes.
+  const building = buildSnapshotReport(
+    config({
+      sources: [
+        {
+          adapter: "messages",
+          type: "ui",
+          path: "manyicu/{lang}.json",
+          library: "i18next",
+        },
+      ],
+    }),
+    REPO,
+  );
+  await expect(building).rejects.toThrow(/declare library: "icu"/);
+  await expect(building).rejects.toThrow(/5 strings were refused/);
+});
+
 test("a file that does not read still fails the whole build", async () => {
   const missing = config({
     sources: [

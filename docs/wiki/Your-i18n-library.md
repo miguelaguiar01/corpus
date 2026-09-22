@@ -76,7 +76,9 @@ No adapter reads `.po`, `strings.xml` or `.strings`. An `exec` source can, by co
 
 Getting it wrong is usually loud, but not always, and the quiet directions are the ones to know before you choose.
 
-**Read as `i18next`, a single brace is text.** A vue-i18n catalogue read that way refuses nothing and says nothing: its `{name}` placeholders simply stop being placeholders. A plain ICU catalogue goes the same way. An ICU catalogue with a select or plural does not — a branch that opens with a placeholder puts `{{` in the string, which i18next refuses — so those strings are refused and dropped while the plain ones push. That is the direction to be most careful of, and it is why the refusal carries `declare library: "icu"`.
+**The loud ones first.**
+
+**Read as `i18next`, a single brace is text.** A vue-i18n catalogue read that way refuses nothing and says nothing: its `{name}` placeholders simply stop being placeholders. So does most of an ICU one — a plural or a select is read as text like anything else. What i18next does refuse is a `{{`, which an ICU string acquires when a branch opens with a placeholder: `other {{name} updated the file}`. Those strings are refused and dropped while every other string pushes, so the damage is partial and easy to miss, which is why the refusal carries `declare library: "icu"`. This repository's own catalogue has a plural, no `{{` anywhere, and builds all 224 strings silently under the wrong library.
 
 **Read as `icu`, a vue-i18n catalogue** refuses only its `{'…'}` literals and any bare `}`. Its pipe plurals become one string each, quietly.
 

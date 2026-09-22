@@ -279,8 +279,8 @@ function hint(source: string, syntax: Library, message: string): string {
   }
   // The mirror: an ICU catalogue read under a library that has no
   // arguments. The brace must be single, or i18next's own
-  // `{{date, short}}` matches and a correct catalogue is told to
-  // declare `icu`. i18next is included because a select or plural
+  // `{{date, short}}` matches, and a string refused for some other
+  // reason would draw the wrong advice for holding one. i18next is included because a select or plural
   // whose branch opens with a placeholder puts `{{` in the string,
   // which that reader refuses: its plain strings push and its nested
   // ones do not, which is the least obvious way to get this wrong.
