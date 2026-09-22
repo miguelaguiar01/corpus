@@ -9,6 +9,16 @@ const block = /<!-- from: (\S+) -->\n```([a-z]*)\n([\s\S]*?)```/g;
 const shows = (file, lang, text) =>
   `<!-- from: ${file} -->\n\`\`\`${lang}\n${text}\`\`\``;
 
+// What a block's fence must say for the file it shows, so a TypeScript
+// example cannot sit under a shell fence.
+const FENCE = {
+  ts: "ts",
+  json: "json",
+  yml: "yaml",
+  yaml: "yaml",
+  out: "text",
+};
+
 const pages = readdirSync(wiki).filter((name) => name.endsWith(".md"));
 const examples = readdirSync(path.join(wiki, "examples")).map(
   (name) => `examples/${name}`,
@@ -22,6 +32,10 @@ const prose = [];
 for (const page of pages) {
   const file = path.join(wiki, page);
   const text = readFileSync(file, "utf8");
+  if (text.includes("\r\n")) {
+    problems.push(`${page} has CRLF line endings; the pages are LF`);
+    continue;
+  }
   let found = 0;
   const rewritten = text.replace(block, (whole, from, lang, body) => {
     found += 1;
@@ -32,6 +46,20 @@ for (const page of pages) {
     } catch {
       problems.push(`${page} names ${from}, which does not exist`);
       return whole;
+    }
+    if (!onDisk.endsWith("\n")) {
+      problems.push(
+        `${from} does not end with a newline, so no block can show it`,
+      );
+      return whole;
+    }
+    const wants = FENCE[from.split(".").pop() ?? ""];
+    if (wants !== undefined && lang !== wants) {
+      problems.push(
+        `${page} shows ${from} under a \`${lang}\` fence; it is ${wants}`,
+      );
+      if (!fixing) return whole;
+      return shows(from, wants, onDisk);
     }
     if (body === onDisk) return whole;
     if (fixing) return shows(from, lang, onDisk);
@@ -73,9 +101,13 @@ const planned =
         .map((m) => m[1])
         .filter((name) => !pages.includes(`${name}.md`));
 
+// --fix rewrites the blocks; what it cannot fix it still reports, since
+// the failure message sends the reader here.
+const fixable = /shows .* as it is not|under a `/;
+const left = problems.filter((problem) => !fixing || !fixable.test(problem));
+for (const problem of left) console.error(`wiki-check: ${problem}`);
+if (left.length > 0) process.exit(1);
 if (fixing) process.exit(0);
-for (const problem of problems) console.error(`wiki-check: ${problem}`);
-if (problems.length > 0) process.exit(1);
 console.log(
   `wiki-check: ${pages.length} page(s), ${shown.size} checked block(s), prose only: ${
     prose.length > 0 ? prose.join(", ") : "none"

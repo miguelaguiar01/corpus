@@ -14,13 +14,28 @@ If your package manager refuses the version because it was published today, that
 
 ## Write the config
 
+The examples below are a repository with six strings in `src/i18n/en.json`, fully translated into German and half translated into Portuguese. Everything shown here was recorded from that repository; the numbers are its numbers.
+
 ```sh
-npx corpus init --project acme-app --source en --messages "src/i18n/{lang}.json"
+npx corpus init --project acme-app --source en --messages "src/i18n/{lang}.json" --type ui
 ```
 
-`init` reads the directory to find your languages, looks at the source file to see which i18n library wrote it, and writes `corpus.config.ts`:
+<!-- from: examples/init.out -->
+```text
+wrote corpus.config.ts
+created .gitignore with .corpus/
 
-<!-- from: examples/minimal.config.ts -->
+Next:
+  1. corpus workbench (needs @corpus-tool/workbench) starts an instance, creates the project "acme-app" and writes its token to .corpus/token.
+     For another instance at http://localhost:3000: CORPUS_INVITE_SECRET=<its secret> corpus project create prints the token, for CORPUS_TOKEN or .corpus/token.
+  2. corpus push
+```
+
+`--type` names what kind of string the catalogue holds. It is yours to choose: it groups strings in the catalogue, carries a note to translators, and decides which metadata a string may have. `ui` is a reasonable start; `chrome` is the default if you leave it out.
+
+`init` read the directory to find the languages, looked at the source file to see which i18n library wrote it, and wrote:
+
+<!-- from: examples/first-push.config.ts -->
 ```ts
 import { defineCorpus } from "@corpus-tool/cli";
 
@@ -29,11 +44,13 @@ export default defineCorpus({
   server: "http://localhost:3000",
   sourceLanguage: "en",
   languages: ["en", "de", "pt-PT"],
-  sources: [{ adapter: "messages", type: "ui", path: "src/i18n/{lang}.json" }],
+  sources: [
+    { adapter: "messages", type: "ui", path: "src/i18n/{lang}.json" },
+  ],
 });
 ```
 
-It also adds `.corpus/` to your `.gitignore`. That directory holds the local database, the instance secret and the project token, and none of them belong in git.
+It also added `.corpus/` to your `.gitignore`. That directory holds the local database, the instance secret and the project token, and none of them belong in git.
 
 Check what it will send before starting anything:
 
@@ -41,11 +58,12 @@ Check what it will send before starting anything:
 npx corpus build
 ```
 
-```
-built acme-app: 412 string(s) (ui 412), 0 entity(ies) (none)
+<!-- from: examples/build.out -->
+```text
+built acme-app: 6 string(s) (ui 6), 0 entity(ies) (none)
 ```
 
-If a string will not parse, `build` names it with its file and key, leaves it out, and exits 1. The rest still push, so one malformed string does not stop you. [When something is wrong](When-something-is-wrong) covers the messages you might see here.
+`build` needs no server and no token, so it is the fastest way to see whether your config is right. If a string will not parse, it names the string with its file and key, leaves it out, and exits 1. The rest still push, so one malformed string does not stop you. [When something is wrong](When-something-is-wrong) covers what it can say.
 
 ## Start the workbench
 
@@ -72,7 +90,7 @@ npx corpus push
 ```
 
 ```
-pushed acme-app: 412 added, 0 changed, 0 stale, 0 archived, 806 translation(s) seeded from the repository
+pushed acme-app: 6 added, 0 changed, 0 stale, 0 archived, 8 translation(s) seeded from the repository
 ```
 
 The seeds are the translations your repository already had: Corpus imports them as translated rather than asking anyone to redo them. If a row's text is the same as the English, it stays untranslated, because an exporter that fills a missing translation with the source is not a translation.
@@ -90,11 +108,11 @@ npx corpus pull
 ```
 
 ```
+src/i18n/pt-PT.json
 pulled acme-app at verified: 1 file(s) changed
-  src/i18n/de.json
 ```
 
-`git diff` shows one key changed in one file. That is the loop: translations arrive as a reviewable commit.
+`git diff` shows one key changed in that file. That is the loop: translations arrive as a reviewable commit.
 
 By default `pull` takes only verified rows. `--min-state translated` takes translated ones too, which is what you want if nobody verifies.
 

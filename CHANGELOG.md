@@ -9,7 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Added
 
-- A wiki that teaches Corpus, written in `docs/wiki/` and published to the repository's GitHub wiki. Every command and config a page shows comes from a file this repository type checks and runs, and `bin/wiki-check` in the gate fails when a page and its file disagree, so the wiki cannot drift from the tool. The first pages are what Corpus is, install and first push, and the daily loop.
+- A wiki that teaches Corpus, written in `docs/wiki/` and published to the repository's GitHub wiki. The configs a page shows are type checked and validated, and the output of the commands that need no server is recorded from a real run by `bin/wiki-record`, so a page cannot show a config that does not load or output the CLI no longer prints. `bin/wiki-check` in the gate compares each page against those files and says which pages are prose, which is what anything needing a running instance still is. The first pages are what Corpus is, install and first push, and the daily loop.
 
 ### Changed
 

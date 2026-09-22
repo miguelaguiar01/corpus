@@ -5,5 +5,7 @@ export default defineCorpus({
   server: "http://localhost:3000",
   sourceLanguage: "en",
   languages: ["en", "de", "pt-PT"],
-  sources: [{ adapter: "messages", type: "ui", path: "src/i18n/{lang}.json" }],
+  sources: [
+    { adapter: "messages", type: "ui", path: "src/i18n/{lang}.json" },
+  ],
 });
