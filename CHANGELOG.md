@@ -9,7 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Added
 
-- A wiki that teaches Corpus, written in `docs/wiki/` and published to the repository's GitHub wiki. The configs a page shows are type checked and validated, and the output of the commands that need no server is recorded from a real run by `bin/wiki-record`, so a page cannot show a config that does not load or output the CLI no longer prints. `bin/wiki-check` in the gate compares each page against those files and says which pages are prose, which is what anything needing a running instance still is. The first pages are what Corpus is, install and first push, and the daily loop.
+- A wiki that teaches Corpus, written in `docs/wiki/` and published to the repository's GitHub wiki. The configs a page shows are type checked and validated, and the output of the commands that need no server is recorded from a real run by `bin/wiki-record`, so a page cannot show a config that does not load or output the CLI no longer prints. `bin/wiki-check` in the gate compares each page against those files and says which pages are prose, which is what anything needing a running instance still is. The first pages are what Corpus is, install and first push, the daily loop, the config file, sources and adapters, and your i18n library; the README keeps its pitch and quick start and sends the reader to the wiki for the rest.
 
 ### Changed
 

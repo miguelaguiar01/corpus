@@ -148,6 +148,21 @@ test("the wiki's first-push page shows what corpus init and build really do", as
   recorded("build.out", `${building.join("\n")}\n`);
 });
 
+test("the library page shows what a catalogue read under the wrong one really says", async () => {
+  const project = repo();
+  mkdirSync(path.join(project.dir, "src", "i18n"), { recursive: true });
+  writeFileSync(
+    path.join(project.dir, "src", "i18n", "en.json"),
+    `${JSON.stringify({ greeting: "Hello {{ name }}" }, null, 2)}\n`,
+  );
+  writeFileSync(
+    path.join(project.dir, "corpus.config.mjs"),
+    `export default { project: "acme-app", server: "http://localhost:3000", sourceLanguage: "en", languages: ["en"], sources: [{ adapter: "messages", type: "ui", path: "src/i18n/{lang}.json" }] };\n`,
+  );
+  expect(await run(["build"], project.ctx)).toBe(1);
+  recorded("wrong-library.out", `${project.out.join("\n")}\n`);
+});
+
 test("every config the wiki shows is a config the CLI accepts", async () => {
   const jiti = createJiti(import.meta.url);
   const configs = [examples, recordings].flatMap((dir) =>

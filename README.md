@@ -49,7 +49,7 @@ npx corpus init --project my-game --source en \
 npx corpus workbench
 ```
 
-`init` writes `corpus.config.ts`, the whole configuration for a repository whose strings are a plain message catalog; it reads the languages from the files that fill `{lang}`, and the library from the source file's values (`{{ }}` with no ICU argument is i18next, said in the output), or takes `--languages` and `--library <icu|i18next>`. `workbench` starts an instance at http://localhost:3000, creates the project the config declares, and prints the invite secret it generated; the project's token is written to `.corpus/token`, so in another shell:
+`init` writes `corpus.config.ts`, the whole configuration for a repository whose strings are a plain message catalog: it reads the languages from the files and the i18n library from the source catalogue, and takes `--languages` and `--library` when you would rather say. `workbench` starts an instance at http://localhost:3000, creates the project the config declares, and prints the invite secret it generated; the project's token is written to `.corpus/token`, so in another shell:
 
 ```sh
 npx corpus push          # the repository's text is in Corpus
@@ -88,39 +88,24 @@ export default defineCorpus({
   sources: [
     { adapter: "messages", type: "chrome", path: "src/i18n/{lang}.json" },
   ],
-  check: {
-    include: ["src"],
-    ignore: ["**/*.test.tsx"],
-    allow: ["^(Nvidia NVENC|AMD AMF|HEVC 10bit)$"],
-  },
 });
 ```
 
-`check` is what `corpus check` scans: `include` the directories with your components (`src` when absent), `ignore` path prefixes or globs (`**/*.test.tsx`), and `allow` regular expressions for text that is not chrome, such as a product name shown as it is in every language; when most of the findings are single words, `check` says so and names the option.
-
-The project exists on the instance before the first push. `corpus workbench` creates it when it starts in a repository with a config and no `.corpus/token`; against any other instance, the instance secret creates it and prints the token once, alone on the last line, for `CORPUS_TOKEN` or `.corpus/token`:
-
-```sh
-CORPUS_INVITE_SECRET=<the instance secret> npx corpus project create --name "My game"
-```
-
-Where a command needs the project token it reads `CORPUS_TOKEN`, then `.corpus/token`; `corpus project rotate-token` replaces it with the current one and rewrites the file when that is where it came from. The commands:
+`corpus init` writes it, as the quick start above does. The commands:
 
 ```sh
 npx corpus build                      # no server: runs the sources, validates, prints a summary
 npx corpus push                       # repo → Corpus: adds, changes, marks stale, archives
 npx corpus status                     # per-language and per-type counts; --json for a script
 npx corpus pull                       # Corpus → repo: verified translations only
-npx corpus pull --min-state translated  # Corpus → repo: translated and verified
-npx corpus pull --lang pt-PT          # one language's files, the rest untouched
 npx corpus pull --check               # writes nothing; exit 1 if a pull would change a file
 npx corpus validate                   # no server: every translation still fits its source
-npx corpus check                      # lint: user-facing literals in .jsx/.tsx outside declared sources (ignore by prefix or glob; a <Trans> is a catalogue call)
+npx corpus check                      # lint: user-facing literals outside declared sources
 ```
 
-`build` needs no server or token, so a config or an exporter can be checked as it is written; it also names any source that cannot take translations back (an `exec` source without `importCommand`, a path without `{lang}`, a `.ts` catalogue, since pull writes JSON only), as does `push`. A source string that does not parse is refused by file and key and left out, the rest goes through, and `build` and `push` exit 1 so CI notices; a file that does not read or a duplicate id fails the whole build. Pushing is a diff by string id: new ids are added, changed source text marks its translations stale, ids that disappear are archived with their history kept; push also names any language the config and the project disagree on, since the config sets the project's languages once, at creation, and the settings page owns them after that. Pulling writes translations back and prints only the files it changed. `validate` runs the editor's checks over the target files (a placeholder dropped, a select malformed, a key the source no longer has) with no server, so a hand edit or a merge cannot ship a broken translation. Node 22 or later; a TypeScript config needs no build step.
+The [wiki](https://github.com/miguelaguiar01/corpus/wiki) is where this is explained: [the config file](https://github.com/miguelaguiar01/corpus/wiki/The-config-file) field by field, [sources and adapters](https://github.com/miguelaguiar01/corpus/wiki/Sources-and-adapters) for catalogues, tables and an exporter of your own, and [your i18n library](https://github.com/miguelaguiar01/corpus/wiki/Your-i18n-library) for next-intl, i18next and the rest.
 
-Structured sources, `table` records (a module's default or named export, with the fields to carry as metadata listed in the map) or an `exec` command that emits entries, are described in the [design spec, §3](docs/corpus-design.md). A `messages` or `table` source written for i18next declares `library: "i18next"`, and its `{{name}}` interpolation is read as placeholders and kept as written. An `exec` source's `importCommand` receives, on stdin, only the rows a pull selected for the pull's target languages, never the whole catalogue: it must merge them into its files and leave every other entry alone, since anything never translated, or translated only on disk, is not in the payload and would be lost by a command that rewrites its file from it. The exporter may also emit `translations`, per target language the text the repository already holds for its strings, and push seeds them as it does a file's (§8). Two more things the repository can declare inform a translator, person or agent: `typeNotes`, one sentence per string type on its voice and register, and `glossary: { path }`, one JSON file per target language of `{ term, forms?, target, note? }` entries, both pushed with the strings and shown on the string page where they apply (§5). A term is matched as the word written, so `forms` lists its plurals and agreements, and a name (a suspect, a room) is a term like any other; in a script written without spaces (Chinese, Japanese, Thai) a term is matched as a run of characters. Note that every command but `init` runs the repository's own `corpus.config.ts`, and `push`, `build` and `pull` run the `exec` commands it declares, so run them only in repositories you trust, as you would their build scripts.
+Note that the commands run the repository's own `corpus.config.ts`, and `push`, `build` and `pull` run the `exec` commands it declares, so run them only in repositories you trust, as you would their build scripts.
 
 ## Manage the strings, not only their translations
 
