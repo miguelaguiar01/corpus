@@ -1,6 +1,7 @@
 import {
   libraryOf,
   parseIcu,
+  refusalAdvice,
   snapshotSchema,
   type Snapshot,
 } from "@corpus/contract";
@@ -48,10 +49,13 @@ export function validateSnapshot(body: unknown): ValidationResult {
     const library = libraryOf(entry);
     const icu = parseIcu(entry.source, library);
     if (!icu.ok) {
-      const first = icu.errors[0];
+      // The CLI refuses these before a push, so this message reaches
+      // every other client: the MCP tools, a hand-rolled POST. It
+      // carries the CLI's advice (#505).
+      const first = icu.errors[0]!;
       errors.push({
         id: entry.id,
-        message: `invalid ${library === "icu" ? "ICU" : library} at ${first?.position}: ${first?.message}`,
+        message: `invalid ${library === "icu" ? "ICU" : library} at ${first.position}: ${first.message}${refusalAdvice(entry.source, library, first.message)}`,
       });
     }
 

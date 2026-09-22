@@ -19,6 +19,7 @@ import {
   type Source,
   type StringEntry,
   type WritableSource,
+  refusalAdvice,
 } from "@corpus/contract";
 import { CliError } from "./config";
 
@@ -251,7 +252,7 @@ function validateEntry(
   if (icu.ok) sourced.push({ entry, file });
   else {
     const message = icu.errors[0]?.message ?? "";
-    const advice = hint(entry.source, syntax, message);
+    const advice = refusalAdvice(entry.source, syntax, message);
     refused.push({
       file,
       id: entry.id,
@@ -259,47 +260,6 @@ function validateEntry(
       message: `invalid ${syntax === "icu" ? "ICU" : syntax}: ${message}${advice}`,
     });
   }
-}
-
-// What to do about a refusal, where the text alone does not say it: a
-// catalogue in the wrong syntax is refused string by string, and prose
-// that spells a tag (`https://example.com/<baseurl>`) reads as one. The
-// tag shapes are tested first: `{{` is i18next's interpolation but also
-// an ICU branch that opens with a placeholder (`{n, plural, other
-// {{count} apples}}`), and that catalogue is not in the wrong syntax.
-function hint(source: string, syntax: Library, message: string): string {
-  const unclosed = /^unclosed <([^>]+)>$/.exec(message);
-  if (unclosed) {
-    return `; a <name> is a rich-text tag: close it with </${unclosed[1]}>, or write the brackets so they do not open a tag`;
-  }
-  const mismatched = /^unexpected <\/([^>]+)>; <([^>]+)> is open$/.exec(
-    message,
-  );
-  if (mismatched) {
-    return `; a <name> is a rich-text tag: <${mismatched[2]}> is open here, so write </${mismatched[2]}>, or remove both tags`;
-  }
-  const stray = /^unexpected <\/([^>]+)>$/.exec(message);
-  if (stray) {
-    return `; a <name> is a rich-text tag: remove it, or open a matching <${stray[1]}>`;
-  }
-  if (syntax !== "i18next" && source.includes("{{")) {
-    return `; {{ }} is i18next's interpolation: declare library: "i18next" on the source`;
-  }
-  // The mirror: an ICU catalogue read under a library that has no
-  // arguments. The brace must be single, or i18next's own
-  // `{{date, short}}` matches, and a string refused for some other
-  // reason would draw the wrong advice for holding one. i18next is
-  // included because a branch that opens with a placeholder puts `{{`
-  // in the string, which that reader refuses: an ICU catalogue's plain
-  // strings push and its nested ones do not, which is the least
-  // obvious way to get this wrong.
-  if (
-    syntax !== "icu" &&
-    /(?<!\{)\{\s*[^{},\s][^{},]*\s*,\s*[a-z]+/.test(source)
-  ) {
-    return `; {name, plural, …} is an ICU argument: declare library: "icu" on the source, or leave the field out`;
-  }
-  return "";
 }
 
 function collectExec(
