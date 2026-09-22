@@ -7,7 +7,13 @@
 // habit is mirrored so the fixture's own renders match: a value that
 // opens the sentence is capitalised. Everything else is verbatim —
 // previews are for meaning, not grammar (§7).
-import { parseIcu, pluralBranch, type IcuError, type IcuNode } from "./icu";
+import {
+  parseIcu,
+  pluralBranch,
+  type IcuError,
+  type IcuNode,
+  type PlaceholderFormat,
+} from "./icu";
 import type { Library } from "./strings";
 
 export type PreviewResult =
@@ -52,7 +58,13 @@ function render(
       out.push(
         value === undefined
           ? { text: node.kind === "count" ? "#" : `{${name}}`, value: false }
-          : { text: value, value: true },
+          : {
+              text:
+                node.kind === "placeholder" && node.format
+                  ? formatValue(value, node.format, language)
+                  : value,
+              value: true,
+            },
       );
     } else if (node.kind === "tag") {
       // The component is the client's; the preview shows what it wraps.
@@ -141,4 +153,44 @@ export function previewsFor(
       options,
     ),
   );
+}
+
+// A formatted placeholder's example value, through the runtime's Intl
+// for the language when the value is a number or a date and the style
+// is one Intl names; anything else is shown as written (#555).
+function formatValue(
+  value: string,
+  format: PlaceholderFormat,
+  language?: string,
+): string {
+  try {
+    if (format.type === "number") {
+      if (value.trim() === "" || Number.isNaN(Number(value))) return value;
+      const style = format.style?.replace(/^::/, "");
+      const options: Intl.NumberFormatOptions =
+        style === "percent"
+          ? { style: "percent" }
+          : style === "integer"
+            ? { maximumFractionDigits: 0 }
+            : {};
+      return new Intl.NumberFormat(language, options).format(Number(value));
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    const style = format.style?.replace(/^::/, "");
+    const named =
+      style === "short" ||
+      style === "medium" ||
+      style === "long" ||
+      style === "full"
+        ? style
+        : undefined;
+    const options: Intl.DateTimeFormatOptions =
+      format.type === "date"
+        ? { dateStyle: named ?? "medium", timeZone: "UTC" }
+        : { timeStyle: named ?? "short", timeZone: "UTC" };
+    return new Intl.DateTimeFormat(language, options).format(date);
+  } catch {
+    return value;
+  }
 }

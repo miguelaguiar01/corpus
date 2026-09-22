@@ -1,4 +1,5 @@
 import {
+  placeholderFormatsOf,
   placeholdersOf,
   pluralArgsOf,
   type Example,
@@ -25,6 +26,7 @@ export function slotsOf(
   }
   const example = examples?.[0];
   const names = [...placeholdersOf(source, syntax)];
+  const formats = placeholderFormatsOf(source, syntax);
   for (const arg of pluralArgsOf(source, syntax)) {
     if (!names.includes(arg)) names.push(arg);
   }
@@ -42,6 +44,7 @@ export function slotsOf(
       name,
       description: declared[name]?.description ?? null,
       role: declared[name]?.role ?? null,
+      format: formats.get(name) ?? null,
       values,
     };
   });

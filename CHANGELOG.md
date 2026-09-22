@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+### Added
+
+- A placeholder may carry a format: `{count, number}`, `{d, date, short}`, `{t, time}`, with the style after a second comma. react-intl and svelte-i18n write these every day, and 0.17.0 refused them: 10 of Mastodon's strings and 11 of Immich's, plus 4 Immich translations flagged. A translation keeps the name and the type and may change the style (`{d, date, long}` for `{d, date, short}` is fine; `{d, time}` or a bare `{d}` is not, and the message says which). The chip inserts the source's form; a preview formats the example's value through `Intl` for the language when it can.
+
 ### Fixed
 
 - A string refused for an argument type ICU has (`{n, number}`, `{d, date}`, `{t, time}`) draws no library advice: Immich's `other {{hours, number} hours}}` was told to `declare library: "i18next"` because a plural branch opening with a placeholder puts `{{` in the string. A type ICU lacks, i18next's `{{date, short}}` read as ICU, still draws it. The two library hints now fire on the error the wrong library produces and on nothing else, so an unclosed or nested plural, or one missing `other`, draws no library advice either.

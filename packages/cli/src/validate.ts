@@ -189,6 +189,10 @@ export function describe(
       return `plural on {${error.arg}} lacks the ${error.key} branch its language uses`;
     case "unexpected-category":
       return `plural on {${error.arg}} has the branch ${error.key}, which its language does not use`;
+    case "unexpected-format":
+      return error.actual === null
+        ? `{${error.name}} is a ${error.expected} in the source; write it {${error.name}, ${error.expected}}`
+        : `{${error.name}} is a ${error.expected} in the source, not a ${error.actual}`;
     case "missing-tag":
       return `missing the <${error.name}> tag`;
     case "unexpected-tag":

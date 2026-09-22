@@ -128,6 +128,22 @@ test("describe words every error code", () => {
   expect(describe({ code: "unexpected-branch", arg: "g", key: "x" })).toBe(
     "select on {g} has the branch x, which the source does not",
   );
+  expect(
+    describe({
+      code: "unexpected-format",
+      name: "n",
+      expected: "number",
+      actual: null,
+    }),
+  ).toBe("{n} is a number in the source; write it {n, number}");
+  expect(
+    describe({
+      code: "unexpected-format",
+      name: "d",
+      expected: "date",
+      actual: "time",
+    }),
+  ).toBe("{d} is a date in the source, not a time");
   expect(describe({ code: "missing-tag", name: "link" })).toBe(
     "missing the <link> tag",
   );

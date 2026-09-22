@@ -30,6 +30,14 @@ export function validationMessage(
       return t("editor.missingCategory", { arg: error.arg, key: error.key });
     case "unexpected-category":
       return t("editor.unexpectedCategory", { arg: error.arg, key: error.key });
+    case "unexpected-format":
+      return error.actual === null
+        ? t("editor.formatDropped", { name: error.name, type: error.expected })
+        : t("editor.formatChanged", {
+            name: error.name,
+            type: error.expected,
+            actual: error.actual,
+          });
     case "missing-tag":
       return t("editor.missingTag", { name: error.name });
     case "unexpected-tag":

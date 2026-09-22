@@ -61,6 +61,8 @@ export type StringResponse = {
     name: string;
     description: string | null;
     role: string | null;
+    // The format the source writes, "number, ::percent", or null (#555).
+    format: string | null;
     values: Record<string, string>;
   }[];
   examples: Example[];

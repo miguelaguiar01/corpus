@@ -122,3 +122,14 @@ test("a plural wrapped in a tag still lists its branches in the strip", () => {
   expect(strip.textContent).toContain("one# item");
   expect(strip.textContent).toContain("other# items");
 });
+
+test("a formatted placeholder's chip carries its format (#555)", () => {
+  render(
+    <SourceView
+      source="{p, number, ::percent} of {n, number}"
+      declarations={{}}
+    />,
+  );
+  expect(screen.getByText("{p, number, ::percent}")).toBeTruthy();
+  expect(screen.getByText("{n, number}")).toBeTruthy();
+});

@@ -157,9 +157,11 @@ export function ProposalPanel({
                         className: "min-h-8 hover:bg-accent",
                       })}
                       title={slot.description}
-                      onClick={() => insert(chipText(slot.name, syntax))}
+                      onClick={() =>
+                        insert(chipText(slot.name, syntax, slot.format))
+                      }
                     >
-                      {chipText(slot.name, syntax)}
+                      {chipText(slot.name, syntax, slot.format)}
                     </button>
                   ))}
                 </div>
