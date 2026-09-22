@@ -47,7 +47,7 @@ A command that prints the entries as JSON, for text that lives somewhere no adap
 }
 ```
 
-The export command prints `{ strings, entities?, translations? }`. `strings` are the entries themselves; `entities` describe the people and places they refer to; `translations` is what the repository already holds, as language to id to text, which push imports as translated exactly as it does a catalogue file's. A language the config does not declare, or the source language, is an error rather than a silent skip.
+The export command prints `{ strings, entities?, translations? }`, up to 256 MiB, which no catalogue reaches. `strings` are the entries themselves; `entities` describe the people and places they refer to; `translations` is what the repository already holds, as language to id to text, which push imports as translated exactly as it does a catalogue file's. A language the config does not declare, or the source language, is an error rather than a silent skip.
 
 The import command receives, on stdin, only the rows a pull selected, for the languages that pull asked for. That last point is where these go wrong: an import command that rewrites its file from what it receives deletes everything the payload does not carry, which is every string nobody has translated yet. It must merge.
 

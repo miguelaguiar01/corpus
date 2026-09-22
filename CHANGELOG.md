@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+### Fixed
+
+- An `exec` exporter or importer may print up to 256 MiB: the build read its output through `spawnSync`'s default 1 MiB, so Ente's exporter (3.2 MB, seeds for 56 languages) and Documenso's (3.4 MB) were killed and the build said `exec "…" exited null:` with nothing after the colon. Past the new cap the message names the size; a command killed by a signal is named by the signal; one that could not run says why.
+
 ## [0.17.0] - 2026-09-22
 
 What the 0.16.0 trial and the wiki found: vue-i18n, a library per source, the walls past a dozen languages, and a wiki that teaches Corpus.
