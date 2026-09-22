@@ -34,10 +34,10 @@ test("a bound or directive attribute is an expression, a static one is text", ()
 });
 
 test("text around an interpolation is still text", () => {
-  // The interpolation is blanked rather than removed, so every later
-  // character keeps the offset its line number comes from.
+  // The interpolation is blanked for the offset and collapsed for the
+  // text, so the line is right and the finding still reads.
   const source = `<template><p>Due {{ count }} days from now</p></template>`;
-  expect(texts(source)).toEqual(["Due             days from now"]);
+  expect(texts(source)).toEqual(["Due   days from now"]);
 });
 
 test("a finding is on the line its text is on, not its tag's", () => {
@@ -104,4 +104,49 @@ test("corpus-ignore silences a template finding", () => {
   <p>Not deliberate</p>
 </template>`;
   expect(texts(source)).toEqual(["Not deliberate"]);
+});
+
+test("the block is found whatever precedes it, and only the real one", () => {
+  const indented = `  <template>
+    <p>Indented block</p>
+  </template>`;
+  expect(texts(indented)).toEqual(["Indented block"]);
+
+  // A byte-order mark is not a tag.
+  expect(texts(`\ufeff<template><p>After a mark</p></template>`)).toEqual([
+    "After a mark",
+  ]);
+
+  // Script first, on one line.
+  expect(
+    texts(
+      `<script setup>const a = 1;</script><template><p>Late</p></template>`,
+    ),
+  ).toEqual(["Late"]);
+
+  // A comment on the same line as the block.
+  expect(texts(`<!-- a note --><template><p>Noted</p></template>`)).toEqual([
+    "Noted",
+  ]);
+
+  // A documentation block's example is not the component's template.
+  const docs = `<docs>
+\`\`\`vue
+<template><p>example</p></template>
+\`\`\`
+</docs>
+
+<template>
+  <p>Real text</p>
+</template>`;
+  expect(texts(docs)).toEqual(["Real text"]);
+});
+
+test("lang=html is still markup, and a stray lang= elsewhere is not the block's", () => {
+  expect(texts(`<template lang="html"><p>Still markup</p></template>`)).toEqual(
+    ["Still markup"],
+  );
+  expect(texts(`<template xml:lang="en"><p>Not pug</p></template>`)).toEqual([
+    "Not pug",
+  ]);
 });

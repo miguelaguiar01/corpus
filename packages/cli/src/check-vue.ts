@@ -75,31 +75,78 @@ function* attributes(
 // A bound attribute's value is an expression, as a JSX prop in braces is.
 const BOUND = /^([:@#]|v-)/;
 
-// A single-file component's blocks sit at the top level, which in
-// practice means column zero: both ends are anchored there, so a
-// `<template>` inside a script comment or a string does not start the
-// block and a `</template>` inside an expression does not end it.
-const BLOCK_OPEN = /^<template([^>]*)>/m;
-const BLOCK_CLOSE = /^<\/template>/m;
-// A template in another language is not HTML and this scanner would
-// read its source as prose.
-const NOT_HTML = /\blang\s*=\s*["']?(?!html)([a-z]+)/i;
+// A single-file component is a list of top-level blocks. They are
+// found by walking the markup rather than by column or by a bare
+// search: a `<template>` inside a `<script>` comment, a string, an
+// HTML comment or a `<docs>` example must not become the block, and an
+// indented one or a file with a byte-order mark must still be found.
+const NOT_HTML = /(?:^|\s)lang\s*=\s*["']?(?!html\b)([a-z]+)/i;
+// A block whose content is not markup: its closing tag ends it, and
+// nothing inside is scanned for tags.
+const RAW_BLOCKS = new Set(["script", "style", "docs", "i18n"]);
+
+function skipComment(source: string, at: number): number {
+  const end = source.indexOf("-->", at);
+  return end === -1 ? source.length : end + 3;
+}
 
 function templateBlock(
   source: string,
 ): { body: string; offset: number } | null {
-  const open = BLOCK_OPEN.exec(source);
-  if (!open || open.index === undefined) return null;
-  if (NOT_HTML.test(open[1] ?? "")) return null;
-  const start = open.index + open[0].length;
-  const rest = source.slice(start);
-  // A closing tag at column zero ends the block. A component written on
-  // one line has none, so the last closing tag stands in: the block is
-  // the outermost, and a nested `<template v-if>` closes before it.
-  const anchored = BLOCK_CLOSE.exec(rest);
-  const end = anchored?.index ?? rest.lastIndexOf("</template>");
-  if (end === undefined || end < 0) return null;
-  return { body: rest.slice(0, end), offset: start };
+  let at = 0;
+  while (at < source.length) {
+    const lt = source.indexOf("<", at);
+    if (lt === -1) return null;
+    if (source.startsWith("<!--", lt)) {
+      at = skipComment(source, lt);
+      continue;
+    }
+    const tag = tagAt(source, lt);
+    if (!tag || tag.closing) {
+      at = tag ? tag.end : lt + 1;
+      continue;
+    }
+    if (RAW_BLOCKS.has(tag.name)) {
+      if (tag.selfClosing) {
+        at = tag.end;
+        continue;
+      }
+      const close = source.indexOf(`</${tag.name}`, tag.end);
+      at = close === -1 ? source.length : close + tag.name.length + 2;
+      continue;
+    }
+    if (tag.name !== "template" || tag.selfClosing) {
+      at = tag.end;
+      continue;
+    }
+    // A template in another language is not HTML, and this scanner
+    // would read its source as prose.
+    if (NOT_HTML.test(tag.attributes)) return null;
+    const start = tag.end;
+    let depth = 1;
+    let scan = start;
+    while (scan < source.length) {
+      const next = source.indexOf("<", scan);
+      if (next === -1) break;
+      if (source.startsWith("<!--", next)) {
+        scan = skipComment(source, next);
+        continue;
+      }
+      const inner = tagAt(source, next);
+      if (!inner) {
+        scan = next + 1;
+        continue;
+      }
+      if (inner.name === "template" && !inner.selfClosing) {
+        depth += inner.closing ? -1 : 1;
+        if (depth === 0)
+          return { body: source.slice(start, next), offset: start };
+      }
+      scan = inner.end;
+    }
+    return null;
+  }
+  return null;
 }
 
 export function findVueLiterals(
@@ -136,11 +183,16 @@ export function findVueLiterals(
     // It is blanked rather than removed so every later character keeps
     // its offset, and the finding is reported at the first character of
     // the text rather than at the tag that preceded it.
-    const raw = body
-      .slice(textFrom, until)
-      .replace(/\{\{[\s\S]*?\}\}/g, (match) => " ".repeat(match.length));
-    const first = raw.search(/\S/);
-    if (first !== -1) report(offset + textFrom + first, raw);
+    const slice = body.slice(textFrom, until);
+    // Blanked for the offset, so every later character keeps the
+    // position its line number comes from; collapsed for the text, so a
+    // finding reads as the words around the interpolation.
+    const blanked = slice.replace(/\{\{[\s\S]*?\}\}/g, (match) =>
+      " ".repeat(match.length),
+    );
+    const first = blanked.search(/\S/);
+    if (first === -1) return;
+    report(offset + textFrom + first, slice.replace(/\{\{[\s\S]*?\}\}/g, " "));
   };
   while (at < body.length) {
     const lt = body.indexOf("<", at);
