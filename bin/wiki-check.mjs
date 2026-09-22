@@ -1,9 +1,15 @@
 // The comparison bin/wiki-check runs. Kept in JavaScript so the gate
 // needs no build step before it can check the wiki.
-import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 
 const root = path.resolve(import.meta.dirname, "..");
+const realRoot = realpathSync(root);
 const wiki = path.join(root, "docs", "wiki");
 const block = /<!-- from: (\S+) -->\n```([a-z]*)\n([\s\S]*?)```/g;
 const shows = (file, lang, text) =>
@@ -58,8 +64,21 @@ for (const page of pages) {
     // A marker may reach out of docs/wiki for a file the repository
     // ships, but no further: --fix pastes what it finds into a page
     // that gets published.
-    const source = path.resolve(wiki, from);
-    if (!source.startsWith(`${root}${path.sep}`)) {
+    // path.resolve is lexical, so a symlink committed inside the
+    // repository would still read outside it (#519); the real path is
+    // what the containment test has to see.
+    const lexical = path.resolve(wiki, from);
+    let source = lexical;
+    try {
+      source = realpathSync(lexical);
+    } catch {
+      // Not there yet: the lexical path is all there is to judge, and
+      // the read below reports it as missing.
+    }
+    if (
+      !lexical.startsWith(`${root}${path.sep}`) ||
+      !source.startsWith(`${realRoot}${path.sep}`)
+    ) {
       problems.push(`${page} names ${from}, which is outside the repository`);
       return whole;
     }

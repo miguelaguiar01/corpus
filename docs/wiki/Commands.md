@@ -16,7 +16,7 @@ usage: corpus push [--dry-run] | corpus pull [--min-state <untranslated|translat
 
 ## Exit codes
 
-**0** is success and **1** is everything else: a refused string, an invalid translation, a literal outside the catalogues, a repository behind what is verified, a token that does not exist, an unreachable instance, an unknown command. `corpus workbench` is the exception — it exits with whatever the server it started exited with, so a crash there comes through as the server's own code.
+**0** is success and **1** is everything else: a refused string, an invalid translation, a literal outside the catalogues, a repository behind what is verified, a token that does not exist, an unreachable instance, an unknown command, an unknown flag. `corpus workbench` is the exception — it exits with whatever the server it started exited with, so a crash there comes through as the server's own code.
 
 Most failures print one line per finding and a summary last, on stderr, prefixed `corpus: `. Two do not: `corpus pull --check` lists the files that would change and its summary on **stdout** with no prefix, and an unknown command prints the usage. The prefix fails the other way too — `push` and `init` print `corpus: ` warnings and still exit 0. Gate on the exit code.
 
@@ -76,6 +76,6 @@ The token is `CORPUS_TOKEN`, then `.corpus/token`. The instance secret is `CORPU
 | The instance secret | `CORPUS_INVITE_SECRET` | `.corpus/secret`, and only when the server is on this machine |
 | The server | `--server`, on the commands that take it | the config's `server` |
 
-`--server` is taken by `init` and by both `project` subcommands, and it overrides the config's `server` rather than replacing the config: `project create` still loads one, for the project's slug and languages. Nothing else reads the flag — `corpus push --server …` is accepted and ignored, which is worth knowing before you debug a push that went to the wrong instance.
+`--server` is taken by `init` and by both `project` subcommands, and it overrides the config's `server` rather than replacing the config: `project create` still loads one, for the project's slug and languages. No other command takes it, and passing it is refused rather than ignored — as is any flag a command does not know, so a typo fails instead of quietly running something else.
 
 A config may read the environment itself — `server: process.env.CORPUS_SERVER ?? "http://localhost:3000"` — which is how one repository points at a workbench locally and a team instance in CI.

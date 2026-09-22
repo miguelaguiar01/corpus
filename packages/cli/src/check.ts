@@ -229,7 +229,18 @@ export function ignoreMatcher(patterns: string[]): (rel: string) => boolean {
 // files the walk read under it: the caller says so when a directory
 // parsed none, since a clean bill over unread code is a lie.
 export type Scanned = { dir: string; parsed: number };
-export type CheckResult = { findings: Finding[]; scanned: Scanned[] };
+// An include entry that could not be scanned, and why (#499): one that
+// is missing or is a file narrows the lint silently while another entry
+// keeps the run green.
+export type Unscanned = {
+  dir: string;
+  reason: "missing" | "not-a-directory" | "unreadable";
+};
+export type CheckResult = {
+  findings: Finding[];
+  scanned: Scanned[];
+  unscanned: Unscanned[];
+};
 
 // This is a syntax-tree lint, and only JSX carries the markup it reads.
 const EXTENSIONS = [".jsx", ".tsx"] as const;
@@ -241,35 +252,67 @@ export function checkFiles(root: string, options: CheckOptions): CheckResult {
   const findings: Finding[] = [];
   const scanned: Scanned[] = [];
   let parsed = 0;
-  const walk = (dir: string) => {
-    for (const name of readdirSync(dir).sort()) {
+  const unscanned: Unscanned[] = [];
+  // An entry that cannot be read — a dangling symlink, a directory
+  // without permission — is skipped and named, not thrown and not
+  // silently taken with the rest of the tree.
+  const walk = (dir: string): boolean => {
+    let names: string[];
+    try {
+      names = readdirSync(dir).sort();
+    } catch {
+      unscanned.push({
+        dir: path.relative(root, dir).split(path.sep).join("/"),
+        reason: "unreadable",
+      });
+      return false;
+    }
+    for (const name of names) {
       const abs = path.join(dir, name);
       const rel = path.relative(root, abs).split(path.sep).join("/");
       if (ignored(rel)) continue;
-      if (statSync(abs).isDirectory()) {
+      let stat;
+      try {
+        stat = statSync(abs);
+      } catch {
+        unscanned.push({ dir: rel, reason: "unreadable" });
+        continue;
+      }
+      if (stat.isDirectory()) {
         if (!SKIP_DIRS.has(name)) walk(abs);
       } else if (PARSES.test(name)) {
+        let source;
+        try {
+          source = readFileSync(abs, "utf8");
+        } catch {
+          unscanned.push({ dir: rel, reason: "unreadable" });
+          continue;
+        }
         parsed += 1;
-        for (const f of findLiterals(readFileSync(abs, "utf8"), rel, {
+        for (const f of findLiterals(source, rel, {
           allow: options.allow,
         })) {
           findings.push(f);
         }
       }
     }
+    return true;
   };
   for (const inc of options.include) {
     const abs = path.join(root, inc);
+    let stat;
     try {
-      if (statSync(abs).isDirectory()) {
-        parsed = 0;
-        walk(abs);
-        scanned.push({ dir: inc, parsed });
-      }
+      stat = statSync(abs);
     } catch {
-      // A configured directory that does not exist is not scanned; the
-      // caller says so when that leaves nothing.
+      unscanned.push({ dir: inc, reason: "missing" });
+      continue;
     }
+    if (!stat.isDirectory()) {
+      unscanned.push({ dir: inc, reason: "not-a-directory" });
+      continue;
+    }
+    parsed = 0;
+    if (walk(abs)) scanned.push({ dir: inc, parsed });
   }
-  return { findings, scanned };
+  return { findings, scanned, unscanned };
 }

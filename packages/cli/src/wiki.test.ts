@@ -509,7 +509,10 @@ test("the messages the troubleshooting page quotes are messages the CLI has", ()
     ],
     ["could not reach the server at", "could not reach the server at"],
     ["check parsed no files in", "check parsed no files in"],
-    ["check scanned nothing: none of", "check scanned nothing: none of"],
+    [
+      "check scanned nothing: no directory among",
+      "check scanned nothing: no directory among",
+    ],
     [
       "has no {lang}: its translations cannot be written back",
       "has no {lang}: its translations cannot be written back",
@@ -527,6 +530,11 @@ test("the messages the troubleshooting page quotes are messages the CLI has", ()
       "is not installed in this repository",
     ],
     ["no config found in", "no config found in"],
+    ["unknown option ${arg}", "unknown option --"],
+    [
+      "check.include names ${entry.dir}, which does not exist",
+      "check.include names … , which does not exist",
+    ],
     ["string(s) refused and", "string(s) refused and"],
     ["holds a person's work", "holds a person's work"],
     [

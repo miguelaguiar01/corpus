@@ -1,4 +1,10 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
@@ -238,7 +244,7 @@ test("check says when none of the included directories exists, instead of a clea
     expect(code).toBe(1);
     expect(out).toEqual([]);
     expect(err.join("\n")).toMatch(
-      /check scanned nothing: none of src exists; set check\.include/,
+      /check scanned nothing: no directory among src; set check\.include/,
     );
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -409,4 +415,50 @@ test("check refuses a clean bill when it parsed nothing, and counts the files wh
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("an include entry that is not there is named, even when another was scanned", () => {
+  // #499: a renamed directory narrowed the lint and the run stayed
+  // green, because a sibling entry had been scanned.
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-include-"));
+  mkdirSync(path.join(dir, "src"), { recursive: true });
+  writeFileSync(
+    path.join(dir, "src", "A.tsx"),
+    "export const A = () => <p>Hello</p>;\n",
+  );
+  writeFileSync(path.join(dir, "notes.txt"), "not a directory\n");
+
+  const result = checkFiles(dir, {
+    include: ["src", "gone", "notes.txt"],
+    allow: [],
+  });
+  expect(result.scanned.map((s) => s.dir)).toEqual(["src"]);
+  expect(result.unscanned).toEqual([
+    { dir: "gone", reason: "missing" },
+    { dir: "notes.txt", reason: "not-a-directory" },
+  ]);
+  expect(result.findings).toHaveLength(1);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("an entry it cannot read is named and skipped, and the rest is still scanned", () => {
+  // A dangling symlink under an included directory threw out of the
+  // walk: before #499 that was caught by a try around the whole entry,
+  // which lost the directory's scan record and produced a "scanned
+  // nothing" error for a tree that was plainly there.
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-unreadable-"));
+  mkdirSync(path.join(dir, "src"), { recursive: true });
+  writeFileSync(
+    path.join(dir, "src", "A.tsx"),
+    "export const A = () => <p>Hi</p>;\n",
+  );
+  symlinkSync("/nowhere/at/all", path.join(dir, "src", "dangling"));
+
+  const result = checkFiles(dir, { include: ["src"], allow: [] });
+  expect(result.findings).toHaveLength(1);
+  expect(result.scanned).toEqual([{ dir: "src", parsed: 1 }]);
+  expect(result.unscanned).toEqual([
+    { dir: "src/dangling", reason: "unreadable" },
+  ]);
+  rmSync(dir, { recursive: true, force: true });
 });
