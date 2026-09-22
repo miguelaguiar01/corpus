@@ -1,0 +1,15 @@
+{
+  "@@locale": "en",
+  "wallpaper": "Wallpaper",
+  "@wallpaper": {
+    "description": "Menu entry"
+  },
+  "photosCount": "{count, plural, one {# photo} other {# photos}}",
+  "@photosCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
+}

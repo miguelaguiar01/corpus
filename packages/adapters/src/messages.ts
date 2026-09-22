@@ -1,6 +1,9 @@
 import type { StringEntry } from "@corpus/contract";
 
-export type MessagesOptions = { type: string };
+// `arb`: Flutter's ARB is JSON whose top-level keys starting with "@"
+// are metadata for their sibling ("@wallpaper", "@@locale"), not text
+// (#558); a nested object under such a key is left alone.
+export type MessagesOptions = { type: string; arb?: boolean };
 
 // Flat or nested key-value catalog (already-parsed JSON/TS) -> snapshot
 // string entries (§3). Nested keys flatten to dot-paths; the leaf string
@@ -13,6 +16,18 @@ export function messagesToEntries(
   options: MessagesOptions,
 ): StringEntry[] {
   const entries: StringEntry[] = [];
+  if (
+    options.arb &&
+    data !== null &&
+    typeof data === "object" &&
+    !Array.isArray(data)
+  ) {
+    const strings = Object.fromEntries(
+      Object.entries(data).filter(([key]) => !key.startsWith("@")),
+    );
+    walk(strings, [], options.type, entries);
+    return entries;
+  }
   walk(data, [], options.type, entries);
   return entries;
 }

@@ -274,6 +274,26 @@ test("an exporter past 1 MiB builds, and one past the cap or killed is named (#5
   ).toBe('exec "node x.mjs" exited 2: boom');
 });
 
+test("an .arb catalogue reads as JSON, its @ entries as metadata, and writes back (#558)", async () => {
+  const arb = config({
+    sources: [
+      { adapter: "messages", type: "ui", path: "arb/strings_{lang}.arb" },
+    ],
+  });
+  const { snapshot, refused } = await buildSnapshotReport(arb, REPO);
+  expect(refused).toEqual([]);
+  expect(snapshot.strings.map((s) => s.id)).toEqual([
+    "wallpaper",
+    "photosCount",
+  ]);
+  expect(snapshot.strings[1]?.source).toBe(
+    "{count, plural, one {# photo} other {# photos}}",
+  );
+  expect(writableSources(arb).map((s) => s.path)).toEqual([
+    "arb/strings_{lang}.arb",
+  ]);
+});
+
 test("a file that does not read still fails the whole build", async () => {
   const missing = config({
     sources: [
