@@ -316,6 +316,35 @@ test("the agent pages name every tool the server has, and no other", async () =>
   for (const name of called) expect(names).toContain(name);
 });
 
+test("the refusal the agent page quotes is the refusal the server sends", async () => {
+  // The page shows the message as a literal, so it drifts silently when
+  // the route is reworded. The route builds it from a template; this
+  // fills the template in and compares.
+  const route = readFileSync(
+    fileURLToPath(
+      new URL(
+        "../../../apps/web/src/app/api/strings/[key]/translations/[lang]/route.ts",
+        import.meta.url,
+      ),
+    ),
+    "utf8",
+  );
+  const template = /`\$\{key\} in \$\{lang\} ([^`]+)`/.exec(route);
+  expect(template, "the human-edited message is no longer a template").not.toBe(
+    null,
+  );
+  const page = readFileSync(
+    fileURLToPath(
+      new URL(
+        "../../../docs/wiki/What-an-agent-may-and-may-not-do.md",
+        import.meta.url,
+      ),
+    ),
+    "utf8",
+  );
+  expect(page).toContain(`human-edited: editor.save in pt-PT ${template![1]!}`);
+});
+
 test("every config the wiki shows is a config the CLI accepts", async () => {
   const jiti = createJiti(import.meta.url);
   const configs = [examples, recordings].flatMap((dir) =>

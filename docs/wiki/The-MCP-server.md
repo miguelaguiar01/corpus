@@ -62,7 +62,7 @@ Nine, each one API call.
 | Tool | What it does |
 |---|---|
 | `list_queue` | A queue's items: `untranslated`, `stale`, `unverifiedSource` or `agentDrafts`, narrowed by language, by string type, or both |
-| `get_string` | One string: the source, its placeholders, selects and plurals, every language's text and state, the type's note, the glossary terms it contains, the entities it refers to, its siblings under the same key prefix, and any pending proposal |
+| `get_string` | One string: the source and the file it came from, its placeholders, selects, plurals and tags, its slots with their example values, every language's text and state, the type's note, the glossary terms it contains, the entities it refers to, its siblings under the same key prefix, and any pending proposal |
 | `save_draft` | A translation for one string in one language |
 | `propose_change` | New source text for a string, as a proposal |
 | `propose_removal` | A string the repository should drop, as a proposal |
@@ -256,3 +256,11 @@ One process, started by the client, living as long as the session. Every call is
 `corpus mcp` exits before speaking protocol when there is no token — `CORPUS_TOKEN is not set and .corpus/token does not exist` — which a client usually reports as the server failing to start. A workbench in the repository writes that token itself; a team instance gives it to you from `corpus project create`.
 
 A client that starts in your home directory rather than your repository gets the same error for the same reason, which is why the Claude Desktop entry above changes directory first.
+
+Three more, in the order they catch people out:
+
+**The instance must run the same version as the CLI.** The token routes the tools call arrived in 0.8.0. An older instance — an older `@corpus-tool/workbench`, or a container on an older tag — answers `status` and nothing else. Upgrade both packages together, or pull the matching image; `corpus status` prints the server's version.
+
+**Push once after upgrading.** The instance learns which files can take proposals from a push. Until then every proposal is refused with "last pushed before sources were declared", and `status` says the project has none.
+
+**Register the server before the session starts.** A client reads tool schemas when a session opens, and a running agent cannot restart itself, so registering from inside a session gives that session nothing. Register, then start.
