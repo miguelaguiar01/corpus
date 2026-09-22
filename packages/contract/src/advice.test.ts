@@ -55,3 +55,15 @@ test("an ICU argument type of ICU's own draws no library advice (#557)", () => {
     '; {{ }} is i18next\'s interpolation: declare library: "i18next" on the source',
   );
 });
+
+test("an ICU error that is not about the braces draws no library advice", () => {
+  // Each holds `{{` from a branch opening with a placeholder, and each
+  // is refused for a reason of its own.
+  for (const source of [
+    "{n, plural, one {{count} apple}",
+    "{n, plural, one {{count} apple} other {{n, plural, one {x} other {y}}}}",
+    "{n, plural, one {{count} x} two {y}}",
+  ]) {
+    expect(adviceFor(source, "icu"), source).toBe("");
+  }
+});
