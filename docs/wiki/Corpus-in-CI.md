@@ -5,7 +5,7 @@ Four commands belong in CI, and they divide cleanly: two read only the repositor
 | `corpus check` | no | every pull request | a component says something to a person without going through a catalogue |
 | `corpus validate` | no | every pull request | a translation in the repository is broken |
 | `corpus pull --check` | yes, read only | every pull request from the repository | the repository is behind what is verified, or a proposal is waiting |
-| `corpus push` | yes, writes | the default branch, after merge | the instance cannot be reached |
+| `corpus push` | yes, writes | the default branch, after merge | a string will not parse, the token is refused, or the instance rejects the push |
 
 ## The offline pair
 
@@ -34,7 +34,7 @@ This catches what a translator's editor already refuses, because translations ar
 
 ## The two that need the instance
 
-`corpus pull --check` performs a pull and writes nothing, exiting 1 when a pull would have changed a file. That is the gate that keeps the repository honest: a translation was verified, nobody ran `corpus pull`, and the branch is behind. A pending proposal counts as a change, so the same gate goes red until someone pulls the proposed English in and reviews it.
+`corpus pull --check` performs a pull and writes nothing, exiting 1 when a pull would have changed a file ([§8](https://github.com/miguelaguiar01/corpus/blob/main/docs/corpus-design.md#8-sync-semantics)). That is the gate that keeps the repository honest: a translation was verified, nobody ran `corpus pull`, and the branch is behind. A pending proposal counts as a change, so the same gate goes red until someone pulls the proposed English in and reviews it.
 
 It needs `CORPUS_TOKEN`, so it cannot run on a fork's pull request, where secrets are not available. Skip it there rather than letting it fail.
 
@@ -57,8 +57,8 @@ jobs:
     # request like any other check.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -74,8 +74,8 @@ jobs:
     if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -92,8 +92,8 @@ jobs:
     needs: [offline, behind]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -106,23 +106,28 @@ jobs:
 
 ## A gate of your own
 
-`corpus status --json` is the dashboard's numbers as one object: `progress.perLanguage` and `progress.perType`, each with `untranslated`, `translated`, `verified`, `stale` and `total`, plus `pendingProposals`, `lastPushAt`, the string count and the server's version. Anything you can express about those is a gate:
+`corpus status --json` is the dashboard's numbers as one object. `progress.perLanguage` is language to counts; `progress.perType` is type to language to the same counts, one level deeper. The counts are `untranslated`, `translated`, `verified`, `stale` and `total`. Beside `progress` are `pendingProposals`, `lastPushAt`, the string count and the server's version. Anything you can express about those is a gate:
 
 ```sh
 npx corpus status --json | jq -e '.progress.perLanguage["pt-PT"].untranslated == 0'
+npx corpus status --json | jq -e '.progress.perType.email["pt-PT"].verified == .progress.perType.email["pt-PT"].total'
 ```
 
-That one blocks a release until Portuguese is complete. It is a policy, not a rule Corpus holds: decide it per project, and expect to relax it for a language you have just added.
+The first blocks a release until Portuguese is complete; the second until every email string is verified in Portuguese, which is the shape `perType` has: type, then language, then the counts. It is a policy, not a rule Corpus holds: decide it per project, and expect to relax it for a language you have just added.
 
 ## A throwaway instance for a test job
 
-A job that needs a real instance can start one: `corpus workbench` in the checkout creates the project and writes the token itself, so the whole round trip runs with nothing provisioned in advance. This repository's own CI does exactly that in `bin/install-smoke`, and pushes its interface strings to a fresh container the same way in `bin/dogfood`.
+A job that needs a real instance can start one: `corpus workbench` in the checkout creates the project and writes the token itself, so the whole round trip runs with nothing provisioned in advance. This repository's own CI does exactly that in `bin/install-smoke`. `bin/dogfood` takes the other route for the same reason: it boots the production image and provisions it explicitly with `CORPUS_INVITE_SECRET=… corpus project create`, taking the token from the last line.
+
+A tag such as `@v7` is the readable form. This repository pins every action to a commit SHA with the version in a comment, because a tag can be moved to point at other code; `bin/gate`'s own workflow shows the shape. Either is fine, and the stricter one costs you a Dependabot pull request each time an action releases.
+
+The `needs: [offline, behind]` on the push job holds because `behind` runs on a push event: an `if:` that skipped it would make `push` skip too, since a skipped dependency is not a satisfied one. If you narrow that condition later, narrow this one with it.
 
 ## The token
 
 `CORPUS_TOKEN` is the project token, the same one `.corpus/token` holds locally. It is read before that file, which is the whole of the CI story: put it in the repository's secrets and nothing else changes.
 
-It is per project, not per person. It cannot verify anything and it cannot sign in. A leaked one lets somebody read your catalogue and write drafts into it, which is worth rotating over but is not an account: `npx corpus project rotate-token` replaces it, authenticating with the current one, and a maintainer can rotate it from the project's settings page.
+It is per project, not per person. It cannot verify anything and it cannot sign in ([§10](https://github.com/miguelaguiar01/corpus/blob/main/docs/corpus-design.md#10-users-and-access)). A leaked one reads your catalogue, writes drafts into it, proposes and withdraws proposals, and pushes — which archives strings the push no longer carries. Rotate it: `npx corpus project rotate-token` replaces it, authenticating with the current one, and a maintainer can rotate it from the project's settings page.
 
 ## Adding it to a repository that already has CI
 
@@ -132,4 +137,4 @@ Only once those are green is `pull --check` worth adding, because until the repo
 
 ## What none of this catches
 
-A string that is in the catalogue, translated, verified, and wrong. Corpus checks structure, not meaning: that the placeholders survive, that the plural has the categories the language needs, that the tags balance. Whether the Portuguese is good Portuguese is what a verifying maintainer is for.
+A string that is in the catalogue, translated, verified, and wrong. Corpus checks structure, not meaning ([§5](https://github.com/miguelaguiar01/corpus/blob/main/docs/corpus-design.md#5-strings-and-metadata-primitives)): that the placeholders survive, that the plural has the categories the language needs, that the tags balance. Whether the Portuguese is good Portuguese is what a verifying maintainer is for.

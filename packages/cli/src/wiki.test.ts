@@ -244,27 +244,33 @@ test("the CI page shows what check and validate really say", async () => {
 
 test("every corpus command the CI workflow runs is one the CLI has", async () => {
   // The page's workflow is only worth showing if its commands are real.
-  // A subcommand the CLI does not know falls through to the usage text,
-  // and a flag that is not in the usage line for its command is one
-  // nobody can run.
+  // The usage text puts several commands on one line, so it is split
+  // into one segment per command before a flag is looked for: otherwise
+  // `push --check` passes on `pull`'s flag, and a truncated `--chec`
+  // passes on the string it is a prefix of.
   const workflow = readFileSync(path.join(examples, "ci.yml"), "utf8");
   const usage: string[] = [];
   await run(["--help"], {
     ...repo().ctx,
     out: (line: string) => usage.push(line),
   });
-  const text = usage.join("\n");
+  const segments = usage
+    .join("\n")
+    .split(/\n|\s\|\s/)
+    .map((segment) => segment.replace(/^\s*(usage:\s*)?/, "").trim())
+    .filter((segment) => segment.startsWith("corpus "));
   const commands = [...workflow.matchAll(/npx corpus ([^\n]+)/g)].map((found) =>
     found[1]!.trim().split(/\s+/),
   );
   expect(commands.length).toBeGreaterThan(0);
   for (const [command, ...flags] of commands) {
-    const line = text
-      .split("\n")
-      .find((row) => row.includes(`corpus ${command}`));
-    expect(line, `the CLI has no ${command} command`).toBeDefined();
+    const segment =
+      segments.find((row) => row.startsWith(`corpus ${command} `)) ??
+      segments.find((row) => row === `corpus ${command}`);
+    expect(segment, `the CLI has no ${command} command`).toBeDefined();
+    const known = new Set(segment!.match(/--[a-z-]+/g) ?? []);
     for (const flag of flags) {
-      expect(line, `corpus ${command} has no ${flag}`).toContain(flag);
+      expect(known, `corpus ${command} has no ${flag}`).toContain(flag);
     }
   }
 });
