@@ -256,3 +256,5 @@ The database is created on first start at `apps/web/data/corpus.db` and is gitig
 ## License
 
 [MIT](LICENSE).
+
+IBM Plex ships with the web app, under the [SIL Open Font License](apps/web/src/app/fonts/LICENSE.txt), which travels beside the font files in the image and the workbench package.

@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# The web fonts, fetched once into the repository (#506). next/font/google
+# fetches them at build time, so a build offline, behind a proxy or in a
+# locked-down CI fails with module-resolution errors that name nothing
+# about fonts; the container image is the team path and hits the same
+# wall. Run this to refresh them; the output is committed.
+#
+# Every subset Google serves is kept, not only latin: Corpus displays
+# translations, so Cyrillic, Greek and Vietnamese are content, not
+# decoration.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+OUT="apps/web/src/app/fonts"
+# The user agent decides what Google serves, in two ways. Without a
+# browser's the answer is one unsubsetted TTF per weight; with a recent
+# browser's it is the hinted woff2 build, 29% larger for metrics that do
+# not move. This is the one next/font/google sent, so the bytes are the
+# bytes the build was already shipping.
+UA='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36'
+API="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+
+# Fetch before removing anything: a failed request should leave the
+# repository's fonts where they were.
+CSS="$(mktemp)"
+trap 'rm -f "$CSS"' EXIT
+curl -sfL -A "$UA" "$API" -o "$CSS"
+rm -rf "$OUT"
+mkdir -p "$OUT"
+cp "$CSS" "$OUT/.google.css"
+# The OFL asks that the licence travel with the fonts, so it is fetched
+# at a tag rather than a moving branch. The Dockerfile copies it beside
+# the served files; packages/workbench/build.mjs does the same for the
+# package.
+curl -sfL "https://raw.githubusercontent.com/IBM/plex/v6.4.0/LICENSE.txt" -o "$OUT/LICENSE.txt"
+
+node - "$OUT" <<'JS'
+const fs = require("node:fs");
+const path = require("node:path");
+const out = process.argv[2];
+const css = fs.readFileSync(path.join(out, ".google.css"), "utf8");
+const seen = new Map();
+const byUrl = new Map();
+const lines = [
+  "/* IBM Plex, from Google Fonts, under the SIL Open Font License; see",
+  " * LICENSE.txt. Written by bin/vendor-fonts — edit that, not this. */",
+  "",
+];
+// Each face is a `/* subset */` comment followed by one @font-face.
+const faces = [
+  ...css.matchAll(/\/\* ([a-z0-9-]+) \*\/\s*@font-face \{([^}]*)\}/g),
+];
+// A subset name the pattern does not match would drop its face without
+// anything failing, so the count is checked rather than trusted.
+const declared = (css.match(/@font-face/g) ?? []).length;
+if (faces.length !== declared) {
+  throw new Error(`${declared} face(s) served, ${faces.length} matched`);
+}
+for (const [, subset, block] of faces) {
+  const url = /url\((\S+)\) format/.exec(block);
+  if (!url) throw new Error(`no woff2 url in the ${subset} face`);
+  const family = /font-family: '([^']+)'/.exec(block)[1];
+  const weight = /font-weight: (\d+)/.exec(block)[1];
+  const range = /unicode-range: ([^;]+);/.exec(block)[1];
+  const slug = family.replace(/\s+/g, "");
+  // Google answers a browser with one variable file per subset, so the
+  // weights of a family share a URL; download it once and let the three
+  // rules point at the same file.
+  const file =
+    byUrl.get(url[1]) ?? `${slug}-${weight}-${subset}.woff2`;
+  byUrl.set(url[1], file);
+  seen.set(file, url[1]);
+  lines.push(
+    "@font-face {",
+    `  font-family: "${family}";`,
+    "  font-style: normal;",
+    `  font-weight: ${weight};`,
+    "  font-display: swap;",
+    `  src: url("./${file}") format("woff2");`,
+    `  unicode-range: ${range};`,
+    "}",
+    "",
+  );
+}
+fs.writeFileSync(path.join(out, "fonts.css"), lines.join("\n"));
+fs.writeFileSync(path.join(out, ".urls"), [...seen].map(([f, u]) => `${f}\t${u}`).join("\n") + "\n");
+console.log(`${seen.size} face(s)`);
+JS
+
+while IFS=$'\t' read -r file url; do
+  curl -sfL "$url" -o "$OUT/$file" || { echo "vendor-fonts: $file failed ($url)" >&2; exit 1; }
+done < "$OUT/.urls"
+rm -f "$OUT/.google.css" "$OUT/.urls"
+echo "vendor-fonts: $(ls "$OUT"/*.woff2 | wc -l) file(s) in $OUT"

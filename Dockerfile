@@ -32,6 +32,9 @@ ENV CORPUS_DB_PATH=/data/corpus.db
 WORKDIR /app
 COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
+# The OFL asks that the licence travel with the fonts, which are in
+# .next/static/media (#506).
+COPY --from=builder /app/apps/web/src/app/fonts/LICENSE.txt ./apps/web/.next/static/media/LICENSE.txt
 RUN mkdir -p /data && chown node:node /data
 USER node
 VOLUME /data

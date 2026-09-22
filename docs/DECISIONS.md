@@ -453,3 +453,29 @@ know it.
 **Context:** #352 (epic), the alibi report of 2026-09-16, the owner's
 four answers of the same day (siblings by type and prefix; type level
 only; yes; yes).
+
+## 2026-09-22 — The fonts are vendored, not fetched at build time
+
+**Decision:** the woff2 files are committed under
+`apps/web/src/app/fonts/` with plain `@font-face` rules in `fonts.css`,
+written by `bin/vendor-fonts`; `next/font/google` is gone. This reverses
+the 2026-09-05 entry above, which named this exact alternative "if it
+ever matters".
+
+**Why:** it mattered. `next/font/google` fetches at build time, and the
+failure is eighteen `Can't resolve
+'@vercel/turbopack-next/internal/font/google/font'` errors that name
+nothing about fonts or the network. It broke this repository's gate twice
+in one day, and it breaks the container image — the team path the README
+recommends — for anyone building offline, behind a proxy, or in a CI that
+does not reach Google.
+
+**What it costs:** the loader's `preload` hints and its metric-adjusted
+fallback go with it, so first paint is a plain swap. The script sends
+next/font's own user agent, because a newer browser's is answered with
+the hinted build: 29% more bytes for metrics that do not move. Every
+subset is kept, not only latin — `subsets` in `next/font/google` controls
+preloading rather than what is downloaded, and Corpus displays
+translations, so Cyrillic, Greek and Vietnamese are content.
+
+**Context:** #506, PR #530.

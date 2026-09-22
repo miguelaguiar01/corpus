@@ -46,6 +46,12 @@ cpSync(standalone, app, {
 cpSync(path.join(web, ".next/static"), path.join(app, ".next/static"), {
   recursive: true,
 });
+// The OFL asks that the licence travel with the fonts, which the build
+// puts in .next/static/media (#506).
+cpSync(
+  path.join(web, "src/app/fonts/LICENSE.txt"),
+  path.join(app, ".next/static/media/LICENSE.txt"),
+);
 
 // Next's bundler gives each external package (better-sqlite3, the one
 // native module) a hashed copy under .next/node_modules and requires it

@@ -1,4 +1,7 @@
 @import "tailwindcss";
+/* The faces live in the repository rather than being fetched from
+ * Google at build time (#506); bin/vendor-fonts writes them. */
+@import "./fonts/fonts.css";
 
 /* Tokens (docs/design.md, spec §9). A barely-warm neutral base and an
    ink foreground; colour is reserved for translation state: verified is
@@ -75,10 +78,10 @@
   --color-state-stale: var(--state-stale);
   --color-state-stale-foreground: var(--state-stale-foreground);
   --font-sans:
-    var(--font-plex-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
     sans-serif;
   --font-mono:
-    var(--font-plex-mono), ui-monospace, "SFMono-Regular", Menlo, monospace;
+    "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-lg: 10px;
