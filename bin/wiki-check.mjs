@@ -23,9 +23,15 @@ const pages = readdirSync(wiki).filter((name) => name.endsWith(".md"));
 // Two kinds of file a page may show: examples someone wrote, which are
 // formatted and validated like any source, and recordings of what the
 // CLI printed, which must stay byte for byte what it printed.
-const examples = ["examples", "recorded"].flatMap((dir) =>
-  readdirSync(path.join(wiki, dir)).map((name) => `${dir}/${name}`),
-);
+const shownFiles = (dir) => {
+  // A kind with nothing in it yet is a directory git does not carry.
+  try {
+    return readdirSync(path.join(wiki, dir)).map((name) => `${dir}/${name}`);
+  } catch {
+    return [];
+  }
+};
+const examples = [...shownFiles("examples"), ...shownFiles("recorded")];
 const fixing = process.argv.includes("--fix");
 
 const problems = [];

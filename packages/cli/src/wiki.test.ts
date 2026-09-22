@@ -7,6 +7,7 @@
 // running instance is prose on the page, and bin/wiki-check says which
 // pages are prose so nobody assumes otherwise.
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -151,7 +152,8 @@ test("the wiki's first-push page shows what corpus init and build really do", as
 test("every config the wiki shows is a config the CLI accepts", async () => {
   const jiti = createJiti(import.meta.url);
   const configs = [examples, recordings].flatMap((dir) =>
-    readdirSync(dir)
+    // A kind with nothing in it yet is a directory git does not carry.
+    (existsSync(dir) ? readdirSync(dir) : [])
       .filter((name) => name.endsWith(".config.ts"))
       .map((name) => path.join(dir, name)),
   );
