@@ -51,24 +51,54 @@ test("a pipe inside a literal is text, not a separator", () => {
   expect(parsed).toContainEqual({ kind: "literal", text: "|" });
 });
 
-test("an unescaped pipe still splits, which is what #539 is about", () => {
-  // Vikunja's migrate.csv.delimiters.pipe is "Pipe (|)", without the
-  // escape above, and vue-i18n reads it as two forms exactly as this
-  // does — so the catalogue is what is wrong. What #495 asked for and
-  // #536 did not deliver is that Corpus name it rather than split it in
-  // silence; this pins what it does until then.
-  expect(nodes("Pipe (|)")).toEqual([
-    {
-      kind: "forms",
-      branches: [
-        [{ kind: "literal", text: "Pipe (" }],
-        [{ kind: "literal", text: ")" }],
-      ],
-    },
-  ]);
-  expect(validateTranslation("Pipe (|)", "Труба", "ru", "vue")).toEqual({
-    ok: true,
+test("a form of nothing but punctuation is a pipe meant literally (#539)", () => {
+  // Vikunja's migrate.csv.delimiters.pipe is "Pipe (|)": a label for the
+  // CSV delimiter, without the escape above. vue-i18n reads it as two
+  // forms and renders "Pipe (" — the catalogue is what is wrong, so
+  // Corpus names it rather than split it in silence.
+  const parsed = parseIcu("Pipe (|)", "vue");
+  expect(parsed).toEqual({
+    ok: false,
+    errors: [
+      {
+        message:
+          "a plural form has no words: \")\"; a pipe meant literally is written {'|'}",
+        position: 7,
+      },
+    ],
   });
+  expect(validateTranslation("Pipe (|)", "Труба", "ru", "vue")).toMatchObject({
+    ok: false,
+    errors: [{ code: "invalid-icu", position: 7 }],
+  });
+  // The refusal points at the form, wherever it sits.
+  expect(parseIcu("(|) pipe", "vue")).toMatchObject({
+    ok: false,
+    errors: [{ position: 0 }],
+  });
+  expect(parseIcu("a | b | !", "vue")).toMatchObject({
+    ok: false,
+    errors: [{ message: expect.stringContaining('"!"'), position: 8 }],
+  });
+  for (const punctuation of ["—", "...", "%", "#"]) {
+    expect(parseIcu(`x | ${punctuation}`, "vue").ok, punctuation).toBe(false);
+  }
+});
+
+test("a form is a form when it holds a word, a number, a symbol or a brace", () => {
+  // A digit, a placeholder, a literal or an emoji alone is content: a
+  // form is refused only when it holds nothing but punctuation.
+  for (const source of [
+    "{count} | {count}",
+    "1 | 2",
+    "{'@'} | {'@'}",
+    "x | y",
+    "⭐ | ⭐⭐ | ⭐⭐⭐",
+    "$ | $$",
+    "一 | 二",
+  ]) {
+    expect(parseIcu(source, "vue").ok, source).toBe(true);
+  }
 });
 
 test("a brace and a literal brace are both writable", () => {

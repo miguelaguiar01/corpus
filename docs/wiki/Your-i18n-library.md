@@ -105,7 +105,7 @@ There is no argument in the string, so nothing names what is counted.
 
 What it does check is that every placeholder survives into every form, and it refuses an empty form — `a | | b` — which vue-i18n's own compiler refuses too. Corpus counts a form of nothing but whitespace as empty; the compiler trims only spaces and newlines, so a form holding a lone tab passes there and not here.
 
-**`{'…'}` is a literal.** It is how a catalogue writes an `@`, a `|` or a brace that vue-i18n would otherwise read as syntax — `"e.g. frederic{'@'}vikunja.io"` — and a pipe inside one is text rather than a separator, so `"Pipe ({'|'})"` is one form and not two.
+**`{'…'}` is a literal.** It is how a catalogue writes an `@`, a `|` or a brace that vue-i18n would otherwise read as syntax — `"e.g. frederic{'@'}vikunja.io"` — and a pipe inside one is text rather than a separator, so `"Pipe ({'|'})"` is one form and not two. Written without the escape, `"Pipe (|)"` is refused rather than split in silence: a form with no word, number, symbol or brace in it — here `)` — is punctuation the pipe cut, and the message says to write `{'|'}`. vue-i18n itself would render `Pipe (`.
 
 Not yet read: `@:linked.keys`. A catalogue that uses them parses, and the link is text.
 

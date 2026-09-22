@@ -350,6 +350,23 @@ export function parseIcu(
             parts.slice(0, empty).join("|").length,
           );
         }
+        // A form of nothing but punctuation is not a plural form but a
+        // pipe the catalogue meant literally: "Pipe (|)" is a label for
+        // the character, and vue-i18n would render "Pipe (" (#539). A
+        // form is kept when it holds a word, a number, a symbol (an
+        // emoji plural, "⭐ | ⭐⭐", is a form) or a brace.
+        const wordless = parts.findIndex(
+          (part) => !/[\p{L}\p{N}\p{S}{]/u.test(part),
+        );
+        if (wordless >= 0) {
+          const form = parts[wordless]!;
+          throw new ParseFailure(
+            `a plural form has no words: ${JSON.stringify(form.trim())}; a pipe meant literally is written {'|'}`,
+            parts.slice(0, wordless).join("|").length +
+              (wordless > 0 ? 1 : 0) +
+              form.indexOf(form.trim()),
+          );
+        }
       }
       const branches = parts.map((part) =>
         new Parser(part.trim(), syntax).parseSequence(false),
