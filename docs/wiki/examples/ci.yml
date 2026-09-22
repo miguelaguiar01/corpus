@@ -1,0 +1,58 @@
+name: i18n
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  offline:
+    # Needs no instance and no token, so it runs on a fork's pull
+    # request like any other check.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: No user-facing text outside the catalogues
+        run: npx corpus check
+      - name: Every translation in the repository is valid
+        run: npx corpus validate
+
+  behind:
+    # Reads the instance, writes nothing. A fork's pull request has no
+    # secret, so this is skipped there rather than failing.
+    if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: The repository carries what is verified
+        run: npx corpus pull --check
+        env:
+          CORPUS_TOKEN: ${{ secrets.CORPUS_TOKEN }}
+
+  push:
+    # Only from the default branch: the instance's catalogue follows
+    # what is merged, not what is proposed.
+    if: github.event_name == 'push'
+    needs: [offline, behind]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: The instance learns what merged
+        run: npx corpus push
+        env:
+          CORPUS_TOKEN: ${{ secrets.CORPUS_TOKEN }}
