@@ -92,6 +92,13 @@
       "when": 1790009078476,
       "tag": "0012_string-syntax",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1790045131674,
+      "tag": "0013_promote-first-person-when-no-maintainer",
+      "breakpoints": true
     }
   ]
 }
