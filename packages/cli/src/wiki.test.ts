@@ -163,6 +163,32 @@ test("the library page shows what a catalogue read under the wrong one really sa
   recorded("wrong-library.out", `${project.out.join("\n")}\n`);
 });
 
+test("the workbench page shows the banner the workbench prints", async () => {
+  // The banner is built where the workbench starts; the page shows the
+  // shape, and this pins the lines it is made of.
+  const banner = [
+    readFileSync(
+      fileURLToPath(new URL("./workbench.ts", import.meta.url)),
+      "utf8",
+    ),
+    readFileSync(
+      fileURLToPath(new URL("./provision.ts", import.meta.url)),
+      "utf8",
+    ),
+  ].join("\n");
+  for (const line of [
+    "is running at",
+    "  database  ",
+    "  secret    ",
+    "token     ",
+    "  stop      Ctrl-C",
+  ]) {
+    expect(banner, `the workbench no longer prints ${line.trim()}`).toContain(
+      line,
+    );
+  }
+});
+
 test("every config the wiki shows is a config the CLI accepts", async () => {
   const jiti = createJiti(import.meta.url);
   const configs = [examples, recordings].flatMap((dir) =>

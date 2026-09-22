@@ -37,7 +37,7 @@ It is not hosted. You run it: `corpus workbench` on a laptop, or the container i
 
 ## What you get out of it
 
-A translator opens a queue on a phone and works through it without cloning anything.
+A translator opens a queue in a browser and works through it without cloning anything.
 
 A maintainer sees what is untranslated, what went stale, and what an agent drafted, per language.
 
