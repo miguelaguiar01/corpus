@@ -16,9 +16,9 @@ usage: corpus push [--dry-run] | corpus pull [--min-state <untranslated|translat
 
 ## Exit codes
 
-There are two. **0** is success. **1** is everything else: a refused string, an invalid translation, a literal outside the catalogues, a repository behind what is verified, a token that does not exist, an unreachable instance, an unknown command. What went wrong is on stderr, one line per finding and a summary line last.
+**0** is success and **1** is everything else: a refused string, an invalid translation, a literal outside the catalogues, a repository behind what is verified, a token that does not exist, an unreachable instance, an unknown command. `corpus workbench` is the exception — it exits with whatever the server it started exited with, so a crash there comes through as the server's own code.
 
-A command that fails prints `corpus: ` before its summary, which is what to grep for in CI output.
+Most failures print one line per finding and a summary last, on stderr, prefixed `corpus: `. Two do not: `corpus pull --check` lists the files that would change and its summary on **stdout** with no prefix, and an unknown command prints the usage. Gate on the exit code rather than on the prefix.
 
 ## What each needs
 
@@ -34,8 +34,8 @@ A command that fails prints `corpus: ` before its summary, which is what to grep
 | `agent` | yes | yes | yes |
 | `mcp` | yes | yes | yes |
 | `workbench` | no, but uses one | starts one | writes one |
-| `project create` | yes, for the server | yes | the instance secret |
-| `project rotate-token` | yes | yes | the current token |
+| `project create` | for the server, unless `--server` | yes | the instance secret |
+| `project rotate-token` | for the server, unless `--server` | yes | the current token |
 
 The token is `CORPUS_TOKEN`, then `.corpus/token`. The instance secret is `CORPUS_INVITE_SECRET`, then `.corpus/secret`.
 
@@ -49,7 +49,7 @@ The token is `CORPUS_TOKEN`, then `.corpus/token`. The instance secret is `CORPU
 
 ## The ones you run once
 
-**`corpus init`** writes `corpus.config.ts`, adds `.corpus/` to `.gitignore` and prints what to do next. It detects the library from the catalogue it is pointed at. It does not write `check.include`, so `corpus check` reads nothing until you add it.
+**`corpus init`** writes `corpus.config.ts`, adds `.corpus/` to `.gitignore` and prints what to do next. It detects the library from the catalogue it is pointed at. It writes no `check` key, so `corpus check` falls back to reading `src`; declare `check.include` when your components live somewhere else.
 
 **`corpus workbench`** starts the web app from your repository, creates the project your config names and writes its token. `--port`, `--db`, `--open`, `--no-provision`.
 
@@ -59,9 +59,9 @@ The token is `CORPUS_TOKEN`, then `.corpus/token`. The instance secret is `CORPU
 
 ## The ones CI runs
 
-**`corpus check`** reads the files `check.include` names and reports text a person would read that did not come from a catalogue. **`corpus validate`** parses every translation in the repository against its source. Neither needs a network. Both are covered on [Corpus in CI](Corpus-in-CI).
+**`corpus check`** reads the files `check.include` names and reports text a person would read that did not come from a catalogue. **`corpus validate`** parses the translations in the repository's catalogues against their sources; an `exec` source is skipped, since its text is the command's to answer for. Neither needs a network. Both are covered on [Corpus in CI](Corpus-in-CI).
 
-**`corpus build`** produces the snapshot a push would send, without sending it. `--out` writes it to a file; without one it goes to stdout. Useful for seeing what a push will carry, and for a diff when a push does something you did not expect.
+**`corpus build`** produces the snapshot a push would send, without sending it, and prints a one-line summary: the project, the string count by type, the entity count. `--out <file>` is what writes the snapshot itself. Useful for seeing what a push will carry, and for a diff when a push does something you did not expect.
 
 ## The ones an agent runs
 
@@ -71,9 +71,11 @@ The token is `CORPUS_TOKEN`, then `.corpus/token`. The instance secret is `CORPU
 
 | What | First | Then |
 |---|---|---|
-| The config | `corpus.config.ts` | `.js`, `.mjs`, `.cjs` |
+| The config | `corpus.config.ts` | `.mts`, `.js`, `.mjs` |
 | The token | `CORPUS_TOKEN` | `.corpus/token` |
-| The instance secret | `CORPUS_INVITE_SECRET` | `.corpus/secret` |
-| The server | the config's `server` | `--server`, where a command takes it |
+| The instance secret | `CORPUS_INVITE_SECRET` | `.corpus/secret`, and only when the server is on this machine |
+| The server | `--server`, on the commands that take it | the config's `server` |
+
+`--server` is taken by `init` and by both `project` subcommands. Nothing else reads it: `corpus push --server …` is accepted and ignored, which is worth knowing before you debug a push that went to the wrong instance.
 
 A config may read the environment itself — `server: process.env.CORPUS_SERVER ?? "http://localhost:3000"` — which is how one repository points at a workbench locally and a team instance in CI.

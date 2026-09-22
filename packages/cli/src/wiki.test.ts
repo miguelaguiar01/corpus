@@ -465,11 +465,25 @@ test("the messages the troubleshooting page quotes are messages the CLI has", ()
   // The page is a symptom index: a reader searches it for the text they
   // were given, so a reworded message makes it useless in exactly the
   // case it exists for.
-  const src = fileURLToPath(new URL("./", import.meta.url));
-  const cli = readdirSync(src)
-    .filter((name) => name.endsWith(".ts") && !name.includes(".test."))
-    .map((name) => readFileSync(path.join(src, name), "utf8"))
-    .join("\n");
+  // Comments are stripped: a message that survives only in a comment
+  // explaining why it was removed would otherwise still pass.
+  const uncommented = (code: string) =>
+    code.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  const read = (dir: string): string =>
+    readdirSync(dir, { withFileTypes: true })
+      .flatMap((entry) => {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) return [read(full)];
+        if (!/\.tsx?$/.test(entry.name) || entry.name.includes(".test."))
+          return [];
+        return [uncommented(readFileSync(full, "utf8"))];
+      })
+      .join("\n");
+  // Five of the messages are the server's, not the CLI's.
+  const cli = [
+    read(fileURLToPath(new URL("./", import.meta.url))),
+    read(fileURLToPath(new URL("../../../apps/web/src", import.meta.url))),
+  ].join("\n");
   const page = readFileSync(
     fileURLToPath(
       new URL("../../../docs/wiki/When-something-is-wrong.md", import.meta.url),
@@ -486,6 +500,13 @@ test("the messages the troubleshooting page quotes are messages the CLI has", ()
     "is not JSON: pull writes JSON only",
     "belong to no writable source and were not written",
     "is not installed in this repository",
+    "no config found in",
+    "string(s) refused and",
+    "holds a person's work",
+    "the source text comes from the repository and is not edited here",
+    "is archived",
+    "is not a language of",
+    "last pushed before sources were declared",
   ];
   for (const message of quoted) {
     expect(cli, `the CLI no longer says "${message}"`).toContain(message);

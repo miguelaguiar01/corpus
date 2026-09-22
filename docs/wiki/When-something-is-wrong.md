@@ -4,7 +4,13 @@ Symptoms, in the order they tend to happen. Every message here is one the tool a
 
 No token. `corpus workbench` writes one on its first run in a repository with a config; against a team instance, `corpus project create` prints one and you put it in `.corpus/token` or `CORPUS_TOKEN`.
 
-This is also what a client reports when `corpus mcp` "fails to start", and what you get when a tool starts in your home directory rather than the repository.
+This is also what a client reports when `corpus mcp` "fails to start".
+
+## `no config found in …`
+
+The command ran somewhere without a `corpus.config.ts`. For an MCP client that is the usual cause of "the server failed to start": the app began in your home directory rather than the repository, and the config is read before the token, so this is the message rather than the one above.
+
+The names it looked for are in the message: `corpus.config.ts`, `.mts`, `.js`, `.mjs`.
 
 ## `unauthorized — the token was refused`
 
@@ -17,10 +23,10 @@ Nothing is listening. If it should be a workbench, it stopped — it dies with t
 ## The push refused a string
 
 ```text
-corpus: 1 string(s) refused
+corpus: 1 string(s) refused and not pushed; a refused string the project holds is archived until it parses
 ```
 
-A string did not parse as a message. The lines above name each one and why. The rest of the push landed; fix the string and push again.
+A string did not parse as a message. The lines above name each one and why. The rest of the push landed. `--dry-run` says "would not be pushed" instead, and archives nothing.
 
 The commonest cause on a repository that has never used Corpus is a `{` that means a brace rather than a placeholder, and the second commonest is a tag the source opens and never closes. `corpus build` reproduces it offline.
 
@@ -30,13 +36,13 @@ The commonest cause on a repository that has never used Corpus is a `{` that mea
 
 ## `corpus: check scanned nothing: none of …`
 
-The paths in `check.include` do not exist. `corpus init` does not write that key, so a fresh config has no `include` at all and `check` has nothing to read.
+The paths it looked in do not exist. With no `check.include` the default is `src`, which is what a config written by `corpus init` falls back to — so this is what you see when the components live somewhere else and nobody has said where.
 
 ## The check found far too much
 
 A codebase that has never had `check` run usually has real findings and a long tail of things that are not interface text: product names, codes, units, test fixtures. `check.allow` takes regular expressions for the text, `check.ignore` takes path prefixes. The first pass is a pull request of its own.
 
-`check` says so itself when the ratio suggests it: it prints a hint about `check.allow` when a handful of tokens account for most of the findings.
+`check` says so itself when the shape suggests it: with five findings or more, when at least half of them are single words with no whitespace, it prints how many and points at `check.allow`.
 
 ## The check found nothing and the app is full of text
 
@@ -44,12 +50,14 @@ Either `check.include` is missing, or the components are not `.jsx`/`.tsx`. Both
 
 ## A translation will not save
 
-The editor says which structural thing is wrong and disables the button until it is fixed: a missing placeholder, a plural branch your language needs, a tag the source opens. The rarer refusals:
+In the editor the structural problems are listed under the box and the save button stays disabled until they are fixed: a missing placeholder, a plural branch your language needs, a tag the source opens. Through the token — an agent, or `corpus agent` — the same write comes back as a named refusal:
 
-- `human-edited` — an agent tried to write over somebody's work. Propose a change if the source is the problem; otherwise leave the row alone.
-- `source-row` — the source language is changed by proposing, not by editing.
-- `archived` — the repository no longer has this string.
-- `unknown-language` — the language is not in the config, so the push never created the row.
+- `human-edited: <key> in <lang> holds a person's work; propose a change if the source is the problem; otherwise leave the row to its author` — an agent tried to write over somebody's translation. Retrying will not help; the message names the two ways forward.
+- `source-row: the source text comes from the repository and is not edited here` — the source language is changed by proposing, not by translating.
+- `archived: <key> is archived` — the repository no longer has this string.
+- `unknown-language: <lang> is not a language of <project>` — the language is not in the config, so the push never created the row.
+- `empty-text: the translation is empty` — nothing to save.
+- `invalid-translation: …` — the structural problem, named.
 
 ## `pull` wants to change a file you did not expect
 
@@ -77,7 +85,9 @@ If the port is taken, `--port`. If it starts and the database is empty, you are 
 
 ## Nobody can verify anything
 
-The instance has no maintainer. On a version before 0.17 a workbench created the project before anybody joined, which made the project's agent actor the first user and left the first person a translator; opening the instance on a current version promotes the earliest person once. If it persists, that is a bug worth reporting.
+The instance has no maintainer, and nothing can make one, because promoting somebody needs a maintainer. Every instance started as a workbench between 0.8.0 and 0.16.0 is in this state: the workbench created the project before anybody joined, so the project's agent actor was the first row in the table and the first person to join came in as a translator.
+
+A migration repairs it, promoting the earliest person, the first time the database is opened by a version carrying the fix. It is in `main` and not in 0.16.0, so today the answer is to build from `main` or wait for the next release.
 
 ## The install was refused
 
