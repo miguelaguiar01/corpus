@@ -52,7 +52,7 @@ function validName(name: string): boolean {
 }
 
 // Join the instance (§10): the invite secret admits a new name with a
-// password of its own; the first account is the maintainer. A name that
+// password of its own; the first person is the maintainer. A name that
 // exists is refused, unless it has no password yet (an account from
 // before passwords existed), in which case the secret plus a new
 // password claims it once.

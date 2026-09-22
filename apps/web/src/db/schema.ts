@@ -15,8 +15,9 @@ import {
 } from "drizzle-orm/sqlite-core";
 import type { TranslationState } from "@/translations/state";
 
-// Users per spec §10: a display name and one flag. The first user created
-// on an instance becomes a maintainer (enforced in the auth layer, #15).
+// Users per spec §10: a display name and one flag. The first person to
+// join becomes a maintainer (enforced in the auth layer, #15); a
+// project's agent actor is a row here too and is never one.
 export const users = sqliteTable("users", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull().unique(),
