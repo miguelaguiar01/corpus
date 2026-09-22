@@ -41,7 +41,7 @@ The push after a merged proposal sees the repository agreeing and marks the prop
 
 ## check and validate, in the meantime
 
-`corpus check` reads your components and reports user-facing text that is not in a catalogue. It reads `.jsx` and `.tsx`, and says how many files it read, so a clean bill over code it cannot parse is not possible.
+`corpus check` reads your components and reports user-facing text that is not in a catalogue. It reads `.jsx`, `.tsx` and `.vue`, and says how many files it read, so a clean bill over code it cannot parse is not possible.
 
 `corpus validate` reads your target files and reports translations that no longer fit their source: a dropped placeholder, a malformed plural, a key the source no longer has. It needs no server and no token, so it belongs in the same CI job as your unit tests.
 

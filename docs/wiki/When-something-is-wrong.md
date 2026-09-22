@@ -32,7 +32,7 @@ The commonest cause on a repository that has never used Corpus is a `{` that mea
 
 ## `corpus: check parsed no files in …`
 
-`check` found the directories but could not read anything in them. On a Vue or Svelte project that is expected: it reads `.jsx` and `.tsx` only.
+`check` found the directories but could not read anything in them. It reads `.jsx`, `.tsx` and `.vue`, so on a Svelte project this is expected.
 
 ## `corpus: check scanned nothing: no directory among …`
 
@@ -56,13 +56,15 @@ One entry is missing while others were scanned. The run carries on with what it 
 
 ## The check found far too much
 
-A codebase that has never had `check` run usually has real findings and a long tail of things that are not interface text: product names, codes, units, test fixtures. `check.allow` takes regular expressions for the text, `check.ignore` takes path prefixes. The first pass is a pull request of its own.
+A codebase that has never had `check` run usually has real findings and a long tail of things that are not interface text: product names, codes, units, test fixtures, component stories. `check.allow` takes regular expressions for the text, `check.ignore` takes path prefixes and globs. The first pass is a pull request of its own.
+
+On a Vue project two things account for most of it. Stories are not the application: `check.ignore: ["**/*.story.vue"]` covers Histoire and Storybook, as `**/*.test.tsx` does elsewhere. And a component prop named `label` often names a field rather than saying anything — `label="title"` on a select — which `check.allow` is for.
 
 `check` says so itself when the shape suggests it: with five findings or more, when at least half of them are single words with no whitespace, it prints how many and points at `check.allow`.
 
 ## The check found nothing and the app is full of text
 
-Either `check.include` is missing, or the components are not `.jsx`/`.tsx`. Both print a line saying so — read the last line of the output rather than the exit code.
+Either `check.include` is missing, or the components are not `.jsx`, `.tsx` or `.vue`. Both print a line saying so — read the last line of the output rather than the exit code.
 
 ## A translation will not save
 

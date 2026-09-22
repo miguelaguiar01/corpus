@@ -21,6 +21,10 @@ contract (`corpus/1`) is the only one.
 - The READMEs name each package manager's release-age setting and its allow list, and say what each does with a same-day release: yarn and npm refuse the install, pnpm takes it and records the exclusion itself. Outline and Jellyfin set a window explicitly, Vikunja inherits pnpm's default, and allow-listing `@corpus-tool/*` is the decision a team makes once, so the docs say how rather than only that it happens.
 - `corpus build` and `corpus push` say what a rich-text tag is when they refuse a string for one, and what to do about it: close the tag, write the brackets so they do not open one, close the tag that is actually open, or remove a stray closing tag. Jellyfin's `https://example.com/<baseurl>` is prose that spells a tag, and the message said only "unclosed <baseurl>".
 
+### Added
+
+- `corpus check` reads Vue single-file components. It scanned `.jsx` and `.tsx` only, so the whole Vue ecosystem was unlintable: Vikunja is 224 `.vue` files and no `.tsx`, and its templates carry real untranslated English. A component's `<template>` is markup rather than a syntax tree, so it is scanned as markup, with the same questions the JSX pass asks — a text node is text, a `{{ }}` interpolation is not, a static user-facing attribute (`title`, `placeholder`, `alt`, `aria-label`, `label`) is text while a bound or directive one (`:title`, `v-tooltip`) is an expression, and an `<i18n-t>` element is a catalogue call whose children are the key. On Vikunja it reports 83 findings across 31 files where the command used to read nothing: 19 in `QuickAddMagic.vue` alone, a list of date phrases shown to every user in English. Two shapes account for most of the rest on a Vue project, and both are config: 36 are in `.story.vue` files, and 11 are a component prop named `label` naming a field rather than saying anything.
+
 ### Fixed
 
 - A flag written `--flag=value` is refused rather than accepted and ignored: `option` compares the whole word, so `corpus build --out=snapshot.json` exited 0 having written nothing and `corpus pull --lang=pt-PT` pulled every language.
