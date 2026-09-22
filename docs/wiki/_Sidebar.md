@@ -9,6 +9,7 @@
 - [The config file](The-config-file)
 - [Sources and adapters](Sources-and-adapters)
 - [Your i18n library](Your-i18n-library)
+- [Metadata, types, entities and the glossary](Metadata-types-entities-and-the-glossary)
 
 **Running an instance**
 
