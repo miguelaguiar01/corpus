@@ -81,9 +81,10 @@ const BOUND = /^([:@#]|v-)/;
 // HTML comment or a `<docs>` example must not become the block, and an
 // indented one or a file with a byte-order mark must still be found.
 const NOT_HTML = /(?:^|\s)lang\s*=\s*["']?(?!html\b)([a-z]+)/i;
-// A block whose content is not markup: its closing tag ends it, and
-// nothing inside is scanned for tags.
-const RAW_BLOCKS = new Set(["script", "style", "docs", "i18n"]);
+// Vue parses every top-level block but `<template>` as raw text, so
+// this does too: a `<template>` inside a `<docs>` example or a
+// project's own `<preview>` block is that block's content, not the
+// component's template.
 
 function skipComment(source: string, at: number): number {
   const end = source.indexOf("-->", at);
@@ -106,16 +107,21 @@ function templateBlock(
       at = tag ? tag.end : lt + 1;
       continue;
     }
-    if (RAW_BLOCKS.has(tag.name)) {
+    if (tag.name !== "template") {
       if (tag.selfClosing) {
         at = tag.end;
         continue;
       }
-      const close = source.indexOf(`</${tag.name}`, tag.end);
-      at = close === -1 ? source.length : close + tag.name.length + 2;
+      // The name must end where the tag does, or `</scriptx` in a
+      // string would close a `<script>` and the walk would read code as
+      // markup.
+      const close = new RegExp(`</${tag.name}(?=[\\s/>])`, "i").exec(
+        source.slice(tag.end),
+      );
+      at = close ? tag.end + close.index + close[0].length : source.length;
       continue;
     }
-    if (tag.name !== "template" || tag.selfClosing) {
+    if (tag.selfClosing) {
       at = tag.end;
       continue;
     }

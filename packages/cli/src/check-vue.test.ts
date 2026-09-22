@@ -150,3 +150,25 @@ test("lang=html is still markup, and a stray lang= elsewhere is not the block's"
     "Not pug",
   ]);
 });
+
+test("a custom top-level block is raw text, as Vue reads it", () => {
+  const preview = `<preview>
+  <template><p>example</p></template>
+</preview>
+
+<template>
+  <p>Real text</p>
+</template>`;
+  expect(texts(preview)).toEqual(["Real text"]);
+
+  // A closing tag must end where the name does, or a string in the
+  // script closes the block and the walk reads code as markup.
+  const tricky = `<script setup>
+const s = "</scriptx <template><p>trap</p></template>";
+</script>
+
+<template>
+  <p>Still real</p>
+</template>`;
+  expect(texts(tricky)).toEqual(["Still real"]);
+});
