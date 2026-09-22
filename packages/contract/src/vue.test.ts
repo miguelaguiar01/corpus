@@ -45,10 +45,30 @@ test("a quoted literal is text, not a placeholder", () => {
 });
 
 test("a pipe inside a literal is text, not a separator", () => {
-  // Vikunja's migrate.csv.delimiters.pipe, "Pipe ({'|'})".
+  // The escape a catalogue writes for a pipe it means literally.
   const parsed = nodes("Pipe ({'|'})");
   expect(parsed.some((node) => node.kind === "forms")).toBe(false);
   expect(parsed).toContainEqual({ kind: "literal", text: "|" });
+});
+
+test("an unescaped pipe still splits, which is what #539 is about", () => {
+  // Vikunja's migrate.csv.delimiters.pipe is "Pipe (|)", without the
+  // escape above, and vue-i18n reads it as two forms exactly as this
+  // does — so the catalogue is what is wrong. What #495 asked for and
+  // #536 did not deliver is that Corpus name it rather than split it in
+  // silence; this pins what it does until then.
+  expect(nodes("Pipe (|)")).toEqual([
+    {
+      kind: "forms",
+      branches: [
+        [{ kind: "literal", text: "Pipe (" }],
+        [{ kind: "literal", text: ")" }],
+      ],
+    },
+  ]);
+  expect(validateTranslation("Pipe (|)", "Труба", "ru", "vue")).toEqual({
+    ok: true,
+  });
 });
 
 test("a brace and a literal brace are both writable", () => {

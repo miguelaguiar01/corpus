@@ -7,12 +7,14 @@
 // running instance is prose on the page, and bin/wiki-check says which
 // pages are prose so nobody assumes otherwise.
 import {
+  copyFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -573,5 +575,54 @@ test("every config the wiki shows is a config the CLI accepts", async () => {
     expect(parsed.success, `${name}: ${parsed.error?.issues[0]?.message}`).toBe(
       true,
     );
+  }
+});
+
+test("a marker cannot reach outside the repository through a symlink", () => {
+  // A marker may point at a file the repository ships, but no further:
+  // --fix pastes what it finds into a page that gets published. The
+  // containment test was lexical, so a symlink committed in the tree
+  // resolved under the root while reading outside it (#519). Only a
+  // symlink that really exists can catch that, so the checker is run
+  // over one — in a tree of its own, since it resolves the repository
+  // root from its own location, and since --fix rewrites every stale
+  // block it finds and must not be pointed at the pages of this one.
+  const root = mkdtempSync(path.join(os.tmpdir(), "corpus-wiki-"));
+  const outside = mkdtempSync(path.join(os.tmpdir(), "corpus-escape-"));
+  try {
+    const wiki = path.join(root, "docs", "wiki");
+    mkdirSync(path.join(root, "bin"), { recursive: true });
+    mkdirSync(wiki, { recursive: true });
+    copyFileSync(
+      fileURLToPath(new URL("../../../bin/wiki-check.mjs", import.meta.url)),
+      path.join(root, "bin", "wiki-check.mjs"),
+    );
+    const secret = path.join(outside, "secret.yaml");
+    writeFileSync(secret, "not ours to publish\n");
+    symlinkSync(secret, path.join(wiki, "escape.yaml"));
+    const page = path.join(wiki, "Home.md");
+    writeFileSync(page, "<!-- from: escape.yaml -->\n```yaml\nx\n```\n");
+    writeFileSync(path.join(wiki, "_Sidebar.md"), "- [Home](Home)\n");
+
+    const ran = spawnSync("node", ["bin/wiki-check.mjs"], {
+      cwd: root,
+      encoding: "utf8",
+    });
+    // The exit code alone would pass on the bug, which fails the block
+    // against the file it should never have read: the message is the test.
+    expect(ran.stderr).toContain(
+      "Home.md names escape.yaml, which is outside the repository",
+    );
+    expect(ran.status).toBe(1);
+
+    const fixed = spawnSync("node", ["bin/wiki-check.mjs", "--fix"], {
+      cwd: root,
+      encoding: "utf8",
+    });
+    expect(fixed.status).toBe(1);
+    expect(readFileSync(page, "utf8")).not.toContain("not ours to publish");
+  } finally {
+    rmSync(root, { force: true, recursive: true });
+    rmSync(outside, { force: true, recursive: true });
   }
 });
