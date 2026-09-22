@@ -13,6 +13,7 @@ import {
   readFileSync,
   readdirSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -573,5 +574,44 @@ test("every config the wiki shows is a config the CLI accepts", async () => {
     expect(parsed.success, `${name}: ${parsed.error?.issues[0]?.message}`).toBe(
       true,
     );
+  }
+});
+
+test("a marker cannot reach outside the repository through a symlink", () => {
+  // A marker may point at a file the repository ships, but no further:
+  // --fix pastes what it finds into a page that gets published. The
+  // containment test was lexical, so a symlink committed in the tree
+  // resolved under the root while reading outside it (#519). Only a
+  // symlink that really exists can catch that, which is why this runs
+  // the checker over a planted one rather than testing a path string.
+  const root = fileURLToPath(new URL("../../../", import.meta.url));
+  const outside = mkdtempSync(path.join(os.tmpdir(), "corpus-escape-"));
+  const secret = path.join(outside, "secret.yaml");
+  const link = path.join(root, "docs", "wiki", "zz-escape.yaml");
+  const page = path.join(root, "docs", "wiki", "Zz-escape.md");
+  try {
+    writeFileSync(secret, "not ours to publish\n");
+    symlinkSync(secret, link);
+    writeFileSync(page, "<!-- from: zz-escape.yaml -->\n```yaml\nx\n```\n");
+    const ran = spawnSync("node", ["bin/wiki-check.mjs"], {
+      cwd: root,
+      encoding: "utf8",
+    });
+    expect(ran.stderr).toContain(
+      "Zz-escape.md names zz-escape.yaml, which is outside the repository",
+    );
+    expect(ran.status).toBe(1);
+    // --fix must not paste it either, which is the harm the check exists
+    // to stop.
+    const fixed = spawnSync("node", ["bin/wiki-check.mjs", "--fix"], {
+      cwd: root,
+      encoding: "utf8",
+    });
+    expect(fixed.status).toBe(1);
+    expect(readFileSync(page, "utf8")).not.toContain("not ours to publish");
+  } finally {
+    rmSync(link, { force: true });
+    rmSync(page, { force: true });
+    rmSync(outside, { force: true, recursive: true });
   }
 });
