@@ -17,7 +17,7 @@ import {
   type PullPayload,
 } from "@corpus/contract";
 import type { RunContext } from "./cli";
-import { writesBack } from "./build";
+import { describeExecFailure, EXEC_MAX_BUFFER, writesBack } from "./build";
 import { CliError, loadConfig, requireToken } from "./config";
 import { request, serverMessage, UNAUTHORIZED } from "./server";
 
@@ -187,10 +187,11 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
       cwd: ctx.cwd,
       encoding: "utf8",
       input: JSON.stringify({ ...payload, translations }),
+      maxBuffer: EXEC_MAX_BUFFER,
     });
     if (result.status !== 0) {
       throw new CliError(
-        `import "${source.importCommand}" exited ${result.status}: ${result.stderr?.trim()}`,
+        describeExecFailure(source.importCommand, result, "import"),
       );
     }
     ctx.out(`ran ${source.importCommand}`);

@@ -107,7 +107,8 @@ export default defineCorpus({
     { adapter: "exec", command: "npx tsx scripts/corpus-export.ts" },
   ],
   // pull writes translations back through the same adapters in reverse;
-  // "exec" sources name a companion import command.
+  // "exec" sources name a companion import command. Either may print
+  // up to 256 MiB; the CLI reads the whole output at once.
 });
 ```
 

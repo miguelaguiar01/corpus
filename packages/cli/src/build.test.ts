@@ -7,6 +7,8 @@ import {
 import { expect, test } from "vitest";
 import {
   buildSnapshot,
+  describeExecFailure,
+  EXEC_MAX_BUFFER,
   buildSnapshotReport,
   deprecations,
   writableSources,
@@ -235,6 +237,41 @@ test("refusals split across two hints still stop the build, naming the commonest
   await expect(building).rejects.toThrow(
     /the commonest, for 4 of them: \{name, plural, …\} is an ICU argument: declare library: "icu"/,
   );
+});
+
+test("an exporter past 1 MiB builds, and one past the cap or killed is named (#554)", async () => {
+  const { snapshot } = await buildSnapshotReport(
+    config({
+      sources: [{ adapter: "exec", command: "node export-big.mjs" }],
+    }),
+    REPO,
+  );
+  expect(snapshot.strings.map((s) => s.id)).toEqual(["big.one"]);
+  expect(
+    describeExecFailure("node x.mjs", {
+      // Node sets SIGTERM beside ENOBUFS, so the cap must be named first.
+      status: null,
+      signal: "SIGTERM",
+      stderr: "",
+      error: Object.assign(new Error("spawnSync ENOBUFS"), { code: "ENOBUFS" }),
+    }),
+  ).toBe(
+    `exec "node x.mjs" printed more than ${EXEC_MAX_BUFFER / 1048576} MiB; the build reads an exporter's whole output at once`,
+  );
+  expect(
+    describeExecFailure("node x.mjs", {
+      status: null,
+      signal: "SIGKILL",
+      stderr: "",
+    }),
+  ).toBe('exec "node x.mjs" was killed by SIGKILL');
+  expect(
+    describeExecFailure("node x.mjs", {
+      status: 2,
+      signal: null,
+      stderr: "boom\n",
+    }),
+  ).toBe('exec "node x.mjs" exited 2: boom');
 });
 
 test("a file that does not read still fails the whole build", async () => {

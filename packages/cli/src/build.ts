@@ -262,6 +262,30 @@ function validateEntry(
   }
 }
 
+// What an exporter or importer may print: spawnSync's default is 1 MiB,
+// which Ente's exporter (3.2 MB, 56 languages of seeds) and Documenso's
+// (3.4 MB) both passed, dying as "exited null:" with nothing said (#554).
+export const EXEC_MAX_BUFFER = 256 * 1024 * 1024;
+
+export function describeExecFailure(
+  command: string,
+  result: {
+    status: number | null;
+    signal: NodeJS.Signals | null;
+    stderr: string | null | undefined;
+    error?: NodeJS.ErrnoException;
+  },
+  kind: "exec" | "import" = "exec",
+): string {
+  const name = `${kind} ${JSON.stringify(command)}`;
+  if (result.error?.code === "ENOBUFS") {
+    return `${name} printed more than ${EXEC_MAX_BUFFER / 1048576} MiB; ${kind === "exec" ? "the build reads an exporter's" : "pull reads an importer's"} whole output at once`;
+  }
+  if (result.signal) return `${name} was killed by ${result.signal}`;
+  if (result.error) return `${name} could not run: ${result.error.message}`;
+  return `${name} exited ${result.status}: ${result.stderr?.trim() ?? ""}`;
+}
+
 function collectExec(
   command: string,
   cwd: string,
@@ -271,11 +295,14 @@ function collectExec(
   errors: string[],
   refused: Refused[],
 ): void {
-  const result = spawnSync(command, { shell: true, cwd, encoding: "utf8" });
+  const result = spawnSync(command, {
+    shell: true,
+    cwd,
+    encoding: "utf8",
+    maxBuffer: EXEC_MAX_BUFFER,
+  });
   if (result.status !== 0) {
-    errors.push(
-      `exec "${command}" exited ${result.status}: ${result.stderr?.trim()}`,
-    );
+    errors.push(describeExecFailure(command, result));
     return;
   }
   let parsed: unknown;
