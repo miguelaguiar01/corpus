@@ -70,27 +70,6 @@ Three things differ from ICU, and Corpus handles all three:
 
 ## vue-i18n
 
-Not yet. vue-i18n writes plurals as one string with pipes (`one | other`) and escapes literals as `{'@'}`, and Corpus reads neither today: the pipes are literal text to it, so a translation that drops a form is not a finding, and a string with `{'@'}` is refused. The work is tracked in [#495](https://github.com/miguelaguiar01/corpus/issues/495) and [#496](https://github.com/miguelaguiar01/corpus/issues/496).
-
-A vue-i18n catalogue whose strings use `{name}` interpolation and no pipes works today as `icu`, which covers most of a typical catalogue: of Vikunja's 1,456 strings, 22 use pipes.
-
-## gettext, Android, iOS
-
-No adapter reads `.po`, `strings.xml` or `.strings`. An `exec` source can, by converting in both directions; see [Sources and adapters](Sources-and-adapters).
-
-## When the library is wrong
-
-A catalogue read under the wrong library fails loudly rather than quietly. An i18next catalogue read as ICU refuses every string that interpolates, since `{{name}}` is not a valid ICU placeholder, and the message names the field to set:
-
-<!-- from: recorded/wrong-library.out -->
-```text
-corpus: src/i18n/en.json [greeting]: invalid ICU: invalid placeholder name "{ name"; {{ }} is i18next's interpolation: declare library: "i18next" on the source
-built acme-app: 0 string(s) (none), 0 entity(ies) (none)
-corpus: 1 string(s) refused and left out of the snapshot
-```
-
-## vue-i18n
-
 <!-- from: examples/vue.config.ts -->
 ```ts
 import { defineCorpus } from "@corpus-tool/cli";
@@ -133,3 +112,27 @@ Not yet read: `@:linked.keys`. A catalogue that uses them parses, and the link i
 ## What a stray pipe costs
 
 A vue-i18n catalogue read as ICU loses every string with a `{'…'}` in it, because ICU reads `{'@'}` as a placeholder named `'@'` and refuses the string. On Vikunja that was one key across 31 of its 38 language files. Read as `vue`, the same catalogue builds whole.
+
+## gettext, Android, iOS
+
+No adapter reads `.po`, `strings.xml` or `.strings`. An `exec` source can, by converting in both directions; see [Sources and adapters](Sources-and-adapters).
+
+## When the library is wrong
+
+Getting it wrong is usually loud, but not always, and the quiet directions are the ones to know before you choose.
+
+**The loud ones.** An i18next catalogue read as `icu` or as `vue` refuses every string that interpolates, since `{{name}}` is not a valid placeholder in either; an ICU catalogue read as `vue` refuses every string with an argument in it. When five refusals share one piece of advice, or a whole file is refused, the build stops with nothing pushed, and the message names the field to set:
+
+<!-- from: recorded/wrong-library.out -->
+```text
+corpus: snapshot build failed:
+  src/i18n/en.json [greeting]: invalid ICU: invalid placeholder name "{ name"; {{ }} is i18next's interpolation: declare library: "i18next" on the source
+  src/i18n/en.json: every string in the file was refused (1)
+  nothing was pushed: pushing the rest would archive every refused string
+```
+
+**The quiet ones.** Read as `i18next`, a single brace is text: a vue-i18n catalogue refuses nothing and says nothing, its `{name}` placeholders simply ceasing to be placeholders, and so does most of an ICU one, where a plural or a select is read as text like anything else. What i18next does refuse is a `{{`, which an ICU string acquires when a branch opens with a placeholder — `other {{name} updated the file}` — so those strings are dropped while every other string pushes — unless there are five of them, when the advice they share stops the build as above. The damage being partial is what makes it easy to miss, which is why that refusal carries `declare library: "icu"`. This repository's own catalogue has a plural, no `{{` anywhere, and builds all 224 strings silently under the wrong library.
+
+Read as `icu`, a vue-i18n catalogue refuses only its `{'…'}` literals and any bare `}`; its pipe plurals become one string each, quietly.
+
+In both the catalogue still pushes, and the only check left is a translator noticing. That is the argument for setting `library` deliberately rather than discovering it from a failure.

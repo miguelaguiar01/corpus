@@ -1,5 +1,11 @@
 import { expect, test } from "vitest";
-import { parseIcu, selectArgsOf } from "../icu";
+import {
+  branchingNodes,
+  parseIcu,
+  pluralArgsOf,
+  pluralBranch,
+  selectArgsOf,
+} from "../icu";
 import { snapshotSchema } from "../snapshot";
 import { moonlightManor } from "./moonlight-manor";
 
@@ -41,6 +47,38 @@ test("examples cover both branches of every select", () => {
         ),
       );
       expect(covered.size, `${entry.id}: ${arg}`).toBeGreaterThanOrEqual(2);
+    }
+  }
+});
+
+test("examples reach every branch of every plural", () => {
+  // §7 asks for an example per category. The selects have had this
+  // since the fixture was written; the plural got its coverage by
+  // accident of how it was authored (#490).
+  for (const entry of moonlightManor.strings) {
+    for (const arg of pluralArgsOf(entry.source)) {
+      const parsed = parseIcu(entry.source);
+      expect(parsed.ok, entry.id).toBe(true);
+      if (!parsed.ok) continue;
+      // Every plural on the argument, not the first: two on one count
+      // may declare different branches.
+      const nodes = branchingNodes(parsed.nodes).filter(
+        (candidate) => candidate.kind === "plural" && candidate.arg === arg,
+      );
+      expect(nodes.length, `${entry.id}: ${arg}`).toBeGreaterThan(0);
+      const counts = (entry.examples ?? [])
+        .map((example) => (example.values as Record<string, string>)[arg])
+        .filter((value): value is string => value !== undefined);
+      for (const node of nodes) {
+        const reached = new Set(
+          counts.map((value) =>
+            pluralBranch(node.branches, value, moonlightManor.sourceLanguage),
+          ),
+        );
+        for (const branch of Object.keys(node.branches)) {
+          expect(reached, `${entry.id}: ${arg} ${branch}`).toContain(branch);
+        }
+      }
     }
   }
 });

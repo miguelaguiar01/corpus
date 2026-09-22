@@ -92,6 +92,7 @@ test("a source that does not parse is refused by entry and the rest is built", a
     {
       file: "bad/en.json",
       id: "broken",
+      hint: expect.any(String),
       message: expect.stringMatching(/^invalid ICU: /),
     },
   ]);
@@ -114,10 +115,20 @@ test("a tag that does not close is refused with a hint at what a tag is", async 
     "plural: invalid ICU: unclosed <b>; a <name> is a rich-text tag: close it with </b>, or write the brackets so they do not open a tag",
     "stray: invalid ICU: unexpected </em>; a <name> is a rich-text tag: remove it, or open a matching <em>",
   ]);
-  expect(snapshot.strings.map((s) => s.id)).toEqual(["fine"]);
+  // The good entries outnumber the bad, so the file is four typos
+  // rather than a file read the wrong way (#491).
+  expect(snapshot.strings.map((s) => s.id)).toEqual([
+    "fine",
+    "ok-one",
+    "ok-two",
+    "ok-three",
+    "ok-four",
+  ]);
 });
 
-test("an i18next catalogue read as ICU is refused with a hint at the syntax declaration", async () => {
+test("an i18next catalogue read as ICU is refused with a hint at the library", async () => {
+  // Two refusals is a typo's shape, so the build goes on and the hint
+  // rides on the entries; it takes five of one cause to stop it (#491).
   const { refused } = await buildSnapshotReport(
     config({
       sources: [
@@ -126,8 +137,79 @@ test("an i18next catalogue read as ICU is refused with a hint at the syntax decl
     }),
     REPO,
   );
-  expect(refused.length).toBeGreaterThan(0);
+  expect(refused).toHaveLength(2);
   expect(refused[0]?.message).toMatch(/declare library: "i18next"/);
+});
+
+test("a file whose every entry is refused fails the build, with no snapshot", async () => {
+  // #491: pushing the rest would archive every refused id, and a
+  // pending proposal on an archived string is superseded for good.
+  await expect(
+    buildSnapshotReport(
+      config({
+        sources: [
+          { adapter: "messages", type: "chrome", path: "allbad/{lang}.json" },
+        ],
+      }),
+      REPO,
+    ),
+  ).rejects.toThrow(
+    /allbad\/en\.json: every string in the file was refused \(2\)/,
+  );
+});
+
+test("one bad entry among four still pushes the three", async () => {
+  const { snapshot, refused } = await buildSnapshotReport(
+    config({
+      sources: [
+        { adapter: "messages", type: "chrome", path: "onebad/{lang}.json" },
+      ],
+    }),
+    REPO,
+  );
+  expect(snapshot.strings.map((s) => s.id)).toEqual(["one", "two", "three"]);
+  expect(refused.map((r) => r.id)).toEqual(["bad"]);
+});
+
+test("many refusals with one cause stop the build, at any share of the file", async () => {
+  // The shape that catches a real project: Outline read as ICU refuses
+  // a fifth of its catalogue, which no per-file share would notice,
+  // while nearly every refusal gives the same advice. This fixture is
+  // 5 of 60, so it fails for the cause and not for the proportion.
+  const building = buildSnapshotReport(
+    config({
+      sources: [
+        { adapter: "messages", type: "ui", path: "manyi18next/{lang}.json" },
+      ],
+    }),
+    REPO,
+  );
+  await expect(building).rejects.toThrow(
+    /5 strings were refused with the same advice, at or past the 5/,
+  );
+  await expect(building).rejects.toThrow(/declare library: "i18next"/);
+});
+
+test("an ICU catalogue read as i18next is told which library it is", async () => {
+  // The mirror of the i18next hint, which had no test and has been
+  // wrong twice: an ICU select or plural whose branch opens with a
+  // placeholder holds `{{`, which the i18next reader refuses, so those
+  // strings drop and every other one pushes.
+  const building = buildSnapshotReport(
+    config({
+      sources: [
+        {
+          adapter: "messages",
+          type: "ui",
+          path: "manyicu/{lang}.json",
+          library: "i18next",
+        },
+      ],
+    }),
+    REPO,
+  );
+  await expect(building).rejects.toThrow(/declare library: "icu"/);
+  await expect(building).rejects.toThrow(/5 strings were refused/);
 });
 
 test("a file that does not read still fails the whole build", async () => {

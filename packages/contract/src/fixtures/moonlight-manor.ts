@@ -1,5 +1,6 @@
 // Golden corpus/1 fixture (§15): exercises every metadata primitive,
-// selects with per-branch examples, and refs with in-snapshot targets.
+// selects and a plural with per-branch examples, and refs with
+// in-snapshot targets.
 // Adapter, CLI, and server tests import this instead of inventing data.
 import type { Snapshot } from "../snapshot";
 

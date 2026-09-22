@@ -23,7 +23,14 @@ import {
 import { CliError } from "./config";
 
 type Sourced = { entry: StringEntry; file: string };
-export type Refused = { file: string; id: string; message: string };
+// `hint` is the advice clause, kept apart from the message so refusals
+// can be grouped by what caused them (#491).
+export type Refused = {
+  file: string;
+  id: string;
+  message: string;
+  hint: string;
+};
 export type BuildReport = { snapshot: Snapshot; refused: Refused[] };
 // What an exporter says the repository already holds for its strings
 // (§3, §8): per target language, id to text; taken as seeds once the
@@ -50,6 +57,51 @@ export async function buildSnapshot(
     );
   }
   return snapshot;
+}
+
+// Refusals this many of them deep, all with the same advice, are one
+// cause rather than that many: a mistyped library, or the same tag left
+// open in five strings. Below it, a refusal is a string's own problem
+// and the build goes on without it.
+export const SAME_CAUSE = 5;
+
+// Why the build should stop rather than push what parsed (#491).
+// Pushing the rest archives every refused id, and a pending proposal on
+// an archived string is superseded, which no later push reverses.
+//
+// Two shapes say a file is being read wrongly rather than holding a
+// typo: every entry of a file refused, and many refusals across the
+// snapshot that all give the same advice. The second is the one that
+// catches a real project — Outline read as ICU refuses 365 of 1,920
+// strings, a fifth of the catalogue, but 363 of those say "declare
+// library: i18next".
+function ruinedReasons(sourced: Sourced[], refused: Refused[]): string[] {
+  const reasons: string[] = [];
+  const total = new Map<string, number>();
+  for (const { file } of sourced) total.set(file, (total.get(file) ?? 0) + 1);
+  const perFile = new Map<string, number>();
+  for (const { file } of refused) {
+    perFile.set(file, (perFile.get(file) ?? 0) + 1);
+    total.set(file, (total.get(file) ?? 0) + 1);
+  }
+  for (const [file, count] of perFile) {
+    if (count === (total.get(file) ?? count)) {
+      reasons.push(`${file}: every string in the file was refused (${count})`);
+    }
+  }
+  const byCause = new Map<string, number>();
+  for (const { hint } of refused) {
+    if (hint === "") continue;
+    byCause.set(hint, (byCause.get(hint) ?? 0) + 1);
+  }
+  for (const [cause, count] of byCause) {
+    if (count >= SAME_CAUSE) {
+      reasons.push(
+        `${count} strings were refused with the same advice, at or past the ${SAME_CAUSE} that stops a build, since one cause is likely behind all of them —${cause.replace(/^;\s*/, " ")}`,
+      );
+    }
+  }
+  return reasons;
 }
 
 export function describeRefused({ file, id, message }: Refused): string {
@@ -159,6 +211,24 @@ export async function buildSnapshotReport(
   if (errors.length > 0) {
     throw new CliError(`snapshot build failed:\n  ${errors.join("\n  ")}`);
   }
+  // A whole file refused is a misread file, not a typo (#491): pushing
+  // the rest would archive every string it holds, and a pending
+  // proposal on an archived string is superseded, which no later push
+  // reverses. One bad entry among many still goes on without it.
+  const ruined = ruinedReasons(sourced, refused);
+  if (ruined.length > 0) {
+    // Every refusal is listed, not only those of the ruined file: a
+    // build that stops should say everything it found, and the hints
+    // live in these lines.
+    throw new CliError(
+      [
+        "snapshot build failed:",
+        ...refused.map((entry) => `  ${describeRefused(entry)}`),
+        ...ruined.map((reason) => `  ${reason}`),
+        "  nothing was pushed: pushing the rest would archive every refused string",
+      ].join("\n"),
+    );
+  }
   return { snapshot: parsed.data as Snapshot, refused };
 }
 
@@ -173,10 +243,12 @@ function validateEntry(
   if (icu.ok) sourced.push({ entry, file });
   else {
     const message = icu.errors[0]?.message ?? "";
+    const advice = hint(entry.source, syntax, message);
     refused.push({
       file,
       id: entry.id,
-      message: `invalid ${syntax === "icu" ? "ICU" : syntax}: ${message}${hint(entry.source, syntax, message)}`,
+      hint: advice,
+      message: `invalid ${syntax === "icu" ? "ICU" : syntax}: ${message}${advice}`,
     });
   }
 }
@@ -202,8 +274,22 @@ function hint(source: string, syntax: Library, message: string): string {
   if (stray) {
     return `; a <name> is a rich-text tag: remove it, or open a matching <${stray[1]}>`;
   }
-  if (syntax === "icu" && source.includes("{{")) {
+  if (syntax !== "i18next" && source.includes("{{")) {
     return `; {{ }} is i18next's interpolation: declare library: "i18next" on the source`;
+  }
+  // The mirror: an ICU catalogue read under a library that has no
+  // arguments. The brace must be single, or i18next's own
+  // `{{date, short}}` matches, and a string refused for some other
+  // reason would draw the wrong advice for holding one. i18next is
+  // included because a branch that opens with a placeholder puts `{{`
+  // in the string, which that reader refuses: an ICU catalogue's plain
+  // strings push and its nested ones do not, which is the least
+  // obvious way to get this wrong.
+  if (
+    syntax !== "icu" &&
+    /(?<!\{)\{\s*[^{},\s][^{},]*\s*,\s*[a-z]+/.test(source)
+  ) {
+    return `; {name, plural, …} is an ICU argument: declare library: "icu" on the source, or leave the field out`;
   }
   return "";
 }

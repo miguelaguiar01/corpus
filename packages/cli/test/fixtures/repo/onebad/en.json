@@ -1,0 +1,6 @@
+{
+  "one": "Fine",
+  "two": "Also fine",
+  "three": "Still fine",
+  "bad": "{n, plural, one {x}}"
+}

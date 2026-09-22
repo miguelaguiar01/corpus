@@ -1,3 +1,4 @@
-corpus: src/i18n/en.json [greeting]: invalid ICU: invalid placeholder name "{ name"; {{ }} is i18next's interpolation: declare library: "i18next" on the source
-built acme-app: 0 string(s) (none), 0 entity(ies) (none)
-corpus: 1 string(s) refused and left out of the snapshot
+corpus: snapshot build failed:
+  src/i18n/en.json [greeting]: invalid ICU: invalid placeholder name "{ name"; {{ }} is i18next's interpolation: declare library: "i18next" on the source
+  src/i18n/en.json: every string in the file was refused (1)
+  nothing was pushed: pushing the rest would archive every refused string
