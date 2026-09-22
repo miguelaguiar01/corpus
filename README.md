@@ -221,7 +221,7 @@ The database is created on first start at `apps/web/data/corpus.db` and is gitig
 
 ## Documentation
 
-**[The wiki](https://github.com/miguelaguiar01/corpus/wiki)** is the documentation: eighteen pages, from a first push to a symptom index. The configs and command output a page shows are files in this repository, type checked and compared against the CLI by `bin/gate`, so a page cannot show a config that does not load or output the tool no longer prints, and `bin/wiki-check` says which pages are prose so nobody assumes more than that.
+**[The wiki](https://github.com/miguelaguiar01/corpus/wiki)** is the documentation: eighteen pages, from a first push to a symptom index. The configs and command output a page shows can be files in this repository, type checked and compared against the CLI by `bin/gate`, so a checked block cannot show a config that does not load or output the tool no longer prints. `bin/wiki-check` says how much of each page is checked — which pages carry no checked block at all, and for the rest how many of their blocks do — so nobody assumes more than there is.
 
 | | |
 | --- | --- |
