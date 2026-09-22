@@ -9,27 +9,10 @@
 - [The config file](The-config-file)
 - [Sources and adapters](Sources-and-adapters)
 - [Your i18n library](Your-i18n-library)
-- [Metadata, types, entities and the glossary](Metadata-types-entities-and-the-glossary)
 
 **Running an instance**
 
 - [The workbench](The-workbench)
 - [A team instance](A-team-instance)
 
-**In CI**
-
-- [Corpus in CI](Corpus-in-CI)
-
-**Agents**
-
-- [The MCP server](The-MCP-server)
-
-**Translating**
-
-- [For translators](For-translators)
-
-**Reference**
-
-- [Commands](Commands)
-- [When something is wrong](When-something-is-wrong)
-- [Concepts](Concepts)
+Still being written: metadata and the glossary, Corpus in CI, the MCP server, a translator's guide, the command reference, troubleshooting, and concepts.

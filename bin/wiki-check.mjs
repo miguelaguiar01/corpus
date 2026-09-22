@@ -18,6 +18,8 @@ const FENCE = {
   yaml: "yaml",
   out: "text",
 };
+// A page may also show a file the repository ships, such as the compose
+// file a team runs, by pointing at it: it must be that file, not a copy.
 
 const pages = readdirSync(wiki).filter((name) => name.endsWith(".md"));
 // Two kinds of file a page may show: examples someone wrote, which are
