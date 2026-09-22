@@ -50,7 +50,7 @@ An entity is a thing the strings talk about: a character, a place, a product. It
 
 The point is consistency across strings that a translator meets weeks apart. The entity browser is one page per project, grouped by type, with a filter per type and a search by name, so a name, a gender or a form of address can be looked up rather than guessed again.
 
-`entityTypes` gives each type its label in the interface. Entities themselves come from an `exec` source's `entities`, since a catalogue has nowhere to put them.
+`entityTypes` gives each type its label in the interface. Entities themselves come from an `exec` source's `entities`, since a catalogue has nowhere to put them. A `ref` pointing at an entity nothing supplies is refused by the push, not by the build: `corpus build` has no such check, so the failure arrives as `ref character:rosa has no entity` from the instance after a clean build.
 
 ## The glossary
 
@@ -163,7 +163,7 @@ export default defineCorpus({
 
 Nothing validates metadata against its declarations, in either direction.
 
-A declared field a string does not carry is simply absent, and its tooltip never shows. A field a string carries that no type declares is not an error either — and not shown: the editor renders the declarations, so an undeclared field travels all the way to the instance and nobody ever sees it. That is the failure worth knowing about, because from the translator's side it is indistinguishable from the metadata not arriving at all.
+A declared field a string does not carry is simply absent, and its tooltip never shows. A field a string carries that no type declares is not an error either — and not shown: the editor renders the declarations, so an undeclared field is stored and never surfaced. It is still in the raw `GET /api/strings/<key>`, which returns metadata unfiltered, but nothing a translator or an agent reads puts it in front of them. That is the failure worth knowing about, because from the translator's side it is indistinguishable from the metadata not arriving at all.
 
 `enum` values are not checked against what the strings hold, so a value outside the list arrives as itself and reads as a mistake in the editor rather than a refusal at build time.
 
