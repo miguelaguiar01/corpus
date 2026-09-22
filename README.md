@@ -143,64 +143,11 @@ Any MCP client that speaks stdio can run it. The server is the command `npx corp
 { "mcpServers": { "corpus": { "command": "npx", "args": ["corpus", "mcp"] } } }
 ```
 
-**Claude Desktop.** The same `mcpServers` entry in `claude_desktop_config.json`, with the `sh -c "cd … && npx corpus mcp"` command, since the app does not start in the repository.
+Claude Desktop, Cursor, VS Code, Codex, Gemini CLI and a client of your own each take an entry of their own shape; [The MCP server](https://github.com/miguelaguiar01/corpus/wiki/The-MCP-server) has all of them, the nine tools, and a recorded session.
 
-**Cursor.** The same `mcpServers` entry in the repository's `.cursor/mcp.json`.
+Its tools are one API call each: `list_queue`, `get_string`, `save_draft`, `propose_change`, `propose_removal`, `add_string`, `list_proposals`, `withdraw_proposal` and `status`. Three rules hold for everything an agent writes through the project token: it never overwrites a person's work, every draft is attributed to the project's agent actor, and nothing but a signed-in maintainer verifies. [What an agent may and may not do](https://github.com/miguelaguiar01/corpus/wiki/What-an-agent-may-and-may-not-do) is those rules and the refusals that enforce them.
 
-**VS Code (Copilot agent mode).** The repository's `.vscode/mcp.json`:
-
-```json
-{ "servers": { "corpus": { "type": "stdio", "command": "npx", "args": ["corpus", "mcp"] } } }
-```
-
-**OpenAI Codex CLI.** In `~/.codex/config.toml`:
-
-```toml
-[mcp_servers.corpus]
-command = "npx"
-args = ["corpus", "mcp"]
-```
-
-**OpenAI Agents SDK, or an agent of your own.** A stdio server with the same command; in the Python SDK, `MCPServerStdio(params={"command": "npx", "args": ["corpus", "mcp"], "cwd": "/path/to/repo"})`.
-
-**Gemini CLI.** The same `mcpServers` entry, with `"cwd": "/path/to/repo"`, in `~/.gemini/settings.json` or the repository's `.gemini/settings.json`.
-
-**Anything else.** The server speaks the tools subset of MCP over newline-delimited JSON-RPC on stdio (`initialize`, `tools/list`, `tools/call`), so a client with no configuration file spawns `npx corpus mcp` and speaks it directly; the CLI's own test drives the same server over a pair of streams. An agent with a shell and no MCP client at all has the same operations as `corpus agent` subcommands, below.
-
-Its tools are one API call each: `list_queue` (a queue's items, narrowed to a language, a string type or both when asked), `get_string` (the source with its placeholders, selects and examples, every language's text and state, the type's note, the glossary terms in the source, the entities it refers to, its siblings under the same key prefix, and any pending proposal), `save_draft`, `propose_change`, `propose_removal`, `add_string`, `list_proposals`, `withdraw_proposal` and `status`. A proposal stays pending until its change is pulled, committed and pushed, and the next `corpus push` marks it applied; `corpus pull` says so when it writes one. Three rules hold for everything an agent writes through the project token. It never overwrites a person's work: a draft lands on an untranslated row, a stale one or its own earlier draft, and a row a person edited refuses with `human-edited` and says what to do: propose a change if the source is the problem, otherwise leave the row to its author. Every draft is attributed to the project's agent actor, which the history, the chips and the settings list show as such. Nothing but a signed-in maintainer verifies: agent drafts are a queue of their own on the dashboard, and the token has no way to sign anything off. The model stays on the agent's side; Corpus runs none.
-
-An agent that has a shell and no MCP client has the same operations as subcommands, each printing the API's JSON and exiting 1 with the server's message on a refusal:
-
-```sh
-npx corpus agent queue untranslated --lang pt-PT --type chrome
-npx corpus agent string ui.continue
-npx corpus agent draft ui.continue pt-PT "Continuar"
-npx corpus agent propose ui.continue --text "Prosseguir"     # or --remove
-npx corpus agent add ui.back --file src/i18n/{lang}.json --text "Voltar"
-npx corpus agent proposals                                    # the pending ones, yours marked
-npx corpus agent withdraw 7                                   # one of yours
-npx corpus agent status
-```
-
-For many operations at once, `corpus agent --stdin` reads one JSON object per line (`op` is `queue`, `string`, `draft`, `propose`, `remove`, `add`, `proposals`, `withdraw` or `status`; the other fields are the operation's arguments by name: `queue` with `queue` and, optionally, `language` and `type`; `string` with `key`; `draft` with `key`, `language` and `text`; `propose` with `key` and `text`; `remove` with `key`; `add` with `key`, `file` and `text`; `withdraw` with `proposal`, since `id` is the line's own; `proposals` and `status` with none; an optional `id` is echoed back) and answers one JSON line per operation, in order, through one process: `{ "id", "op", "ok": true, "result" }` or `{ "id", "op", "ok": false, "error", "message" }`, with `bad-line` for a line that is not an operation and `unreachable` when the server is down; the exit code is 1 when any line failed. No start-up per call and no shell quoting around a translation.
-
-```sh
-printf '%s\n%s\n' \
-  '{"op":"status"}' \
-  '{"id":"d1","op":"draft","key":"ui.continue","language":"pt-PT","text":"Continuar"}' \
-  | npx corpus agent --stdin
-```
-
-The MCP server can also be driven as a subprocess: one JSON-RPC message per line on stdin, one reply per line on stdout, nothing else on stdout. This is what `bin/install-smoke` does against a fresh install:
-
-```sh
-printf '%s\n%s\n%s\n%s\n' \
-  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"me","version":"0"}}}' \
-  '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
-  '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
-  '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"status","arguments":{}}}' \
-  | npx corpus mcp
-```
+An agent with a shell and no MCP client has the same operations as `corpus agent` subcommands, and `corpus agent --stdin` runs many through one process; [Agents without MCP](https://github.com/miguelaguiar01/corpus/wiki/Agents-without-MCP) covers both. The model stays on the agent's side; Corpus runs none.
 
 ## In CI
 

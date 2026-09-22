@@ -1,0 +1,145 @@
+list_queue {"queue":"untranslated","language":"pt-PT"}
+  {
+    "queue": "untranslated",
+    "count": 2,
+    "items": [
+      {
+        "key": "editor.save",
+        "language": "pt-PT",
+        "type": "ui",
+        "source": "Save",
+        "text": null
+      },
+      {
+        "key": "editor.unsaved",
+        "language": "pt-PT",
+        "type": "ui",
+        "source": "You have {count, plural, one {# change} other {# changes}}",
+        "text": null
+      }
+    ]
+  }
+
+get_string {"key":"editor.unsaved"}
+  {
+    "key": "editor.unsaved",
+    "type": "ui",
+    "source": "You have {count, plural, one {# change} other {# changes}}",
+    "sourceLanguage": "en",
+    "file": "src/i18n/en.json",
+    "archived": false,
+    "placeholders": [],
+    "selects": [],
+    "plurals": [
+      "count"
+    ],
+    "tags": [],
+    "syntax": "icu",
+    "slots": [
+      {
+        "name": "count",
+        "description": null,
+        "role": null,
+        "values": {}
+      }
+    ],
+    "examples": [],
+    "metadata": null,
+    "note": null,
+    "glossary": {},
+    "entities": [],
+    "translations": {
+      "en": {
+        "state": "translated",
+        "stale": false,
+        "text": null,
+        "agentDraft": false
+      },
+      "pt-PT": {
+        "state": "untranslated",
+        "stale": false,
+        "text": null,
+        "agentDraft": false
+      }
+    },
+    "proposal": null,
+    "siblings": [
+      {
+        "key": "editor.save",
+        "source": "Save",
+        "translations": {
+          "pt-PT": {
+            "state": "untranslated",
+            "stale": false,
+            "text": null
+          }
+        }
+      }
+    ],
+    "siblingCount": 1
+  }
+
+save_draft {"key":"editor.unsaved","language":"pt-PT","text":"Tem {count, plural, one {# alteração} other {# alterações}}"}
+  refused: invalid-translation: Plural count is missing the many branch this language uses
+
+save_draft {"key":"editor.unsaved","language":"pt-PT","text":"Tem {count, plural, one {# alteração} many {# de alterações} other {# alterações}}"}
+  {
+    "key": "editor.unsaved",
+    "language": "pt-PT",
+    "state": "translated",
+    "text": "Tem {count, plural, one {# alteração} many {# de alterações} other {# alterações}}",
+    "actor": "acme-app agent"
+  }
+
+status {}
+  {
+    "project": "acme-app",
+    "sourceLanguage": "en",
+    "languages": [
+      "en",
+      "pt-PT"
+    ],
+    "strings": 2,
+    "lastPushAt": "2026-09-22T01:59:35.180Z",
+    "version": "v0.16.0",
+    "pendingProposals": 0,
+    "writableSources": [
+      "src/i18n/{lang}.json"
+    ],
+    "progress": {
+      "perLanguage": {
+        "en": {
+          "untranslated": 0,
+          "translated": 2,
+          "verified": 0,
+          "stale": 0,
+          "total": 2
+        },
+        "pt-PT": {
+          "untranslated": 1,
+          "translated": 1,
+          "verified": 0,
+          "stale": 0,
+          "total": 2
+        }
+      },
+      "perType": {
+        "ui": {
+          "en": {
+            "untranslated": 0,
+            "translated": 2,
+            "verified": 0,
+            "stale": 0,
+            "total": 2
+          },
+          "pt-PT": {
+            "untranslated": 1,
+            "translated": 1,
+            "verified": 0,
+            "stale": 0,
+            "total": 2
+          }
+        }
+      }
+    }
+  }

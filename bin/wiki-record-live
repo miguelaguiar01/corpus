@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+# The wiki recordings that need a running instance: the MCP transcript
+# and the agent CLI's output. Kept out of bin/wiki-record because it
+# starts a workbench; everything that needs no server is recorded by the
+# unit gate instead.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+ROOT="$PWD"
+PORT="${CORPUS_WIKI_MCP_PORT:-3908}"
+TMP="$(mktemp -d)"
+WB_PGID=""
+cleanup() {
+  [ -z "$WB_PGID" ] || kill -TERM -- "-$WB_PGID" >/dev/null 2>&1 || true
+  rm -rf "$TMP"
+}
+trap cleanup EXIT
+
+mkdir -p "$TMP/src/i18n"
+cat > "$TMP/src/i18n/en.json" <<'JSON'
+{
+  "editor.save": "Save",
+  "editor.unsaved": "You have {count, plural, one {# change} other {# changes}}"
+}
+JSON
+printf '{}\n' > "$TMP/src/i18n/pt-PT.json"
+cat > "$TMP/corpus.config.mjs" <<JSON
+export default {
+  project: "acme-app",
+  server: "http://localhost:$PORT",
+  sourceLanguage: "en",
+  languages: ["en", "pt-PT"],
+  sources: [{ adapter: "messages", type: "ui", path: "src/i18n/{lang}.json" }],
+};
+JSON
+
+# The workbench is resolved from the repository it runs in, so the
+# temporary one borrows this checkout's.
+ln -s "$ROOT/node_modules" "$TMP/node_modules"
+
+CLI="$ROOT/packages/cli/dist/bin.js"
+cd "$TMP"
+setsid node "$CLI" workbench --port "$PORT" > "$TMP/workbench.log" 2>&1 < /dev/null &
+WB_PGID="$!"
+for _ in $(seq 1 120); do
+  grep -q "  stop      Ctrl-C" "$TMP/workbench.log" 2>/dev/null && break
+  kill -0 "$WB_PGID" 2>/dev/null || { cat "$TMP/workbench.log" >&2; exit 1; }
+  sleep 0.5
+done
+curl -sf "http://localhost:$PORT/api/health" >/dev/null
+node "$CLI" push >/dev/null
+
+# One request per line, one reply per line, nothing else on stdout.
+REQUESTS=$(cat <<'JSONL'
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"wiki","version":"0"}}}
+{"jsonrpc":"2.0","method":"notifications/initialized"}
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_queue","arguments":{"queue":"untranslated","language":"pt-PT"}}}
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"get_string","arguments":{"key":"editor.unsaved"}}}
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"save_draft","arguments":{"key":"editor.unsaved","language":"pt-PT","text":"Tem {count, plural, one {# alteração} other {# alterações}}"}}}
+{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"save_draft","arguments":{"key":"editor.unsaved","language":"pt-PT","text":"Tem {count, plural, one {# alteração} many {# de alterações} other {# alterações}}"}}}
+{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"status","arguments":{}}}
+JSONL
+)
+export REPLIES
+REPLIES=$(printf '%s\n' "$REQUESTS" | node "$CLI" mcp)
+
+OUT="$ROOT/docs/wiki/recorded/mcp-session.txt"
+: > "$OUT"
+paste -d '\n' /dev/null /dev/null >/dev/null 2>&1 || true
+reply=0
+while IFS= read -r request; do
+  printf '→ %s\n' "$request" >> "$OUT"
+  case "$request" in *'"id"'*)
+    reply=$((reply + 1))
+    printf '← %s\n' "$(printf '%s\n' "$REPLIES" | sed -n "${reply}p")" >> "$OUT"
+  ;; esac
+done <<< "$REQUESTS"
+# The same run, with each tool result's payload decoded: the wire form
+# proves the protocol, this one is readable on a page. Both come from
+# the one session; neither is written by hand.
+READ="$ROOT/docs/wiki/recorded/mcp-results.txt"
+printf '%s\n' "$REQUESTS" | node -e '
+const requests = require("fs").readFileSync(0, "utf8").trim().split("\n");
+const replies = process.env.REPLIES.trim().split("\n").map((line) => JSON.parse(line));
+const out = [];
+let reply = 0;
+for (const line of requests) {
+  const request = JSON.parse(line);
+  if (request.id === undefined) continue;
+  const answer = replies[reply++];
+  if (request.method !== "tools/call") continue;
+  const call = request.params;
+  out.push(`${call.name} ${JSON.stringify(call.arguments)}`);
+  const payload = answer.result?.content?.[0]?.text ?? JSON.stringify(answer);
+  out.push(answer.result?.isError ? `  refused: ${payload}` : payload.split("\n").map((row) => `  ${row}`).join("\n"));
+  out.push("");
+}
+process.stdout.write(out.join("\n").replace(/\s+$/, "") + "\n");
+' > "$READ"
+
+# The same operations as subcommands, for an agent with a shell. A
+# refusal is part of what the page shows, so a non-zero exit is not an
+# error here.
+{
+  while IFS= read -r command; do
+    [ -n "$command" ] || continue
+    printf '$ corpus agent %s\n' "$command"
+    eval "node \"$CLI\" agent $command" 2>&1 | sed 's/^/  /' || true
+    printf '\n'
+  done <<'COMMANDS'
+queue untranslated --lang pt-PT
+string editor.save
+draft editor.save pt-PT "Guardar"
+propose editor.save --text "Save the document"
+proposals
+COMMANDS
+} > "$ROOT/docs/wiki/recorded/agent-session.txt"
+
+# One process for many operations, which is what a script uses.
+STDIN_OPS='{"op":"status"}
+{"id":"d1","op":"draft","key":"editor.unsaved","language":"pt-PT","text":"Tem {count, plural, one {# alteração} many {# de alterações} other {# alterações}}"}
+{"id":"bad","op":"draft","key":"editor.save","language":"pt-PT"}'
+{
+  printf '$ corpus agent --stdin\n'
+  printf '%s\n' "$STDIN_OPS" | sed 's/^/  < /'
+  printf '%s\n' "$STDIN_OPS" | node "$CLI" agent --stdin 2>&1 | sed 's/^/  > /' || true
+} > "$ROOT/docs/wiki/recorded/agent-stdin.txt"
+
+echo "wiki-record-live: wrote the mcp and agent recordings"

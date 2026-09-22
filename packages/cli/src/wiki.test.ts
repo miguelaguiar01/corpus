@@ -21,6 +21,7 @@ import { fileURLToPath } from "node:url";
 import { corpusConfigSchema } from "@corpus/contract";
 import { createJiti } from "jiti";
 import { afterEach, expect, test } from "vitest";
+import { apiOver, tools } from "./agent-tools";
 import { run, type RunContext } from "./cli";
 
 const examples = fileURLToPath(
@@ -281,6 +282,38 @@ test("every corpus command the CI workflow runs is one the CLI has", async () =>
       expect(known, `corpus ${command} has no ${flag}`).toContain(flag);
     }
   }
+});
+
+test("the agent pages name every tool the server has, and no other", async () => {
+  // The recordings come from a live instance (bin/wiki-record-live), so
+  // the gate cannot re-run them. What it can hold is the names: a tool
+  // renamed, added or dropped must reach the pages that list it.
+  const names = tools(apiOver("http://localhost:0", "t")).map(
+    (tool) => tool.name,
+  );
+  const page = readFileSync(
+    fileURLToPath(
+      new URL("../../../docs/wiki/The-MCP-server.md", import.meta.url),
+    ),
+    "utf8",
+  );
+  const listed = [...page.matchAll(/^\| `([a-z_]+)` \|/gm)].map(
+    (found) => found[1]!,
+  );
+  expect([...listed].sort()).toEqual([...names].sort());
+
+  // Every tool the transcript calls is a tool that exists.
+  const session = readFileSync(
+    path.join(recordings, "mcp-session.txt"),
+    "utf8",
+  );
+  const called = [
+    ...session.matchAll(
+      /"method":"tools\/call","params":\{"name":"([a-z_]+)"/g,
+    ),
+  ].map((found) => found[1]!);
+  expect(called.length).toBeGreaterThan(0);
+  for (const name of called) expect(names).toContain(name);
 });
 
 test("every config the wiki shows is a config the CLI accepts", async () => {
