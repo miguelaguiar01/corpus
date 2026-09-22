@@ -277,8 +277,10 @@ function hint(source: string, syntax: Library, message: string): string {
   if (syntax !== "i18next" && source.includes("{{")) {
     return `; {{ }} is i18next's interpolation: declare library: "i18next" on the source`;
   }
-  // The mirror: an ICU catalogue read as something with no arguments.
-  if (syntax !== "icu" && /\{\s*[^{},]+\s*,\s*[a-z]+/.test(source)) {
+  // The mirror: an ICU catalogue read as vue-i18n, which has no
+  // arguments. Not under i18next, whose own `{{name, format}}` would
+  // match and whose reader refuses nothing anyway.
+  if (syntax === "vue" && /\{\s*[^{},]+\s*,\s*[a-z]+/.test(source)) {
     return `; {name, plural, …} is an ICU argument: declare library: "icu" on the source, or leave the field out`;
   }
   return "";

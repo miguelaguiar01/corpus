@@ -68,19 +68,13 @@ Three things differ from ICU, and Corpus handles all three:
 
 `<Trans>` is a catalogue call, so `corpus check` does not report the text inside it.
 
-## vue-i18n
-
-Not yet. vue-i18n writes plurals as one string with pipes (`one | other`) and escapes literals as `{'@'}`, and Corpus reads neither today: the pipes are literal text to it, so a translation that drops a form is not a finding, and a string with `{'@'}` is refused. The work is tracked in [#495](https://github.com/miguelaguiar01/corpus/issues/495) and [#496](https://github.com/miguelaguiar01/corpus/issues/496).
-
-A vue-i18n catalogue whose strings use `{name}` interpolation and no pipes works today as `icu`, which covers most of a typical catalogue: of Vikunja's 1,456 strings, 22 use pipes.
-
 ## gettext, Android, iOS
 
 No adapter reads `.po`, `strings.xml` or `.strings`. An `exec` source can, by converting in both directions; see [Sources and adapters](Sources-and-adapters).
 
 ## When the library is wrong
 
-A catalogue read under the wrong library fails loudly rather than quietly. An i18next catalogue read as ICU refuses every string that interpolates, since `{{name}}` is not a valid ICU placeholder. When that is a whole file, or five strings refused for the same reason, the build stops with nothing pushed — otherwise the push would archive every one of them. The message names the field to set:
+Getting it wrong is usually loud. An i18next catalogue read as `icu` or as `vue` refuses every string that interpolates, since `{{name}}` is not a valid placeholder in either; an ICU catalogue read as `vue` refuses every string with an argument in it. When five of those share one piece of advice, or a whole file is refused, the build stops with nothing pushed, and the message names the field to set:
 
 <!-- from: recorded/wrong-library.out -->
 ```text
@@ -130,6 +124,10 @@ What it does check is that every placeholder survives into every form, and it re
 **`{'…'}` is a literal.** It is how a catalogue writes an `@`, a `|` or a brace that vue-i18n would otherwise read as syntax — `"e.g. frederic{'@'}vikunja.io"` — and a pipe inside one is text rather than a separator, so `"Pipe ({'|'})"` is one form and not two.
 
 Not yet read: `@:linked.keys`. A catalogue that uses them parses, and the link is text.
+
+It is not loud in every direction, and the quiet ones are worth knowing. **Anything read as `i18next` is accepted**: that reader treats a single `{` as text and has no arguments, so an ICU or vue-i18n catalogue read as `i18next` refuses nothing and says nothing — the placeholders simply stop being placeholders. And a vue-i18n catalogue read as `icu` refuses only its `{'…'}` literals, so its pipe plurals silently become one string each.
+
+Both are cases where the catalogue still pushes. The check that would catch them is a translator noticing, which is why `library` is worth setting deliberately rather than leaving to a failure.
 
 ## What a stray pipe costs
 
