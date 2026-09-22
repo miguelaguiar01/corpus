@@ -30,7 +30,11 @@ export type ValidationError =
   | { code: "missing-category"; arg: string; key: string }
   | { code: "unexpected-category"; arg: string; key: string }
   | { code: "missing-tag"; name: string }
-  | { code: "unexpected-tag"; name: string };
+  | { code: "unexpected-tag"; name: string }
+  // vue-i18n's pipe forms, which are positional and have no argument:
+  // the language needs one per plural category and picks by count.
+  | { code: "missing-form"; have: number; need: number }
+  | { code: "unexpected-form"; have: number; need: number };
 
 export type ValidationResult =
   { ok: true } | { ok: false; errors: ValidationError[] };
@@ -40,6 +44,8 @@ type Shape = {
   selects: Map<string, Set<string>>;
   plurals: Map<string, Set<string>>;
   tags: Set<string>;
+  // How many pipe-separated forms the message has, when it has them.
+  forms: number | null;
 };
 
 function shapeOf(
@@ -49,6 +55,7 @@ function shapeOf(
     selects: new Map(),
     plurals: new Map(),
     tags: new Set(),
+    forms: null,
   },
 ): Shape {
   for (const node of nodes) {
@@ -56,6 +63,10 @@ function shapeOf(
     if (node.kind === "tag") {
       shape.tags.add(node.name);
       shapeOf(node.children, shape);
+    }
+    if (node.kind === "forms") {
+      shape.forms = node.branches.length;
+      for (const branch of node.branches) shapeOf(branch, shape);
     }
     if (node.kind === "select" || node.kind === "plural") {
       const map = node.kind === "select" ? shape.selects : shape.plurals;
@@ -124,6 +135,17 @@ export function validateTranslation(
     if (!expected.tags.has(name)) errors.push({ code: "unexpected-tag", name });
   }
   const categories = language === undefined ? [] : pluralCategoriesOf(language);
+  // A pipe plural is positional, so what is checked is how many forms
+  // there are: vue-i18n picks by index, and a language that needs three
+  // and is given two shows the wrong one rather than falling back.
+  if (actual.forms !== null && categories.length > 0) {
+    const need = categories.length;
+    if (actual.forms < need) {
+      errors.push({ code: "missing-form", have: actual.forms, need });
+    } else if (actual.forms > need) {
+      errors.push({ code: "unexpected-form", have: actual.forms, need });
+    }
+  }
   for (const [arg, keys] of actual.plurals) {
     if (!expectedValues.has(arg)) {
       errors.push({ code: "unknown-plural", arg });

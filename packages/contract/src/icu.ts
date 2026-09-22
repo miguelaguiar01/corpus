@@ -17,7 +17,11 @@ export type IcuNode =
   // `#` inside a plural branch: the number itself.
   | { kind: "count"; arg: string }
   // <name>children</name>, or <name/> with none.
-  | { kind: "tag"; name: string; children: IcuNode[] };
+  | { kind: "tag"; name: string; children: IcuNode[] }
+  // vue-i18n's pipe plural: `one | other`, positional, with no argument
+  // because the count is passed at render time rather than named in the
+  // string. Branches are in the order they were written.
+  | { kind: "forms"; branches: IcuNode[][] };
 
 export type IcuError = { message: string; position: number };
 
@@ -124,6 +128,15 @@ class Parser {
         continue;
       }
       if (ch === "{") {
+        // vue-i18n: `{name}` is a placeholder and `{'…'}` is the escape
+        // for a literal `@`, `|` or `{`, which the language would
+        // otherwise read as syntax.
+        if (this.syntax === "vue") {
+          flush();
+          nodes.push(this.parseVueBrace());
+          literalStart = this.pos;
+          continue;
+        }
         // i18next: {{name}} is a placeholder, a single brace is text,
         // and there are no arguments, so nothing else opens here.
         if (this.syntax === "i18next") {
@@ -183,6 +196,26 @@ class Parser {
     }
     this.pos = end + 2;
     return { kind: "placeholder", name: unescaped ? `-${key}` : key };
+  }
+
+  // vue-i18n's braces: `{name}` names a value, `{'…'}` is a literal
+  // whose quoted text is kept as text (#496), which is how a catalogue
+  // writes an `@`, a `|` or a brace that the language reads as syntax.
+  private parseVueBrace(): IcuNode {
+    const start = this.pos;
+    const end = this.source.indexOf("}", this.pos + 1);
+    if (end < 0) throw new ParseFailure("unclosed '{'", start);
+    const inner = this.source.slice(this.pos + 1, end).trim();
+    const quoted = /^'([^']*)'$/.exec(inner);
+    this.pos = end + 1;
+    if (quoted) return { kind: "literal", text: quoted[1]! };
+    if (!NAME_RE.test(inner)) {
+      throw new ParseFailure(
+        `invalid placeholder name ${JSON.stringify(inner)}`,
+        start,
+      );
+    }
+    return { kind: "placeholder", name: inner };
   }
 
   // A tag at the cursor, consumed, or nothing when the < is text.
@@ -301,10 +334,20 @@ export function parseIcu(
   syntax: Library = "icu",
 ): IcuParseResult {
   try {
-    return {
-      ok: true,
-      nodes: new Parser(source, syntax).parseSequence(false),
-    };
+    if (syntax === "vue") {
+      const parts = splitVueSource(source);
+      // vue-i18n trims each form, so the space around a separator is
+      // not part of the text.
+      const branches = parts.map((part) =>
+        new Parser(part.trim(), syntax).parseSequence(false),
+      );
+      return {
+        ok: true,
+        nodes:
+          branches.length === 1 ? branches[0]! : [{ kind: "forms", branches }],
+      };
+    }
+    return { ok: true, nodes: new Parser(source, syntax).parseSequence(false) };
   } catch (error) {
     if (error instanceof ParseFailure) {
       return {
@@ -314,6 +357,36 @@ export function parseIcu(
     }
     throw error;
   }
+}
+
+// vue-i18n separates plural forms with a top-level `|`. The source is
+// split before it is parsed, so a pipe inside a `{'…'}` literal is
+// text: that escape is exactly how a catalogue writes one (#496).
+function splitVueSource(source: string): string[] {
+  const parts: string[] = [];
+  let current = "";
+  let at = 0;
+  while (at < source.length) {
+    const ch = source[at]!;
+    if (ch === "{") {
+      const end = source.indexOf("}", at + 1);
+      if (end >= 0) {
+        current += source.slice(at, end + 1);
+        at = end + 1;
+        continue;
+      }
+    }
+    if (ch === "|") {
+      parts.push(current);
+      current = "";
+      at += 1;
+      continue;
+    }
+    current += ch;
+    at += 1;
+  }
+  parts.push(current);
+  return parts;
 }
 
 function collect(

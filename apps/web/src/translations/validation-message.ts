@@ -36,5 +36,9 @@ export function validationMessage(
       return t("editor.unexpectedTag", { name: error.name });
     case "invalid-icu":
       return t("editor.invalidIcu", { message: error.message });
+    case "missing-form":
+      return t("editor.missingForm", { have: error.have, need: error.need });
+    case "unexpected-form":
+      return t("editor.unexpectedForm", { have: error.have, need: error.need });
   }
 }

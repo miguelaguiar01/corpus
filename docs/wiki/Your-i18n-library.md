@@ -6,7 +6,7 @@ A source declares the library its catalogue was written for:
 
 One value decides how placeholders are spelled, how plurals are written, and what is escaped. `icu` is the default and what an absent field means.
 
-`corpus init` looks at your source file and writes `library: "i18next"` when the values use `{{name}}` and no ICU argument, saying so as it does. It writes nothing for a plain ICU catalogue, since that is the default.
+`corpus init` looks at your source file and writes the library it finds, saying so as it does: `i18next` when the values use `{{name}}` and no ICU argument, `vue` when they use a top-level pipe or a `{'…'}` literal and neither of those. It writes nothing for a plain ICU catalogue, since that is the default.
 
 (`syntax` is the old name for this field. A config that still uses it works, and `build`, `push` and `validate` each say once that the field has been renamed. It goes at 1.0.)
 
@@ -88,3 +88,44 @@ corpus: src/i18n/en.json [greeting]: invalid ICU: invalid placeholder name "{ na
 built acme-app: 0 string(s) (none), 0 entity(ies) (none)
 corpus: 1 string(s) refused and left out of the snapshot
 ```
+
+## vue-i18n
+
+<!-- from: examples/vue.config.ts -->
+```ts
+import { defineCorpus } from "@corpus-tool/cli";
+
+export default defineCorpus({
+  project: "acme-app",
+  server: "http://localhost:3000",
+  sourceLanguage: "en",
+  languages: ["en", "de", "ru"],
+  sources: [
+    {
+      adapter: "messages",
+      type: "ui",
+      path: "src/i18n/lang/{lang}.json",
+      library: "vue",
+    },
+  ],
+  check: { include: ["src"], ignore: ["**/*.story.vue"] },
+});
+```
+
+`{name}` is a placeholder, single-braced.
+
+**Plurals are positions, not names.** vue-i18n separates the forms of a string with a top-level `|` and picks one by the count passed at render time:
+
+```json
+{ "comments": "{count} comment | {count} comments" }
+```
+
+There is no argument in the string, so nothing names what is counted. What Corpus checks is the number of forms: a translation must have as many as its own language has plural categories. Russian has four, so a Russian translation with two shows a form meant for another count; Japanese has one, so a second form there is never reached. Both are findings, and the message says how many the language uses.
+
+**`{'…'}` is a literal.** It is how a catalogue writes an `@`, a `|` or a brace that vue-i18n would otherwise read as syntax — `"e.g. frederic{'@'}vikunja.io"` — and a pipe inside one is text rather than a separator, so `"Pipe ({'|'})"` is one form and not two.
+
+Not yet read: `@:linked.keys`. A catalogue that uses them parses, and the link is text.
+
+## What a stray pipe costs
+
+A vue-i18n catalogue read as ICU loses every string with a `{'…'}` in it, because ICU reads `{'@'}` as a placeholder named `'@'` and refuses the string. On Vikunja that was one key across 31 of its 38 language files. Read as `vue`, the same catalogue builds whole.

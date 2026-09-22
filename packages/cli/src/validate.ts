@@ -193,5 +193,9 @@ export function describe(
       return `missing the <${error.name}> tag`;
     case "unexpected-tag":
       return `unexpected <${error.name}> tag, which the source does not have`;
+    case "missing-form":
+      return `${error.have} plural form(s) separated by |, where this language uses ${error.need}`;
+    case "unexpected-form":
+      return `${error.have} plural form(s) separated by |, where this language uses ${error.need}; the extra one is never shown`;
   }
 }

@@ -115,9 +115,14 @@ function renderNodes(
         </span>
       );
     }
+    // vue-i18n's forms have no argument: the count is passed at render
+    // time rather than named in the string.
+    const label = node.kind === "forms" ? undefined : node.arg;
+    const branches =
+      node.kind === "forms" ? node.branches : Object.values(node.branches);
     return (
-      <span key={index} role="group" aria-label={node.arg} title={node.arg}>
-        {Object.values(node.branches).map((branch, i) => (
+      <span key={index} role="group" aria-label={label} title={label}>
+        {branches.map((branch, i) => (
           <span key={i}>
             {i > 0 && <span className="text-muted-foreground">{SLASH}</span>}
             {renderNodes(branch, slots, syntax)}

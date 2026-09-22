@@ -3,7 +3,7 @@ Every command, what it needs, and what it exits with.
 <!-- from: recorded/usage.out -->
 ```text
 usage: corpus push [--dry-run] | corpus pull [--min-state <untranslated|translated|verified>] [--lang <l>]... [--check] | corpus check | corpus build [--out <file>]
-       corpus init --project <slug> --source <lang> --messages <path with {lang}> [--languages <a,b>] [--server <url>] [--type <name>] [--library <icu|i18next>]
+       corpus init --project <slug> --source <lang> --messages <path with {lang}> [--languages <a,b>] [--server <url>] [--type <name>] [--library <icu|i18next|vue>]
        corpus workbench [--port <n>] [--db <path>] [--open] [--no-provision]
        corpus project create [--name <name>] [--server <url>] | corpus project rotate-token [--server <url>]
        corpus status [--json]

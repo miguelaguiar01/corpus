@@ -57,6 +57,16 @@ function render(
     } else if (node.kind === "tag") {
       // The component is the client's; the preview shows what it wraps.
       render(node.children, values, out, language);
+    } else if (node.kind === "forms") {
+      // vue-i18n picks a form by the count passed at render time, by
+      // position. A preview has no count, so it shows the last form,
+      // which is the one every language uses for the general case.
+      render(
+        node.branches[node.branches.length - 1] ?? [],
+        values,
+        out,
+        language,
+      );
     } else if (node.kind === "plural") {
       const value = values[node.arg];
       const key =
