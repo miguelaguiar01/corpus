@@ -450,6 +450,104 @@ test("the translator page names the interface as the interface names itself", ()
   }
 });
 
+test("the commands page shows the usage the CLI prints", async () => {
+  const printed: string[] = [];
+  expect(
+    await run(["--help"], {
+      ...repo().ctx,
+      out: (line: string) => printed.push(line),
+    }),
+  ).toBe(0);
+  recorded("usage.out", `${printed.join("\n")}\n`);
+});
+
+test("the messages the troubleshooting page quotes are messages the CLI has", () => {
+  // The page is a symptom index: a reader searches it for the text they
+  // were given, so a reworded message makes it useless in exactly the
+  // case it exists for.
+  // Whole comment lines are dropped, so a message left behind in a
+  // commented-out block no longer counts as the tool still saying it.
+  // Only whole lines: pairing `/*` with `*/` across a file eats live
+  // code, since both appear inside string literals here (check.ts's
+  // glob table), and a trailing comment on a live line is left alone
+  // rather than guessed at.
+  const uncommented = (code: string) =>
+    code
+      .split("\n")
+      .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
+      .join("\n");
+  const read = (dir: string): string =>
+    readdirSync(dir, { withFileTypes: true })
+      .flatMap((entry) => {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) return [read(full)];
+        if (!/\.tsx?$/.test(entry.name) || entry.name.includes(".test."))
+          return [];
+        return [uncommented(readFileSync(full, "utf8"))];
+      })
+      .join("\n");
+  // Five of the messages are the server's, not the CLI's.
+  const cli = [
+    read(fileURLToPath(new URL("./", import.meta.url))),
+    read(fileURLToPath(new URL("../../../apps/web/src", import.meta.url))),
+  ].join("\n");
+  const page = readFileSync(
+    fileURLToPath(
+      new URL("../../../docs/wiki/When-something-is-wrong.md", import.meta.url),
+    ),
+    "utf8",
+  );
+  // What the code must still say, and what the page must still carry.
+  // They differ where the code builds the message from parts, or where
+  // the same words appear elsewhere in the CLI and would pass for the
+  // wrong reason.
+  const quoted: [code: string, page: string][] = [
+    ["CORPUS_TOKEN is not set and", "CORPUS_TOKEN is not set and"],
+    [
+      "unauthorized — the token was refused",
+      "unauthorized — the token was refused",
+    ],
+    ["could not reach the server at", "could not reach the server at"],
+    ["check parsed no files in", "check parsed no files in"],
+    ["check scanned nothing: none of", "check scanned nothing: none of"],
+    [
+      "has no {lang}: its translations cannot be written back",
+      "has no {lang}: its translations cannot be written back",
+    ],
+    [
+      "is not JSON: pull writes JSON only",
+      "is not JSON: pull writes JSON only",
+    ],
+    [
+      "belong to no writable source and were not written",
+      "belong to no writable source and were not written",
+    ],
+    [
+      "is not installed in this repository",
+      "is not installed in this repository",
+    ],
+    ["no config found in", "no config found in"],
+    ["string(s) refused and", "string(s) refused and"],
+    ["holds a person's work", "holds a person's work"],
+    [
+      "the source text comes from the repository and is not edited here",
+      "the source text comes from the repository and is not edited here",
+    ],
+    ["last pushed before sources were declared", "last pushed before sources"],
+    // "is archived" and "is not a language of" also occur in unrelated
+    // CLI text, so the code side pins the route's own wording.
+    ['"archived", `${key} is archived`', "is archived` — the repository"],
+    [
+      "is not a language of ${auth.project.slug}",
+      "is not a language of <project>",
+    ],
+  ];
+  for (const [inCode, onPage] of quoted) {
+    expect(cli, `the CLI no longer says "${inCode}"`).toContain(inCode);
+    expect(page, `the page no longer quotes "${onPage}"`).toContain(onPage);
+  }
+});
+
 test("every config the wiki shows is a config the CLI accepts", async () => {
   const jiti = createJiti(import.meta.url);
   const configs = [examples, recordings].flatMap((dir) =>
