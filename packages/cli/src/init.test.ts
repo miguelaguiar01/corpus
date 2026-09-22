@@ -421,3 +421,34 @@ test("check.include is not written when src alone holds the components, nor when
   expect(await run(FLAGS, none.ctx)).toBe(0);
   expect((await loadConfig(none.dir)).check).toBeUndefined();
 });
+
+test("an .arb catalogue is read for its languages and its library (#558)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "l10n"), { recursive: true });
+  writeFileSync(
+    path.join(p.dir, "l10n", "strings_en.arb"),
+    JSON.stringify({
+      "@@locale": "en",
+      hello: "Hello {{name}}",
+      "@hello": { placeholders: { name: {} } },
+    }),
+  );
+  writeFileSync(path.join(p.dir, "l10n", "strings_de.arb"), "{}\n");
+  const code = await run(
+    [
+      "init",
+      "--project",
+      "app",
+      "--source",
+      "en",
+      "--messages",
+      "l10n/strings_{lang}.arb",
+    ],
+    p.ctx,
+  );
+  expect(code).toBe(0);
+  const config = await loadConfig(p.dir);
+  expect(config.languages).toEqual(["en", "de"]);
+  expect(config.sources[0]).toMatchObject({ library: "i18next" });
+});

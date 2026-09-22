@@ -67,3 +67,24 @@ test("keys already containing dots are preserved as-is", () => {
   const entries = messagesToEntries({ "a.b.c": "x" }, { type: "chrome" });
   expect(entries[0]?.id).toBe("a.b.c");
 });
+
+test("an ARB catalogue's @ entries are metadata, not strings (#558)", () => {
+  const arb = {
+    "@@locale": "en",
+    wallpaper: "Wallpaper",
+    "@wallpaper": { description: "Menu entry", placeholders: {} },
+    setWallpaper: "Set {name}",
+    "@setWallpaper": { placeholders: { name: { type: "String" } } },
+  };
+  expect(messagesToEntries(arb, { type: "ui", arb: true })).toEqual([
+    { id: "wallpaper", type: "ui", source: "Wallpaper" },
+    { id: "setWallpaper", type: "ui", source: "Set {name}" },
+  ]);
+  // Without the flag an @ entry is an object like any other, and fails
+  // as one, since a nested object under a string key is a catalogue
+  // shape the adapter does read.
+  expect(() => messagesToEntries(arb, { type: "ui" })).not.toThrow();
+  expect(messagesToEntries(arb, { type: "ui" }).map((e) => e.id)).toContain(
+    "@wallpaper.description",
+  );
+});

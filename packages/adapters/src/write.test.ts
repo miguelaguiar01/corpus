@@ -430,3 +430,35 @@ test("a flat catalogue whose keys are sentences, dots and all, reads and writes 
   expect(entriesToMessages(file, texts)).toBe(file);
   expect(entriesToMessages(file, texts, "")).toBe(file);
 });
+
+test("a pull into an .arb leaves its @ entries where they are (#558)", () => {
+  const existing = `{
+  "@@locale": "pt-PT",
+  "wallpaper": "Fundo",
+  "@wallpaper": {
+    "description": "Menu entry",
+    "placeholders": {}
+  },
+  "photosCount": "{count, plural, one {# foto} other {# fotos}}"
+}
+`;
+  const template = `{
+  "@@locale": "en",
+  "wallpaper": "Wallpaper",
+  "@wallpaper": {
+    "description": "Menu entry",
+    "placeholders": {}
+  },
+  "photosCount": "{count, plural, one {# photo} other {# photos}}"
+}
+`;
+  const next = entriesToMessages(
+    template,
+    { wallpaper: "Fundo de ecrã" },
+    existing,
+  );
+  expect(next).toBe(existing.replace('"Fundo"', '"Fundo de ecrã"'));
+  expect(entriesToMessages(template, { wallpaper: "Fundo" }, existing)).toBe(
+    existing,
+  );
+});

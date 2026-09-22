@@ -373,7 +373,10 @@ export async function readEntries(
     source.adapter === "table" ? source.export : undefined,
   );
   return source.adapter === "messages"
-    ? messagesToEntries(data, { type: source.type })
+    ? messagesToEntries(data, {
+        type: source.type,
+        arb: isArb(file),
+      })
     : tableToEntries(data, { type: source.type, map: source.map });
 }
 
@@ -382,7 +385,7 @@ async function readModule(
   abs: string,
   exportName?: string,
 ): Promise<unknown> {
-  if (abs.endsWith(".json")) {
+  if (abs.endsWith(".json") || isArb(abs)) {
     if (exportName !== undefined) {
       throw new Error(
         `a JSON file has no exports; drop export ${JSON.stringify(exportName)}`,
@@ -460,7 +463,12 @@ export function pushOnlyNotes(config: CorpusConfig): string[] {
 // Pull rewrites a catalogue in place and only knows JSON (§8); a .ts or
 // .js catalogue pushes fine but nothing can come back to it.
 export function writesBack(sourcePath: string): boolean {
-  return sourcePath.toLowerCase().endsWith(".json");
+  return sourcePath.toLowerCase().endsWith(".json") || isArb(sourcePath);
+}
+
+// Flutter's catalogue: JSON under another name (#558).
+export function isArb(sourcePath: string): boolean {
+  return sourcePath.toLowerCase().endsWith(".arb");
 }
 
 // One glossary file per target language (§5): absent is an empty

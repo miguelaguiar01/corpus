@@ -59,7 +59,7 @@ Without `importCommand` the source is push-only, and every command that reads it
 
 | Source | Pushes | Takes translations back |
 |---|---|---|
-| `messages` with `{lang}`, `.json` | yes | yes |
+| `messages` with `{lang}`, `.json` or `.arb` | yes | yes |
 | `table` with `{lang}`, `.json` | yes | yes |
 | `.ts` or `.js` catalogue | yes | no |
 | path without `{lang}` | yes | no |
