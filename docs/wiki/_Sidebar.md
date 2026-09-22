@@ -19,4 +19,10 @@
 
 - [Corpus in CI](Corpus-in-CI)
 
-Still being written: metadata and the glossary, users and tokens, the MCP server, agents, a translator's guide, the command reference, troubleshooting, and concepts.
+**Agents**
+
+- [The MCP server](The-MCP-server)
+- [Agents without MCP](Agents-without-MCP)
+- [What an agent may and may not do](What-an-agent-may-and-may-not-do)
+
+Still being written: metadata and the glossary, users and tokens, a translator's guide, the command reference, troubleshooting, and concepts.

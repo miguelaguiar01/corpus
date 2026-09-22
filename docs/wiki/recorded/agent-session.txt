@@ -1,0 +1,102 @@
+$ corpus agent queue untranslated --lang pt-PT
+  {
+    "queue": "untranslated",
+    "count": 1,
+    "items": [
+      {
+        "key": "editor.save",
+        "language": "pt-PT",
+        "type": "ui",
+        "source": "Save",
+        "text": null
+      }
+    ]
+  }
+
+$ corpus agent string editor.save
+  {
+    "key": "editor.save",
+    "type": "ui",
+    "source": "Save",
+    "sourceLanguage": "en",
+    "file": "src/i18n/en.json",
+    "archived": false,
+    "placeholders": [],
+    "selects": [],
+    "plurals": [],
+    "tags": [],
+    "syntax": "icu",
+    "slots": [],
+    "examples": [],
+    "metadata": null,
+    "note": null,
+    "glossary": {},
+    "entities": [],
+    "translations": {
+      "en": {
+        "state": "translated",
+        "stale": false,
+        "text": null,
+        "agentDraft": false
+      },
+      "pt-PT": {
+        "state": "untranslated",
+        "stale": false,
+        "text": null,
+        "agentDraft": false
+      }
+    },
+    "proposal": null,
+    "siblings": [
+      {
+        "key": "editor.unsaved",
+        "source": "You have {count, plural, one {# change} other {# changes}}",
+        "translations": {
+          "pt-PT": {
+            "state": "translated",
+            "stale": false,
+            "text": "Tem {count, plural, one {# alteração} many {# de alterações} other {# alterações}}"
+          }
+        }
+      }
+    ],
+    "siblingCount": 1
+  }
+
+$ corpus agent draft editor.save pt-PT "Guardar"
+  {
+    "key": "editor.save",
+    "language": "pt-PT",
+    "state": "translated",
+    "text": "Guardar",
+    "actor": "acme-app agent"
+  }
+
+$ corpus agent propose editor.save --text "Save the document"
+  {
+    "id": 1,
+    "kind": "edit",
+    "key": "editor.save",
+    "file": "src/i18n/en.json",
+    "text": "Save the document",
+    "status": "pending",
+    "author": "acme-app agent"
+  }
+
+$ corpus agent proposals
+  {
+    "proposals": [
+      {
+        "id": 1,
+        "kind": "edit",
+        "key": "editor.save",
+        "file": "src/i18n/en.json",
+        "text": "Save the document",
+        "status": "pending",
+        "author": "acme-app agent",
+        "createdAt": "2026-09-22T01:59:38.446Z",
+        "mine": true
+      }
+    ]
+  }
+
