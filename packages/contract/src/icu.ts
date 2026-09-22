@@ -565,6 +565,16 @@ export function pluralBranch(
 // are tested first: `{{` is i18next's interpolation but also an ICU
 // branch that opens with a placeholder (`{n, plural, other {{count}
 // apples}}`), and that catalogue is not in the wrong library.
+const ICU_ARGUMENT_TYPES = new Set([
+  "number",
+  "date",
+  "time",
+  "selectordinal",
+  "spellout",
+  "ordinal",
+  "duration",
+]);
+
 export function refusalAdvice(
   source: string,
   library: Library,
@@ -584,6 +594,12 @@ export function refusalAdvice(
   if (stray) {
     return `; a <name> is a rich-text tag: remove it, or open a matching <${stray[1]}>`;
   }
+  // An argument type ICU itself has (`{n, number}`, #555) says the string
+  // is ICU whatever else it holds: a plural branch that opens with a
+  // placeholder puts `{{` in it, and the i18next advice would be wrong
+  // (#557). A type ICU lacks (`{{date, short}}` read as ICU) still draws it.
+  const unsupported = /^argument type "([^"]+)" is not supported/.exec(message);
+  if (unsupported && ICU_ARGUMENT_TYPES.has(unsupported[1]!)) return "";
   if (library !== "i18next" && source.includes("{{")) {
     return `; {{ }} is i18next's interpolation: declare library: "i18next" on the source`;
   }
