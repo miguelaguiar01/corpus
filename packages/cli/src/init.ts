@@ -9,8 +9,9 @@ import {
   type Library,
 } from "@corpus/contract";
 import { option } from "./args";
-import type { RunContext } from "./cli";
 import { readEntries } from "./build";
+import { EXTENSIONS } from "./check";
+import type { RunContext } from "./cli";
 import { CliError, CONFIG_FILENAMES } from "./config";
 import { ignoreCorpusDir } from "./corpus-dir";
 
@@ -82,6 +83,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     type,
     ctx,
   );
+  const include = checkIncludeFor(ctx.cwd);
   const parsed = corpusConfigSchema.safeParse({
     project,
     server,
@@ -97,6 +99,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
           : {}),
       },
     ],
+    ...(include ? { check: { include } } : {}),
   });
   if (!parsed.success) {
     const issues = parsed.error.issues
@@ -112,6 +115,11 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       library.value === "i18next" ? "{{ }}" : "a pipe or a quoted literal";
     ctx.out(
       `library: ${library.value}${library.detected ? `, from ${why} in ${library.detected}` : ""}`,
+    );
+  }
+  if (include) {
+    ctx.out(
+      `check: ${include.join(", ")}, the directories holding components, so corpus check scans them`,
     );
   }
   const ignored = ignoreCorpusDir(ctx.cwd);
@@ -139,10 +147,14 @@ function render(config: {
     path?: string;
     library?: Library;
   }[];
+  check?: { include?: string[] };
 }): string {
   const q = (value: string) => JSON.stringify(value);
   const source = config.sources[0]!;
   const library = source.library ? `, library: ${q(source.library)}` : "";
+  const check = config.check?.include
+    ? `  check: { include: [${config.check.include.map(q).join(", ")}] },\n`
+    : "";
   return `import { defineCorpus } from "@corpus-tool/cli";
 
 export default defineCorpus({
@@ -153,8 +165,42 @@ export default defineCorpus({
   sources: [
     { adapter: "messages", type: ${q(source.type ?? "chrome")}, path: ${q(source.path ?? "")}${library} },
   ],
-});
+${check}});
 `;
+}
+
+// Where components live, in the roots the trials met (#498): Outline's
+// are in app/ and shared/, Jellyfin's and Vikunja's in src/. A root
+// counts when a file check reads is somewhere under it. `src` alone
+// is what check scans by default, so it is not written.
+const CHECK_ROOTS = ["src", "app", "lib", "components", "shared"] as const;
+const CHECK_DEFAULT = ["src"];
+
+function checkIncludeFor(cwd: string): string[] | undefined {
+  const found = CHECK_ROOTS.filter((root) =>
+    holdsCheckedFile(path.join(cwd, root)),
+  );
+  if (found.length === 0) return undefined;
+  if (found.length === 1 && found[0] === CHECK_DEFAULT[0]) return undefined;
+  return found;
+}
+
+function holdsCheckedFile(dir: string): boolean {
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return false;
+  }
+  for (const entry of entries) {
+    if (entry.name === "node_modules" || entry.name.startsWith(".")) continue;
+    if (entry.isDirectory()) {
+      if (holdsCheckedFile(path.join(dir, entry.name))) return true;
+    } else if (EXTENSIONS.some((ext) => entry.name.endsWith(ext))) {
+      return true;
+    }
+  }
+  return false;
 }
 
 const ICU_ARGUMENT_RE = /\{\s*[^{},]+\s*,\s*(?:select|plural)\s*,/;
