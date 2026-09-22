@@ -114,11 +114,22 @@ test("a tag that does not close is refused with a hint at what a tag is", async 
     "plural: invalid ICU: unclosed <b>; a <name> is a rich-text tag: close it with </b>, or write the brackets so they do not open a tag",
     "stray: invalid ICU: unexpected </em>; a <name> is a rich-text tag: remove it, or open a matching <em>",
   ]);
-  expect(snapshot.strings.map((s) => s.id)).toEqual(["fine"]);
+  // The good entries outnumber the bad, so the file is four typos
+  // rather than a file read the wrong way (#491).
+  expect(snapshot.strings.map((s) => s.id)).toEqual([
+    "fine",
+    "ok-one",
+    "ok-two",
+    "ok-three",
+    "ok-four",
+  ]);
 });
 
-test("an i18next catalogue read as ICU is refused with a hint at the syntax declaration", async () => {
-  const { refused } = await buildSnapshotReport(
+test("an i18next catalogue read as ICU fails the build whole, with the hint", async () => {
+  // Every entry refused is the file being read the wrong way (#491),
+  // and pushing the rest would archive everything the file holds. The
+  // hint that says which library it is comes with the failure.
+  const building = buildSnapshotReport(
     config({
       sources: [
         { adapter: "messages", type: "ui", path: "i18next/{lang}.json" },
@@ -126,8 +137,11 @@ test("an i18next catalogue read as ICU is refused with a hint at the syntax decl
     }),
     REPO,
   );
-  expect(refused.length).toBeGreaterThan(0);
-  expect(refused[0]?.message).toMatch(/declare library: "i18next"/);
+  await expect(building).rejects.toThrow(/declare library: "i18next"/);
+  // Two of its three interpolate; the third is plain ICU and parses.
+  await expect(building).rejects.toThrow(
+    /i18next\/en\.json: 2 of 3 string\(s\) refused/,
+  );
 });
 
 test("a file that does not read still fails the whole build", async () => {

@@ -52,6 +52,38 @@ export async function buildSnapshot(
   return snapshot;
 }
 
+// Past this share of a file's entries, a refusal is the file being read
+// the wrong way rather than a string being wrong.
+export const RUINED_SHARE = 0.5;
+
+// The files where refusals are at least RUINED_SHARE of what the file
+// holds, with the counts, so the message says why the build stopped.
+function ruinedSources(
+  sourced: Sourced[],
+  refused: Refused[],
+): { file: string; message: string }[] {
+  const total = new Map<string, number>();
+  for (const { file } of sourced) total.set(file, (total.get(file) ?? 0) + 1);
+  const bad = new Map<string, number>();
+  for (const { file } of refused) {
+    bad.set(file, (bad.get(file) ?? 0) + 1);
+    total.set(file, (total.get(file) ?? 0) + 1);
+  }
+  const out: { file: string; message: string }[] = [];
+  for (const [file, count] of bad) {
+    const all = total.get(file) ?? count;
+    // Every entry, or more than the share: one bad string among two is
+    // a typo, and the build goes on without it.
+    if (count === all || count > all * RUINED_SHARE) {
+      out.push({
+        file,
+        message: `${file}: ${count} of ${all} string(s) refused, which is a file being read the wrong way rather than a string being wrong`,
+      });
+    }
+  }
+  return out;
+}
+
 export function describeRefused({ file, id, message }: Refused): string {
   return `${file} [${id}]: ${message}`;
 }
@@ -158,6 +190,27 @@ export async function buildSnapshotReport(
 
   if (errors.length > 0) {
     throw new CliError(`snapshot build failed:\n  ${errors.join("\n  ")}`);
+  }
+  // A whole file refused is a misread file, not a typo (#491): pushing
+  // the rest would archive every string it holds, and a pending
+  // proposal on an archived string is superseded, which no later push
+  // reverses. One bad entry among many still goes on without it.
+  const ruined = ruinedSources(sourced, refused);
+  if (ruined.length > 0) {
+    // The per-entry messages carry the hints — the i18next one names the
+    // library — so they are kept beside the summary rather than lost to
+    // it: the reason a file is being read the wrong way is in them.
+    const files = new Set(ruined.map(({ file }) => file));
+    throw new CliError(
+      [
+        "snapshot build failed:",
+        ...refused
+          .filter(({ file }) => files.has(file))
+          .map((entry) => `  ${describeRefused(entry)}`),
+        ...ruined.map(({ message }) => `  ${message}`),
+        "  a file refused whole is usually the wrong library rather than a typo; see the library field in corpus.config.ts",
+      ].join("\n"),
+    );
   }
   return { snapshot: parsed.data as Snapshot, refused };
 }

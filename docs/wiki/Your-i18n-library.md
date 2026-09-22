@@ -80,13 +80,14 @@ No adapter reads `.po`, `strings.xml` or `.strings`. An `exec` source can, by co
 
 ## When the library is wrong
 
-A catalogue read under the wrong library fails loudly rather than quietly. An i18next catalogue read as ICU refuses every string that interpolates, since `{{name}}` is not a valid ICU placeholder, and the message names the field to set:
+A catalogue read under the wrong library fails loudly rather than quietly. An i18next catalogue read as ICU refuses every string that interpolates, since `{{name}}` is not a valid ICU placeholder, and a file refused whole stops the build rather than pushing what is left — otherwise the push would archive every string the file holds. The message names the field to set:
 
 <!-- from: recorded/wrong-library.out -->
 ```text
-corpus: src/i18n/en.json [greeting]: invalid ICU: invalid placeholder name "{ name"; {{ }} is i18next's interpolation: declare library: "i18next" on the source
-built acme-app: 0 string(s) (none), 0 entity(ies) (none)
-corpus: 1 string(s) refused and left out of the snapshot
+corpus: snapshot build failed:
+  src/i18n/en.json [greeting]: invalid ICU: invalid placeholder name "{ name"; {{ }} is i18next's interpolation: declare library: "i18next" on the source
+  src/i18n/en.json: 1 of 1 string(s) refused, which is a file being read the wrong way rather than a string being wrong
+  a file refused whole is usually the wrong library rather than a typo; see the library field in corpus.config.ts
 ```
 
 ## vue-i18n

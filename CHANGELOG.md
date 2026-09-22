@@ -29,6 +29,9 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- A source file whose entries are refused whole, or more than half of them, fails the build instead of pushing what is left. Refusing by entry is right for one typo, but a whole catalogue misread — an i18next project that never declared its library — had every interpolated string refused, and the push archived them all; a pending proposal on an archived string becomes superseded, which no later push reverses. The failure carries the per-entry messages, so the hint that names the library comes with it.
+- The fixture test enforces an example per plural branch as it already did per select branch: `ui.marks-left` covered its `=0`, `one` and `other` by how it was written rather than by a rule, and §7 asks for the coverage.
+
 - A flag written `--flag=value` is refused rather than accepted and ignored: `option` compares the whole word, so `corpus build --out=snapshot.json` exited 0 having written nothing and `corpus pull --lang=pt-PT` pulled every language.
 - Every command refuses a flag it does not know, and suggests the near miss: `corpus pull --langs pt-PT` pulled every language and exited 0, so a `corpus pull --check` gate went green having checked something other than what it named. Only `corpus agent` refused an unknown word before; now `pull`, `push`, `build`, `check`, `init`, `workbench`, `project`, `status`, `validate` and `mcp` do too, and `--server` on a command that does not take it is refused rather than ignored.
 - `corpus check` names an entry in `check.include` that it could not scan, instead of passing in silence while a sibling entry kept the run green: a directory that is not there, or an entry that names a file. A renamed directory used to narrow the lint with nothing said. The "scanned nothing" error now reads `no directory among …`, since an entry that is a file exists but cannot be scanned.

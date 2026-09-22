@@ -3,5 +3,9 @@
   "prose": "For example: https://example.com/<baseurl>",
   "mismatched": "Say <a>this</b> now",
   "plural": "{n, plural, other {{n} <b>apples}}",
-  "stray": "Delete this</em> now"
+  "stray": "Delete this</em> now",
+  "ok-one": "Plain text",
+  "ok-two": "More plain text",
+  "ok-three": "Still plain",
+  "ok-four": "And again"
 }
