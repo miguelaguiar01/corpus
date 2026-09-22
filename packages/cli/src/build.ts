@@ -279,7 +279,7 @@ export function describeExecFailure(
 ): string {
   const name = `${kind} ${JSON.stringify(command)}`;
   if (result.error?.code === "ENOBUFS") {
-    return `${name} printed more than ${EXEC_MAX_BUFFER / 1048576} MiB; the build reads an exporter's whole output at once`;
+    return `${name} printed more than ${EXEC_MAX_BUFFER / 1048576} MiB; ${kind === "exec" ? "the build reads an exporter's" : "pull reads an importer's"} whole output at once`;
   }
   if (result.signal) return `${name} was killed by ${result.signal}`;
   if (result.error) return `${name} could not run: ${result.error.message}`;

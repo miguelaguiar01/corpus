@@ -249,8 +249,9 @@ test("an exporter past 1 MiB builds, and one past the cap or killed is named (#5
   expect(snapshot.strings.map((s) => s.id)).toEqual(["big.one"]);
   expect(
     describeExecFailure("node x.mjs", {
+      // Node sets SIGTERM beside ENOBUFS, so the cap must be named first.
       status: null,
-      signal: null,
+      signal: "SIGTERM",
       stderr: "",
       error: Object.assign(new Error("spawnSync ENOBUFS"), { code: "ENOBUFS" }),
     }),
