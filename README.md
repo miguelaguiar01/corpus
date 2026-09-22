@@ -12,6 +12,7 @@
   <img alt="TypeScript, strict" src="https://img.shields.io/badge/typescript-strict-333333">
   <img alt="npm or one container, SQLite" src="https://img.shields.io/badge/deploy-npm%20or%20one%20container%2C%20SQLite-333333">
   <a href="https://www.npmjs.com/package/@corpus-tool/cli"><img alt="npm" src="https://img.shields.io/npm/v/%40corpus-tool%2Fcli?color=333333&label=%40corpus-tool%2Fcli"></a>
+  <a href="https://github.com/miguelaguiar01/corpus/wiki"><img alt="Documentation: the wiki" src="https://img.shields.io/badge/docs-wiki-333333"></a>
   <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-333333">
 </p>
 
@@ -56,22 +57,15 @@ npx corpus push          # the repository's text is in Corpus
 npx corpus status        # how far along each language is, from the terminal
 ```
 
-Open the URL, join with the secret, a display name and a password, and you are the maintainer: translate, verify, then `npx corpus pull` writes the verified translations back into the repository's files. The database, the secret and the token live under `.corpus/`, which `init` and `workbench` both add to `.gitignore`, creating the file when there is none, so the token is ignored on the team path too, where `project create` prints it and the workbench never runs; delete the directory to start over. Updating is `npm update` of the two packages, which always share a version. A package manager with a release-age policy holds back a version published inside its window, and the three write it differently: pnpm's `minimumReleaseAge` in `pnpm-workspace.yaml`, yarn's `npmMinimalAgeGate` in `.yarnrc.yml`, npm's `min-release-age` in `.npmrc`. Each has an allow list for the packages a team trusts on release day: `minimumReleaseAgeExclude`, `npmPreapprovedPackages` and `min-release-age-exclude[]`, where `@corpus-tool/cli` and `@corpus-tool/workbench` are worth naming once. Yarn and npm refuse the install outright; pnpm installs the fresh version and writes the exclusion into `pnpm-workspace.yaml` itself, pinned to that version and saying so, unless `minimumReleaseAgeStrict` is on, when it asks first, or fails where there is no terminal to ask. Otherwise install the previous release, or wait the window out.
+Open the URL, join with the secret, a display name and a password, and you are the maintainer: translate, verify, then `npx corpus pull` writes the verified translations back into the repository's files. The database, the secret and the token live under `.corpus/`, which `init` and `workbench` both add to `.gitignore`; delete the directory to start over. Updating is `npm update` of the two packages, which always share a version.
+
+[Install and first push](https://github.com/miguelaguiar01/corpus/wiki/Install-and-first-push) walks this same path with the real output at every step, and says what a package manager's release-age policy does to an install on release day. [The daily loop](https://github.com/miguelaguiar01/corpus/wiki/The-daily-loop) is what happens after it.
 
 ## For a team
 
-Translators need a URL they can reach, so a team runs the published image, the same app at the same version, with its database on a volume:
+Translators need a URL they can reach, so a team runs the published image — the same app at the same version — with its database on a volume. The repository's `compose.yaml` names `ghcr.io/miguelaguiar01/corpus:latest`, one invite secret admits people, and the container is disposable: all the data is in the volume.
 
-```sh
-git clone https://github.com/miguelaguiar01/corpus.git
-cd corpus
-CORPUS_INVITE_SECRET="$(openssl rand -hex 24)" docker compose pull
-CORPUS_INVITE_SECRET="$(openssl rand -hex 24)" docker compose up -d
-```
-
-`compose.yaml` names `ghcr.io/miguelaguiar01/corpus:latest`; set `CORPUS_IMAGE_TAG` to pin a version. The first person to join with the secret becomes the maintainer; anyone with the secret can join, and after that they sign in with their name and password. A maintainer can reset a forgotten password from the settings page. All data lives in the `corpus-data` volume; the container is disposable. Without the image, `docker compose up -d --build` builds it from the checkout.
-
-Two things to know before exposing it: mount a directory, never a single file (SQLite runs in WAL mode and keeps `-wal` and `-shm` files beside the database), and put it behind HTTPS to reach it from other devices, because the session cookie is `Secure` for any host other than localhost (set `CORPUS_PUBLIC_URL` to your HTTPS origin behind a proxy). `/api/health` reports the build it is running (the `CORPUS_VERSION` build argument, a tag or a commit from `git describe`), so an instance is traceable to a commit without logging in; without the argument it says `dev`.
+[A team instance](https://github.com/miguelaguiar01/corpus/wiki/A-team-instance) is the whole path: the compose file, the environment, the two things to get right before you expose it, creating the project and its token, backups and upgrades. [Users, tokens and access](https://github.com/miguelaguiar01/corpus/wiki/Users-tokens-and-access) is what the access model does, and plainly what it does not.
 
 ## Connect a repository
 
@@ -103,7 +97,7 @@ npx corpus validate                   # no server: every translation still fits 
 npx corpus check                      # lint .jsx, .tsx and .vue for user-facing literals outside the sources
 ```
 
-The [wiki](https://github.com/miguelaguiar01/corpus/wiki) is where this is explained: [the config file](https://github.com/miguelaguiar01/corpus/wiki/The-config-file) field by field, [sources and adapters](https://github.com/miguelaguiar01/corpus/wiki/Sources-and-adapters) for catalogues, tables and an exporter of your own, and [your i18n library](https://github.com/miguelaguiar01/corpus/wiki/Your-i18n-library) for next-intl, i18next and the rest.
+The [wiki](https://github.com/miguelaguiar01/corpus/wiki) is where this is explained: [the config file](https://github.com/miguelaguiar01/corpus/wiki/The-config-file) field by field, [sources and adapters](https://github.com/miguelaguiar01/corpus/wiki/Sources-and-adapters) for catalogues, tables and an exporter of your own, [your i18n library](https://github.com/miguelaguiar01/corpus/wiki/Your-i18n-library) for next-intl, i18next, vue-i18n and the rest, and [Commands](https://github.com/miguelaguiar01/corpus/wiki/Commands) for what each command needs and what it exits with.
 
 Note that the commands run the repository's own `corpus.config.ts`, and `push`, `build` and `pull` run the `exec` commands it declares, so run them only in repositories you trust, as you would their build scripts.
 
@@ -127,27 +121,15 @@ The catalogue is the inventory, and anyone on the instance can propose a change 
 
 ## Work with an agent
 
-`corpus mcp` starts a [Model Context Protocol](https://modelcontextprotocol.io) server on stdio from the repository, reading the config and the token like every other command, so an agent in the repository works inside the project with no browser. Three things first, in this order:
+`corpus mcp` starts a [Model Context Protocol](https://modelcontextprotocol.io) server on stdio from the repository, reading the config and the token like every other command, so an agent in the repository works inside the project with no browser. In Claude Code that is one line, or the `.mcp.json` the team shares through git:
 
-1. **The instance must run the same Corpus version as the CLI.** The token routes that the tools call arrived in 0.8.0; an older instance, a `corpus workbench` started from an older `@corpus-tool/workbench` or a container on an older image tag, answers `status` and nothing else. Bump both packages together and start the workbench again, or pull the matching image; `corpus status` prints the server's version.
-2. **Push once after upgrading.** The instance learns which source files can take proposals from a push; until then every proposal is refused as "last pushed before sources were declared". `corpus status` prints the writable sources when it knows them, and says so when a project has none: only `.json` catalogues take proposals, so a project whose text all comes from an exporter never will.
-3. **Register the server before the session starts.** A client loads tool schemas when a session opens, and a running agent cannot restart itself, so registering from inside an agent's session gives that session nothing. Register, then start.
-
-### Connecting a client
-
-Any MCP client that speaks stdio can run it. The server is the command `npx corpus mcp`, started in the repository: the working directory is how it finds `corpus.config.ts` and `.corpus/token`. A client that starts servers elsewhere (a desktop app) needs either a `cwd` field in its entry set to the repository, where the client has one, or a command that changes into it first, `sh -c "cd /path/to/repo && npx corpus mcp"`; `CORPUS_TOKEN` in the entry's environment stands in for `.corpus/token` in either case. The entries below are the same server in each client's spelling.
-
-**Claude Code.** `claude mcp add corpus -- npx corpus mcp`, or the repository's `.mcp.json`, which the whole team shares through git:
-
-```json
-{ "mcpServers": { "corpus": { "command": "npx", "args": ["corpus", "mcp"] } } }
+```sh
+claude mcp add corpus -- npx corpus mcp
 ```
 
-Claude Desktop, Cursor, VS Code, Codex, Gemini CLI and a client of your own each take an entry of their own shape; [The MCP server](https://github.com/miguelaguiar01/corpus/wiki/The-MCP-server) has all of them, the nine tools, and a recorded session.
+Its tools are one API call each: `list_queue`, `get_string`, `save_draft`, `propose_change`, `propose_removal`, `add_string`, `list_proposals`, `withdraw_proposal` and `status`. Three rules hold for everything an agent writes through the project token: it never overwrites a person's work, every draft is attributed to the project's agent actor, and nothing but a signed-in maintainer verifies. The model stays on the agent's side; Corpus runs none.
 
-Its tools are one API call each: `list_queue`, `get_string`, `save_draft`, `propose_change`, `propose_removal`, `add_string`, `list_proposals`, `withdraw_proposal` and `status`. Three rules hold for everything an agent writes through the project token: it never overwrites a person's work, every draft is attributed to the project's agent actor, and nothing but a signed-in maintainer verifies. [What an agent may and may not do](https://github.com/miguelaguiar01/corpus/wiki/What-an-agent-may-and-may-not-do) is those rules and the refusals that enforce them.
-
-An agent with a shell and no MCP client has the same operations as `corpus agent` subcommands, and `corpus agent --stdin` runs many through one process; [Agents without MCP](https://github.com/miguelaguiar01/corpus/wiki/Agents-without-MCP) covers both. The model stays on the agent's side; Corpus runs none.
+[The MCP server](https://github.com/miguelaguiar01/corpus/wiki/The-MCP-server) has every client's entry, the nine tools, a recorded session, and the three things to get right before a session starts. [Agents without MCP](https://github.com/miguelaguiar01/corpus/wiki/Agents-without-MCP) is the same operations as `corpus agent` subcommands, for an agent with a shell and no client. [What an agent may and may not do](https://github.com/miguelaguiar01/corpus/wiki/What-an-agent-may-and-may-not-do) is those three rules and the refusals that enforce them.
 
 ## In CI
 
@@ -219,16 +201,7 @@ Every screen follows the system light or dark preference. The visual system, the
 
 ## Configuration
 
-Environment variables are documented in [`apps/web/.env.example`](apps/web/.env.example). Every way of running an instance shares one code path; only these differ:
-
-| Variable               | `corpus workbench`                | Container                         | Checkout                       |
-| ---------------------- | --------------------------------- | --------------------------------- | ------------------------------ |
-| `CORPUS_INVITE_SECRET` | generated into `.corpus/secret`   | `-e` or compose                   | required, from `apps/web/.env` |
-| `CORPUS_DB_PATH`       | `.corpus/corpus.db` (`--db`)      | `/data/corpus.db` on the volume   | `apps/web/data/corpus.db`      |
-| `PORT`                 | `3000` (`--port`)                 | `3000`                            | `3000`                         |
-| `CORPUS_PUBLIC_URL`    | unset                             | the public origin, behind a proxy | unset                          |
-
-The CLI reads the project token from `CORPUS_TOKEN`, then from `.corpus/token`, which `corpus workbench` writes; `corpus project create` needs the instance secret in `CORPUS_INVITE_SECRET`, or reads `.corpus/secret` when the server is the local workbench. Migrations apply automatically when the app starts, and the boot log names the database file it opened.
+Environment variables are documented in [`apps/web/.env.example`](apps/web/.env.example). Every way of running an instance shares one code path; only the defaults differ, and each way has its own page: [The workbench](https://github.com/miguelaguiar01/corpus/wiki/The-workbench) for `corpus workbench`, [A team instance](https://github.com/miguelaguiar01/corpus/wiki/A-team-instance) for the container. [Commands](https://github.com/miguelaguiar01/corpus/wiki/Commands) says where the token, the secret, the config and the server are read from, and in what order. Migrations apply automatically when the app starts, and the boot log names the database file it opened.
 
 ## Local development
 
@@ -244,9 +217,23 @@ npm run dev
 
 The database is created on first start at `apps/web/data/corpus.db` and is gitignored; delete it to start over.
 
-`bin/gate` is the one quality gate, locally and in CI: typecheck, lint, format, both package builds, the full test suite, and `corpus check` and `corpus validate` on this repository's own interface strings. `bin/smoke` walks the whole loop in a browser, invite to verified translation, on a phone viewport and then checks the desktop layouts; `bin/container-smoke` builds and boots the production image; `bin/install-smoke` installs the packed CLI and workbench into a fresh repository and round-trips it against `corpus workbench` and then against that image; `bin/screenshots` regenerates the images above. Releases are tags: see `AGENTS.md`.
+`bin/gate` is the one quality gate, locally and in CI: typecheck, lint, format, both package builds, the full test suite, and `corpus check` and `corpus validate` on this repository's own interface strings. Beside it, `bin/smoke` walks the whole loop in a browser from invite to verified translation, `bin/container-smoke` boots the production image, `bin/install-smoke` round-trips the packed packages in a fresh repository, and `bin/screenshots` regenerates the images above. [`AGENTS.md`](AGENTS.md) has how work happens here, and how a release is cut.
 
 ## Documentation
+
+**[The wiki](https://github.com/miguelaguiar01/corpus/wiki)** is the documentation: eighteen pages, from a first push to a symptom index. The configs and command output a page shows are files in this repository, type checked and compared against the CLI by `bin/gate`, so a page cannot show a config that does not load or output the tool no longer prints, and `bin/wiki-check` says which pages are prose so nobody assumes more than that.
+
+| | |
+| --- | --- |
+| Start here | [What Corpus is](https://github.com/miguelaguiar01/corpus/wiki/What-Corpus-is) · [Install and first push](https://github.com/miguelaguiar01/corpus/wiki/Install-and-first-push) · [The daily loop](https://github.com/miguelaguiar01/corpus/wiki/The-daily-loop) |
+| Configuration | [The config file](https://github.com/miguelaguiar01/corpus/wiki/The-config-file) · [Sources and adapters](https://github.com/miguelaguiar01/corpus/wiki/Sources-and-adapters) · [Your i18n library](https://github.com/miguelaguiar01/corpus/wiki/Your-i18n-library) · [Metadata, types, entities and the glossary](https://github.com/miguelaguiar01/corpus/wiki/Metadata-types-entities-and-the-glossary) |
+| Running an instance | [The workbench](https://github.com/miguelaguiar01/corpus/wiki/The-workbench) · [A team instance](https://github.com/miguelaguiar01/corpus/wiki/A-team-instance) · [Users, tokens and access](https://github.com/miguelaguiar01/corpus/wiki/Users-tokens-and-access) |
+| In CI | [Corpus in CI](https://github.com/miguelaguiar01/corpus/wiki/Corpus-in-CI) |
+| Agents | [The MCP server](https://github.com/miguelaguiar01/corpus/wiki/The-MCP-server) · [Agents without MCP](https://github.com/miguelaguiar01/corpus/wiki/Agents-without-MCP) · [What an agent may and may not do](https://github.com/miguelaguiar01/corpus/wiki/What-an-agent-may-and-may-not-do) |
+| Translating | [For translators](https://github.com/miguelaguiar01/corpus/wiki/For-translators), the page to send someone who was given a link and a password: it assumes nothing from the rest |
+| Reference | [Commands](https://github.com/miguelaguiar01/corpus/wiki/Commands) · [When something is wrong](https://github.com/miguelaguiar01/corpus/wiki/When-something-is-wrong) · [Concepts](https://github.com/miguelaguiar01/corpus/wiki/Concepts) |
+
+In this repository:
 
 - [`docs/corpus-design.md`](docs/corpus-design.md), the binding design: the data model, the ICU subset, sync semantics, the round-trip invariant, and what Corpus deliberately does not do.
 - [`docs/design.md`](docs/design.md), the visual system.
