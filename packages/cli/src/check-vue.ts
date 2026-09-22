@@ -114,8 +114,10 @@ function templateBlock(
       }
       // The name must end where the tag does, or `</scriptx` in a
       // string would close a `<script>` and the walk would read code as
-      // markup.
-      const close = new RegExp(`</${tag.name}(?=[\\s/>])`, "i").exec(
+      // markup. Vue closes on `>` or whitespace and nothing else; the
+      // name is escaped because the tag pattern admits a dot.
+      const name = tag.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const close = new RegExp(`</${name}(?=[\\s>])`, "i").exec(
         source.slice(tag.end),
       );
       at = close ? tag.end + close.index + close[0].length : source.length;
