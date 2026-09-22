@@ -113,7 +113,7 @@ If the port is taken, `--port`. If it starts and the database is empty, you are 
 
 The instance has no maintainer, and nothing can make one, because promoting somebody needs a maintainer. Every instance started as a workbench between 0.8.0 and 0.16.0 is in this state: the workbench created the project before anybody joined, so the project's agent actor was the first row in the table and the first person to join came in as a translator.
 
-A migration repairs it, promoting the earliest person, the first time the database is opened by a version carrying the fix. It is in `main` and not in 0.16.0, so today the answer is to build from `main` or wait for the next release.
+A migration repairs it, promoting the earliest person, the first time the database is opened by a version carrying the fix. It ships in 0.17.0: upgrade both packages, or pull the image at that tag, and start the instance once.
 
 ## The install was refused
 
