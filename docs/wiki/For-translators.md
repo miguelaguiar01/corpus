@@ -27,7 +27,7 @@ Some strings have more than plain text in them, and those parts must survive int
 
 You cannot save a translation that has lost one. The editor checks as you type, lists what is wrong under the box, and **Save translation** stays disabled until it is right — so the mistake is caught where you made it rather than after you moved on.
 
-**Selects and plurals** are a choice of wording. A plural is not always two branches: the editor offers the branches *your* language uses, which is anything from one (Japanese, Chinese) to four (Russian, Polish, Czech), five (Irish) or six (Arabic, Welsh). Most languages have the two English has, so the ones that do not are easy to be caught out by. Use the chip, fill each branch, and let the editor tell you if one is missing.
+**Selects and plurals** are a choice of wording. A plural is not always two branches: the editor offers the branches *your* language uses, which is anything from one (Japanese, Chinese) to four (Russian, Polish, Czech), five (Irish) or six (Arabic, Welsh). Most languages have two, as English does; the ones that do not are where the mistakes happen. Use the chip, fill each branch, and let the editor tell you if one is missing.
 
 **Tags** are formatting — bold, a link — that the application fills in. Keep them, keep them in a sensible place for your language, and do not invent new ones.
 
@@ -49,7 +49,7 @@ A string in a language is **untranslated**, then **translated** once somebody sa
 
 **Stale** sits on top of any of those. It means the source text moved after the translation was saved. The editor shows a banner and keeps the old translation so you can see what changed rather than starting again.
 
-Verified is the state that reaches the code. Whoever runs the project can choose to take translated work too, but not less than that, so until somebody verifies yours it usually lives in Corpus and nowhere else.
+Verified is the state that reaches the code. Whoever runs the project can choose to take translated work as well, so until somebody verifies yours it usually lives in Corpus and nowhere else.
 
 ## When the source text is the problem
 
