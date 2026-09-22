@@ -206,9 +206,13 @@ class Parser {
     const end = closingBrace(this.source, this.pos);
     if (end < 0) throw new ParseFailure("unclosed '{'", start);
     const inner = this.source.slice(this.pos + 1, end).trim();
-    const quoted = /^'([^']*)'$/.exec(inner);
+    const quoted = /^'((?:[^'\\]|\\.)*)'$/.exec(inner);
     this.pos = end + 1;
-    if (quoted) return { kind: "literal", text: quoted[1]! };
+    // A backslash inside the quotes escapes the next character, as
+    // vue-i18n's own compiler reads it.
+    if (quoted) {
+      return { kind: "literal", text: quoted[1]!.replace(/\\(.)/g, "$1") };
+    }
     if (!NAME_RE.test(inner)) {
       throw new ParseFailure(
         `invalid placeholder name ${JSON.stringify(inner)}`,
@@ -338,6 +342,15 @@ export function parseIcu(
       const parts = splitVueSource(source);
       // vue-i18n trims each form, so the space around a separator is
       // not part of the text.
+      if (parts.length > 1) {
+        const empty = parts.findIndex((part) => part.trim() === "");
+        if (empty >= 0) {
+          throw new ParseFailure(
+            "a plural form is empty; every form between two | must have text",
+            parts.slice(0, empty).join("|").length,
+          );
+        }
+      }
       const branches = parts.map((part) =>
         new Parser(part.trim(), syntax).parseSequence(false),
       );
@@ -368,6 +381,10 @@ function closingBrace(source: string, at: number): number {
   let quoted = false;
   for (let i = at + 1; i < source.length; i++) {
     const ch = source[i];
+    if (ch === "\\" && quoted) {
+      i += 1;
+      continue;
+    }
     if (ch === "'") quoted = !quoted;
     else if (ch === "}" && !quoted) return i;
   }

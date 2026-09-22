@@ -56,49 +56,40 @@ test("a brace and a literal brace are both writable", () => {
   expect(nodes("{name}")).toEqual([{ kind: "placeholder", name: "name" }]);
 });
 
-test("a translation has as many forms as its source", () => {
-  // vue-i18n's rule is keyed on how many forms the message has, and a
-  // project may register one that expects an exact count, so the source
-  // is what a translation must match — not the language's categories.
+test("the form count is not judged, because the project owns the rule", () => {
+  // vue-i18n picks a form by how many there are, through whatever rule
+  // the project registered: Vikunja's Russian rule fires only at three
+  // forms, where CLDR gives Russian four. Corpus cannot know the rule,
+  // so it refuses no count that a project may render correctly.
+  const source = "{count} comment | {count} comments";
+  for (const target of [
+    "{count} комментарий",
+    "{count} комментарий | {count} комментария",
+    "{count} комментарий | {count} комментария | {count} комментариев",
+  ]) {
+    expect(validateTranslation(source, target, "ru", "vue")).toEqual({
+      ok: true,
+    });
+  }
+});
+
+test("a placeholder must survive into every form", () => {
   const source = "{count} comment | {count} comments";
   expect(
-    validateTranslation(
-      source,
-      "{count} комментарий | {count} комментария",
-      "ru",
-      "vue",
-    ),
-  ).toEqual({ ok: true });
-  // Dropping a form, or inventing one, is the defect.
-  expect(
-    validateTranslation(source, "{count} 件のコメント", "ja", "vue"),
+    validateTranslation(source, "ein Kommentar | Kommentare", "de", "vue"),
   ).toMatchObject({
     ok: false,
-    errors: [{ code: "missing-form", have: 1, need: 2 }],
+    errors: [{ code: "missing-placeholder", name: "count" }],
   });
-  expect(
-    validateTranslation(
-      source,
-      "{count} a | {count} b | {count} c",
-      "ru",
-      "vue",
-    ),
-  ).toMatchObject({
-    ok: false,
-    errors: [{ code: "unexpected-form", have: 3, need: 2 }],
-  });
-  // A source with no plural and a translation that invents one.
-  expect(
-    validateTranslation(
-      "{count} comments",
-      "{count} a | {count} b",
-      "de",
-      "vue",
-    ),
-  ).toMatchObject({
-    ok: false,
-    errors: [{ code: "unexpected-form", have: 2, need: 1 }],
-  });
+});
+
+test("an empty form is refused, as vue-i18n's own compiler refuses it", () => {
+  for (const bad of ["a |", "| b", "a || b", "|"]) {
+    const parsed = parseIcu(bad, "vue");
+    expect(parsed.ok, bad).toBe(false);
+    if (!parsed.ok) expect(parsed.errors[0]!.message).toMatch(/form is empty/);
+  }
+  expect(parseIcu("a | b", "vue").ok).toBe(true);
 });
 
 test("a quoted brace closes where the quotes end", () => {
@@ -110,21 +101,6 @@ test("a quoted brace closes where the quotes end", () => {
   ]);
 });
 
-test("a placeholder must survive into every form", () => {
-  const source = "{count} comment | {count} comments";
-  // German uses the two English does, so the count is the source's.
-  expect(
-    validateTranslation(
-      source,
-      "{count} Kommentar | {count} Kommentare",
-      "de",
-      "vue",
-    ),
-  ).toEqual({ ok: true });
-  expect(
-    validateTranslation(source, "ein Kommentar | Kommentare", "de", "vue"),
-  ).toMatchObject({
-    ok: false,
-    errors: [{ code: "missing-placeholder", name: "count" }],
-  });
+test("an escaped quote stays inside the literal", () => {
+  expect(nodes("{'it\\'s'}")).toEqual([{ kind: "literal", text: "it's" }]);
 });

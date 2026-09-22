@@ -15,7 +15,6 @@
   "editor.errorInvalid": "That translation was not saved: its placeholders or selects do not match the source.",
   "editor.errorSourceRow": "The source text comes from the repository and is not edited here.",
   "editor.filterLanguages": "Filter languages…",
-  "editor.formCount": "The source has {need} plural forms separated by |; there are {have}, and vue-i18n picks a form by how many there are",
   "editor.insertPlural": "Insert a plural on {arg} with the branches {keys}",
   "editor.insertSelect": "Insert a select on {arg} with the keys {keys}",
   "editor.insertTag": "Insert the <{name}> tag, which the translation must keep",
