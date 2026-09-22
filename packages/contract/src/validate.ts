@@ -32,7 +32,8 @@ export type ValidationError =
   | { code: "missing-tag"; name: string }
   | { code: "unexpected-tag"; name: string }
   // vue-i18n's pipe forms, which are positional and have no argument:
-  // the language needs one per plural category and picks by count.
+  // a translation has as many as its source, since the rule that picks
+  // one is keyed on the count of forms.
   | { code: "missing-form"; have: number; need: number }
   | { code: "unexpected-form"; have: number; need: number };
 
@@ -135,16 +136,21 @@ export function validateTranslation(
     if (!expected.tags.has(name)) errors.push({ code: "unexpected-tag", name });
   }
   const categories = language === undefined ? [] : pluralCategoriesOf(language);
-  // A pipe plural is positional, so what is checked is how many forms
-  // there are: vue-i18n picks by index, and a language that needs three
-  // and is given two shows the wrong one rather than falling back.
-  if (actual.forms !== null && categories.length > 0) {
-    const need = categories.length;
-    if (actual.forms < need) {
-      errors.push({ code: "missing-form", have: actual.forms, need });
-    } else if (actual.forms > need) {
-      errors.push({ code: "unexpected-form", have: actual.forms, need });
-    }
+  // A pipe plural is positional, and vue-i18n's rule is keyed on how
+  // many forms the message has rather than on the language's CLDR
+  // categories: its default reaches no index above two, and a project
+  // may register a rule of its own that expects an exact count. So what
+  // a translation must match is the source's arity, not the language's
+  // — asking for four Russian forms breaks a project whose own rule
+  // wants three. A message with no pipe has one form.
+  const expectedForms = expected.forms ?? 1;
+  const actualForms = actual.forms ?? 1;
+  if (actualForms !== expectedForms) {
+    errors.push({
+      code: actualForms < expectedForms ? "missing-form" : "unexpected-form",
+      have: actualForms,
+      need: expectedForms,
+    });
   }
   for (const [arg, keys] of actual.plurals) {
     if (!expectedValues.has(arg)) {

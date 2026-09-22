@@ -56,9 +56,11 @@ test("a brace and a literal brace are both writable", () => {
   expect(nodes("{name}")).toEqual([{ kind: "placeholder", name: "name" }]);
 });
 
-test("the forms a language uses is what a translation must have", () => {
+test("a translation has as many forms as its source", () => {
+  // vue-i18n's rule is keyed on how many forms the message has, and a
+  // project may register one that expects an exact count, so the source
+  // is what a translation must match — not the language's categories.
   const source = "{count} comment | {count} comments";
-  // Russian uses one, few, many and other.
   expect(
     validateTranslation(
       source,
@@ -66,22 +68,46 @@ test("the forms a language uses is what a translation must have", () => {
       "ru",
       "vue",
     ),
-  ).toMatchObject({
-    ok: false,
-    errors: [{ code: "missing-form", have: 2, need: 4 }],
-  });
-  // Japanese uses one form, so one is right and two is one too many.
+  ).toEqual({ ok: true });
+  // Dropping a form, or inventing one, is the defect.
   expect(
     validateTranslation(source, "{count} 件のコメント", "ja", "vue"),
-  ).toEqual({
-    ok: true,
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-form", have: 1, need: 2 }],
   });
   expect(
-    validateTranslation(source, "{count} 件 | {count} 件", "ja", "vue"),
+    validateTranslation(
+      source,
+      "{count} a | {count} b | {count} c",
+      "ru",
+      "vue",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "unexpected-form", have: 3, need: 2 }],
+  });
+  // A source with no plural and a translation that invents one.
+  expect(
+    validateTranslation(
+      "{count} comments",
+      "{count} a | {count} b",
+      "de",
+      "vue",
+    ),
   ).toMatchObject({
     ok: false,
     errors: [{ code: "unexpected-form", have: 2, need: 1 }],
   });
+});
+
+test("a quoted brace closes where the quotes end", () => {
+  expect(nodes("{'}'}")).toEqual([{ kind: "literal", text: "}" }]);
+  expect(nodes("a {'|'} b")).toEqual([
+    { kind: "literal", text: "a " },
+    { kind: "literal", text: "|" },
+    { kind: "literal", text: " b" },
+  ]);
 });
 
 test("a placeholder must survive into every form", () => {

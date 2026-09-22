@@ -203,7 +203,7 @@ class Parser {
   // writes an `@`, a `|` or a brace that the language reads as syntax.
   private parseVueBrace(): IcuNode {
     const start = this.pos;
-    const end = this.source.indexOf("}", this.pos + 1);
+    const end = closingBrace(this.source, this.pos);
     if (end < 0) throw new ParseFailure("unclosed '{'", start);
     const inner = this.source.slice(this.pos + 1, end).trim();
     const quoted = /^'([^']*)'$/.exec(inner);
@@ -362,6 +362,18 @@ export function parseIcu(
 // vue-i18n separates plural forms with a top-level `|`. The source is
 // split before it is parsed, so a pipe inside a `{'…'}` literal is
 // text: that escape is exactly how a catalogue writes one (#496).
+// The `}` that closes a vue brace, skipping one inside the quotes of a
+// `{'…'}` literal: `{'}'}` is a literal closing brace.
+function closingBrace(source: string, at: number): number {
+  let quoted = false;
+  for (let i = at + 1; i < source.length; i++) {
+    const ch = source[i];
+    if (ch === "'") quoted = !quoted;
+    else if (ch === "}" && !quoted) return i;
+  }
+  return -1;
+}
+
 function splitVueSource(source: string): string[] {
   const parts: string[] = [];
   let current = "";
@@ -369,7 +381,7 @@ function splitVueSource(source: string): string[] {
   while (at < source.length) {
     const ch = source[at]!;
     if (ch === "{") {
-      const end = source.indexOf("}", at + 1);
+      const end = closingBrace(source, at);
       if (end >= 0) {
         current += source.slice(at, end + 1);
         at = end + 1;
@@ -408,6 +420,13 @@ function collect(
       tags.add(node.name);
       collect(node.children, placeholders, selectArgs, pluralArgs, tags);
     }
+    // A form's placeholders are the message's: without this an agent is
+    // told a pipe plural has none, drafts without them, and is refused.
+    if (node.kind === "forms") {
+      for (const branch of node.branches) {
+        collect(branch, placeholders, selectArgs, pluralArgs, tags);
+      }
+    }
   }
 }
 
@@ -421,6 +440,8 @@ export function branchingNodes(
   for (const node of nodes) {
     if (node.kind === "select" || node.kind === "plural") out.push(node);
     else if (node.kind === "tag") out.push(...branchingNodes(node.children));
+    else if (node.kind === "forms")
+      for (const branch of node.branches) out.push(...branchingNodes(branch));
   }
   return out;
 }

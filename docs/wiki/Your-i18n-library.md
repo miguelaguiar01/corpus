@@ -120,7 +120,9 @@ export default defineCorpus({
 { "comments": "{count} comment | {count} comments" }
 ```
 
-There is no argument in the string, so nothing names what is counted. What Corpus checks is the number of forms: a translation must have as many as its own language has plural categories. Russian has four, so a Russian translation with two shows a form meant for another count; Japanese has one, so a second form there is never reached. Both are findings, and the message says how many the language uses.
+There is no argument in the string, so nothing names what is counted. What Corpus checks is the number of forms: **a translation must have as many as its source.**
+
+That is not the same as the number of plural categories the language has, and the difference matters. vue-i18n picks a form by how many forms the message has, not by a CLDR category: its default rule reaches no index above the third, and a project can register a rule of its own that expects an exact count — Vikunja's Russian rule wants exactly three. So a translation that adds or drops a form changes which form each number gets, and asking a translator for one form per category would break a project whose own rule expects otherwise.
 
 **`{'…'}` is a literal.** It is how a catalogue writes an `@`, a `|` or a brace that vue-i18n would otherwise read as syntax — `"e.g. frederic{'@'}vikunja.io"` — and a pipe inside one is text rather than a separator, so `"Pipe ({'|'})"` is one form and not two.
 

@@ -107,9 +107,11 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   const file = path.join(ctx.cwd, CONFIG_FILENAMES[0]);
   writeFileSync(file, render(parsed.data));
   ctx.out(`wrote ${CONFIG_FILENAMES[0]}`);
-  if (library?.value === "i18next") {
+  if (library && library.value !== "icu") {
+    const why =
+      library.value === "i18next" ? "{{ }}" : "a pipe or a quoted literal";
     ctx.out(
-      `library: i18next${library.detected ? `, from {{ }} in ${library.detected}` : ""}`,
+      `library: ${library.value}${library.detected ? `, from ${why} in ${library.detected}` : ""}`,
     );
   }
   const ignored = ignoreCorpusDir(ctx.cwd);
@@ -156,6 +158,9 @@ export default defineCorpus({
 }
 
 const ICU_ARGUMENT_RE = /\{\s*[^{},]+\s*,\s*(?:select|plural)\s*,/;
+// Any ICU argument, not only the branching ones: a `{when, date, short}`
+// in a catalogue with a stray pipe is still ICU, not vue-i18n.
+const ICU_ANY_ARGUMENT_RE = /\{\s*[^{},]+\s*,\s*[a-z]+/;
 
 // A source file that is absent or does not read decides nothing: push
 // will say what is wrong with it.
@@ -206,9 +211,13 @@ async function libraryFor(
   if (braces && !icu) return { value: "i18next", detected: file };
   // vue-i18n: a top-level pipe separates plural forms and `{'…'}` is a
   // literal. Either is enough, and neither appears in plain ICU.
-  const pipes = texts.some((text) => text.includes("|"));
+  // A quoted literal is vue-i18n's alone. A pipe is only evidence when
+  // nothing else in the catalogue reads as ICU, since a pipe is
+  // ordinary punctuation.
   const escapes = texts.some((text) => /\{'[^']*'\}/.test(text));
-  if ((pipes || escapes) && !braces && !icu) {
+  const pipes = texts.some((text) => text.includes("|"));
+  const anyIcu = texts.some((text) => ICU_ANY_ARGUMENT_RE.test(text));
+  if (!braces && !icu && (escapes || (pipes && !anyIcu))) {
     return { value: "vue", detected: file };
   }
   return undefined;
