@@ -124,7 +124,7 @@ There is no argument in the string, so nothing names what is counted.
 
 **Corpus does not check how many forms a translation has**, and the reason is worth knowing. vue-i18n picks a form by how many there are, through whatever `pluralizationRules` the application registered. Its default rule reaches no index above the third; a project can register one that expects an exact count, as Vikunja does for Russian, where three forms are right and the four CLDR gives Russian are wrong. A rule Corpus imposed would refuse text that the project renders correctly, so it imposes none.
 
-What it does check is that every placeholder survives into every form, and it refuses an empty form — `a | | b` — which vue-i18n's own compiler refuses too.
+What it does check is that every placeholder survives into every form, and it refuses an empty form — `a | | b` — which vue-i18n's own compiler refuses too. Corpus counts a form of nothing but whitespace as empty; the compiler trims only spaces and newlines, so a form holding a lone tab passes there and not here.
 
 **`{'…'}` is a literal.** It is how a catalogue writes an `@`, a `|` or a brace that vue-i18n would otherwise read as syntax — `"e.g. frederic{'@'}vikunja.io"` — and a pipe inside one is text rather than a separator, so `"Pipe ({'|'})"` is one form and not two.
 

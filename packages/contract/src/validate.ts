@@ -40,8 +40,6 @@ type Shape = {
   selects: Map<string, Set<string>>;
   plurals: Map<string, Set<string>>;
   tags: Set<string>;
-  // How many pipe-separated forms the message has, when it has them.
-  forms: number | null;
 };
 
 function shapeOf(
@@ -51,7 +49,6 @@ function shapeOf(
     selects: new Map(),
     plurals: new Map(),
     tags: new Set(),
-    forms: null,
   },
 ): Shape {
   for (const node of nodes) {
@@ -60,8 +57,9 @@ function shapeOf(
       shape.tags.add(node.name);
       shapeOf(node.children, shape);
     }
+    // A form's placeholders are the message's; how many forms there are
+    // is the project's rule to decide, not Corpus's (#495).
     if (node.kind === "forms") {
-      shape.forms = node.branches.length;
       for (const branch of node.branches) shapeOf(branch, shape);
     }
     if (node.kind === "select" || node.kind === "plural") {
