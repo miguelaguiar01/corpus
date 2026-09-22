@@ -185,9 +185,8 @@ test("many refusals with one cause stop the build, at any share of the file", as
     REPO,
   );
   await expect(building).rejects.toThrow(
-    /5 strings were refused with the same advice, at or past the 5/,
+    '5 strings were refused with the same advice, at or past the 5 that stops a build, since one cause is likely behind all of them — {{ }} is i18next\'s interpolation: declare library: "i18next" on the source',
   );
-  await expect(building).rejects.toThrow(/declare library: "i18next"/);
 });
 
 test("an ICU catalogue read as i18next is told which library it is", async () => {

@@ -59,10 +59,10 @@ export async function buildSnapshot(
   return snapshot;
 }
 
-// Refusals this many of them deep, all with the same advice, are one
-// cause rather than that many: a mistyped library, or the same tag left
-// open in five strings. Below it, a refusal is a string's own problem
-// and the build goes on without it.
+// Refusals this many of them deep that carry advice are one cause
+// rather than that many: a mistyped library, or a tag left open in
+// five strings. Below it, a refusal is a string's own problem and the
+// build goes on without it.
 export const SAME_CAUSE = 5;
 
 // Why the build should stop rather than push what parsed (#491).
@@ -71,7 +71,7 @@ export const SAME_CAUSE = 5;
 //
 // Two shapes say a file is being read wrongly rather than holding a
 // typo: every entry of a file refused, and many refusals across the
-// snapshot that all give the same advice. The second is the one that
+// snapshot that carry advice. The second is the one that
 // catches a real project — Outline read as ICU refuses 365 of 1,920
 // strings, a fifth of the catalogue, but 363 of those say "declare
 // library: i18next".
