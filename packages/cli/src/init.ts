@@ -10,7 +10,7 @@ import {
 } from "@corpus/contract";
 import { option } from "./args";
 import { readEntries } from "./build";
-import { EXTENSIONS } from "./check";
+import { DEFAULT_INCLUDE, EXTENSIONS, SKIP_DIRS } from "./check";
 import type { RunContext } from "./cli";
 import { CliError, CONFIG_FILENAMES } from "./config";
 import { ignoreCorpusDir } from "./corpus-dir";
@@ -119,7 +119,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   }
   if (include) {
     ctx.out(
-      `check: ${include.join(", ")}, the directories holding components, so corpus check scans them`,
+      `check.include: ${include.join(", ")} (the directories holding components, which corpus check scans)`,
     );
   }
   const ignored = ignoreCorpusDir(ctx.cwd);
@@ -174,17 +174,25 @@ ${check}});
 // counts when a file check reads is somewhere under it. `src` alone
 // is what check scans by default, so it is not written.
 const CHECK_ROOTS = ["src", "app", "lib", "components", "shared"] as const;
-const CHECK_DEFAULT = ["src"];
 
 function checkIncludeFor(cwd: string): string[] | undefined {
   const found = CHECK_ROOTS.filter((root) =>
     holdsCheckedFile(path.join(cwd, root)),
   );
   if (found.length === 0) return undefined;
-  if (found.length === 1 && found[0] === CHECK_DEFAULT[0]) return undefined;
+  if (
+    found.length === DEFAULT_INCLUDE.length &&
+    found.every((root, i) => root === DEFAULT_INCLUDE[i])
+  ) {
+    return undefined;
+  }
   return found;
 }
 
+// A symlinked directory is not followed: a Dirent reports it as a link,
+// not a directory, which is what keeps a cycle from looping. `check`
+// itself does follow links, so a tree reachable only through one is
+// declared by hand.
 function holdsCheckedFile(dir: string): boolean {
   let entries;
   try {
@@ -193,7 +201,7 @@ function holdsCheckedFile(dir: string): boolean {
     return false;
   }
   for (const entry of entries) {
-    if (entry.name === "node_modules" || entry.name.startsWith(".")) continue;
+    if (SKIP_DIRS.has(entry.name) || entry.name.startsWith(".")) continue;
     if (entry.isDirectory()) {
       if (holdsCheckedFile(path.join(dir, entry.name))) return true;
     } else if (EXTENSIONS.some((ext) => entry.name.endsWith(ext))) {

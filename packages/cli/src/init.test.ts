@@ -394,7 +394,7 @@ test("check.include is written from the directories that hold components (#498)"
   expect(await run(FLAGS, p.ctx)).toBe(0);
   const config = await loadConfig(p.dir);
   expect(config.check).toEqual({ include: ["app", "shared"] });
-  expect(p.out.join("\n")).toMatch(/check: app, shared/);
+  expect(p.out.join("\n")).toMatch(/check\.include: app, shared/);
 });
 
 test("check.include is not written when src alone holds the components, nor when nothing does", async () => {
@@ -406,14 +406,18 @@ test("check.include is not written when src alone holds the components, nor when
   writeFileSync(path.join(only.dir, "src", "components", "A.jsx"), "");
   expect(await run(FLAGS, only.ctx)).toBe(0);
   expect((await loadConfig(only.dir)).check).toBeUndefined();
-  expect(only.out.join("\n")).not.toMatch(/check:/);
+  expect(only.out.join("\n")).not.toMatch(/check\.include/);
 
   const none = project();
   stubCli(none.dir);
+  // What check skips, init skips: a compiled .jsx under dist is not a
+  // component.
   mkdirSync(path.join(none.dir, "app", "node_modules", "x"), {
     recursive: true,
   });
   writeFileSync(path.join(none.dir, "app", "node_modules", "x", "a.tsx"), "");
+  mkdirSync(path.join(none.dir, "lib", "dist"), { recursive: true });
+  writeFileSync(path.join(none.dir, "lib", "dist", "b.jsx"), "");
   expect(await run(FLAGS, none.ctx)).toBe(0);
   expect((await loadConfig(none.dir)).check).toBeUndefined();
 });
