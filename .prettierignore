@@ -7,3 +7,6 @@ package-lock.json
 apps/web/drizzle/
 .claude/
 docs/wiki/recorded/
+
+# Written by bin/vendor-fonts from what Google serves.
+apps/web/src/app/fonts/fonts.css
