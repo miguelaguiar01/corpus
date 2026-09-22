@@ -277,10 +277,17 @@ function hint(source: string, syntax: Library, message: string): string {
   if (syntax !== "i18next" && source.includes("{{")) {
     return `; {{ }} is i18next's interpolation: declare library: "i18next" on the source`;
   }
-  // The mirror: an ICU catalogue read as vue-i18n, which has no
-  // arguments. Not under i18next, whose own `{{name, format}}` would
-  // match and whose reader refuses nothing anyway.
-  if (syntax === "vue" && /\{\s*[^{},]+\s*,\s*[a-z]+/.test(source)) {
+  // The mirror: an ICU catalogue read under a library that has no
+  // arguments. The brace must be single, or i18next's own
+  // `{{date, short}}` matches and a correct catalogue is told to
+  // declare `icu`. i18next is included because a select or plural
+  // whose branch opens with a placeholder puts `{{` in the string,
+  // which that reader refuses: its plain strings push and its nested
+  // ones do not, which is the least obvious way to get this wrong.
+  if (
+    syntax !== "icu" &&
+    /(?<!\{)\{\s*[^{},\s][^{},]*\s*,\s*[a-z]+/.test(source)
+  ) {
     return `; {name, plural, …} is an ICU argument: declare library: "icu" on the source, or leave the field out`;
   }
   return "";
