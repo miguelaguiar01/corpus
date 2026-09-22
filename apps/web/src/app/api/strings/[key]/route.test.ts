@@ -76,6 +76,8 @@ test("what the editor shows: the string, every language, the proposal, the note,
   ]);
   expect(body.selects).toEqual(["person_gender"]);
   expect(body.tags).toEqual([]);
+  // `library` is the name; `syntax` rides beside it until 1.0 (#522).
+  expect(body.library).toBe("icu");
   expect(body.syntax).toBe("icu");
   expect(body.examples.length).toBeGreaterThan(0);
   expect(body.metadata).toMatchObject({ kind: "sighting" });

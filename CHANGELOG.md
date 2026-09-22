@@ -13,6 +13,7 @@ contract (`corpus/1`) is the only one.
 
 ### Changed
 
+- `GET /api/strings/<key>`, and so the MCP `get_string` tool and `corpus agent string`, answer with `library` beside `syntax`: the config renamed the field in 0.17.0 and the API still taught only the old name, so every agent would have learnt the one that goes at 1.0. Both carry the same value until then.
 - A source declares the **library** it is written for rather than a message syntax: `library: "icu" | "i18next"` on a `messages` or `table` source, with one value carrying how placeholders are spelled, how plurals are written and what is escaped, so a library Corpus learns next is one value rather than a field per difference. `syntax` is the old name, still accepted and mapped to the same values, named once per command and going at 1.0; `corpus init` takes `--library` and still takes `--syntax`. A push carries both names until 1.0, so a workbench pinned to an older image reads a newer CLI's push correctly. Still `corpus/1`.
 
 - The dashboard's table leads with the language that has the most untranslated rows, the source language pinned above them, instead of ordering by code. On Jellyfin's 108 languages the one that needs a maintainer, Luxembourgish with 63 of the project's validation findings, sat sixty rows down among forty complete ones.

@@ -34,6 +34,7 @@ get_string {"key":"editor.unsaved"}
       "count"
     ],
     "tags": [],
+    "library": "icu",
     "syntax": "icu",
     "slots": [
       {
@@ -100,7 +101,7 @@ status {}
       "pt-PT"
     ],
     "strings": 2,
-    "lastPushAt": "2026-09-22T01:59:35.180Z",
+    "lastPushAt": "2026-09-22T16:55:15.498Z",
     "version": "v0.16.0",
     "pendingProposals": 0,
     "writableSources": [
