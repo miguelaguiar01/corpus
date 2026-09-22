@@ -477,3 +477,5 @@ the hinted build: 29% more bytes for metrics that do not move. Every
 subset is kept, not only latin — `subsets` in `next/font/google` controls
 preloading rather than what is downloaded, and Corpus displays
 translations, so Cyrillic, Greek and Vietnamese are content.
+
+**Context:** #506, PR #530.

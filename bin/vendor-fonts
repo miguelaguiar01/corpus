@@ -29,7 +29,8 @@ mkdir -p "$OUT"
 cp "$CSS" "$OUT/.google.css"
 # The OFL asks that the licence travel with the fonts, so it is fetched
 # at a tag rather than a moving branch. The Dockerfile copies it beside
-# the served files; bin/workbench-build does the same for the package.
+# the served files; packages/workbench/build.mjs does the same for the
+# package.
 curl -sfL "https://raw.githubusercontent.com/IBM/plex/v6.4.0/LICENSE.txt" -o "$OUT/LICENSE.txt"
 
 node - "$OUT" <<'JS'
@@ -45,7 +46,15 @@ const lines = [
   "",
 ];
 // Each face is a `/* subset */` comment followed by one @font-face.
-const faces = css.matchAll(/\/\* ([a-z-]+) \*\/\s*@font-face \{([^}]*)\}/g);
+const faces = [
+  ...css.matchAll(/\/\* ([a-z0-9-]+) \*\/\s*@font-face \{([^}]*)\}/g),
+];
+// A subset name the pattern does not match would drop its face without
+// anything failing, so the count is checked rather than trusted.
+const declared = (css.match(/@font-face/g) ?? []).length;
+if (faces.length !== declared) {
+  throw new Error(`${declared} face(s) served, ${faces.length} matched`);
+}
 for (const [, subset, block] of faces) {
   const url = /url\((\S+)\) format/.exec(block);
   if (!url) throw new Error(`no woff2 url in the ${subset} face`);
