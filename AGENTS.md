@@ -101,8 +101,8 @@ options:      Backlog=15972a3d  Ready=aefe58df  In progress=fcdf6852
   state transitions): failing test first, then the implementation.
 - Strict TypeScript (`strict`, `noUncheckedIndexedAccess`); ESLint +
   Prettier enforced by the gate, not by memory.
-- End each milestone with a **simplification/review pass** over what it
-  produced, before starting the next epic.
+- End each release's epic with a **simplification/review pass** over what
+  it produced, before starting the next.
 - PR bodies say what changed and how it was verified, and link their ticket
   with a closing keyword (`Closes #N`) so the merge auto-closes the issue
   and the board workflow moves it to Done. **One keyword per ticket**:
