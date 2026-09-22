@@ -8,7 +8,7 @@ import {
   pushOnlyNotes,
   type Refused,
 } from "./build";
-import { option } from "./args";
+import { option, refuseUnknown } from "./args";
 import { CliError, loadConfig, requireToken } from "./config";
 import { checkFiles, READS } from "./check";
 import { init, INIT_USAGE } from "./init";
@@ -40,6 +40,30 @@ const USAGE = `usage: corpus push [--dry-run] | corpus pull [--min-state <untran
        ${MCP_USAGE}
        ${AGENT_USAGE}`;
 
+// What each command takes, so anything else is a typo rather than a
+// flag that silently does nothing (#520).
+const KNOWN_FLAGS: Record<string, readonly string[]> = {
+  push: ["--dry-run"],
+  pull: ["--min-state", "--lang", "--check"],
+  check: [],
+  build: ["--out"],
+  workbench: ["--port", "--db", "--open", "--no-provision"],
+  init: [
+    "--project",
+    "--source",
+    "--messages",
+    "--languages",
+    "--server",
+    "--type",
+    "--library",
+    "--syntax",
+  ],
+  project: ["--name", "--server"],
+  status: ["--json"],
+  validate: ["--json"],
+  mcp: [],
+};
+
 export async function run(argv: string[], ctx: RunContext): Promise<number> {
   const [command] = argv;
 
@@ -65,6 +89,10 @@ export async function run(argv: string[], ctx: RunContext): Promise<number> {
     command === "agent"
   ) {
     try {
+      // `agent` reads its own words, subcommand by subcommand.
+      if (command !== "agent") {
+        refuseUnknown(command, argv.slice(1), KNOWN_FLAGS[command] ?? []);
+      }
       if (command === "init") return await init(argv.slice(1), ctx);
       if (command === "push") return await push(argv.slice(1), ctx);
       if (command === "build") return await build(argv.slice(1), ctx);
@@ -219,14 +247,23 @@ async function check(ctx: RunContext): Promise<number> {
   const config = await loadConfig(ctx.cwd);
   const options = config.check ?? {};
   const include = options.include ?? ["src"];
-  const { findings, scanned } = checkFiles(ctx.cwd, {
+  const { findings, scanned, unscanned } = checkFiles(ctx.cwd, {
     include,
     ignore: options.ignore,
     allow: (options.allow ?? []).map((source) => new RegExp(source, "u")),
   });
+  // An entry that is not there narrows the lint as quietly as an unread
+  // directory does, and a run kept green by its siblings never says so.
+  for (const entry of unscanned) {
+    ctx.err(
+      entry.reason === "missing"
+        ? `corpus: check.include names ${entry.dir}, which does not exist`
+        : `corpus: check.include names ${entry.dir}, which is a file; it takes directories`,
+    );
+  }
   if (scanned.length === 0) {
     ctx.err(
-      `corpus: check scanned nothing: none of ${include.join(", ")} exists; set check.include in corpus.config.ts to the directories with your components`,
+      `corpus: check scanned nothing: no directory among ${include.join(", ")}; set check.include in corpus.config.ts to the directories with your components`,
     );
     return 1;
   }

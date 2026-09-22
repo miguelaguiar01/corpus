@@ -34,9 +34,17 @@ The commonest cause on a repository that has never used Corpus is a `{` that mea
 
 `check` found the directories but could not read anything in them. On a Vue or Svelte project that is expected: it reads `.jsx` and `.tsx` only.
 
-## `corpus: check scanned nothing: none of …`
+## `corpus: check scanned nothing: no directory among …`
 
-The paths it looked in do not exist. With no `check.include` the default is `src`, which is what a config written by `corpus init` falls back to — so this is what you see when the components live somewhere else and nobody has said where.
+Not one of the paths it looked in is a directory. With no `check.include` the default is `src`, which is what a config written by `corpus init` falls back to — so this is what you see when the components live somewhere else and nobody has said where.
+
+## `corpus: <command>: unknown option --…`
+
+A flag that command does not take. The message suggests the near miss when there is one — `--langs` for `--lang`. Every command refuses what it does not know, so a typo fails rather than running something other than what you asked for; the flags each one takes are on [Commands](Commands).
+
+## `corpus: check.include names … , which does not exist`
+
+One entry is missing while others were scanned. The run carries on with what it could read, and its exit code still follows the findings — but the lint now covers less than the config says it does, which is what a renamed directory looks like. The same line with `which is a file` means an entry names a file; `check.include` takes directories.
 
 ## The check found far too much
 

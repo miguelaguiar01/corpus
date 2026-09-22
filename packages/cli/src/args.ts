@@ -19,3 +19,25 @@ export function options(args: string[], name: string): string[] {
   });
   return values;
 }
+
+// A flag the command does not know is refused rather than ignored (#520):
+// `corpus pull --langs pt-PT` would otherwise pull every language and a
+// CI gate would go green having checked something else. `corpus agent`
+// refuses its own, in tokenize.
+export function refuseUnknown(
+  command: string,
+  args: string[],
+  known: readonly string[],
+): void {
+  for (const arg of args) {
+    if (!arg.startsWith("--")) continue;
+    const name = arg.split("=")[0]!;
+    if (known.includes(name)) continue;
+    const near = known.filter(
+      (flag) => flag.startsWith(name) || name.startsWith(flag),
+    );
+    throw new CliError(
+      `${command}: unknown option ${name}${near.length ? `; did you mean ${near.join(" or ")}?` : ""}`,
+    );
+  }
+}

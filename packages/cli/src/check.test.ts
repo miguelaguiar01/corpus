@@ -238,7 +238,7 @@ test("check says when none of the included directories exists, instead of a clea
     expect(code).toBe(1);
     expect(out).toEqual([]);
     expect(err.join("\n")).toMatch(
-      /check scanned nothing: none of src exists; set check\.include/,
+      /check scanned nothing: no directory among src; set check\.include/,
     );
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -409,4 +409,28 @@ test("check refuses a clean bill when it parsed nothing, and counts the files wh
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("an include entry that is not there is named, even when another was scanned", () => {
+  // #499: a renamed directory narrowed the lint and the run stayed
+  // green, because a sibling entry had been scanned.
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-include-"));
+  mkdirSync(path.join(dir, "src"), { recursive: true });
+  writeFileSync(
+    path.join(dir, "src", "A.tsx"),
+    "export const A = () => <p>Hello</p>;\n",
+  );
+  writeFileSync(path.join(dir, "notes.txt"), "not a directory\n");
+
+  const result = checkFiles(dir, {
+    include: ["src", "gone", "notes.txt"],
+    allow: [],
+  });
+  expect(result.scanned.map((s) => s.dir)).toEqual(["src"]);
+  expect(result.unscanned).toEqual([
+    { dir: "gone", reason: "missing" },
+    { dir: "notes.txt", reason: "not-a-directory" },
+  ]);
+  expect(result.findings).toHaveLength(1);
+  rmSync(dir, { recursive: true, force: true });
 });

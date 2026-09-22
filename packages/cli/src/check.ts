@@ -229,7 +229,15 @@ export function ignoreMatcher(patterns: string[]): (rel: string) => boolean {
 // files the walk read under it: the caller says so when a directory
 // parsed none, since a clean bill over unread code is a lie.
 export type Scanned = { dir: string; parsed: number };
-export type CheckResult = { findings: Finding[]; scanned: Scanned[] };
+// An include entry that could not be scanned, and why (#499): one that
+// is missing or is a file narrows the lint silently while another entry
+// keeps the run green.
+export type Unscanned = { dir: string; reason: "missing" | "not-a-directory" };
+export type CheckResult = {
+  findings: Finding[];
+  scanned: Scanned[];
+  unscanned: Unscanned[];
+};
 
 // This is a syntax-tree lint, and only JSX carries the markup it reads.
 const EXTENSIONS = [".jsx", ".tsx"] as const;
@@ -258,18 +266,23 @@ export function checkFiles(root: string, options: CheckOptions): CheckResult {
       }
     }
   };
+  const unscanned: Unscanned[] = [];
   for (const inc of options.include) {
     const abs = path.join(root, inc);
+    let stat;
     try {
-      if (statSync(abs).isDirectory()) {
-        parsed = 0;
-        walk(abs);
-        scanned.push({ dir: inc, parsed });
-      }
+      stat = statSync(abs);
     } catch {
-      // A configured directory that does not exist is not scanned; the
-      // caller says so when that leaves nothing.
+      unscanned.push({ dir: inc, reason: "missing" });
+      continue;
     }
+    if (!stat.isDirectory()) {
+      unscanned.push({ dir: inc, reason: "not-a-directory" });
+      continue;
+    }
+    parsed = 0;
+    walk(abs);
+    scanned.push({ dir: inc, parsed });
   }
-  return { findings, scanned };
+  return { findings, scanned, unscanned };
 }

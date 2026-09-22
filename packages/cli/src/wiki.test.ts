@@ -509,7 +509,10 @@ test("the messages the troubleshooting page quotes are messages the CLI has", ()
     ],
     ["could not reach the server at", "could not reach the server at"],
     ["check parsed no files in", "check parsed no files in"],
-    ["check scanned nothing: none of", "check scanned nothing: none of"],
+    [
+      "check scanned nothing: no directory among",
+      "check scanned nothing: no directory among",
+    ],
     [
       "has no {lang}: its translations cannot be written back",
       "has no {lang}: its translations cannot be written back",
