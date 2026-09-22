@@ -256,7 +256,7 @@ export function checkFiles(root: string, options: CheckOptions): CheckResult {
   // An entry that cannot be read — a dangling symlink, a directory
   // without permission — is skipped and named, not thrown and not
   // silently taken with the rest of the tree.
-  const walk = (dir: string) => {
+  const walk = (dir: string): boolean => {
     let names: string[];
     try {
       names = readdirSync(dir).sort();
@@ -265,7 +265,7 @@ export function checkFiles(root: string, options: CheckOptions): CheckResult {
         dir: path.relative(root, dir).split(path.sep).join("/"),
         reason: "unreadable",
       });
-      return;
+      return false;
     }
     for (const name of names) {
       const abs = path.join(dir, name);
@@ -281,14 +281,22 @@ export function checkFiles(root: string, options: CheckOptions): CheckResult {
       if (stat.isDirectory()) {
         if (!SKIP_DIRS.has(name)) walk(abs);
       } else if (PARSES.test(name)) {
+        let source;
+        try {
+          source = readFileSync(abs, "utf8");
+        } catch {
+          unscanned.push({ dir: rel, reason: "unreadable" });
+          continue;
+        }
         parsed += 1;
-        for (const f of findLiterals(readFileSync(abs, "utf8"), rel, {
+        for (const f of findLiterals(source, rel, {
           allow: options.allow,
         })) {
           findings.push(f);
         }
       }
     }
+    return true;
   };
   for (const inc of options.include) {
     const abs = path.join(root, inc);
@@ -304,8 +312,7 @@ export function checkFiles(root: string, options: CheckOptions): CheckResult {
       continue;
     }
     parsed = 0;
-    walk(abs);
-    scanned.push({ dir: inc, parsed });
+    if (walk(abs)) scanned.push({ dir: inc, parsed });
   }
   return { findings, scanned, unscanned };
 }

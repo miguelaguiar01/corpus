@@ -1,3 +1,12 @@
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
 import { loadConfig } from "./config";
@@ -173,4 +182,47 @@ test("every flag the usage advertises is a flag its command accepts", async () =
       ).toContain(flag);
     }
   }
+});
+
+test("every command in the usage has a row in the refusal table", () => {
+  // Without this, a command left out of KNOWN_FLAGS accepts every flag
+  // in silence, which is the behaviour #520 removed.
+  const commands = Object.keys(KNOWN_FLAGS);
+  for (const name of [
+    "push",
+    "pull",
+    "check",
+    "build",
+    "workbench",
+    "init",
+    "project create",
+    "project rotate-token",
+    "status",
+    "validate",
+    "mcp",
+  ]) {
+    expect(commands, `${name} has no refusal table`).toContain(name);
+  }
+});
+
+test("check names each kind of entry it could not scan", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-unscannable-"));
+  mkdirSync(path.join(dir, "src"), { recursive: true });
+  writeFileSync(path.join(dir, "src", "A.tsx"), "export const A = 1;\n");
+  writeFileSync(path.join(dir, "notes.txt"), "not a directory\n");
+  symlinkSync("/nowhere", path.join(dir, "src", "dangling"));
+  writeFileSync(
+    path.join(dir, "corpus.config.mjs"),
+    `export default { project: "p", server: "http://localhost:3000", sourceLanguage: "en", languages: ["en"], sources: [{ adapter: "messages", type: "ui", path: "i18n/{lang}.json" }], check: { include: ["src", "gone", "notes.txt"] } };\n`,
+  );
+  mkdirSync(path.join(dir, "i18n"), { recursive: true });
+  writeFileSync(path.join(dir, "i18n", "en.json"), '{"a":"A"}\n');
+
+  const context = ctx({ cwd: dir });
+  await run(["check"], context);
+  const said = context.output.join("\n");
+  expect(said).toContain("check.include names gone, which does not exist");
+  expect(said).toContain("check.include names notes.txt, which is a file");
+  expect(said).toContain("check could not read src/dangling; it was skipped");
+  rmSync(dir, { recursive: true, force: true });
 });

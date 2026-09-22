@@ -265,7 +265,9 @@ async function check(ctx: RunContext): Promise<number> {
     ctx.err(
       entry.reason === "missing"
         ? `corpus: check.include names ${entry.dir}, which does not exist`
-        : `corpus: check.include names ${entry.dir}, which is a file; it takes directories`,
+        : entry.reason === "not-a-directory"
+          ? `corpus: check.include names ${entry.dir}, which is a file; it takes directories`
+          : `corpus: check could not read ${entry.dir}; it was skipped`,
     );
   }
   if (scanned.length === 0) {

@@ -31,17 +31,23 @@ export function refuseUnknown(
 ): void {
   for (const arg of args) {
     if (!arg.startsWith("--")) continue;
-    const name = arg.split("=")[0]!;
-    if (known.includes(name)) continue;
-    // A prefix of two characters matches half the table, so a suggestion
-    // is only offered for something long enough to be a typo of one
-    // flag rather than a stub of several.
-    const near =
-      name.length >= 4
-        ? known.filter((flag) => flag.startsWith(name) || name.startsWith(flag))
-        : [];
+    // `--flag=value` is read nowhere: `option` compares the whole word,
+    // so letting the form through would be the silent no-op this guard
+    // exists to stop.
+    if (arg.includes("=")) {
+      const name = arg.split("=")[0]!;
+      throw new CliError(
+        `${command}: ${name}=… is not read; give ${name} and its value as two words`,
+      );
+    }
+    if (known.includes(arg)) continue;
+    // One match is a typo worth naming; several mean the word is a stub
+    // of half the table, where a guess would be noise.
+    const near = known.filter(
+      (flag) => flag.startsWith(arg) || arg.startsWith(flag),
+    );
     throw new CliError(
-      `${command}: unknown option ${name}${near.length === 1 ? `; did you mean ${near[0]}?` : ""}`,
+      `${command}: unknown option ${arg}${near.length === 1 ? `; did you mean ${near[0]}?` : ""}`,
     );
   }
 }

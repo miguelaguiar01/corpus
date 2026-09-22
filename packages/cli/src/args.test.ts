@@ -32,19 +32,25 @@ test("a flag the command does not know is refused, not ignored", () => {
   expect(() => refuseUnknown("push", ["--dry-runz"], ["--dry-run"])).toThrow(
     /did you mean --dry-run\?/,
   );
-  // Two characters is a stub, not a typo, so nothing is suggested.
+  // One match is a typo; several mean the word is a stub of the table.
+  expect(() => refuseUnknown("status", ["--j"], ["--json"])).toThrow(
+    /did you mean --json\?/,
+  );
   expect(() => refuseUnknown("pull", ["--"], ["--lang", "--check"])).toThrow(
     /unknown option --$/,
   );
-  expect(() => refuseUnknown("pull", ["--l"], ["--lang"])).toThrow(
-    /unknown option --l$/,
+  // `--flag=value` is read by nothing, so it is refused rather than
+  // taken as known and then ignored.
+  expect(() => refuseUnknown("build", ["--out=f.json"], ["--out"])).toThrow(
+    /--out=… is not read; give --out and its value as two words/,
   );
   // A subcommand and a value are words, not flags.
   expect(() =>
     refuseUnknown("project", ["create", "--name", "Acme app"], ["--name"]),
   ).not.toThrow();
-  // `--flag=value` is refused by its name, not by the whole word.
+  // An unknown flag in the `=` form is refused for the form first: it
+  // is read by nothing either way.
   expect(() => refuseUnknown("pull", ["--nope=1"], ["--check"])).toThrow(
-    /unknown option --nope$/,
+    /--nope=… is not read/,
   );
 });

@@ -23,6 +23,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- A flag written `--flag=value` is refused rather than accepted and ignored: `option` compares the whole word, so `corpus build --out=snapshot.json` exited 0 having written nothing and `corpus pull --lang=pt-PT` pulled every language.
 - Every command refuses a flag it does not know, and suggests the near miss: `corpus pull --langs pt-PT` pulled every language and exited 0, so a `corpus pull --check` gate went green having checked something other than what it named. Only `corpus agent` refused an unknown word before; now `pull`, `push`, `build`, `check`, `init`, `workbench`, `project`, `status`, `validate` and `mcp` do too, and `--server` on a command that does not take it is refused rather than ignored.
 - `corpus check` names an entry in `check.include` that it could not scan, instead of passing in silence while a sibling entry kept the run green: a directory that is not there, or an entry that names a file. A renamed directory used to narrow the lint with nothing said. The "scanned nothing" error now reads `no directory among …`, since an entry that is a file exists but cannot be scanned.
 - `corpus check` skips an entry it cannot read — a dangling symlink, a directory without permission — and names it, instead of abandoning the rest of that directory: the walk threw, the catch around the whole entry swallowed it, and a tree that was plainly there reported `scanned nothing`.
