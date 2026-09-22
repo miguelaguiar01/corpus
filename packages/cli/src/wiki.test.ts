@@ -450,6 +450,49 @@ test("the translator page names the interface as the interface names itself", ()
   }
 });
 
+test("the commands page shows the usage the CLI prints", async () => {
+  const printed: string[] = [];
+  expect(
+    await run(["--help"], {
+      ...repo().ctx,
+      out: (line: string) => printed.push(line),
+    }),
+  ).toBe(0);
+  recorded("usage.out", `${printed.join("\n")}\n`);
+});
+
+test("the messages the troubleshooting page quotes are messages the CLI has", () => {
+  // The page is a symptom index: a reader searches it for the text they
+  // were given, so a reworded message makes it useless in exactly the
+  // case it exists for.
+  const src = fileURLToPath(new URL("./", import.meta.url));
+  const cli = readdirSync(src)
+    .filter((name) => name.endsWith(".ts") && !name.includes(".test."))
+    .map((name) => readFileSync(path.join(src, name), "utf8"))
+    .join("\n");
+  const page = readFileSync(
+    fileURLToPath(
+      new URL("../../../docs/wiki/When-something-is-wrong.md", import.meta.url),
+    ),
+    "utf8",
+  );
+  const quoted = [
+    "CORPUS_TOKEN is not set and",
+    "unauthorized — the token was refused",
+    "could not reach the server at",
+    "check parsed no files in",
+    "check scanned nothing: none of",
+    "has no {lang}: its translations cannot be written back",
+    "is not JSON: pull writes JSON only",
+    "belong to no writable source and were not written",
+    "is not installed in this repository",
+  ];
+  for (const message of quoted) {
+    expect(cli, `the CLI no longer says "${message}"`).toContain(message);
+    expect(page, `the page no longer quotes "${message}"`).toContain(message);
+  }
+});
+
 test("every config the wiki shows is a config the CLI accepts", async () => {
   const jiti = createJiti(import.meta.url);
   const configs = [examples, recordings].flatMap((dir) =>

@@ -6,8 +6,6 @@ Corpus is a self-hosted translation workbench for the text an application shows 
 - In your pipeline: [Corpus in CI](Corpus-in-CI).
 - Agents: [The MCP server](The-MCP-server), [Agents without MCP](Agents-without-MCP), [What an agent may and may not do](What-an-agent-may-and-may-not-do).
 - Translating: [For translators](For-translators), written for somebody who was sent a link and a password, and needing nothing else on this wiki.
-- Reference: [Concepts](Concepts).
-
-Being written next: the command reference and troubleshooting. Those are not linked here yet; a link to one from another page is a page that does not exist.
+- Reference: [Commands](Commands), [When something is wrong](When-something-is-wrong), [Concepts](Concepts).
 
 The [design spec](https://github.com/miguelaguiar01/corpus/blob/main/docs/corpus-design.md) is the normative reference. This wiki teaches; where a rule matters, the wiki says what happens and links to the section that defines it.

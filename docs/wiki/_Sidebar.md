@@ -33,6 +33,6 @@
 
 **Reference**
 
+- [Commands](Commands)
+- [When something is wrong](When-something-is-wrong)
 - [Concepts](Concepts)
-
-Still being written: the command reference and troubleshooting.
