@@ -74,12 +74,18 @@ export default async function CataloguePage({
   const basePath = `/p/${slug}/catalogue`;
 
   const query = active.get("q")?.trim();
-  const filteredLanguage = active.get("language") ?? undefined;
   const searchIds = query ? searchStringIds(db, project.id, query) : undefined;
 
   const declaredFields = declaredMetadataFields(project.stringTypes);
+  const filters = filtersFromParams(active, declaredFields);
+  // The language a row keeps as a chip beside its counts: the one the
+  // catalogue is filtered to, when the project declares it (#510).
+  const filteredLanguage =
+    filters.language && project.languages.includes(filters.language)
+      ? filters.language
+      : undefined;
   const page = listCatalogue(db, project.id, {
-    ...filtersFromParams(active, declaredFields),
+    ...filters,
     stringIds: searchIds,
     includeArchived: active.get("archived") === "1",
     cursor: active.get("cursor") ? Number(active.get("cursor")) : undefined,
