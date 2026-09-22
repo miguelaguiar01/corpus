@@ -13,6 +13,10 @@ export default defineCorpus({
       path: "src/tour/steps.ts",
       map: { id: "id", text: "text", metadata: ["screen", "beta", "mentions"] },
     },
+    // A `ref` points at an entity, and entities only arrive through an
+    // exec source's `entities`: a catalogue has nowhere to put them, so
+    // without this the push refuses every `mentions` value.
+    { adapter: "exec", command: "node scripts/corpus-entities.mjs" },
   ],
 
   // What a string of each type may carry, one declaration per field.

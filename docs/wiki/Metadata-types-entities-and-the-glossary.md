@@ -35,18 +35,20 @@ Six kinds:
 |---|---|
 | `enum` | One of `values` |
 | `flag` | True or false |
-| `text` | A line of free text |
-| `placeholders` | A description per placeholder in the string, with an optional `role` |
+| `text` | Free text, for what the other five do not fit |
+| `placeholders` | A description per placeholder, and an optional `role` |
 | `ref` | One entity |
 | `list<ref>` | Several |
 
 `placeholders` is the one that repays the effort fastest. A translator looking at `{count}` cannot tell whether it is a number of documents or of days, and the two take different phrasing in most languages.
 
+A slot's `role` is a short grammatical tag shown in the chip's tooltip after the description, for languages where the surrounding words have to agree with what is substituted: `np-def` for a noun phrase that arrives with its article, `de-contraction` for a value a preposition must contract with. Leave it out until a translator asks.
+
 ## Entities
 
 An entity is a thing the strings talk about: a character, a place, a product. It has an id, a type, a name and free-form attributes, and a string refers to it through a `ref` or `list<ref>` field.
 
-The point is consistency across strings that a translator meets weeks apart. The entity browser is one page per entity showing every string that mentions it, so a name, a gender or a form of address is decided once rather than per string.
+The point is consistency across strings that a translator meets weeks apart. The entity browser is one page per project, grouped by type, with a filter per type and a search by name, so a name, a gender or a form of address can be looked up rather than guessed again.
 
 `entityTypes` gives each type its label in the interface. Entities themselves come from an `exec` source's `entities`, since a catalogue has nowhere to put them.
 
@@ -97,6 +99,10 @@ export default defineCorpus({
       path: "src/tour/steps.ts",
       map: { id: "id", text: "text", metadata: ["screen", "beta", "mentions"] },
     },
+    // A `ref` points at an entity, and entities only arrive through an
+    // exec source's `entities`: a catalogue has nowhere to put them, so
+    // without this the push refuses every `mentions` value.
+    { adapter: "exec", command: "node scripts/corpus-entities.mjs" },
   ],
 
   // What a string of each type may carry, one declaration per field.
@@ -155,6 +161,10 @@ export default defineCorpus({
 
 ## What it costs when you get it wrong
 
-A declared field a string does not carry is nothing: the field is absent, the tooltip never shows. A field a string carries that no type declares is a build error naming the field and the type, which is the failure you want, because the alternative is a translator reading `beta: true` with no idea what it changes.
+Nothing validates metadata against its declarations, in either direction.
 
-`enum` values are not validated against what the strings actually hold, so a value the list does not have arrives as itself and reads as a mistake in the editor rather than a refusal at build time.
+A declared field a string does not carry is simply absent, and its tooltip never shows. A field a string carries that no type declares is not an error either — and not shown: the editor renders the declarations, so an undeclared field travels all the way to the instance and nobody ever sees it. That is the failure worth knowing about, because from the translator's side it is indistinguishable from the metadata not arriving at all.
+
+`enum` values are not checked against what the strings hold, so a value outside the list arrives as itself and reads as a mistake in the editor rather than a refusal at build time.
+
+So a field is worth declaring the moment it is worth showing, and a typo in a field name costs you silence rather than an error.

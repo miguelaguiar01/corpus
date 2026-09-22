@@ -14,7 +14,7 @@ A taken name is refused, with one exception: an account created before passwords
 
 People have exactly one: `maintainer`. A maintainer verifies translations and sees the settings page; everyone else translates. Everyone on the instance sees every project either way.
 
-Maintainers toggle the flag for other people. Losing it ends that person's sessions, because what they can reach changed.
+Maintainers toggle the flag for other people, and for themselves: stepping down is allowed, except for the last maintainer, which is refused rather than leaving an instance nobody can verify in. Losing the flag ends that person's sessions, because what they can reach changed.
 
 ## Sessions
 
@@ -32,7 +32,7 @@ Write the temporary password down when it is shown. There is no second chance to
 
 The CLI authenticates with a per-project bearer token, from `CORPUS_TOKEN` or `.corpus/token`, which is read second. `corpus workbench` writes it; `corpus project create` prints it once, alone on the last line.
 
-It is owner-only inside `.corpus/`, which `corpus init` and `corpus workbench` both add to `.gitignore`, creating the file when there is none — so a token written by hand after `project create` is ignored too, and never committed.
+The file Corpus writes is owner-only. What keeps it out of git is `.corpus/`, which `corpus init` and `corpus workbench` both add to `.gitignore`, creating the file when there is none — so a token you paste in by hand after `project create` is ignored too, though its permissions are then yours to set.
 
 A token pushes, pulls, reads queues and strings, saves drafts and makes proposals. It cannot verify, cannot change settings, cannot touch users, and cannot sign in anywhere.
 
