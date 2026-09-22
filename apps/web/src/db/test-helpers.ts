@@ -12,6 +12,6 @@ export function memoryDb(): Db {
   return openDb(":memory:", MIGRATIONS_DIR);
 }
 
-export function fileDb(file: string): Db {
-  return openDb(file, MIGRATIONS_DIR);
+export function fileDb(file: string, migrations = MIGRATIONS_DIR): Db {
+  return openDb(file, migrations);
 }
