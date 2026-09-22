@@ -15,6 +15,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
+import { spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -357,6 +358,95 @@ test("every glossary the wiki shows is one the CLI accepts", async () => {
     expect(parsed.success, `${name}: ${parsed.error?.issues[0]?.message}`).toBe(
       true,
     );
+  }
+});
+
+test("the translator page names the interface as the interface names itself", () => {
+  // The page tells somebody what to click, so a renamed label makes it
+  // wrong in the way a reader notices first. Pinning the catalogue alone
+  // is not enough: a key the interface stopped using would still read
+  // right here, so each one is also looked for in the app.
+  const app = fileURLToPath(new URL("../../../apps/web/src", import.meta.url));
+  const messages = JSON.parse(
+    readFileSync(path.join(app, "i18n", "messages.en.json"), "utf8"),
+  ) as Record<string, string>;
+  const page = readFileSync(
+    fileURLToPath(
+      new URL("../../../docs/wiki/For-translators.md", import.meta.url),
+    ),
+    "utf8",
+  );
+  // Every key the app names, wherever it names it: a `t("…")` call, or a
+  // map from something else to a key, as the queue labels are. This
+  // catches a key the interface dropped, not one left in a map nothing
+  // reaches; that would need the app running, which bin/smoke does.
+  // A test naming the key is not the interface using it, so tests are
+  // excluded: without that, a key the app dropped still passes on the
+  // test that used to cover it.
+  const grep = spawnSync(
+    "grep",
+    [
+      "-rhoE",
+      "--include=*.ts",
+      "--include=*.tsx",
+      "--exclude=*.test.ts",
+      "--exclude=*.test.tsx",
+      '"[a-zA-Z]+\\.[a-zA-Z]+"',
+      app,
+    ],
+    { encoding: "utf8" },
+  );
+  expect(grep.error, "grep did not run").toBeUndefined();
+  expect(grep.status, `grep found nothing under ${app}`).toBe(0);
+  const used = new Set(
+    grep.stdout.split("\n").map((line) => line.slice(1, -1)),
+  );
+
+  // Phrases the page quotes: the catalogue must still say that, the app
+  // must still use the key, and the page must still carry the words.
+  const quoted: [string, string][] = [
+    ["dashboard.progressHeading", "Progress"],
+    ["dashboard.queuesHeading", "What to work on"],
+    ["queue.untranslated", "Untranslated"],
+    ["queue.stale", "Stale"],
+    ["queue.unverifiedSource", "Unverified source"],
+    ["queue.agentDrafts", "Agent drafts"],
+    ["queue.next", "Next"],
+    ["queue.previous", "Previous"],
+    ["string.examplesHeading", "Examples"],
+    ["string.siblingsHeading", "Siblings"],
+    ["string.entitiesHeading", "Related"],
+    ["string.historyHeading", "History"],
+    ["string.otherLanguagesHeading", "Other languages"],
+    ["proposal.propose", "Propose a change"],
+    ["editor.save", "Save translation"],
+  ];
+  // Messages the page describes rather than quotes: what it says happens
+  // is only true while the interface still has these to say.
+  const relied = [
+    "editor.errorInvalid",
+    "editor.errorSourceRow",
+    "editor.staleBanner",
+    "editor.missingPlaceholder",
+    "editor.missingCategory",
+    "editor.missingTag",
+    "string.archived",
+    "verify.warningChanged",
+    "verify.errorNotMaintainer",
+    "password.introReset",
+  ];
+
+  for (const [key, label] of quoted) {
+    expect(messages[key], `${key} is gone from the interface`).toBe(label);
+    // A bare substring lets "Progress" pass on "in progress".
+    const whole = new RegExp(
+      `(^|[^\\w])${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^\\w]|$)`,
+    );
+    expect(whole.test(page), `the page no longer names ${label}`).toBe(true);
+  }
+  for (const key of [...quoted.map(([key]) => key), ...relied]) {
+    expect(messages[key], `${key} is not in the catalogue`).toBeDefined();
+    expect(used.has(key), `nothing in the app names ${key}`).toBe(true);
   }
 });
 

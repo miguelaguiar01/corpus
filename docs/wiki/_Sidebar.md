@@ -27,4 +27,12 @@
 - [Agents without MCP](Agents-without-MCP)
 - [What an agent may and may not do](What-an-agent-may-and-may-not-do)
 
-Still being written: a translator's guide, the command reference, troubleshooting, and concepts.
+**Translating**
+
+- [For translators](For-translators)
+
+**Reference**
+
+- [Concepts](Concepts)
+
+Still being written: the command reference and troubleshooting.
