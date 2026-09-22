@@ -11,21 +11,23 @@ There is no email anywhere, which means there is no reset link. If you forget yo
 The project's first page has two things: **Progress**, which is how much of each language is done, and **What to work on**, which is the queues.
 
 - **Untranslated** — no translation at all. This is the normal pile.
-- **Stale** — somebody changed the English after your translation was saved. The old translation is still there; it needs checking, not redoing.
-- **Unverified source** — English that has not been proofread. Only for whoever is checking the source.
-- **Agent drafts** — translations a machine drafted. Someone needs to read them.
+- **Stale** — somebody changed the source text after your translation was saved. The old translation is still there; it needs checking, not redoing.
+- **Unverified source** — source text nobody has proofread yet. Only for whoever is checking it.
+- **Agent drafts** — translations a machine drafted, waiting for a person. The queue is not shown when there are none.
 
 Open a queue and you are in the editor, on the first string, with **Next** and **Previous** to move through it. Work down a queue rather than hunting the catalogue: the queues exist so you never have to decide what is next.
 
 ## The editor
 
-The source text is on the left, your translation on the right. Save with the button; there is no autosave, and nothing is lost when you move away, because a string you have not saved is simply not saved.
+The source text is on the left, your translation on the right. **Save translation** commits it; there is no autosave, and nothing is lost when you move away, because a string you have not saved is simply not saved.
 
 Some strings have more than plain text in them, and those parts must survive into your translation. You never type them by hand.
 
-**Placeholders** are values the application drops in — a name, a count, a date. They appear as chips above the box; click one to insert it. The tooltip says what it holds, and sometimes a grammatical hint about what arrives. A translation missing a placeholder is refused when you save, and the message says which one.
+**Placeholders** are values the application drops in — a name, a count, a date. They appear as chips below the box; click one to insert it. The same placeholders in the source text above carry a tooltip saying what each one holds, and sometimes a grammatical hint about what arrives.
 
-**Selects and plurals** are a choice of wording. A plural is not always two branches: the editor offers the branches *your* language uses, which may be one, two, three or six, and may be different from English. Use the chip, fill each branch, and let the editor tell you if one is missing.
+You cannot save a translation that has lost one. The editor checks as you type, lists what is wrong under the box, and **Save translation** stays disabled until it is right — so the mistake is caught where you made it rather than after you moved on.
+
+**Selects and plurals** are a choice of wording. A plural is not always two branches: the editor offers the branches *your* language uses, which is anything from one (Japanese, Chinese) to four (Russian, Polish, Czech), five (Irish) or six (Arabic, Welsh), and is rarely what the source language has. Use the chip, fill each branch, and let the editor tell you if one is missing.
 
 **Tags** are formatting — bold, a link — that the application fills in. Keep them, keep them in a sensible place for your language, and do not invent new ones.
 
@@ -45,24 +47,24 @@ Beside the string you will find, when they exist:
 
 A string in a language is **untranslated**, then **translated** once somebody saves one, then **verified** once a maintainer signs it off. You move it to translated; only a maintainer moves it to verified.
 
-**Stale** sits on top of any of those. It means the English moved after the translation was saved. The editor shows a banner and keeps the old translation so you can see what changed rather than starting again.
+**Stale** sits on top of any of those. It means the source text moved after the translation was saved. The editor shows a banner and keeps the old translation so you can see what changed rather than starting again.
 
-Verified is the state that reaches the code. Until a maintainer verifies it, your translation lives in Corpus and nowhere else.
+Verified is the state that reaches the code, unless whoever runs the project asked for more than that. Until then your translation lives in Corpus and nowhere else.
 
-## When the English is the problem
+## When the source text is the problem
 
-Sometimes a string cannot be translated well because of what it says: it is ambiguous, it assumes English grammar, it is wrong. Do not work around it in your language.
+Sometimes a string cannot be translated well because of what it says: it is ambiguous, it assumes the grammar of the language it was written in, it is wrong. Do not work around it in your language.
 
-**Propose a change.** Write what the English should say. It goes to whoever owns the code, who reviews it like any other change to the application, and if they take it, the string changes for everybody and every language. You can also propose removing a string, or adding one that is missing.
+**Propose a change.** Write what the source text should say. It goes to the people who own the code, who review it like any other change to the application, and if they take it, the string changes for everybody and every language. You can also propose removing a string, or adding one that is missing.
 
 A proposal is pending until it reaches the repository. You will see it marked on the string, and its status change when it lands.
 
 ## Things that will happen
 
-**Your translation was refused when you saved.** The message says why: a missing placeholder, a plural branch your language needs, a tag you dropped. Fix that one thing and save again.
+**You cannot press Save translation.** Something under the box says what is wrong: a missing placeholder, a plural branch your language needs, a tag you dropped. Fix it and the button comes back.
 
 **The string is read-only.** Either it is archived, meaning the application no longer has it, or it is the source language, which is changed by proposing rather than by editing.
 
 **Somebody else edited it while you had it open.** You will be told. The last save wins; nothing is lost, because the history has both.
 
-**A string went back to stale that you already did.** The English changed again. It happens most on a project under active development, and it is not a comment on your work.
+**A string went back to stale that you already did.** The source text changed again. It happens most on a project under active development, and it is not a comment on your work.

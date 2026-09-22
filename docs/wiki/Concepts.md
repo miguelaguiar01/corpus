@@ -2,13 +2,13 @@ One paragraph each, in the order the words tend to come up.
 
 **String.** One piece of text the application shows a person, with an id that is stable across languages. The id is the key in your catalogue; the text is what the source language says. Everything else in Corpus hangs off a string.
 
-**Source language.** The language your repository is written in, declared once in the config. It is the text translators translate from, it is never written by a pull, and it is changed by proposing rather than by translating.
+**Source language.** The language your repository is written in, declared once in the config. It is the text translators translate from, and it is changed by proposing rather than by translating. A pull never writes a translation into its file, but it does write proposals there, which is how a proposed wording reaches the repository.
 
 **Type.** A label on a string saying what kind of text it is: `ui`, `email`, `tour-step`. A type groups strings, carries a note on how they should read, and decides what metadata a string of that kind may have. Every catalogue and table source names one.
 
 **Source.** An entry in the config saying where text lives and how to read it: a catalogue per language, a table of records, or a command that prints them. A project usually has more than one.
 
-**Adapter.** How a source is read: `messages` for key-value catalogues, `table` for records, `exec` for a command. Which adapter a source uses decides whether `corpus pull` can write translations back into it.
+**Adapter.** How a source is read: `messages` for key-value catalogues, `table` for records, `exec` for a command. Whether `corpus pull` can write translations back depends on the adapter and on the path: a catalogue or table takes them back when its path has `{lang}` and ends in `.json`, and an `exec` source when it declares an `importCommand`.
 
 **Snapshot.** What `corpus build` produces and `corpus push` sends: every string, every declaration and every translation the repository already has, as one document in the `corpus/1` contract ([§4](https://github.com/miguelaguiar01/corpus/blob/main/docs/corpus-design.md#4-the-snapshot-contract-corpus1)). It is a description of the repository at one moment, not a diff.
 
@@ -38,4 +38,4 @@ One paragraph each, in the order the words tend to come up.
 
 **Project token.** The per-project bearer token the CLI authenticates with, from `CORPUS_TOKEN` or `.corpus/token`. It pushes, pulls, reads and drafts. It cannot verify and cannot sign in.
 
-**Invite secret.** The one instance-wide secret that admits people, and the only credential that creates a project.
+**Invite secret.** The one instance-wide secret that admits people. It also creates projects, which is what `corpus project create` uses; a signed-in person creates one from the interface without it.
