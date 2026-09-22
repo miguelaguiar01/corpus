@@ -45,3 +45,34 @@ test("a pending proposal marks the row", () => {
   );
   expect(screen.getByText("proposed")).toBeTruthy();
 });
+
+test("past a dozen languages, the filtered language keeps its chip beside the counts (#510)", () => {
+  const languages = Array.from({ length: 12 }, (_, i) => `l${i}`);
+  const states = Object.fromEntries(
+    languages.map((l, i) => [
+      l,
+      {
+        state: i < 3 ? ("translated" as const) : ("untranslated" as const),
+        stale: false,
+        agentDraft: false,
+      },
+    ]),
+  );
+  render(
+    <CatalogueRow
+      href="/p/mm/s/k"
+      stringId="k"
+      type="chrome"
+      source={SOURCE}
+      languages={languages}
+      states={states}
+      shown={["l5"]}
+    />,
+  );
+  expect(
+    screen.getByText("l5").closest("span[title]")?.getAttribute("title"),
+  ).toBe("Untranslated");
+  expect(screen.queryByText("l4")).toBeNull();
+  expect(screen.getByText("8 untranslated")).toBeTruthy();
+  expect(screen.getByText("3 translated")).toBeTruthy();
+});

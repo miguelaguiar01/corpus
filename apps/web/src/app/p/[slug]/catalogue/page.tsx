@@ -74,6 +74,7 @@ export default async function CataloguePage({
   const basePath = `/p/${slug}/catalogue`;
 
   const query = active.get("q")?.trim();
+  const filteredLanguage = active.get("language") ?? undefined;
   const searchIds = query ? searchStringIds(db, project.id, query) : undefined;
 
   const declaredFields = declaredMetadataFields(project.stringTypes);
@@ -161,6 +162,7 @@ export default async function CataloguePage({
                   source={row.source}
                   languages={project.languages}
                   states={row.states}
+                  shown={filteredLanguage ? [filteredLanguage] : undefined}
                   pending={pending.has(row.stringId)}
                 />
               </li>

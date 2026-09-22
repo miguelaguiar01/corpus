@@ -15,6 +15,7 @@ export function CatalogueRow({
   source,
   languages,
   states,
+  shown,
   pending = false,
 }: {
   href: string;
@@ -23,6 +24,9 @@ export function CatalogueRow({
   source: string;
   languages: string[];
   states: Record<string, LanguageState>;
+  // Kept as chips where the row counts the rest: the language the
+  // catalogue is filtered to, which is the one the reader asked about.
+  shown?: string[];
   pending?: boolean;
 }) {
   return (
@@ -39,7 +43,7 @@ export function CatalogueRow({
       </div>
       <p className="line-clamp-2 min-w-0 text-lg leading-snug">{source}</p>
       <div className="md:justify-self-end">
-        <StateChips languages={languages} states={states} />
+        <StateChips languages={languages} states={states} shown={shown} />
       </div>
     </Link>
   );
