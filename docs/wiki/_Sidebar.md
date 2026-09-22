@@ -9,11 +9,13 @@
 - [The config file](The-config-file)
 - [Sources and adapters](Sources-and-adapters)
 - [Your i18n library](Your-i18n-library)
+- [Metadata, types, entities and the glossary](Metadata-types-entities-and-the-glossary)
 
 **Running an instance**
 
 - [The workbench](The-workbench)
 - [A team instance](A-team-instance)
+- [Users, tokens and access](Users-tokens-and-access)
 
 **In CI**
 
@@ -25,4 +27,4 @@
 - [Agents without MCP](Agents-without-MCP)
 - [What an agent may and may not do](What-an-agent-may-and-may-not-do)
 
-Still being written: metadata and the glossary, users and tokens, a translator's guide, the command reference, troubleshooting, and concepts.
+Still being written: a translator's guide, the command reference, troubleshooting, and concepts.

@@ -18,7 +18,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { corpusConfigSchema } from "@corpus/contract";
+import { corpusConfigSchema, glossaryFileSchema } from "@corpus/contract";
 import { createJiti } from "jiti";
 import { afterEach, expect, test } from "vitest";
 import { apiOver, tools } from "./agent-tools";
@@ -343,6 +343,21 @@ test("the refusal the agent page quotes is the refusal the server sends", async 
     "utf8",
   );
   expect(page).toContain(`human-edited: editor.save in pt-PT ${template![1]!}`);
+});
+
+test("every glossary the wiki shows is one the CLI accepts", async () => {
+  const files = readdirSync(examples).filter((name) =>
+    name.startsWith("glossary."),
+  );
+  expect(files.length).toBeGreaterThan(0);
+  for (const name of files) {
+    const parsed = glossaryFileSchema.safeParse(
+      JSON.parse(readFileSync(path.join(examples, name), "utf8")),
+    );
+    expect(parsed.success, `${name}: ${parsed.error?.issues[0]?.message}`).toBe(
+      true,
+    );
+  }
 });
 
 test("every config the wiki shows is a config the CLI accepts", async () => {
