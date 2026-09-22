@@ -87,4 +87,8 @@ test("an ARB catalogue's @ entries are metadata, not strings (#558)", () => {
   expect(messagesToEntries(arb, { type: "ui" }).map((e) => e.id)).toContain(
     "@wallpaper.description",
   );
+  // An array is refused as it is without the flag.
+  expect(() => messagesToEntries(["x"], { type: "ui", arb: true })).toThrow(
+    /got array/,
+  );
 });

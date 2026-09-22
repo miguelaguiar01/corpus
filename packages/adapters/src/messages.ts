@@ -16,12 +16,16 @@ export function messagesToEntries(
   options: MessagesOptions,
 ): StringEntry[] {
   const entries: StringEntry[] = [];
-  if (options.arb && data !== null && typeof data === "object") {
-    const { ...rest } = data as Record<string, unknown>;
-    for (const key of Object.keys(rest)) {
-      if (key.startsWith("@")) delete rest[key];
-    }
-    walk(rest, [], options.type, entries);
+  if (
+    options.arb &&
+    data !== null &&
+    typeof data === "object" &&
+    !Array.isArray(data)
+  ) {
+    const strings = Object.fromEntries(
+      Object.entries(data).filter(([key]) => !key.startsWith("@")),
+    );
+    walk(strings, [], options.type, entries);
     return entries;
   }
   walk(data, [], options.type, entries);
