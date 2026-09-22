@@ -59,10 +59,10 @@ export async function buildSnapshot(
   return snapshot;
 }
 
-// Refusals this many of them deep, all with the same advice, are one
-// cause rather than that many: a mistyped library, or the same tag left
-// open in five strings. Below it, a refusal is a string's own problem
-// and the build goes on without it.
+// Refusals this many of them deep that carry advice are one cause
+// rather than that many: a mistyped library, or a tag left open in
+// five strings. Below it, a refusal is a string's own problem and the
+// build goes on without it.
 export const SAME_CAUSE = 5;
 
 // Why the build should stop rather than push what parsed (#491).
@@ -71,7 +71,7 @@ export const SAME_CAUSE = 5;
 //
 // Two shapes say a file is being read wrongly rather than holding a
 // typo: every entry of a file refused, and many refusals across the
-// snapshot that all give the same advice. The second is the one that
+// snapshot that carry advice. The second is the one that
 // catches a real project — Outline read as ICU refuses 365 of 1,920
 // strings, a fifth of the catalogue, but 363 of those say "declare
 // library: i18next".
@@ -89,17 +89,25 @@ function ruinedReasons(sourced: Sourced[], refused: Refused[]): string[] {
       reasons.push(`${file}: every string in the file was refused (${count})`);
     }
   }
+  // Every refusal with advice counts toward the threshold, whatever the
+  // advice says: an ICU catalogue read as vue draws the i18next advice
+  // for a branch that opens with a placeholder and the ICU advice for
+  // the rest, and five split four and one are still one cause (#538).
+  // The commonest advice is the one named.
   const byCause = new Map<string, number>();
   for (const { hint } of refused) {
     if (hint === "") continue;
     byCause.set(hint, (byCause.get(hint) ?? 0) + 1);
   }
-  for (const [cause, count] of byCause) {
-    if (count >= SAME_CAUSE) {
-      reasons.push(
-        `${count} strings were refused with the same advice, at or past the ${SAME_CAUSE} that stops a build, since one cause is likely behind all of them —${cause.replace(/^;\s*/, " ")}`,
-      );
-    }
+  const advised = [...byCause.values()].reduce((sum, n) => sum + n, 0);
+  if (advised >= SAME_CAUSE) {
+    const [cause, count] = [...byCause].sort((a, b) => b[1] - a[1])[0]!;
+    const advice = cause.replace(/^;\s*/, "");
+    reasons.push(
+      byCause.size === 1
+        ? `${advised} strings were refused with the same advice, at or past the ${SAME_CAUSE} that stops a build, since one cause is likely behind all of them — ${advice}`
+        : `${advised} strings were refused with advice, at or past the ${SAME_CAUSE} that stops a build, since one cause is likely behind all of them — the commonest, for ${count} of them: ${advice}`,
+    );
   }
   return reasons;
 }

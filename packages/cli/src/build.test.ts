@@ -185,9 +185,8 @@ test("many refusals with one cause stop the build, at any share of the file", as
     REPO,
   );
   await expect(building).rejects.toThrow(
-    /5 strings were refused with the same advice, at or past the 5/,
+    '5 strings were refused with the same advice, at or past the 5 that stops a build, since one cause is likely behind all of them — {{ }} is i18next\'s interpolation: declare library: "i18next" on the source',
   );
-  await expect(building).rejects.toThrow(/declare library: "i18next"/);
 });
 
 test("an ICU catalogue read as i18next is told which library it is", async () => {
@@ -210,6 +209,32 @@ test("an ICU catalogue read as i18next is told which library it is", async () =>
   );
   await expect(building).rejects.toThrow(/declare library: "icu"/);
   await expect(building).rejects.toThrow(/5 strings were refused/);
+});
+
+test("refusals split across two hints still stop the build, naming the commonest (#538)", async () => {
+  // An ICU catalogue read as vue: a branch that opens with a
+  // placeholder holds `{{`, which draws the i18next advice, while the
+  // rest draw the ICU-argument advice. Five refusals split 4 and 1 are
+  // one cause, and the threshold counts every refusal that has advice.
+  const building = buildSnapshotReport(
+    config({
+      sources: [
+        {
+          adapter: "messages",
+          type: "ui",
+          path: "splithint/{lang}.json",
+          library: "vue",
+        },
+      ],
+    }),
+    REPO,
+  );
+  await expect(building).rejects.toThrow(
+    /5 strings were refused with advice, at or past the 5 that stops a build/,
+  );
+  await expect(building).rejects.toThrow(
+    /the commonest, for 4 of them: \{name, plural, …\} is an ICU argument: declare library: "icu"/,
+  );
 });
 
 test("a file that does not read still fails the whole build", async () => {
