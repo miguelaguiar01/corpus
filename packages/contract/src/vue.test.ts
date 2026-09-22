@@ -80,16 +80,22 @@ test("a form of nothing but punctuation is a pipe meant literally (#539)", () =>
     ok: false,
     errors: [{ message: expect.stringContaining('"!"'), position: 8 }],
   });
+  for (const punctuation of ["—", "...", "%", "#"]) {
+    expect(parseIcu(`x | ${punctuation}`, "vue").ok, punctuation).toBe(false);
+  }
 });
 
-test("a form is a form when it holds a word, a number or a brace", () => {
-  // A digit, a placeholder or a literal alone is content: a form is
-  // refused only when it holds nothing a reader would call text.
+test("a form is a form when it holds a word, a number, a symbol or a brace", () => {
+  // A digit, a placeholder, a literal or an emoji alone is content: a
+  // form is refused only when it holds nothing but punctuation.
   for (const source of [
     "{count} | {count}",
     "1 | 2",
     "{'@'} | {'@'}",
     "x | y",
+    "⭐ | ⭐⭐ | ⭐⭐⭐",
+    "$ | $$",
+    "一 | 二",
   ]) {
     expect(parseIcu(source, "vue").ok, source).toBe(true);
   }
