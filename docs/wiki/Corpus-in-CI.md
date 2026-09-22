@@ -5,7 +5,7 @@ Four commands belong in CI, and they divide cleanly: two read only the repositor
 | `corpus check` | no | every pull request | a component says something to a person without going through a catalogue |
 | `corpus validate` | no | every pull request | a translation in the repository is broken |
 | `corpus pull --check` | yes, read only | every pull request from the repository | the repository is behind what is verified, or a proposal is waiting |
-| `corpus push` | yes, writes | the default branch, after merge | a string will not parse, the token is refused, or the instance rejects the push |
+| `corpus push` | yes, writes | the default branch, after merge | a string will not parse, the token is refused, the instance rejects the push, or it cannot be reached |
 
 ## The offline pair
 
@@ -110,10 +110,10 @@ jobs:
 
 ```sh
 npx corpus status --json | jq -e '.progress.perLanguage["pt-PT"].untranslated == 0'
-npx corpus status --json | jq -e '.progress.perType.email["pt-PT"].verified == .progress.perType.email["pt-PT"].total'
+npx corpus status --json | jq -e '.progress.perType.email["pt-PT"] | .total > 0 and .verified == .total'
 ```
 
-The first blocks a release until Portuguese is complete; the second until every email string is verified in Portuguese, which is the shape `perType` has: type, then language, then the counts. It is a policy, not a rule Corpus holds: decide it per project, and expect to relax it for a language you have just added.
+The first blocks a release until Portuguese is complete; the second until every email string is verified in Portuguese, which is the shape `perType` has: type, then language, then the counts. The second asks for `total > 0` first on purpose: without it, a type that no longer exists compares `null` with `null` and the gate passes on a catalogue that lost the strings it was guarding. It is a policy, not a rule Corpus holds: decide it per project, and expect to relax it for a language you have just added.
 
 ## A throwaway instance for a test job
 

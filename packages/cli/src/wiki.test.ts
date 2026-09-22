@@ -259,11 +259,19 @@ test("every corpus command the CI workflow runs is one the CLI has", async () =>
     .split(/\n|\s\|\s/)
     .map((segment) => segment.replace(/^\s*(usage:\s*)?/, "").trim())
     .filter((segment) => segment.startsWith("corpus "));
-  const commands = [...workflow.matchAll(/npx corpus ([^\n]+)/g)].map((found) =>
-    found[1]!.trim().split(/\s+/),
+  // A word that is not a flag is a subcommand or a flag's value, and
+  // belongs to the command rather than to the set being checked.
+  const commands = [...workflow.matchAll(/npx corpus ([^\n]+)/g)].map(
+    (found) => {
+      const [command, ...rest] = found[1]!.trim().split(/\s+/);
+      const flags = rest
+        .filter((word) => word.startsWith("--"))
+        .map((word) => word.split("=")[0]!);
+      return [command!, flags] as const;
+    },
   );
   expect(commands.length).toBeGreaterThan(0);
-  for (const [command, ...flags] of commands) {
+  for (const [command, flags] of commands) {
     const segment =
       segments.find((row) => row.startsWith(`corpus ${command} `)) ??
       segments.find((row) => row === `corpus ${command}`);
