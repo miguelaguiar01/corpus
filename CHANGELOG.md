@@ -29,7 +29,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
-- A source file whose entries are refused whole, or more than half of them, fails the build instead of pushing what is left. Refusing by entry is right for one typo, but a whole catalogue misread — an i18next project that never declared its library — had every interpolated string refused, and the push archived them all; a pending proposal on an archived string becomes superseded, which no later push reverses. The failure carries the per-entry messages, so the hint that names the library comes with it.
+- The build stops, with nothing pushed, when a whole file is refused or when five strings are refused for the same reason. Refusing by entry is right for one typo, but a catalogue read under the wrong library is not one: Outline read as ICU refuses 365 of its 1,920 strings, and the push archives all 365, leaving a pending proposal on any of them superseded for good. A share of a file was the wrong shape to measure — a fifth of a catalogue trips no threshold — so what is counted is the advice: 363 of those 365 say `declare library: "i18next"`. The failure lists every refusal above the summary, since the advice is what a reader acts on.
 - The fixture test enforces an example per plural branch as it already did per select branch: `ui.marks-left` covered its `=0`, `one` and `other` by how it was written rather than by a rule, and §7 asks for the coverage.
 
 - A flag written `--flag=value` is refused rather than accepted and ignored: `option` compares the whole word, so `corpus build --out=snapshot.json` exited 0 having written nothing and `corpus pull --lang=pt-PT` pulled every language.

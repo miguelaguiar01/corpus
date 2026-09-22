@@ -28,6 +28,12 @@ corpus: 1 string(s) refused and not pushed; a refused string the project holds i
 
 A string did not parse as a message. The lines above name each one and why. The rest of the push landed. `--dry-run` says "would not be pushed" instead, and archives nothing.
 
+## `corpus: snapshot build failed` with a list of refusals
+
+Nothing was pushed. Either every string in a file was refused, or five were refused for the same reason — both mean the configuration is wrong rather than the strings, most often a `library` that is not declared. Pushing what parsed would archive every refused string, and a proposal pending on an archived string is superseded for good, so the build stops instead.
+
+The refusals are listed above the summary, and their advice is what to act on: `declare library: "i18next" on the source` means exactly that.
+
 The commonest cause on a repository that has never used Corpus is a `{` that means a brace rather than a placeholder, and the second commonest is a tag the source opens and never closes. `corpus build` reproduces it offline.
 
 ## `corpus: check parsed no files in …`

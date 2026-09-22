@@ -1,0 +1,4 @@
+{
+  "a": "{n, plural, one {x}}",
+  "b": "{m, plural, one {y}}"
+}

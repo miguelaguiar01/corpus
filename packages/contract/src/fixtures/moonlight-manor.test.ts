@@ -58,22 +58,26 @@ test("examples reach every branch of every plural", () => {
   for (const entry of moonlightManor.strings) {
     for (const arg of pluralArgsOf(entry.source)) {
       const parsed = parseIcu(entry.source);
+      expect(parsed.ok, entry.id).toBe(true);
       if (!parsed.ok) continue;
-      const node = branchingNodes(parsed.nodes).find(
+      // Every plural on the argument, not the first: two on one count
+      // may declare different branches.
+      const nodes = branchingNodes(parsed.nodes).filter(
         (candidate) => candidate.kind === "plural" && candidate.arg === arg,
       );
-      if (!node) continue;
-      const declared = Object.keys(node.branches);
-      const reached = new Set(
-        (entry.examples ?? [])
-          .map((example) => (example.values as Record<string, string>)[arg])
-          .filter((value): value is string => value !== undefined)
-          .map((value) =>
+      expect(nodes.length, `${entry.id}: ${arg}`).toBeGreaterThan(0);
+      const counts = (entry.examples ?? [])
+        .map((example) => (example.values as Record<string, string>)[arg])
+        .filter((value): value is string => value !== undefined);
+      for (const node of nodes) {
+        const reached = new Set(
+          counts.map((value) =>
             pluralBranch(node.branches, value, moonlightManor.sourceLanguage),
           ),
-      );
-      for (const branch of declared) {
-        expect(reached, `${entry.id}: ${arg} ${branch}`).toContain(branch);
+        );
+        for (const branch of Object.keys(node.branches)) {
+          expect(reached, `${entry.id}: ${arg} ${branch}`).toContain(branch);
+        }
       }
     }
   }

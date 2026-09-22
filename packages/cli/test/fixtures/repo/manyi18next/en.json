@@ -1,0 +1,10 @@
+{
+  "key1": "Hello {{ name1 }}",
+  "key2": "Hello {{ name2 }}",
+  "key3": "Hello {{ name3 }}",
+  "key4": "Hello {{ name4 }}",
+  "key5": "Hello {{ name5 }}",
+  "plain": "No interpolation here",
+  "plain2": "Nor here",
+  "plain3": "Nor here either"
+}

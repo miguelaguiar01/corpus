@@ -23,7 +23,14 @@ import {
 import { CliError } from "./config";
 
 type Sourced = { entry: StringEntry; file: string };
-export type Refused = { file: string; id: string; message: string };
+// `hint` is the advice clause, kept apart from the message so refusals
+// can be grouped by what caused them (#491).
+export type Refused = {
+  file: string;
+  id: string;
+  message: string;
+  hint: string;
+};
 export type BuildReport = { snapshot: Snapshot; refused: Refused[] };
 // What an exporter says the repository already holds for its strings
 // (§3, §8): per target language, id to text; taken as seeds once the
@@ -52,36 +59,49 @@ export async function buildSnapshot(
   return snapshot;
 }
 
-// Past this share of a file's entries, a refusal is the file being read
-// the wrong way rather than a string being wrong.
-export const RUINED_SHARE = 0.5;
+// Refusals this many of them deep, all with the same advice, are the
+// configuration rather than the strings: five strings each asking for
+// the same declaration is five typos, and more is a file being read
+// the wrong way.
+export const SAME_CAUSE = 5;
 
-// The files where refusals are at least RUINED_SHARE of what the file
-// holds, with the counts, so the message says why the build stopped.
-function ruinedSources(
-  sourced: Sourced[],
-  refused: Refused[],
-): { file: string; message: string }[] {
+// Why the build should stop rather than push what parsed (#491).
+// Pushing the rest archives every refused id, and a pending proposal on
+// an archived string is superseded, which no later push reverses.
+//
+// Two shapes say a file is being read wrongly rather than holding a
+// typo: every entry of a file refused, and many refusals across the
+// snapshot that all give the same advice. The second is the one that
+// catches a real project — Outline read as ICU refuses 365 of 1,920
+// strings, a fifth of the catalogue, but 363 of those say "declare
+// library: i18next".
+function ruinedReasons(sourced: Sourced[], refused: Refused[]): string[] {
+  const reasons: string[] = [];
   const total = new Map<string, number>();
   for (const { file } of sourced) total.set(file, (total.get(file) ?? 0) + 1);
-  const bad = new Map<string, number>();
+  const perFile = new Map<string, number>();
   for (const { file } of refused) {
-    bad.set(file, (bad.get(file) ?? 0) + 1);
+    perFile.set(file, (perFile.get(file) ?? 0) + 1);
     total.set(file, (total.get(file) ?? 0) + 1);
   }
-  const out: { file: string; message: string }[] = [];
-  for (const [file, count] of bad) {
-    const all = total.get(file) ?? count;
-    // Every entry, or more than the share: one bad string among two is
-    // a typo, and the build goes on without it.
-    if (count === all || count > all * RUINED_SHARE) {
-      out.push({
-        file,
-        message: `${file}: ${count} of ${all} string(s) refused, which is a file being read the wrong way rather than a string being wrong`,
-      });
+  for (const [file, count] of perFile) {
+    if (count === (total.get(file) ?? count)) {
+      reasons.push(`${file}: every string in the file was refused (${count})`);
     }
   }
-  return out;
+  const byCause = new Map<string, number>();
+  for (const { hint } of refused) {
+    if (hint === "") continue;
+    byCause.set(hint, (byCause.get(hint) ?? 0) + 1);
+  }
+  for (const [cause, count] of byCause) {
+    if (count >= SAME_CAUSE) {
+      reasons.push(
+        `${count} strings were refused for the same reason, which is at or past the ${SAME_CAUSE} that means the configuration rather than the strings:${cause}`,
+      );
+    }
+  }
+  return reasons;
 }
 
 export function describeRefused({ file, id, message }: Refused): string {
@@ -195,20 +215,17 @@ export async function buildSnapshotReport(
   // the rest would archive every string it holds, and a pending
   // proposal on an archived string is superseded, which no later push
   // reverses. One bad entry among many still goes on without it.
-  const ruined = ruinedSources(sourced, refused);
+  const ruined = ruinedReasons(sourced, refused);
   if (ruined.length > 0) {
-    // The per-entry messages carry the hints — the i18next one names the
-    // library — so they are kept beside the summary rather than lost to
-    // it: the reason a file is being read the wrong way is in them.
-    const files = new Set(ruined.map(({ file }) => file));
+    // Every refusal is listed, not only those of the ruined file: a
+    // build that stops should say everything it found, and the hints
+    // live in these lines.
     throw new CliError(
       [
         "snapshot build failed:",
-        ...refused
-          .filter(({ file }) => files.has(file))
-          .map((entry) => `  ${describeRefused(entry)}`),
-        ...ruined.map(({ message }) => `  ${message}`),
-        "  a file refused whole is usually the wrong library rather than a typo; see the library field in corpus.config.ts",
+        ...refused.map((entry) => `  ${describeRefused(entry)}`),
+        ...ruined.map((reason) => `  ${reason}`),
+        "  nothing was pushed: pushing the rest would archive every refused string",
       ].join("\n"),
     );
   }
@@ -226,10 +243,12 @@ function validateEntry(
   if (icu.ok) sourced.push({ entry, file });
   else {
     const message = icu.errors[0]?.message ?? "";
+    const advice = hint(entry.source, syntax, message);
     refused.push({
       file,
       id: entry.id,
-      message: `invalid ${syntax === "icu" ? "ICU" : syntax}: ${message}${hint(entry.source, syntax, message)}`,
+      hint: advice,
+      message: `invalid ${syntax === "icu" ? "ICU" : syntax}: ${message}${advice}`,
     });
   }
 }

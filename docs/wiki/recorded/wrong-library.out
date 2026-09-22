@@ -1,4 +1,4 @@
 corpus: snapshot build failed:
   src/i18n/en.json [greeting]: invalid ICU: invalid placeholder name "{ name"; {{ }} is i18next's interpolation: declare library: "i18next" on the source
-  src/i18n/en.json: 1 of 1 string(s) refused, which is a file being read the wrong way rather than a string being wrong
-  a file refused whole is usually the wrong library rather than a typo; see the library field in corpus.config.ts
+  src/i18n/en.json: every string in the file was refused (1)
+  nothing was pushed: pushing the rest would archive every refused string

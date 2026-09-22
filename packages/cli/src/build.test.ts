@@ -92,6 +92,7 @@ test("a source that does not parse is refused by entry and the rest is built", a
     {
       file: "bad/en.json",
       id: "broken",
+      hint: expect.any(String),
       message: expect.stringMatching(/^invalid ICU: /),
     },
   ]);
@@ -125,11 +126,10 @@ test("a tag that does not close is refused with a hint at what a tag is", async 
   ]);
 });
 
-test("an i18next catalogue read as ICU fails the build whole, with the hint", async () => {
-  // Every entry refused is the file being read the wrong way (#491),
-  // and pushing the rest would archive everything the file holds. The
-  // hint that says which library it is comes with the failure.
-  const building = buildSnapshotReport(
+test("an i18next catalogue read as ICU is refused with a hint at the library", async () => {
+  // Two refusals is a typo's shape, so the build goes on and the hint
+  // rides on the entries; it takes five of one cause to stop it (#491).
+  const { refused } = await buildSnapshotReport(
     config({
       sources: [
         { adapter: "messages", type: "ui", path: "i18next/{lang}.json" },
@@ -137,11 +137,56 @@ test("an i18next catalogue read as ICU fails the build whole, with the hint", as
     }),
     REPO,
   );
-  await expect(building).rejects.toThrow(/declare library: "i18next"/);
-  // Two of its three interpolate; the third is plain ICU and parses.
-  await expect(building).rejects.toThrow(
-    /i18next\/en\.json: 2 of 3 string\(s\) refused/,
+  expect(refused).toHaveLength(2);
+  expect(refused[0]?.message).toMatch(/declare library: "i18next"/);
+});
+
+test("a file whose every entry is refused fails the build, with no snapshot", async () => {
+  // #491: pushing the rest would archive every refused id, and a
+  // pending proposal on an archived string is superseded for good.
+  await expect(
+    buildSnapshotReport(
+      config({
+        sources: [
+          { adapter: "messages", type: "chrome", path: "allbad/{lang}.json" },
+        ],
+      }),
+      REPO,
+    ),
+  ).rejects.toThrow(
+    /allbad\/en\.json: every string in the file was refused \(2\)/,
   );
+});
+
+test("one bad entry among four still pushes the three", async () => {
+  const { snapshot, refused } = await buildSnapshotReport(
+    config({
+      sources: [
+        { adapter: "messages", type: "chrome", path: "onebad/{lang}.json" },
+      ],
+    }),
+    REPO,
+  );
+  expect(snapshot.strings.map((s) => s.id)).toEqual(["one", "two", "three"]);
+  expect(refused.map((r) => r.id)).toEqual(["bad"]);
+});
+
+test("many refusals with one cause are the configuration, not the strings", async () => {
+  // The shape that catches a real project: Outline read as ICU refuses
+  // a fifth of its catalogue, under any per-file share, but nearly
+  // every refusal says the same thing.
+  const building = buildSnapshotReport(
+    config({
+      sources: [
+        { adapter: "messages", type: "ui", path: "manyi18next/{lang}.json" },
+      ],
+    }),
+    REPO,
+  );
+  await expect(building).rejects.toThrow(
+    /5 strings were refused for the same reason, which is at or past the 5/,
+  );
+  await expect(building).rejects.toThrow(/declare library: "i18next"/);
 });
 
 test("a file that does not read still fails the whole build", async () => {
