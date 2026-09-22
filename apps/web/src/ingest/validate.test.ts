@@ -31,6 +31,20 @@ test("an invalid ICU source is reported against its entry id", () => {
   }
 });
 
+test("a tag failure carries the CLI's advice, for the clients that do not go through it (#505)", () => {
+  const snap = clone();
+  snap.strings[1]!.source = "See https://example.com/<baseurl>";
+  const result = validateSnapshot(snap);
+  expect(result.ok).toBe(false);
+  if (!result.ok) {
+    expect(result.errors).toContainEqual({
+      id: "skin.heard-nothing",
+      message:
+        "invalid ICU at 33: unclosed <baseurl>; a <name> is a rich-text tag: close it with </baseurl>, or write the brackets so they do not open a tag",
+    });
+  }
+});
+
 test("a ref to a missing entity is reported", () => {
   const snap = clone();
   snap.strings[0]!.metadata.requires_trait = "trait:ghost";
