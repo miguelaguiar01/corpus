@@ -246,7 +246,8 @@ export type CheckResult = {
 // JSX carries its markup in the syntax tree; a Vue single-file
 // component carries it in a `<template>` block, scanned separately.
 const EXTENSIONS = [".jsx", ".tsx", ".vue"] as const;
-// "a, b and c", so the message reads as a sentence at any length.
+// "a, b and c", so the message reads as a sentence; there are always
+// at least two.
 export const READS =
   EXTENSIONS.slice(0, -1).join(", ") +
   " and " +

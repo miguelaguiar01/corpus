@@ -34,8 +34,43 @@ test("a bound or directive attribute is an expression, a static one is text", ()
 });
 
 test("text around an interpolation is still text", () => {
+  // The interpolation is blanked rather than removed, so every later
+  // character keeps the offset its line number comes from.
   const source = `<template><p>Due {{ count }} days from now</p></template>`;
-  expect(texts(source)).toEqual(["Due   days from now"]);
+  expect(texts(source)).toEqual(["Due             days from now"]);
+});
+
+test("a finding is on the line its text is on, not its tag's", () => {
+  const source = `<template>
+  <p
+    class="a"
+  >
+    Stray text
+  </p>
+  <p>{{ x }}
+    After an interpolation
+  </p>
+</template>`;
+  expect(findVueLiterals(source, "A.vue").map((f) => f.line)).toEqual([5, 8]);
+});
+
+test("a template in a script comment or string does not become the block", () => {
+  const trap = `<script setup lang="ts">
+// <template><p>example</p></template>
+const s = "</template>";
+</script>
+
+<template>
+  <p>Real text</p>
+</template>`;
+  expect(texts(trap)).toEqual(["Real text"]);
+});
+
+test("a template in another language is not scanned as markup", () => {
+  const pug = `<template lang="pug">
+p Some pug source
+</template>`;
+  expect(texts(pug)).toEqual([]);
 });
 
 test("a comment, a style block and a script block carry no findings", () => {

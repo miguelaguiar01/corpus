@@ -75,31 +75,31 @@ function* attributes(
 // A bound attribute's value is an expression, as a JSX prop in braces is.
 const BOUND = /^([:@#]|v-)/;
 
-// The top-level `<template>` block, or null. Top-level blocks are not
-// nested in one another, so depth counting finds the right closing tag
-// even though templates nest inside the block.
+// A single-file component's blocks sit at the top level, which in
+// practice means column zero: both ends are anchored there, so a
+// `<template>` inside a script comment or a string does not start the
+// block and a `</template>` inside an expression does not end it.
+const BLOCK_OPEN = /^<template([^>]*)>/m;
+const BLOCK_CLOSE = /^<\/template>/m;
+// A template in another language is not HTML and this scanner would
+// read its source as prose.
+const NOT_HTML = /\blang\s*=\s*["']?(?!html)([a-z]+)/i;
+
 function templateBlock(
   source: string,
 ): { body: string; offset: number } | null {
-  const open = /<template(\s[^>]*)?>/i.exec(source);
+  const open = BLOCK_OPEN.exec(source);
   if (!open || open.index === undefined) return null;
+  if (NOT_HTML.test(open[1] ?? "")) return null;
   const start = open.index + open[0].length;
-  let depth = 1;
-  let at = start;
-  while (at < source.length && depth > 0) {
-    const next = source.indexOf("<template", at);
-    const close = source.indexOf("</template", at);
-    if (close === -1) return null;
-    if (next !== -1 && next < close) {
-      depth += 1;
-      at = next + 9;
-      continue;
-    }
-    depth -= 1;
-    if (depth === 0) return { body: source.slice(start, close), offset: start };
-    at = close + 10;
-  }
-  return null;
+  const rest = source.slice(start);
+  // A closing tag at column zero ends the block. A component written on
+  // one line has none, so the last closing tag stands in: the block is
+  // the outermost, and a nested `<template v-if>` closes before it.
+  const anchored = BLOCK_CLOSE.exec(rest);
+  const end = anchored?.index ?? rest.lastIndexOf("</template>");
+  if (end === undefined || end < 0) return null;
+  return { body: rest.slice(0, end), offset: start };
 }
 
 export function findVueLiterals(
@@ -132,10 +132,15 @@ export function findVueLiterals(
   let textFrom = 0;
   const flushText = (until: number) => {
     if (skip.length > 0) return;
-    // An interpolation is a catalogue call or an expression either way;
-    // what is left is the literal text around it.
-    const raw = body.slice(textFrom, until).replace(/\{\{[\s\S]*?\}\}/g, " ");
-    if (raw.trim()) report(offset + textFrom, raw);
+    // An interpolation is a catalogue call or an expression either way.
+    // It is blanked rather than removed so every later character keeps
+    // its offset, and the finding is reported at the first character of
+    // the text rather than at the tag that preceded it.
+    const raw = body
+      .slice(textFrom, until)
+      .replace(/\{\{[\s\S]*?\}\}/g, (match) => " ".repeat(match.length));
+    const first = raw.search(/\S/);
+    if (first !== -1) report(offset + textFrom + first, raw);
   };
   while (at < body.length) {
     const lt = body.indexOf("<", at);
@@ -162,7 +167,7 @@ export function findVueLiterals(
       ) {
         skip.push(tag.name);
       }
-      if (skip.length === 0 || skip.length === 1) {
+      if (skip.length <= 1) {
         for (const attribute of attributes(
           tag.attributes,
           offset + lt + tag.name.length + 1,
