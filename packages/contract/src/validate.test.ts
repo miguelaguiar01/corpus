@@ -158,12 +158,37 @@ describe("selects may collapse but not be malformed", () => {
         "en",
       ),
     ).toEqual({ ok: true });
+    // A category the language uses but the translation lacks is
+    // incomplete, not invalid (#556): ICU falls back to `other`, and
+    // react-intl catalogues ship this way in every Romance language.
     expect(
-      errorsOf(PLURAL, "{n, plural, one {# метка} other {# меток}}", "ru"),
-    ).toEqual([
-      { code: "missing-category", arg: "n", key: "few" },
-      { code: "missing-category", arg: "n", key: "many" },
-    ]);
+      validateTranslation(
+        PLURAL,
+        "{n, plural, one {# метка} other {# меток}}",
+        "ru",
+      ),
+    ).toEqual({
+      ok: true,
+      incomplete: [
+        { code: "missing-category", arg: "n", key: "few" },
+        { code: "missing-category", arg: "n", key: "many" },
+      ],
+    });
+    // Beside a real error the incomplete ones ride along, apart.
+    expect(
+      validateTranslation(
+        PLURAL,
+        "{n, plural, one {# метка {x}} other {# меток}}",
+        "ru",
+      ),
+    ).toEqual({
+      ok: false,
+      errors: [{ code: "unexpected-placeholder", name: "x" }],
+      incomplete: [
+        { code: "missing-category", arg: "n", key: "few" },
+        { code: "missing-category", arg: "n", key: "many" },
+      ],
+    });
     expect(
       errorsOf(
         PLURAL,

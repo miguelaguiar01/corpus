@@ -181,6 +181,46 @@ test("a dropped placeholder, a malformed select and an orphan key are findings, 
   );
 });
 
+test("a plural missing a category its language uses is incomplete: printed apart, exit 0 on its own, 1 beside an invalid one (#556)", async () => {
+  write("i18n/en.json", {
+    marks: "{n, plural, one {# mark} other {# marks}}",
+    greeting: "Hello {name}",
+  });
+  // Portuguese has `many` since CLDR 42, for large round numbers; every
+  // catalogue written before it lacks the branch.
+  write("i18n/pt.json", {
+    marks: "{n, plural, one {# marca} other {# marcas}}",
+    greeting: "Olá {name}",
+  });
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(0);
+  const err = c.stderr.join("\n");
+  expect(err).toContain(
+    "i18n/pt.json:marks: plural on {n} lacks the many branch its language uses",
+  );
+  expect(err).toMatch(
+    /corpus: 1 incomplete plural\(s\), a category the language uses/,
+  );
+  expect(err).not.toMatch(/invalid translation/);
+
+  write("i18n/pt.json", {
+    marks: "{n, plural, one {# marca} other {# marcas}}",
+    greeting: "Olá",
+  });
+  const d = ctx();
+  expect(await run(["validate"], d)).toBe(1);
+  expect(d.stderr.join("\n")).toMatch(
+    /corpus: 1 invalid translation\(s\), 1 incomplete plural\(s\)/,
+  );
+  const j = ctx();
+  expect(await run(["validate", "--json"], j)).toBe(1);
+  const findings = JSON.parse(j.stdout.join("\n")) as { severity: string }[];
+  expect(findings.map((f) => f.severity).sort()).toEqual([
+    "incomplete",
+    "invalid",
+  ]);
+});
+
 test("an orphan key is summarised once across the target files; --json keeps one finding per file", async () => {
   writeFileSync(
     path.join(repo, "corpus.config.ts"),

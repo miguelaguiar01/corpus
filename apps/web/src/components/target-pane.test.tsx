@@ -356,7 +356,7 @@ test("a plural chip inserts the target language's categories with # in each bran
   expect(exact.value).toBe("{n, plural, =0 {#} =1 {#} one {#} other {#}}");
 });
 
-test("a plural draft previews each example through its count's branch, and a missing category is named", () => {
+test("a plural draft previews each example through its count's branch, and a missing category is named without blocking the save (#556)", () => {
   pluralPane("en", "{n, plural, one {# mark left.} other {# marks left.}}");
   expect(previewText()).toContain("1 mark left.");
   expect(previewText()).toContain("3 marks left.");
@@ -365,13 +365,14 @@ test("a plural draft previews each example through its count's branch, and a mis
   expect(
     screen.getByText("Plural n is missing the few branch this language uses"),
   ).toBeTruthy();
+  // Incomplete, not invalid: the warning shows and the draft saves.
   expect(
     (
       screen.getByRole("button", {
         name: "Save translation",
       }) as HTMLButtonElement
     ).disabled,
-  ).toBe(true);
+  ).toBe(false);
 });
 
 test("a tag chip inserts the open and close tags with the caret between them; a dropped tag is named and disables save", () => {
