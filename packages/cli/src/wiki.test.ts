@@ -15,7 +15,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -380,20 +380,26 @@ test("the translator page names the interface as the interface names itself", ()
   // map from something else to a key, as the queue labels are. This
   // catches a key the interface dropped, not one left in a map nothing
   // reaches; that would need the app running, which bin/smoke does.
+  // A test naming the key is not the interface using it, so tests are
+  // excluded: without that, a key the app dropped still passes on the
+  // test that used to cover it.
+  const grep = spawnSync(
+    "grep",
+    [
+      "-rhoE",
+      "--include=*.ts",
+      "--include=*.tsx",
+      "--exclude=*.test.ts",
+      "--exclude=*.test.tsx",
+      '"[a-zA-Z]+\\.[a-zA-Z]+"',
+      app,
+    ],
+    { encoding: "utf8" },
+  );
+  expect(grep.error, "grep did not run").toBeUndefined();
+  expect(grep.status, `grep found nothing under ${app}`).toBe(0);
   const used = new Set(
-    execFileSync(
-      "grep",
-      [
-        "-rhoE",
-        "--include=*.ts",
-        "--include=*.tsx",
-        '"[a-zA-Z]+\\.[a-zA-Z]+"',
-        app,
-      ],
-      { encoding: "utf8" },
-    )
-      .split("\n")
-      .map((line) => line.slice(1, -1)),
+    grep.stdout.split("\n").map((line) => line.slice(1, -1)),
   );
 
   // Phrases the page quotes: the catalogue must still say that, the app

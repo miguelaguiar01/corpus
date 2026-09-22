@@ -19,15 +19,15 @@ Open a queue and you are in the editor, on the first string, with **Next** and *
 
 ## The editor
 
-The source text is on the left, your translation on the right. **Save translation** commits it; there is no autosave, and nothing is lost when you move away, because a string you have not saved is simply not saved.
+The source text and your translation sit side by side on a wide screen, and one above the other on a narrow one. **Save translation** commits it; there is no autosave, and nothing is lost when you move away, because a string you have not saved is simply not saved.
 
 Some strings have more than plain text in them, and those parts must survive into your translation. You never type them by hand.
 
-**Placeholders** are values the application drops in — a name, a count, a date. They appear as chips below the box; click one to insert it. The same placeholders in the source text above carry a tooltip saying what each one holds, and sometimes a grammatical hint about what arrives.
+**Placeholders** are values the application drops in — a name, a count, a date. They appear as chips below the box; click one to insert it. The same placeholders shown in the source text carry a tooltip saying what each one holds, and sometimes a grammatical hint about what arrives.
 
 You cannot save a translation that has lost one. The editor checks as you type, lists what is wrong under the box, and **Save translation** stays disabled until it is right — so the mistake is caught where you made it rather than after you moved on.
 
-**Selects and plurals** are a choice of wording. A plural is not always two branches: the editor offers the branches *your* language uses, which is anything from one (Japanese, Chinese) to four (Russian, Polish, Czech), five (Irish) or six (Arabic, Welsh), and is rarely what the source language has. Use the chip, fill each branch, and let the editor tell you if one is missing.
+**Selects and plurals** are a choice of wording. A plural is not always two branches: the editor offers the branches *your* language uses, which is anything from one (Japanese, Chinese) to four (Russian, Polish, Czech), five (Irish) or six (Arabic, Welsh). Most languages have the two English has, so the ones that do not are easy to be caught out by. Use the chip, fill each branch, and let the editor tell you if one is missing.
 
 **Tags** are formatting — bold, a link — that the application fills in. Keep them, keep them in a sensible place for your language, and do not invent new ones.
 
@@ -49,7 +49,7 @@ A string in a language is **untranslated**, then **translated** once somebody sa
 
 **Stale** sits on top of any of those. It means the source text moved after the translation was saved. The editor shows a banner and keeps the old translation so you can see what changed rather than starting again.
 
-Verified is the state that reaches the code, unless whoever runs the project asked for more than that. Until then your translation lives in Corpus and nowhere else.
+Verified is the state that reaches the code. Whoever runs the project can choose to take translated work too, but not less than that, so until somebody verifies yours it usually lives in Corpus and nowhere else.
 
 ## When the source text is the problem
 

@@ -12,7 +12,7 @@ One paragraph each, in the order the words tend to come up.
 
 **Snapshot.** What `corpus build` produces and `corpus push` sends: every string, every declaration and every translation the repository already has, as one document in the `corpus/1` contract ([§4](https://github.com/miguelaguiar01/corpus/blob/main/docs/corpus-design.md#4-the-snapshot-contract-corpus1)). It is a description of the repository at one moment, not a diff.
 
-**Seed.** A translation the repository already had, carried up by a push so it does not show as untranslated. A seed whose text is identical to the source stays untranslated, because a catalogue that repeats the English is a catalogue nobody has translated yet.
+**Seed.** A translation the repository already had, carried up by a push so it does not show as untranslated. A seed whose text is identical to the source stays untranslated, because a catalogue that repeats the source text is a catalogue nobody has translated yet.
 
 **State.** Per string and language: `untranslated`, then `translated` when somebody saves one, then `verified` when a maintainer signs it off ([§11](https://github.com/miguelaguiar01/corpus/blob/main/docs/corpus-design.md#11-state-machine-and-history)). The source language uses the same row, starting at translated, where verifying means proofread.
 
@@ -38,4 +38,4 @@ One paragraph each, in the order the words tend to come up.
 
 **Project token.** The per-project bearer token the CLI authenticates with, from `CORPUS_TOKEN` or `.corpus/token`. It pushes, pulls, reads and drafts. It cannot verify and cannot sign in.
 
-**Invite secret.** The one instance-wide secret that admits people. It also creates projects, which is what `corpus project create` uses; a signed-in person creates one from the interface without it.
+**Invite secret.** The one instance-wide secret that admits people. It also creates projects, which is what `corpus project create` uses without anybody signing in; from the interface, creating one needs a signed-in maintainer instead.
