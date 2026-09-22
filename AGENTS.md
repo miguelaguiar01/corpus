@@ -70,9 +70,13 @@ Work is tracked on GitHub project board **#4 ("Corpus", user
 
 **Rules:**
 
-- **One epic per milestone** (M0–M4, spec §16), each an issue with a task
-  list linking its child issues — the epic tracks overall progress and moves
-  to Done only when its milestone's "done when" criterion holds.
+- **One epic per release**, titled `Epic: <version> — <theme>` and
+  labelled with the version (`0.18.0`), each an issue with a task list
+  linking its child issues, which carry the same label. A ticket is filed
+  under the version it ships in; the epic moves to Done when that version
+  is tagged and its release workflow is green. (M0–M23 were epics per
+  milestone, spec §16; each ended in a release, which is why they were
+  many.)
 - **Granular child tickets**: roughly half a day of work or less, one
   concern each, one PR each (small exceptions fine, say so in the PR).
 - **Nothing sits in Ready unrefined.** Refined means the body contains:
@@ -97,8 +101,8 @@ options:      Backlog=15972a3d  Ready=aefe58df  In progress=fcdf6852
   state transitions): failing test first, then the implementation.
 - Strict TypeScript (`strict`, `noUncheckedIndexedAccess`); ESLint +
   Prettier enforced by the gate, not by memory.
-- End each milestone with a **simplification/review pass** over what it
-  produced, before starting the next epic.
+- End each release's epic with a **simplification/review pass** over what
+  it produced, before starting the next.
 - PR bodies say what changed and how it was verified, and link their ticket
   with a closing keyword (`Closes #N`) so the merge auto-closes the issue
   and the board workflow moves it to Done. **One keyword per ticket**:

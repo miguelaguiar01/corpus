@@ -47,8 +47,12 @@ export type StringResponse = {
   plurals: string[];
   // The rich-text tags the source wraps text in (§5); additive.
   tags: string[];
-  // The message syntax the source and its translations are written in
-  // (§5): "icu", or "i18next" for {{name}} interpolation.
+  // The i18n library the source and its translations are written for
+  // (§5): "icu", "i18next" for {{name}} interpolation, or "vue" for
+  // pipe plurals and {'…'} literals. `syntax` is the field's old name,
+  // sent beside it with the same value until 1.0, when it goes with the
+  // config's alias (#522).
+  library: Library;
   syntax: Library;
   // Every value the source takes, placeholders then counts, in source
   // order, with the type's declaration for the slot and the first
