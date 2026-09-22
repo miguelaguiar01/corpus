@@ -377,3 +377,47 @@ test("--syntax still works and says it is the old name", async () => {
     /--syntax is the old name for --library; it goes at 1\.0/,
   );
 });
+
+test("check.include is written from the directories that hold components (#498)", async () => {
+  // Outline keeps its components in app/ and shared/, so the default
+  // `src` scanned nothing until the config named them.
+  const p = project();
+  stubCli(p.dir);
+  for (const [dir, file] of [
+    ["app", "page.tsx"],
+    ["shared", "Button.vue"],
+    ["lib", "format.ts"],
+  ] as const) {
+    mkdirSync(path.join(p.dir, dir, "nested"), { recursive: true });
+    writeFileSync(path.join(p.dir, dir, "nested", file), "");
+  }
+  expect(await run(FLAGS, p.ctx)).toBe(0);
+  const config = await loadConfig(p.dir);
+  expect(config.check).toEqual({ include: ["app", "shared"] });
+  expect(p.out.join("\n")).toMatch(/check\.include: app, shared/);
+});
+
+test("check.include is not written when src alone holds the components, nor when nothing does", async () => {
+  // `src` is what check scans by default, so a config that names it
+  // says nothing the default does not.
+  const only = project();
+  stubCli(only.dir);
+  mkdirSync(path.join(only.dir, "src", "components"), { recursive: true });
+  writeFileSync(path.join(only.dir, "src", "components", "A.jsx"), "");
+  expect(await run(FLAGS, only.ctx)).toBe(0);
+  expect((await loadConfig(only.dir)).check).toBeUndefined();
+  expect(only.out.join("\n")).not.toMatch(/check\.include/);
+
+  const none = project();
+  stubCli(none.dir);
+  // What check skips, init skips: a compiled .jsx under dist is not a
+  // component.
+  mkdirSync(path.join(none.dir, "app", "node_modules", "x"), {
+    recursive: true,
+  });
+  writeFileSync(path.join(none.dir, "app", "node_modules", "x", "a.tsx"), "");
+  mkdirSync(path.join(none.dir, "lib", "dist"), { recursive: true });
+  writeFileSync(path.join(none.dir, "lib", "dist", "b.jsx"), "");
+  expect(await run(FLAGS, none.ctx)).toBe(0);
+  expect((await loadConfig(none.dir)).check).toBeUndefined();
+});

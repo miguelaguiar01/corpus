@@ -49,7 +49,7 @@ The token is `CORPUS_TOKEN`, then `.corpus/token`. The instance secret is `CORPU
 
 ## The ones you run once
 
-**`corpus init`** writes `corpus.config.ts`, adds `.corpus/` to `.gitignore` and prints what to do next. It detects the library from the catalogue it is pointed at. It writes no `check` key, so `corpus check` falls back to reading `src`; declare `check.include` when your components live somewhere else.
+**`corpus init`** writes `corpus.config.ts`, adds `.corpus/` to `.gitignore` and prints what to do next. It detects the library from the catalogue it is pointed at. It writes `check.include` from the directories that hold components, of `src`, `app`, `lib`, `components` and `shared`, and says which; when only `src` does, or none, it writes no `check` key and `corpus check` reads `src`. Declare `check.include` yourself when your components live somewhere else.
 
 **`corpus workbench`** starts the web app from your repository, creates the project your config names and writes its token. `--port`, `--db`, `--open`, `--no-provision`.
 

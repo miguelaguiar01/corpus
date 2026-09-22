@@ -10,7 +10,7 @@ import {
 } from "./build";
 import { option, refuseUnknown } from "./args";
 import { CliError, loadConfig, requireToken } from "./config";
-import { checkFiles, READS } from "./check";
+import { checkFiles, DEFAULT_INCLUDE, READS } from "./check";
 import { init, INIT_USAGE } from "./init";
 import { agent, AGENT_USAGE } from "./agent";
 import { MCP_USAGE, cliVersion, mcp } from "./mcp";
@@ -253,7 +253,7 @@ async function build(args: string[], ctx: RunContext): Promise<number> {
 async function check(ctx: RunContext): Promise<number> {
   const config = await loadConfig(ctx.cwd);
   const options = config.check ?? {};
-  const include = options.include ?? ["src"];
+  const include = options.include ?? DEFAULT_INCLUDE;
   const { findings, scanned, unscanned } = checkFiles(ctx.cwd, {
     include,
     ignore: options.ignore,

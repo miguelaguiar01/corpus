@@ -28,7 +28,10 @@ export const USER_FACING_PROPS = new Set([
   "alt",
   "label",
 ]);
-const SKIP_DIRS = new Set(["node_modules", ".next", "dist", ".git"]);
+export const SKIP_DIRS = new Set(["node_modules", ".next", "dist", ".git"]);
+// What `check` scans when the config names nothing; `init` writes no
+// `check.include` when this alone holds components (#498).
+export const DEFAULT_INCLUDE = ["src"];
 export const LETTERS = /\p{L}.*\p{L}/su;
 
 // An entity is markup, not letters: without this `&nbsp;` and `&middot;`
@@ -245,7 +248,7 @@ export type CheckResult = {
 
 // JSX carries its markup in the syntax tree; a Vue single-file
 // component carries it in a `<template>` block, scanned separately.
-const EXTENSIONS = [".jsx", ".tsx", ".vue"] as const;
+export const EXTENSIONS = [".jsx", ".tsx", ".vue"] as const;
 // "a, b and c", so the message reads as a sentence; there are always
 // at least two.
 export const READS =
