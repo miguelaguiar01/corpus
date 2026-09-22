@@ -465,10 +465,17 @@ test("the messages the troubleshooting page quotes are messages the CLI has", ()
   // The page is a symptom index: a reader searches it for the text they
   // were given, so a reworded message makes it useless in exactly the
   // case it exists for.
-  // Comments are stripped: a message that survives only in a comment
-  // explaining why it was removed would otherwise still pass.
+  // Whole comment lines are dropped, so a message left behind in a
+  // commented-out block no longer counts as the tool still saying it.
+  // Only whole lines: pairing `/*` with `*/` across a file eats live
+  // code, since both appear inside string literals here (check.ts's
+  // glob table), and a trailing comment on a live line is left alone
+  // rather than guessed at.
   const uncommented = (code: string) =>
-    code.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+    code
+      .split("\n")
+      .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
+      .join("\n");
   const read = (dir: string): string =>
     readdirSync(dir, { withFileTypes: true })
       .flatMap((entry) => {
@@ -490,27 +497,54 @@ test("the messages the troubleshooting page quotes are messages the CLI has", ()
     ),
     "utf8",
   );
-  const quoted = [
-    "CORPUS_TOKEN is not set and",
-    "unauthorized — the token was refused",
-    "could not reach the server at",
-    "check parsed no files in",
-    "check scanned nothing: none of",
-    "has no {lang}: its translations cannot be written back",
-    "is not JSON: pull writes JSON only",
-    "belong to no writable source and were not written",
-    "is not installed in this repository",
-    "no config found in",
-    "string(s) refused and",
-    "holds a person's work",
-    "the source text comes from the repository and is not edited here",
-    "is archived",
-    "is not a language of",
-    "last pushed before sources were declared",
+  // What the code must still say, and what the page must still carry.
+  // They differ where the code builds the message from parts, or where
+  // the same words appear elsewhere in the CLI and would pass for the
+  // wrong reason.
+  const quoted: [code: string, page: string][] = [
+    ["CORPUS_TOKEN is not set and", "CORPUS_TOKEN is not set and"],
+    [
+      "unauthorized — the token was refused",
+      "unauthorized — the token was refused",
+    ],
+    ["could not reach the server at", "could not reach the server at"],
+    ["check parsed no files in", "check parsed no files in"],
+    ["check scanned nothing: none of", "check scanned nothing: none of"],
+    [
+      "has no {lang}: its translations cannot be written back",
+      "has no {lang}: its translations cannot be written back",
+    ],
+    [
+      "is not JSON: pull writes JSON only",
+      "is not JSON: pull writes JSON only",
+    ],
+    [
+      "belong to no writable source and were not written",
+      "belong to no writable source and were not written",
+    ],
+    [
+      "is not installed in this repository",
+      "is not installed in this repository",
+    ],
+    ["no config found in", "no config found in"],
+    ["string(s) refused and", "string(s) refused and"],
+    ["holds a person's work", "holds a person's work"],
+    [
+      "the source text comes from the repository and is not edited here",
+      "the source text comes from the repository and is not edited here",
+    ],
+    ["last pushed before sources were declared", "last pushed before sources"],
+    // "is archived" and "is not a language of" also occur in unrelated
+    // CLI text, so the code side pins the route's own wording.
+    ['"archived", `${key} is archived`', "is archived` — the repository"],
+    [
+      "is not a language of ${auth.project.slug}",
+      "is not a language of <project>",
+    ],
   ];
-  for (const message of quoted) {
-    expect(cli, `the CLI no longer says "${message}"`).toContain(message);
-    expect(page, `the page no longer quotes "${message}"`).toContain(message);
+  for (const [inCode, onPage] of quoted) {
+    expect(cli, `the CLI no longer says "${inCode}"`).toContain(inCode);
+    expect(page, `the page no longer quotes "${onPage}"`).toContain(onPage);
   }
 });
 
