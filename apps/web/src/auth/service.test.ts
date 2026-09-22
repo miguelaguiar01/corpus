@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { memoryDb } from "@/db/test-helpers";
-import { sessions, users } from "@/db/schema";
+import { projects, sessions, users } from "@/db/schema";
 import { ensureAgentActor } from "@/agents/actor";
 import {
   createSession,
@@ -50,6 +50,32 @@ test("an empty name or a short password is rejected even with the right secret",
 
 test("the first account is the maintainer, the second is not", () => {
   const db = memoryDb();
+  const first = join(db, "ana");
+  const second = join(db, "bruno");
+  expect(first.ok && first.user.maintainer).toBe(true);
+  expect(second.ok && second.user.maintainer).toBe(false);
+});
+
+test("the first person is the maintainer even when a project came first", () => {
+  // `corpus workbench` creates the project as it starts, which inserts
+  // that project's agent actor, so by the time anybody opens the URL the
+  // users table is not empty. The person who joins is still the first
+  // person on the instance, and nothing can promote them afterwards.
+  const db = memoryDb();
+  const project = db
+    .insert(projects)
+    .values({
+      slug: "acme-app",
+      name: "acme-app",
+      sourceLanguage: "en",
+      languages: ["en", "pt-PT"],
+      tokenHash: "hash",
+    })
+    .returning()
+    .get();
+  ensureAgentActor(db, project);
+  expect(db.select().from(users).all()).toHaveLength(1);
+
   const first = join(db, "ana");
   const second = join(db, "bruno");
   expect(first.ok && first.user.maintainer).toBe(true);

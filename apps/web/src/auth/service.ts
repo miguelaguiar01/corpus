@@ -88,7 +88,14 @@ export function joinInstance(
       .get();
     return { ok: true, user: claimed! };
   }
-  const isFirstUser = db.select().from(users).limit(1).get() === undefined;
+  // The first *person*, not the first row (§10): a project's agent actor
+  // is inserted when the project is created, which `corpus workbench`
+  // does before anyone has opened the URL, and §10 says the actor is
+  // never a maintainer — so it must not be what stops someone else from
+  // being one either.
+  const isFirstUser =
+    db.select().from(users).where(eq(users.agent, false)).limit(1).get() ===
+    undefined;
   const created = db
     .insert(users)
     .values({
