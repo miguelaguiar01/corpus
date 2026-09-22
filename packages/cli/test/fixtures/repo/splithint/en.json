@@ -1,0 +1,12 @@
+{
+  "files": "{n, plural, one {# file} other {# files}}",
+  "folders": "{n, plural, one {# folder} other {# folders}}",
+  "members": "{n, plural, one {# member} other {# members}}",
+  "tags": "{n, plural, one {# tag} other {# tags}}",
+  "updated": "{n, plural, one {{name} updated the file} other {{name} updated # files}}",
+  "plain1": "Plain string 1",
+  "plain2": "Plain string 2",
+  "plain3": "Plain string 3",
+  "plain4": "Plain string 4",
+  "plain5": "Plain string 5"
+}
