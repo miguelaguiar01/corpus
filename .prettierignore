@@ -6,3 +6,4 @@ package-lock.json
 *.md
 apps/web/drizzle/
 .claude/
+docs/wiki/recorded/

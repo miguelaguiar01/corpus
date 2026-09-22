@@ -37,6 +37,13 @@ step "corpus check (self catalog)"
 # the binary built above so the gate exercises what ships.
 node packages/cli/dist/bin.js check
 
+step "wiki check"
+# The wiki lives in another repository, so the gate checks the pages
+# here: a page's configs and recorded command output come from files
+# this repository type checks and runs, and the check says which pages
+# are prose, so nobody assumes more coverage than there is.
+bin/wiki-check
+
 step "corpus validate (self catalog)"
 # The committed Portuguese catalogue must still satisfy its source's
 # placeholders and selects (§3), offline.

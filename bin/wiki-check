@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# bin/wiki-check — the wiki's code is the repository's code.
+#
+# A page in docs/wiki/ shows a file from docs/wiki/examples/ by marking
+# the fenced block that follows:
+#
+#   <!-- from: examples/minimal.config.ts -->
+#   ```ts
+#   …the file, verbatim…
+#   ```
+#
+# This script fails when a block and its file disagree, when a marker
+# names a file that is not there, and when an example is never shown. It
+# also lists the pages that carry no code, so nobody assumes the wiki is
+# checked more thoroughly than it is. The examples themselves are type
+# checked by `tsc` (they are in the root tsconfig) and validated against
+# the config schema by packages/cli/src/wiki.test.ts.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+node bin/wiki-check.mjs "$@"

@@ -1,0 +1,7 @@
+wrote corpus.config.ts
+created .gitignore with .corpus/
+
+Next:
+  1. corpus workbench (needs @corpus-tool/workbench) starts an instance, creates the project "acme-app" and writes its token to .corpus/token.
+     For another instance at http://localhost:3000: CORPUS_INVITE_SECRET=<its secret> corpus project create prints the token, for CORPUS_TOKEN or .corpus/token.
+  2. corpus push
