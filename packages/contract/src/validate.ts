@@ -29,6 +29,14 @@ export type ValidationError =
   | { code: "unknown-plural"; arg: string }
   | { code: "missing-category"; arg: string; key: string }
   | { code: "unexpected-category"; arg: string; key: string }
+  // A formatted placeholder written with another type, or with none
+  // (`actual: null`); the style is the translator's (#555).
+  | {
+      code: "unexpected-format";
+      name: string;
+      expected: string;
+      actual: string | null;
+    }
   | { code: "missing-tag"; name: string }
   | { code: "unexpected-tag"; name: string };
 
@@ -37,6 +45,7 @@ export type ValidationResult =
 
 type Shape = {
   placeholders: Set<string>;
+  formats: Map<string, string>;
   selects: Map<string, Set<string>>;
   plurals: Map<string, Set<string>>;
   tags: Set<string>;
@@ -46,13 +55,19 @@ function shapeOf(
   nodes: IcuNode[],
   shape: Shape = {
     placeholders: new Set(),
+    formats: new Map(),
     selects: new Map(),
     plurals: new Map(),
     tags: new Set(),
   },
 ): Shape {
   for (const node of nodes) {
-    if (node.kind === "placeholder") shape.placeholders.add(node.name);
+    if (node.kind === "placeholder") {
+      shape.placeholders.add(node.name);
+      if (node.format && !shape.formats.has(node.name)) {
+        shape.formats.set(node.name, node.format.type);
+      }
+    }
     if (node.kind === "tag") {
       shape.tags.add(node.name);
       shapeOf(node.children, shape);
@@ -121,6 +136,18 @@ export function validateTranslation(
   for (const name of actual.placeholders) {
     if (!expectedValues.has(name))
       errors.push({ code: "unexpected-placeholder", name });
+  }
+  for (const [name, type] of expected.formats) {
+    if (!actual.placeholders.has(name)) continue;
+    const got = actual.formats.get(name) ?? null;
+    if (got !== type) {
+      errors.push({
+        code: "unexpected-format",
+        name,
+        expected: type,
+        actual: got,
+      });
+    }
   }
   for (const name of expected.tags) {
     if (!actual.tags.has(name)) errors.push({ code: "missing-tag", name });

@@ -63,7 +63,7 @@ test.each([
   ["invalid placeholder name", "olá {two words}", /name/i],
   ["a name that starts with a digit but is not a number", "olá {1a}", /name/i],
   ["select without branches", "{g, select,}", /branch/i],
-  ["unknown argument type", "{n, number}", /select|supported/i],
+  ["unknown argument type", "{n, foo}", /select|supported/i],
 ])("rejects %s with a specific error", (_label, source, pattern) => {
   const result = parseIcu(source);
   expect(result.ok).toBe(false);

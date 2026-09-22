@@ -1,4 +1,4 @@
-import { placeholdersOf } from "@corpus/contract";
+import { placeholderFormatsOf, placeholdersOf } from "@corpus/contract";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/auth/session";
 import { isQueueKind, queueItems } from "@/catalogue/queues";
@@ -125,10 +125,12 @@ export default async function StringPage({
       described.set(name, spec.description);
     }
   }
+  const formats = placeholderFormatsOf(string.source, string.syntax);
   const slots: Slot[] = [...placeholdersOf(string.source, string.syntax)].map(
     (name) => ({
       name,
       description: described.get(name),
+      format: formats.get(name),
     }),
   );
   const errorKey = query.error

@@ -33,7 +33,7 @@ These write plain ICU MessageFormat, which is `library: "icu"`, which is the def
 {gender, select, female {her file} male {his file} other {their file}}
 ```
 
-Rich text is tags: `<link>terms</link>`, `<icon/>`. Corpus checks that a translation keeps every placeholder, every branch its language needs, and every tag. Prose that spells a tag it does not mean, Jellyfin's `https://example.com/<baseurl>`, is refused as an unclosed tag, with the same advice from `corpus push` and from the server. ICU's own apostrophe quoting (`'<baseurl>'`) is not read here; what works is `&lt;baseurl&gt;` where the application renders HTML, or wording the text so the brackets are not there.
+A placeholder may carry a format, `{count, number}`, `{d, date, short}`, `{t, time}`, with the style after a second comma: a translation keeps the name and the type and may change the style, the chip inserts the source's form, and a preview formats the example's value for the language when it can. Rich text is tags: `<link>terms</link>`, `<icon/>`. Corpus checks that a translation keeps every placeholder, every branch its language needs, and every tag. Prose that spells a tag it does not mean, Jellyfin's `https://example.com/<baseurl>`, is refused as an unclosed tag, with the same advice from `corpus push` and from the server. ICU's own apostrophe quoting (`'<baseurl>'`) is not read here; what works is `&lt;baseurl&gt;` where the application renders HTML, or wording the text so the brackets are not there.
 
 ## i18next and react-i18next
 

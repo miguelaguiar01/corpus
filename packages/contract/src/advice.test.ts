@@ -36,20 +36,22 @@ test("a refusal with nothing to add gets no clause", () => {
 });
 
 test("an ICU argument type of ICU's own draws no library advice (#557)", () => {
-  // Immich: refused for `number`, and the `{{` is a branch opening with
-  // a placeholder, which is plain ICU. i18next's `{{date, short}}` read
-  // as ICU also fails on a type, but `short` is not one of ICU's.
+  // Immich's strings parse since #555; a type Corpus still lacks, in
+  // the same shape (a branch opening with a placeholder puts `{{` in
+  // the string), is refused with no library advice. i18next's
+  // `{{date, short}}` read as ICU also fails on a type, but `short` is
+  // not one of ICU's, so it still draws the advice.
   expect(
-    adviceFor(
+    parseIcu(
       "Every {hours, plural, one {hour} other {{hours, number} hours}}",
       "icu",
-    ),
-  ).toBe("");
+    ).ok,
+  ).toBe(true);
+  expect(adviceFor("{n, plural, one {{n, spellout} x} other {y}}", "icu")).toBe(
+    "",
+  );
   expect(
-    adviceFor(
-      "{count, plural, one {{count, number} Place} other {{count, number} Places}}",
-      "icu",
-    ),
+    adviceFor("{n, selectordinal, one {{n}st} other {{n}th}}", "icu"),
   ).toBe("");
   expect(adviceFor("{{date, short}} left", "icu")).toBe(
     '; {{ }} is i18next\'s interpolation: declare library: "i18next" on the source',

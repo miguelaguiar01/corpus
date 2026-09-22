@@ -1,13 +1,15 @@
 {
   "app.title": "Corpus",
-  "nav.overview": "Visão geral",
-  "nav.catalogue": "Catálogo",
-  "nav.entities": "Entidades",
-  "nav.settings": "Definições",
-  "nav.signOut": "Terminar sessão",
+  "catalogue.heading": "Catálogo",
+  "editor.formatChanged": "{name} é um {type} no original, não um {actual}",
+  "editor.formatDropped": "{name} é um {type} no original; escreva-o com o seu formato",
+  "entities.heading": "Entidades",
   "invite.signIn": "Iniciar sessão",
   "invite.submit": "Entrar",
-  "catalogue.heading": "Catálogo",
-  "entities.heading": "Entidades",
+  "nav.catalogue": "Catálogo",
+  "nav.entities": "Entidades",
+  "nav.overview": "Visão geral",
+  "nav.settings": "Definições",
+  "nav.signOut": "Terminar sessão",
   "settings.heading": "Definições"
 }

@@ -11,7 +11,10 @@ import { localeOf, type Library } from "./strings";
 
 export type IcuNode =
   | { kind: "literal"; text: string }
-  | { kind: "placeholder"; name: string }
+  // A formatted placeholder, `{n, number}`, `{d, date, short}`, `{t,
+  // time}`, keeps its type and its style (#555): a translation keeps
+  // the name and the type and may change the style.
+  | { kind: "placeholder"; name: string; format?: PlaceholderFormat }
   | { kind: "select"; arg: string; branches: Record<string, IcuNode[]> }
   | { kind: "plural"; arg: string; branches: Record<string, IcuNode[]> }
   // `#` inside a plural branch: the number itself.
@@ -22,6 +25,11 @@ export type IcuNode =
   // because the count is passed at render time rather than named in the
   // string. Branches are in the order they were written.
   | { kind: "forms"; branches: IcuNode[][] };
+
+export type PlaceholderFormat = {
+  type: "number" | "date" | "time";
+  style?: string;
+};
 
 export type IcuError = { message: string; position: number };
 
@@ -259,9 +267,34 @@ class Parser {
     // '{arg, type, ...}'
     this.pos += 1; // consume ','
     const type = this.readUntil([",", "}"]).trim();
+    if (type === "number" || type === "date" || type === "time") {
+      if (!NAME_RE.test(name)) {
+        throw new ParseFailure(
+          `invalid placeholder name ${JSON.stringify(name)}`,
+          start,
+        );
+      }
+      let style: string | undefined;
+      if (this.source[this.pos] === ",") {
+        this.pos += 1;
+        style = this.readUntil(["}"]).trim();
+        if (style === "") {
+          throw new ParseFailure(`${type} has an empty style`, start);
+        }
+      }
+      if (this.source[this.pos] !== "}") {
+        throw new ParseFailure(`unclosed ${type}`, start);
+      }
+      this.pos += 1;
+      return {
+        kind: "placeholder",
+        name,
+        format: style === undefined ? { type } : { type, style },
+      };
+    }
     if (type !== "select" && type !== "plural") {
       throw new ParseFailure(
-        `argument type ${JSON.stringify(type)} is not supported; only select and plural are`,
+        `argument type ${JSON.stringify(type)} is not supported; only select, plural, number, date and time are`,
         start,
       );
     }
@@ -485,6 +518,38 @@ export function tagsOf(source: string, syntax: Library = "icu"): Set<string> {
   const tags = new Set<string>();
   if (result.ok) collect(result.nodes, new Set(), new Set(), new Set(), tags);
   return tags;
+}
+
+// Each formatted placeholder's format as the source wrote it,
+// `number, ::percent`, so a chip inserts the source's form (#555).
+export function placeholderFormatsOf(
+  source: string,
+  syntax: Library = "icu",
+): Map<string, string> {
+  const formats = new Map<string, string>();
+  const result = parseIcu(source, syntax);
+  if (result.ok) collectFormats(result.nodes, formats);
+  return formats;
+}
+
+function collectFormats(nodes: IcuNode[], formats: Map<string, string>) {
+  for (const node of nodes) {
+    if (node.kind === "placeholder" && node.format && !formats.has(node.name)) {
+      formats.set(
+        node.name,
+        node.format.style === undefined
+          ? node.format.type
+          : `${node.format.type}, ${node.format.style}`,
+      );
+    } else if (node.kind === "tag") collectFormats(node.children, formats);
+    else if (node.kind === "forms") {
+      for (const branch of node.branches) collectFormats(branch, formats);
+    } else if (node.kind === "select" || node.kind === "plural") {
+      for (const branch of Object.values(node.branches)) {
+        collectFormats(branch, formats);
+      }
+    }
+  }
 }
 
 export function placeholdersOf(
