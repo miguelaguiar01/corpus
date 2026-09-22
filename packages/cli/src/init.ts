@@ -4,6 +4,7 @@ import { createJiti } from "jiti";
 import {
   corpusConfigSchema,
   LANGUAGE_RE,
+  LIBRARIES,
   localeOf,
   type Library,
 } from "@corpus/contract";
@@ -14,7 +15,7 @@ import { CliError, CONFIG_FILENAMES } from "./config";
 import { ignoreCorpusDir } from "./corpus-dir";
 
 export const INIT_USAGE =
-  "corpus init --project <slug> --source <lang> --messages <path with {lang}> [--languages <a,b>] [--server <url>] [--type <name>] [--library <icu|i18next>]";
+  "corpus init --project <slug> --source <lang> --messages <path with {lang}> [--languages <a,b>] [--server <url>] [--type <name>] [--library <icu|i18next|vue>]";
 
 // `corpus init` writes a corpus.config.ts from flags alone, so it scripts;
 // it validates the config before writing and never overwrites one.
@@ -91,7 +92,9 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
         adapter: "messages",
         type,
         path: messages,
-        ...(library?.value === "i18next" ? { library: "i18next" } : {}),
+        ...(library && library.value !== "icu"
+          ? { library: library.value }
+          : {}),
       },
     ],
   });
@@ -104,9 +107,11 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   const file = path.join(ctx.cwd, CONFIG_FILENAMES[0]);
   writeFileSync(file, render(parsed.data));
   ctx.out(`wrote ${CONFIG_FILENAMES[0]}`);
-  if (library?.value === "i18next") {
+  if (library && library.value !== "icu") {
+    const why =
+      library.value === "i18next" ? "{{ }}" : "a pipe or a quoted literal";
     ctx.out(
-      `library: i18next${library.detected ? `, from {{ }} in ${library.detected}` : ""}`,
+      `library: ${library.value}${library.detected ? `, from ${why} in ${library.detected}` : ""}`,
     );
   }
   const ignored = ignoreCorpusDir(ctx.cwd);
@@ -153,6 +158,9 @@ export default defineCorpus({
 }
 
 const ICU_ARGUMENT_RE = /\{\s*[^{},]+\s*,\s*(?:select|plural)\s*,/;
+// Any ICU argument, not only the branching ones: a `{when, date, short}`
+// in a catalogue with a stray pipe is still ICU, not vue-i18n.
+const ICU_ANY_ARGUMENT_RE = /\{\s*[^{},]+\s*,\s*[a-z]+/;
 
 // A source file that is absent or does not read decides nothing: push
 // will say what is wrong with it.
@@ -179,10 +187,12 @@ async function libraryFor(
       ctx.err("corpus: --syntax is the old name for --library; it goes at 1.0");
     }
     const given = option(args, flag);
-    if (given !== "icu" && given !== "i18next") {
-      throw new CliError(`${flag} takes icu or i18next\nusage: ${INIT_USAGE}`);
+    if (!(LIBRARIES as readonly string[]).includes(given ?? "")) {
+      throw new CliError(
+        `${flag} takes ${LIBRARIES.join(", ")}\nusage: ${INIT_USAGE}`,
+      );
     }
-    return { value: given };
+    return { value: given as Library };
   }
   const file = pattern.replace("{lang}", sourceLanguage);
   let texts: string[];
@@ -198,7 +208,19 @@ async function libraryFor(
   }
   const braces = texts.some((text) => text.includes("{{"));
   const icu = texts.some((text) => ICU_ARGUMENT_RE.test(text));
-  return braces && !icu ? { value: "i18next", detected: file } : undefined;
+  if (braces && !icu) return { value: "i18next", detected: file };
+  // vue-i18n: a top-level pipe separates plural forms and `{'…'}` is a
+  // literal. Either is enough, and neither appears in plain ICU.
+  // A quoted literal is vue-i18n's alone. A pipe is only evidence when
+  // nothing else in the catalogue reads as ICU, since a pipe is
+  // ordinary punctuation.
+  const escapes = texts.some((text) => /\{'[^']*'\}/.test(text));
+  const pipes = texts.some((text) => text.includes("|"));
+  const anyIcu = texts.some((text) => ICU_ANY_ARGUMENT_RE.test(text));
+  if (!braces && !icu && (escapes || (pipes && !anyIcu))) {
+    return { value: "vue", detected: file };
+  }
+  return undefined;
 }
 
 // The languages a messages path names (§3): every file or directory

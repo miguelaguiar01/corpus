@@ -17,7 +17,11 @@ export type IcuNode =
   // `#` inside a plural branch: the number itself.
   | { kind: "count"; arg: string }
   // <name>children</name>, or <name/> with none.
-  | { kind: "tag"; name: string; children: IcuNode[] };
+  | { kind: "tag"; name: string; children: IcuNode[] }
+  // vue-i18n's pipe plural: `one | other`, positional, with no argument
+  // because the count is passed at render time rather than named in the
+  // string. Branches are in the order they were written.
+  | { kind: "forms"; branches: IcuNode[][] };
 
 export type IcuError = { message: string; position: number };
 
@@ -124,6 +128,15 @@ class Parser {
         continue;
       }
       if (ch === "{") {
+        // vue-i18n: `{name}` is a placeholder and `{'…'}` is the escape
+        // for a literal `@`, `|` or `{`, which the language would
+        // otherwise read as syntax.
+        if (this.syntax === "vue") {
+          flush();
+          nodes.push(this.parseVueBrace());
+          literalStart = this.pos;
+          continue;
+        }
         // i18next: {{name}} is a placeholder, a single brace is text,
         // and there are no arguments, so nothing else opens here.
         if (this.syntax === "i18next") {
@@ -183,6 +196,30 @@ class Parser {
     }
     this.pos = end + 2;
     return { kind: "placeholder", name: unescaped ? `-${key}` : key };
+  }
+
+  // vue-i18n's braces: `{name}` names a value, `{'…'}` is a literal
+  // whose quoted text is kept as text (#496), which is how a catalogue
+  // writes an `@`, a `|` or a brace that the language reads as syntax.
+  private parseVueBrace(): IcuNode {
+    const start = this.pos;
+    const end = closingBrace(this.source, this.pos);
+    if (end < 0) throw new ParseFailure("unclosed '{'", start);
+    const inner = this.source.slice(this.pos + 1, end).trim();
+    const quoted = /^'((?:[^'\\]|\\.)*)'$/.exec(inner);
+    this.pos = end + 1;
+    // A backslash inside the quotes escapes the next character, as
+    // vue-i18n's own compiler reads it.
+    if (quoted) {
+      return { kind: "literal", text: quoted[1]!.replace(/\\(.)/g, "$1") };
+    }
+    if (!NAME_RE.test(inner)) {
+      throw new ParseFailure(
+        `invalid placeholder name ${JSON.stringify(inner)}`,
+        start,
+      );
+    }
+    return { kind: "placeholder", name: inner };
   }
 
   // A tag at the cursor, consumed, or nothing when the < is text.
@@ -301,10 +338,29 @@ export function parseIcu(
   syntax: Library = "icu",
 ): IcuParseResult {
   try {
-    return {
-      ok: true,
-      nodes: new Parser(source, syntax).parseSequence(false),
-    };
+    if (syntax === "vue") {
+      const parts = splitVueSource(source);
+      // vue-i18n trims each form, so the space around a separator is
+      // not part of the text.
+      if (parts.length > 1) {
+        const empty = parts.findIndex((part) => part.trim() === "");
+        if (empty >= 0) {
+          throw new ParseFailure(
+            "a plural form is empty; every form between two | must have text",
+            parts.slice(0, empty).join("|").length,
+          );
+        }
+      }
+      const branches = parts.map((part) =>
+        new Parser(part.trim(), syntax).parseSequence(false),
+      );
+      return {
+        ok: true,
+        nodes:
+          branches.length === 1 ? branches[0]! : [{ kind: "forms", branches }],
+      };
+    }
+    return { ok: true, nodes: new Parser(source, syntax).parseSequence(false) };
   } catch (error) {
     if (error instanceof ParseFailure) {
       return {
@@ -314,6 +370,52 @@ export function parseIcu(
     }
     throw error;
   }
+}
+
+// vue-i18n separates plural forms with a top-level `|`. The source is
+// split before it is parsed, so a pipe inside a `{'…'}` literal is
+// text: that escape is exactly how a catalogue writes one (#496).
+// The `}` that closes a vue brace, skipping one inside the quotes of a
+// `{'…'}` literal: `{'}'}` is a literal closing brace.
+function closingBrace(source: string, at: number): number {
+  let quoted = false;
+  for (let i = at + 1; i < source.length; i++) {
+    const ch = source[i];
+    if (ch === "\\" && quoted) {
+      i += 1;
+      continue;
+    }
+    if (ch === "'") quoted = !quoted;
+    else if (ch === "}" && !quoted) return i;
+  }
+  return -1;
+}
+
+function splitVueSource(source: string): string[] {
+  const parts: string[] = [];
+  let current = "";
+  let at = 0;
+  while (at < source.length) {
+    const ch = source[at]!;
+    if (ch === "{") {
+      const end = closingBrace(source, at);
+      if (end >= 0) {
+        current += source.slice(at, end + 1);
+        at = end + 1;
+        continue;
+      }
+    }
+    if (ch === "|") {
+      parts.push(current);
+      current = "";
+      at += 1;
+      continue;
+    }
+    current += ch;
+    at += 1;
+  }
+  parts.push(current);
+  return parts;
 }
 
 function collect(
@@ -335,6 +437,13 @@ function collect(
       tags.add(node.name);
       collect(node.children, placeholders, selectArgs, pluralArgs, tags);
     }
+    // A form's placeholders are the message's: without this an agent is
+    // told a pipe plural has none, drafts without them, and is refused.
+    if (node.kind === "forms") {
+      for (const branch of node.branches) {
+        collect(branch, placeholders, selectArgs, pluralArgs, tags);
+      }
+    }
   }
 }
 
@@ -348,6 +457,8 @@ export function branchingNodes(
   for (const node of nodes) {
     if (node.kind === "select" || node.kind === "plural") out.push(node);
     else if (node.kind === "tag") out.push(...branchingNodes(node.children));
+    else if (node.kind === "forms")
+      for (const branch of node.branches) out.push(...branchingNodes(branch));
   }
   return out;
 }

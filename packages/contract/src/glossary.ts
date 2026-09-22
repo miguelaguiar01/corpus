@@ -55,6 +55,8 @@ function literalText(source: string, syntax: Library): string {
       else if (node.kind === "tag") walk(node.children);
       else if (node.kind === "select" || node.kind === "plural")
         for (const branch of Object.values(node.branches)) walk(branch);
+      else if (node.kind === "forms")
+        for (const branch of node.branches) walk(branch);
     }
   };
   walk(parsed.nodes);

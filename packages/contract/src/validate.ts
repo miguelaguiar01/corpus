@@ -57,6 +57,11 @@ function shapeOf(
       shape.tags.add(node.name);
       shapeOf(node.children, shape);
     }
+    // A form's placeholders are the message's; how many forms there are
+    // is the project's rule to decide, not Corpus's (#495).
+    if (node.kind === "forms") {
+      for (const branch of node.branches) shapeOf(branch, shape);
+    }
     if (node.kind === "select" || node.kind === "plural") {
       const map = node.kind === "select" ? shape.selects : shape.plurals;
       const keys = map.get(node.arg) ?? new Set<string>();
