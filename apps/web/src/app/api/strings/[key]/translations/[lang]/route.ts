@@ -64,6 +64,7 @@ export async function PUT(
     state: result.state,
     text: result.text,
     actor: result.actor,
+    ...(result.incomplete.length > 0 ? { incomplete: result.incomplete } : {}),
   };
   return Response.json(response);
 }

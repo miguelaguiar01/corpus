@@ -202,6 +202,9 @@ test("a plural missing a category its language uses is incomplete: printed apart
     /corpus: 1 incomplete plural\(s\), a category the language uses/,
   );
   expect(err).not.toMatch(/invalid translation/);
+  expect(c.stdout.join("\n")).toBe(
+    "validate: no invalid translation; 1 incomplete plural(s) listed above",
+  );
 
   write("i18n/pt.json", {
     marks: "{n, plural, one {# marca} other {# marcas}}",

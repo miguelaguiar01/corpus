@@ -55,7 +55,7 @@ REQUESTS=$(cat <<'JSONL'
 {"jsonrpc":"2.0","method":"notifications/initialized"}
 {"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_queue","arguments":{"queue":"untranslated","language":"pt-PT"}}}
 {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"get_string","arguments":{"key":"editor.unsaved"}}}
-{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"save_draft","arguments":{"key":"editor.unsaved","language":"pt-PT","text":"Tem {count, plural, one {# alteração} other {# alterações}}"}}}
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"save_draft","arguments":{"key":"editor.unsaved","language":"pt-PT","text":"Tem {count, plural, one {# alteração} few {# alterações} other {# alterações}}"}}}
 {"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"save_draft","arguments":{"key":"editor.unsaved","language":"pt-PT","text":"Tem {count, plural, one {# alteração} many {# de alterações} other {# alterações}}"}}}
 {"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"status","arguments":{}}}
 JSONL

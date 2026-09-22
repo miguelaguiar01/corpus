@@ -81,8 +81,8 @@ get_string {"key":"editor.unsaved"}
     "siblingCount": 1
   }
 
-save_draft {"key":"editor.unsaved","language":"pt-PT","text":"Tem {count, plural, one {# alteração} other {# alterações}}"}
-  refused: invalid-translation: Plural count is missing the many branch this language uses
+save_draft {"key":"editor.unsaved","language":"pt-PT","text":"Tem {count, plural, one {# alteração} few {# alterações} other {# alterações}}"}
+  refused: invalid-translation: Plural count has a few branch this language does not use
 
 save_draft {"key":"editor.unsaved","language":"pt-PT","text":"Tem {count, plural, one {# alteração} many {# de alterações} other {# alterações}}"}
   {
@@ -102,7 +102,7 @@ status {}
       "pt-PT"
     ],
     "strings": 2,
-    "lastPushAt": "2026-09-22T21:28:10.152Z",
+    "lastPushAt": "2026-09-22T21:43:25.023Z",
     "version": "v0.17.0",
     "pendingProposals": 0,
     "writableSources": [

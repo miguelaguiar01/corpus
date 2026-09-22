@@ -75,7 +75,13 @@ export async function validate(
     ctx.err(`corpus: ${parts.join(", ")}`);
     if (invalid.length > 0 || orphans.length > 0) return 1;
   }
-  if (!json) ctx.out("validate: every translation is valid");
+  if (!json) {
+    ctx.out(
+      incomplete.length > 0
+        ? `validate: no invalid translation; ${incomplete.length} incomplete plural(s) listed above`
+        : "validate: every translation is valid",
+    );
+  }
   return 0;
 }
 

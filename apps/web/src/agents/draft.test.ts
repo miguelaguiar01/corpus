@@ -28,6 +28,7 @@ test("a draft lands on an untranslated row as translated, attributed to the agen
     state: "translated",
     text: "Continue",
     actor: "mm agent",
+    incomplete: [],
   });
   const detail = stringDetail(db, project.id, CONTINUE)!;
   expect(detail.translations.en).toMatchObject({
@@ -169,5 +170,20 @@ test("a verified row that went stale is open to the agent", () => {
     state: "translated",
     stale: false,
     agentDraft: true,
+  });
+});
+
+test("a plural missing a category the language uses saves, and the agent is told (#556)", () => {
+  const { db, project } = pushedProject();
+  const result = agentDraft(db, {
+    project,
+    key: "ui.marks-left",
+    language: "en",
+    text: "{n, plural, other {# marks left.}}",
+  });
+  expect(result).toMatchObject({
+    ok: true,
+    state: "translated",
+    incomplete: ["Plural n is missing the one branch this language uses"],
   });
 });

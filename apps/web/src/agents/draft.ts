@@ -27,6 +27,9 @@ type DraftResult =
       state: "translated";
       text: string;
       actor: string;
+      // A plural missing a category the language uses saves, and the
+      // agent is told what is missing (#556).
+      incomplete: string[];
     }
   | ({ ok: false } & DraftRefusal);
 
@@ -90,5 +93,8 @@ export function agentDraft(
     state: "translated",
     text,
     actor: actor.name,
+    incomplete: (validation.incomplete ?? []).map((error) =>
+      validationMessage(error, detail.string.syntax),
+    ),
   };
 }
