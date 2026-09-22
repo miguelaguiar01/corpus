@@ -1,4 +1,4 @@
-`corpus.config.ts` sits at the root of your repository and declares what Corpus reads, where it sends it, and what `corpus check` scans. Every command except `init` runs it.
+`corpus.config.ts` sits at the root of your repository and declares what Corpus reads, where it sends it, and what `corpus check` scans. Every command that touches your strings runs it; `init` writes it, and `corpus workbench` reads it only when it creates the project.
 
 It is TypeScript, run directly with no build step. `defineCorpus` types it and returns it unchanged, so a mistake is a type error in your editor rather than a failed push.
 
@@ -14,7 +14,8 @@ export default defineCorpus({
   server: process.env.CORPUS_SERVER ?? "http://localhost:3000",
 
   // The language the repository is written in, then every language the
-  // project has. The source language is never written back by a pull.
+  // project has. A pull never writes a translation into the source
+  // language's file; it does write proposals there.
   sourceLanguage: "en",
   languages: ["en", "de", "pt-PT"],
 
@@ -87,13 +88,23 @@ server: process.env.CORPUS_SERVER ?? "http://localhost:3000",
 
 - `include`: the directories with your components. `src` when absent, which is wrong for a monorepo and for Outline-shaped layouts, so set it.
 - `ignore`: path prefixes, or globs when they contain `*` or `?`. `**/*.test.tsx` is the common one.
-- `allow`: regular expressions for text that is not chrome. A product name shown untranslated in every language belongs here; so does a code, a brand, or a unit. When more than half the findings are single words, `check` says so and names this option.
+- `allow`: regular expressions for text that is not chrome. A product name shown untranslated in every language belongs here; so does a code, a brand, or a unit. When a run has five findings or more and at least half of them are single words, `check` says so and names this option.
 
-**`stringTypes`** declares the metadata a type of string may carry, which is what makes a string page useful rather than bare. **`typeNotes`** is one sentence per type on its voice, shown to whoever translates it. **`entityTypes`** and the entities an `exec` source emits describe the people and places your text refers to. **`glossary`** points at one JSON file per target language of terms that must be rendered consistently. [Metadata, types, entities and the glossary](Metadata-types-entities-and-the-glossary) covers all four; none is required.
+**`stringTypes`** declares the metadata a type of string may carry, which is what makes a string page useful rather than bare. **`typeNotes`** is one sentence per type on its voice, shown to whoever translates it. **`entityTypes`** and the entities an `exec` source emits describe the people and places your text refers to. **`glossary`** points at one JSON file per target language, each an array of `{ term, forms?, target, note? }`. A term matches the word as written, so `forms` lists its plurals and agreements; in a script written without spaces between words, such as Chinese, Japanese or Thai, it matches as a run of characters instead. The terms that occur in a string are shown beside it while it is translated.
+
+[Metadata, types, entities and the glossary](Metadata-types-entities-and-the-glossary) will cover all four in full; none is required.
 
 ## Where the token comes from
 
-The config holds no secrets. Commands that talk to the instance read `CORPUS_TOKEN`, and fall back to `.corpus/token`, which `corpus workbench` writes and `corpus project rotate-token` rewrites. `init` adds `.corpus/` to your `.gitignore` for exactly this reason.
+The config holds no secrets. Commands that talk to the instance read `CORPUS_TOKEN`, and fall back to `.corpus/token`. `init` adds `.corpus/` to your `.gitignore` for exactly this reason.
+
+`corpus workbench` writes that file when it creates the project. Against an instance someone else runs, the instance secret creates the project and prints the token once, alone on the last line so a script can capture it:
+
+```sh
+CORPUS_INVITE_SECRET=<the instance secret> npx corpus project create --name "Acme app"
+```
+
+`corpus project rotate-token` replaces the token, authenticating with the current one, and rewrites `.corpus/token` when that is where the old one came from.
 
 ## A caution worth stating
 

@@ -49,7 +49,7 @@ npx corpus init --project my-game --source en \
 npx corpus workbench
 ```
 
-`init` writes `corpus.config.ts`, the whole configuration for a repository whose strings are a plain message catalog; it reads the languages from the files that fill `{lang}`, and the library from the source file's values (`{{ }}` with no ICU argument is i18next, said in the output), or takes `--languages` and `--library <icu|i18next>`. `workbench` starts an instance at http://localhost:3000, creates the project the config declares, and prints the invite secret it generated; the project's token is written to `.corpus/token`, so in another shell:
+`init` writes `corpus.config.ts`, the whole configuration for a repository whose strings are a plain message catalog: it reads the languages from the files and the i18n library from the source catalogue, and takes `--languages` and `--library` when you would rather say. `workbench` starts an instance at http://localhost:3000, creates the project the config declares, and prints the invite secret it generated; the project's token is written to `.corpus/token`, so in another shell:
 
 ```sh
 npx corpus push          # the repository's text is in Corpus
@@ -91,7 +91,7 @@ export default defineCorpus({
 });
 ```
 
-`corpus init` writes that for you, reading your languages from the files and your i18n library from the source catalogue. The commands:
+`corpus init` writes it, as the quick start above does. The commands:
 
 ```sh
 npx corpus build                      # no server: runs the sources, validates, prints a summary
@@ -105,7 +105,7 @@ npx corpus check                      # lint: user-facing literals outside decla
 
 The [wiki](https://github.com/miguelaguiar01/corpus/wiki) is where this is explained: [the config file](https://github.com/miguelaguiar01/corpus/wiki/The-config-file) field by field, [sources and adapters](https://github.com/miguelaguiar01/corpus/wiki/Sources-and-adapters) for catalogues, tables and an exporter of your own, and [your i18n library](https://github.com/miguelaguiar01/corpus/wiki/Your-i18n-library) for next-intl, i18next and the rest.
 
-Note that every command but `init` runs the repository's own `corpus.config.ts`, and `push`, `build` and `pull` run the `exec` commands it declares, so run them only in repositories you trust, as you would their build scripts.
+Note that the commands run the repository's own `corpus.config.ts`, and `push`, `build` and `pull` run the `exec` commands it declares, so run them only in repositories you trust, as you would their build scripts.
 
 ## Manage the strings, not only their translations
 

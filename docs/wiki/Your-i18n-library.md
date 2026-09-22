@@ -6,9 +6,9 @@ A source declares the library its catalogue was written for:
 
 One value decides how placeholders are spelled, how plurals are written, and what is escaped. `icu` is the default and what an absent field means.
 
-`corpus init` guesses it from your source file and says what it found. If your catalogue uses `{{name}}` and no ICU arguments, it writes `library: "i18next"` for you.
+`corpus init` looks at your source file and writes `library: "i18next"` when the values use `{{name}}` and no ICU argument, saying so as it does. It writes nothing for a plain ICU catalogue, since that is the default.
 
-(`syntax` is the old name for this field. A config that still uses it works, and every command says once that the field has been renamed. It goes at 1.0.)
+(`syntax` is the old name for this field. A config that still uses it works, and `build`, `push` and `validate` each say once that the field has been renamed. It goes at 1.0.)
 
 ## next-intl, FormatJS, Lingui, and anything ICU
 
@@ -62,7 +62,7 @@ Three things differ from ICU, and Corpus handles all three:
 
 **Interpolation is `{{name}}`**, with or without spaces, and a format after a comma is ignored. A single brace is text. The unescaped form `{{- name}}` is its own placeholder, kept apart from `{{name}}`, because i18next inserts one raw and escapes the other, and a translation that swaps them changes what the user sees.
 
-**Plurals are separate keys**, not arguments: `item` beside `item_other`, or `_one`, `_few` and the rest. Corpus shows the whole family together on the string page, so you translate them as the set they are.
+**Plurals are separate keys**, not arguments: `item` beside `item_other`, or `_one`, `_few` and the rest. Corpus treats a key and its suffixed forms as siblings, so they appear together on the string page and in what an agent reads, rather than as unrelated rows.
 
 **Keys are often the English sentence**, spaces, punctuation and all. That works: a string id is any text without control characters.
 

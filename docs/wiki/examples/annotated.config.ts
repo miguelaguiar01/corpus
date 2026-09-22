@@ -6,7 +6,8 @@ export default defineCorpus({
   server: process.env.CORPUS_SERVER ?? "http://localhost:3000",
 
   // The language the repository is written in, then every language the
-  // project has. The source language is never written back by a pull.
+  // project has. A pull never writes a translation into the source
+  // language's file; it does write proposals there.
   sourceLanguage: "en",
   languages: ["en", "de", "pt-PT"],
 

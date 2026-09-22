@@ -47,7 +47,9 @@ A command that prints the entries as JSON, for text that lives somewhere no adap
 }
 ```
 
-The export command prints `{ strings, entities?, translations? }`. The import command receives, on stdin, only the rows a pull selected, for the languages that pull asked for. That last point is where these go wrong: an import command that rewrites its file from what it receives deletes everything the payload does not carry, which is every string nobody has translated yet. It must merge.
+The export command prints `{ strings, entities?, translations? }`. `strings` are the entries themselves; `entities` describe the people and places they refer to; `translations` is what the repository already holds, as language to id to text, which push imports as translated exactly as it does a catalogue file's. A language the config does not declare, or the source language, is an error rather than a silent skip.
+
+The import command receives, on stdin, only the rows a pull selected, for the languages that pull asked for. That last point is where these go wrong: an import command that rewrites its file from what it receives deletes everything the payload does not carry, which is every string nobody has translated yet. It must merge.
 
 Without `importCommand` the source is push-only, and every command that reads it says so.
 
@@ -64,6 +66,8 @@ Without `importCommand` the source is push-only, and every command that reads it
 | `exec` with `importCommand` | yes | yes |
 | `exec` without it | yes | no |
 
+A proposal is a separate matter: any writable `.json` source takes proposals back, `{lang}` or not, because a proposal is written into the source-language file.
+
 `build` and `push` print one line per source that cannot take translations back, so you learn it before anyone translates into it rather than after.
 
 ## Types
@@ -74,13 +78,38 @@ Pick types by how the text behaves rather than by where it lives: `ui` for butto
 
 ## More than one source
 
+<!-- from: examples/many-sources.config.ts -->
 ```ts
-sources: [
-  { adapter: "messages", type: "ui", path: "src/i18n/{lang}.json" },
-  { adapter: "messages", type: "email", path: "emails/i18n/{lang}.json" },
-  { adapter: "table", type: "tour-step", path: "src/tour/steps.ts",
-    map: { id: "id", text: "text" } },
-]
+import { defineCorpus } from "@corpus-tool/cli";
+
+export default defineCorpus({
+  project: "acme-app",
+  server: "http://localhost:3000",
+  sourceLanguage: "en",
+  languages: ["en", "de"],
+  sources: [
+    // The app's own chrome.
+    { adapter: "messages", type: "ui", path: "src/i18n/{lang}.json" },
+    // Text that has to survive a mail client, kept apart so a
+    // translator sees it as its own kind.
+    { adapter: "messages", type: "email", path: "emails/i18n/{lang}.json" },
+    // A module of records: `map` says which field is which.
+    {
+      adapter: "table",
+      type: "tour-step",
+      path: "src/tour/steps.{lang}.json",
+      map: { id: "id", text: "text", metadata: ["screen"] },
+    },
+    // Anything no adapter reads. The import command merges what a pull
+    // sends it; a command that rewrites its file loses every row the
+    // payload does not carry.
+    {
+      adapter: "exec",
+      command: "node scripts/corpus-export.mjs",
+      importCommand: "node scripts/corpus-import.mjs",
+    },
+  ],
+});
 ```
 
 Ids must be unique across all of them. Two sources holding the same id is a build error naming both files, which is what you want: it means one string has two homes and a pull would have to guess.
