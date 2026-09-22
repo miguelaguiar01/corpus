@@ -32,7 +32,7 @@ The commonest cause on a repository that has never used Corpus is a `{` that mea
 
 ## `corpus: check parsed no files in …`
 
-`check` found the directories but could not read anything in them. On a Vue or Svelte project that is expected: it reads `.jsx` and `.tsx` only.
+`check` found the directories but could not read anything in them. It reads `.jsx`, `.tsx` and `.vue`, so on a Svelte project this is expected.
 
 ## `corpus: check scanned nothing: no directory among …`
 

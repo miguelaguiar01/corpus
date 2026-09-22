@@ -11,6 +11,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
+import { findVueLiterals } from "./check-vue";
 
 export type Finding = { file: string; line: number; text: string };
 export type FindOptions = { allow?: RegExp[] };
@@ -20,7 +21,7 @@ export type CheckOptions = {
   allow?: RegExp[];
 };
 
-const USER_FACING_PROPS = new Set([
+export const USER_FACING_PROPS = new Set([
   "title",
   "placeholder",
   "aria-label",
@@ -28,7 +29,7 @@ const USER_FACING_PROPS = new Set([
   "label",
 ]);
 const SKIP_DIRS = new Set(["node_modules", ".next", "dist", ".git"]);
-const LETTERS = /\p{L}.*\p{L}/su;
+export const LETTERS = /\p{L}.*\p{L}/su;
 
 // An entity is markup, not letters: without this `&nbsp;` and `&middot;`
 // read as words and a spacing-only text is a finding (43 of Outline's
@@ -114,7 +115,7 @@ const ENTITIES: Record<string, string> = {
 };
 const ENTITY_RE = /&(#\d+|#[xX][0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);/g;
 
-function decoded(text: string): string {
+export function decoded(text: string): string {
   return text.replace(ENTITY_RE, (whole, body: string) => {
     if (!body.startsWith("#")) return ENTITIES[body] ?? whole;
     const hex = body[1] === "x" || body[1] === "X";
@@ -242,9 +243,14 @@ export type CheckResult = {
   unscanned: Unscanned[];
 };
 
-// This is a syntax-tree lint, and only JSX carries the markup it reads.
-const EXTENSIONS = [".jsx", ".tsx"] as const;
-export const READS = EXTENSIONS.join(" and ");
+// JSX carries its markup in the syntax tree; a Vue single-file
+// component carries it in a `<template>` block, scanned separately.
+const EXTENSIONS = [".jsx", ".tsx", ".vue"] as const;
+// "a, b and c", so the message reads as a sentence at any length.
+export const READS =
+  EXTENSIONS.slice(0, -1).join(", ") +
+  " and " +
+  EXTENSIONS[EXTENSIONS.length - 1];
 const PARSES = new RegExp(`(?:${EXTENSIONS.map((e) => `\\${e}`).join("|")})$`);
 
 export function checkFiles(root: string, options: CheckOptions): CheckResult {
@@ -289,7 +295,8 @@ export function checkFiles(root: string, options: CheckOptions): CheckResult {
           continue;
         }
         parsed += 1;
-        for (const f of findLiterals(source, rel, {
+        const find = name.endsWith(".vue") ? findVueLiterals : findLiterals;
+        for (const f of find(source, rel, {
           allow: options.allow,
         })) {
           findings.push(f);
