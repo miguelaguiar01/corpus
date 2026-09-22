@@ -532,15 +532,17 @@ export function placeholderFormatsOf(
   return formats;
 }
 
+// A format as the source writes it after the name: "number, ::percent".
+export function placeholderFormatText(format: PlaceholderFormat): string {
+  return format.style === undefined
+    ? format.type
+    : `${format.type}, ${format.style}`;
+}
+
 function collectFormats(nodes: IcuNode[], formats: Map<string, string>) {
   for (const node of nodes) {
     if (node.kind === "placeholder" && node.format && !formats.has(node.name)) {
-      formats.set(
-        node.name,
-        node.format.style === undefined
-          ? node.format.type
-          : `${node.format.type}, ${node.format.style}`,
-      );
+      formats.set(node.name, placeholderFormatText(node.format));
     } else if (node.kind === "tag") collectFormats(node.children, formats);
     else if (node.kind === "forms") {
       for (const branch of node.branches) collectFormats(branch, formats);

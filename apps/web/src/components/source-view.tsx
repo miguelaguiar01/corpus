@@ -4,7 +4,7 @@ import {
   type FieldDeclaration,
   type IcuNode,
   type Library,
-  type PlaceholderFormat,
+  placeholderFormatText,
 } from "@corpus/contract";
 import { chipVariants } from "@/components/ui/chip";
 import { t } from "@/i18n";
@@ -113,7 +113,11 @@ function renderNodes(
       return (
         <span key={index} className={PLACEHOLDER} title={slots.get(name)}>
           {node.kind === "placeholder"
-            ? chipText(name, syntax, formatText(node.format))
+            ? chipText(
+                name,
+                syntax,
+                node.format ? placeholderFormatText(node.format) : null,
+              )
             : "#"}
         </span>
       );
@@ -145,11 +149,4 @@ export function chipText(
 ): string {
   if (syntax === "i18next") return `{{${name}}}`;
   return format ? `{${name}, ${format}}` : `{${name}}`;
-}
-
-function formatText(format: PlaceholderFormat | undefined): string | null {
-  if (!format) return null;
-  return format.style === undefined
-    ? format.type
-    : `${format.type}, ${format.style}`;
 }

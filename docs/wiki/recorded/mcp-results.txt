@@ -41,6 +41,7 @@ get_string {"key":"editor.unsaved"}
         "name": "count",
         "description": null,
         "role": null,
+        "format": null,
         "values": {}
       }
     ],
@@ -101,8 +102,8 @@ status {}
       "pt-PT"
     ],
     "strings": 2,
-    "lastPushAt": "2026-09-22T16:55:15.498Z",
-    "version": "v0.16.0",
+    "lastPushAt": "2026-09-22T21:28:10.152Z",
+    "version": "v0.17.0",
     "pendingProposals": 0,
     "writableSources": [
       "src/i18n/{lang}.json"

@@ -103,6 +103,10 @@ test("a translation keeps the placeholder's type and may change its style", () =
       },
     ],
   });
+  // A target may add a format to a bare value, as it may pluralise one.
+  expect(
+    validateTranslation("{n} items", "{n, number} itens", "pt-PT"),
+  ).toEqual({ ok: true });
   // A plural on a number is the existing rule: the count is kept.
   expect(
     validateTranslation(
