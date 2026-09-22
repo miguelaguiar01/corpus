@@ -3,7 +3,7 @@
   "folders": "{n, plural, one {# folder} other {# folders}}",
   "members": "{n, plural, one {# member} other {# members}}",
   "tags": "{n, plural, one {# tag} other {# tags}}",
-  "updated": "{n, plural, one {{name} updated the file} other {{name} updated # files}}",
+  "updated": "{{name}} updated the file",
   "plain1": "Plain string 1",
   "plain2": "Plain string 2",
   "plain3": "Plain string 3",

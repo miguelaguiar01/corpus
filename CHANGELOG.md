@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- A string refused for an argument type ICU has (`{n, number}`, `{d, date}`, `{t, time}`) draws no library advice: Immich's `other {{hours, number} hours}}` was told to `declare library: "i18next"` because a plural branch opening with a placeholder puts `{{` in the string. A type ICU lacks, i18next's `{{date, short}}` read as ICU, still draws it. The two library hints now fire on the error the wrong library produces and on nothing else, so an unclosed or nested plural, or one missing `other`, draws no library advice either.
 - An `exec` exporter or importer may print up to 256 MiB: the build read its output through `spawnSync`'s default 1 MiB, so Ente's exporter (3.2 MB, seeds for 56 languages) and Documenso's (3.4 MB) were killed and the build said `exec "…" exited null:` with nothing after the colon. Past the new cap the message names the size; a command killed by a signal is named by the signal; one that could not run says why.
 
 ## [0.17.0] - 2026-09-22

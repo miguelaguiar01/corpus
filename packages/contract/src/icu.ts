@@ -565,6 +565,17 @@ export function pluralBranch(
 // are tested first: `{{` is i18next's interpolation but also an ICU
 // branch that opens with a placeholder (`{n, plural, other {{count}
 // apples}}`), and that catalogue is not in the wrong library.
+const ICU_ARGUMENT_TYPES = new Set([
+  "number",
+  "date",
+  "time",
+  "selectordinal",
+  "spellout",
+  "ordinal",
+  "duration",
+  "choice",
+]);
+
 export function refusalAdvice(
   source: string,
   library: Library,
@@ -584,7 +595,21 @@ export function refusalAdvice(
   if (stray) {
     return `; a <name> is a rich-text tag: remove it, or open a matching <${stray[1]}>`;
   }
-  if (library !== "i18next" && source.includes("{{")) {
+  // The library hints fire on the error the wrong library produces and
+  // on nothing else (#557): a placeholder name that starts with `{` is
+  // `{{name}}` read as ICU, an argument type ICU lacks is `{{date,
+  // short}}` read as ICU, and a name holding an ICU argument is `{n,
+  // plural, …}` read under a library without arguments. An unclosed or
+  // nested plural, or a type ICU has (`{n, number}`, #555), is ICU
+  // whatever else the string holds, though a branch that opens with a
+  // placeholder puts `{{` in it.
+  const badName = /^invalid placeholder name "(.*)"$/.exec(message);
+  const unsupported = /^argument type "([^"]+)" is not supported/.exec(message);
+  if (
+    library !== "i18next" &&
+    ((badName && badName[1]!.startsWith("{")) ||
+      (unsupported && !ICU_ARGUMENT_TYPES.has(unsupported[1]!)))
+  ) {
     return `; {{ }} is i18next's interpolation: declare library: "i18next" on the source`;
   }
   // The mirror: an ICU catalogue read under a library that has no
@@ -597,6 +622,7 @@ export function refusalAdvice(
   // obvious way to get this wrong.
   if (
     library !== "icu" &&
+    badName &&
     /(?<!\{)\{\s*[^{},\s][^{},]*\s*,\s*[a-z]+/.test(source)
   ) {
     return `; {name, plural, …} is an ICU argument: declare library: "icu" on the source, or leave the field out`;

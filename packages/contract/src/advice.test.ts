@@ -34,3 +34,36 @@ test("a catalogue read under the wrong library is told which one", () => {
 test("a refusal with nothing to add gets no clause", () => {
   expect(adviceFor("{n, plural, one {x}}", "icu")).toBe("");
 });
+
+test("an ICU argument type of ICU's own draws no library advice (#557)", () => {
+  // Immich: refused for `number`, and the `{{` is a branch opening with
+  // a placeholder, which is plain ICU. i18next's `{{date, short}}` read
+  // as ICU also fails on a type, but `short` is not one of ICU's.
+  expect(
+    adviceFor(
+      "Every {hours, plural, one {hour} other {{hours, number} hours}}",
+      "icu",
+    ),
+  ).toBe("");
+  expect(
+    adviceFor(
+      "{count, plural, one {{count, number} Place} other {{count, number} Places}}",
+      "icu",
+    ),
+  ).toBe("");
+  expect(adviceFor("{{date, short}} left", "icu")).toBe(
+    '; {{ }} is i18next\'s interpolation: declare library: "i18next" on the source',
+  );
+});
+
+test("an ICU error that is not about the braces draws no library advice", () => {
+  // Each holds `{{` from a branch opening with a placeholder, and each
+  // is refused for a reason of its own.
+  for (const source of [
+    "{n, plural, one {{count} apple}",
+    "{n, plural, one {{count} apple} other {{n, plural, one {x} other {y}}}}",
+    "{n, plural, one {{count} x} two {y}}",
+  ]) {
+    expect(adviceFor(source, "icu"), source).toBe("");
+  }
+});

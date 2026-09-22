@@ -214,10 +214,10 @@ test("an ICU catalogue read as i18next is told which library it is", async () =>
 });
 
 test("refusals split across two hints still stop the build, naming the commonest (#538)", async () => {
-  // An ICU catalogue read as vue: a branch that opens with a
-  // placeholder holds `{{`, which draws the i18next advice, while the
-  // rest draw the ICU-argument advice. Five refusals split 4 and 1 are
-  // one cause, and the threshold counts every refusal that has advice.
+  // A catalogue read as vue holding four ICU plurals and one i18next
+  // interpolation: two pieces of advice, five refusals split 4 and 1,
+  // and the threshold counts every refusal that has advice (#549 is
+  // where the split becomes two causes).
   const building = buildSnapshotReport(
     config({
       sources: [
