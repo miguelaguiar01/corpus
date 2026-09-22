@@ -101,7 +101,16 @@ options:      Backlog=15972a3d  Ready=aefe58df  In progress=fcdf6852
   produced, before starting the next epic.
 - PR bodies say what changed and how it was verified, and link their ticket
   with a closing keyword (`Closes #N`) so the merge auto-closes the issue
-  and the board workflow moves it to Done. Never move a ticket to Done by
+  and the board workflow moves it to Done. **One keyword per ticket**:
+  `Closes #1 and #2` closes only #1, and naming a ticket in the title
+  closes nothing at all — that is how #490, #491, #496, #499, #519 and
+  #520 each stayed open after their work had merged. A ticket the PR
+  deliberately leaves open is `Refs #N` — including the epic a PR is one
+  of several under, where "Part of #N" in prose reads right and closes
+  nothing. The keyword has to be the body's own sentence: quoted in a
+  fence or a span it closes nothing either. The `tickets` CI job checks
+  it against the title; a PR template cannot, since `gh pr create --body`
+  never reads one. Never move a ticket to Done by
   hand — Done is reached only through a merged PR. (Planning-only tickets,
   e.g. writing other tickets, are the one exception; say so on the issue.)
   Report test results honestly — a red suite is a finding, not an

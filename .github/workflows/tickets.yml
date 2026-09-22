@@ -1,0 +1,30 @@
+name: tickets
+
+# A body is edited far more often than it is pushed to, so this runs on
+# `edited` too — which is why it is not a job in gate.yml, where it would
+# re-run the whole gate on a typo fix.
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  tickets:
+    name: tickets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Through the environment, never the command line: a title is text
+      # somebody outside this repository can write.
+      - name: Every ticket the title names is answered in the body
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node bin/pr-tickets.mjs
