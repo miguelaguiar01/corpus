@@ -26,10 +26,12 @@ principles that decide how they are used.
 
 ## Type
 
-Loaded with `next/font` in `apps/web/src/app/layout.tsx`. The files are
-fetched once at build time and served from `/_next/static`, so the CSP's
-`default-src 'self'` covers them and the running app makes no font
-requests.
+The faces are in the repository, under `apps/web/src/app/fonts/`, with
+their `@font-face` rules in `fonts.css` beside them; `globals.css`
+imports it. `bin/vendor-fonts` writes both. They are served from
+`/_next/static`, so the CSP's `default-src 'self'` covers them and the
+running app makes no font requests, and the build makes none either
+(#506).
 
 | Role | Face | Weights |
 |---|---|---|

@@ -11,16 +11,26 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 OUT="apps/web/src/app/fonts"
-# The user agent decides what Google serves: a browser's gets woff2 with
-# a unicode-range per subset, which is what we want. Without one the
-# answer is a single unsubsetted TTF per weight.
-UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+# The user agent decides what Google serves, in two ways. Without a
+# browser's the answer is one unsubsetted TTF per weight; with a recent
+# browser's it is the hinted woff2 build, 29% larger for metrics that do
+# not move. This is the one next/font/google sent, so the bytes are the
+# bytes the build was already shipping.
+UA='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36'
 API="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
 
+# Fetch before removing anything: a failed request should leave the
+# repository's fonts where they were.
+CSS="$(mktemp)"
+trap 'rm -f "$CSS"' EXIT
+curl -sfL -A "$UA" "$API" -o "$CSS"
 rm -rf "$OUT"
 mkdir -p "$OUT"
-curl -sfL -A "$UA" "$API" -o "$OUT/.google.css"
-curl -sfL "https://raw.githubusercontent.com/IBM/plex/master/LICENSE.txt" -o "$OUT/LICENSE.txt"
+cp "$CSS" "$OUT/.google.css"
+# The OFL asks that the licence travel with the fonts, so it is fetched
+# at a tag rather than a moving branch. The Dockerfile copies it beside
+# the served files; bin/workbench-build does the same for the package.
+curl -sfL "https://raw.githubusercontent.com/IBM/plex/v6.4.0/LICENSE.txt" -o "$OUT/LICENSE.txt"
 
 node - "$OUT" <<'JS'
 const fs = require("node:fs");
@@ -38,7 +48,7 @@ const lines = [
 const faces = css.matchAll(/\/\* ([a-z-]+) \*\/\s*@font-face \{([^}]*)\}/g);
 for (const [, subset, block] of faces) {
   const url = /url\((\S+)\) format/.exec(block);
-  if (!url) continue;
+  if (!url) throw new Error(`no woff2 url in the ${subset} face`);
   const family = /font-family: '([^']+)'/.exec(block)[1];
   const weight = /font-weight: (\d+)/.exec(block)[1];
   const range = /unicode-range: ([^;]+);/.exec(block)[1];
@@ -68,7 +78,7 @@ console.log(`${seen.size} face(s)`);
 JS
 
 while IFS=$'\t' read -r file url; do
-  curl -sfL "$url" -o "$OUT/$file"
+  curl -sfL "$url" -o "$OUT/$file" || { echo "vendor-fonts: $file failed ($url)" >&2; exit 1; }
 done < "$OUT/.urls"
 rm -f "$OUT/.google.css" "$OUT/.urls"
 echo "vendor-fonts: $(ls "$OUT"/*.woff2 | wc -l) file(s) in $OUT"
