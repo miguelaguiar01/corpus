@@ -1,0 +1,14 @@
+[
+  {
+    "term": "workspace",
+    "forms": ["workspaces"],
+    "target": "espaço de trabalho",
+    "note": "Never \"área de trabalho\", which is the desktop."
+  },
+  { "term": "draft", "forms": ["drafts", "drafted"], "target": "rascunho" },
+  {
+    "term": "Acme",
+    "target": "Acme",
+    "note": "The product name never translates."
+  }
+]
