@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-09-22
+
+What the 0.16.0 trial and the wiki found: vue-i18n, a library per source, the walls past a dozen languages, and a wiki that teaches Corpus.
+
 ### Added
 
 - A wiki that teaches Corpus, written in `docs/wiki/` and published to the repository's GitHub wiki. The configs a page shows are type checked and validated, and the output of the commands that need no server is recorded from a real run by `bin/wiki-record`, so a page cannot show a config that does not load or output the CLI no longer prints. `bin/wiki-check` in the gate compares each page against those files and says which pages are prose, which is what anything needing a running instance still is. The first pages are what Corpus is, install and first push, the daily loop, the config file, sources and adapters, and your i18n library; the README keeps its pitch and quick start and sends the reader to the wiki for the rest.
@@ -328,7 +332,8 @@ The first published version.
 - The `messages`, `table` and `exec` adapters, and the `corpus/1` snapshot contract with its ICU subset (placeholders and `select`).
 - The package ships plain JavaScript for Node 22 with type declarations; a client's config imports `defineCorpus` from `@corpus-tool/cli`.
 
-[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.17.0
 [0.16.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.16.0
 [0.15.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.15.0
 [0.14.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.14.0
