@@ -9,7 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Changed
 
-- A plural missing a category its language uses is **incomplete**, not invalid: the editor warns and saves, `corpus validate` prints it after the invalid ones, counts it apart (`1 invalid translation(s), 957 incomplete plural(s)`) and exits 1 only for invalid translations and orphan keys, and `--json` carries `severity`. On Mastodon's 110 languages 1,540 of 1,806 findings were this, 957 of them the `many` that CLDR 42 gave the Romance languages for large round numbers; the 117 placeholder and tag defects a maintainer acts on were on page 20. ICU falls back to `other`, so nothing breaks at runtime. A category the language does not use stays invalid: it is dead text.
+- A plural missing a category its language uses is **incomplete**, not invalid: the editor warns and saves, `corpus validate` prints it after the invalid ones, counts it apart (`1 invalid translation(s), 957 incomplete plural(s)`) and exits 1 only for invalid translations and orphan keys, `--json` carries `severity`, and an agent's draft answer (the API, MCP `save_draft`, `corpus agent draft`) names what the saved plural still lacks under `incomplete`. On Mastodon's 110 languages 1,540 of 1,806 findings were this, 957 of them the `many` that CLDR 42 gave the Romance languages for large round numbers; the 117 placeholder and tag defects a maintainer acts on were on page 20. ICU falls back to `other`, so nothing breaks at runtime. A category the language does not use stays invalid: it is dead text.
 
 ### Added
 
