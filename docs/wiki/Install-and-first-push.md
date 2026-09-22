@@ -14,7 +14,7 @@ If your package manager refuses the version because it was published today, that
 
 ## Write the config
 
-The examples below are a repository with six strings in `src/i18n/en.json`, fully translated into German and half translated into Portuguese. Everything shown here was recorded from that repository; the numbers are its numbers.
+The examples below are a repository with six strings in `src/i18n/en.json`, all six translated into German and two into Portuguese. The config and the output of `init` and `build` are recorded from a real run in that repository, so they are exactly what you will see. The workbench banner and the `push` and `pull` output are written by hand, because reproducing them needs a running instance; they show the shape, and your numbers will be your own.
 
 ```sh
 npx corpus init --project acme-app --source en --messages "src/i18n/{lang}.json" --type ui

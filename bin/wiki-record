@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # bin/wiki-record — re-record the command output the wiki shows.
 #
-# The recordings under docs/wiki/examples/ come from a real run in a
+# The recordings under docs/wiki/recorded/ come from a real run in a
 # temporary repository; packages/cli/src/wiki.test.ts fails when they
 # and the CLI disagree. Run this when the CLI's output changes on
 # purpose, then read the diff before committing it.

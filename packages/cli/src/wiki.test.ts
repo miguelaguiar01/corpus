@@ -1,5 +1,5 @@
 // The wiki shows what the CLI does, so the CLI is what writes it. The
-// configs and the command output under docs/wiki/examples/ are recorded
+// configs and the command output under docs/wiki/recorded/ are recorded
 // from a real run in a temporary repository, and this test fails when
 // the recording and the CLI disagree. `bin/wiki-record` rewrites them.
 //
@@ -138,15 +138,14 @@ test("the wiki's first-push page shows what corpus init and build really do", as
   );
   recorded("init.out", `${project.out.join("\n")}\n`);
 
-  const built = repo();
-  rmSync(built.dir, { recursive: true, force: true });
+  const building: string[] = [];
   const build = {
     ...project.ctx,
-    out: (l: string) => built.out.push(l),
-    err: (l: string) => built.out.push(l),
+    out: (line: string) => building.push(line),
+    err: (line: string) => building.push(line),
   };
   expect(await run(["build"], build)).toBe(0);
-  recorded("build.out", `${built.out.join("\n")}\n`);
+  recorded("build.out", `${building.join("\n")}\n`);
 });
 
 test("every config the wiki shows is a config the CLI accepts", async () => {

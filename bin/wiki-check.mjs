@@ -37,6 +37,9 @@ const fixing = process.argv.includes("--fix");
 const problems = [];
 const shown = new Set();
 const prose = [];
+// Pages where some blocks are checked and some are prose: the reader of
+// this output should not have to guess which pages those are.
+const partly = [];
 
 for (const page of pages) {
   const file = path.join(wiki, page);
@@ -45,6 +48,7 @@ for (const page of pages) {
     problems.push(`${page} has CRLF line endings; the pages are LF`);
     continue;
   }
+  const fences = (text.match(/^```/gm) ?? []).length / 2;
   let found = 0;
   const rewritten = text.replace(block, (whole, from, lang, body) => {
     found += 1;
@@ -81,7 +85,10 @@ for (const page of pages) {
     writeFileSync(file, rewritten);
     console.log(`wiki-check: rewrote ${page} from its files`);
   }
-  if (found === 0 && page !== "_Sidebar.md") prose.push(page);
+  if (page !== "_Sidebar.md") {
+    if (found === 0) prose.push(page);
+    else if (found < fences) partly.push(`${page} (${found} of ${fences})`);
+  }
 }
 
 for (const example of examples) {
@@ -122,6 +129,9 @@ console.log(
     prose.length > 0 ? prose.join(", ") : "none"
   }`,
 );
+if (partly.length > 0) {
+  console.log(`wiki-check: partly checked: ${partly.join(", ")}`);
+}
 if (planned.length > 0) {
   console.log(`wiki-check: the sidebar promises ${planned.join(", ")}`);
 }
