@@ -530,6 +530,11 @@ test("the messages the troubleshooting page quotes are messages the CLI has", ()
       "is not installed in this repository",
     ],
     ["no config found in", "no config found in"],
+    ["unknown option ${name}", "unknown option --"],
+    [
+      "check.include names ${entry.dir}, which does not exist",
+      "check.include names … , which does not exist",
+    ],
     ["string(s) refused and", "string(s) refused and"],
     ["holds a person's work", "holds a person's work"],
     [

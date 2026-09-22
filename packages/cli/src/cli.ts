@@ -42,7 +42,7 @@ const USAGE = `usage: corpus push [--dry-run] | corpus pull [--min-state <untran
 
 // What each command takes, so anything else is a typo rather than a
 // flag that silently does nothing (#520).
-const KNOWN_FLAGS: Record<string, readonly string[]> = {
+export const KNOWN_FLAGS: Record<string, readonly string[]> = {
   push: ["--dry-run"],
   pull: ["--min-state", "--lang", "--check"],
   check: [],
@@ -58,7 +58,10 @@ const KNOWN_FLAGS: Record<string, readonly string[]> = {
     "--library",
     "--syntax",
   ],
-  project: ["--name", "--server"],
+  // `project` is dispatched by subcommand below; the union here would
+  // let `rotate-token --name X` through.
+  "project create": ["--name", "--server"],
+  "project rotate-token": ["--server"],
   status: ["--json"],
   validate: ["--json"],
   mcp: [],
@@ -91,7 +94,11 @@ export async function run(argv: string[], ctx: RunContext): Promise<number> {
     try {
       // `agent` reads its own words, subcommand by subcommand.
       if (command !== "agent") {
-        refuseUnknown(command, argv.slice(1), KNOWN_FLAGS[command] ?? []);
+        const sub =
+          command === "project" ? `project ${argv[1] ?? ""}` : command;
+        const known = KNOWN_FLAGS[sub];
+        // An unknown subcommand is the subcommand's own error to give.
+        if (known) refuseUnknown(sub, argv.slice(1), known);
       }
       if (command === "init") return await init(argv.slice(1), ctx);
       if (command === "push") return await push(argv.slice(1), ctx);

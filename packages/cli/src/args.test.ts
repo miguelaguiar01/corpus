@@ -29,8 +29,15 @@ test("a flag the command does not know is refused, not ignored", () => {
   expect(() => refuseUnknown("pull", ["--langs", "pt-PT"], ["--lang"])).toThrow(
     /pull: unknown option --langs; did you mean --lang\?/,
   );
-  expect(() => refuseUnknown("push", ["--dry-runs"], ["--dry-run"])).toThrow(
+  expect(() => refuseUnknown("push", ["--dry-runz"], ["--dry-run"])).toThrow(
     /did you mean --dry-run\?/,
+  );
+  // Two characters is a stub, not a typo, so nothing is suggested.
+  expect(() => refuseUnknown("pull", ["--"], ["--lang", "--check"])).toThrow(
+    /unknown option --$/,
+  );
+  expect(() => refuseUnknown("pull", ["--l"], ["--lang"])).toThrow(
+    /unknown option --l$/,
   );
   // A subcommand and a value are words, not flags.
   expect(() =>

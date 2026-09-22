@@ -232,7 +232,10 @@ export type Scanned = { dir: string; parsed: number };
 // An include entry that could not be scanned, and why (#499): one that
 // is missing or is a file narrows the lint silently while another entry
 // keeps the run green.
-export type Unscanned = { dir: string; reason: "missing" | "not-a-directory" };
+export type Unscanned = {
+  dir: string;
+  reason: "missing" | "not-a-directory" | "unreadable";
+};
 export type CheckResult = {
   findings: Finding[];
   scanned: Scanned[];
@@ -249,12 +252,33 @@ export function checkFiles(root: string, options: CheckOptions): CheckResult {
   const findings: Finding[] = [];
   const scanned: Scanned[] = [];
   let parsed = 0;
+  const unscanned: Unscanned[] = [];
+  // An entry that cannot be read — a dangling symlink, a directory
+  // without permission — is skipped and named, not thrown and not
+  // silently taken with the rest of the tree.
   const walk = (dir: string) => {
-    for (const name of readdirSync(dir).sort()) {
+    let names: string[];
+    try {
+      names = readdirSync(dir).sort();
+    } catch {
+      unscanned.push({
+        dir: path.relative(root, dir).split(path.sep).join("/"),
+        reason: "unreadable",
+      });
+      return;
+    }
+    for (const name of names) {
       const abs = path.join(dir, name);
       const rel = path.relative(root, abs).split(path.sep).join("/");
       if (ignored(rel)) continue;
-      if (statSync(abs).isDirectory()) {
+      let stat;
+      try {
+        stat = statSync(abs);
+      } catch {
+        unscanned.push({ dir: rel, reason: "unreadable" });
+        continue;
+      }
+      if (stat.isDirectory()) {
         if (!SKIP_DIRS.has(name)) walk(abs);
       } else if (PARSES.test(name)) {
         parsed += 1;
@@ -266,7 +290,6 @@ export function checkFiles(root: string, options: CheckOptions): CheckResult {
       }
     }
   };
-  const unscanned: Unscanned[] = [];
   for (const inc of options.include) {
     const abs = path.join(root, inc);
     let stat;

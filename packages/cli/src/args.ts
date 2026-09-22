@@ -33,11 +33,15 @@ export function refuseUnknown(
     if (!arg.startsWith("--")) continue;
     const name = arg.split("=")[0]!;
     if (known.includes(name)) continue;
-    const near = known.filter(
-      (flag) => flag.startsWith(name) || name.startsWith(flag),
-    );
+    // A prefix of two characters matches half the table, so a suggestion
+    // is only offered for something long enough to be a typo of one
+    // flag rather than a stub of several.
+    const near =
+      name.length >= 4
+        ? known.filter((flag) => flag.startsWith(name) || name.startsWith(flag))
+        : [];
     throw new CliError(
-      `${command}: unknown option ${name}${near.length ? `; did you mean ${near.join(" or ")}?` : ""}`,
+      `${command}: unknown option ${name}${near.length === 1 ? `; did you mean ${near[0]}?` : ""}`,
     );
   }
 }

@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
 import { loadConfig } from "./config";
-import { run, type RunContext } from "./cli";
+import { KNOWN_FLAGS, run, type RunContext } from "./cli";
 
 const FIXTURE = fileURLToPath(
   new URL("../test/fixtures/basic", import.meta.url),
@@ -144,4 +144,33 @@ test("--version prints the CLI's version alone, on stdout", async () => {
   const short = ctx();
   await run(["-v"], short);
   expect(short.output).toEqual(c.output);
+});
+
+test("every flag the usage advertises is a flag its command accepts", async () => {
+  // The refusal table is the risk this introduces: a flag added to a
+  // command and not added here becomes a hard error, which is worse
+  // than the silent ignore it replaced.
+  const printed: string[] = [];
+  await run(["--help"], { ...ctx(), out: (line) => printed.push(line) });
+  const usage = printed.join("\n");
+  const segments = usage
+    .split(/\n|\s\|\s/)
+    .map((row) => row.replace(/^\s*(usage:\s*)?/, "").trim())
+    .filter((row) => row.startsWith("corpus "));
+  for (const segment of segments) {
+    const [, command, ...rest] = segment.split(/\s+/);
+    if (command === "agent") continue;
+    const sub = rest[0];
+    const key =
+      command === "project" && sub && !sub.startsWith("[")
+        ? `project ${sub}`
+        : command!;
+    const flags = new Set(segment.match(/--[a-z-]+/g) ?? []);
+    for (const flag of flags) {
+      expect(
+        KNOWN_FLAGS[key],
+        `corpus ${key} advertises ${flag} and the refusal table has no entry`,
+      ).toContain(flag);
+    }
+  }
 });
