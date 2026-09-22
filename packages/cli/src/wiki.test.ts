@@ -360,6 +360,46 @@ test("every glossary the wiki shows is one the CLI accepts", async () => {
   }
 });
 
+test("the translator page names the interface as the interface names itself", () => {
+  // The page tells somebody what to click, so a renamed label makes it
+  // wrong in the way a reader notices first. These are the phrases it
+  // quotes; each must still be what the interface says.
+  const messages = JSON.parse(
+    readFileSync(
+      fileURLToPath(
+        new URL("../../../apps/web/src/i18n/messages.en.json", import.meta.url),
+      ),
+      "utf8",
+    ),
+  ) as Record<string, string>;
+  const page = readFileSync(
+    fileURLToPath(
+      new URL("../../../docs/wiki/For-translators.md", import.meta.url),
+    ),
+    "utf8",
+  );
+  const quoted: [string, string][] = [
+    ["dashboard.progressHeading", "Progress"],
+    ["dashboard.queuesHeading", "What to work on"],
+    ["queue.untranslated", "Untranslated"],
+    ["queue.stale", "Stale"],
+    ["queue.unverifiedSource", "Unverified source"],
+    ["queue.agentDrafts", "Agent drafts"],
+    ["queue.next", "Next"],
+    ["queue.previous", "Previous"],
+    ["string.examplesHeading", "Examples"],
+    ["string.siblingsHeading", "Siblings"],
+    ["string.entitiesHeading", "Related"],
+    ["string.historyHeading", "History"],
+    ["string.otherLanguagesHeading", "Other languages"],
+    ["proposal.propose", "Propose a change"],
+  ];
+  for (const [key, label] of quoted) {
+    expect(messages[key], `${key} is gone from the interface`).toBe(label);
+    expect(page, `the page no longer mentions ${label}`).toContain(label);
+  }
+});
+
 test("every config the wiki shows is a config the CLI accepts", async () => {
   const jiti = createJiti(import.meta.url);
   const configs = [examples, recordings].flatMap((dir) =>
