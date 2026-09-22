@@ -25,6 +25,9 @@ import { run, type RunContext } from "./cli";
 const examples = fileURLToPath(
   new URL("../../../docs/wiki/examples", import.meta.url),
 );
+const recordings = fileURLToPath(
+  new URL("../../../docs/wiki/recorded", import.meta.url),
+);
 const recording = process.env.WIKI_RECORD === "1";
 
 const dirs: string[] = [];
@@ -67,7 +70,7 @@ function repo(): { dir: string; ctx: RunContext; out: string[] } {
 
 // What a recorded file should hold, against what it holds today.
 function recorded(name: string, text: string): void {
-  const file = path.join(examples, name);
+  const file = path.join(recordings, name);
   if (recording) {
     writeFileSync(file, text);
     return;
@@ -147,12 +150,14 @@ test("the wiki's first-push page shows what corpus init and build really do", as
 
 test("every config the wiki shows is a config the CLI accepts", async () => {
   const jiti = createJiti(import.meta.url);
-  const configs = readdirSync(examples).filter((name) =>
-    name.endsWith(".config.ts"),
+  const configs = [examples, recordings].flatMap((dir) =>
+    readdirSync(dir)
+      .filter((name) => name.endsWith(".config.ts"))
+      .map((name) => path.join(dir, name)),
   );
   expect(configs.length).toBeGreaterThan(0);
   for (const name of configs) {
-    const loaded = await jiti.import(path.join(examples, name), {
+    const loaded = await jiti.import(name, {
       default: true,
     });
     const parsed = corpusConfigSchema.safeParse(loaded);

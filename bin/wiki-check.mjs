@@ -20,8 +20,11 @@ const FENCE = {
 };
 
 const pages = readdirSync(wiki).filter((name) => name.endsWith(".md"));
-const examples = readdirSync(path.join(wiki, "examples")).map(
-  (name) => `examples/${name}`,
+// Two kinds of file a page may show: examples someone wrote, which are
+// formatted and validated like any source, and recordings of what the
+// CLI printed, which must stay byte for byte what it printed.
+const examples = ["examples", "recorded"].flatMap((dir) =>
+  readdirSync(path.join(wiki, dir)).map((name) => `${dir}/${name}`),
 );
 const fixing = process.argv.includes("--fix");
 

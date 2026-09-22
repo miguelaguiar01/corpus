@@ -20,7 +20,7 @@ The examples below are a repository with six strings in `src/i18n/en.json`, full
 npx corpus init --project acme-app --source en --messages "src/i18n/{lang}.json" --type ui
 ```
 
-<!-- from: examples/init.out -->
+<!-- from: recorded/init.out -->
 ```text
 wrote corpus.config.ts
 created .gitignore with .corpus/
@@ -35,7 +35,7 @@ Next:
 
 `init` read the directory to find the languages, looked at the source file to see which i18n library wrote it, and wrote:
 
-<!-- from: examples/first-push.config.ts -->
+<!-- from: recorded/first-push.config.ts -->
 ```ts
 import { defineCorpus } from "@corpus-tool/cli";
 
@@ -58,7 +58,7 @@ Check what it will send before starting anything:
 npx corpus build
 ```
 
-<!-- from: examples/build.out -->
+<!-- from: recorded/build.out -->
 ```text
 built acme-app: 6 string(s) (ui 6), 0 entity(ies) (none)
 ```
