@@ -1,6 +1,6 @@
 `corpus.config.ts` sits at the root of your repository and declares what Corpus reads, where it sends it, and what `corpus check` scans. Every command that touches your strings runs it; `init` writes it, and `corpus workbench` reads it only when it creates the project.
 
-It is TypeScript, run directly with no build step. `defineCorpus` types it and returns it unchanged, so a mistake is a type error in your editor rather than a failed push.
+It is TypeScript, run directly with no build step. `defineCorpus` types it and validates it, so a mistake is a type error in your editor, or an error when a command loads it, rather than a failed push.
 
 Here is one with every field that matters, annotated:
 
@@ -90,7 +90,7 @@ server: process.env.CORPUS_SERVER ?? "http://localhost:3000",
 - `ignore`: path prefixes, or globs when they contain `*` or `?`. `**/*.test.tsx` is the common one.
 - `allow`: regular expressions for text that is not chrome. A product name shown untranslated in every language belongs here; so does a code, a brand, or a unit. When a run has five findings or more and at least half of them are single words, `check` says so and names this option.
 
-**`stringTypes`** declares the metadata a type of string may carry, which is what makes a string page useful rather than bare. **`typeNotes`** is one sentence per type on its voice, shown to whoever translates it. **`entityTypes`** and the entities an `exec` source emits describe the people and places your text refers to. **`glossary`** points at one JSON file per target language, each an array of `{ term, forms?, target, note? }`. A term matches the word as written, so `forms` lists its plurals and agreements; in a script written without spaces between words, such as Chinese, Japanese or Thai, it matches as a run of characters instead. The terms that occur in a string are shown beside it while it is translated.
+**`stringTypes`** declares the metadata a type of string may carry, which is what makes a string page useful rather than bare. **`typeNotes`** is one sentence per type on its voice, shown to whoever translates it. **`entityTypes`** and the entities an `exec` source emits describe the people and places your text refers to. **`glossary`** points at one JSON file per target language, each an array of `{ term, forms?, target, note? }`. A term matches the word it names, ignoring case and accents, so `forms` lists its plurals and agreements; in a script written without spaces between words, such as Chinese, Japanese or Thai, it matches as a run of characters instead. The terms that occur in a string are shown beside it while it is translated.
 
 [Metadata, types, entities and the glossary](Metadata-types-entities-and-the-glossary) will cover all four in full; none is required.
 

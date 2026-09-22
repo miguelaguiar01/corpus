@@ -11,7 +11,7 @@ export default defineCorpus({
     // Text that has to survive a mail client, kept apart so a
     // translator sees it as its own kind.
     { adapter: "messages", type: "email", path: "emails/i18n/{lang}.json" },
-    // A module of records: `map` says which field is which.
+    // Records rather than a catalogue: `map` says which field is which.
     {
       adapter: "table",
       type: "tour-step",

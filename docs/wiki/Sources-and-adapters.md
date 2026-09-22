@@ -10,7 +10,7 @@ One key-value catalogue per language.
 { adapter: "messages", type: "ui", path: "src/i18n/{lang}.json" }
 ```
 
-`{lang}` is required and is filled with each language in turn, so the source language's file is what push reads and every other file is a translation it already has. Nested objects flatten to dotted keys, so `{ "editor": { "save": "Save" } }` is the string `editor.save`.
+`{lang}` is required and is filled with each language in turn, so the source language's file is what push reads, and every other file is a translation it already has when the path is `.json`. Nested objects flatten to dotted keys, so `{ "editor": { "save": "Save" } }` is the string `editor.save`.
 
 The path may put the language anywhere, including in a directory:
 
@@ -93,7 +93,7 @@ export default defineCorpus({
     // Text that has to survive a mail client, kept apart so a
     // translator sees it as its own kind.
     { adapter: "messages", type: "email", path: "emails/i18n/{lang}.json" },
-    // A module of records: `map` says which field is which.
+    // Records rather than a catalogue: `map` says which field is which.
     {
       adapter: "table",
       type: "tour-step",
