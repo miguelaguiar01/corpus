@@ -7,13 +7,17 @@ import {
   type CorpusConfig,
   type ValidationError,
   type Library,
+  stringEntrySchema,
+  type StringEntry,
 } from "@corpus/contract";
 import type { RunContext } from "./cli";
 import {
   deprecations,
+  execTranslationsSchema,
   readEntries,
-  writesBack,
+  runExporter,
   type FileSource,
+  writesBack,
 } from "./build";
 import { CliError, loadConfig } from "./config";
 
@@ -39,6 +43,13 @@ export async function validate(
 ): Promise<number> {
   const config = await loadConfig(ctx.cwd);
   const findings = await validateRepo(config, ctx.cwd);
+  const exported = new Set(
+    config.sources.flatMap((source) =>
+      source.adapter === "exec" && exporterTranslations(source.command, ctx.cwd)
+        ? [source.command]
+        : [],
+    ),
+  );
   const json = args.includes("--json");
   const invalid = findings.filter(
     (f) => f.code !== "orphan" && f.severity === "invalid",
@@ -58,8 +69,10 @@ export async function validate(
   }
   for (const note of deprecations(config)) ctx.err(`corpus: ${note}`);
   for (const source of config.sources) {
-    if (source.adapter === "exec") {
-      ctx.err(`corpus: exec "${source.command}" is not validated`);
+    if (source.adapter === "exec" && !exported.has(source.command)) {
+      ctx.err(
+        `corpus: exec "${source.command}" is not validated: its exporter emits no translations`,
+      );
     }
   }
   if (findings.length > 0) {
@@ -108,7 +121,10 @@ export async function validateRepo(
   const findings: Finding[] = [];
   const targets = config.languages.filter((l) => l !== config.sourceLanguage);
   for (const source of config.sources) {
-    if (source.adapter === "exec") continue;
+    if (source.adapter === "exec") {
+      findings.push(...validateExec(source.command, cwd, targets));
+      continue;
+    }
     if (!source.path.includes("{lang}") || !writesBack(source.path)) continue;
     const sourceFile = source.path.replace("{lang}", config.sourceLanguage);
     const sources = await texts(jiti, cwd, sourceFile, source);
@@ -225,4 +241,76 @@ export function describe(
     case "unexpected-tag":
       return `unexpected <${error.name}> tag, which the source does not have`;
   }
+}
+
+// An exec source's translations are what its exporter hands over (§3):
+// validated like a target file's, the command standing for the file
+// (#560). An exporter that emits none is named as not validated.
+function exporterTranslations(
+  command: string,
+  cwd: string,
+): Record<string, Record<string, string>> | undefined {
+  const ran = runExporter(command, cwd);
+  if (!ran.ok) throw new CliError(ran.error);
+  if (ran.output.translations === undefined) return undefined;
+  const parsed = execTranslationsSchema.safeParse(ran.output.translations);
+  if (!parsed.success) {
+    throw new CliError(
+      `exec "${command}" emitted invalid translations: a map of language to id to text`,
+    );
+  }
+  return parsed.data;
+}
+
+function validateExec(
+  command: string,
+  cwd: string,
+  targets: string[],
+): Finding[] {
+  const ran = runExporter(command, cwd);
+  if (!ran.ok) throw new CliError(ran.error);
+  const translations = exporterTranslations(command, cwd);
+  if (translations === undefined) return [];
+  const sources = new Map<string, StringEntry>();
+  for (const raw of ran.output.strings ?? []) {
+    const entry = stringEntrySchema.safeParse(raw);
+    if (entry.success) sources.set(entry.data.id, entry.data);
+  }
+  const findings: Finding[] = [];
+  const file = `exec:${command}`;
+  for (const [language, texts] of Object.entries(translations)) {
+    if (!targets.includes(language)) continue;
+    for (const [key, target] of Object.entries(texts)) {
+      if (target.trim() === "") continue;
+      const entry = sources.get(key);
+      if (!entry) continue;
+      const library = libraryOf(entry);
+      const result = validateTranslation(
+        entry.source,
+        target,
+        language,
+        library,
+      );
+      for (const error of result.incomplete ?? []) {
+        findings.push({
+          file,
+          key,
+          code: error.code,
+          severity: "incomplete",
+          message: describe(error, library),
+        });
+      }
+      if (result.ok) continue;
+      for (const error of result.errors) {
+        findings.push({
+          file,
+          key,
+          code: error.code,
+          severity: "invalid",
+          message: describe(error, library),
+        });
+      }
+    }
+  }
+  return findings;
 }

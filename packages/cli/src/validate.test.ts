@@ -48,8 +48,34 @@ test("a clean repository is valid, exec sources are named as not validated, miss
   expect(await run(["validate"], c)).toBe(0);
   expect(c.stdout.join("\n")).toMatch(/every translation is valid/);
   expect(c.stderr.join("\n")).toMatch(
-    /exec "node scripts\/export.mjs" is not validated/,
+    /exec "node scripts\/export.mjs" is not validated: its exporter emits no translations/,
   );
+});
+
+test("an exec source's translations are validated from its exporter, the command standing for the file (#560)", async () => {
+  writeFileSync(
+    path.join(repo, "scripts", "export.mjs"),
+    `console.log(JSON.stringify({
+      strings: [
+        { id: "exec.bye", type: "computed", source: "Bye {who}" },
+        { id: "exec.marks", type: "computed", source: "{n, plural, one {# mark} other {# marks}}" },
+      ],
+      translations: {
+        pt: { "exec.bye": "Adeus", "exec.marks": "{n, plural, one {# marca} other {# marcas}}", "exec.gone": "x" },
+        fr: { "exec.bye": "Au revoir" },
+      },
+    }))`,
+  );
+  write("i18n/pt.json", { greeting: "Olá {name}" });
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(1);
+  const err = c.stderr.join("\n");
+  expect(err).toContain("exec:node scripts/export.mjs:exec.bye: missing {who}");
+  expect(err).toContain(
+    "exec:node scripts/export.mjs:exec.marks: plural on {n} lacks the many branch its language uses",
+  );
+  expect(err).not.toMatch(/is not validated/);
+  expect(err).toMatch(/1 invalid translation\(s\), 1 incomplete plural\(s\)/);
 });
 
 test("a source that does not parse is the source file's finding, once, not one per target", async () => {
