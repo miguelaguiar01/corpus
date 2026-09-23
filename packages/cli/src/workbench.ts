@@ -12,6 +12,7 @@ import {
   SECRET_FILE,
   ignoreCorpusDir,
 } from "./corpus-dir";
+import { cliVersion } from "./mcp";
 import { provision, wantsProvision } from "./provision";
 
 export const WORKBENCH_USAGE =
@@ -45,6 +46,14 @@ export function prepare(
   const bin = path.join(packageDir, manifest.bin["corpus-workbench"]!);
 
   const notes: string[] = [];
+  // The repository's workbench shadows the one beside the CLI, so a
+  // version apart from the CLI's is said (#561).
+  const own = cliVersion();
+  if (manifest.version !== own) {
+    notes.push(
+      `the workbench is ${manifest.version} and the CLI ${own}; the two packages share a version, so update the one behind`,
+    );
+  }
   const dir = path.join(cwd, CORPUS_DIR);
   mkdirSync(dir, { recursive: true });
   const secretPath = path.join(dir, SECRET_FILE);

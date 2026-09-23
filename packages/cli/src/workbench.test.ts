@@ -9,6 +9,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
+import { cliVersion } from "./mcp";
 import { prepare, serverNote } from "./workbench";
 import { CORPUS_DIR } from "./corpus-dir";
 
@@ -66,14 +67,17 @@ test("the bin, the database and a generated secret, kept out of git", () => {
   expect(readFileSync(path.join(dir, ".gitignore"), "utf8")).toBe(
     "node_modules\n.corpus/\n",
   );
+  // The stub is 9.9.9 and the CLI is not, which is the note's case.
+  const apart = `the workbench is 9.9.9 and the CLI ${cliVersion()}; the two packages share a version, so update the one behind`;
   expect(first.notes).toEqual([
+    apart,
     "wrote a new instance secret to .corpus/secret",
     "added .corpus/ to .gitignore",
   ]);
-  // The second start reuses the secret and says nothing.
+  // The second start reuses the secret and says nothing more.
   const second = prepare(dir);
   expect(second.secret).toBe(first.secret);
-  expect(second.notes).toEqual([]);
+  expect(second.notes).toEqual([apart]);
 });
 
 test("--db picks the database path; no .gitignore means one is created with the line", () => {
@@ -83,7 +87,11 @@ test("--db picks the database path; no .gitignore means one is created with the 
   expect(prepared.notes).toContain("created .gitignore with .corpus/");
   expect(readFileSync(path.join(dir, ".gitignore"), "utf8")).toBe(".corpus/\n");
   // A second start finds the line and says nothing.
-  expect(prepare(dir, { db: "data/local.db" }).notes).toEqual([]);
+  expect(
+    prepare(dir, { db: "data/local.db" }).notes.filter(
+      (n) => !n.startsWith("the workbench is"),
+    ),
+  ).toEqual([]);
 });
 
 test("a config whose server is another port is named beside the URL (#559)", async () => {
