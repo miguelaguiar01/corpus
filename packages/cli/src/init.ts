@@ -404,11 +404,16 @@ function siblingCatalogues(
     .filter((name) => !glossary.test(name))
     .filter((name) => {
       // A sibling that is another language of the same pattern is not
-      // a namespace: the pattern already names it.
-      const code = pattern.includes("/{lang}/")
-        ? null
-        : name.slice(0, name.length - ext.length);
-      return code === null || !LANGUAGE_RE.test(code);
+      // a namespace: the pattern already names it. The language sits
+      // between the basename's prefix and suffix around {lang}.
+      const base = path.basename(pattern);
+      const at = base.indexOf("{lang}");
+      if (at < 0) return true;
+      const prefix = base.slice(0, at);
+      const suffix = base.slice(at + "{lang}".length);
+      if (!name.startsWith(prefix) || !name.endsWith(suffix)) return true;
+      const code = name.slice(prefix.length, name.length - suffix.length);
+      return !LANGUAGE_RE.test(code);
     })
     .map((name) => path.join(dir, name))
     .sort();

@@ -555,4 +555,26 @@ test("init reads languages through a {ns} pattern in either order, and names sib
   expect(flat.out.join("\n")).toMatch(
     /locales\/en\/common\.json has 1 sibling catalogue\(s\) the pattern does not name \(locales\/en\/admin\.json\); a \{ns\} pattern or an array of paths names them all/,
   );
+
+  // Another language of the same pattern is not a sibling catalogue.
+  const langs = project();
+  stubCli(langs.dir);
+  mkdirSync(path.join(langs.dir, "i18n"), { recursive: true });
+  writeFileSync(path.join(langs.dir, "i18n", "messages.en.json"), "{}\n");
+  writeFileSync(path.join(langs.dir, "i18n", "messages.pt-PT.json"), "{}\n");
+  expect(
+    await run(
+      [
+        "init",
+        "--project",
+        "app",
+        "--source",
+        "en",
+        "--messages",
+        "i18n/messages.{lang}.json",
+      ],
+      langs.ctx,
+    ),
+  ).toBe(0);
+  expect(langs.out.join("\n")).not.toMatch(/sibling catalogue/);
 });

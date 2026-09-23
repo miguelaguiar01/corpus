@@ -123,14 +123,9 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
       const existing = readRepoFile(ctx.cwd, file);
       const forSource = forType(payload, language, source.type);
       const translations = unprefixed(forSource, source, own);
+      const heldForType = heldByType.get(source.type);
       for (const id of Object.keys(forSource)) {
-        if (
-          own &&
-          !own.has(id) &&
-          !(source.namespace && !id.startsWith(`${source.namespace}:`))
-        ) {
-          notHeld.add(id);
-        }
+        if (heldForType && !heldForType.has(id)) notHeld.add(id);
       }
       if (existing === undefined && Object.keys(translations).length === 0)
         continue;

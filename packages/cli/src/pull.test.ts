@@ -562,3 +562,45 @@ test("a component whose language file is missing gets it on pull with its own id
   expect(c.output.join("\n")).not.toMatch(/1 proposal\(s\) written/);
   expect(read("src/Button/i18n/en.json")).toBe(`{\n  "save": "Save"\n}\n`);
 });
+
+test("an array of patterns of one type is held together: a pull that changes nothing names no orphan (#513)", async () => {
+  const { mkdirSync, writeFileSync, readFileSync, readdirSync } =
+    await import("node:fs");
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8").replace(
+      /sources: \[[\s\S]*?\n {2}\],/,
+      'sources: [{ adapter: "messages", type: "chrome", path: ["a/{lang}.json", "b/{lang}.json"] }],',
+    ),
+  );
+  for (const [dir, en, pt] of [
+    ["a", { one: "One" }, { one: "Um" }],
+    ["b", { two: "Two" }, { two: "Dois" }],
+  ] as const) {
+    mkdirSync(path.join(repo, dir), { recursive: true });
+    writeFileSync(
+      path.join(repo, dir, "en.json"),
+      `${JSON.stringify(en, null, 2)}\n`,
+    );
+    writeFileSync(
+      path.join(repo, dir, "pt.json"),
+      `${JSON.stringify(pt, null, 2)}\n`,
+    );
+  }
+  await serve(200, {
+    ...PAYLOAD,
+    types: { one: "chrome", two: "chrome" },
+    translations: {
+      en: { one: "One", two: "Two" },
+      pt: { one: "Um", two: "Dois" },
+    },
+  });
+  const c = ctx();
+  expect(await run(["pull"], c)).toBe(0);
+  expect(c.output.join("\n")).not.toMatch(/no source-language file holds/);
+  expect(read("a/pt.json")).toBe(`{\n  "one": "Um"\n}\n`);
+  expect(read("b/pt.json")).toBe(`{\n  "two": "Dois"\n}\n`);
+});
