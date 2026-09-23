@@ -20,6 +20,11 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // The proxy (proxy.ts) reads every request body, and Next truncates
+  // one past 10 MB by default: a push whose gzipped body passes that,
+  // Bitwarden's 11 MB, arrived cut and was refused as invalid gzip
+  // (#593). The limit is the push route's own cap.
+  experimental: { proxyClientMaxBodySize: "128mb" },
   // Native module — must be required at runtime, not bundled.
   serverExternalPackages: ["better-sqlite3"],
   // Migration SQL is read from disk at runtime; make sure the standalone
