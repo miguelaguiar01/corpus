@@ -10,6 +10,7 @@ import type { Db } from "@/db";
 import { stringDetail } from "@/strings/detail";
 import { stringPath } from "@/strings/paths";
 import { applyTransition } from "./service";
+import { sourceStamp } from "./stamp";
 import type { TranslationAction } from "./state";
 
 type FlowProject = { id: number; slug: string; sourceLanguage: string };
@@ -24,6 +25,8 @@ export type TransitionFlowInput = {
   action: TranslationAction;
   queue?: QueueKind;
   openedVersion?: number;
+  // The stamp of the source the page showed (#529).
+  openedSource?: string;
 };
 
 export type FlowResult =
@@ -45,6 +48,18 @@ export function transitionFlow(db: Db, input: TransitionFlowInput): FlowResult {
     : null;
 
   if (action.type === "save") {
+    // A source that moved under the draft is the same class of event as
+    // a concurrent edit: say so and keep the draft, before any
+    // validation against a source the translator has not seen (#529).
+    if (
+      input.openedSource !== undefined &&
+      input.openedSource !== sourceStamp(detail.string.source)
+    ) {
+      return {
+        kind: "redirect",
+        to: here({ warning: "source-changed", draft: action.text }),
+      };
+    }
     const validation = validateTranslation(
       detail.string.source,
       action.text,
@@ -52,7 +67,11 @@ export function transitionFlow(db: Db, input: TransitionFlowInput): FlowResult {
       detail.string.syntax,
     );
     if (!validation.ok) {
-      return { kind: "redirect", to: here({ error: "invalid-translation" }) };
+      // The draft rides along, so the pane names what is wrong.
+      return {
+        kind: "redirect",
+        to: here({ error: "invalid-translation", draft: action.text }),
+      };
     }
   }
 

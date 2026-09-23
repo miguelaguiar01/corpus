@@ -5,6 +5,7 @@ import { projects, users } from "@/db/schema";
 import { memoryDb } from "@/db/test-helpers";
 import { applySnapshot } from "@/ingest/apply";
 import { stringDetail } from "@/strings/detail";
+import { sourceStamp } from "./stamp";
 import { transitionFlow, verifyFlow } from "./transition-flow";
 
 const FIXTURE = moonlightManor as Snapshot;
@@ -170,7 +171,8 @@ test("an invalid save is rejected server-side: row unchanged, nothing logged, er
   });
   expect(result).toEqual({
     kind: "redirect",
-    to: `/p/mm/s/${encodeURIComponent(KEYS[0]!)}?queue=untranslated&language=en&error=invalid-translation`,
+    // The draft rides back so the pane can name the fault (#529).
+    to: `/p/mm/s/${encodeURIComponent(KEYS[0]!)}?queue=untranslated&language=en&error=invalid-translation&draft=Someone+was+seen+at+the+window.`,
   });
   expect(textOf(db, p.id, KEYS[0]!, "en")).toEqual(before);
   expect(stringDetail(db, p.id, KEYS[0]!)?.history).toHaveLength(0);
@@ -279,4 +281,35 @@ test("saving the same text again is a no-op transition that still moves on", () 
     state: "translated",
     text: "Continue",
   });
+});
+
+test("a source that moved under the draft is named and the draft kept; a refused draft rides back too (#529)", () => {
+  const { db, p, rui } = pushed();
+  const before = textOf(db, p.id, KEYS[0]!, "en");
+  const stale = sourceStamp("what the page showed");
+  const moved = transitionFlow(db, {
+    project: p,
+    user: rui,
+    key: KEYS[0]!,
+    language: "en",
+    action: { type: "save", text: "Someone was seen at the window." },
+    openedSource: stale,
+  });
+  expect(moved).toEqual({
+    kind: "redirect",
+    to: `/p/mm/s/${encodeURIComponent(KEYS[0]!)}?warning=source-changed&draft=Someone+was+seen+at+the+window.`,
+  });
+  expect(textOf(db, p.id, KEYS[0]!, "en")).toEqual(before);
+  const refused = transitionFlow(db, {
+    project: p,
+    user: rui,
+    key: KEYS[0]!,
+    language: "en",
+    action: { type: "save", text: "Someone was seen at the window." },
+    openedSource: sourceStamp(stringDetail(db, p.id, KEYS[0]!)!.string.source),
+  });
+  expect(refused).toMatchObject({ kind: "redirect" });
+  expect((refused as { to: string }).to).toContain(
+    "error=invalid-translation&draft=",
+  );
 });

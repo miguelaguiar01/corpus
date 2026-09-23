@@ -14,6 +14,7 @@ import {
   type Library,
 } from "@corpus/contract";
 import { chipText } from "@/components/source-view";
+import { sourceStamp } from "@/translations/stamp";
 import type { QueueKind } from "@/catalogue/queues";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
@@ -152,6 +153,7 @@ export function TargetPane({
       <input type="hidden" name="key" value={stringKey} />
       <input type="hidden" name="language" value={language} />
       <input type="hidden" name="openedVersion" value={openedVersion} />
+      <input type="hidden" name="openedSource" value={sourceStamp(source)} />
       {queue && <input type="hidden" name="queue" value={queue} />}
       <Field label={t("editor.targetLabel", { language })}>
         <textarea

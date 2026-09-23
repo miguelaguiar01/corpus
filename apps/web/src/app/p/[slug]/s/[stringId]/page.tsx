@@ -41,6 +41,8 @@ type Query = {
   language?: string;
   error?: string;
   warning?: string;
+  // A draft a refused save carried back (#529).
+  draft?: string;
 };
 
 const PROPOSAL_ERROR_KEY: Record<string, MessageKey> = {
@@ -241,6 +243,9 @@ export default async function StringPage({
             {query.warning === "changed" && (
               <Banner tone="warning">{t("verify.warningChanged")}</Banner>
             )}
+            {query.warning === "source-changed" && (
+              <Banner tone="warning">{t("editor.warningSourceChanged")}</Banner>
+            )}
             <StateChips
               languages={project.languages}
               states={translations}
@@ -332,7 +337,7 @@ export default async function StringPage({
                 syntax={string.syntax}
                 slots={slots}
                 language={target}
-                initialText={targetRow.text ?? ""}
+                initialText={query.draft ?? targetRow.text ?? ""}
                 slug={slug}
                 stringKey={string.key}
                 openedVersion={targetRow.version}
