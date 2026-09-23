@@ -1,7 +1,12 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { createJiti } from "jiti";
-import { corpusConfigSchema, type CorpusConfig } from "@corpus/contract";
+import {
+  corpusConfigSchema,
+  type CorpusConfig,
+  type CorpusInput,
+  type Source,
+} from "@corpus/contract";
 import { CORPUS_DIR, TOKEN_FILE, tokenPath } from "./corpus-dir";
 
 // In the order they are looked for.
@@ -41,7 +46,7 @@ export async function loadConfig(cwd: string): Promise<CorpusConfig> {
   }
   const parsed = corpusConfigSchema.safeParse(loaded);
   if (!parsed.success) throw invalid(configPath, parsed.error.issues);
-  return parsed.data;
+  return expandSources(parsed.data, cwd);
 }
 
 type Issue = { path: PropertyKey[]; message: string };
@@ -88,4 +93,60 @@ export function readToken(
 
 export function requireToken(env: NodeJS.ProcessEnv, cwd: string): string {
   return readToken(env, cwd).token;
+}
+
+// A source's patterns become concrete sources (#513): an array is one
+// source per pattern, and a `{ns}` pattern is one source per namespace
+// found in the source language's files, the namespace kept so the ids
+// it contributes are `ns:key` and a pull can strip it again.
+export function expandSources(input: CorpusInput, cwd: string): CorpusConfig {
+  const sources: Source[] = input.sources.flatMap((source): Source[] => {
+    if (source.adapter === "exec") return [source];
+    const patterns = Array.isArray(source.path) ? source.path : [source.path];
+    return patterns.flatMap((pattern): Source[] => {
+      if (!pattern.includes("{ns}")) return [{ ...source, path: pattern }];
+      const names = namespacesOf(cwd, pattern, input.sourceLanguage);
+      if (names.length === 0) {
+        throw new CliError(
+          `${pattern} matches no file for ${input.sourceLanguage}: nothing fills {ns}`,
+        );
+      }
+      return names.map((ns) => ({
+        ...source,
+        path: pattern.replace("{ns}", ns),
+        namespace: ns,
+      }));
+    });
+  });
+  return { ...input, sources };
+}
+
+// The namespaces a `{ns}` pattern captures for a language: the files
+// that fill its one segment, in name order. A capture is one segment,
+// so `locales/{lang}/{ns}.json` never reaches into a subdirectory.
+export function namespacesOf(
+  cwd: string,
+  pattern: string,
+  language: string,
+): string[] {
+  const concrete = pattern.replace("{lang}", language);
+  const at = concrete.indexOf("{ns}");
+  if (at < 0) return [];
+  const before = concrete.slice(0, at);
+  const after = concrete.slice(at + "{ns}".length);
+  const dir = path.join(cwd, path.dirname(`${before}x`));
+  const prefix = path.basename(`${before}x`).slice(0, -1);
+  const suffix = after.split("/")[0] ?? "";
+  let names: string[];
+  try {
+    names = readdirSync(dir);
+  } catch {
+    return [];
+  }
+  return names
+    .filter((name) => name.startsWith(prefix) && name.endsWith(suffix))
+    .map((name) => name.slice(prefix.length, name.length - suffix.length))
+    .filter((ns) => ns.length > 0 && !ns.includes("/"))
+    .filter((ns) => existsSync(path.join(cwd, concrete.replace("{ns}", ns))))
+    .sort();
 }

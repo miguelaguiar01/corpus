@@ -219,3 +219,37 @@ test("a source declares its library; syntax is the old name and both together is
     );
   }
 });
+
+test("a source may name several patterns, each with {lang}, or a {ns} pattern (#513)", () => {
+  const base = {
+    project: "app",
+    server: "http://localhost:3000",
+    sourceLanguage: "en",
+    languages: ["en", "de"],
+  };
+  expect(
+    corpusConfigSchema.safeParse({
+      ...base,
+      sources: [
+        {
+          adapter: "messages",
+          type: "ui",
+          path: ["a/{lang}.json", "b/{lang}/{ns}.json"],
+        },
+      ],
+    }).success,
+  ).toBe(true);
+  const bad = corpusConfigSchema.safeParse({
+    ...base,
+    sources: [
+      { adapter: "messages", type: "ui", path: ["a/{lang}.json", "b.json"] },
+    ],
+  });
+  expect(bad.success).toBe(false);
+  expect(
+    corpusConfigSchema.safeParse({
+      ...base,
+      sources: [{ adapter: "messages", type: "ui", path: [] }],
+    }).success,
+  ).toBe(false);
+});

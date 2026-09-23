@@ -463,3 +463,45 @@ test("an .arb catalogue is read for its languages and its library (#558)", async
   expect(config.languages).toEqual(["en", "de"]);
   expect(config.sources[0]).toMatchObject({ library: "i18next" });
 });
+
+test("init reads the languages and the library through a {ns} pattern and writes it as given (#513)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  for (const [lang, ns, text] of [
+    ["en", "common", { hello: "Hello {{name}}" }],
+    ["en", "admin", { users: "Users" }],
+    ["de", "common", { hello: "Hallo {{name}}" }],
+  ] as const) {
+    mkdirSync(path.join(p.dir, "locales", lang), { recursive: true });
+    writeFileSync(
+      path.join(p.dir, "locales", lang, `${ns}.json`),
+      JSON.stringify(text),
+    );
+  }
+  expect(
+    await run(
+      [
+        "init",
+        "--project",
+        "app",
+        "--source",
+        "en",
+        "--messages",
+        "locales/{lang}/{ns}.json",
+      ],
+      p.ctx,
+    ),
+  ).toBe(0);
+  expect(readFileSync(path.join(p.dir, "corpus.config.ts"), "utf8")).toContain(
+    'path: "locales/{lang}/{ns}.json"',
+  );
+  const config = await loadConfig(p.dir);
+  expect(config.languages).toEqual(["en", "de"]);
+  expect(
+    config.sources.map((s) => (s.adapter === "exec" ? "" : s.path)),
+  ).toEqual(["locales/{lang}/admin.json", "locales/{lang}/common.json"]);
+  expect(config.sources[0]).toMatchObject({
+    library: "i18next",
+    namespace: "admin",
+  });
+});

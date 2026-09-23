@@ -13,28 +13,32 @@ import {
   deprecations,
   writableSources,
 } from "./build";
+import { expandSources } from "./config";
 
 const REPO = fileURLToPath(new URL("../test/fixtures/repo", import.meta.url));
 
 function config(
   overrides: Partial<Parameters<typeof defineCorpus>[0]> = {},
 ): CorpusConfig {
-  return defineCorpus({
-    project: "fixture-project",
-    server: "https://corpus.example",
-    sourceLanguage: "en",
-    languages: ["en", "pt-PT"],
-    sources: [
-      { adapter: "messages", type: "chrome", path: "i18n/{lang}.json" },
-      {
-        adapter: "table",
-        type: "tutorial-step",
-        path: "steps.ts",
-        map: { id: "id", text: "text" },
-      },
-    ],
-    ...overrides,
-  });
+  return expandSources(
+    defineCorpus({
+      project: "fixture-project",
+      server: "https://corpus.example",
+      sourceLanguage: "en",
+      languages: ["en", "pt-PT"],
+      sources: [
+        { adapter: "messages", type: "chrome", path: "i18n/{lang}.json" },
+        {
+          adapter: "table",
+          type: "tutorial-step",
+          path: "steps.ts",
+          map: { id: "id", text: "text" },
+        },
+      ],
+      ...overrides,
+    }),
+    REPO,
+  );
 }
 
 test("builds a valid snapshot from messages + table sources", async () => {
@@ -314,6 +318,69 @@ test("an .arb catalogue reads as JSON, its @ entries as metadata, and writes bac
   expect(writableSources(arb).map((s) => s.path)).toEqual([
     "arb/strings_{lang}.arb",
   ]);
+});
+
+test("a {ns} pattern is one source per namespace, its ids prefixed ns:, and an array is one source per pattern (#513)", async () => {
+  const ns = config({
+    sources: [{ adapter: "messages", type: "ui", path: "ns/{lang}/{ns}.json" }],
+  });
+  expect(ns.sources.map((s) => (s.adapter === "exec" ? "" : s.path))).toEqual([
+    "ns/{lang}/admin.json",
+    "ns/{lang}/common.json",
+  ]);
+  const { snapshot, refused } = await buildSnapshotReport(ns, REPO);
+  expect(refused).toEqual([]);
+  // `title` in both files is two strings, not a collision.
+  expect(snapshot.strings.map((s) => s.id).sort()).toEqual([
+    "admin:title",
+    "admin:users",
+    "common:greeting",
+    "common:title",
+  ]);
+  expect(snapshot.strings.find((s) => s.id === "admin:title")?.file).toBe(
+    "ns/en/admin.json",
+  );
+  expect(writableSources(ns).map((s) => s.path)).toEqual([
+    "ns/{lang}/admin.json",
+    "ns/{lang}/common.json",
+  ]);
+
+  // Two patterns share the source's type and library; a duplicate id
+  // across them is the existing error naming both files.
+  const both = config({
+    sources: [
+      {
+        adapter: "messages",
+        type: "ui",
+        path: ["i18n/{lang}.json", "ns/{lang}/admin.json"],
+        library: "icu",
+      },
+    ],
+  });
+  expect(both.sources).toHaveLength(2);
+  const built = await buildSnapshotReport(both, REPO);
+  expect(built.snapshot.strings.some((s) => s.id === "users")).toBe(true);
+  expect(built.snapshot.strings.some((s) => s.id === "greeting")).toBe(true);
+  const clash = config({
+    sources: [
+      {
+        adapter: "messages",
+        type: "ui",
+        path: ["ns/{lang}/common.json", "ns/{lang}/admin.json"],
+      },
+    ],
+  });
+  await expect(buildSnapshotReport(clash, REPO)).rejects.toThrow(
+    /duplicate id title in ns\/en\/common\.json and ns\/en\/admin\.json/,
+  );
+  // A {ns} pattern that nothing fills is named.
+  expect(() =>
+    config({
+      sources: [
+        { adapter: "messages", type: "ui", path: "nowhere/{lang}/{ns}.json" },
+      ],
+    }),
+  ).toThrow(/matches no file for en: nothing fills \{ns\}/);
 });
 
 test("a file that does not read still fails the whole build", async () => {

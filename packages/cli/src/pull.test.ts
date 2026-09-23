@@ -435,3 +435,77 @@ test("a proposal for a table source without {lang} is written to the path itself
   expect(await run(["pull"], ctx())).toBe(0);
   expect(read("steps.json")).toBe(`[\n  { "id": "s1", "text": "Um!" }\n]\n`);
 });
+
+test("a {ns} source pulls each namespace's strings into its own file, prefix stripped, and a proposal lands in the file its id names (#513)", async () => {
+  const { mkdirSync, writeFileSync, readFileSync, readdirSync } =
+    await import("node:fs");
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8").replace(
+      /sources: \[[\s\S]*?\n {2}\],/,
+      'sources: [{ adapter: "messages", type: "chrome", path: "locales/{lang}/{ns}.json" }],',
+    ),
+  );
+  for (const [lang, ns, data] of [
+    ["en", "common", { title: "Common title", greeting: "Hello {name}" }],
+    ["en", "admin", { title: "Admin title" }],
+    ["pt", "common", { title: "Título comum" }],
+    ["pt", "admin", { title: "Título de administração" }],
+  ] as const) {
+    mkdirSync(path.join(repo, "locales", lang), { recursive: true });
+    writeFileSync(
+      path.join(repo, "locales", lang, `${ns}.json`),
+      `${JSON.stringify(data, null, 2)}\n`,
+    );
+  }
+  const before = {
+    common: read("locales/pt/common.json"),
+    admin: read("locales/pt/admin.json"),
+  };
+  await serve(200, {
+    ...PAYLOAD,
+    types: {
+      "common:title": "chrome",
+      "common:greeting": "chrome",
+      "admin:title": "chrome",
+    },
+    translations: {
+      en: {
+        "common:title": "Common title",
+        "common:greeting": "Hello {name}",
+        "admin:title": "Admin title",
+      },
+      pt: {
+        "common:title": "Título comum",
+        "common:greeting": "Olá {name}",
+        "admin:title": "Título de administração",
+      },
+    },
+    sourceChanges: [
+      {
+        kind: "edit",
+        id: "admin:title",
+        type: "chrome",
+        file: "locales/en/admin.json",
+        text: "Administration",
+      },
+    ],
+  });
+  const c = ctx();
+  expect(await run(["pull"], c)).toBe(0);
+  // common gained its greeting, in its own file and without the prefix.
+  expect(read("locales/pt/common.json")).toBe(
+    `{\n  "title": "Título comum",\n  "greeting": "Olá {name}"\n}\n`,
+  );
+  // admin is byte-identical: nothing of its own changed, and common's
+  // greeting did not leak into it.
+  expect(read("locales/pt/admin.json")).toBe(before.admin);
+  // The proposal edited admin's source file under its own key.
+  expect(read("locales/en/admin.json")).toBe(
+    `{\n  "title": "Administration"\n}\n`,
+  );
+  expect(read("locales/en/common.json")).toContain('"title": "Common title"');
+});

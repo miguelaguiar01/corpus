@@ -12,7 +12,7 @@ import { option } from "./args";
 import { readEntries } from "./build";
 import { DEFAULT_INCLUDE, EXTENSIONS, SKIP_DIRS } from "./check";
 import type { RunContext } from "./cli";
-import { CliError, CONFIG_FILENAMES } from "./config";
+import { CliError, CONFIG_FILENAMES, namespacesOf } from "./config";
 import { ignoreCorpusDir } from "./corpus-dir";
 
 export const INIT_USAGE =
@@ -108,7 +108,27 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     throw new CliError(`cannot write a valid config: ${issues}`);
   }
   const file = path.join(ctx.cwd, CONFIG_FILENAMES[0]);
-  writeFileSync(file, render(parsed.data));
+  // Written as given: a {ns} pattern stays a pattern in the file.
+  writeFileSync(
+    file,
+    render({
+      project,
+      server,
+      sourceLanguage,
+      languages,
+      sources: [
+        {
+          adapter: "messages",
+          type,
+          path: messages,
+          ...(library && library.value !== "icu"
+            ? { library: library.value }
+            : {}),
+        },
+      ],
+      ...(include ? { check: { include } } : {}),
+    }),
+  );
   ctx.out(`wrote ${CONFIG_FILENAMES[0]}`);
   if (library && library.value !== "icu") {
     const why =
@@ -253,15 +273,28 @@ async function libraryFor(
     }
     return { value: given as Library };
   }
-  const file = pattern.replace("{lang}", sourceLanguage);
+  // A `{ns}` pattern is read through every namespace it captures, so
+  // one namespace's plain strings do not hide another's interpolation.
+  const concretes = pattern.includes("{ns}")
+    ? namespacesOf(cwd, pattern, sourceLanguage).map((ns) =>
+        pattern.replace("{ns}", ns),
+      )
+    : [pattern];
+  const file = concretes[0]?.replace("{lang}", sourceLanguage) ?? pattern;
   let texts: string[];
   try {
-    const entries = await readEntries(createJiti(import.meta.url), cwd, file, {
-      adapter: "messages",
-      type,
-      path: pattern,
-    });
-    texts = entries.map((entry) => entry.source);
+    const jiti = createJiti(import.meta.url);
+    texts = [];
+    for (const concrete of concretes) {
+      const entries = await readEntries(
+        jiti,
+        cwd,
+        concrete.replace("{lang}", sourceLanguage),
+        { adapter: "messages", type, path: concrete },
+      );
+      texts.push(...entries.map((entry) => entry.source));
+    }
+    if (concretes.length === 0) return undefined;
   } catch {
     return undefined;
   }
@@ -310,7 +343,11 @@ export function languagesFromFiles(
     if (!LANGUAGE_RE.test(code)) continue;
     const rest =
       pattern.slice(0, at + "{lang}".length).replace("{lang}", code) + after;
-    if (existsSync(path.join(cwd, rest))) found.add(code);
+    // A `{ns}` pattern is present for a language when any file fills it.
+    const present = rest.includes("{ns}")
+      ? namespacesOf(cwd, rest, code).length > 0
+      : existsSync(path.join(cwd, rest));
+    if (present) found.add(code);
   }
   const rest = [...found].filter((c) => c !== sourceLanguage).sort();
   return found.size > 0 ? [sourceLanguage, ...rest] : [];

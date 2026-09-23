@@ -6,6 +6,7 @@ import {
   applyTableOps,
   entriesToMessages,
   entriesToTable,
+  messagesToEntries,
   type SourceOp,
 } from "@corpus/adapters";
 import { option, options } from "./args";
@@ -17,7 +18,13 @@ import {
   type PullPayload,
 } from "@corpus/contract";
 import type { RunContext } from "./cli";
-import { describeExecFailure, EXEC_MAX_BUFFER, writesBack } from "./build";
+import {
+  describeExecFailure,
+  EXEC_MAX_BUFFER,
+  isArb,
+  type FileSource,
+  writesBack,
+} from "./build";
 import { CliError, loadConfig, requireToken } from "./config";
 import { request, serverMessage, UNAUTHORIZED } from "./server";
 
@@ -89,10 +96,18 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     if (template === undefined) {
       throw new CliError(`source file ${templatePath} does not exist`);
     }
+    // A target file takes the ids its source-language file holds, under
+    // the source's namespace when it has one, stripped for writing: two
+    // sources of one type each write their own strings (#513).
+    const own = ownIds(template, source);
     for (const language of targets) {
       const file = source.path.replace("{lang}", language);
       const existing = readRepoFile(ctx.cwd, file);
-      const translations = forType(payload, language, source.type);
+      const translations = unprefixed(
+        forType(payload, language, source.type),
+        source,
+        own,
+      );
       if (existing === undefined && Object.keys(translations).length === 0)
         continue;
       const next =
@@ -141,8 +156,12 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
       try {
         next =
           source.adapter === "messages"
-            ? applyMessagesOps(existing, targetOps)
-            : applyTableOps(existing, targetOps, source.map);
+            ? applyMessagesOps(existing, stripNamespace(targetOps, source))
+            : applyTableOps(
+                existing,
+                stripNamespace(targetOps, source),
+                source.map,
+              );
       } catch (error) {
         throw new CliError(
           `${target}: proposal(s) for ${targetOps.map((o) => o.id).join(", ")}: ${(error as Error).message}`,
@@ -292,4 +311,45 @@ async function download(
     );
   }
   return parsed.data;
+}
+
+// The ids a source-language file holds, as the snapshot names them.
+function ownIds(template: string, source: FileSource): Set<string> | undefined {
+  if (source.adapter !== "messages") return undefined;
+  try {
+    const entries = messagesToEntries(JSON.parse(template), {
+      type: source.type,
+      arb: isArb(source.path),
+    });
+    const prefix = source.namespace ? `${source.namespace}:` : "";
+    return new Set(entries.map((e) => `${prefix}${e.id}`));
+  } catch {
+    return undefined;
+  }
+}
+
+// A source's share of a language's translations, keyed as its file
+// writes them: the namespace stripped, ids the file does not hold left
+// out when the file's own ids are known.
+function unprefixed(
+  translations: Record<string, string>,
+  source: FileSource,
+  own: Set<string> | undefined,
+): Record<string, string> {
+  const prefix = source.namespace ? `${source.namespace}:` : "";
+  const out: Record<string, string> = {};
+  for (const [id, text] of Object.entries(translations)) {
+    if (own && !own.has(id)) continue;
+    if (prefix && !id.startsWith(prefix)) continue;
+    out[id.slice(prefix.length)] = text;
+  }
+  return out;
+}
+
+function stripNamespace(ops: SourceOp[], source: FileSource): SourceOp[] {
+  const prefix = source.namespace ? `${source.namespace}:` : "";
+  if (!prefix) return ops;
+  return ops
+    .filter((op) => op.id.startsWith(prefix))
+    .map((op) => ({ ...op, id: op.id.slice(prefix.length) }));
 }

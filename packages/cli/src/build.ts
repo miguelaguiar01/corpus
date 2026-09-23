@@ -394,12 +394,20 @@ export async function readEntries(
     path.join(cwd, file),
     source.adapter === "table" ? source.export : undefined,
   );
-  return source.adapter === "messages"
-    ? messagesToEntries(data, {
-        type: source.type,
-        arb: isArb(file),
-      })
-    : tableToEntries(data, { type: source.type, map: source.map });
+  const entries =
+    source.adapter === "messages"
+      ? messagesToEntries(data, {
+          type: source.type,
+          arb: isArb(file),
+        })
+      : tableToEntries(data, { type: source.type, map: source.map });
+  // A namespaced file's ids are `ns:key` (#513), i18next's own separator.
+  return source.namespace
+    ? entries.map((entry) => ({
+        ...entry,
+        id: `${source.namespace}:${entry.id}`,
+      }))
+    : entries;
 }
 
 async function readModule(
