@@ -112,11 +112,16 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       .join("; ");
     throw new CliError(`cannot write a valid config: ${issues}`);
   }
-  const file = path.join(ctx.cwd, CONFIG_FILENAMES[0]);
+  // The typed file imports the package from the repository; when it is
+  // not installed there (the CLI run from npx, #598), the next command
+  // could not load it, so a plain module is written instead.
+  const plain = !cliResolvesFrom(ctx.cwd);
+  const filename = plain ? "corpus.config.mjs" : CONFIG_FILENAMES[0];
+  const file = path.join(ctx.cwd, filename);
   // The pattern is written as given: `{ns}` stays `{ns}` in the file.
   writeFileSync(
     file,
-    render({
+    render(plain, {
       project,
       server,
       sourceLanguage,
@@ -134,7 +139,11 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       ...(include ? { check: { include } } : {}),
     }),
   );
-  ctx.out(`wrote ${CONFIG_FILENAMES[0]}`);
+  ctx.out(
+    plain
+      ? `wrote ${filename} (a plain object: @corpus-tool/cli is not installed in this repository)`
+      : `wrote ${filename}`,
+  );
   if (library && library.value !== "icu") {
     const why =
       library.value === "i18next" ? "{{ }}" : "a pipe or a quoted literal";
@@ -172,37 +181,54 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   return 0;
 }
 
-function render(config: {
-  project: string;
-  server: string;
-  sourceLanguage: string;
-  languages: string[];
-  sources: {
-    adapter: string;
-    type?: string;
-    path?: string;
-    library?: Library;
-  }[];
-  check?: { include?: string[] };
-}): string {
+// Node's own walk: a node_modules holding the package in the repository
+// or any directory above it, which is what the typed file's import sees.
+function cliResolvesFrom(cwd: string): boolean {
+  let dir = path.resolve(cwd);
+  for (;;) {
+    if (
+      existsSync(path.join(dir, "node_modules/@corpus-tool/cli/package.json"))
+    )
+      return true;
+    const parent = path.dirname(dir);
+    if (parent === dir) return false;
+    dir = parent;
+  }
+}
+
+function render(
+  plain: boolean,
+  config: {
+    project: string;
+    server: string;
+    sourceLanguage: string;
+    languages: string[];
+    sources: {
+      adapter: string;
+      type?: string;
+      path?: string;
+      library?: Library;
+    }[];
+    check?: { include?: string[] };
+  },
+): string {
   const q = (value: string) => JSON.stringify(value);
   const source = config.sources[0]!;
   const library = source.library ? `, library: ${q(source.library)}` : "";
   const check = config.check?.include
     ? `  check: { include: [${config.check.include.map(q).join(", ")}] },\n`
     : "";
-  return `import { defineCorpus } from "@corpus-tool/cli";
-
-export default defineCorpus({
-  project: ${q(config.project)},
+  const body = `  project: ${q(config.project)},
   server: ${q(config.server)},
   sourceLanguage: ${q(config.sourceLanguage)},
   languages: [${config.languages.map(q).join(", ")}],
   sources: [
     { adapter: "messages", type: ${q(source.type ?? "chrome")}, path: ${q(source.path ?? "")}${library} },
   ],
-${check}});
-`;
+${check}`;
+  return plain
+    ? `export default {\n${body}};\n`
+    : `import { defineCorpus } from "@corpus-tool/cli";\n\nexport default defineCorpus({\n${body}});\n`;
 }
 
 // Where components live, in the roots the trials met (#498): Outline's
