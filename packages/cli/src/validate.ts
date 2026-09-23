@@ -7,13 +7,17 @@ import {
   type CorpusConfig,
   type ValidationError,
   type Library,
+  stringEntrySchema,
+  type StringEntry,
 } from "@corpus/contract";
 import type { RunContext } from "./cli";
 import {
   deprecations,
+  execTranslationsSchema,
   readEntries,
-  writesBack,
+  runExporter,
   type FileSource,
+  writesBack,
 } from "./build";
 import { CliError, loadConfig } from "./config";
 
@@ -38,7 +42,7 @@ export async function validate(
   ctx: RunContext,
 ): Promise<number> {
   const config = await loadConfig(ctx.cwd);
-  const findings = await validateRepo(config, ctx.cwd);
+  const { findings, unvalidated } = await validateRepo(config, ctx.cwd);
   const json = args.includes("--json");
   const invalid = findings.filter(
     (f) => f.code !== "orphan" && f.severity === "invalid",
@@ -57,10 +61,10 @@ export async function validate(
     for (const f of incomplete) ctx.err(`${f.file}:${f.key}: ${f.message}`);
   }
   for (const note of deprecations(config)) ctx.err(`corpus: ${note}`);
-  for (const source of config.sources) {
-    if (source.adapter === "exec") {
-      ctx.err(`corpus: exec "${source.command}" is not validated`);
-    }
+  for (const command of unvalidated) {
+    ctx.err(
+      `corpus: exec "${command}" is not validated: its exporter emits no translations`,
+    );
   }
   if (findings.length > 0) {
     const parts = [
@@ -103,12 +107,18 @@ function orphansByKey(
 export async function validateRepo(
   config: CorpusConfig,
   cwd: string,
-): Promise<Finding[]> {
+): Promise<{ findings: Finding[]; unvalidated: string[] }> {
   const jiti = createJiti(import.meta.url);
   const findings: Finding[] = [];
+  const unvalidated: string[] = [];
   const targets = config.languages.filter((l) => l !== config.sourceLanguage);
   for (const source of config.sources) {
-    if (source.adapter === "exec") continue;
+    if (source.adapter === "exec") {
+      const exec = validateExec(source.command, cwd, targets);
+      findings.push(...exec.findings);
+      if (!exec.validated) unvalidated.push(source.command);
+      continue;
+    }
     if (!source.path.includes("{lang}") || !writesBack(source.path)) continue;
     const sourceFile = source.path.replace("{lang}", config.sourceLanguage);
     const sources = await texts(jiti, cwd, sourceFile, source);
@@ -170,7 +180,7 @@ export async function validateRepo(
       }
     }
   }
-  return findings;
+  return { findings, unvalidated };
 }
 
 // A catalogue's id → text through the source's own adapter, so the keys
@@ -225,4 +235,83 @@ export function describe(
     case "unexpected-tag":
       return `unexpected <${error.name}> tag, which the source does not have`;
   }
+}
+
+// An exec source's translations are what its exporter hands over (§3):
+// validated like a target file's, the command standing for the file
+// (#560). The exporter runs once; one that emits no translations is
+// named as not validated.
+function validateExec(
+  command: string,
+  cwd: string,
+  targets: string[],
+): { findings: Finding[]; validated: boolean } {
+  const ran = runExporter(command, cwd);
+  if (!ran.ok) throw new CliError(ran.error);
+  if (ran.output.translations === undefined) {
+    return { findings: [], validated: false };
+  }
+  const parsed = execTranslationsSchema.safeParse(ran.output.translations);
+  if (!parsed.success) {
+    throw new CliError(
+      `exec "${command}" emitted invalid translations: a map of language to id to text`,
+    );
+  }
+  const sources = new Map<string, StringEntry>();
+  for (const raw of ran.output.strings ?? []) {
+    const entry = stringEntrySchema.safeParse(raw);
+    if (entry.success) sources.set(entry.data.id, entry.data);
+  }
+  const findings: Finding[] = [];
+  const file = `exec:${command}`;
+  const brokenSources = new Set<string>();
+  for (const [language, texts] of Object.entries(parsed.data)) {
+    if (!targets.includes(language)) continue;
+    for (const [key, target] of Object.entries(texts)) {
+      if (target.trim() === "") continue;
+      const entry = sources.get(key);
+      if (!entry) {
+        findings.push({
+          file,
+          key,
+          code: "orphan",
+          severity: "invalid",
+          message: "the exporter's strings no longer have this id",
+          sourceFile: file,
+        });
+        continue;
+      }
+      const library = libraryOf(entry);
+      const result = validateTranslation(
+        entry.source,
+        target,
+        language,
+        library,
+      );
+      for (const error of result.incomplete ?? []) {
+        findings.push({
+          file,
+          key,
+          code: error.code,
+          severity: "incomplete",
+          message: describe(error, library),
+        });
+      }
+      if (result.ok) continue;
+      for (const error of result.errors) {
+        const inSource =
+          error.code === "invalid-icu" && error.where === "source";
+        if (inSource && brokenSources.has(key)) continue;
+        if (inSource) brokenSources.add(key);
+        findings.push({
+          file,
+          key,
+          code: error.code,
+          severity: "invalid",
+          message: describe(error, library),
+        });
+      }
+    }
+  }
+  return { findings, validated: true };
 }

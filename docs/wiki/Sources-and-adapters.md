@@ -51,7 +51,7 @@ The export command prints `{ strings, entities?, translations? }`, up to 256 MiB
 
 The import command receives, on stdin, only the rows a pull selected, for the languages that pull asked for. That last point is where these go wrong: an import command that rewrites its file from what it receives deletes everything the payload does not carry, which is every string nobody has translated yet. It must merge.
 
-Without `importCommand` the source is push-only, and every command that reads it says so.
+Without `importCommand` the source is push-only, and every command that reads it says so. `corpus validate` runs the export command and validates the `translations` it hands over as it does a target file's, the command standing for the file; an exporter that emits none is named as not validated.
 
 ## What comes back
 

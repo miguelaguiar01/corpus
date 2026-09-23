@@ -59,7 +59,7 @@ The token is `CORPUS_TOKEN`, then `.corpus/token`. The instance secret is `CORPU
 
 ## The ones CI runs
 
-**`corpus check`** reads the files `check.include` names and reports text a person would read that did not come from a catalogue. **`corpus validate`** parses the translations in the repository's catalogues against their sources; an `exec` source is skipped, since its text is the command's to answer for. Neither needs a network. Both are covered on [Corpus in CI](Corpus-in-CI).
+**`corpus check`** reads the files `check.include` names and reports text a person would read that did not come from a catalogue. **`corpus validate`** parses the translations in the repository's catalogues against their sources; an `exec` source's are read from its exporter, and one that emits none is named as not validated. Neither needs a network. Both are covered on [Corpus in CI](Corpus-in-CI).
 
 **`corpus build`** produces the snapshot a push would send, without sending it, and prints a one-line summary: the project, the string count by type, the entity count. `--out <file>` is what writes the snapshot itself. Useful for seeing what a push will carry, and for a diff when a push does something you did not expect.
 

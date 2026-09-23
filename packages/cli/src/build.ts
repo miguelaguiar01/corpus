@@ -40,7 +40,7 @@ type ExecSeeds = {
   command: string;
   translations: Record<string, Record<string, string>>;
 };
-const execTranslationsSchema = z.record(
+export const execTranslationsSchema = z.record(
   z.string(),
   z.record(z.string(), z.string()),
 );
@@ -286,6 +286,34 @@ export function describeExecFailure(
   return `${name} exited ${result.status}: ${result.stderr?.trim() ?? ""}`;
 }
 
+// An exporter's output, run once and parsed (§3); `validate` reads the
+// same output for the translations it hands over (#560).
+export type ExporterOutput = {
+  strings?: unknown[];
+  entities?: unknown[];
+  translations?: unknown;
+};
+
+export function runExporter(
+  command: string,
+  cwd: string,
+): { ok: true; output: ExporterOutput } | { ok: false; error: string } {
+  const result = spawnSync(command, {
+    shell: true,
+    cwd,
+    encoding: "utf8",
+    maxBuffer: EXEC_MAX_BUFFER,
+  });
+  if (result.status !== 0) {
+    return { ok: false, error: describeExecFailure(command, result) };
+  }
+  try {
+    return { ok: true, output: JSON.parse(result.stdout) as ExporterOutput };
+  } catch {
+    return { ok: false, error: `exec "${command}" did not emit valid JSON` };
+  }
+}
+
 function collectExec(
   command: string,
   cwd: string,
@@ -295,28 +323,12 @@ function collectExec(
   errors: string[],
   refused: Refused[],
 ): void {
-  const result = spawnSync(command, {
-    shell: true,
-    cwd,
-    encoding: "utf8",
-    maxBuffer: EXEC_MAX_BUFFER,
-  });
-  if (result.status !== 0) {
-    errors.push(describeExecFailure(command, result));
+  const ran = runExporter(command, cwd);
+  if (!ran.ok) {
+    errors.push(ran.error);
     return;
   }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(result.stdout);
-  } catch {
-    errors.push(`exec "${command}" did not emit valid JSON`);
-    return;
-  }
-  const out = parsed as {
-    strings?: unknown[];
-    entities?: unknown[];
-    translations?: unknown;
-  };
+  const out = ran.output;
   for (const raw of out.strings ?? []) {
     const parsedEntry = stringEntrySchema.safeParse(raw);
     if (!parsedEntry.success) {
