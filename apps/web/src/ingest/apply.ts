@@ -72,11 +72,17 @@ export function applySnapshot(
           ...(snapshot.glossary && { glossary: snapshot.glossary }),
           // The languages this push digested replace their entries; the
           // rest stay, as a push carries digests for every target
-          // language it knows (#601).
+          // language it knows (#601). A language the project does not
+          // have is not stored: its seeds were ignored, and a digest
+          // kept for it would skip them once the language is added.
           ...(snapshot.seedDigests && {
             seedDigests: {
               ...(project.seedDigests ?? {}),
-              ...snapshot.seedDigests,
+              ...Object.fromEntries(
+                Object.entries(snapshot.seedDigests).filter(([language]) =>
+                  targetLanguages.includes(language),
+                ),
+              ),
             },
           }),
         })

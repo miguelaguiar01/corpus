@@ -142,6 +142,21 @@ test("a push digests its seeds per language, leaves out the languages the server
     "0 archived, seeds unchanged for 1 language(s)",
   );
   held.server.close();
+  // An older instance answers 404 on the route: everything is sent.
+  const older = await startServer((captured) =>
+    captured.url === "/api/push/digests"
+      ? { status: 404, json: { error: "not-found" } }
+      : { status: 200, json: { report } },
+  );
+  active = older.server;
+  process.env.CORPUS_SERVER = older.url;
+  const o = ctx({ cwd: repo });
+  expect(await run(["push"], o)).toBe(0);
+  expect(
+    (older.calls[1]?.body as { seedTranslations?: unknown }).seedTranslations,
+  ).toEqual({ pt: { greeting: "Olá {name}" } });
+  expect(o.output.join("\n")).not.toContain("unchanged");
+  older.server.close();
   // A server that reports another digest, or none, gets the seeds.
   for (const status of [
     { seedDigests: { pt: "0000000000000000" } },
