@@ -2,6 +2,8 @@ import { MIN_STATES, type MinState } from "@corpus/contract";
 import { getDb } from "@/db";
 import { authenticateProject } from "@/api/bearer";
 import { pullPayload } from "@/pull/payload";
+import { gzipSync } from "node:zlib";
+import { GZIP_FROM_BYTES } from "@/api/limits";
 
 function isMinState(value: string): value is MinState {
   return (MIN_STATES as readonly string[]).includes(value);
@@ -36,7 +38,8 @@ export async function GET(request: Request): Promise<Response> {
       { status: 422 },
     );
   }
-  return Response.json(
+  return jsonResponse(
+    request,
     pullPayload(
       db,
       auth.project,
@@ -44,4 +47,24 @@ export async function GET(request: Request): Promise<Response> {
       langs.length > 0 ? langs : undefined,
     ),
   );
+}
+
+// The payload as JSON, gzipped when the client accepts it and the body
+// is over the threshold (#602): Node's fetch inflates it on its own, and
+// a small project's pull stays plain and readable in a log.
+function jsonResponse(request: Request, payload: unknown): Response {
+  const json = JSON.stringify(payload);
+  const accepts = /\bgzip\b/.test(request.headers.get("accept-encoding") ?? "");
+  if (!accepts || Buffer.byteLength(json) < GZIP_FROM_BYTES) {
+    return new Response(json, {
+      headers: { "content-type": "application/json" },
+    });
+  }
+  return new Response(new Uint8Array(gzipSync(json)), {
+    headers: {
+      "content-type": "application/json",
+      "content-encoding": "gzip",
+      vary: "accept-encoding",
+    },
+  });
 }
