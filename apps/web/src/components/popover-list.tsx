@@ -53,11 +53,21 @@ export function PopoverList({
   useEffect(() => {
     if (!open) return;
     const outside = (event: PointerEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
+      if (!root.current?.contains(event.target as Node)) close(false);
     };
     document.addEventListener("pointerdown", outside);
     return () => document.removeEventListener("pointerdown", outside);
   }, [open]);
+
+  // The highlight follows the keys into view; the listbox scrolls past
+  // nine rows and forty languages are the reason the picker exists.
+  useEffect(() => {
+    if (open && current) {
+      document
+        .getElementById(`${listId}-${current.id}`)
+        ?.scrollIntoView?.({ block: "nearest" });
+    }
+  }, [open, current, listId]);
 
   const close = (focusControl: boolean) => {
     setOpen(false);
@@ -77,6 +87,8 @@ export function PopoverList({
       event.preventDefault();
       setHighlighted((i) => Math.max(i - 1, 0));
     } else if (event.key === "Enter" && current) {
+      // Enter that ends an IME composition is the composition's.
+      if (event.nativeEvent.isComposing) return;
       event.preventDefault();
       close(false);
       router.push(current.href);
@@ -117,33 +129,33 @@ export function PopoverList({
             }
             className="mb-1"
           />
-          {shown.length === 0 ? (
+          {shown.length === 0 && (
             <p className="px-2 py-1.5 text-sm text-muted-foreground">{empty}</p>
-          ) : (
-            <div
-              role="listbox"
-              id={listId}
-              className="max-h-72 overflow-y-auto"
-            >
-              {shown.map((option, index) => (
-                <Link
-                  key={option.id}
-                  id={`${listId}-${option.id}`}
-                  href={option.href}
-                  role="option"
-                  aria-selected={option.selected}
-                  data-highlighted={
-                    index === Math.min(highlighted, shown.length - 1)
-                  }
-                  onClick={() => close(false)}
-                  onPointerMove={() => setHighlighted(index)}
-                  className="block rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground aria-selected:font-medium data-[highlighted=true]:bg-accent data-[highlighted=true]:text-accent-foreground"
-                >
-                  {option.label}
-                </Link>
-              ))}
-            </div>
           )}
+          {/* The listbox stays mounted when nothing matches, so the
+              input's aria-controls always names an element. Options are
+              out of the tab order: focus stays on the combobox and the
+              keys move the highlight. */}
+          <div role="listbox" id={listId} className="max-h-72 overflow-y-auto">
+            {shown.map((option, index) => (
+              <Link
+                key={option.id}
+                id={`${listId}-${option.id}`}
+                href={option.href}
+                role="option"
+                tabIndex={-1}
+                aria-selected={option.selected}
+                data-highlighted={
+                  index === Math.min(highlighted, shown.length - 1)
+                }
+                onClick={() => close(false)}
+                onPointerMove={() => setHighlighted(index)}
+                className="block rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground aria-selected:font-medium data-[highlighted=true]:bg-accent data-[highlighted=true]:text-accent-foreground"
+              >
+                {option.label}
+              </Link>
+            ))}
+          </div>
         </div>
       )}
     </div>

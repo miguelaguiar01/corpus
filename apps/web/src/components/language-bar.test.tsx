@@ -136,11 +136,17 @@ test("the picker closes on Escape with focus back on the control, on a pointer-d
   expect(document.activeElement).toBe(control);
 
   await user.click(control);
+  await user.type(screen.getByRole("combobox"), "l1");
   await user.pointer({ keys: "[MouseLeft>]", target: document.body });
   expect(screen.queryByRole("listbox")).toBeNull();
+  // Reopening starts clean, as after Escape.
+  await user.click(control);
+  expect((screen.getByRole("combobox") as HTMLInputElement).value).toBe("");
+  expect(screen.getAllByRole("option")).toHaveLength(11);
+  await user.keyboard("{Escape}");
 
   await user.click(control);
-  await user.keyboard("{ArrowDown}{ArrowDown}");
+  await user.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}{ArrowUp}");
   const highlighted = screen
     .getAllByRole("option")
     .filter((o) => o.getAttribute("data-highlighted") === "true");
