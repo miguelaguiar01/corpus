@@ -12,7 +12,12 @@ import { option } from "./args";
 import { readEntries } from "./build";
 import { DEFAULT_INCLUDE, EXTENSIONS, SKIP_DIRS } from "./check";
 import type { RunContext } from "./cli";
-import { CliError, CONFIG_FILENAMES, namespacesOf } from "./config";
+import {
+  CliError,
+  CONFIG_FILENAMES,
+  matchPattern,
+  namespacesOf,
+} from "./config";
 import { ignoreCorpusDir } from "./corpus-dir";
 
 export const INIT_USAGE =
@@ -108,7 +113,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     throw new CliError(`cannot write a valid config: ${issues}`);
   }
   const file = path.join(ctx.cwd, CONFIG_FILENAMES[0]);
-  // Written as given: a {ns} pattern stays a pattern in the file.
+  // The pattern is written as given: `{ns}` stays `{ns}` in the file.
   writeFileSync(
     file,
     render({
@@ -140,6 +145,12 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   if (include) {
     ctx.out(
       `check.include: ${include.join(", ")} (the directories holding components, which corpus check scans)`,
+    );
+  }
+  const siblings = siblingCatalogues(ctx.cwd, messages, sourceLanguage);
+  if (siblings.length > 0) {
+    ctx.out(
+      `corpus: ${messages.replace("{lang}", sourceLanguage)} has ${siblings.length} sibling catalogue(s) the pattern does not name (${siblings.slice(0, 3).join(", ")}${siblings.length > 3 ? ", …" : ""}); a {ns} pattern or an array of paths names them all`,
     );
   }
   const ignored = ignoreCorpusDir(ctx.cwd);
@@ -294,10 +305,10 @@ async function libraryFor(
       );
       texts.push(...entries.map((entry) => entry.source));
     }
-    if (concretes.length === 0) return undefined;
   } catch {
     return undefined;
   }
+  if (concretes.length === 0) return undefined;
   const braces = texts.some((text) => text.includes("{{"));
   const icu = texts.some((text) => ICU_ARGUMENT_RE.test(text));
   if (braces && !icu) return { value: "i18next", detected: file };
@@ -323,6 +334,16 @@ export function languagesFromFiles(
   pattern: string,
   sourceLanguage: string,
 ): string[] {
+  // A `{ns}` pattern, in either order, is read by matching the tree.
+  if (pattern.includes("{ns}")) {
+    const found = new Set(
+      matchPattern(cwd, pattern)
+        .map((m) => m.lang)
+        .filter((code) => LANGUAGE_RE.test(code)),
+    );
+    const rest = [...found].filter((c) => c !== sourceLanguage).sort();
+    return found.has(sourceLanguage) ? [sourceLanguage, ...rest] : [];
+  }
   const at = pattern.indexOf("{lang}");
   const before = pattern.slice(0, at);
   const after = pattern.slice(at + "{lang}".length);
@@ -343,11 +364,7 @@ export function languagesFromFiles(
     if (!LANGUAGE_RE.test(code)) continue;
     const rest =
       pattern.slice(0, at + "{lang}".length).replace("{lang}", code) + after;
-    // A `{ns}` pattern is present for a language when any file fills it.
-    const present = rest.includes("{ns}")
-      ? namespacesOf(cwd, rest, code).length > 0
-      : existsSync(path.join(cwd, rest));
-    if (present) found.add(code);
+    if (existsSync(path.join(cwd, rest))) found.add(code);
   }
   const rest = [...found].filter((c) => c !== sourceLanguage).sort();
   return found.size > 0 ? [sourceLanguage, ...rest] : [];
@@ -362,4 +379,37 @@ function knownLanguage(code: string): boolean {
   } catch {
     return false;
   }
+}
+
+// Other catalogues beside the one a single pattern names (#513): the
+// one-file-per-namespace layout a pattern without {ns} leaves behind.
+function siblingCatalogues(
+  cwd: string,
+  pattern: string,
+  sourceLanguage: string,
+): string[] {
+  if (pattern.includes("{ns}")) return [];
+  const file = pattern.replace("{lang}", sourceLanguage);
+  const dir = path.dirname(file);
+  const ext = path.extname(file);
+  const glossary = /glossary/i;
+  let names: string[];
+  try {
+    names = readdirSync(path.join(cwd, dir));
+  } catch {
+    return [];
+  }
+  return names
+    .filter((name) => name.endsWith(ext) && name !== path.basename(file))
+    .filter((name) => !glossary.test(name))
+    .filter((name) => {
+      // A sibling that is another language of the same pattern is not
+      // a namespace: the pattern already names it.
+      const code = pattern.includes("/{lang}/")
+        ? null
+        : name.slice(0, name.length - ext.length);
+      return code === null || !LANGUAGE_RE.test(code);
+    })
+    .map((name) => path.join(dir, name))
+    .sort();
 }

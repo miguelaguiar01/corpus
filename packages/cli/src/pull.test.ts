@@ -509,3 +509,56 @@ test("a {ns} source pulls each namespace's strings into its own file, prefix str
   );
   expect(read("locales/en/common.json")).toContain('"title": "Common title"');
 });
+
+test("a component whose language file is missing gets it on pull with its own ids, and a proposal without the namespace is refused by name (#513)", async () => {
+  const { mkdirSync, writeFileSync, readFileSync, readdirSync } =
+    await import("node:fs");
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8").replace(
+      /sources: \[[\s\S]*?\n {2}\],/,
+      'sources: [{ adapter: "messages", type: "chrome", path: "src/{ns}/i18n/{lang}.json" }],',
+    ),
+  );
+  for (const [ns, data] of [
+    ["Button", { save: "Save" }],
+    ["Card/Header", { save: "Save the card" }],
+  ] as const) {
+    mkdirSync(path.join(repo, "src", ns, "i18n"), { recursive: true });
+    writeFileSync(
+      path.join(repo, "src", ns, "i18n", "en.json"),
+      `${JSON.stringify(data, null, 2)}\n`,
+    );
+  }
+  await serve(200, {
+    ...PAYLOAD,
+    types: { "Button:save": "chrome", "Card/Header:save": "chrome" },
+    translations: {
+      en: { "Button:save": "Save", "Card/Header:save": "Save the card" },
+      pt: { "Button:save": "Guardar", "Card/Header:save": "Guardar o cartão" },
+    },
+    sourceChanges: [
+      {
+        kind: "add",
+        id: "title",
+        type: "chrome",
+        file: "src/Button/i18n/en.json",
+        text: "Title",
+      },
+    ],
+  });
+  const c = ctx();
+  expect(await run(["pull"], c)).toBe(0);
+  expect(read("src/Button/i18n/pt.json")).toBe(`{\n  "save": "Guardar"\n}\n`);
+  expect(read("src/Card/Header/i18n/pt.json")).toBe(
+    `{\n  "save": "Guardar o cartão"\n}\n`,
+  );
+  expect(c.output.join("\n")).toContain(
+    "proposal title for src/Button/i18n/en.json lacks the namespace Button: that file's ids carry; not written",
+  );
+  expect(c.output.join("\n")).not.toMatch(/1 proposal\(s\) written/);
+  expect(read("src/Button/i18n/en.json")).toBe(`{\n  "save": "Save"\n}\n`);
+});

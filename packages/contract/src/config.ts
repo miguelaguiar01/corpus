@@ -10,10 +10,12 @@ import {
 } from "./strings";
 
 // A pattern names one file per language with `{lang}`; it may also carry
-// `{ns}`, one path segment, for a layout with one file per namespace
-// (i18next's `locales/{lang}/{ns}.json`), which prefixes the ids the
-// file contributes with `ns:` (#513). A source may name several
-// patterns, all sharing its type and library.
+// `{ns}`, one or more path segments anchored by the literals around it,
+// for a layout with one file per namespace (i18next's
+// `locales/{lang}/{ns}.json`) or per component (`src/{ns}/i18n/{lang}.json`),
+// which prefixes the ids the file contributes with `ns:`, the capture
+// kept as written (#513). A source may name several patterns, all
+// sharing its type and library.
 const langPattern = z
   .string()
   .refine((p) => p.includes("{lang}"), "path must contain {lang}");

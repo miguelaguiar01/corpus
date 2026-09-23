@@ -78,7 +78,7 @@ Pick types by how the text behaves rather than by where it lives: `ui` for butto
 
 ## One source, several files
 
-A source's `path` may be an array of patterns, each with `{lang}`, all sharing the source's type and library: one source per pattern, and a duplicate id across them is the build error it is between any two sources, naming both files. A pattern may also carry `{ns}`, one path segment, for the layout i18next uses by default:
+A source's `path` may be an array of patterns, each with `{lang}`, all sharing the source's type and library: one source per pattern, and a duplicate id across them is the build error it is between any two sources, naming both files. A pattern may also carry `{ns}`, one or more path segments anchored by the literals around it, for the layout i18next uses by default, and for a repository where each component keeps its own file (`src/{ns}/i18n/{lang}.json` reaches `src/Card/Header/i18n/en.json`, with ids like `Card/Header:save`, and a component added later needs no config change):
 
 ```ts
 { adapter: "messages", type: "ui", path: "public/locales/{lang}/{ns}.json" }

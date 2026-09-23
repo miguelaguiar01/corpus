@@ -373,6 +373,37 @@ test("a {ns} pattern is one source per namespace, its ids prefixed ns:, and an a
   await expect(buildSnapshotReport(clash, REPO)).rejects.toThrow(
     /duplicate id title in ns\/en\/common\.json and ns\/en\/admin\.json/,
   );
+  // The owner's case: a file per component, sometimes nested. {ns} spans
+  // the segments between the literals and never past them.
+  const comp = config({
+    sources: [
+      {
+        adapter: "messages",
+        type: "ui",
+        path: "comp/src/{ns}/i18n/{lang}.json",
+      },
+    ],
+  });
+  expect(
+    comp.sources.map((s) => (s.adapter === "exec" ? "" : s.namespace)),
+  ).toEqual(["Button", "Card/Header"]);
+  const built2 = await buildSnapshotReport(comp, REPO);
+  expect(built2.snapshot.strings.map((s) => s.id).sort()).toEqual([
+    "Button:save",
+    "Card/Header:save",
+  ]);
+  // The same file through two patterns is named once.
+  expect(() =>
+    config({
+      sources: [
+        {
+          adapter: "messages",
+          type: "ui",
+          path: ["ns/{lang}/{ns}.json", "ns/{lang}/common.json"],
+        },
+      ],
+    }),
+  ).toThrow(/ns\/en\/common\.json is named twice/);
   // A {ns} pattern that nothing fills is named.
   expect(() =>
     config({

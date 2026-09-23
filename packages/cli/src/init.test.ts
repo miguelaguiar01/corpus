@@ -505,3 +505,54 @@ test("init reads the languages and the library through a {ns} pattern and writes
     namespace: "admin",
   });
 });
+
+test("init reads languages through a {ns} pattern in either order, and names sibling catalogues a plain pattern leaves out (#513)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  for (const [dir, lang, text] of [
+    ["src/Button/i18n", "en", { save: "Save" }],
+    ["src/Button/i18n", "de", { save: "Speichern" }],
+    ["src/Card/Header/i18n", "en", { save: "Save the card" }],
+  ] as const) {
+    mkdirSync(path.join(p.dir, dir), { recursive: true });
+    writeFileSync(path.join(p.dir, dir, `${lang}.json`), JSON.stringify(text));
+  }
+  expect(
+    await run(
+      [
+        "init",
+        "--project",
+        "app",
+        "--source",
+        "en",
+        "--messages",
+        "src/{ns}/i18n/{lang}.json",
+      ],
+      p.ctx,
+    ),
+  ).toBe(0);
+  expect((await loadConfig(p.dir)).languages).toEqual(["en", "de"]);
+
+  const flat = project();
+  stubCli(flat.dir);
+  mkdirSync(path.join(flat.dir, "locales", "en"), { recursive: true });
+  writeFileSync(path.join(flat.dir, "locales", "en", "common.json"), "{}\n");
+  writeFileSync(path.join(flat.dir, "locales", "en", "admin.json"), "{}\n");
+  expect(
+    await run(
+      [
+        "init",
+        "--project",
+        "app",
+        "--source",
+        "en",
+        "--messages",
+        "locales/{lang}/common.json",
+      ],
+      flat.ctx,
+    ),
+  ).toBe(0);
+  expect(flat.out.join("\n")).toMatch(
+    /locales\/en\/common\.json has 1 sibling catalogue\(s\) the pattern does not name \(locales\/en\/admin\.json\); a \{ns\} pattern or an array of paths names them all/,
+  );
+});
