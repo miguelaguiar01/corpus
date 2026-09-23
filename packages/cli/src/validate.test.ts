@@ -3,6 +3,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -75,7 +76,49 @@ test("an exec source's translations are validated from its exporter, the command
     "exec:node scripts/export.mjs:exec.marks: plural on {n} lacks the many branch its language uses",
   );
   expect(err).not.toMatch(/is not validated/);
-  expect(err).toMatch(/1 invalid translation\(s\), 1 incomplete plural\(s\)/);
+  expect(err).toContain(
+    "exec:node scripts/export.mjs:exec.gone: the exporter's strings no longer have this id; 1 target file(s) carry it",
+  );
+  expect(err).toMatch(
+    /1 invalid translation\(s\), 1 orphan key\(s\) in 1 file\(s\), 1 incomplete plural\(s\)/,
+  );
+  const j = ctx();
+  expect(await run(["validate", "--json"], j)).toBe(1);
+  expect(JSON.parse(j.stdout.join("\n"))).toContainEqual({
+    file: "exec:node scripts/export.mjs",
+    key: "exec.bye",
+    code: "missing-placeholder",
+    severity: "invalid",
+    message: "missing {who}",
+  });
+});
+
+test("an exporter's source string that does not parse is one finding, not one per language", async () => {
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8").replace(
+      'languages: ["en", "pt"]',
+      'languages: ["en", "pt", "fr"]',
+    ),
+  );
+  writeFileSync(
+    path.join(repo, "scripts", "export.mjs"),
+    `console.log(JSON.stringify({
+      strings: [{ id: "exec.broken", type: "computed", source: "Hi {who" }],
+      translations: { pt: { "exec.broken": "Olá" }, fr: { "exec.broken": "Salut" } },
+    }))`,
+  );
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(1);
+  expect(
+    c.stderr
+      .join("\n")
+      .split("\n")
+      .filter((l) => l.includes("exec.broken")),
+  ).toHaveLength(1);
 });
 
 test("a source that does not parse is the source file's finding, once, not one per target", async () => {
