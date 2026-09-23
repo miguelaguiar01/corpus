@@ -249,7 +249,7 @@ describe("printf", () => {
         name: "2",
         expected: "%d",
         actual: "%s",
-        indexed: "%n$s",
+        indexed: "%[n]s",
       },
     ]);
     expect(
@@ -267,14 +267,14 @@ describe("printf", () => {
         name: "2",
         expected: "%d",
         actual: "%s",
-        indexed: "%n$s",
+        indexed: "%[n]s",
       },
       {
         code: "changed-verb",
         name: "3",
         expected: "%s",
         actual: "%d",
-        indexed: "%n$d",
+        indexed: "%[n]d",
       },
     ]);
     expect(
@@ -298,6 +298,23 @@ describe("printf", () => {
     expect(
       validateTranslation("%[1]s: %v", "%[2]v de %[1]s", "de", "printf"),
     ).toEqual({ ok: true });
+    // C's style only when the source writes a %n$ index itself.
+    expect(errorsOf("%1$s has %2$d", "%d de %s", "pt-PT", "printf")).toEqual([
+      {
+        code: "changed-verb",
+        name: "1",
+        expected: "%1$s",
+        actual: "%d",
+        indexed: "%n$d",
+      },
+      {
+        code: "changed-verb",
+        name: "2",
+        expected: "%2$d",
+        actual: "%s",
+        indexed: "%n$s",
+      },
+    ]);
     // %% is a percent on both sides and never a placeholder.
     expect(
       validateTranslation("%d%% done", "%d %% feito", "pt-PT", "printf"),

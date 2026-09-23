@@ -44,7 +44,8 @@ export type ValidationError =
   // printf (#594): the verb at a position prints another type than the
   // source's (`%s` where the source has `%d`), which is what a verb
   // moved without an index looks like, since unindexed verbs are named
-  // by their order; `indexed` is the index form in the source's style.
+  // by their order; `indexed` is the index form in the source's style,
+  // `%n$` when the source writes one and Go's `%[n]` otherwise.
   | {
       code: "changed-verb";
       name: string;
@@ -177,8 +178,10 @@ export function validateTranslation(
       });
   }
   if (syntax === "printf") {
-    const goStyle = [...expected.written.values()].some(
-      (w) => /^%\[/.test(w) || /v$/.test(w),
+    // Go's fmt has no `%n$`, so the hint is Go's `%[n]` unless the
+    // source itself writes a `%n$` index, as C, Java and Android do.
+    const cStyle = [...expected.written.values()].some((w) =>
+      /^%\d+\$/.test(w),
     );
     for (const [name, written] of expected.written) {
       const got = actual.written.get(name);
@@ -189,7 +192,7 @@ export function validateTranslation(
         name,
         expected: written,
         actual: got,
-        indexed: goStyle ? `%[n]${letter}` : `%n$${letter}`,
+        indexed: cStyle ? `%n$${letter}` : `%[n]${letter}`,
       });
     }
   }

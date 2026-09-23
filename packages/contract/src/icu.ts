@@ -95,7 +95,6 @@ class ParseFailure extends Error {
 // printf's verb: Go's `%[n]verb` or C's `%n$verb` index, then flags,
 // width and precision, then the verb letter. `%%` is a literal percent.
 // The space flag is left out: "50% off" is prose, not a verb.
-// The space flag is left out: "50% off" is prose, not a verb.
 const PRINTF_VERB_RE =
   /^%(?:\[(\d+)\]|(\d+)\$)?([-+0#]*(?:\d+|\*)?(?:\.(?:\d+|\*))?)([a-zA-Z])/;
 

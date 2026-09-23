@@ -458,7 +458,7 @@ test("under printf a chip inserts the verb as the source writes it, and a droppe
   fireEvent.change(textarea, { target: { value: "%d commits de %s" } });
   expect(
     screen.getByText(
-      "%d at position 1 is %s in the source; a verb that moved needs its index, %n$d",
+      "%d at position 1 is %s in the source; a verb that moved needs its index, %[n]d",
     ),
   ).toBeTruthy();
 });
