@@ -50,7 +50,7 @@ npx corpus init --project my-game --source en \
 npx corpus workbench
 ```
 
-`init` writes `corpus.config.ts`, the whole configuration for a repository whose strings are a plain message catalog: it reads the languages from the files and the i18n library from the source catalogue, and takes `--languages` and `--library` when you would rather say. `workbench` starts an instance at http://localhost:3000, creates the project the config declares, and prints the invite secret it generated; the project's token is written to `.corpus/token`, so in another shell:
+`init` writes `corpus.config.ts` (a plain `corpus.config.mjs` when the package is not installed in the repository), the whole configuration for a repository whose strings are a plain message catalog: it reads the languages from the files and the i18n library from the source catalogue, and takes `--languages` and `--library` when you would rather say. `workbench` starts an instance at http://localhost:3000, creates the project the config declares, and prints the invite secret it generated; the project's token is written to `.corpus/token`, so in another shell:
 
 ```sh
 npx corpus push          # the repository's text is in Corpus
