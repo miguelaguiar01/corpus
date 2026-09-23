@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { createJiti } from "jiti";
+import { KEY_IS_TEXT } from "@corpus/adapters";
 import {
   corpusConfigSchema,
   LANGUAGE_RE,
@@ -328,6 +329,7 @@ async function libraryFor(
   const file = concretes[0]?.replace("{lang}", sourceLanguage) ?? pattern;
   let texts: string[];
   let ids: string[];
+  let keyed = 0;
   try {
     const jiti = createJiti(import.meta.url);
     texts = [];
@@ -341,6 +343,7 @@ async function libraryFor(
       );
       texts.push(...entries.map((entry) => entry.source));
       ids.push(...entries.map((entry) => entry.id));
+      keyed += entries.filter((entry) => KEY_IS_TEXT.has(entry)).length;
     }
   } catch {
     return {};
@@ -365,6 +368,14 @@ async function libraryFor(
   if (doubles > singles && doubles > printf && !icu)
     return { library: { value: "i18next", detected: file } };
   const noted = (note: string) => `${note} in ${file}`;
+  // Ghost's shape (#589): the sentence is the key and the value is "".
+  if (keyed > 0 && keyed * 2 >= texts.length) {
+    return {
+      note: noted(
+        `source values are empty: the key is the text, and a proposal on those strings is refused`,
+      ),
+    };
+  }
   if (printf > doubles + singles) {
     const seen = [...verbs].slice(0, 3).join(", ");
     return {

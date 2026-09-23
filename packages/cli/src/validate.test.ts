@@ -43,6 +43,32 @@ function ctx() {
 const write = (rel: string, data: unknown) =>
   writeFileSync(path.join(repo, rel), `${JSON.stringify(data, null, 2)}\n`);
 
+test("a sentence key with an empty value validates its translations against the key (#589)", async () => {
+  const { mkdirSync } = await import("node:fs");
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8").replace(
+      /sources: \[[\s\S]*?\n {2}\],/,
+      'sources: [{ adapter: "messages", type: "ui", path: "keyed/{lang}.json" }],',
+    ),
+  );
+  mkdirSync(path.join(repo, "keyed"), { recursive: true });
+  write("keyed/en.json", { "{amount} off": "", "Sign in": "" });
+  write("keyed/pt.json", {
+    "{amount} off": "{amount} de desconto",
+    "Sign in": "Entrar {x}",
+  });
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(1);
+  expect(c.stderr.join("\n")).toContain(
+    "keyed/pt.json:Sign in: unexpected {x}",
+  );
+  expect(c.stderr.join("\n")).not.toContain("{amount} off");
+});
+
 test("a clean repository is valid, exec sources are named as not validated, missing keys are not findings", async () => {
   write("i18n/pt.json", { greeting: "Olá {name}" });
   const c = ctx();

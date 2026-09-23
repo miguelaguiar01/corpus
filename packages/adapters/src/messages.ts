@@ -5,6 +5,20 @@ import type { StringEntry } from "@corpus/contract";
 // (#558); a nested object under such a key is left alone.
 export type MessagesOptions = { type: string; arb?: boolean };
 
+// The entries whose source is their key: an i18next catalogue with
+// natural keys writes the sentence as the key and "" as the value, and
+// the app falls back to the key (#589). Corpus reads the key as the
+// text; build drops the file from such an entry, since a proposal would
+// have nothing to write, and says how many took the key.
+export const KEY_IS_TEXT = new WeakSet<StringEntry>();
+
+// A key that is a sentence rather than a path: whitespace, or anything
+// outside a dotted identifier. A dotted identifier with an empty value
+// stays empty.
+export function keyIsSentence(id: string): boolean {
+  return /\s/.test(id) || !/^[A-Za-z0-9_.:-]+$/.test(id);
+}
+
 // Flat or nested key-value catalog (already-parsed JSON/TS) -> snapshot
 // string entries (§3). Nested keys flatten to dot-paths; the leaf string
 // is the source, the flattened key is the stable id (§4). Input is
@@ -34,9 +48,11 @@ export function messagesToEntries(
         meta && typeof meta === "object" && !Array.isArray(meta)
           ? (meta as Record<string, unknown>).description
           : undefined;
-      return typeof description === "string" && description.trim() !== ""
-        ? { ...entry, note: description }
-        : entry;
+      if (typeof description !== "string" || description.trim() === "")
+        return entry;
+      const noted = { ...entry, note: description };
+      if (KEY_IS_TEXT.has(entry)) KEY_IS_TEXT.add(noted);
+      return noted;
     });
   }
   walk(data, [], options.type, entries);
@@ -50,7 +66,12 @@ function walk(
   out: StringEntry[],
 ): void {
   if (typeof node === "string") {
-    out.push({ id: path.join("."), type, source: node });
+    const id = path.join(".");
+    if (node === "" && keyIsSentence(id)) {
+      const entry = { id, type, source: id };
+      KEY_IS_TEXT.add(entry);
+      out.push(entry);
+    } else out.push({ id, type, source: node });
     return;
   }
   if (node === null || typeof node !== "object" || Array.isArray(node)) {

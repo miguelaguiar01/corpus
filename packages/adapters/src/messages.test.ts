@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { stringEntrySchema } from "@corpus/contract";
-import { messagesToEntries } from "./messages";
+import { messagesToEntries, KEY_IS_TEXT, keyIsSentence } from "./messages";
 
 test("flat catalog maps key -> id with the configured type", () => {
   const entries = messagesToEntries(
@@ -66,6 +66,25 @@ test("empty catalog yields no entries", () => {
 test("keys already containing dots are preserved as-is", () => {
   const entries = messagesToEntries({ "a.b.c": "x" }, { type: "chrome" });
   expect(entries[0]?.id).toBe("a.b.c");
+});
+
+test("an empty value under a sentence key reads the key as the text; a dotted key stays empty (#589)", () => {
+  const entries = messagesToEntries(
+    { "{amount} off": "", "Sign in": "", "ui.empty": "", "ui.title": "Title" },
+    { type: "ui" },
+  );
+  expect(entries.map((e) => [e.id, e.source])).toEqual([
+    ["{amount} off", "{amount} off"],
+    ["Sign in", "Sign in"],
+    ["ui.empty", ""],
+    ["ui.title", "Title"],
+  ]);
+  expect(entries.filter((e) => KEY_IS_TEXT.has(e)).map((e) => e.id)).toEqual([
+    "{amount} off",
+    "Sign in",
+  ]);
+  expect(keyIsSentence("a.b_c-d:e")).toBe(false);
+  expect(keyIsSentence("Hello!")).toBe(true);
 });
 
 test("an ARB catalogue's @ entries are metadata, not strings (#558)", () => {

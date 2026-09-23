@@ -300,6 +300,34 @@ test("an exporter past 1 MiB builds, and one past the cap or killed is named (#5
   ).toBe('exec "node x.mjs" exited 2: boom');
 });
 
+test("an empty value under a sentence key is the key as text: no file on the entry, a note in the report (#589)", async () => {
+  const keyed = config({
+    languages: ["en", "pt"],
+    sources: [{ adapter: "messages", type: "ui", path: "keyed/{lang}.json" }],
+  });
+  const { snapshot, refused, notes } = await buildSnapshotReport(keyed, REPO);
+  expect(refused).toEqual([]);
+  const byId = new Map(snapshot.strings.map((s) => [s.id, s]));
+  expect(byId.get("{amount} off")).toMatchObject({ source: "{amount} off" });
+  expect(byId.get("{amount} off")).not.toHaveProperty("file");
+  expect(byId.get("{count} month_one")).toMatchObject({
+    source: "{count} month",
+    file: "keyed/en.json",
+  });
+  expect(byId.get("ui.empty")).toMatchObject({
+    source: "",
+    file: "keyed/en.json",
+  });
+  expect(notes).toEqual([
+    "keyed/en.json: 2 string(s) have an empty value and take the key as the text; a proposal on them is refused, since the text is the key",
+  ]);
+  // The Portuguese file seeds against the key: nothing is identical.
+  expect(snapshot.seedTranslations?.pt).toMatchObject({
+    "{amount} off": "{amount} de desconto",
+    "Sign in": "Entrar",
+  });
+});
+
 test("an .arb catalogue reads as JSON, its @ entries as metadata, and writes back (#558)", async () => {
   const arb = config({
     sources: [

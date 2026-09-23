@@ -96,8 +96,12 @@ type PushReport = {
 async function push(args: string[], ctx: RunContext): Promise<number> {
   const dryRun = args.includes("--dry-run");
   const config = await loadConfig(ctx.cwd);
-  const { snapshot, refused } = await buildSnapshotReport(config, ctx.cwd);
+  const { snapshot, refused, notes } = await buildSnapshotReport(
+    config,
+    ctx.cwd,
+  );
   for (const entry of refused) ctx.err(`corpus: ${describeRefused(entry)}`);
+  for (const note of notes) ctx.err(`corpus: ${note}`);
   for (const note of deprecations(config)) ctx.err(`corpus: ${note}`);
   for (const note of pushOnlyNotes(config)) ctx.err(`corpus: ${note}`);
   const token = requireToken(ctx.env, ctx.cwd);
@@ -183,8 +187,12 @@ function refusedExit(refused: Refused[], ctx: RunContext, fate: string) {
 // `corpus build`: the snapshot without a server, for authoring the config.
 async function build(args: string[], ctx: RunContext): Promise<number> {
   const config = await loadConfig(ctx.cwd);
-  const { snapshot, refused } = await buildSnapshotReport(config, ctx.cwd);
+  const { snapshot, refused, notes } = await buildSnapshotReport(
+    config,
+    ctx.cwd,
+  );
   for (const entry of refused) ctx.err(`corpus: ${describeRefused(entry)}`);
+  for (const note of notes) ctx.err(`corpus: ${note}`);
   for (const note of deprecations(config)) ctx.err(`corpus: ${note}`);
   for (const note of pushOnlyNotes(config)) ctx.err(`corpus: ${note}`);
   const out = option(args, "--out");
