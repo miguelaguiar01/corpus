@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { MAX_BODY_BYTES } from "./src/api/limits";
 
 // Security headers on every response (§10).
 const securityHeaders = [
@@ -20,11 +21,14 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  // The proxy (proxy.ts) reads every request body, and Next truncates
-  // one past 10 MB by default: a push whose gzipped body passes that,
-  // Bitwarden's 11 MB, arrived cut and was refused as invalid gzip
-  // (#593). The limit is the push route's own cap.
-  experimental: { proxyClientMaxBodySize: "128mb" },
+  // Next clones every request body for the proxy (proxy.ts) and cuts
+  // the clone past 10 MB by default: a push whose gzipped body passes
+  // that, Bitwarden's 11 MB, arrived cut and was refused as invalid
+  // gzip (#593). The limit is the push route's own cap, one number.
+  // The key is experimental in Next 16.3; an unknown experimental key
+  // is a build warning, not an error, so a rename would show as the
+  // 10 MB cut coming back.
+  experimental: { proxyClientMaxBodySize: MAX_BODY_BYTES },
   // Native module — must be required at runtime, not bundled.
   serverExternalPackages: ["better-sqlite3"],
   // Migration SQL is read from disk at runtime; make sure the standalone

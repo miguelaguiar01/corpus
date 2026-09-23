@@ -46,7 +46,7 @@ volumes:
 
 **Mount a directory, never a single file.** SQLite runs in write-ahead mode and keeps `corpus.db-wal` and `corpus.db-shm` beside the database. A bind mount of one file gets you a database that cannot write.
 
-**Put it behind HTTPS.** The session cookie is marked `Secure` for any host other than localhost, so over plain HTTP from another machine people cannot stay signed in. Behind a reverse proxy, set `CORPUS_PUBLIC_URL` to the public origin so the sign-in redirect names it rather than the proxy's internal host.
+**Put it behind HTTPS.** The session cookie is marked `Secure` for any host other than localhost, so over plain HTTP from another machine people cannot stay signed in. Behind a reverse proxy, set `CORPUS_PUBLIC_URL` to the public origin so the sign-in redirect names it rather than the proxy's internal host, and let the proxy pass a request body of at least 128 MB: a push carries the repository's translations, gzipped, and nginx's default `client_max_body_size` is 1 MB, whose `413` looks exactly like Corpus's own cap from the CLI (Caddy has no default limit).
 
 ## The environment
 
