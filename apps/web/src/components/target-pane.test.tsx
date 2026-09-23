@@ -443,3 +443,11 @@ test("an i18next string's chips insert {{name}}, and its validation reads {{ nam
   fireEvent.change(textarea, { target: { value: "documentos marcados" } });
   expect(screen.getByText("Missing {{count}}")).toBeTruthy();
 });
+
+test("a draft carried back from a refused save names its fault (#529)", () => {
+  // The page hands the refused text back as the pane's initial text;
+  // the pane's own check lists what is wrong, so the server need not.
+  const { save } = pane("{witness} saw someone at {hour}.");
+  expect(screen.getByText("Missing {suspect}")).toBeTruthy();
+  expect(save.disabled).toBe(true);
+});

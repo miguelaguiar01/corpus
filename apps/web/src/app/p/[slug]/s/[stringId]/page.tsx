@@ -135,6 +135,12 @@ export default async function StringPage({
       format: formats.get(name),
     }),
   );
+  // A draft rides back only beside the refusal or warning that carried
+  // it, and only as one string: a bare link with ?draft= is ignored.
+  const carriedDraft =
+    typeof query.draft === "string" && (query.error || query.warning)
+      ? query.draft
+      : undefined;
   const errorKey = query.error
     ? (ERROR_KEY[query.error] ?? "verify.errorGeneric")
     : undefined;
@@ -337,7 +343,7 @@ export default async function StringPage({
                 syntax={string.syntax}
                 slots={slots}
                 language={target}
-                initialText={query.draft ?? targetRow.text ?? ""}
+                initialText={carriedDraft ?? targetRow.text ?? ""}
                 slug={slug}
                 stringKey={string.key}
                 openedVersion={targetRow.version}

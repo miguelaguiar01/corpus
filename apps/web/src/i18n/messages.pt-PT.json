@@ -4,7 +4,7 @@
   "editor.errorInvalid": "Essa tradução não foi guardada: o que está errado aparece por baixo da caixa, com o seu rascunho mantido.",
   "editor.formatChanged": "{name} é um {type} no original, não um {actual}",
   "editor.formatDropped": "{name} é um {type} no original; escreva-o com o seu formato",
-  "editor.warningSourceChanged": "O original mudou desde que abriu este texto. O seu rascunho fica em baixo; leia-o contra o novo original antes de guardar.",
+  "editor.warningSourceChanged": "O original mudou desde que abriu este texto. O seu rascunho fica em baixo; compare-o com o novo original antes de guardar.",
   "entities.heading": "Entidades",
   "invite.signIn": "Iniciar sessão",
   "invite.submit": "Entrar",
