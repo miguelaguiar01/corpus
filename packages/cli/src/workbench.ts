@@ -180,9 +180,10 @@ export async function serverNote(
   cwd: string,
   url: string,
 ): Promise<string | undefined> {
-  if (!CONFIG_FILENAMES.some((name) => existsSync(path.join(cwd, name)))) {
-    return undefined;
-  }
+  const configFile = CONFIG_FILENAMES.find((name) =>
+    existsSync(path.join(cwd, name)),
+  );
+  if (!configFile) return undefined;
   let server: string;
   try {
     server = (await loadConfig(cwd)).server;
@@ -191,5 +192,5 @@ export async function serverNote(
   }
   const same = (value: string) => value.replace(/\/+$/, "").toLowerCase();
   if (same(server) === same(url)) return undefined;
-  return `config    server is ${server}; push goes there. Pass --server to init, or edit ${CONFIG_FILENAMES[0]}`;
+  return `config    server is ${server}; push goes there. Edit ${configFile} to point it here`;
 }

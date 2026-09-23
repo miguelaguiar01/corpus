@@ -3,6 +3,6 @@ created .gitignore with .corpus/
 
 Next:
   1. corpus workbench (needs @corpus-tool/workbench) starts an instance, creates the project "acme-app" and writes its token to .corpus/token.
-     The config's server is http://localhost:3000: corpus workbench listens there by default; with --port, pass --server here to match.
+     The config's server is http://localhost:3000: corpus workbench listens there by default; for another port, edit the config or run init with --server.
      For another instance at http://localhost:3000: CORPUS_INVITE_SECRET=<its secret> corpus project create prints the token, for CORPUS_TOKEN or .corpus/token.
   2. corpus push

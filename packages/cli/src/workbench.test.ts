@@ -91,7 +91,7 @@ test("a config whose server is another port is named beside the URL (#559)", asy
     `export default { project: "p", server: "http://localhost:3000", sourceLanguage: "en", languages: ["en"], sources: [{ adapter: "messages", type: "ui", path: "i18n/{lang}.json" }] };\n`,
   );
   expect(await serverNote(dir, "http://localhost:4100")).toBe(
-    "config    server is http://localhost:3000; push goes there. Pass --server to init, or edit corpus.config.ts",
+    "config    server is http://localhost:3000; push goes there. Edit corpus.config.mjs to point it here",
   );
   expect(await serverNote(dir, "http://localhost:3000/")).toBeUndefined();
 });

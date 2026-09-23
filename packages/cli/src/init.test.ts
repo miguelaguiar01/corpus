@@ -97,6 +97,12 @@ test("writes a config that the loader accepts, and says what to do next", async 
   expect(p.out.join("\n")).toMatch(
     /The config's server is http:\/\/localhost:3000: corpus workbench listens there by default/,
   );
+  const given = project();
+  stubCli(given.dir);
+  expect(
+    await run([...FLAGS, "--server", "http://localhost:4100"], given.ctx),
+  ).toBe(0);
+  expect(given.out.join("\n")).not.toMatch(/The config's server is/);
   expect(p.out.join("\n")).toMatch(/corpus push/);
 });
 

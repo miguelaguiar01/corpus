@@ -131,7 +131,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   );
   if (option(args, "--server") === undefined) {
     ctx.out(
-      `     The config's server is ${server}: corpus workbench listens there by default; with --port, pass --server here to match.`,
+      `     The config's server is ${server}: corpus workbench listens there by default; for another port, edit the config or run init with --server.`,
     );
   }
   ctx.out(
