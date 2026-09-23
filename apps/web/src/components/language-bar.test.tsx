@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
+
+const push = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 import { LanguageBar } from "./language-bar";
 
 afterEach(cleanup);
@@ -103,7 +106,7 @@ test("the picker lists the languages, filters on the code as you type, links eac
   expect(
     screen.getByRole("option", { name: "l7" }).getAttribute("aria-selected"),
   ).toBe("true");
-  await user.type(screen.getByRole("textbox"), "L1");
+  await user.type(screen.getByRole("combobox"), "L1");
   const shown = screen.getAllByRole("option").map((o) => o.textContent);
   expect(shown).toEqual(["l1", "l10", "l11"]);
   expect(screen.getByRole("option", { name: "l10" }).getAttribute("href")).toBe(
@@ -112,7 +115,46 @@ test("the picker lists the languages, filters on the code as you type, links eac
   await user.click(screen.getByRole("option", { name: "l10" }));
   expect(screen.queryByRole("listbox")).toBeNull();
   await user.click(screen.getByRole("button"));
-  await user.type(screen.getByRole("textbox"), "zz");
+  await user.type(screen.getByRole("combobox"), "zz");
   expect(screen.queryAllByRole("option")).toHaveLength(0);
   expect(screen.getByText("No language matches.")).toBeTruthy();
+});
+
+test("the picker closes on Escape with focus back on the control, on a pointer-down outside, and follows the highlighted option on Enter (#488)", async () => {
+  const user = userEvent.setup();
+  many(12);
+  const control = screen.getByRole("button");
+  await user.click(control);
+  const filter = screen.getByRole("combobox");
+  expect(filter.getAttribute("aria-controls")).toBe(
+    screen.getByRole("listbox").getAttribute("id"),
+  );
+  // The listbox holds options alone; the filter and the empty note sit outside it.
+  expect(screen.getByRole("listbox").querySelector("input")).toBeNull();
+  await user.keyboard("{Escape}");
+  expect(screen.queryByRole("listbox")).toBeNull();
+  expect(document.activeElement).toBe(control);
+
+  await user.click(control);
+  await user.type(screen.getByRole("combobox"), "l1");
+  await user.pointer({ keys: "[MouseLeft>]", target: document.body });
+  expect(screen.queryByRole("listbox")).toBeNull();
+  // Reopening starts clean, as after Escape.
+  await user.click(control);
+  expect((screen.getByRole("combobox") as HTMLInputElement).value).toBe("");
+  expect(screen.getAllByRole("option")).toHaveLength(11);
+  await user.keyboard("{Escape}");
+
+  await user.click(control);
+  await user.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}{ArrowUp}");
+  const highlighted = screen
+    .getAllByRole("option")
+    .filter((o) => o.getAttribute("data-highlighted") === "true");
+  expect(highlighted.map((o) => o.textContent)).toEqual(["l3"]);
+  expect(
+    screen.getByRole("combobox").getAttribute("aria-activedescendant"),
+  ).toBe(highlighted[0]!.id);
+  await user.keyboard("{Enter}");
+  expect(push).toHaveBeenCalledWith("/p/mm/s/k?language=l3");
+  expect(screen.queryByRole("listbox")).toBeNull();
 });

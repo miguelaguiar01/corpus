@@ -1,9 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { PopoverList } from "@/components/popover-list";
 import { t } from "@/i18n";
 
 const SEGMENT =
@@ -18,10 +16,6 @@ export function LanguagePicker({
   selected: string;
   targets: { code: string; href: string }[];
 }) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const needle = query.trim().toLowerCase();
-  const shown = targets.filter((l) => l.code.toLowerCase().includes(needle));
   return (
     <nav
       aria-label={t("editor.languages")}
@@ -46,49 +40,26 @@ export function LanguagePicker({
           </span>
         )}
       </Link>
-      <Button
-        variant="ghost"
-        size="sm"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-        className={`${SEGMENT} h-auto flex-1 rounded-none py-0 font-semibold`}
-      >
-        {source.current ? t("editor.pickLanguage") : selected}
-        <span aria-hidden="true">▾</span>
-      </Button>
-      {open && (
-        <div
-          role="listbox"
-          className="absolute left-0 top-full z-10 mt-1 max-h-80 w-full min-w-56 overflow-y-auto rounded-md border border-border bg-popover p-1 shadow-md lg:w-64"
-        >
-          <Input
-            autoFocus
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t("editor.filterLanguages")}
-            className="mb-1"
-          />
-          {shown.length === 0 ? (
-            <p className="px-2 py-1.5 text-sm text-muted-foreground">
-              {t("editor.noLanguageMatches")}
-            </p>
-          ) : (
-            shown.map(({ code, href }) => (
-              <Link
-                key={code}
-                href={href}
-                role="option"
-                aria-selected={code === selected}
-                onClick={() => setOpen(false)}
-                className="block rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground aria-selected:font-medium"
-              >
-                {code}
-              </Link>
-            ))
-          )}
-        </div>
-      )}
+      <PopoverList
+        label={
+          <>
+            {source.current ? t("editor.pickLanguage") : selected}
+            <span aria-hidden="true">▾</span>
+          </>
+        }
+        options={targets.map(({ code, href }) => ({
+          id: code,
+          href,
+          label: code,
+          selected: code === selected,
+        }))}
+        filter={(option, needle) => option.id.toLowerCase().includes(needle)}
+        placeholder={t("editor.filterLanguages")}
+        empty={t("editor.noLanguageMatches")}
+        controlVariant="ghost"
+        controlClassName={`${SEGMENT} h-auto flex-1 rounded-none py-0 font-semibold`}
+        listClassName="w-full min-w-56 lg:w-64"
+      />
     </nav>
   );
 }
