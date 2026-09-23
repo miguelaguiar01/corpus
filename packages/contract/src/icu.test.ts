@@ -10,6 +10,7 @@ import {
   selectArgsOf,
   tagsOf,
   isVoidTag,
+  refusalAdvice,
 } from "./icu";
 
 const SIGHTING =
@@ -308,6 +309,15 @@ test("a tag keeps its attribute text as its identity, and a void tag opens nothi
     ok: false,
     errors: [{ message: "unexpected </br>" }],
   });
+  expect(refusalAdvice("one</br>two", "icu", "unexpected </br>")).toContain(
+    "<br> needs no closing tag: remove it",
+  );
+  // A name followed by a run of whitespace and no close is text, read
+  // in linear time: the attribute group must not overlap the spaces.
+  const started = Date.now();
+  expect(parseIcu("<a" + " ".repeat(20000)).ok).toBe(true);
+  expect(parseIcu("<a" + " ".repeat(20000) + "x").ok).toBe(true);
+  expect(Date.now() - started).toBeLessThan(500);
 });
 
 test("an unclosed, mismatched or stray tag is a parse error naming it", () => {

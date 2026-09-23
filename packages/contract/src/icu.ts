@@ -56,8 +56,10 @@ const PLURAL_KEY_RE = /^(?:zero|one|two|few|many|other|=[0-9]+)$/;
 // A tag as the rich-text libraries write it: <link>, <checkoutDocs/>,
 // react-i18next's <2> for an indexed Trans child, and HTML with
 // attributes as Gitea writes it, <a href="%s" target="_blank"> (#590).
-const TAG_RE =
-  /^<(\/?)([A-Za-z][A-Za-z0-9_-]*|[0-9]+)((?:\s+[^<>]*?)?)\s*(\/?)>/;
+// The attribute group starts at one whitespace and runs lazily to the
+// close, with nothing else matching spaces, so a name followed by a run
+// of whitespace and no `>` is linear, not cubic; readTag trims it.
+const TAG_RE = /^<(\/?)([A-Za-z][A-Za-z0-9_-]*|[0-9]+)((?:\s[^<>]*?)?)(\/?)>/;
 // HTML's void elements: <br> opens nothing and </br> is never right.
 const VOID_TAGS = new Set(["br", "hr", "wbr", "img"]);
 
@@ -700,7 +702,9 @@ function refusal(
   if (stray) {
     return {
       cause: "tag",
-      advice: `; a <name> is a rich-text tag: remove it, or open a matching <${stray[1]}>`,
+      advice: isVoidTag(stray[1]!)
+        ? `; <${stray[1]}> needs no closing tag: remove it`
+        : `; a <name> is a rich-text tag: remove it, or open a matching <${stray[1]}>`,
     };
   }
   // The library hints fire on the error the wrong library produces and
