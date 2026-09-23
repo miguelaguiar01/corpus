@@ -11,7 +11,7 @@
 // the target and none may be added, wherever it moves.
 // Errors are data (code + params); callers render them through their
 // own message catalog.
-import { parseIcu, pluralCategoriesOf, type IcuNode } from "./icu";
+import { parseIcu, pluralCategoriesOf, type IcuNode, tagIdentity } from "./icu";
 import type { Library } from "./strings";
 
 export type ValidationError =
@@ -74,7 +74,7 @@ function shapeOf(
       }
     }
     if (node.kind === "tag") {
-      shape.tags.add(node.name);
+      shape.tags.add(tagIdentity(node));
       shapeOf(node.children, shape);
     }
     // A form's placeholders are the message's; how many forms there are

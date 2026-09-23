@@ -7,6 +7,7 @@ import {
   parseIcu,
   pluralCategoriesOf,
   renderPreviewSegments,
+  isVoidTag,
   tagsOf,
   validateTranslation,
   type Example,
@@ -230,21 +231,31 @@ export function TargetPane({
           role="group"
           aria-label={t("editor.tags")}
         >
-          {tags.map((name) => (
-            <button
-              key={name}
-              type="button"
-              className={chipVariants({
-                variant: "key",
-                className:
-                  "min-h-8 hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-              })}
-              title={t("editor.insertTag", { name })}
-              onClick={() => insert(`<${name}></${name}>`, name.length + 2)}
-            >
-              {`<${name}>`}
-            </button>
-          ))}
+          {tags.map((name) => {
+            // The identity carries the attribute text; the close is the
+            // bare name, and a void tag has no close (#590).
+            const bare = name.split(/\s/)[0]!;
+            const token = isVoidTag(bare)
+              ? `<${name}/>`
+              : `<${name}></${bare}>`;
+            return (
+              <button
+                key={name}
+                type="button"
+                className={chipVariants({
+                  variant: "key",
+                  className:
+                    "min-h-8 hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                })}
+                title={t("editor.insertTag", { name })}
+                onClick={() =>
+                  insert(token, isVoidTag(bare) ? undefined : name.length + 2)
+                }
+              >
+                {`<${name}>`}
+              </button>
+            );
+          })}
         </div>
       )}
       {examples.length > 0 && (

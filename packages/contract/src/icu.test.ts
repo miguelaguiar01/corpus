@@ -9,6 +9,7 @@ import {
   pluralCategoriesOf,
   selectArgsOf,
   tagsOf,
+  isVoidTag,
 } from "./icu";
 
 const SIGHTING =
@@ -261,6 +262,52 @@ test("a tag name may be a number, as react-i18next indexes Trans children", () =
   ).toMatchObject({ ok: false, errors: [{ code: "missing-tag", name: "2" }] });
   // i18next's own strings write the same tags.
   expect([...tagsOf("Shared by <2>{{ name }}</2>", "i18next")]).toEqual(["2"]);
+});
+
+test("a tag keeps its attribute text as its identity, and a void tag opens nothing (#590)", () => {
+  const source =
+    'See <a href="%s" target="_blank">the docs</a>, or <code id="branch_target">main</code>.<br>Then <b>go</b>.';
+  const result = parseIcu(source);
+  expect(result.ok).toBe(true);
+  if (!result.ok) throw new Error("parse failed");
+  expect(result.nodes.filter((n) => n.kind === "tag")).toEqual([
+    {
+      kind: "tag",
+      name: "a",
+      attrs: 'href="%s" target="_blank"',
+      children: [{ kind: "literal", text: "the docs" }],
+    },
+    {
+      kind: "tag",
+      name: "code",
+      attrs: 'id="branch_target"',
+      children: [{ kind: "literal", text: "main" }],
+    },
+    { kind: "tag", name: "br", children: [] },
+    { kind: "tag", name: "b", children: [{ kind: "literal", text: "go" }] },
+  ]);
+  expect([...tagsOf(source)]).toEqual([
+    'a href="%s" target="_blank"',
+    'code id="branch_target"',
+    "br",
+    "b",
+  ]);
+  expect(isVoidTag("br")).toBe(true);
+  expect(isVoidTag("b")).toBe(false);
+  // Spaces inside the brackets are the attribute text's; a self-closing
+  // attributed tag closes itself; a closing tag with attributes is text.
+  expect(parseIcu('<img src="x" />').ok).toBe(true);
+  expect(parseIcu("<a >x</a>")).toMatchObject({
+    ok: true,
+    nodes: [{ kind: "tag", name: "a" }],
+  });
+  expect(parseIcu("x </a href> y").ok).toBe(true);
+  expect(parseIcu("one<br>two")).toMatchObject({ ok: true });
+  expect(parseIcu("one<br/>two")).toMatchObject({ ok: true });
+  expect(parseIcu("one</br>two")).toMatchObject({
+    ok: false,
+    errors: [{ message: "unexpected </br>" }],
+  });
 });
 
 test("an unclosed, mismatched or stray tag is a parse error naming it", () => {

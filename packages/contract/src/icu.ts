@@ -20,7 +20,9 @@ export type IcuNode =
   // `#` inside a plural branch: the number itself.
   | { kind: "count"; arg: string }
   // <name>children</name>, or <name/> with none.
-  | { kind: "tag"; name: string; children: IcuNode[] }
+  // `attrs` is an opening tag's attribute text as written (`href="%s"`),
+  // part of the tag's identity: a translation keeps it verbatim (#590).
+  | { kind: "tag"; name: string; attrs?: string; children: IcuNode[] }
   // vue-i18n's pipe plural: `one | other`, positional, with no argument
   // because the count is passed at render time rather than named in the
   // string. Branches are in the order they were written.
@@ -52,8 +54,22 @@ export const PLURAL_CATEGORIES = [
 ] as const;
 const PLURAL_KEY_RE = /^(?:zero|one|two|few|many|other|=[0-9]+)$/;
 // A tag as the rich-text libraries write it: <link>, <checkoutDocs/>,
-// and react-i18next's <2> for an indexed Trans child.
-const TAG_RE = /^<(\/?)([A-Za-z][A-Za-z0-9_-]*|[0-9]+)(\/?)>/;
+// react-i18next's <2> for an indexed Trans child, and HTML with
+// attributes as Gitea writes it, <a href="%s" target="_blank"> (#590).
+const TAG_RE =
+  /^<(\/?)([A-Za-z][A-Za-z0-9_-]*|[0-9]+)((?:\s+[^<>]*?)?)\s*(\/?)>/;
+// HTML's void elements: <br> opens nothing and </br> is never right.
+const VOID_TAGS = new Set(["br", "hr", "wbr", "img"]);
+
+export function isVoidTag(name: string): boolean {
+  return VOID_TAGS.has(name);
+}
+
+// A tag's identity for a chip and for the check that a translation
+// keeps it: the name, with its attribute text when it has one.
+export function tagIdentity(tag: { name: string; attrs?: string }): string {
+  return tag.attrs ? `${tag.name} ${tag.attrs}` : tag.name;
+}
 // i18next's interpolation name: an identifier, dotted into an object
 // ({{user.name}}); a format after a comma ({{date, short}}) is ignored.
 const I18NEXT_NAME_RE = /^[A-Za-z_$][A-Za-z0-9_.$]*$/;
@@ -127,6 +143,7 @@ class Parser {
         nodes.push({
           kind: "tag",
           name: tag.name,
+          ...(tag.attrs ? { attrs: tag.attrs } : {}),
           children:
             tag.kind === "self"
               ? []
@@ -232,15 +249,28 @@ class Parser {
 
   // A tag at the cursor, consumed, or nothing when the < is text.
   private readTag():
-    | { kind: "open" | "close" | "self"; name: string; start: number }
+    | {
+        kind: "open" | "close" | "self";
+        name: string;
+        attrs?: string;
+        start: number;
+      }
     | undefined {
     const match = TAG_RE.exec(this.source.slice(this.pos));
     if (!match) return undefined;
+    const attrs = match[3]!.trim();
+    // A closing tag carries no attributes: `</a href>` is text.
+    if (match[1] === "/" && attrs !== "") return undefined;
     const start = this.pos;
     this.pos += match[0].length;
+    const name = match[2]!;
     const kind =
-      match[1] === "/" ? "close" : match[3] === "/" ? "self" : "open";
-    return { kind, name: match[2]!, start };
+      match[1] === "/"
+        ? "close"
+        : match[4] === "/" || VOID_TAGS.has(name)
+          ? "self"
+          : "open";
+    return { kind, name, ...(attrs ? { attrs } : {}), start };
   }
 
   private parseArgument(inBranch: boolean): IcuNode {
@@ -484,7 +514,7 @@ function collect(
       }
     }
     if (node.kind === "tag") {
-      tags.add(node.name);
+      tags.add(tagIdentity(node));
       collect(node.children, placeholders, selectArgs, pluralArgs, tags);
     }
     // A form's placeholders are the message's: without this an agent is
