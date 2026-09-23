@@ -1,6 +1,8 @@
 import { createServer, type Server } from "node:http";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, expect, test } from "vitest";
+import { seedDigest } from "@corpus/contract";
 import { run, type RunContext } from "./cli";
 
 const REPO = fileURLToPath(
@@ -85,6 +87,102 @@ test("push builds, uploads with the bearer token, and prints the report", async 
   expect(c.output.join("\n")).toContain(
     "2 added, 0 changed, 0 stale, 0 archived, 1 translation(s) seeded from the repository (1 kept as Corpus has them; 3 identical to the source, kept untranslated)",
   );
+});
+
+test("a push digests its seeds per language, leaves out the languages the server already holds, and says so (#601)", async () => {
+  const { mkdtempSync, cpSync, writeFileSync, mkdirSync, readFileSync } =
+    await import("node:fs");
+  // Inside the repo tree so the config's `@corpus/contract` import resolves.
+  const tmp = fileURLToPath(new URL("../test/.tmp", import.meta.url));
+  mkdirSync(tmp, { recursive: true });
+  const repo = mkdtempSync(path.join(tmp, "push-seeds-"));
+  cpSync(REPO, repo, { recursive: true });
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    readFileSync(path.join(repo, "corpus.config.ts"), "utf8").replace(
+      'languages: ["en"]',
+      'languages: ["en", "pt"]',
+    ),
+  );
+  writeFileSync(
+    path.join(repo, "i18n/pt.json"),
+    JSON.stringify({ greeting: "Olá {name}" }),
+  );
+  const digest = seedDigest({ greeting: "Olá {name}" });
+  const report = {
+    added: 0,
+    changed: 0,
+    stale: 0,
+    archived: 0,
+    seeded: 0,
+    seedsIgnored: 0,
+    seedsIdentical: 0,
+  };
+  // The server holds pt's digest from the last push: pt's seeds stay home.
+  const held = await startServer((captured) =>
+    captured.url === "/api/push/digests"
+      ? { status: 200, json: { seedDigests: { pt: digest } } }
+      : { status: 200, json: { report } },
+  );
+  active = held.server;
+  process.env.CORPUS_SERVER = held.url;
+  const c = ctx({ cwd: repo });
+  expect(await run(["push"], c)).toBe(0);
+  expect(held.calls.map((call) => call.url)).toEqual([
+    "/api/push/digests",
+    "/api/push",
+  ]);
+  const body = held.calls[1]?.body as {
+    seedTranslations?: unknown;
+    seedDigests: Record<string, string>;
+  };
+  expect(body.seedTranslations).toBeUndefined();
+  expect(body.seedDigests).toEqual({ pt: digest });
+  expect(c.output.join("\n")).toContain(
+    "0 archived, seeds unchanged for 1 language(s)",
+  );
+  held.server.close();
+  // An older instance answers 404 on the route: everything is sent.
+  const older = await startServer((captured) =>
+    captured.url === "/api/push/digests"
+      ? { status: 404, json: { error: "not-found" } }
+      : { status: 200, json: { report } },
+  );
+  active = older.server;
+  process.env.CORPUS_SERVER = older.url;
+  const o = ctx({ cwd: repo });
+  expect(await run(["push"], o)).toBe(0);
+  expect(
+    (older.calls[1]?.body as { seedTranslations?: unknown }).seedTranslations,
+  ).toEqual({ pt: { greeting: "Olá {name}" } });
+  expect(o.output.join("\n")).not.toContain("unchanged");
+  older.server.close();
+  // A server that reports another digest, or none, gets the seeds.
+  for (const status of [
+    { seedDigests: { pt: "0000000000000000" } },
+    { seedDigests: null },
+    {},
+  ]) {
+    const s = await startServer((captured) =>
+      captured.url === "/api/push/digests"
+        ? { status: 200, json: status }
+        : { status: 200, json: { report } },
+    );
+    active = s.server;
+    process.env.CORPUS_SERVER = s.url;
+    const d = ctx({ cwd: repo });
+    expect(await run(["push"], d)).toBe(0);
+    const sent = s.calls[1]?.body as {
+      seedTranslations?: Record<string, unknown>;
+      seedDigests: Record<string, string>;
+    };
+    expect(sent.seedTranslations).toEqual({ pt: { greeting: "Olá {name}" } });
+    expect(sent.seedDigests).toEqual({ pt: digest });
+    expect(d.output.join("\n")).not.toContain("unchanged");
+    s.server.close();
+  }
+  const { rmSync } = await import("node:fs");
+  rmSync(repo, { recursive: true, force: true });
 });
 
 test("a push that seeds nothing says nothing about seeds, identical ones included", async () => {

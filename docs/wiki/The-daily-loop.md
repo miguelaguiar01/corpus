@@ -13,7 +13,7 @@ Four commands carry the work between the repository and the instance. This page 
 
 Stale is the point of that table. A translation of a sentence that has since changed is not wrong, but it is not right either, and Corpus keeps it visible rather than silently correct.
 
-Push is safe to run as often as you like. One that changes nothing moves no state and rewrites no translation; it still records that it happened, so `corpus status` shows when the instance last heard from the repository.
+Push is safe to run as often as you like. One that changes nothing moves no state and rewrites no translation, and after the first push it does not even carry the translations the repository already sent: each language's file is digested, the instance remembers what it last received, and only a language whose file moved travels (`seeds unchanged for 55 language(s)`); it still records that it happened, so `corpus status` shows when the instance last heard from the repository.
 
 Run it when source text changes: by hand after editing a catalogue, or from CI on merge to your default branch.
 

@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Added
 
+- A push leaves out the seeds the instance already holds: the snapshot carries a digest per target language of the repository's translations, the instance keeps the last push's and `GET /api/status` returns them, and `corpus push` asks first and sends only the languages whose digest moved, saying `seeds unchanged for 55 language(s)`. Every push used to carry the whole catalogue, 48 MiB for Bitwarden on each CI commit, for the server to parse and compare away; a first push, a moved file, and an older instance still get everything.
 - A `printf` library: under `library: "printf"` a verb is the placeholder, `%s`, `%d`, `%-8.2f`, Go's `%[2]s` and C's `%2$s`, named by its position as Go reads it, `%%` a percent and a stray `%` text, with braces and angle brackets as text. A translation must keep the positions: a dropped verb is named as written (`missing %d`), and a verb printing another type at its position (`%s` where the source has `%d`), which is what a verb moved without an index looks like, is refused with the index form to write in the source's style. The chip inserts the verb as written, the API's slots carry it as `written`, and `init` names the library when verbs dominate. Gitea's 555 verbs in 4,000 strings and AntennaPod's `%1$s` were invisible to validation and needed a converter to `{arg1}` in the 0.18.0 trial.
 
 ### Fixed

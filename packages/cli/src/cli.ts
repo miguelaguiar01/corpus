@@ -8,6 +8,7 @@ import {
   pushOnlyNotes,
   type Refused,
 } from "./build";
+import { type CorpusConfig, seedDigest, type Snapshot } from "@corpus/contract";
 import { option, refuseUnknown } from "./args";
 import { COMMAND_WORDS, KNOWN_FLAGS, USAGE } from "./commands";
 import { CliError, loadConfig, requireToken } from "./config";
@@ -106,10 +107,17 @@ async function push(args: string[], ctx: RunContext): Promise<number> {
   for (const note of pushOnlyNotes(config)) ctx.err(`corpus: ${note}`);
   const token = requireToken(ctx.env, ctx.cwd);
 
-  const url = `${config.server.replace(/\/$/, "")}/api/push${dryRun ? "?dryRun" : ""}`;
+  const base = config.server.replace(/\/$/, "");
+  const { body: payload, unchanged } = await withoutUnchangedSeeds(
+    snapshot,
+    config,
+    base,
+    token,
+  );
+  const url = `${base}/api/push${dryRun ? "?dryRun" : ""}`;
   const response = await request(url, token, {
     method: "POST",
-    body: snapshot,
+    body: payload,
   });
 
   if (response.status === 401) {
@@ -162,8 +170,11 @@ async function push(args: string[], ctx: RunContext): Promise<number> {
     : applied && alone.length
       ? `, ${alone.join("; ")}`
       : "";
+  const skipped = unchanged
+    ? `, seeds unchanged for ${unchanged} language(s)`
+    : "";
   ctx.out(
-    `${label} ${config.project}: ${report.added} added, ${report.changed} changed, ${report.stale} stale, ${report.archived} archived${seeded}`,
+    `${label} ${config.project}: ${report.added} added, ${report.changed} changed, ${report.stale} stale, ${report.archived} archived${seeded}${skipped}`,
   );
   if (languages) {
     const drift = languageDrift(config.languages, languages);
@@ -182,6 +193,61 @@ function refusedExit(refused: Refused[], ctx: RunContext, fate: string) {
   if (refused.length === 0) return 0;
   ctx.err(`corpus: ${refused.length} string(s) refused and ${fate}`);
   return 1;
+}
+
+// A push carries the repository's whole catalogue as seeds; after the
+// first, most of it is what the server already holds (#601). The
+// snapshot digests every target language's seeds, and the languages
+// whose digest the server reported from the last push are sent
+// without theirs. A server without digests, or one that cannot be
+// asked (an older one answers 404), gets everything, as before.
+async function withoutUnchangedSeeds(
+  snapshot: Snapshot,
+  config: CorpusConfig,
+  base: string,
+  token: string,
+): Promise<{ body: Snapshot; unchanged: number }> {
+  const seedDigests: Record<string, string> = {};
+  for (const language of config.languages) {
+    if (language === config.sourceLanguage) continue;
+    seedDigests[language] = seedDigest(
+      snapshot.seedTranslations?.[language] ?? {},
+    );
+  }
+  // Nothing to leave out means nothing to ask: a push without seeds
+  // carries its digests and makes one request, as before.
+  const carried = Object.keys(snapshot.seedTranslations ?? {}).length > 0;
+  let known: Record<string, string> | null = null;
+  try {
+    if (!carried) throw new Error("no seeds");
+    const response = await request(`${base}/api/push/digests`, token);
+    if (response.ok) {
+      const status = (await response.json()) as {
+        seedDigests?: Record<string, string> | null;
+      };
+      if (status.seedDigests && typeof status.seedDigests === "object")
+        known = status.seedDigests;
+    }
+  } catch {
+    known = null;
+  }
+  const seedTranslations = { ...(snapshot.seedTranslations ?? {}) };
+  let unchanged = 0;
+  for (const [language, digest] of Object.entries(seedDigests)) {
+    if (known?.[language] !== digest) continue;
+    if (language in seedTranslations) delete seedTranslations[language];
+    unchanged++;
+  }
+  return {
+    body: {
+      ...snapshot,
+      seedDigests,
+      ...(Object.keys(seedTranslations).length > 0
+        ? { seedTranslations }
+        : { seedTranslations: undefined }),
+    },
+    unchanged,
+  };
 }
 
 // `corpus build`: the snapshot without a server, for authoring the config.

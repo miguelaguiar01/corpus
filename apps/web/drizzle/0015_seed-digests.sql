@@ -1,0 +1,1 @@
+ALTER TABLE `projects` ADD `seed_digests` text;

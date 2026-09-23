@@ -42,8 +42,14 @@ test("the project's numbers with its languages, string count and last push", asy
   expect(before.strings).toBe(0);
   expect(before.lastPushAt).toBeNull();
   expect(before.writableSources).toBeNull();
+  expect(
+    (before as unknown as { seedDigests: unknown }).seedDigests,
+  ).toBeNull();
 
-  applySnapshot(db, created.project.id, moonlightManor as Snapshot);
+  applySnapshot(db, created.project.id, {
+    ...(moonlightManor as Snapshot),
+    seedDigests: { en: "0123456789abcdef" },
+  });
   const res = await status(created.token);
   const json = (await res.json()) as {
     project: string;
@@ -58,6 +64,9 @@ test("the project's numbers with its languages, string count and last push", asy
       perLanguage: Record<string, { total: number; untranslated: number }>;
     };
   };
+  expect((json as unknown as { seedDigests: unknown }).seedDigests).toEqual({
+    en: "0123456789abcdef",
+  });
   expect(json.project).toBe("mm");
   expect(json.languages).toEqual(["pt-PT", "en"]);
   expect(json.strings).toBe(moonlightManor.strings.length);
