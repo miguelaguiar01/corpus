@@ -27,6 +27,8 @@ export function keyIsSentence(id: string): boolean {
   return /\s/.test(id) || !/^[A-Za-z0-9_.:-]+$/.test(id);
 }
 
+const PLURAL_SUFFIX_RE = /_(?:zero|one|two|few|many|other)$/;
+
 function keyIsPath(id: string): boolean {
   return /^[a-z0-9_-]+(\.[a-z0-9_-]+)+$/.test(id);
 }
@@ -40,7 +42,9 @@ function takeKeys(
   if (!empty.some((entry) => keyIsSentence(entry.id))) return entries;
   return entries.map((entry) => {
     if (entry.source !== "" || keyIsPath(entry.id)) return entry;
-    const keyed = { ...entry, source: entry.id };
+    // i18next resolves `key_one` and falls back to the key passed to
+    // t(), which carries no suffix: the text is the base sentence.
+    const keyed = { ...entry, source: entry.id.replace(PLURAL_SUFFIX_RE, "") };
     KEY_IS_TEXT.add(keyed);
     return keyed;
   });

@@ -76,6 +76,8 @@ test("an empty value under a sentence key reads the key as the text; a dotted ke
       Email: "",
       free: "",
       "Redeeming...": "",
+      "{count} gift_one": "",
+      "{count} gift_other": "",
       "ui.empty": "",
       "ui.title": "Title",
     },
@@ -87,6 +89,9 @@ test("an empty value under a sentence key reads the key as the text; a dotted ke
     ["Email", "Email"],
     ["free", "free"],
     ["Redeeming...", "Redeeming..."],
+    // A plural key's suffix is i18next's, not the sentence's.
+    ["{count} gift_one", "{count} gift"],
+    ["{count} gift_other", "{count} gift"],
     ["ui.empty", ""],
     ["ui.title", "Title"],
   ]);
@@ -96,6 +101,8 @@ test("an empty value under a sentence key reads the key as the text; a dotted ke
     "Email",
     "free",
     "Redeeming...",
+    "{count} gift_one",
+    "{count} gift_other",
   ]);
   // A file with no sentence key is a dotted catalogue: an empty value
   // is a row an extraction tool left, and stays empty.
