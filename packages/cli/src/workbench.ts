@@ -12,6 +12,7 @@ import {
   SECRET_FILE,
   ignoreCorpusDir,
 } from "./corpus-dir";
+import { cliVersion } from "./mcp";
 import { provision, wantsProvision } from "./provision";
 
 export const WORKBENCH_USAGE =
@@ -32,16 +33,11 @@ export type Prepared = {
 // the repository's own node_modules, the database and the secret under
 // .corpus/, and .gitignore told about it. Pure enough to test in a temp
 // directory; the spawn is in run().
-export function prepare(cwd: string, options: { db?: string } = {}): Prepared {
-  const require = createRequire(path.join(cwd, "package.json"));
-  let manifestPath: string;
-  try {
-    manifestPath = require.resolve(`${PACKAGE}/package.json`);
-  } catch {
-    throw new CliError(
-      `${PACKAGE} is not installed in this repository; add it with: npm install --save-dev ${PACKAGE}`,
-    );
-  }
+export function prepare(
+  cwd: string,
+  options: { db?: string; besideCli?: boolean } = {},
+): Prepared {
+  const manifestPath = resolveWorkbench(cwd, options.besideCli ?? true);
   const packageDir = path.dirname(manifestPath);
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
     version: string;
@@ -50,6 +46,14 @@ export function prepare(cwd: string, options: { db?: string } = {}): Prepared {
   const bin = path.join(packageDir, manifest.bin["corpus-workbench"]!);
 
   const notes: string[] = [];
+  // The repository's workbench shadows the one beside the CLI, so a
+  // version apart from the CLI's is said (#561).
+  const own = cliVersion();
+  if (manifest.version !== own) {
+    notes.push(
+      `the workbench is ${manifest.version} and the CLI ${own}; the two packages share a version, so update the one behind`,
+    );
+  }
   const dir = path.join(cwd, CORPUS_DIR);
   mkdirSync(dir, { recursive: true });
   const secretPath = path.join(dir, SECRET_FILE);
@@ -171,6 +175,25 @@ function openBrowser(url: string): void {
   const opener = spawn(command, args, { detached: true, stdio: "ignore" });
   opener.on("error", () => {});
   opener.unref();
+}
+
+// The workbench package from the repository first, then from beside
+// the CLI: `npx --package=@corpus-tool/cli --package=@corpus-tool/workbench
+// corpus workbench` puts both in one prefix and nothing in the
+// repository (#561).
+function resolveWorkbench(cwd: string, besideCli: boolean): string {
+  const attempts = [createRequire(path.join(cwd, "package.json"))];
+  if (besideCli) attempts.push(createRequire(import.meta.url));
+  for (const require of attempts) {
+    try {
+      return require.resolve(`${PACKAGE}/package.json`);
+    } catch {
+      continue;
+    }
+  }
+  throw new CliError(
+    `${PACKAGE} is not installed in this repository nor beside the CLI; add it with: npm install --save-dev ${PACKAGE}`,
+  );
 }
 
 // The config's server is where push goes; a workbench on another port

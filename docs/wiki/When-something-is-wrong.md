@@ -105,7 +105,7 @@ A pull had translations for strings whose source cannot take them back. Nothing 
 
 ## The workbench will not start
 
-`@corpus-tool/workbench is not installed in this repository` — install it beside the CLI; the two always share a version.
+`@corpus-tool/workbench is not installed in this repository nor beside the CLI` — install it in the repository, or run the CLI from a prefix that holds both (`npx --package=@corpus-tool/cli --package=@corpus-tool/workbench corpus workbench`). The two always share a version, and the workbench says so when the repository's is not the CLI's.
 
 If the port is taken, `--port`. If it starts and the database is empty, you are pointing `--db` somewhere new: the database is the instance, and a new file is a new instance with no accounts.
 
