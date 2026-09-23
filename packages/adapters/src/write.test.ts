@@ -462,3 +462,34 @@ test("a pull into an .arb leaves its @ entries where they are (#558)", () => {
     existing,
   );
 });
+
+test("a first pull into a missing .arb writes @@locale first and none of the source's @ metadata (#568)", () => {
+  const template = `{
+  "@@locale": "en",
+  "wallpaper": "Wallpaper",
+  "@wallpaper": {
+    "description": "Menu entry",
+    "placeholders": {}
+  },
+  "photosCount": "{count, plural, one {# photo} other {# photos}}"
+}
+`;
+  const translations = {
+    photosCount: "{count, plural, one {# Foto} other {# Fotos}}",
+    wallpaper: "Hintergrund",
+  };
+  expect(entriesToMessages(template, translations, undefined, { locale: "de" }))
+    .toBe(`{
+  "@@locale": "de",
+  "wallpaper": "Hintergrund",
+  "photosCount": "{count, plural, one {# Foto} other {# Fotos}}"
+}
+`);
+  // An empty file is a missing one; a .json first pull carries no locale.
+  expect(entriesToMessages(template, translations, "", { locale: "de" })).toBe(
+    entriesToMessages(template, translations, undefined, { locale: "de" }),
+  );
+  expect(entriesToMessages(`{\n  "a": "A"\n}\n`, { a: "B" })).toBe(
+    `{\n  "a": "B"\n}\n`,
+  );
+});
