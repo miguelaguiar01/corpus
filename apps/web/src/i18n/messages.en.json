@@ -219,6 +219,7 @@
   "string.otherLanguagesNone": "No translation yet",
   "string.siblingsCount": "{shown} of {total} strings of this type under the same key prefix or in the same plural family",
   "string.siblingsHeading": "Siblings",
+  "string.stringNoteLabel": "About this string",
   "switcher.empty": "No projects match.",
   "switcher.label": "Select a project",
   "switcher.placeholder": "Search projects…",

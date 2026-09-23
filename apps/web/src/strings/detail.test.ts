@@ -165,3 +165,25 @@ test("a glossary form in the source finds its entry", () => {
     ),
   ).toEqual(["noite", "vítima"]);
 });
+
+test("an entry's own note reaches the detail beside the type's (#567)", () => {
+  const { db, p } = pushed();
+  applySnapshot(db, p.id, {
+    ...FIXTURE,
+    strings: [
+      ...FIXTURE.strings,
+      {
+        id: "wallpaper",
+        type: "chrome",
+        source: "Wallpaper",
+        note: "Menu entry",
+      },
+    ],
+  });
+  expect(stringDetail(db, p.id, "wallpaper")?.string).toMatchObject({
+    stringNote: "Menu entry",
+  });
+  expect(
+    stringDetail(db, p.id, "skin.seen-at-greenhouse-window")?.string.stringNote,
+  ).toBeNull();
+});

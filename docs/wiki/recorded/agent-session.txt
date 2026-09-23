@@ -31,6 +31,7 @@ $ corpus agent string editor.save
     "examples": [],
     "metadata": null,
     "note": null,
+    "stringNote": null,
     "glossary": {},
     "entities": [],
     "translations": {
@@ -95,7 +96,7 @@ $ corpus agent proposals
         "text": "Save the document",
         "status": "pending",
         "author": "acme-app agent",
-        "createdAt": "2026-09-22T21:43:28.279Z",
+        "createdAt": "2026-09-23T16:33:29.970Z",
         "mine": true
       }
     ]

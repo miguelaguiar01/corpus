@@ -68,6 +68,7 @@ export async function GET(
     examples: detail.string.examples ?? [],
     metadata: detail.string.metadata,
     note: detail.string.note,
+    stringNote: detail.string.stringNote,
     glossary: detail.string.glossary,
     entities: detail.entities,
     translations,

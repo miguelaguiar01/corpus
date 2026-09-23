@@ -22,11 +22,22 @@ export function messagesToEntries(
     typeof data === "object" &&
     !Array.isArray(data)
   ) {
+    const record = data as Record<string, unknown>;
     const strings = Object.fromEntries(
-      Object.entries(data).filter(([key]) => !key.startsWith("@")),
+      Object.entries(record).filter(([key]) => !key.startsWith("@")),
     );
     walk(strings, [], options.type, entries);
-    return entries;
+    // @key.description is the string's note (#567).
+    return entries.map((entry) => {
+      const meta = record[`@${entry.id}`];
+      const description =
+        meta && typeof meta === "object" && !Array.isArray(meta)
+          ? (meta as Record<string, unknown>).description
+          : undefined;
+      return typeof description === "string" && description.trim() !== ""
+        ? { ...entry, note: description }
+        : entry;
+    });
   }
   walk(data, [], options.type, entries);
   return entries;

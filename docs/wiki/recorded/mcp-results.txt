@@ -48,6 +48,7 @@ get_string {"key":"editor.unsaved"}
     "examples": [],
     "metadata": null,
     "note": null,
+    "stringNote": null,
     "glossary": {},
     "entities": [],
     "translations": {
@@ -102,7 +103,7 @@ status {}
       "pt-PT"
     ],
     "strings": 2,
-    "lastPushAt": "2026-09-22T21:43:25.023Z",
+    "lastPushAt": "2026-09-23T16:33:26.693Z",
     "version": "v0.17.0",
     "pendingProposals": 0,
     "writableSources": [
