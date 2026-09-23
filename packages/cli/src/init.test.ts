@@ -376,6 +376,72 @@ test("without --library, a source file with {{ }} and no ICU argument is read as
   expect((await loadConfig(none.dir)).sources[0]).not.toHaveProperty("library");
 });
 
+test("init counts the placeholder shapes: one {{ }} among printf verbs is not i18next, and the verbs are named (#591)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "src", "i18n"), { recursive: true });
+  const values: Record<string, string> = {
+    "dropzone.file_too_big": "File is {{filesize}} MB, over {{maxFilesize}} MB",
+    "install.sqlite_helper": "File path for the SQLite3 database.",
+  };
+  for (let i = 0; i < 40; i++) values[`repo.n${i}`] = `Pushed %d commits to %s`;
+  values["install.err"] = "Invalid data: %v";
+  writeFileSync(
+    path.join(p.dir, "src", "i18n", "pt-PT.json"),
+    JSON.stringify(values),
+  );
+  expect(await run(FLAGS, p.ctx)).toBe(0);
+  expect(await loadConfig(p.dir)).toMatchObject({
+    sources: [{ adapter: "messages" }],
+  });
+  expect((await loadConfig(p.dir)).sources[0]).not.toHaveProperty("library");
+  expect(p.out.join("\n")).not.toMatch(/library: i18next/);
+  expect(p.out.join("\n")).toMatch(
+    /placeholders are printf verbs \(%d, %s, %v\): Corpus does not check them in src\/i18n\/pt-PT\.json/,
+  );
+
+  // A catalogue where {{ }} strings outnumber the single-brace and the
+  // printf ones is i18next; a tie is not, and one {{ }} alone still is.
+  for (const [values2, i18next] of [
+    [{ a: "{{x}} one", b: "{{y}} two", c: "{z} three" }, true],
+    [{ a: "{{x}} one", b: "{y} two" }, false],
+    [{ a: "{{x}} one", b: "%s two" }, false],
+    [{ a: "{{x}} one", b: "plain" }, true],
+  ] as const) {
+    const q = project();
+    stubCli(q.dir);
+    mkdirSync(path.join(q.dir, "src", "i18n"), { recursive: true });
+    writeFileSync(
+      path.join(q.dir, "src", "i18n", "pt-PT.json"),
+      JSON.stringify(values2),
+    );
+    expect(await run(FLAGS, q.ctx)).toBe(0);
+    const config = await loadConfig(q.dir);
+    if (i18next)
+      expect(config.sources[0]).toMatchObject({ library: "i18next" });
+    else expect(config.sources[0]).not.toHaveProperty("library");
+  }
+});
+
+test("i18next plural keys with single-brace interpolation stay icu, and init says why (#591)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "src", "i18n"), { recursive: true });
+  writeFileSync(
+    path.join(p.dir, "src", "i18n", "pt-PT.json"),
+    JSON.stringify({
+      "{count} month_one": "{count} mês",
+      "{count} month_other": "{count} meses",
+      "{amount} off": "{amount} de desconto",
+    }),
+  );
+  expect(await run(FLAGS, p.ctx)).toBe(0);
+  expect((await loadConfig(p.dir)).sources[0]).not.toHaveProperty("library");
+  expect(p.out.join("\n")).toMatch(
+    /i18next keys with \{ \} interpolation: read as icu, which checks the placeholders in src\/i18n\/pt-PT\.json/,
+  );
+});
+
 test("a .ts catalogue is read for the library through the same loader as push", async () => {
   const p = project();
   stubCli(p.dir);

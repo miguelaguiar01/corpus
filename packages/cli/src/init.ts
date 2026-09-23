@@ -80,7 +80,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       );
     }
   }
-  const library = await libraryFor(
+  const detected = await libraryFor(
     args,
     ctx.cwd,
     messages,
@@ -88,6 +88,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     type,
     ctx,
   );
+  const library = detected.library;
   const include = checkIncludeFor(ctx.cwd);
   const parsed = corpusConfigSchema.safeParse({
     project,
@@ -151,6 +152,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       `library: ${library.value}${library.detected ? `, from ${why} in ${library.detected}` : ""}`,
     );
   }
+  if (detected.note) ctx.out(detected.note);
   if (include) {
     ctx.out(
       `check.include: ${include.join(", ")} (the directories holding components, which corpus check scans)`,
@@ -274,6 +276,12 @@ function holdsCheckedFile(dir: string): boolean {
 }
 
 const ICU_ARGUMENT_RE = /\{\s*[^{},]+\s*,\s*(?:select|plural)\s*,/;
+// The placeholder shapes a catalogue's strings are counted by (#591):
+// i18next's {{ name }}, a single-brace {name}, and a printf verb.
+const DOUBLE_BRACE_RE = /\{\{\s*[^{}]+\}\}/;
+const SINGLE_BRACE_RE = /(?<!\{)\{\s*[A-Za-z_][\w.-]*\s*\}(?!\})/;
+const PRINTF_RE = /%(?:\[\d+\]|\d+\$)?[-+0#]*\d*(?:\.\d+)?[sdvfxXqcbeEgGtTp]/g;
+const PLURAL_SUFFIX_RE = /_(?:zero|one|two|few|many|other)$/;
 // Any ICU argument, not only the branching ones: a `{when, date, short}`
 // in a catalogue with a stray pipe is still ICU, not vue-i18n.
 const ICU_ANY_ARGUMENT_RE = /\{\s*[^{},]+\s*,\s*[a-z]+/;
@@ -287,7 +295,7 @@ async function libraryFor(
   sourceLanguage: string,
   type: string,
   ctx: RunContext,
-): Promise<{ value: Library; detected?: string } | undefined> {
+): Promise<{ library?: { value: Library; detected?: string }; note?: string }> {
   if (args.includes("--library") && args.includes("--syntax")) {
     throw new CliError(
       `--library and --syntax are the same flag under two names; pass --library\nusage: ${INIT_USAGE}`,
@@ -308,7 +316,7 @@ async function libraryFor(
         `${flag} takes ${LIBRARIES.join(", ")}\nusage: ${INIT_USAGE}`,
       );
     }
-    return { value: given as Library };
+    return { library: { value: given as Library } };
   }
   // A `{ns}` pattern is read through every namespace it captures, so
   // one namespace's plain strings do not hide another's interpolation.
@@ -319,9 +327,11 @@ async function libraryFor(
     : [pattern];
   const file = concretes[0]?.replace("{lang}", sourceLanguage) ?? pattern;
   let texts: string[];
+  let ids: string[];
   try {
     const jiti = createJiti(import.meta.url);
     texts = [];
+    ids = [];
     for (const concrete of concretes) {
       const entries = await readEntries(
         jiti,
@@ -330,14 +340,51 @@ async function libraryFor(
         { adapter: "messages", type, path: concrete },
       );
       texts.push(...entries.map((entry) => entry.source));
+      ids.push(...entries.map((entry) => entry.id));
     }
   } catch {
-    return undefined;
+    return {};
   }
-  if (concretes.length === 0) return undefined;
-  const braces = texts.some((text) => text.includes("{{"));
+  if (concretes.length === 0) return {};
+  // Shapes are counted, not spotted: {{ }} names i18next when it
+  // outnumbers the single-brace and the printf strings; one {{ }} among
+  // four thousand printf strings is a template, not the library (#591).
+  const doubles = texts.filter((text) => DOUBLE_BRACE_RE.test(text)).length;
+  const singles = texts.filter(
+    (text) => !DOUBLE_BRACE_RE.test(text) && SINGLE_BRACE_RE.test(text),
+  ).length;
+  const verbs = new Set<string>();
+  let printf = 0;
+  for (const text of texts) {
+    const found = text.match(PRINTF_RE);
+    if (!found) continue;
+    printf++;
+    for (const verb of found) verbs.add(verb);
+  }
   const icu = texts.some((text) => ICU_ARGUMENT_RE.test(text));
-  if (braces && !icu) return { value: "i18next", detected: file };
+  if (doubles > singles && doubles > printf && !icu)
+    return { library: { value: "i18next", detected: file } };
+  const noted = (note: string) => `${note} in ${file}`;
+  if (printf > doubles + singles) {
+    const seen = [...verbs].slice(0, 3).join(", ");
+    return {
+      note: noted(
+        `placeholders are printf verbs (${seen}): Corpus does not check them`,
+      ),
+    };
+  }
+  if (
+    doubles === 0 &&
+    singles > 0 &&
+    ids.some((id) => PLURAL_SUFFIX_RE.test(id))
+  ) {
+    return {
+      note: noted(
+        "i18next keys with { } interpolation: read as icu, which checks the placeholders",
+      ),
+    };
+  }
+  const braces = doubles > 0;
   // vue-i18n: a top-level pipe separates plural forms and `{'…'}` is a
   // literal. Either is enough, and neither appears in plain ICU.
   // A quoted literal is vue-i18n's alone. A pipe is only evidence when
@@ -347,9 +394,9 @@ async function libraryFor(
   const pipes = texts.some((text) => text.includes("|"));
   const anyIcu = texts.some((text) => ICU_ANY_ARGUMENT_RE.test(text));
   if (!braces && !icu && (escapes || (pipes && !anyIcu))) {
-    return { value: "vue", detected: file };
+    return { library: { value: "vue", detected: file } };
   }
-  return undefined;
+  return {};
 }
 
 // The languages a messages path names (§3): every file or directory
