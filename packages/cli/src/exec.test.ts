@@ -2,17 +2,21 @@ import { fileURLToPath } from "node:url";
 import { defineCorpus, type CorpusConfig } from "@corpus/contract";
 import { expect, test } from "vitest";
 import { buildSnapshot } from "./build";
+import { expandSources } from "./config";
 
 const REPO = fileURLToPath(new URL("../test/fixtures/repo", import.meta.url));
 
 function withExec(command: string, languages = ["en"]): CorpusConfig {
-  return defineCorpus({
-    project: "fixture-project",
-    server: "https://corpus.example",
-    sourceLanguage: "en",
-    languages,
-    sources: [{ adapter: "exec", command }],
-  });
+  return expandSources(
+    defineCorpus({
+      project: "fixture-project",
+      server: "https://corpus.example",
+      sourceLanguage: "en",
+      languages,
+      sources: [{ adapter: "exec", command }],
+    }),
+    REPO,
+  );
 }
 
 test("an exec source merges its strings and entities", async () => {

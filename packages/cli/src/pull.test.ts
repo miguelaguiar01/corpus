@@ -435,3 +435,172 @@ test("a proposal for a table source without {lang} is written to the path itself
   expect(await run(["pull"], ctx())).toBe(0);
   expect(read("steps.json")).toBe(`[\n  { "id": "s1", "text": "Um!" }\n]\n`);
 });
+
+test("a {ns} source pulls each namespace's strings into its own file, prefix stripped, and a proposal lands in the file its id names (#513)", async () => {
+  const { mkdirSync, writeFileSync, readFileSync, readdirSync } =
+    await import("node:fs");
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8").replace(
+      /sources: \[[\s\S]*?\n {2}\],/,
+      'sources: [{ adapter: "messages", type: "chrome", path: "locales/{lang}/{ns}.json" }],',
+    ),
+  );
+  for (const [lang, ns, data] of [
+    ["en", "common", { title: "Common title", greeting: "Hello {name}" }],
+    ["en", "admin", { title: "Admin title" }],
+    ["pt", "common", { title: "Título comum" }],
+    ["pt", "admin", { title: "Título de administração" }],
+  ] as const) {
+    mkdirSync(path.join(repo, "locales", lang), { recursive: true });
+    writeFileSync(
+      path.join(repo, "locales", lang, `${ns}.json`),
+      `${JSON.stringify(data, null, 2)}\n`,
+    );
+  }
+  const before = {
+    common: read("locales/pt/common.json"),
+    admin: read("locales/pt/admin.json"),
+  };
+  await serve(200, {
+    ...PAYLOAD,
+    types: {
+      "common:title": "chrome",
+      "common:greeting": "chrome",
+      "admin:title": "chrome",
+    },
+    translations: {
+      en: {
+        "common:title": "Common title",
+        "common:greeting": "Hello {name}",
+        "admin:title": "Admin title",
+      },
+      pt: {
+        "common:title": "Título comum",
+        "common:greeting": "Olá {name}",
+        "admin:title": "Título de administração",
+      },
+    },
+    sourceChanges: [
+      {
+        kind: "edit",
+        id: "admin:title",
+        type: "chrome",
+        file: "locales/en/admin.json",
+        text: "Administration",
+      },
+    ],
+  });
+  const c = ctx();
+  expect(await run(["pull"], c)).toBe(0);
+  // common gained its greeting, in its own file and without the prefix.
+  expect(read("locales/pt/common.json")).toBe(
+    `{\n  "title": "Título comum",\n  "greeting": "Olá {name}"\n}\n`,
+  );
+  // admin is byte-identical: nothing of its own changed, and common's
+  // greeting did not leak into it.
+  expect(read("locales/pt/admin.json")).toBe(before.admin);
+  // The proposal edited admin's source file under its own key.
+  expect(read("locales/en/admin.json")).toBe(
+    `{\n  "title": "Administration"\n}\n`,
+  );
+  expect(read("locales/en/common.json")).toContain('"title": "Common title"');
+});
+
+test("a component whose language file is missing gets it on pull with its own ids, and a proposal without the namespace is refused by name (#513)", async () => {
+  const { mkdirSync, writeFileSync, readFileSync, readdirSync } =
+    await import("node:fs");
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8").replace(
+      /sources: \[[\s\S]*?\n {2}\],/,
+      'sources: [{ adapter: "messages", type: "chrome", path: "src/{ns}/i18n/{lang}.json" }],',
+    ),
+  );
+  for (const [ns, data] of [
+    ["Button", { save: "Save" }],
+    ["Card/Header", { save: "Save the card" }],
+  ] as const) {
+    mkdirSync(path.join(repo, "src", ns, "i18n"), { recursive: true });
+    writeFileSync(
+      path.join(repo, "src", ns, "i18n", "en.json"),
+      `${JSON.stringify(data, null, 2)}\n`,
+    );
+  }
+  await serve(200, {
+    ...PAYLOAD,
+    types: { "Button:save": "chrome", "Card/Header:save": "chrome" },
+    translations: {
+      en: { "Button:save": "Save", "Card/Header:save": "Save the card" },
+      pt: { "Button:save": "Guardar", "Card/Header:save": "Guardar o cartão" },
+    },
+    sourceChanges: [
+      {
+        kind: "add",
+        id: "title",
+        type: "chrome",
+        file: "src/Button/i18n/en.json",
+        text: "Title",
+      },
+    ],
+  });
+  const c = ctx();
+  expect(await run(["pull"], c)).toBe(0);
+  expect(read("src/Button/i18n/pt.json")).toBe(`{\n  "save": "Guardar"\n}\n`);
+  expect(read("src/Card/Header/i18n/pt.json")).toBe(
+    `{\n  "save": "Guardar o cartão"\n}\n`,
+  );
+  expect(c.output.join("\n")).toContain(
+    "proposal title for src/Button/i18n/en.json lacks the namespace Button: that file's ids carry; not written",
+  );
+  expect(c.output.join("\n")).not.toMatch(/1 proposal\(s\) written/);
+  expect(read("src/Button/i18n/en.json")).toBe(`{\n  "save": "Save"\n}\n`);
+});
+
+test("an array of patterns of one type is held together: a pull that changes nothing names no orphan (#513)", async () => {
+  const { mkdirSync, writeFileSync, readFileSync, readdirSync } =
+    await import("node:fs");
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8").replace(
+      /sources: \[[\s\S]*?\n {2}\],/,
+      'sources: [{ adapter: "messages", type: "chrome", path: ["a/{lang}.json", "b/{lang}.json"] }],',
+    ),
+  );
+  for (const [dir, en, pt] of [
+    ["a", { one: "One" }, { one: "Um" }],
+    ["b", { two: "Two" }, { two: "Dois" }],
+  ] as const) {
+    mkdirSync(path.join(repo, dir), { recursive: true });
+    writeFileSync(
+      path.join(repo, dir, "en.json"),
+      `${JSON.stringify(en, null, 2)}\n`,
+    );
+    writeFileSync(
+      path.join(repo, dir, "pt.json"),
+      `${JSON.stringify(pt, null, 2)}\n`,
+    );
+  }
+  await serve(200, {
+    ...PAYLOAD,
+    types: { one: "chrome", two: "chrome" },
+    translations: {
+      en: { one: "One", two: "Two" },
+      pt: { one: "Um", two: "Dois" },
+    },
+  });
+  const c = ctx();
+  expect(await run(["pull"], c)).toBe(0);
+  expect(c.output.join("\n")).not.toMatch(/no source-language file holds/);
+  expect(read("a/pt.json")).toBe(`{\n  "one": "Um"\n}\n`);
+  expect(read("b/pt.json")).toBe(`{\n  "two": "Dois"\n}\n`);
+});

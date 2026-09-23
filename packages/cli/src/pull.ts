@@ -6,6 +6,7 @@ import {
   applyTableOps,
   entriesToMessages,
   entriesToTable,
+  messagesToEntries,
   type SourceOp,
 } from "@corpus/adapters";
 import { option, options } from "./args";
@@ -17,7 +18,13 @@ import {
   type PullPayload,
 } from "@corpus/contract";
 import type { RunContext } from "./cli";
-import { describeExecFailure, EXEC_MAX_BUFFER, writesBack } from "./build";
+import {
+  describeExecFailure,
+  EXEC_MAX_BUFFER,
+  isArb,
+  type FileSource,
+  writesBack,
+} from "./build";
 import { CliError, loadConfig, requireToken } from "./config";
 import { request, serverMessage, UNAUTHORIZED } from "./server";
 
@@ -67,6 +74,24 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
 
   const changed: string[] = [];
   const claimedTypes = new Set<string>();
+  // Ids the server holds that no source-language file of their type does
+  // any more: orphans, listed by validate, never appended to a target
+  // (§8). Held ids are unioned per type first, since an array of
+  // patterns splits one type over several files.
+  const notHeld = new Set<string>();
+  const heldByType = new Map<string, Set<string>>();
+  for (const source of config.sources) {
+    if (source.adapter !== "messages") continue;
+    if (!source.path.includes("{lang}") || !writesBack(source.path)) continue;
+    const template = readRepoFile(
+      ctx.cwd,
+      source.path.replace("{lang}", config.sourceLanguage),
+    );
+    if (template === undefined) continue;
+    const held = heldByType.get(source.type) ?? new Set<string>();
+    for (const id of ownIds(template, source) ?? []) held.add(id);
+    heldByType.set(source.type, held);
+  }
   for (const source of config.sources) {
     if (source.adapter === "exec") continue;
     if (!source.path.includes("{lang}")) {
@@ -89,10 +114,19 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     if (template === undefined) {
       throw new CliError(`source file ${templatePath} does not exist`);
     }
+    // A target file takes the ids its source-language file holds, under
+    // the source's namespace when it has one, stripped for writing: two
+    // sources of one type each write their own strings (#513).
+    const own = ownIds(template, source);
     for (const language of targets) {
       const file = source.path.replace("{lang}", language);
       const existing = readRepoFile(ctx.cwd, file);
-      const translations = forType(payload, language, source.type);
+      const forSource = forType(payload, language, source.type);
+      const translations = unprefixed(forSource, source, own);
+      const heldForType = heldByType.get(source.type);
+      for (const id of Object.keys(forSource)) {
+        if (heldForType && !heldForType.has(id)) notHeld.add(id);
+      }
       if (existing === undefined && Object.keys(translations).length === 0)
         continue;
       const next =
@@ -104,6 +138,12 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
         changed.push(file);
       }
     }
+  }
+
+  if (notHeld.size > 0) {
+    ctx.err(
+      `corpus: ${notHeld.size} translation(s) name an id no source-language file holds and were not written; corpus validate lists the orphans`,
+    );
   }
 
   // The pending proposals (§8, §11): each into the source-language file
@@ -122,9 +162,17 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
       );
       continue;
     }
-    proposalsWritten += ops.length;
-    const files: [string, SourceOp[]][] = [[file, ops]];
-    const removals = ops.filter((o) => o.kind === "delete");
+    const stripped = stripNamespace(ops, source);
+    for (const op of stripped.refused) {
+      ctx.err(
+        `corpus: proposal ${op.id} for ${file} lacks the namespace ${source.namespace}: that file's ids carry; not written`,
+      );
+    }
+    const kept = stripped.ops;
+    if (kept.length === 0) continue;
+    proposalsWritten += kept.length;
+    const files: [string, SourceOp[]][] = [[file, kept]];
+    const removals = kept.filter((o) => o.kind === "delete");
     if (removals.length > 0 && source.path.includes("{lang}")) {
       for (const language of allTargets) {
         files.push([source.path.replace("{lang}", language), removals]);
@@ -292,4 +340,56 @@ async function download(
     );
   }
   return parsed.data;
+}
+
+// The ids a source-language file holds, as the snapshot names them.
+function ownIds(template: string, source: FileSource): Set<string> | undefined {
+  if (source.adapter !== "messages") return undefined;
+  try {
+    const entries = messagesToEntries(JSON.parse(template), {
+      type: source.type,
+      arb: isArb(source.path),
+    });
+    const prefix = source.namespace ? `${source.namespace}:` : "";
+    return new Set(entries.map((e) => `${prefix}${e.id}`));
+  } catch {
+    return undefined;
+  }
+}
+
+// A source's share of a language's translations, keyed as its file
+// writes them: the namespace stripped, ids the file does not hold left
+// out when the file's own ids are known.
+function unprefixed(
+  translations: Record<string, string>,
+  source: FileSource,
+  own: Set<string> | undefined,
+): Record<string, string> {
+  const prefix = source.namespace ? `${source.namespace}:` : "";
+  const out: Record<string, string> = {};
+  for (const [id, text] of Object.entries(translations)) {
+    if (own && !own.has(id)) continue;
+    if (prefix && !id.startsWith(prefix)) continue;
+    out[id.slice(prefix.length)] = text;
+  }
+  return out;
+}
+
+// A namespaced file's ops arrive with the namespace on their ids; the
+// file is written without it. An op whose id lacks it names a string the
+// file cannot hold, and is refused by name rather than dropped.
+function stripNamespace(
+  ops: SourceOp[],
+  source: FileSource,
+): { ops: SourceOp[]; refused: SourceOp[] } {
+  const prefix = source.namespace ? `${source.namespace}:` : "";
+  if (!prefix) return { ops, refused: [] };
+  const kept: SourceOp[] = [];
+  const refused: SourceOp[] = [];
+  for (const op of ops) {
+    if (op.id.startsWith(prefix))
+      kept.push({ ...op, id: op.id.slice(prefix.length) });
+    else refused.push(op);
+  }
+  return { ops: kept, refused };
 }

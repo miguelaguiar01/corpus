@@ -76,6 +76,16 @@ Every `messages` and `table` source names a `type`. A type groups strings in the
 
 Pick types by how the text behaves rather than by where it lives: `ui` for buttons and labels, `email` for text that must survive a mail client, `tour-step` for a sequence a translator should read in order. A single `ui` is a fine start.
 
+## One source, several files
+
+A source's `path` may be an array of patterns, each with `{lang}`, all sharing the source's type and library: one source per pattern, and a duplicate id across them is the build error it is between any two sources, naming both files. A pattern may also carry `{ns}`, one or more path segments anchored by the literals around it, for the layout i18next uses by default, and for a repository where each component keeps its own file (`src/{ns}/i18n/{lang}.json` reaches `src/Card/Header/i18n/en.json`, with ids like `Card/Header:save`, and a component added later needs no config change):
+
+```ts
+{ adapter: "messages", type: "ui", path: "public/locales/{lang}/{ns}.json" }
+```
+
+Every file that fills `{ns}` for the source language is a source of its own, and the ids it contributes are `ns:key`, with `:` as the separator (i18next's own, not configurable), so `common.json` and `admin.json` may both hold `title`. `pull` writes each string back to the file its id names, and a target file only ever takes the ids its source-language file holds. `init` reads the languages and the library through a `{ns}` pattern and writes it as given. A bare `*` is not a pattern: a wildcard alone cannot say which language a file holds.
+
 ## More than one source
 
 <!-- from: examples/many-sources.config.ts -->
