@@ -30,6 +30,8 @@ src/i18n/pt-PT.json:editor.unsaved: missing {count}
 corpus: 1 invalid translation(s)
 ```
 
+A file's path names the language; a finding on an `exec` source, where the command stands for every language, names it after the key: `exec:node scripts/export.mjs [deleting] fr: missing {trash}`. `--json` carries `language` on every finding.
+
 This catches what a translator's editor already refuses, because translations arrive by other routes too: a merge, a hand edit, a file someone brought from an older tool. Outline's catalogues, which have never been through Corpus, have 32 invalid translations and 22 orphan keys in them today.
 
 ## The two that need the instance

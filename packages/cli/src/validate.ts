@@ -26,6 +26,10 @@ export const VALIDATE_USAGE = "corpus validate [--json]";
 export type Finding = {
   file: string;
   key: string;
+  // The language the translation is in; a source's own finding carries
+  // the source language. A file source's path names it, an exec
+  // source's command does not (#592).
+  language: string;
   code: ValidationError["code"] | "orphan";
   // A plural missing a category its language uses is incomplete, not
   // invalid (#556): printed apart, and never the reason for exit 1.
@@ -37,6 +41,14 @@ export type Finding = {
 // `corpus validate` (§3): the editor's checks (§5, §7) over the target
 // files of every JSON source with {lang}, offline. A missing key is not
 // a finding (states cover it); a key the source no longer has is.
+// A file source's line names the language in its path; an exec source's
+// names it after the key, since the command stands for every language.
+function line(f: Finding): string {
+  return f.file.startsWith("exec:")
+    ? `${f.file} [${f.key}] ${f.language}: ${f.message}`
+    : `${f.file}:${f.key}: ${f.message}`;
+}
+
 export async function validate(
   args: string[],
   ctx: RunContext,
@@ -52,13 +64,13 @@ export async function validate(
   const byKey = orphansByKey(orphans);
   if (json) ctx.out(JSON.stringify(findings, null, 2));
   else {
-    for (const f of invalid) ctx.err(`${f.file}:${f.key}: ${f.message}`);
+    for (const f of invalid) ctx.err(line(f));
     for (const { first, targets } of byKey.values()) {
       ctx.err(
         `${first.sourceFile}:${first.key}: ${first.message}; ${targets} target file(s) carry it`,
       );
     }
-    for (const f of incomplete) ctx.err(`${f.file}:${f.key}: ${f.message}`);
+    for (const f of incomplete) ctx.err(line(f));
   }
   for (const note of deprecations(config)) ctx.err(`corpus: ${note}`);
   for (const command of unvalidated) {
@@ -114,7 +126,12 @@ export async function validateRepo(
   const targets = config.languages.filter((l) => l !== config.sourceLanguage);
   for (const source of config.sources) {
     if (source.adapter === "exec") {
-      const exec = validateExec(source.command, cwd, targets);
+      const exec = validateExec(
+        source.command,
+        cwd,
+        targets,
+        config.sourceLanguage,
+      );
       findings.push(...exec.findings);
       if (!exec.validated) unvalidated.push(source.command);
       continue;
@@ -141,6 +158,7 @@ export async function validateRepo(
           findings.push({
             file,
             key,
+            language,
             code: "orphan",
             severity: "invalid",
             message: "the source no longer has this key",
@@ -158,6 +176,7 @@ export async function validateRepo(
           findings.push({
             file,
             key,
+            language,
             code: error.code,
             severity: "incomplete",
             message: describe(error, libraryOf(source)),
@@ -172,6 +191,7 @@ export async function validateRepo(
           findings.push({
             file: inSource ? sourceFile : file,
             key,
+            language: inSource ? config.sourceLanguage : language,
             code: error.code,
             severity: "invalid",
             message: describe(error, libraryOf(source)),
@@ -245,6 +265,7 @@ function validateExec(
   command: string,
   cwd: string,
   targets: string[],
+  sourceLanguage: string,
 ): { findings: Finding[]; validated: boolean } {
   const ran = runExporter(command, cwd);
   if (!ran.ok) throw new CliError(ran.error);
@@ -274,6 +295,7 @@ function validateExec(
         findings.push({
           file,
           key,
+          language,
           code: "orphan",
           severity: "invalid",
           message: "the exporter's strings no longer have this id",
@@ -292,6 +314,7 @@ function validateExec(
         findings.push({
           file,
           key,
+          language,
           code: error.code,
           severity: "incomplete",
           message: describe(error, library),
@@ -306,6 +329,7 @@ function validateExec(
         findings.push({
           file,
           key,
+          language: inSource ? sourceLanguage : language,
           code: error.code,
           severity: "invalid",
           message: describe(error, library),
