@@ -226,6 +226,26 @@ describe("the source side", () => {
 });
 
 describe("rich-text tags", () => {
+  test("an attributed tag must come back with its attribute text verbatim; a void tag needs no close (#590)", () => {
+    const source =
+      'Read the <a href="%s" target="_blank">docs</a>.<br>Then go.';
+    expect(
+      validateTranslation(
+        source,
+        'Lê a <a href="%s" target="_blank">documentação</a>.<br/>Depois vai.',
+      ),
+    ).toEqual({ ok: true });
+    expect(errorsOf(source, 'Lê a <a href="%s">documentação</a>.<br>')).toEqual(
+      [
+        { code: "missing-tag", name: 'a href="%s" target="_blank"' },
+        { code: "unexpected-tag", name: 'a href="%s"' },
+      ],
+    );
+    expect(
+      errorsOf(source, 'Lê a <a href="%s" target="_blank">documentação</a>.'),
+    ).toEqual([{ code: "missing-tag", name: "br" }]);
+  });
+
   const SOURCE = "Received {code} from <url></url>. See the <link>docs</link>.";
   test("every tag must survive, wherever it moves; none may be added", () => {
     expect(

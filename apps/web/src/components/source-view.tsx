@@ -95,7 +95,7 @@ function renderNodes(
         <span
           key={index}
           className="rounded-sm border border-dashed border-input px-0.5"
-          title={`<${node.name}>`}
+          title={`<${node.attrs ? `${node.name} ${node.attrs}` : node.name}>`}
           data-tag={node.name}
         >
           {node.children.length > 0 ? (
