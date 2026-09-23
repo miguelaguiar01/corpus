@@ -9,3 +9,7 @@
 export const MAX_BODY_BYTES = 128 * 1024 * 1024;
 // A project's declaration is a few short strings.
 export const MAX_PROJECT_BODY_BYTES = 64 * 1024;
+// A response from this size on travels gzipped when the client accepts
+// it (#602): a pull of a large project is megabytes of JSON that shrink
+// about eightfold. The CLI's push gzips from the same size.
+export const GZIP_FROM_BYTES = 256 * 1024;

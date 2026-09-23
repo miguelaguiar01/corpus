@@ -40,6 +40,44 @@ function setup() {
   return { token: created.token, slug: created.project.slug };
 }
 
+// A project whose pull passes the gzip threshold: three thousand
+// strings with long texts, every one translated into English.
+function setupBig(): string {
+  seq += 1;
+  const [actor] = db
+    .insert(users)
+    .values({ name: `boss-${seq}`, maintainer: true })
+    .returning()
+    .all();
+  if (!actor) throw new Error("seed failed");
+  const created = createProject(
+    db,
+    {
+      slug: `big-${seq}`,
+      name: "Big",
+      sourceLanguage: "pt-PT",
+      languages: ["pt-PT", "en"],
+    },
+    actor,
+  );
+  if (!created.ok) throw new Error(created.reason);
+  const ids = Array.from({ length: 3000 }, (_, i) => `ui.s${i}`);
+  const text = (i: number) => `Texto número ${i} `.repeat(6);
+  applySnapshot(db, created.project.id, {
+    contract: "corpus/1",
+    project: created.project.slug,
+    sourceLanguage: "pt-PT",
+    strings: ids.map((id, i) => ({ id, type: "ui", source: text(i) })),
+    entities: [],
+    seedTranslations: {
+      en: Object.fromEntries(
+        ids.map((id, i) => [id, `Text number ${i} `.repeat(6)]),
+      ),
+    },
+  });
+  return created.token;
+}
+
 function pull(token: string | undefined, query = "") {
   return GET(
     new Request(`http://corpus.test/api/pull${query}`, {
@@ -47,6 +85,43 @@ function pull(token: string | undefined, query = "") {
     }),
   );
 }
+
+test("a pull over the threshold is gzipped when the client accepts it; a small one, or one that does not, is plain (#602)", async () => {
+  const { gunzipSync } = await import("node:zlib");
+  const { token } = setup();
+  const small = await GET(
+    new Request("http://corpus.test/api/pull", {
+      headers: { authorization: `Bearer ${token}`, "accept-encoding": "gzip" },
+    }),
+  );
+  expect(small.status).toBe(200);
+  expect(small.headers.get("content-encoding")).toBeNull();
+  expect(((await small.json()) as { project: string }).project).toBeTruthy();
+  // A project whose payload passes the threshold: many long translations.
+  const big = setupBig();
+  const gz = await GET(
+    new Request("http://corpus.test/api/pull?minState=untranslated", {
+      headers: {
+        authorization: `Bearer ${big}`,
+        "accept-encoding": "gzip, br",
+      },
+    }),
+  );
+  expect(gz.status).toBe(200);
+  expect(gz.headers.get("content-encoding")).toBe("gzip");
+  expect(gz.headers.get("vary")).toBe("accept-encoding");
+  const inflated = JSON.parse(
+    gunzipSync(Buffer.from(await gz.arrayBuffer())).toString("utf8"),
+  ) as { translations: Record<string, Record<string, string>> };
+  expect(Object.keys(inflated.translations.en ?? {})).toHaveLength(3000);
+  const plain = await GET(
+    new Request("http://corpus.test/api/pull?minState=untranslated", {
+      headers: { authorization: `Bearer ${big}` },
+    }),
+  );
+  expect(plain.headers.get("content-encoding")).toBeNull();
+  expect(Buffer.byteLength(await plain.text())).toBeGreaterThan(256 * 1024);
+});
 
 test("without a token it is unauthorized", async () => {
   setup();
