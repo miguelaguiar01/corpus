@@ -40,3 +40,52 @@ test("the first person to join after the workbench created the project is the ma
     page.getByRole("button", { name: "Mark pt-PT as verified" }),
   ).toBeVisible();
 });
+
+// Forty languages (#489): the picker replaces the language bar from a
+// dozen, and nothing in CI rendered it, which is how a server/client
+// boundary bug reached review in #477. A second project on this server,
+// provisioned with forty languages and the fixture pushed under its slug.
+test("a forty-language project's string page offers the picker, filters it and follows an option", async ({
+  page,
+  request,
+}) => {
+  const slug = "moonlight-manor-forty";
+  const languages = [
+    moonlightManor.sourceLanguage,
+    ..."af am ar az be bg bn bs ca cs cy da de el eo es et eu fa fi fr ga gl gu he hi hr hu hy id is it ja ka kk km kn ko ku".split(
+      " ",
+    ),
+  ];
+  const created = await request.post("/api/projects", {
+    headers: { authorization: `Bearer ${SMOKE_SECRET}` },
+    data: {
+      slug,
+      name: "Moonlight Manor, forty",
+      sourceLanguage: moonlightManor.sourceLanguage,
+      languages,
+    },
+  });
+  expect(created.ok()).toBeTruthy();
+  const { token } = (await created.json()) as { token: string };
+  const pushed = await request.post("/api/push", {
+    headers: { authorization: `Bearer ${token}` },
+    data: { ...moonlightManor, project: slug },
+  });
+  expect(pushed.ok()).toBeTruthy();
+
+  // A fresh context per test: this one joins as a second person.
+  await join(page, "bo");
+  await page.goto(`/p/${slug}/s/ui.continue`);
+  const picker = page.getByRole("navigation", { name: "Language" });
+  await expect(picker).toBeVisible();
+  const control = picker.getByRole("button");
+  await expect(control).toBeVisible();
+  await control.click();
+  await expect(page.getByRole("listbox")).toBeVisible();
+  await page.getByPlaceholder("Filter languages…").fill("k");
+  await expect(page.getByRole("option")).toHaveCount(6);
+  await page.getByRole("option", { name: "ko" }).click();
+  await page.waitForURL(/language=ko/);
+  await expect(page.getByRole("textbox")).toBeVisible();
+  await expect(control).toContainText("ko");
+});

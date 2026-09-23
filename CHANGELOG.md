@@ -24,6 +24,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- The smoke renders the language picker: a forty-language project on the workbench-order server, its string page opened, the picker filtered and an option followed, since nothing in CI drew the picker before and a server/client boundary error in it reached review in #477 through jsdom, which cannot see one.
 - `bin/smoke` runs two orders on two servers, each on its own empty database: the bare order, where the browser joins before any project exists, and the workbench order, where the project is provisioned first and the first person joins into a table that already holds the agent actor. The second is the documented first run, and the order #525 shipped in for eight releases while the smoke saw only the first.
 
 - A string refused for an argument type ICU has (`{n, number}`, `{d, date}`, `{t, time}`) draws no library advice: Immich's `other {{hours, number} hours}}` was told to `declare library: "i18next"` because a plural branch opening with a placeholder puts `{{` in the string. A type ICU lacks, i18next's `{{date, short}}` read as ICU, still draws it. The two library hints now fire on the error the wrong library produces and on nothing else, so an unclosed or nested plural, or one missing `other`, draws no library advice either.
