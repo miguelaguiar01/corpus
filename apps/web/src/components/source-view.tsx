@@ -117,6 +117,7 @@ function renderNodes(
                 name,
                 syntax,
                 node.format ? placeholderFormatText(node.format) : null,
+                node.written,
               )
             : "#"}
         </span>
@@ -142,11 +143,15 @@ function renderNodes(
 
 // A placeholder as the source writes it, so the chip reads as the text;
 // a formatted one carries its format, `{n, number, ::percent}` (#555).
+// `written` is the placeholder as the source writes it when that is not
+// its name: printf's `%s` (#594).
 export function chipText(
   name: string,
   syntax: Library,
   format?: string | null,
+  written?: string | null,
 ): string {
+  if (written) return written;
   if (syntax === "i18next") return `{{${name}}}`;
   return format ? `{${name}, ${format}}` : `{${name}}`;
 }

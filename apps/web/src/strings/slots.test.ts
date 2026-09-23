@@ -18,6 +18,7 @@ test("slots carry the declaration and the first example's value per language, in
     description: "Full name with article",
     role: "np-def",
     format: null,
+    written: null,
     values: { "pt-PT": "a Condessa Rosa", en: "Countess Rosa" },
   });
   expect(slots[2]?.role).toBeNull();
@@ -31,8 +32,29 @@ test("an undeclared slot, a count, and a string with no examples still list ever
     "en",
   );
   expect(slots).toEqual([
-    { name: "thing", description: null, role: null, format: null, values: {} },
-    { name: "who", description: null, role: null, format: null, values: {} },
-    { name: "n", description: null, role: null, format: null, values: {} },
+    {
+      name: "thing",
+      description: null,
+      role: null,
+      format: null,
+      written: null,
+      values: {},
+    },
+    {
+      name: "who",
+      description: null,
+      role: null,
+      format: null,
+      written: null,
+      values: {},
+    },
+    {
+      name: "n",
+      description: null,
+      role: null,
+      format: null,
+      written: null,
+      values: {},
+    },
   ]);
 });

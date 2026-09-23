@@ -432,6 +432,37 @@ test("an attributed tag's chip inserts it whole with the bare close, and a void 
   ).toBeTruthy();
 });
 
+test("under printf a chip inserts the verb as the source writes it, and a dropped verb is named as written (#594)", () => {
+  render(
+    <TargetPane
+      action={vi.fn()}
+      source="%s pushed %d commits"
+      syntax="printf"
+      slots={[
+        { name: "1", written: "%s" },
+        { name: "2", written: "%d" },
+      ]}
+      language="pt-PT"
+      initialText=""
+      slug="mm"
+      stringKey="k"
+      openedVersion={1}
+      sourceLanguage="en"
+    />,
+  );
+  const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
+  fireEvent.click(screen.getByRole("button", { name: "%d" }));
+  expect(textarea.value).toBe("%d");
+  fireEvent.change(textarea, { target: { value: "%s enviou commits" } });
+  expect(screen.getByText("Missing %d")).toBeTruthy();
+  fireEvent.change(textarea, { target: { value: "%d commits de %s" } });
+  expect(
+    screen.getByText(
+      "%d at position 1 is %s in the source; a verb that moved needs its index, %n$d",
+    ),
+  ).toBeTruthy();
+});
+
 test("a select wrapped in a tag still gets its chip", () => {
   render(
     <TargetPane

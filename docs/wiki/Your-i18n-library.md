@@ -113,9 +113,37 @@ Not yet read: `@:linked.keys`. A catalogue that uses them parses, and the link i
 
 A vue-i18n catalogue read as ICU loses every string with a `{'…'}` in it, because ICU reads `{'@'}` as a placeholder named `'@'` and refuses the string. On Vikunja that was one key across 31 of its 38 language files. Read as `vue`, the same catalogue builds whole.
 
+## printf: Go, C, and Android's resources
+
+<!-- from: examples/printf.config.ts -->
+```ts
+import { defineCorpus } from "@corpus-tool/cli";
+
+export default defineCorpus({
+  project: "acme-app",
+  server: "http://localhost:3000",
+  sourceLanguage: "en-US",
+  languages: ["en-US", "de-DE", "pt-BR"],
+  sources: [
+    {
+      adapter: "messages",
+      type: "ui",
+      path: "options/locale/locale_{lang}.json",
+      library: "printf",
+    },
+  ],
+});
+```
+
+Gitea's catalogue, and any Go, C or Android app, writes its placeholders as printf verbs: `Pushed %d commits to %s`, Go's `%[2]s` and C's `%2$s` for an explicit position, `%-8.2f` with flags, width and precision, `%%` for a percent. Under `library: "printf"` each verb is a placeholder named by its position, the chip inserts it as the source writes it, and a translation must keep the same positions. Braces, angle brackets and `#` are text here: there are no ICU arguments and no tags, so HTML in a Go string is prose.
+
+Two things to know. **A moved verb needs its index.** Unindexed verbs are read in order, so a translation that writes `%d commits de %s` for `%s pushed %d commits` prints the name where the count goes; Corpus says so (`%d at position 1 is %s in the source; a verb that moved needs its index, %[n]d`), and `%[2]d commits de %[1]s` is right. **A `%` in prose is text.** `50% off` opens no verb, since the space flag is not read, and `100%%` is a percent on both sides.
+
+`init` names the library when most placeholder-bearing strings carry verbs.
+
 ## gettext, Android, iOS
 
-No adapter reads `.po`, `strings.xml` or `.strings`. An `exec` source can, by converting in both directions; see [Sources and adapters](Sources-and-adapters).
+No adapter reads `.po`, `strings.xml` or `.strings`. An `exec` source can, by converting in both directions; see [Sources and adapters](Sources-and-adapters). A converter that leaves the verbs as they are can declare `library: "printf"` on the exec source's strings, so the verbs are checked.
 
 ## When the library is wrong
 

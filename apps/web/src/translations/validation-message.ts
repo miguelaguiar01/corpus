@@ -12,11 +12,18 @@ export function validationMessage(
   switch (error.code) {
     case "missing-placeholder":
       return t("editor.missingPlaceholder", {
-        name: chipText(error.name, syntax),
+        name: chipText(error.name, syntax, null, error.written),
       });
     case "unexpected-placeholder":
       return t("editor.unexpectedPlaceholder", {
-        name: chipText(error.name, syntax),
+        name: chipText(error.name, syntax, null, error.written),
+      });
+    case "changed-verb":
+      return t("editor.changedVerb", {
+        name: error.name,
+        expected: error.expected,
+        actual: error.actual,
+        indexed: error.indexed,
       });
     case "unknown-select":
       return t("editor.unknownSelect", { arg: error.arg });

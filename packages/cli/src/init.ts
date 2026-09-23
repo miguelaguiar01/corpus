@@ -22,7 +22,7 @@ import {
 import { ignoreCorpusDir } from "./corpus-dir";
 
 export const INIT_USAGE =
-  "corpus init --project <slug> --source <lang> --messages <path with {lang}> [--languages <a,b>] [--server <url>] [--type <name>] [--library <icu|i18next|vue>]";
+  "corpus init --project <slug> --source <lang> --messages <path with {lang}> [--languages <a,b>] [--server <url>] [--type <name>] [--library <icu|i18next|vue|printf>]";
 
 // `corpus init` writes the config from flags alone, so it scripts;
 // it validates the config before writing and never overwrites one.
@@ -148,7 +148,11 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   );
   if (library && library.value !== "icu") {
     const why =
-      library.value === "i18next" ? "{{ }}" : "a pipe or a quoted literal";
+      library.value === "i18next"
+        ? "{{ }}"
+        : library.value === "printf"
+          ? "printf verbs"
+          : "a pipe or a quoted literal";
     ctx.out(
       `library: ${library.value}${library.detected ? `, from ${why} in ${library.detected}` : ""}`,
     );
@@ -281,7 +285,7 @@ const ICU_ARGUMENT_RE = /\{\s*[^{},]+\s*,\s*(?:select|plural)\s*,/;
 // i18next's {{ name }}, a single-brace {name}, and a printf verb.
 const DOUBLE_BRACE_RE = /\{\{\s*[^{}]+\}\}/;
 const SINGLE_BRACE_RE = /(?<!\{)\{\s*[A-Za-z_][\w.-]*\s*\}(?!\})/;
-const PRINTF_RE = /%(?:\[\d+\]|\d+\$)?[-+0#]*\d*(?:\.\d+)?[sdvfxXqcbeEgGtTp]/g;
+const PRINTF_RE = /%(?:\[\d+\]|\d+\$)?[-+0#]*\d*(?:\.\d+)?[sdvfxXqcbeEgGtTp]/;
 const PLURAL_SUFFIX_RE = /_(?:zero|one|two|few|many|other)$/;
 // Any ICU argument, not only the branching ones: a `{when, date, short}`
 // in a catalogue with a stray pipe is still ICU, not vue-i18n.
@@ -357,14 +361,7 @@ async function libraryFor(
   const singles = texts.filter(
     (text) => !DOUBLE_BRACE_RE.test(text) && SINGLE_BRACE_RE.test(text),
   ).length;
-  const verbs = new Set<string>();
-  let printf = 0;
-  for (const text of texts) {
-    const found = text.match(PRINTF_RE);
-    if (!found) continue;
-    printf++;
-    for (const verb of found) verbs.add(verb);
-  }
+  const printf = texts.filter((text) => PRINTF_RE.test(text)).length;
   const icu = texts.some((text) => ICU_ARGUMENT_RE.test(text));
   if (doubles > singles && doubles > printf && !icu)
     return { library: { value: "i18next", detected: file } };
@@ -377,14 +374,8 @@ async function libraryFor(
       ),
     };
   }
-  if (printf > doubles + singles) {
-    const seen = [...verbs].slice(0, 3).join(", ");
-    return {
-      note: noted(
-        `placeholders are printf verbs (${seen}): Corpus does not check them`,
-      ),
-    };
-  }
+  if (printf > doubles + singles)
+    return { library: { value: "printf", detected: file } };
   if (
     doubles === 0 &&
     singles > 0 &&

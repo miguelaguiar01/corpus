@@ -48,7 +48,7 @@ export const languageCode = () =>
 // escaped: `icu` is plain ICU MessageFormat, as next-intl, FormatJS and
 // Lingui write it; `i18next` is its {{name}} interpolation, stored and
 // written back as written.
-export const LIBRARIES = ["icu", "i18next", "vue"] as const;
+export const LIBRARIES = ["icu", "i18next", "vue", "printf"] as const;
 export type Library = (typeof LIBRARIES)[number];
 export const librarySchema = z.enum(LIBRARIES);
 

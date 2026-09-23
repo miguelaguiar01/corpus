@@ -63,6 +63,9 @@ export type StringResponse = {
     role: string | null;
     // The format the source writes, "number, ::percent", or null (#555).
     format: string | null;
+    // The placeholder as the source writes it when that is not its
+    // name, printf's "%[2]s", or null (#594); additive.
+    written: string | null;
     values: Record<string, string>;
   }[];
   examples: Example[];

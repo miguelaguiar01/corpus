@@ -256,6 +256,20 @@ test("describe words every error code", () => {
       actual: "time",
     }),
   ).toBe("{d} is a date in the source, not a time");
+  expect(
+    describe({ code: "missing-placeholder", name: "1", written: "%s" }),
+  ).toBe("missing %s");
+  expect(
+    describe({
+      code: "changed-verb",
+      name: "2",
+      expected: "%d",
+      actual: "%s",
+      indexed: "%[n]s",
+    }),
+  ).toBe(
+    "%s at position 2 is %d in the source; a verb that moved needs its index, %[n]s",
+  );
   expect(describe({ code: "missing-tag", name: "link" })).toBe(
     "missing the <link> tag",
   );
