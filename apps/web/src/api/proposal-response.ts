@@ -26,7 +26,8 @@ export function proposalRefusal(
       return apiError(
         422,
         "invalid-icu",
-        "the text is empty or does not parse as a source in the string's syntax",
+        result.message ??
+          "the text is empty or does not parse as a source in the string's syntax",
       );
     case "invalid-key":
       return apiError(422, "invalid-key", `${key} is not a valid key`);

@@ -43,7 +43,8 @@ test("text equal to the source or failing the ICU parse disables the submit and 
   expect(submit.disabled).toBe(true);
   fireEvent.change(box, { target: { value: "Seguir {" } });
   expect(submit.disabled).toBe(true);
-  expect(screen.getByText(/must parse as a source/)).toBeTruthy();
+  // The message says what is wrong, as the CLI would (#552).
+  expect(screen.getByText(/Malformed message: unclosed/)).toBeTruthy();
   fireEvent.change(box, { target: { value: "Seguir {a}" } });
   expect(submit.disabled).toBe(false);
 });

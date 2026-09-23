@@ -71,6 +71,7 @@ test("an edit needs a writable string, valid ICU and a change; the newest supers
   ).toEqual({
     ok: false,
     reason: "invalid-icu",
+    message: "invalid ICU at 7: unclosed '{'",
   });
   const first = proposeEdit(db, {
     stringRowId: ui.id,
@@ -339,4 +340,20 @@ test("a delete whose string is pushed with other text stays pending; a dry run r
   expect(pendingCount(db, p.id)).toBe(1);
   expect(applySnapshot(db, p.id, removed).proposalsApplied).toBe(1);
   expect(pendingCount(db, p.id)).toBe(0);
+});
+
+test("a refused text says what is wrong and what to do; an empty one says only the reason (#552)", () => {
+  const { db, ana } = pushed();
+  const ui = row(db, "ui.continue");
+  expect(
+    proposeEdit(db, { stringRowId: ui.id, text: "See <baseurl>", actor: ana }),
+  ).toEqual({
+    ok: false,
+    reason: "invalid-icu",
+    message:
+      "invalid ICU at 13: unclosed <baseurl>; a <name> is a rich-text tag: close it with </baseurl>, or write the brackets so they do not open a tag",
+  });
+  expect(
+    proposeEdit(db, { stringRowId: ui.id, text: "  ", actor: ana }),
+  ).toEqual({ ok: false, reason: "invalid-icu" });
 });

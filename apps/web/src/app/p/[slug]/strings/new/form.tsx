@@ -31,7 +31,8 @@ export function AddStringForm({
       <input type="hidden" name="slug" value={slug} />
       {state.status === "error" && (
         <Banner tone="error">
-          {t(ERROR_KEY[state.reason] ?? "proposal.errorGeneric")}
+          {state.message ??
+            t(ERROR_KEY[state.reason] ?? "proposal.errorGeneric")}
         </Banner>
       )}
       <Field label={t("proposal.addKey")} hint={t("proposal.addKeyHint")}>
