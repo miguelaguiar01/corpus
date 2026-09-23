@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+### Fixed
+
+- `corpus init` writes `corpus.config.mjs` as a plain object when `@corpus-tool/cli` is not installed in the repository, and says so; it used to write the typed `corpus.config.ts`, whose import of the package fails to load on the next command when the CLI runs from npx (every project of the 0.18.0 trial). With the package installed it still writes the typed file.
+
 ## [0.18.0] - 2026-09-23
 
 What the 0.17.0 trials on Mastodon, Immich, Documenso and Ente found, what M23's reviews left, and a source that names several files.

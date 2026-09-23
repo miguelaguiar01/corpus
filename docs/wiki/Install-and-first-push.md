@@ -32,6 +32,8 @@ Next:
   2. corpus push
 ```
 
+When `@corpus-tool/cli` is not installed in the repository, because you run the CLI through `npx` without adding it, `init` writes `corpus.config.mjs` as a plain object instead and says so; the typed file's import would not load there. Both files are read the same way.
+
 `--type` names what kind of string the catalogue holds. It is yours to choose: it groups strings in the catalogue, carries a note to translators, and decides which metadata a string may have. `ui` is a reasonable start; `chrome` is the default if you leave it out.
 
 `init` read the directory to find the languages, looked at the source file to see which i18n library wrote it, and wrote:

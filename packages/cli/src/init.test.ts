@@ -106,6 +106,22 @@ test("writes a config that the loader accepts, and says what to do next", async 
   expect(p.out.join("\n")).toMatch(/corpus push/);
 });
 
+test("without @corpus-tool/cli in the repository, init writes a plain corpus.config.mjs the loader accepts, and says so (#598)", async () => {
+  const p = project();
+  expect(await run(FLAGS, p.ctx)).toBe(0);
+  expect(existsSync(path.join(p.dir, "corpus.config.ts"))).toBe(false);
+  const text = readFileSync(path.join(p.dir, "corpus.config.mjs"), "utf8");
+  expect(text).toMatch(/^export default \{\n {2}project: "moonlight-manor",/);
+  expect(text).not.toContain("defineCorpus");
+  expect(text).toMatch(/\n\};\n$/);
+  const config = await loadConfig(p.dir);
+  expect(config.project).toBe("moonlight-manor");
+  expect(config.sources[0]).toMatchObject({ path: "src/i18n/{lang}.json" });
+  expect(p.out.join("\n")).toMatch(
+    /wrote corpus\.config\.mjs \(a plain object: @corpus-tool\/cli is not installed in this repository\)/,
+  );
+});
+
 test("refuses to overwrite an existing config, of any filename", async () => {
   const p = project();
   writeFileSync(path.join(p.dir, "corpus.config.mjs"), "export default {};\n");
