@@ -224,6 +224,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     return files.length === 0 ? 0 : 1;
   }
 
+  let ran = 0;
   for (const source of config.sources) {
     if (source.adapter !== "exec" || !source.importCommand) continue;
     const translations: PullPayload["translations"] = {};
@@ -247,7 +248,13 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
         describeExecFailure(source.importCommand, result, "import"),
       );
     }
+    ran++;
     ctx.out(`ran ${source.importCommand}`);
+    // What the importer said is the only account of what it wrote: the
+    // file count below is the adapters' alone (#599).
+    for (const line of result.stderr.split(/\r?\n/)) {
+      if (line.trim() !== "") ctx.out(`  ${line}`);
+    }
   }
 
   const importers = config.sources.filter(
@@ -270,7 +277,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
   const files = [...new Set(changed)];
   for (const file of files) ctx.out(file);
   ctx.out(
-    `pulled ${config.project} at ${minState}: ${files.length} file(s) changed`,
+    `pulled ${config.project} at ${minState}: ${files.length} file(s) changed${ran > 0 ? `, ${ran} import command(s) ran` : ""}`,
   );
   if (proposalsWritten > 0) {
     ctx.out(
