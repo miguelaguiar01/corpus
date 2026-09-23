@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { parseIcu, type Library } from "@corpus/contract";
+import { parseIcu, refusalAdvice, type Library } from "@corpus/contract";
 import { chipText } from "@/components/source-view";
 import { Button } from "@/components/ui/button";
 import { Chip, chipVariants } from "@/components/ui/chip";
@@ -168,7 +168,9 @@ export function ProposalPanel({
               )}
               {!parsed.ok && text.trim() !== "" && (
                 <p className="text-sm text-destructive">
-                  {t("proposal.invalidIcu")}
+                  {t("editor.invalidIcu", {
+                    message: `${parsed.errors[0]!.message} at ${parsed.errors[0]!.position}${refusalAdvice(text, syntax, parsed.errors[0]!.message)}`,
+                  })}
                 </p>
               )}
               <div className="flex flex-wrap gap-2">

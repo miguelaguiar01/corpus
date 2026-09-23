@@ -96,6 +96,8 @@ export type AddState =
   | {
       status: "error";
       reason: string;
+      // For invalid-icu: what is wrong and what to do (#552).
+      message?: string;
       key: string;
       source: string;
       text: string;
@@ -123,7 +125,14 @@ export async function proposeAddAction(
     actor: { id: user.id },
   });
   if (!result.ok) {
-    return { status: "error", reason: result.reason, key, source, text };
+    return {
+      status: "error",
+      reason: result.reason,
+      ...(result.message ? { message: result.message } : {}),
+      key,
+      source,
+      text,
+    };
   }
   redirect(
     `/p/${slug}/catalogue?added=${encodeURIComponent(result.proposal.key)}`,

@@ -5,6 +5,7 @@ import {
   type SourceChange,
   type Library,
   libraryOf,
+  refusalAdvice,
 } from "@corpus/contract";
 import type { Db } from "@/db";
 import { projects, sourceChanges, strings, users } from "@/db/schema";
@@ -31,7 +32,24 @@ export type ProposeResult =
         | "unchanged"
         | "exists"
         | "unknown-source";
+      // For invalid-icu: what is wrong and what to do, when the text is
+      // not empty (#552).
+      message?: string;
     };
+
+// Why a proposed text is refused, as the CLI would say it (#552): the
+// parser's message and position, with the contract's advice. Undefined
+// when it parses; an empty text has nothing to say beyond the reason.
+function invalidIcuMessage(
+  text: string,
+  syntax: Library = "icu",
+): string | undefined {
+  if (text.trim() === "") return undefined;
+  const parsed = parseIcu(text, syntax);
+  if (parsed.ok) return undefined;
+  const first = parsed.errors[0]!;
+  return `invalid ${syntax === "icu" ? "ICU" : syntax} at ${first.position}: ${first.message}${refusalAdvice(text, syntax, first.message)}`;
+}
 
 function validIcu(text: string, syntax: Library = "icu"): boolean {
   return text.trim() !== "" && parseIcu(text, syntax).ok;
@@ -68,8 +86,14 @@ function forString(
   if (row.archived) return { ok: false, reason: "archived" };
   if (!row.file) return { ok: false, reason: "not-writable" };
   if (kind === "edit") {
-    if (text === undefined || !validIcu(text, row.syntax ?? "icu"))
-      return { ok: false, reason: "invalid-icu" };
+    if (text === undefined || !validIcu(text, row.syntax ?? "icu")) {
+      const message = invalidIcuMessage(text ?? "", row.syntax ?? "icu");
+      return {
+        ok: false,
+        reason: "invalid-icu",
+        ...(message ? { message } : {}),
+      };
+    }
     if (text === row.source) return { ok: false, reason: "unchanged" };
   }
   return db.transaction((tx) => {
@@ -131,8 +155,14 @@ export function proposeAdd(
     (s) => s.path === input.sourcePath,
   );
   if (!source) return { ok: false, reason: "unknown-source" };
-  if (!validIcu(input.text, libraryOf(source)))
-    return { ok: false, reason: "invalid-icu" };
+  if (!validIcu(input.text, libraryOf(source))) {
+    const message = invalidIcuMessage(input.text, libraryOf(source));
+    return {
+      ok: false,
+      reason: "invalid-icu",
+      ...(message ? { message } : {}),
+    };
+  }
   const existing = db
     .select({ id: strings.id })
     .from(strings)
