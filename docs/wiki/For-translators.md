@@ -25,7 +25,7 @@ Some strings have more than plain text in them, and those parts must survive int
 
 **Placeholders** are values the application drops in — a name, a count, a date. They appear as chips below the box; click one to insert it. The same placeholders shown in the source text carry a tooltip saying what each one holds, and sometimes a grammatical hint about what arrives.
 
-You cannot save a translation that has lost one. The editor checks as you type, lists what is wrong under the box, and **Save translation** stays disabled until it is right — so the mistake is caught where you made it rather than after you moved on.
+You cannot save a translation that has lost one, and if the source changed under your draft while you wrote it, the page says so and keeps the draft for you to read against the new source. The editor checks as you type, lists what is wrong under the box, and **Save translation** stays disabled until it is right — so the mistake is caught where you made it rather than after you moved on.
 
 **Selects and plurals** are a choice of wording. A plural is not always two branches: the editor offers the branches *your* language uses, which is anything from one (Japanese, Chinese) to four (Russian, Polish, Czech), five (Irish) or six (Arabic, Welsh). Most languages have two, as English does; the ones that do not are where the mistakes happen. Use the chip, fill each branch, and let the editor tell you if one is missing.
 

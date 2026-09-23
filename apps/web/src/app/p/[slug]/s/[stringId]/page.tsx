@@ -41,6 +41,8 @@ type Query = {
   language?: string;
   error?: string;
   warning?: string;
+  // A draft a refused save carried back (#529).
+  draft?: string;
 };
 
 const PROPOSAL_ERROR_KEY: Record<string, MessageKey> = {
@@ -133,6 +135,12 @@ export default async function StringPage({
       format: formats.get(name),
     }),
   );
+  // A draft rides back only beside the refusal or warning that carried
+  // it, and only as one string: a bare link with ?draft= is ignored.
+  const carriedDraft =
+    typeof query.draft === "string" && (query.error || query.warning)
+      ? query.draft
+      : undefined;
   const errorKey = query.error
     ? (ERROR_KEY[query.error] ?? "verify.errorGeneric")
     : undefined;
@@ -241,6 +249,9 @@ export default async function StringPage({
             {query.warning === "changed" && (
               <Banner tone="warning">{t("verify.warningChanged")}</Banner>
             )}
+            {query.warning === "source-changed" && (
+              <Banner tone="warning">{t("editor.warningSourceChanged")}</Banner>
+            )}
             <StateChips
               languages={project.languages}
               states={translations}
@@ -332,7 +343,7 @@ export default async function StringPage({
                 syntax={string.syntax}
                 slots={slots}
                 language={target}
-                initialText={targetRow.text ?? ""}
+                initialText={carriedDraft ?? targetRow.text ?? ""}
                 slug={slug}
                 stringKey={string.key}
                 openedVersion={targetRow.version}

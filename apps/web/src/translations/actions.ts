@@ -35,6 +35,7 @@ async function act(
     action,
     queue: isQueueKind(queue) ? queue : undefined,
     openedVersion: Number.isFinite(opened) ? opened : undefined,
+    openedSource: field(formData, "openedSource"),
   });
   if (result.kind === "not-found") notFound();
   redirect(result.to);
