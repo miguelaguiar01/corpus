@@ -201,9 +201,17 @@ test("every command is a table row, and the usage and the refusal table are both
   expect(Object.keys(KNOWN_FLAGS)).toEqual(
     COMMANDS.filter((c) => c.flags !== "own").map((c) => c.name),
   );
-  // A word the table lacks is not a command.
+  // A word the table lacks is not a command, and every row is dispatched:
+  // a row's own refusal answers an impossible flag, never a fall-through.
   const c = ctx();
   expect(await run(["frobnicate"], c)).toBe(1);
+  for (const command of COMMANDS) {
+    if (command.flags === "own") continue;
+    const probe = ctx();
+    const words = [...command.name.split(" "), "--frobnicate"];
+    expect(await run(words, probe)).toBe(1);
+    expect(probe.output.join("\n")).toMatch(/--frobnicate/);
+  }
 });
 
 test("check names each kind of entry it could not scan", async () => {

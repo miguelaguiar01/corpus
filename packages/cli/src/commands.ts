@@ -1,6 +1,7 @@
 import { AGENT_USAGE } from "./agent";
 import { INIT_USAGE } from "./init";
 import { MCP_USAGE } from "./mcp";
+import { PROJECT_USAGE } from "./project";
 import { STATUS_USAGE } from "./status";
 import { VALIDATE_USAGE } from "./validate";
 import { WORKBENCH_USAGE } from "./workbench";
@@ -49,12 +50,12 @@ export const COMMANDS: readonly Command[] = [
   // `rotate-token --name X` through.
   {
     name: "project create",
-    usage: "corpus project create [--name <name>] [--server <url>]",
+    usage: PROJECT_USAGE.split(" | ")[0]!,
     flags: ["--name", "--server"],
   },
   {
     name: "project rotate-token",
-    usage: "corpus project rotate-token [--server <url>]",
+    usage: PROJECT_USAGE.split(" | ")[1]!,
     flags: ["--server"],
   },
   { name: "status", usage: STATUS_USAGE, flags: ["--json"] },

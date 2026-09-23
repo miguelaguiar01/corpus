@@ -65,7 +65,9 @@ export async function run(argv: string[], ctx: RunContext): Promise<number> {
       if (command === "mcp") return await mcp(ctx);
       if (command === "agent") return await agent(argv.slice(1), ctx);
       if (command === "pull") return await pull(argv.slice(1), ctx);
-      return await check(ctx);
+      if (command === "check") return await check(ctx);
+      // A table row without a line above is a bug, not a command.
+      throw new Error(`corpus ${command} is in the table and not dispatched`);
     } catch (error) {
       if (error instanceof CliError) {
         ctx.err(`corpus: ${error.message}`);
