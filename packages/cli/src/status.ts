@@ -24,6 +24,9 @@ export type Status = {
   // The declared writable sources (§4): paths, none, or null when the
   // last push predates the declaration.
   writableSources?: string[] | null;
+  // The seed digests the last push carried per language (#601), null
+  // before one and absent from an older server.
+  seedDigests?: Record<string, string> | null;
   progress: {
     perLanguage: Record<string, Counts>;
     perType: Record<string, Record<string, Counts>>;

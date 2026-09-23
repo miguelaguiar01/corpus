@@ -226,6 +226,34 @@ test("a seed equal to the source keeps its text as untranslated, is counted apar
   expect(translationOf(db, "ui.continue", "en")?.updatedAt).toEqual(before);
 });
 
+test("a push's seed digests are kept per language, merged over the last push's, and left by a push that carries none (#601)", () => {
+  const { db, project } = seed();
+  const first = {
+    ...withSeeds({ en: { "ui.continue": "Continue" } }),
+    seedDigests: { en: "aaaa", fr: "ffff" },
+  };
+  applySnapshot(db, project.id, first);
+  const read = () =>
+    db
+      .select({ d: projects.seedDigests })
+      .from(projects)
+      .where(eq(projects.id, project.id))
+      .get()?.d;
+  expect(read()).toEqual({ en: "aaaa", fr: "ffff" });
+  applySnapshot(db, project.id, { ...FIXTURE, seedDigests: { en: "bbbb" } });
+  expect(read()).toEqual({ en: "bbbb", fr: "ffff" });
+  applySnapshot(db, project.id, FIXTURE);
+  expect(read()).toEqual({ en: "bbbb", fr: "ffff" });
+  // A dry run stores nothing.
+  applySnapshot(
+    db,
+    project.id,
+    { ...FIXTURE, seedDigests: { en: "cccc" } },
+    { dryRun: true },
+  );
+  expect(read()).toEqual({ en: "bbbb", fr: "ffff" });
+});
+
 test("a row with Corpus edit history keeps its text over a later seed", () => {
   const { db, project } = seed();
   applySnapshot(db, project.id, FIXTURE);

@@ -36,6 +36,8 @@ export async function GET(request: Request): Promise<Response> {
     version: appVersion(process.env),
     pendingProposals: pendingCount(db, project.id),
     writableSources: writableSources(project),
+    // What the last push digested per language (#601); null before one.
+    seedDigests: project.seedDigests ?? null,
     progress: progressCounts(db, project.id),
   });
 }

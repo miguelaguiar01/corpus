@@ -82,6 +82,12 @@ export const projects = sqliteTable("projects", {
   // The writable file sources push declared (§4), where a new string
   // may go (§11).
   sources: text("sources", { mode: "json" }).$type<WritableSource[]>(),
+  // Per target language, the digest of the seeds the last push carried
+  // for it (#601), so the next push can leave that language's seeds
+  // out; a push from a CLI that sends none leaves them.
+  seedDigests: text("seed_digests", { mode: "json" }).$type<
+    Record<string, string>
+  >(),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
     .$defaultFn(() => new Date()),

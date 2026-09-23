@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { moonlightManor } from "./fixtures/moonlight-manor";
-import { entitySchema, snapshotSchema } from "./snapshot";
+import { entitySchema, snapshotSchema, seedDigest } from "./snapshot";
 
 const MINIMAL = {
   contract: "corpus/1",
@@ -152,4 +152,16 @@ test("a string id may be the sentence itself, as i18next's natural keys are; con
       strings: [{ id: "x".repeat(1001), type: "ui", source: "x" }],
     }).success,
   ).toBe(false);
+});
+
+test("seedDigest is order-free over the pairs and moves with any text (#601)", () => {
+  const a = seedDigest({ "ui.a": "x", "ui.b": "y" });
+  expect(a).toMatch(/^[0-9a-f]{16}$/);
+  expect(seedDigest({ "ui.b": "y", "ui.a": "x" })).toBe(a);
+  expect(seedDigest({ "ui.a": "x", "ui.b": "z" })).not.toBe(a);
+  expect(seedDigest({ "ui.a": "x" })).not.toBe(a);
+  expect(seedDigest({})).toBe(seedDigest({}));
+  // The id and the text are kept apart: moving a character across the
+  // boundary is a different catalogue.
+  expect(seedDigest({ "ui.a": "bx" })).not.toBe(seedDigest({ "ui.ab": "x" }));
 });

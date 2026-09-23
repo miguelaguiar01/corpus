@@ -56,6 +56,12 @@ export const snapshotSchema = z.looseObject({
   seedTranslations: z
     .record(z.string(), z.record(z.string(), z.string()))
     .optional(),
+  // Per target language, `seedDigest` of the seeds the repository holds
+  // (#601): the server keeps the last push's, status returns them, and
+  // a push leaves out the seeds of a language whose digest the server
+  // already has. A language absent from `seedTranslations` still means
+  // nothing to seed.
+  seedDigests: z.record(z.string(), z.string()).optional(),
   // The writable file sources (§4, §8): where a new string may go.
   sources: z.array(writableSourceSchema).optional(),
 });
@@ -64,3 +70,23 @@ export type WritableSource = z.infer<typeof writableSourceSchema>;
 export type Entity = z.infer<typeof entitySchema>;
 export type EntityTypeDeclaration = z.infer<typeof entityTypeDeclarationSchema>;
 export type Snapshot = z.infer<typeof snapshotSchema>;
+
+// The digest of one language's seeds, id to text, as the CLI and the
+// server both compute it (#601): two FNV-1a runs over the sorted pairs,
+// 64 bits between them, so a changed translation anywhere in a file
+// changes it. Not a hash for integrity: a collision only costs a
+// resend the server compares away.
+export function seedDigest(texts: Record<string, string>): string {
+  const ids = Object.keys(texts).sort();
+  let a = 2166136261;
+  let b = 0x9747b28c;
+  for (const id of ids) {
+    const chunk = `${id}\0${texts[id]}\n`;
+    for (let i = 0; i < chunk.length; i++) {
+      const c = chunk.charCodeAt(i);
+      a = Math.imul(a ^ c, 16777619) >>> 0;
+      b = Math.imul(b ^ c, 16777619) >>> 0;
+    }
+  }
+  return a.toString(16).padStart(8, "0") + b.toString(16).padStart(8, "0");
+}

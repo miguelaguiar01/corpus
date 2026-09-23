@@ -70,6 +70,15 @@ export function applySnapshot(
           sources: snapshot.sources ?? null,
           ...(snapshot.typeNotes && { typeNotes: snapshot.typeNotes }),
           ...(snapshot.glossary && { glossary: snapshot.glossary }),
+          // The languages this push digested replace their entries; the
+          // rest stay, as a push carries digests for every target
+          // language it knows (#601).
+          ...(snapshot.seedDigests && {
+            seedDigests: {
+              ...(project.seedDigests ?? {}),
+              ...snapshot.seedDigests,
+            },
+          }),
         })
         .where(eq(projects.id, projectId))
         .run();
@@ -337,6 +346,10 @@ function applySeeds(
       .all()
       .map((row) => [row.stringId, row]),
   );
+  // No seeds, nothing to compare: a push whose every language's digest
+  // the server held (#601) skips the read of the project's rows.
+  if (Object.keys(seeds).length === 0)
+    return { seeded: 0, seedsIgnored: 0, seedsIdentical: 0 };
   const rowKey = (rowId: number, language: string) =>
     `${rowId}\u0000${language}`;
   const edited = new Set(
