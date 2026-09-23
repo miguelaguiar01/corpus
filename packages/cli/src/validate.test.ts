@@ -71,10 +71,15 @@ test("an exec source's translations are validated from its exporter, the command
   const c = ctx();
   expect(await run(["validate"], c)).toBe(1);
   const err = c.stderr.join("\n");
-  expect(err).toContain("exec:node scripts/export.mjs:exec.bye: missing {who}");
+  // An exec line names the language after the key: the command stands
+  // for every language where a file's path names one (#592).
   expect(err).toContain(
-    "exec:node scripts/export.mjs:exec.marks: plural on {n} lacks the many branch its language uses",
+    "exec:node scripts/export.mjs [exec.bye] pt: missing {who}",
   );
+  expect(err).toContain(
+    "exec:node scripts/export.mjs [exec.marks] pt: plural on {n} lacks the many branch its language uses",
+  );
+  expect(err).not.toContain("[exec.bye] fr");
   expect(err).not.toMatch(/is not validated/);
   expect(err).toContain(
     "exec:node scripts/export.mjs:exec.gone: the exporter's strings no longer have this id; 1 target file(s) carry it",
@@ -87,6 +92,7 @@ test("an exec source's translations are validated from its exporter, the command
   expect(JSON.parse(j.stdout.join("\n"))).toContainEqual({
     file: "exec:node scripts/export.mjs",
     key: "exec.bye",
+    language: "pt",
     code: "missing-placeholder",
     severity: "invalid",
     message: "missing {who}",
@@ -113,12 +119,19 @@ test("an exporter's source string that does not parse is one finding, not one pe
   );
   const c = ctx();
   expect(await run(["validate"], c)).toBe(1);
-  expect(
-    c.stderr
-      .join("\n")
-      .split("\n")
-      .filter((l) => l.includes("exec.broken")),
-  ).toHaveLength(1);
+  const broken = c.stderr
+    .join("\n")
+    .split("\n")
+    .filter((l) => l.includes("exec.broken"));
+  expect(broken).toHaveLength(1);
+  // The source's own finding carries the source language.
+  expect(broken[0]).toMatch(
+    /^exec:node scripts\/export\.mjs \[exec\.broken\] en: /,
+  );
+  const j = ctx();
+  expect(await run(["validate", "--json"], j)).toBe(1);
+  const findings = JSON.parse(j.stdout.join("\n")) as { language: string }[];
+  expect(findings.map((f) => f.language)).toEqual(["en"]);
 });
 
 test("a source that does not parse is the source file's finding, once, not one per target", async () => {
