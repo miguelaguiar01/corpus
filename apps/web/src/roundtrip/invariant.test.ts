@@ -69,8 +69,14 @@ function serve(): Promise<{ server: Server; url: string }> {
         req.method === "POST"
           ? await push.POST(request)
           : await pull.GET(request);
-      res.writeHead(response.status, { "content-type": "application/json" });
-      res.end(await response.text());
+      // The body goes through as bytes with its encoding: a pull over
+      // the gzip threshold is inflated by the CLI's fetch, not here (#602).
+      const encoding = response.headers.get("content-encoding");
+      res.writeHead(response.status, {
+        "content-type": "application/json",
+        ...(encoding ? { "content-encoding": encoding } : {}),
+      });
+      res.end(Buffer.from(await response.arrayBuffer()));
     });
   });
   return new Promise((resolve) => {
