@@ -170,7 +170,7 @@ export async function buildSnapshotReport(
     const file = source.path.replace("{lang}", config.sourceLanguage);
     let entries: StringEntry[];
     try {
-      entries = await readEntries(jiti, cwd, file, source);
+      entries = await readEntries(jiti, cwd, file, source, true);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       errors.push(`${file}: ${message}`);
@@ -402,11 +402,15 @@ export type FileSource = Exclude<Source, { adapter: "exec" }>;
 
 // A catalogue file through its source's adapter: the entries push would
 // send for it, or, for a target file, the translations it holds.
+// `sourceFile` is the source language's catalogue, where an empty value
+// under a sentence key reads the key as the text (#589); a target's
+// empty value is an untranslated row.
 export async function readEntries(
   jiti: ReturnType<typeof createJiti>,
   cwd: string,
   file: string,
   source: FileSource,
+  sourceFile = false,
 ): Promise<StringEntry[]> {
   const data = await readModule(
     jiti,
@@ -418,14 +422,16 @@ export async function readEntries(
       ? messagesToEntries(data, {
           type: source.type,
           arb: isArb(file),
+          keyIsText: sourceFile,
         })
       : tableToEntries(data, { type: source.type, map: source.map });
   // A namespaced file's ids are `ns:key` (#513), i18next's own separator.
   return source.namespace
-    ? entries.map((entry) => ({
-        ...entry,
-        id: `${source.namespace}:${entry.id}`,
-      }))
+    ? entries.map((entry) => {
+        const prefixed = { ...entry, id: `${source.namespace}:${entry.id}` };
+        if (KEY_IS_TEXT.has(entry)) KEY_IS_TEXT.add(prefixed);
+        return prefixed;
+      })
     : entries;
 }
 

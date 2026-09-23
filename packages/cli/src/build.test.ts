@@ -326,6 +326,19 @@ test("an empty value under a sentence key is the key as text: no file on the ent
     "{amount} off": "{amount} de desconto",
     "Sign in": "Entrar",
   });
+  // Through a {ns} pattern the prefixed entry keeps the mark: still no file.
+  const namespaced = config({
+    languages: ["en", "pt"],
+    sources: [
+      { adapter: "messages", type: "ui", path: "keyedns/{ns}/{lang}.json" },
+    ],
+  });
+  const ns = await buildSnapshotReport(namespaced, REPO);
+  const keyedNs = ns.snapshot.strings.find(
+    (s) => s.id === "portal:{amount} off",
+  );
+  expect(keyedNs).toMatchObject({ source: "{amount} off" });
+  expect(keyedNs).not.toHaveProperty("file");
 });
 
 test("an .arb catalogue reads as JSON, its @ entries as metadata, and writes back (#558)", async () => {

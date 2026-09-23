@@ -340,6 +340,7 @@ async function libraryFor(
         cwd,
         concrete.replace("{lang}", sourceLanguage),
         { adapter: "messages", type, path: concrete },
+        true,
       );
       texts.push(...entries.map((entry) => entry.source));
       ids.push(...entries.map((entry) => entry.id));

@@ -70,19 +70,45 @@ test("keys already containing dots are preserved as-is", () => {
 
 test("an empty value under a sentence key reads the key as the text; a dotted key stays empty (#589)", () => {
   const entries = messagesToEntries(
-    { "{amount} off": "", "Sign in": "", "ui.empty": "", "ui.title": "Title" },
-    { type: "ui" },
+    {
+      "{amount} off": "",
+      "Sign in": "",
+      Email: "",
+      free: "",
+      "Redeeming...": "",
+      "ui.empty": "",
+      "ui.title": "Title",
+    },
+    { type: "ui", keyIsText: true },
   );
   expect(entries.map((e) => [e.id, e.source])).toEqual([
     ["{amount} off", "{amount} off"],
     ["Sign in", "Sign in"],
+    ["Email", "Email"],
+    ["free", "free"],
+    ["Redeeming...", "Redeeming..."],
     ["ui.empty", ""],
     ["ui.title", "Title"],
   ]);
   expect(entries.filter((e) => KEY_IS_TEXT.has(e)).map((e) => e.id)).toEqual([
     "{amount} off",
     "Sign in",
+    "Email",
+    "free",
+    "Redeeming...",
   ]);
+  // A file with no sentence key is a dotted catalogue: an empty value
+  // is a row an extraction tool left, and stays empty.
+  expect(
+    messagesToEntries(
+      { free: "", "ui.title": "Title" },
+      { type: "ui", keyIsText: true },
+    ).map((e) => e.source),
+  ).toEqual(["", "Title"]);
+  // A target file never takes its keys: "" is an untranslated row.
+  expect(
+    messagesToEntries({ "Sign in": "" }, { type: "ui" }).map((e) => e.source),
+  ).toEqual([""]);
   expect(keyIsSentence("a.b_c-d:e")).toBe(false);
   expect(keyIsSentence("Hello!")).toBe(true);
 });

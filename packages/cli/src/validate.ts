@@ -138,7 +138,7 @@ export async function validateRepo(
     }
     if (!source.path.includes("{lang}") || !writesBack(source.path)) continue;
     const sourceFile = source.path.replace("{lang}", config.sourceLanguage);
-    const sources = await texts(jiti, cwd, sourceFile, source);
+    const sources = await texts(jiti, cwd, sourceFile, source, true);
     if (sources === undefined) {
       throw new CliError(`source file ${sourceFile} does not exist`);
     }
@@ -211,10 +211,11 @@ async function texts(
   cwd: string,
   rel: string,
   source: FileSource,
+  sourceFile = false,
 ): Promise<Map<string, string> | undefined> {
   if (!existsSync(path.join(cwd, rel))) return undefined;
   try {
-    const entries = await readEntries(jiti, cwd, rel, source);
+    const entries = await readEntries(jiti, cwd, rel, source, sourceFile);
     return new Map(entries.map((e) => [e.id, e.source]));
   } catch (error) {
     throw new CliError(`${rel}: ${(error as Error).message}`);

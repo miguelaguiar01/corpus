@@ -60,6 +60,7 @@ test("a sentence key with an empty value validates its translations against the 
   write("keyed/pt.json", {
     "{amount} off": "{amount} de desconto",
     "Sign in": "Entrar {x}",
+    "Not in the source": "",
   });
   const c = ctx();
   expect(await run(["validate"], c)).toBe(1);
@@ -67,6 +68,9 @@ test("a sentence key with an empty value validates its translations against the 
     "keyed/pt.json:Sign in: unexpected {x}",
   );
   expect(c.stderr.join("\n")).not.toContain("{amount} off");
+  // A target's empty value stays an untranslated row, not an orphan.
+  expect(c.stderr.join("\n")).not.toContain("Not in the source");
+  expect(c.stderr.join("\n")).toMatch(/corpus: 1 invalid translation\(s\)$/);
 });
 
 test("a clean repository is valid, exec sources are named as not validated, missing keys are not findings", async () => {

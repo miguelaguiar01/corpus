@@ -87,12 +87,14 @@ export default defineCorpus({
     //    `library: "i18next"` for a catalogue written with {{name}},
     //    `library: "vue"` for vue-i18n's {name}, pipe plurals and {'…'}
     //    interpolation, read and written back as written (§5). The old
-    //    name for this field is `syntax`; it goes at 1.0. A value that is
-    //    "" under a sentence key (whitespace, or anything outside a dotted
-    //    identifier) reads the key as the text, which is i18next's natural
-    //    keys; such a string carries no file, so a proposal on it is
-    //    refused, and build says how many took the key. A dotted key with
-    //    an empty value stays empty.
+    //    name for this field is `syntax`; it goes at 1.0. A file with an
+    //    empty value under a sentence key (whitespace, or anything outside
+    //    a dotted identifier) uses i18next's natural keys: every empty
+    //    value in it reads its key as the text ("Email", "free" too),
+    //    unless the key is a lowercase dotted path, which stays empty; such
+    //    a string carries no file, so a proposal on it is refused, and
+    //    build says how many took the key. A file with no sentence key
+    //    keeps its empty values empty: rows an extraction tool left.
     { adapter: "messages", type: "chrome", path: "src/i18n/messages.{lang}.json" },
 
     // 2. Generic structured-data adapter: point at a JSON/TS module and map

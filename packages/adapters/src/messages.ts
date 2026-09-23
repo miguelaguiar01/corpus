@@ -3,7 +3,13 @@ import type { StringEntry } from "@corpus/contract";
 // `arb`: Flutter's ARB is JSON whose top-level keys starting with "@"
 // are metadata for their sibling ("@wallpaper", "@@locale"), not text
 // (#558); a nested object under such a key is left alone.
-export type MessagesOptions = { type: string; arb?: boolean };
+// `keyIsText` is for the source-language file alone: a target file's
+// empty value is an untranslated row, never the key.
+export type MessagesOptions = {
+  type: string;
+  arb?: boolean;
+  keyIsText?: boolean;
+};
 
 // The entries whose source is their key: an i18next catalogue with
 // natural keys writes the sentence as the key and "" as the value, and
@@ -13,10 +19,31 @@ export type MessagesOptions = { type: string; arb?: boolean };
 export const KEY_IS_TEXT = new WeakSet<StringEntry>();
 
 // A key that is a sentence rather than a path: whitespace, or anything
-// outside a dotted identifier. A dotted identifier with an empty value
-// stays empty.
+// outside a dotted identifier. One such key with an empty value means
+// the file uses natural keys, and then every empty value takes its key
+// ("Email", "free", "Redeeming...") unless the key is a lowercase dotted
+// path ("ui.title"), which stays empty.
 export function keyIsSentence(id: string): boolean {
   return /\s/.test(id) || !/^[A-Za-z0-9_.:-]+$/.test(id);
+}
+
+function keyIsPath(id: string): boolean {
+  return /^[a-z0-9_-]+(\.[a-z0-9_-]+)+$/.test(id);
+}
+
+function takeKeys(
+  entries: StringEntry[],
+  options: MessagesOptions,
+): StringEntry[] {
+  if (!options.keyIsText) return entries;
+  const empty = entries.filter((entry) => entry.source === "");
+  if (!empty.some((entry) => keyIsSentence(entry.id))) return entries;
+  return entries.map((entry) => {
+    if (entry.source !== "" || keyIsPath(entry.id)) return entry;
+    const keyed = { ...entry, source: entry.id };
+    KEY_IS_TEXT.add(keyed);
+    return keyed;
+  });
 }
 
 // Flat or nested key-value catalog (already-parsed JSON/TS) -> snapshot
@@ -42,7 +69,7 @@ export function messagesToEntries(
     );
     walk(strings, [], options.type, entries);
     // @key.description is the string's note (#567).
-    return entries.map((entry) => {
+    return takeKeys(entries, options).map((entry) => {
       const meta = record[`@${entry.id}`];
       const description =
         meta && typeof meta === "object" && !Array.isArray(meta)
@@ -56,7 +83,7 @@ export function messagesToEntries(
     });
   }
   walk(data, [], options.type, entries);
-  return entries;
+  return takeKeys(entries, options);
 }
 
 function walk(
@@ -66,12 +93,7 @@ function walk(
   out: StringEntry[],
 ): void {
   if (typeof node === "string") {
-    const id = path.join(".");
-    if (node === "" && keyIsSentence(id)) {
-      const entry = { id, type, source: id };
-      KEY_IS_TEXT.add(entry);
-      out.push(entry);
-    } else out.push({ id, type, source: node });
+    out.push({ id: path.join("."), type, source: node });
     return;
   }
   if (node === null || typeof node !== "object" || Array.isArray(node)) {
