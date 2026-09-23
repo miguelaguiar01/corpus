@@ -129,6 +129,11 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   ctx.out(
     `  1. corpus workbench (needs @corpus-tool/workbench) starts an instance, creates the project "${project}" and writes its token to .corpus/token.`,
   );
+  if (option(args, "--server") === undefined) {
+    ctx.out(
+      `     The config's server is ${server}: corpus workbench listens there by default; for another port, edit the config or run init with --server.`,
+    );
+  }
   ctx.out(
     `     For another instance at ${server}: CORPUS_INVITE_SECRET=<its secret> corpus project create prints the token, for CORPUS_TOKEN or .corpus/token.`,
   );

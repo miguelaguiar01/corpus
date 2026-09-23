@@ -9,7 +9,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
-import { prepare } from "./workbench";
+import { prepare, serverNote } from "./workbench";
 import { CORPUS_DIR } from "./corpus-dir";
 
 const dirs: string[] = [];
@@ -81,4 +81,17 @@ test("--db picks the database path; no .gitignore means one is created with the 
   expect(readFileSync(path.join(dir, ".gitignore"), "utf8")).toBe(".corpus/\n");
   // A second start finds the line and says nothing.
   expect(prepare(dir, { db: "data/local.db" }).notes).toEqual([]);
+});
+
+test("a config whose server is another port is named beside the URL (#559)", async () => {
+  const dir = repo();
+  expect(await serverNote(dir, "http://localhost:4100")).toBeUndefined();
+  writeFileSync(
+    path.join(dir, "corpus.config.mjs"),
+    `export default { project: "p", server: "http://localhost:3000", sourceLanguage: "en", languages: ["en"], sources: [{ adapter: "messages", type: "ui", path: "i18n/{lang}.json" }] };\n`,
+  );
+  expect(await serverNote(dir, "http://localhost:4100")).toBe(
+    "config    server is http://localhost:3000; push goes there. Edit corpus.config.mjs to point it here",
+  );
+  expect(await serverNote(dir, "http://localhost:3000/")).toBeUndefined();
 });

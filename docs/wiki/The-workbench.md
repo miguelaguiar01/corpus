@@ -28,7 +28,7 @@ The first run creates the project your config names and writes its token. Later 
 
 | Flag | What it does |
 |---|---|
-| `--port <n>` | Listen elsewhere. `3000` by default. |
+| `--port <n>` | Listen elsewhere. `3000` by default. The config's `server` is where `push` goes, so a workbench on another port names it beside the URL; pass `--server` to `init`, or edit the config, to match. |
 | `--db <path>` | Use a database somewhere else, which is how you run an instance from a directory that is not the repository. |
 | `--open` | Open a browser at it. |
 | `--no-provision` | Do not create or look for a project. |

@@ -5,7 +5,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import type { RunContext } from "./cli";
 import { option } from "./args";
-import { CliError } from "./config";
+import { CliError, CONFIG_FILENAMES, loadConfig } from "./config";
 import {
   CORPUS_DIR,
   DB_FILE,
@@ -144,6 +144,8 @@ export async function workbench(
   if (wantsProvision(ctx.cwd, args)) {
     ctx.out(`  ${await provision(ctx.cwd, url, prepared.secret)}`);
   }
+  const note = await serverNote(ctx.cwd, url);
+  if (note) ctx.out(`  ${note}`);
   ctx.out("  stop      Ctrl-C");
   if (args.includes("--open")) openBrowser(url);
 
@@ -169,4 +171,26 @@ function openBrowser(url: string): void {
   const opener = spawn(command, args, { detached: true, stdio: "ignore" });
   opener.on("error", () => {});
   opener.unref();
+}
+
+// The config's server is where push goes; a workbench on another port
+// says so, since the next push would otherwise fail on a URL nobody
+// typed (#559). A config that does not load is the build's to report.
+export async function serverNote(
+  cwd: string,
+  url: string,
+): Promise<string | undefined> {
+  const configFile = CONFIG_FILENAMES.find((name) =>
+    existsSync(path.join(cwd, name)),
+  );
+  if (!configFile) return undefined;
+  let server: string;
+  try {
+    server = (await loadConfig(cwd)).server;
+  } catch {
+    return undefined;
+  }
+  const same = (value: string) => value.replace(/\/+$/, "").toLowerCase();
+  if (same(server) === same(url)) return undefined;
+  return `config    server is ${server}; push goes there. Edit ${configFile} to point it here`;
 }
