@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- `corpus init` counts the placeholder shapes a catalogue uses before naming its library: `{{ }}` is i18next only when it outnumbers the single-brace and the printf strings, so Gitea's one `{{filesize}}` among 4,000 printf strings no longer makes the project i18next; a catalogue whose placeholders are printf verbs is told that Corpus does not check them, and i18next plural keys with `{ }` interpolation (Ghost) are told they stay `icu`, which checks the placeholders where the i18next library would read a single brace as text.
 - `corpus init` writes `corpus.config.mjs` as a plain object when `@corpus-tool/cli` is not installed in the repository, and says so; it used to write the typed `corpus.config.ts`, whose import of the package fails to load on the next command when the CLI runs from npx (every project of the 0.18.0 trial). With the package installed it still writes the typed file.
 
 ## [0.18.0] - 2026-09-23
