@@ -81,13 +81,23 @@ function collision(id: string): never {
   );
 }
 
+// `locale` is an .arb's language. A missing .json is the template with
+// the strings swapped and the rest deleted, which for an .arb would leave
+// the source's `@@locale` and the shells of its `@key` metadata behind;
+// a missing .arb is written from the template's strings alone, with
+// `@@locale` first, since gen-l10n reads the locale from it before the
+// file name (#568). The `@key` metadata stays in the source, where
+// gen-l10n reads it.
 export function entriesToMessages(
   template: string,
   translations: Record<string, string>,
   existing?: string,
+  options: { locale?: string } = {},
 ): string {
   const base = existing !== undefined ? existing : template;
-  if (base.trim() === "") return fromTemplate(template, translations);
+  const missing = existing === undefined || existing.trim() === "";
+  if (base.trim() === "" || (missing && options.locale !== undefined))
+    return fromTemplate(template, translations, options.locale);
   const baseTree = parseTree(base);
   const style = styleOf(base);
   const nested = isNested(baseTree);
@@ -120,11 +130,13 @@ export function entriesToMessages(
 function fromTemplate(
   template: string,
   translations: Record<string, string>,
+  locale?: string,
 ): string {
   const style = styleOf(template);
   const tree = parseTree(template);
   const nested = isNested(tree);
   const out: Tree = Object.create(null) as Tree;
+  if (locale !== undefined) out["@@locale"] = locale;
   const seen = new Set<string>();
   for (const [path] of leaves(tree)) {
     const id = path.join(".");

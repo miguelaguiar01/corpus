@@ -131,7 +131,12 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
         continue;
       const next =
         source.adapter === "messages"
-          ? entriesToMessages(template, translations, existing)
+          ? entriesToMessages(
+              template,
+              translations,
+              existing,
+              isArb(file) ? { locale: language } : {},
+            )
           : entriesToTable(template, translations, source.map, existing);
       if (next !== existing) {
         if (!check) writeFileSync(path.join(ctx.cwd, file), next);

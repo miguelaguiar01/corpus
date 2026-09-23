@@ -563,6 +563,63 @@ test("a component whose language file is missing gets it on pull with its own id
   expect(read("src/Button/i18n/en.json")).toBe(`{\n  "save": "Save"\n}\n`);
 });
 
+test("a first pull into a missing .arb writes @@locale first; a missing .json gets no such key (#568)", async () => {
+  const { mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync } =
+    await import("node:fs");
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8")
+      .replace(
+        /sources: \[[\s\S]*?\n {2}\],/,
+        'sources: [{ adapter: "messages", type: "chrome", path: "arb/strings_{lang}.arb" }, { adapter: "messages", type: "email", path: "i18n/{lang}.json" }],',
+      )
+      .replace(/languages: \[[^\]]*\]/, 'languages: ["en", "pt", "de"]'),
+  );
+  mkdirSync(path.join(repo, "arb"));
+  writeFileSync(
+    path.join(repo, "arb/strings_en.arb"),
+    `{
+  "@@locale": "en",
+  "wallpaper": "Wallpaper",
+  "@wallpaper": {
+    "description": "Menu entry",
+    "placeholders": {}
+  },
+  "photosCount": "{count, plural, one {# photo} other {# photos}}"
+}
+`,
+  );
+  expect(existsSync(path.join(repo, "arb/strings_de.arb"))).toBe(false);
+  expect(existsSync(path.join(repo, "i18n/de.json"))).toBe(false);
+  await serve(200, {
+    ...PAYLOAD,
+    types: {
+      wallpaper: "chrome",
+      photosCount: "chrome",
+      "app.title": "email",
+      greeting: "email",
+    },
+    translations: {
+      en: {
+        wallpaper: "Wallpaper",
+        photosCount: "{count, plural, one {# photo} other {# photos}}",
+        "app.title": "Corpus",
+        greeting: "Hello {name}",
+      },
+      de: { wallpaper: "Hintergrund", greeting: "Hallo {name}" },
+    },
+  });
+  const c = ctx();
+  expect(await run(["pull"], c)).toBe(0);
+  expect(read("arb/strings_de.arb")).toBe(
+    `{\n  "@@locale": "de",\n  "wallpaper": "Hintergrund"\n}\n`,
+  );
+  expect(read("i18n/de.json")).toBe(`{\n  "greeting": "Hallo {name}"\n}\n`);
+});
+
 test("an array of patterns of one type is held together: a pull that changes nothing names no orphan (#513)", async () => {
   const { mkdirSync, writeFileSync, readFileSync, readdirSync } =
     await import("node:fs");
