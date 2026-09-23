@@ -37,7 +37,7 @@ Flat key-value translation tools lose what makes game and app text hard: the pla
 - **Works at whatever width a translator has.** Every surface was designed at 390px first and built out from there, so the same queues and editor work from a phone, a tablet or a desktop.
 - **Agents draft; people verify.** `corpus mcp` is a Model Context Protocol server for Claude Code or any MCP client; `corpus agent` is the same operations as shell commands. An agent reads queues and strings as the editor shows them, saves drafts and proposes source changes, under three rules: it never overwrites a person's work, every draft is attributed, and only a signed-in maintainer verifies. Corpus runs no model.
 
-Corpus translates its own interface with itself. That is the standing demo in these screenshots and a test that runs on every build.
+Corpus translates its own interface with itself. That is the standing demo in these screenshots and a test that runs on every build. The screenshots stage a frozen copy of the interface catalogue, so the interface catalogue's growth no longer moves them; `bin/screenshots --refresh-fixture` takes a new copy when the catalogue's growth is worth showing, and `bin/screenshots` regenerates the images.
 
 ## Quick start
 
