@@ -6,10 +6,15 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 PORT="${CORPUS_SMOKE_PORT:-3902}"
+# A second server on its own empty database for the workbench order
+# (#527): the project is provisioned before anybody joins.
+PORT2="$((PORT + 1))"
 TMP="$(mktemp -d)"
 PID=""
+PID2=""
 cleanup() {
   [ -n "$PID" ] && kill "$PID" >/dev/null 2>&1 || true
+  [ -n "$PID2" ] && kill "$PID2" >/dev/null 2>&1 || true
   rm -rf "$TMP"
 }
 trap cleanup EXIT
@@ -20,7 +25,7 @@ if [ -z "${CORPUS_SMOKE_SKIP_BUILD:-}" ]; then
 fi
 
 echo "=== smoke: stage + start ==="
-mkdir -p "$TMP/run" "$TMP/data"
+mkdir -p "$TMP/run" "$TMP/data" "$TMP/data2"
 cp -r apps/web/.next/standalone/. "$TMP/run/"
 mkdir -p "$TMP/run/apps/web/.next"
 cp -r apps/web/.next/static "$TMP/run/apps/web/.next/static"
@@ -33,13 +38,21 @@ PORT="$PORT" HOSTNAME=localhost NODE_ENV=production \
   CORPUS_INVITE_SECRET=smoke-only-not-a-secret \
   node "$TMP/run/apps/web/server.js" >"$TMP/server.log" 2>&1 &
 PID=$!
-for _ in $(seq 1 60); do
-  curl -sf "http://localhost:$PORT/api/health" >/dev/null 2>&1 && break
-  sleep 1
+PORT="$PORT2" HOSTNAME=localhost NODE_ENV=production \
+  CORPUS_DB_PATH="$TMP/data2/corpus.db" \
+  CORPUS_INVITE_SECRET=smoke-only-not-a-secret \
+  node "$TMP/run/apps/web/server.js" >"$TMP/server2.log" 2>&1 &
+PID2=$!
+for p in "$PORT" "$PORT2"; do
+  for _ in $(seq 1 60); do
+    curl -sf "http://localhost:$p/api/health" >/dev/null 2>&1 && break
+    sleep 1
+  done
+  curl -sf "http://localhost:$p/api/health" >/dev/null || { cat "$TMP/server.log" "$TMP/server2.log" >&2; exit 1; }
 done
-curl -sf "http://localhost:$PORT/api/health" >/dev/null || { cat "$TMP/server.log" >&2; exit 1; }
 
-echo "=== smoke: playwright ==="
-CORPUS_SMOKE_URL="http://localhost:$PORT" CORPUS_SMOKE_SECRET=smoke-only-not-a-secret \
+echo "=== smoke: playwright (bare order on :$PORT, workbench order on :$PORT2) ==="
+CORPUS_SMOKE_URL="http://localhost:$PORT" CORPUS_SMOKE_URL_WORKBENCH="http://localhost:$PORT2" \
+  CORPUS_SMOKE_SECRET=smoke-only-not-a-secret \
   npx playwright test -c apps/web/playwright.config.ts "$@"
 echo "=== smoke: PASS ==="
