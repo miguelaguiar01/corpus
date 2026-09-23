@@ -57,7 +57,10 @@ function render(
       const value = values[name];
       out.push(
         value === undefined
-          ? { text: node.kind === "count" ? "#" : `{${name}}`, value: false }
+          ? {
+              text: node.kind === "count" ? "#" : (node.written ?? `{${name}}`),
+              value: false,
+            }
           : {
               text:
                 node.kind === "placeholder" && node.format

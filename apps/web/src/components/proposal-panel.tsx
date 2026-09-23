@@ -158,10 +158,17 @@ export function ProposalPanel({
                       })}
                       title={slot.description}
                       onClick={() =>
-                        insert(chipText(slot.name, syntax, slot.format))
+                        insert(
+                          chipText(
+                            slot.name,
+                            syntax,
+                            slot.format,
+                            slot.written,
+                          ),
+                        )
                       }
                     >
-                      {chipText(slot.name, syntax, slot.format)}
+                      {chipText(slot.name, syntax, slot.format, slot.written)}
                     </button>
                   ))}
                 </div>

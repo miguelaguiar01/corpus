@@ -14,7 +14,14 @@ export type IcuNode =
   // A formatted placeholder, `{n, number}`, `{d, date, short}`, `{t,
   // time}`, keeps its type and its style (#555): a translation keeps
   // the name and the type and may change the style.
-  | { kind: "placeholder"; name: string; format?: PlaceholderFormat }
+  // Under printf a placeholder is a verb, `%s` or `%[2]d`, named by its
+  // position and kept as `written` for the chip and the message (#594).
+  | {
+      kind: "placeholder";
+      name: string;
+      format?: PlaceholderFormat;
+      written?: string;
+    }
   | { kind: "select"; arg: string; branches: Record<string, IcuNode[]> }
   | { kind: "plural"; arg: string; branches: Record<string, IcuNode[]> }
   // `#` inside a plural branch: the number itself.
@@ -85,8 +92,16 @@ class ParseFailure extends Error {
   }
 }
 
+// printf's verb: Go's `%[n]verb` or C's `%n$verb` index, then flags,
+// width and precision, then the verb letter. `%%` is a literal percent.
+// The space flag is left out: "50% off" is prose, not a verb.
+const PRINTF_VERB_RE =
+  /^%(?:\[(\d+)\]|(\d+)\$)?([-+0#]*(?:\d+|\*)?(?:\.(?:\d+|\*))?)([a-zA-Z])/;
+
 class Parser {
   private pos = 0;
+  // The next verb's position when none is written (#594).
+  private printfNext = 1;
 
   constructor(
     private readonly source: string,
@@ -122,6 +137,34 @@ class Parser {
         }
         flush();
         return nodes;
+      }
+      // printf: braces, angle brackets and `#` are text; `%` opens a verb.
+      if (this.syntax === "printf") {
+        if (ch === "%") {
+          if (this.source[this.pos + 1] === "%") {
+            literal += "%";
+            this.pos += 2;
+            continue;
+          }
+          const verb = PRINTF_VERB_RE.exec(this.source.slice(this.pos));
+          if (verb) {
+            flush();
+            const explicit = verb[1] ?? verb[2];
+            const position = explicit ? Number(explicit) : this.printfNext;
+            this.printfNext = position + 1;
+            nodes.push({
+              kind: "placeholder",
+              name: String(position),
+              written: verb[0],
+            });
+            this.pos += verb[0].length;
+            literalStart = this.pos;
+            continue;
+          }
+        }
+        literal += ch;
+        this.pos += 1;
+        continue;
       }
       if (ch === "<") {
         const tag = this.readTag();
@@ -562,6 +605,32 @@ export function placeholderFormatsOf(
   const result = parseIcu(source, syntax);
   if (result.ok) collectFormats(result.nodes, formats);
   return formats;
+}
+
+// Each placeholder as the source writes it, for a library whose verbs
+// are not their names (printf): position to `%[2]s`.
+export function placeholderWrittenOf(
+  source: string,
+  syntax: Library = "icu",
+): Map<string, string> {
+  const written = new Map<string, string>();
+  const result = parseIcu(source, syntax);
+  if (result.ok) collectWritten(result.nodes, written);
+  return written;
+}
+
+function collectWritten(nodes: IcuNode[], written: Map<string, string>): void {
+  for (const node of nodes) {
+    if (node.kind === "placeholder" && node.written && !written.has(node.name))
+      written.set(node.name, node.written);
+    else if (node.kind === "tag") collectWritten(node.children, written);
+    else if (node.kind === "select" || node.kind === "plural") {
+      for (const branch of Object.values(node.branches))
+        collectWritten(branch, written);
+    } else if (node.kind === "forms") {
+      for (const branch of node.branches) collectWritten(branch, written);
+    }
+  }
 }
 
 // A format as the source writes it after the name: "number, ::percent".

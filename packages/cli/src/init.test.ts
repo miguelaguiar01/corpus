@@ -376,7 +376,7 @@ test("without --library, a source file with {{ }} and no ICU argument is read as
   expect((await loadConfig(none.dir)).sources[0]).not.toHaveProperty("library");
 });
 
-test("init counts the placeholder shapes: one {{ }} among printf verbs is not i18next, and the verbs are named (#591)", async () => {
+test("init counts the placeholder shapes: one {{ }} among printf verbs is not i18next, and the verbs name printf (#591, #594)", async () => {
   const p = project();
   stubCli(p.dir);
   mkdirSync(path.join(p.dir, "src", "i18n"), { recursive: true });
@@ -394,10 +394,11 @@ test("init counts the placeholder shapes: one {{ }} among printf verbs is not i1
   expect(await loadConfig(p.dir)).toMatchObject({
     sources: [{ adapter: "messages" }],
   });
-  expect((await loadConfig(p.dir)).sources[0]).not.toHaveProperty("library");
-  expect(p.out.join("\n")).not.toMatch(/library: i18next/);
+  expect((await loadConfig(p.dir)).sources[0]).toMatchObject({
+    library: "printf",
+  });
   expect(p.out.join("\n")).toMatch(
-    /placeholders are printf verbs \(%d, %s, %v\): Corpus does not check them in src\/i18n\/pt-PT\.json/,
+    /library: printf, from printf verbs in src\/i18n\/pt-PT\.json/,
   );
 
   // A catalogue where {{ }} strings outnumber the single-brace and the

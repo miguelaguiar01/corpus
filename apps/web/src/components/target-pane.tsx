@@ -25,7 +25,12 @@ import { t } from "@/i18n";
 import { insertAtCaret } from "@/translations/caret";
 import { validationMessage } from "@/translations/validation-message";
 
-export type Slot = { name: string; description?: string; format?: string };
+export type Slot = {
+  name: string;
+  description?: string;
+  format?: string;
+  written?: string | null;
+};
 
 type Branching = { kind: "select" | "plural"; arg: string; keys: string[] };
 
@@ -187,9 +192,11 @@ export function TargetPane({
                   .filter(Boolean)
                   .join("\n") || undefined
               }
-              onClick={() => insert(chipText(slot.name, syntax, slot.format))}
+              onClick={() =>
+                insert(chipText(slot.name, syntax, slot.format, slot.written))
+              }
             >
-              {chipText(slot.name, syntax, slot.format)}
+              {chipText(slot.name, syntax, slot.format, slot.written)}
             </button>
           ))}
         </div>

@@ -11,6 +11,7 @@ import {
   tagsOf,
   isVoidTag,
   refusalAdvice,
+  placeholderWrittenOf,
 } from "./icu";
 
 const SIGHTING =
@@ -318,6 +319,48 @@ test("a tag keeps its attribute text as its identity, and a void tag opens nothi
   expect(parseIcu("<a" + " ".repeat(20000)).ok).toBe(true);
   expect(parseIcu("<a" + " ".repeat(20000) + "x").ok).toBe(true);
   expect(Date.now() - started).toBeLessThan(500);
+});
+
+test("printf: verbs are placeholders named by position, %% is a percent, and braces and brackets are text (#594)", () => {
+  const source =
+    'Pushed %d commits to <a href="%s">%s</a>: 100%% done, {not} an argument';
+  const result = parseIcu(source, "printf");
+  expect(result.ok).toBe(true);
+  if (!result.ok) throw new Error("parse failed");
+  expect(result.nodes).toEqual([
+    { kind: "literal", text: "Pushed " },
+    { kind: "placeholder", name: "1", written: "%d" },
+    { kind: "literal", text: ' commits to <a href="' },
+    { kind: "placeholder", name: "2", written: "%s" },
+    { kind: "literal", text: '">' },
+    { kind: "placeholder", name: "3", written: "%s" },
+    { kind: "literal", text: "</a>: 100% done, {not} an argument" },
+  ]);
+  expect([...placeholdersOf(source, "printf")]).toEqual(["1", "2", "3"]);
+  expect([...placeholderWrittenOf(source, "printf")]).toEqual([
+    ["1", "%d"],
+    ["2", "%s"],
+    ["3", "%s"],
+  ]);
+  // Go's %[n] and C's %n$ name the position; an unindexed verb after
+  // one continues from it, as Go reads it. Flags, width and precision
+  // ride with the verb.
+  expect([
+    ...placeholderWrittenOf("%[2]s then %s and %1$d, %-8.2f", "printf"),
+  ]).toEqual([
+    ["2", "%[2]s"],
+    ["3", "%s"],
+    ["1", "%1$d"],
+  ]);
+  expect([
+    ...placeholdersOf("%[2]s then %s and %1$d, %-8.2f", "printf"),
+  ]).toEqual(["2", "3", "1"]);
+  // A % that opens no verb is text, never a refusal.
+  expect(parseIcu("50% off, 100 % and %", "printf")).toMatchObject({
+    ok: true,
+    nodes: [{ kind: "literal", text: "50% off, 100 % and %" }],
+  });
+  expect([...tagsOf('<a href="%s">x</a>', "printf")]).toEqual([]);
 });
 
 test("an unclosed, mismatched or stray tag is a parse error naming it", () => {

@@ -48,8 +48,9 @@ export type StringResponse = {
   // The rich-text tags the source wraps text in (§5); additive.
   tags: string[];
   // The i18n library the source and its translations are written for
-  // (§5): "icu", "i18next" for {{name}} interpolation, or "vue" for
-  // pipe plurals and {'…'} literals. `syntax` is the field's old name,
+  // (§5): "icu", "i18next" for {{name}} interpolation, "vue" for pipe
+  // plurals and {'…'} literals, or "printf" for %s and %[2]s verbs
+  // named by position (#594). `syntax` is the field's old name,
   // sent beside it with the same value until 1.0, when it goes with the
   // config's alias (#522).
   library: Library;
@@ -63,6 +64,9 @@ export type StringResponse = {
     role: string | null;
     // The format the source writes, "number, ::percent", or null (#555).
     format: string | null;
+    // The placeholder as the source writes it when that is not its
+    // name, printf's "%[2]s", or null (#594); additive.
+    written: string | null;
     values: Record<string, string>;
   }[];
   examples: Example[];

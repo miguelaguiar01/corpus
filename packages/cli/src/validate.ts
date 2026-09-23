@@ -232,9 +232,11 @@ export function describe(
     case "invalid-icu":
       return `invalid ${syntax === "i18next" ? "i18next" : "ICU"} in the ${error.where} at ${error.position}: ${error.message}`;
     case "missing-placeholder":
-      return `missing ${written(error.name)}`;
+      return `missing ${error.written ?? written(error.name)}`;
     case "unexpected-placeholder":
-      return `unexpected ${written(error.name)}`;
+      return `unexpected ${error.written ?? written(error.name)}`;
+    case "changed-verb":
+      return `${error.actual} at position ${error.name} is ${error.expected} in the source; a verb that moved needs its index, ${error.indexed}`;
     case "unknown-select":
       return `select on {${error.arg}}, which the source does not select on`;
     case "missing-branch":

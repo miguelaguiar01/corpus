@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { moonlightManor } from "./fixtures/moonlight-manor";
+import type { Library } from "./strings";
 import { validateTranslation, type ValidationError } from "./validate";
 
 const SIGHTING = moonlightManor.strings[0]!.source;
@@ -8,7 +9,7 @@ function errorsOf(
   source: string,
   target: string,
   language?: string,
-  syntax?: "icu" | "i18next",
+  syntax?: Library,
 ): ValidationError[] {
   const result = validateTranslation(source, target, language, syntax);
   return result.ok ? [] : result.errors;
@@ -222,6 +223,102 @@ describe("the source side", () => {
 
   test("the fixture's greenhouse string validates against its own source", () => {
     expect(validateTranslation(SIGHTING, SIGHTING)).toEqual({ ok: true });
+  });
+});
+
+describe("printf", () => {
+  test("a dropped or added verb is named as written; a reorder needs an index in the source's style (#594)", () => {
+    const go = "%s pushed %d commits to %s";
+    expect(
+      validateTranslation(
+        go,
+        "%s enviou %d commits para %s",
+        "pt-PT",
+        "printf",
+      ),
+    ).toEqual({ ok: true });
+    // Dropping the middle verb shifts the last one to its position,
+    // where it prints the count with %s: said as a changed verb and a
+    // missing third.
+    expect(
+      errorsOf(go, "%s enviou commits para %s", "pt-PT", "printf"),
+    ).toEqual([
+      { code: "missing-placeholder", name: "3", written: "%s" },
+      {
+        code: "changed-verb",
+        name: "2",
+        expected: "%d",
+        actual: "%s",
+        indexed: "%[n]s",
+      },
+    ]);
+    expect(
+      errorsOf(go, "%s pushed %d commits to %s extra %d", "pt-PT", "printf"),
+    ).toEqual([{ code: "unexpected-placeholder", name: "4", written: "%d" }]);
+    // Unindexed verbs are named by their order, so a verb moved without
+    // an index reads as another type at its position; every moved verb
+    // indexed is the translator's order. Go's style when the source
+    // writes it, or a %v.
+    expect(
+      errorsOf(go, "Para %s, %s enviou %d commits", "pt-PT", "printf"),
+    ).toEqual([
+      {
+        code: "changed-verb",
+        name: "2",
+        expected: "%d",
+        actual: "%s",
+        indexed: "%[n]s",
+      },
+      {
+        code: "changed-verb",
+        name: "3",
+        expected: "%s",
+        actual: "%d",
+        indexed: "%[n]d",
+      },
+    ]);
+    expect(
+      validateTranslation(
+        go,
+        "Para %3$s, %1$s enviou %2$d commits",
+        "pt-PT",
+        "printf",
+      ),
+    ).toEqual({ ok: true });
+    expect(errorsOf("%[1]s: %v", "%v de %[1]s", "de", "printf")).toEqual([
+      { code: "missing-placeholder", name: "2", written: "%v" },
+      {
+        code: "changed-verb",
+        name: "1",
+        expected: "%[1]s",
+        actual: "%v",
+        indexed: "%[n]v",
+      },
+    ]);
+    expect(
+      validateTranslation("%[1]s: %v", "%[2]v de %[1]s", "de", "printf"),
+    ).toEqual({ ok: true });
+    // C's style only when the source writes a %n$ index itself.
+    expect(errorsOf("%1$s has %2$d", "%d de %s", "pt-PT", "printf")).toEqual([
+      {
+        code: "changed-verb",
+        name: "1",
+        expected: "%1$s",
+        actual: "%d",
+        indexed: "%n$d",
+      },
+      {
+        code: "changed-verb",
+        name: "2",
+        expected: "%2$d",
+        actual: "%s",
+        indexed: "%n$s",
+      },
+    ]);
+    // %% is a percent on both sides and never a placeholder.
+    expect(
+      validateTranslation("%d%% done", "%d %% feito", "pt-PT", "printf"),
+    ).toEqual({ ok: true });
   });
 });
 
