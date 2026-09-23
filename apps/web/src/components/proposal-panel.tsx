@@ -169,7 +169,7 @@ export function ProposalPanel({
               {!parsed.ok && text.trim() !== "" && (
                 <p className="text-sm text-destructive">
                   {t("editor.invalidIcu", {
-                    message: `${parsed.errors[0]!.message} at ${parsed.errors[0]!.position}${refusalAdvice(text, syntax, parsed.errors[0]!.message)}`,
+                    message: `${parsed.errors[0]!.message}${refusalAdvice(text, syntax, parsed.errors[0]!.message)}`,
                   })}
                 </p>
               )}
