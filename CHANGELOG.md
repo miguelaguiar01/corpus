@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-09-23
+
+What the 0.18.0 trial found: the door (empty i18next sources, HTML with attributes, printf verbs, the config init writes) and the size (a 128 MiB push, seeds sent once, a gzipped pull).
+
 ### Added
 
 - A pull's payload is gzipped from 256 KiB when the client accepts it, which Node's fetch does on its own: Bitwarden's pull at `translated` was 7.5 MB on the wire on 0.18.0 and is about a megabyte now; a small project's pull stays plain.
@@ -376,7 +380,8 @@ The first published version.
 - The `messages`, `table` and `exec` adapters, and the `corpus/1` snapshot contract with its ICU subset (placeholders and `select`).
 - The package ships plain JavaScript for Node 22 with type declarations; a client's config imports `defineCorpus` from `@corpus-tool/cli`.
 
-[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.18.0...HEAD
+[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.19.0...HEAD
+[0.19.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.19.0
 [0.18.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.18.0
 [0.17.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.17.0
 [0.16.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.16.0
