@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+### Added
+
+- A string may carry a note of its own: an entry's `note` (§4, additive, still `corpus/1`), which the messages adapter fills from an `.arb`'s `@key.description`, the string page shows above the type's note as "About this string", and `get_string` carries as `stringNote`. Ente's 553 descriptions reach a translator.
+
 ### Changed
 
 - `bin/screenshots` stages a frozen copy of the interface catalogue, kept under `docs/screenshots/fixture`, rather than the live one, so the committed images are a baseline that moves only when the interface does; `--refresh-fixture` takes a new copy on purpose. Every PR that added an interface string used to move the numbers in sixteen images, and a comparison could not tell a font change from a fixture change.

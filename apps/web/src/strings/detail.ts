@@ -38,6 +38,8 @@ export type StringDetail = {
     examples: Example[] | null;
     // The type's voice note (§5), when the project carries one.
     note: string | null;
+    // What the repository says about this one string (§4, #567).
+    stringNote: string | null;
     // The glossary entries whose term occurs in the source (§5), per
     // target language.
     glossary: Record<string, GlossaryEntry[]>;
@@ -144,6 +146,7 @@ export function stringDetail(
       metadata,
       examples: string.examples ?? null,
       note: project.typeNotes?.[string.type] ?? null,
+      stringNote: string.note ?? null,
       glossary: Object.fromEntries(
         Object.entries(project.glossary ?? {}).map(([lang, entries]) => [
           lang,

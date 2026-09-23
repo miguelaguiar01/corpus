@@ -98,6 +98,9 @@ export const stringEntrySchema = z.looseObject({
   // The repository path the entry was read from (§4): what lets a
   // proposal be written back to the right file. Exec entries have none.
   file: z.string().min(1).optional(),
+  // What the repository says about this one string, for a translator:
+  // an ARB's @key.description (§4, #567). Never written back.
+  note: z.string().min(1).optional(),
   // The library the text is written for (§5); plain ICU when absent.
   // `syntax` is the old name, sent beside it until 1.0 so an older
   // server reads a newer CLI's push correctly (§4).

@@ -69,6 +69,9 @@ export type StringResponse = {
   metadata: Record<string, unknown> | null;
   // The type's voice note (§5), or null.
   note: string | null;
+  // What the repository says about this one string, an ARB's
+  // @key.description (§4), or null; additive (#567).
+  stringNote: string | null;
   // The glossary entries whose term occurs in the source (§5), per
   // target language.
   glossary: Record<string, GlossaryEntry[]>;

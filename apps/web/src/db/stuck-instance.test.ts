@@ -94,10 +94,10 @@ test("opening a stuck database repairs it, through migrate", () => {
   cpSync(MIGRATIONS_DIR, before, { recursive: true });
   const journal = JSON.parse(
     readFileSync(path.join(before, "meta", "_journal.json"), "utf8"),
-  ) as { entries: { tag: string }[] };
-  journal.entries = journal.entries.filter(
-    (entry) => !entry.tag.startsWith("0013_"),
-  );
+  ) as { entries: { tag: string; idx: number }[] };
+  // Only as far as 0012: the fix and everything after it are what the
+  // upgrade applies, since the migrator keeps one high-water mark.
+  journal.entries = journal.entries.filter((entry) => entry.idx < 13);
   writeFileSync(
     path.join(before, "meta", "_journal.json"),
     JSON.stringify(journal, null, 2),

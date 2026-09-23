@@ -76,8 +76,10 @@ test("an ARB catalogue's @ entries are metadata, not strings (#558)", () => {
     setWallpaper: "Set {name}",
     "@setWallpaper": { placeholders: { name: { type: "String" } } },
   };
+  // A description beside a string is its note (#567); a placeholders
+  // block alone is not.
   expect(messagesToEntries(arb, { type: "ui", arb: true })).toEqual([
-    { id: "wallpaper", type: "ui", source: "Wallpaper" },
+    { id: "wallpaper", type: "ui", source: "Wallpaper", note: "Menu entry" },
     { id: "setWallpaper", type: "ui", source: "Set {name}" },
   ]);
   // Without the flag an @ entry is an object like any other, and fails

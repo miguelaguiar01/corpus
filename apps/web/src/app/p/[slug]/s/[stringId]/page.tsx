@@ -228,6 +228,11 @@ export default async function StringPage({
               syntax={string.syntax}
               declarations={declarations}
             />
+            {string.stringNote && (
+              <Section heading={t("string.stringNoteLabel")} level={3}>
+                <p className="text-sm">{string.stringNote}</p>
+              </Section>
+            )}
             {string.note && (
               <Section
                 heading={t("string.noteLabel", { type: string.type })}

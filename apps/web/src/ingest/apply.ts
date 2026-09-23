@@ -95,6 +95,7 @@ export function applySnapshot(
             metadata: entry.metadata,
             examples: entry.examples,
             file: entry.file ?? null,
+            note: entry.note ?? null,
             syntax: entryLibrary(entry),
           })
           .returning()
@@ -127,6 +128,7 @@ export function applySnapshot(
             metadata: entry.metadata,
             examples: entry.examples,
             file: entry.file ?? null,
+            note: entry.note ?? null,
             syntax: entryLibrary(entry),
             archived: false,
           })
@@ -144,6 +146,7 @@ export function applySnapshot(
             metadata: entry.metadata,
             examples: entry.examples,
             file: entry.file ?? null,
+            note: entry.note ?? null,
             syntax: entryLibrary(entry),
             archived: false,
           })
