@@ -103,8 +103,8 @@ status {}
       "pt-PT"
     ],
     "strings": 2,
-    "lastPushAt": "2026-09-23T16:33:26.693Z",
-    "version": "v0.17.0",
+    "lastPushAt": "2026-09-23T17:03:04.762Z",
+    "version": "v0.18.0",
     "pendingProposals": 0,
     "writableSources": [
       "src/i18n/{lang}.json"
