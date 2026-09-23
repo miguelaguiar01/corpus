@@ -7,6 +7,13 @@
 # PR evidence (CORPUS_SHOTS_DIR points the output elsewhere).
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# --refresh-fixture rewrites the frozen interface catalogue the shots
+# stage (docs/screenshots/fixture) from the live one, and stops: a
+# deliberate commit, after which the images are regenerated.
+if [ "${1:-}" = "--refresh-fixture" ]; then
+  npx tsx apps/web/e2e/screenshot-fixture.ts --refresh
+  exit 0
+fi
 
 PORT="${CORPUS_SMOKE_PORT:-3903}"
 PID=""

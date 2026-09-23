@@ -1,0 +1,1398 @@
+{
+  "contract": "corpus/1",
+  "project": "corpus-chrome",
+  "sourceLanguage": "en",
+  "strings": [
+    {
+      "id": "app.tagline",
+      "type": "chrome",
+      "source": "A translation workbench for structured text",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "app.title",
+      "type": "chrome",
+      "source": "Corpus",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "catalogue.archivedFilter",
+      "type": "chrome",
+      "source": "Archived shown",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "catalogue.empty",
+      "type": "chrome",
+      "source": "No strings yet. Push a snapshot to populate this project.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "catalogue.filters",
+      "type": "chrome",
+      "source": "Active filters",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "catalogue.heading",
+      "type": "chrome",
+      "source": "Catalogue",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "catalogue.loadMore",
+      "type": "chrome",
+      "source": "Load more",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "catalogue.removeFilter",
+      "type": "chrome",
+      "source": "Remove {label}",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "catalogue.search",
+      "type": "chrome",
+      "source": "Search",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "catalogue.searchPlaceholder",
+      "type": "chrome",
+      "source": "Search source text…",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "dashboard.progressHeading",
+      "type": "chrome",
+      "source": "Progress",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "dashboard.queuesHeading",
+      "type": "chrome",
+      "source": "What to work on",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "editor.errorEmpty",
+      "type": "chrome",
+      "source": "Nothing to save: the translation is empty.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "editor.errorInvalid",
+      "type": "chrome",
+      "source": "That translation was not saved: what is wrong is listed under the box, with your draft kept.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "editor.errorSourceRow",
+      "type": "chrome",
+      "source": "The source text comes from the repository and is not edited here.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "editor.filterLanguages",
+      "type": "chrome",
+      "source": "Filter languages…",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "editor.formatChanged",
+      "type": "chrome",
+      "source": "{name} is a {type} in the source, not a {actual}",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "editor.formatDropped",
+      "type": "chrome",
+      "source": "{name} is a {type} in the source; write it with its format",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "editor.insertPlural",
+      "type": "chrome",
+      "source": "Insert a plural on {arg} with the branches {keys}",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "editor.insertSelect",
+      "type": "chrome",
+      "source": "Insert a select on {arg} with the keys {keys}",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "editor.insertTag",
+      "type": "chrome",
+      "source": "Insert the <{name}> tag, which the translation must keep",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "editor.invalidIcu",
+      "type": "chrome",
+      "source": "Malformed message: {message}",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "editor.languages",
+      "type": "chrome",
+      "source": "Language",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "editor.missingBranch",
+      "type": "chrome",
+      "source": "Select {arg} is missing the {key} branch",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "editor.missingCategory",
+      "type": "chrome",
+      "source": "Plural {arg} is missing the {key} branch this language uses",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "editor.missingPlaceholder",
+      "type": "chrome",
+      "source": "Missing {name}",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "editor.missingTag",
+      "type": "chrome",
+      "source": "Missing the <{name}> tag",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "editor.noLanguageMatches",
+      "type": "chrome",
+      "source": "No language matches.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "editor.pickLanguage",
+      "type": "chrome",
+      "source": "Pick a language",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "editor.placeholders",
+      "type": "chrome",
+      "source": "Insert a placeholder",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "editor.previewHeading",
+      "type": "chrome",
+      "source": "Preview with {language} values",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "editor.proofreading",
+      "type": "chrome",
+      "source": "Proofreading the source ({language}). Translations are edited from the untranslated and stale queues.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "editor.save",
+      "type": "chrome",
+      "source": "Save translation",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "editor.selects",
+      "type": "chrome",
+      "source": "Insert a select or a plural",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "editor.staleBanner",
+      "type": "chrome",
+      "source": "The source text changed after this translation was saved. Check it against the source above, then save again.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "editor.tags",
+      "type": "chrome",
+      "source": "Insert a tag",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "editor.targetLabel",
+      "type": "chrome",
+      "source": "Translation ({language})",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "editor.unexpectedBranch",
+      "type": "chrome",
+      "source": "Select {arg} has an extra {key} branch",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "editor.unexpectedCategory",
+      "type": "chrome",
+      "source": "Plural {arg} has a {key} branch this language does not use",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "editor.unexpectedPlaceholder",
+      "type": "chrome",
+      "source": "Unexpected {name}",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "editor.unexpectedTag",
+      "type": "chrome",
+      "source": "Unexpected <{name}> tag",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "editor.unknownPlural",
+      "type": "chrome",
+      "source": "The source has no value {arg} to count",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "editor.unknownSelect",
+      "type": "chrome",
+      "source": "The source has no select on {arg}",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "editor.warningSourceChanged",
+      "type": "chrome",
+      "source": "The source changed since you opened this string. Your draft is kept below; read it against the new source before saving.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "entities.all",
+      "type": "chrome",
+      "source": "All",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "entities.empty",
+      "type": "chrome",
+      "source": "No entities yet. Push a snapshot that includes them.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "entities.heading",
+      "type": "chrome",
+      "source": "Entities",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "entities.noMatches",
+      "type": "chrome",
+      "source": "No entities match. Clear the search or pick another type.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "entities.search",
+      "type": "chrome",
+      "source": "Search entities",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "entities.searchPlaceholder",
+      "type": "chrome",
+      "source": "Search entities by name…",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "entities.types",
+      "type": "chrome",
+      "source": "Entity types",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "facet.archived",
+      "type": "chrome",
+      "source": "Show archived",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "facet.language",
+      "type": "chrome",
+      "source": "Language",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "facet.state",
+      "type": "chrome",
+      "source": "State",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "facet.type",
+      "type": "chrome",
+      "source": "Type",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "history.change",
+      "type": "chrome",
+      "source": "{from} to {to}",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "history.empty",
+      "type": "chrome",
+      "source": "No edits yet.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "home.emptyMaintainer",
+      "type": "chrome",
+      "source": "Create a project, then push your repository's text into it from its root:",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "home.emptyTranslator",
+      "type": "chrome",
+      "source": "A maintainer creates a project and pushes the repository's text into it. There is nothing to translate until then.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "home.newProject",
+      "type": "chrome",
+      "source": "New project",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "home.noProjects",
+      "type": "chrome",
+      "source": "No projects yet.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "home.projectsHeading",
+      "type": "chrome",
+      "source": "Projects",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "invite.choosePasswordLabel",
+      "type": "chrome",
+      "source": "Choose a password",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "invite.errorCredentials",
+      "type": "chrome",
+      "source": "That name and password were not accepted.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "invite.errorInvalid",
+      "type": "chrome",
+      "source": "That invite secret was not accepted, or the name is empty.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "invite.errorNameTaken",
+      "type": "chrome",
+      "source": "That name is taken. Sign in above, or pick another.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "invite.errorRateLimited",
+      "type": "chrome",
+      "source": "Too many failed attempts. Try again in {minutes} min.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "invite.errorWeakPassword",
+      "type": "chrome",
+      "source": "That password is too short. Use at least eight characters.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "invite.heading",
+      "type": "chrome",
+      "source": "New here? Join with the invite secret",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "invite.intro",
+      "type": "chrome",
+      "source": "The instance invite secret lets you in once. Pick the display name your colleagues will see and a password of your own.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "invite.joinNameLabel",
+      "type": "chrome",
+      "source": "Display name",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "invite.nameLabel",
+      "type": "chrome",
+      "source": "Name",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "invite.passwordHint",
+      "type": "chrome",
+      "source": "At least {min} characters. A sentence works well.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "invite.passwordLabel",
+      "type": "chrome",
+      "source": "Password",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "invite.secretLabel",
+      "type": "chrome",
+      "source": "Invite secret",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "invite.signIn",
+      "type": "chrome",
+      "source": "Sign in",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "invite.signInHeading",
+      "type": "chrome",
+      "source": "Sign in to Corpus",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "invite.submit",
+      "type": "chrome",
+      "source": "Join",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "nav.catalogue",
+      "type": "chrome",
+      "source": "Catalogue",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "nav.entities",
+      "type": "chrome",
+      "source": "Entities",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "nav.overview",
+      "type": "chrome",
+      "source": "Overview",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "nav.primary",
+      "type": "chrome",
+      "source": "Main navigation",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "nav.settings",
+      "type": "chrome",
+      "source": "Settings",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "nav.signOut",
+      "type": "chrome",
+      "source": "Sign out",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "newProject.created",
+      "type": "chrome",
+      "source": "Created {slug}.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "newProject.errorForbidden",
+      "type": "chrome",
+      "source": "Only maintainers can create projects.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "newProject.errorInvalid",
+      "type": "chrome",
+      "source": "Check the fields: the slug is lowercase letters, digits and hyphens, languages are codes such as pt-PT, and they must include the source language.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "newProject.errorSlugTaken",
+      "type": "chrome",
+      "source": "That slug is already taken.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "newProject.heading",
+      "type": "chrome",
+      "source": "New project",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "newProject.languages",
+      "type": "chrome",
+      "source": "Languages (comma-separated)",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "newProject.languagesChips",
+      "type": "chrome",
+      "source": "Languages entered",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "newProject.languagesHint",
+      "type": "chrome",
+      "source": "Every language the project carries, the source language included, as codes separated by commas.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "newProject.name",
+      "type": "chrome",
+      "source": "Name",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "newProject.nameHint",
+      "type": "chrome",
+      "source": "Shown to translators wherever the project is listed.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "newProject.slug",
+      "type": "chrome",
+      "source": "Slug",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "newProject.slugHint",
+      "type": "chrome",
+      "source": "The short name in the project's address, such as moonlight-manor: lowercase letters, digits and hyphens. It cannot change later.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "newProject.sourceLanguage",
+      "type": "chrome",
+      "source": "Source language",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "newProject.sourceLanguageHint",
+      "type": "chrome",
+      "source": "The language the repository's text is written in, as a code such as pt-PT.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "newProject.submit",
+      "type": "chrome",
+      "source": "Create project",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "newProject.tokenOnce",
+      "type": "chrome",
+      "source": "Copy this push token now. It is shown only once.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "notFound.backHome",
+      "type": "chrome",
+      "source": "Back to home",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "notFound.description",
+      "type": "chrome",
+      "source": "This page does not exist. Check the address or go back home.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "notFound.heading",
+      "type": "chrome",
+      "source": "Page not found",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "password.heading",
+      "type": "chrome",
+      "source": "Choose a new password",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "password.intro",
+      "type": "chrome",
+      "source": "Your new password replaces the current one on every device.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "password.introReset",
+      "type": "chrome",
+      "source": "A maintainer reset your password. The temporary one you signed in with stops working once you save your own.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "password.newLabel",
+      "type": "chrome",
+      "source": "New password",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "password.submit",
+      "type": "chrome",
+      "source": "Save password",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "progress.languageColumn",
+      "type": "chrome",
+      "source": "Language",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "progress.legend",
+      "type": "chrome",
+      "source": "Legend",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "progress.progressColumn",
+      "type": "chrome",
+      "source": "Progress",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "progress.summary",
+      "type": "chrome",
+      "source": "{verified} verified, {translated} translated of {total}",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "progress.summaryColumn",
+      "type": "chrome",
+      "source": "Counts",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.addErrorExists",
+      "type": "chrome",
+      "source": "A string with that key exists.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.addErrorKey",
+      "type": "chrome",
+      "source": "That key is not a valid identifier.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.addErrorSource",
+      "type": "chrome",
+      "source": "Pick one of the declared sources.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.addHeading",
+      "type": "chrome",
+      "source": "Add a string",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.addKey",
+      "type": "chrome",
+      "source": "Key",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.addKeyHint",
+      "type": "chrome",
+      "source": "Letters, digits, dots, underscores and hyphens; the id the repository will carry.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.addLink",
+      "type": "chrome",
+      "source": "Add a string",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.addNoSources",
+      "type": "chrome",
+      "source": "This project declares no source Corpus can write to. Push from a repository with a JSON catalogue first.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.addSource",
+      "type": "chrome",
+      "source": "Source file",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.addSourceOption",
+      "type": "chrome",
+      "source": "{path} ({type})",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.addSubmit",
+      "type": "chrome",
+      "source": "Propose the string",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.addText",
+      "type": "chrome",
+      "source": "Source text",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.added",
+      "type": "chrome",
+      "source": "Proposed {key}. It reaches the repository with the next corpus pull.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.by",
+      "type": "chrome",
+      "source": "proposed by {author}",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.byInto",
+      "type": "chrome",
+      "source": "proposed by {author} into {file}",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.cancel",
+      "type": "chrome",
+      "source": "Cancel",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.dashboardHeading",
+      "type": "chrome",
+      "source": "Proposals",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.editLabel",
+      "type": "chrome",
+      "source": "Proposed source text",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.errorForbidden",
+      "type": "chrome",
+      "source": "Only its author or a maintainer can withdraw a proposal.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.errorGeneric",
+      "type": "chrome",
+      "source": "That proposal was not recorded.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.errorNotPending",
+      "type": "chrome",
+      "source": "That proposal is no longer pending.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.errorUnchanged",
+      "type": "chrome",
+      "source": "That is the current source text.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.heading",
+      "type": "chrome",
+      "source": "Source proposals",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.invalidIcu",
+      "type": "chrome",
+      "source": "The text must parse as a source.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.kindAdd",
+      "type": "chrome",
+      "source": "New string",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.kindDelete",
+      "type": "chrome",
+      "source": "Removal",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.kindEdit",
+      "type": "chrome",
+      "source": "Change",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.notWritable",
+      "type": "chrome",
+      "source": "This string comes from a source Corpus cannot write back to (an exec command or a non-JSON catalogue), so its source is edited in the repository.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.pendingAddsHeading",
+      "type": "chrome",
+      "source": "Proposed strings",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.pendingLine",
+      "type": "chrome",
+      "source": "Pending proposals: {count}",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.pendingMark",
+      "type": "chrome",
+      "source": "proposed",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.propose",
+      "type": "chrome",
+      "source": "Propose a change",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.proposeRemoval",
+      "type": "chrome",
+      "source": "Propose removal",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.proposed",
+      "type": "chrome",
+      "source": "Proposed. It reaches the repository with the next corpus pull.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.replaceHint",
+      "type": "chrome",
+      "source": "A newer proposal replaces the pending one.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.statusApplied",
+      "type": "chrome",
+      "source": "applied",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.statusPending",
+      "type": "chrome",
+      "source": "pending",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.statusSuperseded",
+      "type": "chrome",
+      "source": "superseded",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.statusWithdrawn",
+      "type": "chrome",
+      "source": "withdrawn",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.submitEdit",
+      "type": "chrome",
+      "source": "Propose",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.withdraw",
+      "type": "chrome",
+      "source": "Withdraw",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "proposal.withdrawn",
+      "type": "chrome",
+      "source": "Withdrawn.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "queue.agentDrafts",
+      "type": "chrome",
+      "source": "Agent drafts",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "queue.navLabel",
+      "type": "chrome",
+      "source": "Queue",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "queue.next",
+      "type": "chrome",
+      "source": "Next",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "queue.position",
+      "type": "chrome",
+      "source": "{index} of {count}",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "queue.previous",
+      "type": "chrome",
+      "source": "Previous",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "queue.stale",
+      "type": "chrome",
+      "source": "Stale",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "queue.untranslated",
+      "type": "chrome",
+      "source": "Untranslated",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "queue.unverifiedSource",
+      "type": "chrome",
+      "source": "Unverified source",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.colName",
+      "type": "chrome",
+      "source": "Name",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.colRole",
+      "type": "chrome",
+      "source": "Role",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.copied",
+      "type": "chrome",
+      "source": "Copied",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.copyToken",
+      "type": "chrome",
+      "source": "Copy token",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.demote",
+      "type": "chrome",
+      "source": "Remove maintainer",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.errorAgent",
+      "type": "chrome",
+      "source": "The agent actor never signs in and cannot be a maintainer.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.errorForbidden",
+      "type": "chrome",
+      "source": "Only maintainers can change settings.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.errorInvalid",
+      "type": "chrome",
+      "source": "Check the fields: languages are codes such as pt-PT.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.errorLastMaintainer",
+      "type": "chrome",
+      "source": "The instance needs at least one maintainer.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.heading",
+      "type": "chrome",
+      "source": "Settings",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.historyEmpty",
+      "type": "chrome",
+      "source": "No pushes yet. Run corpus push from the project's repository.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.historyHeading",
+      "type": "chrome",
+      "source": "Pushes",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.historyIntro",
+      "type": "chrome",
+      "source": "Every push from the CLI, newest first.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.historyReport",
+      "type": "chrome",
+      "source": "{added} added, {changed} changed, {stale} stale, {archived} archived, {seeded} seeded",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.historyStrings",
+      "type": "chrome",
+      "source": "{count} strings",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.languagesHeading",
+      "type": "chrome",
+      "source": "Languages",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.languagesIntro",
+      "type": "chrome",
+      "source": "The source language is {language} and cannot change here.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.promote",
+      "type": "chrome",
+      "source": "Make maintainer",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.resetDone",
+      "type": "chrome",
+      "source": "Temporary password for {name}. Copy it now: it is shown once, their sessions have ended, and they will choose a new password at sign-in.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.resetPassword",
+      "type": "chrome",
+      "source": "Reset password",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.roleAgent",
+      "type": "chrome",
+      "source": "agent",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.roleMaintainer",
+      "type": "chrome",
+      "source": "maintainer",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.roleTranslator",
+      "type": "chrome",
+      "source": "translator",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.rotateToken",
+      "type": "chrome",
+      "source": "Rotate push token",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.saveLanguages",
+      "type": "chrome",
+      "source": "Save languages",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.saved",
+      "type": "chrome",
+      "source": "Saved.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.targetLanguages",
+      "type": "chrome",
+      "source": "Target languages",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.targetLanguagesHint",
+      "type": "chrome",
+      "source": "Language codes separated by commas, such as pt-PT, en.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.tokenHeading",
+      "type": "chrome",
+      "source": "Push token",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.tokenIntro",
+      "type": "chrome",
+      "source": "The CLI pushes with a per-project token. Rotating it invalidates the old one at once.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.tokenOnce",
+      "type": "chrome",
+      "source": "Copy this token now. It is shown once and disappears after a minute.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.usersHeading",
+      "type": "chrome",
+      "source": "People on this instance",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.usersIntro",
+      "type": "chrome",
+      "source": "Everyone who joined with the invite secret. Maintainers verify strings and change settings.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "settings.version",
+      "type": "chrome",
+      "source": "Corpus build {version}",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "source.branches",
+      "type": "chrome",
+      "source": "Branches",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "state.agentDraft",
+      "type": "chrome",
+      "source": "agent",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "state.agentDraftCount",
+      "type": "chrome",
+      "source": "{n} agent",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "state.eachLanguage",
+      "type": "chrome",
+      "source": "each of the {n} languages",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "state.stale",
+      "type": "chrome",
+      "source": "stale",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "state.staleCount",
+      "type": "chrome",
+      "source": "{n} stale",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "state.translated",
+      "type": "chrome",
+      "source": "Translated",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "state.translatedCount",
+      "type": "chrome",
+      "source": "{n} translated",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "state.untranslated",
+      "type": "chrome",
+      "source": "Untranslated",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "state.untranslatedCount",
+      "type": "chrome",
+      "source": "{n} untranslated",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "state.verified",
+      "type": "chrome",
+      "source": "Verified",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "state.verifiedCount",
+      "type": "chrome",
+      "source": "{n} verified",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "string.archived",
+      "type": "chrome",
+      "source": "This string is archived. It is read-only.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "string.entitiesHeading",
+      "type": "chrome",
+      "source": "Related",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "string.examplesHeading",
+      "type": "chrome",
+      "source": "Examples",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "string.glossaryHeading",
+      "type": "chrome",
+      "source": "Glossary terms in this string ({language})",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "string.historyHeading",
+      "type": "chrome",
+      "source": "History",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "string.noteLabel",
+      "type": "chrome",
+      "source": "How every {type} string reads",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "string.otherLanguagesHeading",
+      "type": "chrome",
+      "source": "Other languages",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "string.otherLanguagesMore",
+      "type": "chrome",
+      "source": "{count, plural, one {# more language} other {# more languages}}",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "string.otherLanguagesNone",
+      "type": "chrome",
+      "source": "No translation yet",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "string.siblingsCount",
+      "type": "chrome",
+      "source": "{shown} of {total} strings of this type under the same key prefix or in the same plural family",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "string.siblingsHeading",
+      "type": "chrome",
+      "source": "Siblings",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "switcher.empty",
+      "type": "chrome",
+      "source": "No projects match.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "switcher.label",
+      "type": "chrome",
+      "source": "Select a project",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "switcher.placeholder",
+      "type": "chrome",
+      "source": "Search projects…",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "verify.button",
+      "type": "chrome",
+      "source": "Mark {language} as verified",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "verify.errorGeneric",
+      "type": "chrome",
+      "source": "This string could not be verified.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "verify.errorNotMaintainer",
+      "type": "chrome",
+      "source": "Only maintainers can verify.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    },
+    {
+      "id": "verify.warningChanged",
+      "type": "chrome",
+      "source": "This string changed since you opened it. Your sign-off applied to the latest version.",
+      "file": "apps/web/src/i18n/messages.en.json"
+    }
+  ],
+  "entities": [],
+  "typeNotes": {},
+  "glossary": {},
+  "seedTranslations": {
+    "pt-PT": {
+      "app.title": "Corpus",
+      "catalogue.heading": "Catálogo",
+      "editor.errorInvalid": "Essa tradução não foi guardada: o que está errado aparece por baixo da caixa, com o seu rascunho mantido.",
+      "editor.formatChanged": "{name} é um {type} no original, não um {actual}",
+      "editor.formatDropped": "{name} é um {type} no original; escreva-o com o seu formato",
+      "editor.warningSourceChanged": "O original mudou desde que abriu este texto. O seu rascunho fica em baixo; compare-o com o novo original antes de guardar.",
+      "entities.heading": "Entidades",
+      "invite.signIn": "Iniciar sessão",
+      "invite.submit": "Entrar",
+      "nav.catalogue": "Catálogo",
+      "nav.entities": "Entidades",
+      "nav.overview": "Visão geral",
+      "nav.settings": "Definições",
+      "nav.signOut": "Terminar sessão",
+      "settings.heading": "Definições"
+    }
+  },
+  "sources": [
+    {
+      "path": "apps/web/src/i18n/messages.{lang}.json",
+      "adapter": "messages",
+      "type": "chrome"
+    }
+  ]
+}

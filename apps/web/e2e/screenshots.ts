@@ -3,9 +3,10 @@
 // README. bin/screenshots starts one fresh server per colour scheme and
 // runs this once for each, so light and dark show identical state.
 import { chromium, type Page } from "@playwright/test";
-import { buildSnapshot, loadConfig } from "@corpus-tool/cli";
+import { loadConfig } from "@corpus-tool/cli";
+import { frozenChrome } from "./screenshot-fixture";
 import { moonlightManor } from "@corpus/contract";
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { join, SMOKE_SECRET } from "./session";
@@ -97,17 +98,12 @@ async function main(): Promise<void> {
     await page.waitForURL((next) => next.href !== url);
   };
 
-  // Corpus translating Corpus (§12): the repo's own chrome catalog, built
-  // by the real snapshot builder from corpus.config.ts, seeded with the
-  // committed Portuguese catalogue so the surfaces show real progress.
+  // Corpus translating Corpus (§12): the repo's own chrome catalog and
+  // its Portuguese seeds, frozen under docs/screenshots/fixture so the
+  // images move only when the interface does (#531); the config still
+  // names the project and its languages.
   const config = await loadConfig(REPO);
-  const chrome = await buildSnapshot(config, REPO);
-  const seeded = JSON.parse(
-    readFileSync(
-      path.join(REPO, "apps/web/src/i18n/messages.pt-PT.json"),
-      "utf8",
-    ),
-  ) as Record<string, string>;
+  const { snapshot: chrome, seeds: seeded } = frozenChrome();
   const chromeToken = await createProject(
     page,
     config.project,
