@@ -2,4 +2,7 @@
 import { writeFileSync } from "node:fs";
 let raw = "";
 process.stdin.on("data", (c) => (raw += c));
-process.stdin.on("end", () => writeFileSync("imported.json", raw));
+process.stdin.on("end", () => {
+  writeFileSync("imported.json", raw);
+  process.stderr.write("import: wrote imported.json\n");
+});

@@ -156,6 +156,29 @@ test("exec sources receive the entries the file adapters did not claim, on stdin
   expect(imported.translations.en).toBeUndefined();
 });
 
+test("what an import command says is printed under its ran line, and the summary counts it (#599)", async () => {
+  await serve();
+  const c = ctx();
+  expect(await run(["pull"], c)).toBe(0);
+  const out = c.output;
+  const at = out.indexOf("ran node scripts/import.mjs");
+  expect(at).toBeGreaterThanOrEqual(0);
+  expect(out[at + 1]).toBe("  import: wrote imported.json");
+  expect(out.at(-1)).toBe(
+    "pulled pull-fixture at verified: 1 file(s) changed, 1 import command(s) ran",
+  );
+  // A silent importer prints nothing more than its ran line.
+  const { writeFileSync } = await import("node:fs");
+  writeFileSync(
+    path.join(repo, "scripts/import.mjs"),
+    "process.stdin.resume();\n",
+  );
+  const quiet = ctx();
+  expect(await run(["pull"], quiet)).toBe(0);
+  const q = quiet.output.indexOf("ran node scripts/import.mjs");
+  expect(quiet.output[q + 1]).toMatch(/^pulled pull-fixture/);
+});
+
 test("a 401 prints an actionable message", async () => {
   await serve(401, { error: "unauthorized" });
   const c = ctx();
