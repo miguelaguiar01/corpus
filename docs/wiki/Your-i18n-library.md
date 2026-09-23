@@ -121,7 +121,7 @@ No adapter reads `.po`, `strings.xml` or `.strings`. An `exec` source can, by co
 
 Getting it wrong is usually loud, but not always, and the quiet directions are the ones to know before you choose.
 
-**The loud ones.** An i18next catalogue read as `icu` or as `vue` refuses every string that interpolates, since `{{name}}` is not a valid placeholder in either; an ICU catalogue read as `vue` refuses every string with an argument in it. When five refusals carry advice, whichever advice each drew, or a whole file is refused, the build stops with nothing pushed, and the message names the field to set:
+**The loud ones.** An i18next catalogue read as `icu` or as `vue` refuses every string that interpolates, since `{{name}}` is not a valid placeholder in either; an ICU catalogue read as `vue` refuses every string with an argument in it. When five refusals have one cause, the wrong library whichever advice each drew, or a whole file is refused, the build stops with nothing pushed, and the message names the field to set:
 
 <!-- from: recorded/wrong-library.out -->
 ```text
