@@ -32,16 +32,11 @@ export type Prepared = {
 // the repository's own node_modules, the database and the secret under
 // .corpus/, and .gitignore told about it. Pure enough to test in a temp
 // directory; the spawn is in run().
-export function prepare(cwd: string, options: { db?: string } = {}): Prepared {
-  const require = createRequire(path.join(cwd, "package.json"));
-  let manifestPath: string;
-  try {
-    manifestPath = require.resolve(`${PACKAGE}/package.json`);
-  } catch {
-    throw new CliError(
-      `${PACKAGE} is not installed in this repository; add it with: npm install --save-dev ${PACKAGE}`,
-    );
-  }
+export function prepare(
+  cwd: string,
+  options: { db?: string; besideCli?: boolean } = {},
+): Prepared {
+  const manifestPath = resolveWorkbench(cwd, options.besideCli ?? true);
   const packageDir = path.dirname(manifestPath);
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
     version: string;
@@ -171,6 +166,25 @@ function openBrowser(url: string): void {
   const opener = spawn(command, args, { detached: true, stdio: "ignore" });
   opener.on("error", () => {});
   opener.unref();
+}
+
+// The workbench package from the repository first, then from beside
+// the CLI: `npx --package=@corpus-tool/cli --package=@corpus-tool/workbench
+// corpus workbench` puts both in one prefix and nothing in the
+// repository (#561).
+function resolveWorkbench(cwd: string, besideCli: boolean): string {
+  const attempts = [createRequire(path.join(cwd, "package.json"))];
+  if (besideCli) attempts.push(createRequire(import.meta.url));
+  for (const require of attempts) {
+    try {
+      return require.resolve(`${PACKAGE}/package.json`);
+    } catch {
+      continue;
+    }
+  }
+  throw new CliError(
+    `${PACKAGE} is not installed in this repository nor beside the CLI; add it with: npm install --save-dev ${PACKAGE}`,
+  );
 }
 
 // The config's server is where push goes; a workbench on another port

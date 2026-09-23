@@ -38,9 +38,12 @@ function repo(withPackage = true): string {
   return dir;
 }
 
-test("without the package installed, the message says the install line", () => {
-  expect(() => prepare(repo(false))).toThrow(
-    /@corpus-tool\/workbench is not installed in this repository; add it with: npm install --save-dev @corpus-tool\/workbench/,
+test("without the package in the repository it is found beside the CLI, and named when it is nowhere (#561)", () => {
+  // This checkout has the workbench beside the CLI, which is the npx
+  // shape: both packages in one prefix, none in the repository.
+  expect(prepare(repo(false)).bin).toMatch(/corpus-workbench\.cjs$/);
+  expect(() => prepare(repo(false), { besideCli: false })).toThrow(
+    /@corpus-tool\/workbench is not installed in this repository nor beside the CLI; add it with: npm install --save-dev @corpus-tool\/workbench/,
   );
 });
 

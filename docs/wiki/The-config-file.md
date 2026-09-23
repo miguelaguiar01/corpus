@@ -1,6 +1,6 @@
 `corpus.config.ts` sits at the root of your repository and declares what Corpus reads, where it sends it, and what `corpus check` scans. Every command that touches your strings runs it; `init` writes it, and `corpus workbench` reads it only when it creates the project.
 
-It is TypeScript, run directly with no build step. `defineCorpus` types it and validates it, so a mistake is a type error in your editor, or an error when a command loads it, rather than a failed push.
+It is TypeScript, run directly with no build step. `defineCorpus` types it and validates it, so a mistake is a type error in your editor, or an error when a command loads it, rather than a failed push. A plain module works too: `corpus.config.mjs` exporting the same object, validated when it loads, which is the shape to use when the CLI runs from `npx` and `@corpus-tool/cli` is not in the repository to import from.
 
 Here is one with every field that matters, annotated:
 

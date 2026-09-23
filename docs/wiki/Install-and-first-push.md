@@ -10,7 +10,7 @@ npm install --save-dev @corpus-tool/cli @corpus-tool/workbench
 
 The two packages always share a version. The CLI is what you run; the workbench is the instance it starts.
 
-If your package manager refuses the version because it was published today, that is a release-age policy, and [A team instance](A-team-instance) says how to allow a package through it.
+If your package manager refuses the version because it was published today, that is a release-age policy; yarn 4.18 has one by default. [A team instance](A-team-instance) says how each manager allows a package through it, what pnpm's `verifyDepsBeforeRun` does to `pnpm corpus`, and how to run every command through `npx` without installing into a repository whose tree is heavy.
 
 ## Write the config
 
