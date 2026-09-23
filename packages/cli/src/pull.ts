@@ -74,9 +74,24 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
 
   const changed: string[] = [];
   const claimedTypes = new Set<string>();
-  // Ids the server holds that no source-language file does any more:
-  // orphans, listed by validate, never appended to a target (§8).
+  // Ids the server holds that no source-language file of their type does
+  // any more: orphans, listed by validate, never appended to a target
+  // (§8). Held ids are unioned per type first, since an array of
+  // patterns splits one type over several files.
   const notHeld = new Set<string>();
+  const heldByType = new Map<string, Set<string>>();
+  for (const source of config.sources) {
+    if (source.adapter !== "messages") continue;
+    if (!source.path.includes("{lang}") || !writesBack(source.path)) continue;
+    const template = readRepoFile(
+      ctx.cwd,
+      source.path.replace("{lang}", config.sourceLanguage),
+    );
+    if (template === undefined) continue;
+    const held = heldByType.get(source.type) ?? new Set<string>();
+    for (const id of ownIds(template, source) ?? []) held.add(id);
+    heldByType.set(source.type, held);
+  }
   for (const source of config.sources) {
     if (source.adapter === "exec") continue;
     if (!source.path.includes("{lang}")) {
