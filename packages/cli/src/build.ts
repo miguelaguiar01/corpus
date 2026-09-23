@@ -20,6 +20,8 @@ import {
   type StringEntry,
   type WritableSource,
   refusalAdvice,
+  refusalCause,
+  type RefusalCause,
 } from "@corpus/contract";
 import { CliError } from "./config";
 
@@ -31,6 +33,8 @@ export type Refused = {
   id: string;
   message: string;
   hint: string;
+  // What it is put down to, when the advice says (#549).
+  cause?: RefusalCause;
 };
 export type BuildReport = { snapshot: Snapshot; refused: Refused[] };
 // What an exporter says the repository already holds for its strings
@@ -90,24 +94,28 @@ function ruinedReasons(sourced: Sourced[], refused: Refused[]): string[] {
       reasons.push(`${file}: every string in the file was refused (${count})`);
     }
   }
-  // Every refusal with advice counts toward the threshold, whatever the
-  // advice says: an ICU catalogue read as vue draws the i18next advice
-  // for a branch that opens with a placeholder and the ICU advice for
-  // the rest, and five split four and one are still one cause (#538).
-  // The commonest advice is the one named.
-  const byCause = new Map<string, number>();
-  for (const { hint } of refused) {
-    if (hint === "") continue;
-    byCause.set(hint, (byCause.get(hint) ?? 0) + 1);
+  // Refusals are counted per cause, not per advice text (#549): five
+  // tags left open in five strings are one cause whatever their names,
+  // and a catalogue read under the wrong library is one cause whichever
+  // of the two library advices each string drew. Four of one cause and
+  // one of another stop nothing.
+  const byCause = new Map<RefusalCause, Refused[]>();
+  for (const refusal of refused) {
+    if (!refusal.cause) continue;
+    byCause.set(refusal.cause, [
+      ...(byCause.get(refusal.cause) ?? []),
+      refusal,
+    ]);
   }
-  const advised = [...byCause.values()].reduce((sum, n) => sum + n, 0);
-  if (advised >= SAME_CAUSE) {
-    const [cause, count] = [...byCause].sort((a, b) => b[1] - a[1])[0]!;
-    const advice = cause.replace(/^;\s*/, "");
+  for (const [cause, group] of byCause) {
+    if (group.length < SAME_CAUSE) continue;
+    const advices = new Set(group.map((r) => r.hint));
+    const one =
+      advices.size === 1 ? ` — ${group[0]!.hint.replace(/^;\s*/, "")}` : "";
     reasons.push(
-      byCause.size === 1
-        ? `${advised} strings were refused with the same advice, at or past the ${SAME_CAUSE} that stops a build, since one cause is likely behind all of them — ${advice}`
-        : `${advised} strings were refused with advice, at or past the ${SAME_CAUSE} that stops a build, since one cause is likely behind all of them — the commonest, for ${count} of them: ${advice}`,
+      cause === "library"
+        ? `${group.length} strings were refused for the library they were read under, at or past the ${SAME_CAUSE} that stops a build: one cause, whichever advice each drew${one || "; each refusal above says which library to declare"}`
+        : `${group.length} strings were refused for a rich-text tag written as prose, at or past the ${SAME_CAUSE} that stops a build: one cause${one || "; each refusal above says how to write it"}`,
     );
   }
   return reasons;
@@ -253,10 +261,12 @@ function validateEntry(
   else {
     const message = icu.errors[0]?.message ?? "";
     const advice = refusalAdvice(entry.source, syntax, message);
+    const cause = refusalCause(entry.source, syntax, message);
     refused.push({
       file,
       id: entry.id,
       hint: advice,
+      ...(cause ? { cause } : {}),
       message: `invalid ${syntax === "icu" ? "ICU" : syntax}: ${message}${advice}`,
     });
   }

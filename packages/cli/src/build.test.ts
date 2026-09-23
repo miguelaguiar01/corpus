@@ -187,7 +187,7 @@ test("many refusals with one cause stop the build, at any share of the file", as
     REPO,
   );
   await expect(building).rejects.toThrow(
-    '5 strings were refused with the same advice, at or past the 5 that stops a build, since one cause is likely behind all of them — {{ }} is i18next\'s interpolation: declare library: "i18next" on the source',
+    '5 strings were refused for the library they were read under, at or past the 5 that stops a build: one cause, whichever advice each drew — {{ }} is i18next\'s interpolation: declare library: "i18next" on the source',
   );
 });
 
@@ -213,12 +213,10 @@ test("an ICU catalogue read as i18next is told which library it is", async () =>
   await expect(building).rejects.toThrow(/5 strings were refused/);
 });
 
-test("refusals split across two hints still stop the build, naming the commonest (#538)", async () => {
+test("refusals are counted per cause: two library advices are one cause, five tags are one, four and one are two (#549)", async () => {
   // A catalogue read as vue holding four ICU plurals and one i18next
-  // interpolation: two pieces of advice, five refusals split 4 and 1,
-  // and the threshold counts every refusal that has advice (#549 is
-  // where the split becomes two causes).
-  const building = buildSnapshotReport(
+  // interpolation: two advices, one cause, and the summary names it.
+  const split = buildSnapshotReport(
     config({
       sources: [
         {
@@ -231,12 +229,36 @@ test("refusals split across two hints still stop the build, naming the commonest
     }),
     REPO,
   );
-  await expect(building).rejects.toThrow(
-    /5 strings were refused with advice, at or past the 5 that stops a build/,
+  await expect(split).rejects.toThrow(
+    /5 strings were refused for the library they were read under, at or past the 5 that stops a build: one cause, whichever advice each drew; each refusal above says which library to declare/,
   );
-  await expect(building).rejects.toThrow(
-    /the commonest, for 4 of them: \{name, plural, …\} is an ICU argument: declare library: "icu"/,
+  // Five different tags left open in five strings are one cause.
+  const tags = buildSnapshotReport(
+    config({
+      sources: [{ adapter: "messages", type: "ui", path: "tags5/{lang}.json" }],
+    }),
+    REPO,
   );
+  await expect(tags).rejects.toThrow(
+    /5 strings were refused for a rich-text tag written as prose, at or past the 5 that stops a build: one cause; each refusal above says how to write it/,
+  );
+  // Four ICU arguments under vue and one tag are two causes: the build
+  // goes on, with the five refused.
+  const mixed = await buildSnapshotReport(
+    config({
+      sources: [
+        {
+          adapter: "messages",
+          type: "ui",
+          path: "mixed/{lang}.json",
+          library: "vue",
+        },
+      ],
+    }),
+    REPO,
+  );
+  expect(mixed.refused).toHaveLength(5);
+  expect(mixed.snapshot.strings).toHaveLength(3);
 });
 
 test("an exporter past 1 MiB builds, and one past the cap or killed is named (#554)", async () => {

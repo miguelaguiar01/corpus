@@ -1,0 +1,10 @@
+{
+  "t0": "See https://example.com/<baseurl>",
+  "t1": "See https://example.com/<path>",
+  "t2": "See https://example.com/<host>",
+  "t3": "See https://example.com/<route>",
+  "t4": "See https://example.com/<anchor>",
+  "plain0": "Plain 0",
+  "plain1": "Plain 1",
+  "plain2": "Plain 2"
+}

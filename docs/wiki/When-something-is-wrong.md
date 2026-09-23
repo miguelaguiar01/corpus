@@ -32,7 +32,7 @@ The commonest cause on a repository that has never used Corpus is a `{` that mea
 
 ## `corpus: snapshot build failed` with a list of refusals
 
-Nothing was pushed. Either every string in a file was refused, or five were refused with advice — whichever advice each drew, one cause is likely behind all of them, and the summary names the commonest. Pushing what parsed would archive every refused string, and a proposal pending on an archived string is superseded for good, so the build stops instead of doing that quietly.
+Nothing was pushed. Either every string in a file was refused, or five were refused for one cause — a rich-text tag written as prose, whatever the tags' names, or a catalogue read under the wrong library, whichever advice each drew — and the summary names it. Pushing what parsed would archive every refused string, and a proposal pending on an archived string is superseded for good, so the build stops instead of doing that quietly.
 
 The refusals are listed above the summary and their advice is what to act on. `declare library: "i18next" on the source` means exactly that, and it is the usual answer: a catalogue read under the wrong library refuses a fraction of itself rather than the whole file, so the repetition is the signal.
 

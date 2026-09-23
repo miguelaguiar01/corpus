@@ -643,24 +643,35 @@ const ICU_ARGUMENT_TYPES = new Set([
   "choice",
 ]);
 
-export function refusalAdvice(
+export type RefusalCause = "tag" | "library";
+
+function refusal(
   source: string,
   library: Library,
   message: string,
-): string {
+): { cause: RefusalCause; advice: string } | undefined {
   const unclosed = /^unclosed <([^>]+)>$/.exec(message);
   if (unclosed) {
-    return `; a <name> is a rich-text tag: close it with </${unclosed[1]}>, or write the brackets so they do not open a tag`;
+    return {
+      cause: "tag",
+      advice: `; a <name> is a rich-text tag: close it with </${unclosed[1]}>, or write the brackets so they do not open a tag`,
+    };
   }
   const mismatched = /^unexpected <\/([^>]+)>; <([^>]+)> is open$/.exec(
     message,
   );
   if (mismatched) {
-    return `; a <name> is a rich-text tag: <${mismatched[2]}> is open here, so write </${mismatched[2]}>, or remove both tags`;
+    return {
+      cause: "tag",
+      advice: `; a <name> is a rich-text tag: <${mismatched[2]}> is open here, so write </${mismatched[2]}>, or remove both tags`,
+    };
   }
   const stray = /^unexpected <\/([^>]+)>$/.exec(message);
   if (stray) {
-    return `; a <name> is a rich-text tag: remove it, or open a matching <${stray[1]}>`;
+    return {
+      cause: "tag",
+      advice: `; a <name> is a rich-text tag: remove it, or open a matching <${stray[1]}>`,
+    };
   }
   // The library hints fire on the error the wrong library produces and
   // on nothing else (#557): a placeholder name that starts with `{` is
@@ -677,7 +688,10 @@ export function refusalAdvice(
     ((badName && badName[1]!.startsWith("{")) ||
       (unsupported && !ICU_ARGUMENT_TYPES.has(unsupported[1]!)))
   ) {
-    return `; {{ }} is i18next's interpolation: declare library: "i18next" on the source`;
+    return {
+      cause: "library",
+      advice: `; {{ }} is i18next's interpolation: declare library: "i18next" on the source`,
+    };
   }
   // The mirror: an ICU catalogue read under a library that has no
   // arguments. The brace must be single, or i18next's own
@@ -692,7 +706,31 @@ export function refusalAdvice(
     badName &&
     /(?<!\{)\{\s*[^{},\s][^{},]*\s*,\s*[a-z]+/.test(source)
   ) {
-    return `; {name, plural, …} is an ICU argument: declare library: "icu" on the source, or leave the field out`;
+    return {
+      cause: "library",
+      advice: `; {name, plural, …} is an ICU argument: declare library: "icu" on the source, or leave the field out`,
+    };
   }
-  return "";
+  return undefined;
+}
+
+// The clause the CLI and the server append to a parse error (#486,
+// #505), or "" when the text alone says it.
+export function refusalAdvice(
+  source: string,
+  library: Library,
+  message: string,
+): string {
+  return refusal(source, library, message)?.advice ?? "";
+}
+
+// What a refusal is put down to, for counting: a tag written as prose,
+// or a catalogue read under the wrong library, whichever advice it
+// drew (#549). Five of one cause stop a build; four and one do not.
+export function refusalCause(
+  source: string,
+  library: Library,
+  message: string,
+): RefusalCause | undefined {
+  return refusal(source, library, message)?.cause;
 }
