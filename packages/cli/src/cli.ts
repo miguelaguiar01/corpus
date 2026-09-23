@@ -9,17 +9,18 @@ import {
   type Refused,
 } from "./build";
 import { option, refuseUnknown } from "./args";
+import { COMMAND_WORDS, KNOWN_FLAGS, USAGE } from "./commands";
 import { CliError, loadConfig, requireToken } from "./config";
 import { checkFiles, DEFAULT_INCLUDE, READS } from "./check";
-import { init, INIT_USAGE } from "./init";
-import { agent, AGENT_USAGE } from "./agent";
-import { MCP_USAGE, cliVersion, mcp } from "./mcp";
-import { languageDrift, project, PROJECT_USAGE } from "./project";
+import { init } from "./init";
+import { agent } from "./agent";
+import { cliVersion, mcp } from "./mcp";
+import { languageDrift, project } from "./project";
 import { pull } from "./pull";
 import { request, serverMessage, UNAUTHORIZED } from "./server";
-import { status, STATUS_USAGE } from "./status";
-import { validate, VALIDATE_USAGE } from "./validate";
-import { workbench, WORKBENCH_USAGE } from "./workbench";
+import { status } from "./status";
+import { validate } from "./validate";
+import { workbench } from "./workbench";
 
 export type RunContext = {
   cwd: string;
@@ -31,41 +32,7 @@ export type RunContext = {
   input?: Readable;
 };
 
-const USAGE = `usage: corpus push [--dry-run] | corpus pull [--min-state <untranslated|translated|verified>] [--lang <l>]... [--check] | corpus check | corpus build [--out <file>]
-       ${INIT_USAGE}
-       ${WORKBENCH_USAGE}
-       ${PROJECT_USAGE}
-       ${STATUS_USAGE}
-       ${VALIDATE_USAGE}
-       ${MCP_USAGE}
-       ${AGENT_USAGE}`;
-
-// What each command takes, so anything else is a typo rather than a
-// flag that silently does nothing (#520).
-export const KNOWN_FLAGS: Record<string, readonly string[]> = {
-  push: ["--dry-run"],
-  pull: ["--min-state", "--lang", "--check"],
-  check: [],
-  build: ["--out"],
-  workbench: ["--port", "--db", "--open", "--no-provision"],
-  init: [
-    "--project",
-    "--source",
-    "--messages",
-    "--languages",
-    "--server",
-    "--type",
-    "--library",
-    "--syntax",
-  ],
-  // `project` is dispatched by subcommand below; the union here would
-  // let `rotate-token --name X` through.
-  "project create": ["--name", "--server"],
-  "project rotate-token": ["--server"],
-  status: ["--json"],
-  validate: ["--json"],
-  mcp: [],
-};
+export { KNOWN_FLAGS, USAGE } from "./commands";
 
 export async function run(argv: string[], ctx: RunContext): Promise<number> {
   const [command] = argv;
@@ -78,19 +45,7 @@ export async function run(argv: string[], ctx: RunContext): Promise<number> {
     ctx.out(cliVersion());
     return 0;
   }
-  if (
-    command === "push" ||
-    command === "pull" ||
-    command === "check" ||
-    command === "build" ||
-    command === "workbench" ||
-    command === "init" ||
-    command === "project" ||
-    command === "status" ||
-    command === "validate" ||
-    command === "mcp" ||
-    command === "agent"
-  ) {
+  if (command !== undefined && COMMAND_WORDS.has(command)) {
     try {
       // `agent` reads its own words, subcommand by subcommand.
       if (command !== "agent") {
@@ -110,7 +65,9 @@ export async function run(argv: string[], ctx: RunContext): Promise<number> {
       if (command === "mcp") return await mcp(ctx);
       if (command === "agent") return await agent(argv.slice(1), ctx);
       if (command === "pull") return await pull(argv.slice(1), ctx);
-      return await check(ctx);
+      if (command === "check") return await check(ctx);
+      // A table row without a line above is a bug, not a command.
+      throw new Error(`corpus ${command} is in the table and not dispatched`);
     } catch (error) {
       if (error instanceof CliError) {
         ctx.err(`corpus: ${error.message}`);

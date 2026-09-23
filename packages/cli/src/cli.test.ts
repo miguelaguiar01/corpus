@@ -10,7 +10,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
 import { loadConfig } from "./config";
-import { KNOWN_FLAGS, run, type RunContext } from "./cli";
+import { run, type RunContext } from "./cli";
+import { COMMANDS, KNOWN_FLAGS } from "./commands";
 
 const FIXTURE = fileURLToPath(
   new URL("../test/fixtures/basic", import.meta.url),
@@ -184,24 +185,32 @@ test("every flag the usage advertises is a flag its command accepts", async () =
   }
 });
 
-test("every command in the usage has a row in the refusal table", () => {
-  // Without this, a command left out of KNOWN_FLAGS accepts every flag
-  // in silence, which is the behaviour #520 removed.
-  const commands = Object.keys(KNOWN_FLAGS);
-  for (const name of [
-    "push",
-    "pull",
-    "check",
-    "build",
-    "workbench",
-    "init",
-    "project create",
-    "project rotate-token",
-    "status",
-    "validate",
-    "mcp",
-  ]) {
-    expect(commands, `${name} has no refusal table`).toContain(name);
+test("every command is a table row, and the usage and the refusal table are both derived from it", async () => {
+  // A command cannot exist without a flag row, empty or not (#534): the
+  // row is the command. Every usage the help prints is a row's, and
+  // every row is reachable by the dispatcher.
+  const printed: string[] = [];
+  await run(["--help"], { ...ctx(), out: (line) => printed.push(line) });
+  for (const command of COMMANDS) {
+    expect(printed.join("\n")).toContain(command.usage);
+    if (command.flags !== "own") {
+      expect(KNOWN_FLAGS[command.name]).toEqual(command.flags);
+      expect(command.usage.startsWith(`corpus ${command.name}`)).toBe(true);
+    }
+  }
+  expect(Object.keys(KNOWN_FLAGS)).toEqual(
+    COMMANDS.filter((c) => c.flags !== "own").map((c) => c.name),
+  );
+  // A word the table lacks is not a command, and every row is dispatched:
+  // a row's own refusal answers an impossible flag, never a fall-through.
+  const c = ctx();
+  expect(await run(["frobnicate"], c)).toBe(1);
+  for (const command of COMMANDS) {
+    if (command.flags === "own") continue;
+    const probe = ctx();
+    const words = [...command.name.split(" "), "--frobnicate"];
+    expect(await run(words, probe)).toBe(1);
+    expect(probe.output.join("\n")).toMatch(/--frobnicate/);
   }
 });
 
