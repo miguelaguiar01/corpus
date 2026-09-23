@@ -114,7 +114,7 @@ function ruinedReasons(sourced: Sourced[], refused: Refused[]): string[] {
       advices.size === 1 ? ` — ${group[0]!.hint.replace(/^;\s*/, "")}` : "";
     reasons.push(
       cause === "library"
-        ? `${group.length} strings were refused for the library they were read under, at or past the ${SAME_CAUSE} that stops a build: one cause, whichever advice each drew${one || "; each refusal above says which library to declare"}`
+        ? `${group.length} strings were refused for the library they were read under, at or past the ${SAME_CAUSE} that stops a build: one cause${one || ", whichever advice each drew; each refusal above says which library to declare"}`
         : `${group.length} strings were refused for a rich-text tag written as prose, at or past the ${SAME_CAUSE} that stops a build: one cause${one || "; each refusal above says how to write it"}`,
     );
   }

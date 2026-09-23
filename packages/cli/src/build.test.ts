@@ -187,7 +187,7 @@ test("many refusals with one cause stop the build, at any share of the file", as
     REPO,
   );
   await expect(building).rejects.toThrow(
-    '5 strings were refused for the library they were read under, at or past the 5 that stops a build: one cause, whichever advice each drew — {{ }} is i18next\'s interpolation: declare library: "i18next" on the source',
+    '5 strings were refused for the library they were read under, at or past the 5 that stops a build: one cause — {{ }} is i18next\'s interpolation: declare library: "i18next" on the source',
   );
 });
 
