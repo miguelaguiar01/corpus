@@ -108,7 +108,8 @@ export default defineCorpus({
   ],
   // pull writes translations back through the same adapters in reverse;
   // "exec" sources name a companion import command. Either may print
-  // up to 256 MiB; the CLI reads the whole output at once.
+  // up to 256 MiB; the CLI reads the whole output at once, and pull
+  // prints what the import command wrote to stderr under its ran line.
 });
 ```
 

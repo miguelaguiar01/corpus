@@ -252,7 +252,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     ctx.out(`ran ${source.importCommand}`);
     // What the importer said is the only account of what it wrote: the
     // file count below is the adapters' alone (#599).
-    for (const line of result.stderr.split("\n")) {
+    for (const line of result.stderr.split(/\r?\n/)) {
       if (line.trim() !== "") ctx.out(`  ${line}`);
     }
   }
