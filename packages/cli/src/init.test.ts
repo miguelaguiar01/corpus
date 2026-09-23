@@ -423,6 +423,20 @@ test("init counts the placeholder shapes: one {{ }} among printf verbs is not i1
   }
 });
 
+test("a catalogue whose values are empty is said to take the key as the text (#589)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "src", "i18n"), { recursive: true });
+  writeFileSync(
+    path.join(p.dir, "src", "i18n", "pt-PT.json"),
+    JSON.stringify({ "{amount} off": "", "Sign in": "", "ui.title": "Title" }),
+  );
+  expect(await run(FLAGS, p.ctx)).toBe(0);
+  expect(p.out.join("\n")).toMatch(
+    /source values are empty: the key is the text, and a proposal on those strings is refused in src\/i18n\/pt-PT\.json/,
+  );
+});
+
 test("i18next plural keys with single-brace interpolation stay icu, and init says why (#591)", async () => {
   const p = project();
   stubCli(p.dir);

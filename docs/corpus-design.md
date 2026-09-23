@@ -87,7 +87,15 @@ export default defineCorpus({
     //    `library: "i18next"` for a catalogue written with {{name}},
     //    `library: "vue"` for vue-i18n's {name}, pipe plurals and {'…'}
     //    interpolation, read and written back as written (§5). The old
-    //    name for this field is `syntax`; it goes at 1.0.
+    //    name for this field is `syntax`; it goes at 1.0. A file with an
+    //    empty value under a sentence key (whitespace, or anything outside
+    //    a dotted identifier) uses i18next's natural keys: every empty
+    //    value in it reads its key as the text ("Email", "free" too),
+    //    a plural suffix (_one, _other) dropped, unless the key is a
+    //    lowercase dotted path, which stays empty; such
+    //    a string carries no file, so a proposal on it is refused, and
+    //    build says how many took the key. A file with no sentence key
+    //    keeps its empty values empty: rows an extraction tool left.
     { adapter: "messages", type: "chrome", path: "src/i18n/messages.{lang}.json" },
 
     // 2. Generic structured-data adapter: point at a JSON/TS module and map
@@ -147,7 +155,7 @@ A snapshot may carry `typeNotes`, one sentence per string type on voice and regi
 
 A string entry and a writable source carry the **library** they are written for (§3): `icu`, the default and what an absent field means, `i18next`, or `vue`. Until 1.0 a push carries the old name `syntax` beside it with the same value, so a server older than the field reads a new CLI's push correctly; a server that receives both prefers `library`, and one that receives only `syntax` reads it as the library, which is what every push before this field meant.
 
-An entry may carry a `note`, what the repository says about that one string (an ARB's `@key.description`), shown to a translator above the type's note and never written back. A string id from a `{ns}` source carries its namespace as `ns:` (§3). A string id is any text without control characters (a line break or a tab aside, since a sentence may run over lines), up to a thousand characters: a dotted identifier, or, as i18next's natural keys are, the sentence itself; it travels in URLs and tool arguments, which encode it. A string entry may carry `file`, the repository path it was read from: its source's `path` with `{lang}` replaced by the source language, or the path itself when it has none. That is what lets a proposal be written back to the right file; entries from `exec` sources, and from sources pull cannot write, carry none, so a proposal on them is refused up front rather than left pending. A source is **writable** when it is not `exec` and its path is `.json`, the only files pull can rewrite in place; `{lang}` is not required, so a table without it takes proposals though it takes no translations (§3). `sources` lists the writable ones. The pull payload (§8) may carry `sourceChanges`, the pending proposals: `{ kind: "edit" | "add" | "delete", id, type, file, text? }`, `file` being the entry's file as above.
+An entry read from an empty value under a sentence key has the key as its `source` and no `file` (§3): the text is the code's, so nothing can be proposed on it. An entry may carry a `note`, what the repository says about that one string (an ARB's `@key.description`), shown to a translator above the type's note and never written back. A string id from a `{ns}` source carries its namespace as `ns:` (§3). A string id is any text without control characters (a line break or a tab aside, since a sentence may run over lines), up to a thousand characters: a dotted identifier, or, as i18next's natural keys are, the sentence itself; it travels in URLs and tool arguments, which encode it. A string entry may carry `file`, the repository path it was read from: its source's `path` with `{lang}` replaced by the source language, or the path itself when it has none. That is what lets a proposal be written back to the right file; entries from `exec` sources, and from sources pull cannot write, carry none, so a proposal on them is refused up front rather than left pending. A source is **writable** when it is not `exec` and its path is `.json`, the only files pull can rewrite in place; `{lang}` is not required, so a table without it takes proposals though it takes no translations (§3). `sources` lists the writable ones. The pull payload (§8) may carry `sourceChanges`, the pending proposals: `{ kind: "edit" | "add" | "delete", id, type, file, text? }`, `file` being the entry's file as above.
 
 Rules:
 - Every string and entity has a **stable ID**, unique within the project, stable across pushes. IDs are the identity for diffing; changing an ID is a delete + create.

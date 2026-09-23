@@ -64,7 +64,7 @@ Three things differ from ICU, and Corpus handles all three:
 
 **Plurals are separate keys**, not arguments: `item` beside `item_other`, or `_one`, `_few` and the rest. Corpus treats a key and its suffixed forms as siblings, so they appear together on the string page and in what an agent reads, rather than as unrelated rows.
 
-**Keys are often the English sentence**, spaces, punctuation and all. That works: a string id is any text without control characters.
+**Keys are often the English sentence**, spaces, punctuation and all. That works: a string id is any text without control characters. When the English file holds `""` as the value, as i18next-parser writes it and the app falls back to the key, Corpus reads the key as the text: the string page shows the sentence, the placeholders in it are checked, and `push` says how many strings took the key. A proposal on such a string is refused, since its text lives in the code that calls `t()`, not in the catalogue.
 
 `<Trans>` is a catalogue call, so `corpus check` does not report the text inside it.
 

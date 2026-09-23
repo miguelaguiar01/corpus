@@ -3,7 +3,11 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { createJiti } from "jiti";
 import { z } from "zod";
-import { messagesToEntries, tableToEntries } from "@corpus/adapters";
+import {
+  KEY_IS_TEXT,
+  messagesToEntries,
+  tableToEntries,
+} from "@corpus/adapters";
 import {
   entitySchema,
   libraryOf,
@@ -36,7 +40,13 @@ export type Refused = {
   // What it is put down to, when the advice says (#549).
   cause?: RefusalCause;
 };
-export type BuildReport = { snapshot: Snapshot; refused: Refused[] };
+export type BuildReport = {
+  snapshot: Snapshot;
+  refused: Refused[];
+  // What the build wants said that is not a refusal: a file whose empty
+  // values took the key as the text (#589).
+  notes: string[];
+};
 // What an exporter says the repository already holds for its strings
 // (§3, §8): per target language, id to text; taken as seeds once the
 // snapshot's ids are known.
@@ -140,6 +150,7 @@ export async function buildSnapshotReport(
   const execSeeds: ExecSeeds[] = [];
   const errors: string[] = [];
   const refused: Refused[] = [];
+  const notes: string[] = [];
 
   for (const source of config.sources) {
     if (source.adapter === "exec") {
@@ -159,7 +170,7 @@ export async function buildSnapshotReport(
     const file = source.path.replace("{lang}", config.sourceLanguage);
     let entries: StringEntry[];
     try {
-      entries = await readEntries(jiti, cwd, file, source);
+      entries = await readEntries(jiti, cwd, file, source, true);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       errors.push(`${file}: ${message}`);
@@ -169,11 +180,19 @@ export async function buildSnapshotReport(
     // it, and only where pull can write it: a .ts catalogue carries none,
     // so a proposal on its strings is refused up front, not left pending.
     const writable = writesBack(source.path);
+    const keyed = entries.filter((entry) => KEY_IS_TEXT.has(entry)).length;
+    if (keyed > 0) {
+      notes.push(
+        `${file}: ${keyed} string(s) have an empty value and take the key as the text; a proposal on them is refused, since the text is the key`,
+      );
+    }
     for (const entry of entries) {
       validateEntry(
         {
           ...entry,
-          ...(writable ? { file } : {}),
+          // A key-is-text entry carries no file: a proposal would rewrite
+          // the key, which is the code's, not the catalogue's.
+          ...(writable && !KEY_IS_TEXT.has(entry) ? { file } : {}),
           ...libraryFields(source),
         },
         file,
@@ -246,7 +265,7 @@ export async function buildSnapshotReport(
       ].join("\n"),
     );
   }
-  return { snapshot: parsed.data as Snapshot, refused };
+  return { snapshot: parsed.data as Snapshot, refused, notes };
 }
 
 function validateEntry(
@@ -383,11 +402,15 @@ export type FileSource = Exclude<Source, { adapter: "exec" }>;
 
 // A catalogue file through its source's adapter: the entries push would
 // send for it, or, for a target file, the translations it holds.
+// `sourceFile` is the source language's catalogue, where an empty value
+// under a sentence key reads the key as the text (#589); a target's
+// empty value is an untranslated row.
 export async function readEntries(
   jiti: ReturnType<typeof createJiti>,
   cwd: string,
   file: string,
   source: FileSource,
+  sourceFile = false,
 ): Promise<StringEntry[]> {
   const data = await readModule(
     jiti,
@@ -399,14 +422,16 @@ export async function readEntries(
       ? messagesToEntries(data, {
           type: source.type,
           arb: isArb(file),
+          keyIsText: sourceFile,
         })
       : tableToEntries(data, { type: source.type, map: source.map });
   // A namespaced file's ids are `ns:key` (#513), i18next's own separator.
   return source.namespace
-    ? entries.map((entry) => ({
-        ...entry,
-        id: `${source.namespace}:${entry.id}`,
-      }))
+    ? entries.map((entry) => {
+        const prefixed = { ...entry, id: `${source.namespace}:${entry.id}` };
+        if (KEY_IS_TEXT.has(entry)) KEY_IS_TEXT.add(prefixed);
+        return prefixed;
+      })
     : entries;
 }
 
