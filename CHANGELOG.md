@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-09-23
+
+What the 0.18.0 trial found: the door (empty i18next sources, HTML with attributes, printf verbs, the config init writes) and the size (a 128 MiB push, seeds sent once, a gzipped pull).
+
 ### Added
 
 - A pull's payload is gzipped from 256 KiB when the client accepts it, which Node's fetch does on its own: Bitwarden's pull at `translated` was 7.5 MB on the wire on 0.18.0 and is about a megabyte now; a small project's pull stays plain.
@@ -20,7 +24,7 @@ contract (`corpus/1`) is the only one.
 - An empty value under a sentence key reads the key as the source text: an i18next catalogue with natural keys (Ghost) writes the sentence as the key and `""` as the value, and Corpus used to push 579 of 588 strings with an empty source, mark 6,892 seeded translations invalid for a placeholder the empty source did not declare, and refuse every draft. Such a string carries no `file`, so a proposal on it is refused, since the text is the code's; `build` and `push` say how many strings took the key, and `init` says when a catalogue has that shape. A dotted key with an empty value stays empty.
 - `corpus pull` prints what an import command wrote to stderr under its `ran` line and counts the commands in its summary (`0 file(s) changed, 1 import command(s) ran`); it used to print `0 file(s) changed` after an importer had written a file, since the count is the adapters' alone, and swallowed the importer's own account when it exited 0.
 - A `corpus validate` finding names its language: every `--json` row carries `language` (a source's own finding carries the source language), and a finding on an `exec` source prints it after the key, `exec:<command> [key] fr: missing {trash}`, where the command stood for every language at once; a file source's line is unchanged, since its path names the language. On cosmic-files 129 lines over 74 languages said nothing about which.
-- `corpus init` counts the placeholder shapes a catalogue uses before naming its library: `{{ }}` is i18next only when it outnumbers the single-brace and the printf strings, so Gitea's one `{{filesize}}` among 4,000 printf strings no longer makes the project i18next; a catalogue whose placeholders are printf verbs is told that Corpus does not check them, and i18next plural keys with `{ }` interpolation (Ghost) are told they stay `icu`, which checks the placeholders where the i18next library would read a single brace as text.
+- `corpus init` counts the placeholder shapes a catalogue uses before naming its library: `{{ }}` is i18next only when it outnumbers the single-brace and the printf strings, so Gitea's one `{{filesize}}` among 4,000 printf strings no longer makes the project i18next; a catalogue whose placeholders are mostly printf verbs is named `printf`, and i18next plural keys with `{ }` interpolation (Ghost) are told they stay `icu`, which checks the placeholders where the i18next library would read a single brace as text.
 - `corpus init` writes `corpus.config.mjs` as a plain object when `@corpus-tool/cli` is not installed in the repository, and says so; it used to write the typed `corpus.config.ts`, whose import of the package fails to load on the next command when the CLI runs from npx (every project of the 0.18.0 trial). With the package installed it still writes the typed file.
 
 ## [0.18.0] - 2026-09-23
@@ -376,7 +380,8 @@ The first published version.
 - The `messages`, `table` and `exec` adapters, and the `corpus/1` snapshot contract with its ICU subset (placeholders and `select`).
 - The package ships plain JavaScript for Node 22 with type declarations; a client's config imports `defineCorpus` from `@corpus-tool/cli`.
 
-[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.18.0...HEAD
+[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.19.0...HEAD
+[0.19.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.19.0
 [0.18.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.18.0
 [0.17.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.17.0
 [0.16.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.16.0
