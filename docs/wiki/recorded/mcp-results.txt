@@ -42,6 +42,7 @@ get_string {"key":"editor.unsaved"}
         "description": null,
         "role": null,
         "format": null,
+        "written": null,
         "values": {}
       }
     ],
@@ -103,12 +104,15 @@ status {}
       "pt-PT"
     ],
     "strings": 2,
-    "lastPushAt": "2026-09-23T17:03:04.762Z",
-    "version": "v0.18.0",
+    "lastPushAt": "2026-09-23T22:06:09.809Z",
+    "version": "v0.19.0",
     "pendingProposals": 0,
     "writableSources": [
       "src/i18n/{lang}.json"
     ],
+    "seedDigests": {
+      "pt-PT": "811c9dc59747b28c"
+    },
     "progress": {
       "perLanguage": {
         "en": {
