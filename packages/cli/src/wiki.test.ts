@@ -4,8 +4,10 @@
 // the recording and the CLI disagree. `bin/wiki-record` rewrites them.
 //
 // It covers the commands that need no server. Output that needs a
-// running instance is prose on the page, and bin/wiki-check says which
-// pages are prose so nobody assumes otherwise.
+// running instance is recorded by bin/wiki-record-live, whose versions
+// are checked here against the package's; what is neither is prose on
+// the page, and bin/wiki-check says which pages are prose so nobody
+// assumes otherwise.
 import {
   copyFileSync,
   existsSync,
@@ -345,7 +347,7 @@ test("the recorded sessions and the health answer were taken against the package
     for (const recorded of found) {
       expect(
         recorded.replace(/^v/, ""),
-        `${name} was recorded against ${recorded}, the package is ${version}; run bin/wiki-record-live`,
+        `${name} was recorded against ${recorded}, the package is ${version}; bump packages/workbench too (the instance's version is its manifest's) and run bin/wiki-record-live`,
       ).toBe(version);
     }
   }
