@@ -32,6 +32,8 @@ export type StringDetail = {
     archived: boolean;
     // The repository file it came from (§4); null when pull cannot write it.
     file: string | null;
+    // The text is the key (§4, #611): no proposal, the code holds it.
+    keyIsText: boolean;
     // The message syntax the text is written in (§5).
     syntax: Library;
     metadata: Record<string, MetadataValue> | null;
@@ -142,6 +144,7 @@ export function stringDetail(
       source: string.source,
       archived: string.archived,
       file: string.file,
+      keyIsText: string.keyIsText,
       syntax: string.syntax ?? "icu",
       metadata,
       examples: string.examples ?? null,

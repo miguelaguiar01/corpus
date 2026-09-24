@@ -69,6 +69,7 @@ export async function GET(
     metadata: detail.string.metadata,
     note: detail.string.note,
     stringNote: detail.string.stringNote,
+    keyIsText: detail.string.keyIsText,
     glossary: detail.string.glossary,
     entities: detail.entities,
     translations,

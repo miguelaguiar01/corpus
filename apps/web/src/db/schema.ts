@@ -110,6 +110,10 @@ export const strings = sqliteTable(
     examples: text("examples", { mode: "json" }).$type<Example[]>(),
     // The repository file the entry was read from (§4); null for exec.
     file: text("file"),
+    // The text is the key, held by the code that calls t() (§4, #611).
+    keyIsText: integer("key_is_text", { mode: "boolean" })
+      .notNull()
+      .default(false),
     // What the repository says about this string (§4, #567).
     note: text("note"),
     // The message syntax the text is written in (§5); null is ICU.

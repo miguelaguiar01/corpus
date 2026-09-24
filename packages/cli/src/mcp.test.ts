@@ -143,6 +143,16 @@ function answers(seen: Seen): { status: number; body: unknown } {
       },
     };
   }
+  if (seen.path === "/api/strings/Sign%20in/proposals") {
+    return {
+      status: 422,
+      body: {
+        error: "not-writable",
+        message:
+          "the text of Sign in is its key: change it in the code that calls t(), and the catalogue follows",
+      },
+    };
+  }
   if (
     seen.path === "/api/strings/ui.continue/proposals" ||
     seen.path === "/api/proposals"
@@ -280,6 +290,22 @@ test("every tool is one API call with the token, and answers the server's body",
     ["DELETE", "/api/proposals/4", undefined],
   ]);
   expect(new Set(seen.map((s) => s.auth))).toEqual(new Set(["Bearer tok-1"]));
+  await done();
+});
+
+test("a proposal on a key-is-text string is refused with the server's sentence (#611)", async () => {
+  const { client, done } = await connected();
+  const refused = await client.callTool({
+    name: "propose_change",
+    arguments: { key: "Sign in", text: "Log in" },
+  });
+  expect(refused.isError).toBe(true);
+  expect(refused.content).toEqual([
+    {
+      type: "text",
+      text: "not-writable: the text of Sign in is its key: change it in the code that calls t(), and the catalogue follows",
+    },
+  ]);
   await done();
 });
 

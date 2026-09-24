@@ -39,6 +39,8 @@ export type StringResponse = {
   source: string;
   sourceLanguage: string;
   file: string | null;
+  // The text is the key (#611): a proposal is refused, the code holds it.
+  keyIsText: boolean;
   archived: boolean;
   placeholders: string[];
   selects: string[];

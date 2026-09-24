@@ -308,12 +308,16 @@ test("an empty value under a sentence key is the key as text: no file on the ent
   const { snapshot, refused, notes } = await buildSnapshotReport(keyed, REPO);
   expect(refused).toEqual([]);
   const byId = new Map(snapshot.strings.map((s) => [s.id, s]));
-  expect(byId.get("{amount} off")).toMatchObject({ source: "{amount} off" });
+  expect(byId.get("{amount} off")).toMatchObject({
+    source: "{amount} off",
+    keyIsText: true,
+  });
   expect(byId.get("{amount} off")).not.toHaveProperty("file");
   expect(byId.get("{count} month_one")).toMatchObject({
     source: "{count} month",
     file: "keyed/en.json",
   });
+  expect(byId.get("{count} month_one")).not.toHaveProperty("keyIsText");
   expect(byId.get("ui.empty")).toMatchObject({
     source: "",
     file: "keyed/en.json",
@@ -337,7 +341,7 @@ test("an empty value under a sentence key is the key as text: no file on the ent
   const keyedNs = ns.snapshot.strings.find(
     (s) => s.id === "portal:{amount} off",
   );
-  expect(keyedNs).toMatchObject({ source: "{amount} off" });
+  expect(keyedNs).toMatchObject({ source: "{amount} off", keyIsText: true });
   expect(keyedNs).not.toHaveProperty("file");
 });
 
