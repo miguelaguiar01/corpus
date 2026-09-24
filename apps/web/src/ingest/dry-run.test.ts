@@ -40,7 +40,12 @@ test("dry run leaves the database untouched", () => {
 
 test("dry run on a second push reports changes without applying them", () => {
   const { db, project } = seed();
-  applySnapshot(db, project.id, FIXTURE);
+  applySnapshot(db, project.id, {
+    ...FIXTURE,
+    seedTranslations: {
+      en: { "skin.seen-at-greenhouse-window": "Seen at the window." },
+    },
+  });
   const changed = structuredClone(FIXTURE);
   changed.strings[0]!.source = "{person} apareceu.";
 

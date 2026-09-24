@@ -90,6 +90,7 @@ type PushReport = {
   seeded?: number;
   seedsIgnored?: number;
   seedsIdentical?: number;
+  fromEmpty?: number;
 };
 
 // The snapshot is built and validated before the token is needed, so a
@@ -173,8 +174,14 @@ async function push(args: string[], ctx: RunContext): Promise<number> {
   const skipped = unchanged
     ? `, seeds unchanged for ${unchanged} language(s)`
     : "";
+  // A source that was the empty string took its text (a key-is-text
+  // catalogue after an upgrade, #620): a change, but not one that
+  // marks a translation stale, and the line says why the counts differ.
+  const fromEmpty = report.fromEmpty
+    ? `, ${report.fromEmpty} source(s) took their text where it was empty, nothing marked stale`
+    : "";
   ctx.out(
-    `${label} ${config.project}: ${report.added} added, ${report.changed} changed, ${report.stale} stale, ${report.archived} archived${seeded}${skipped}`,
+    `${label} ${config.project}: ${report.added} added, ${report.changed} changed, ${report.stale} stale, ${report.archived} archived${fromEmpty}${seeded}${skipped}`,
   );
   if (languages) {
     const drift = languageDrift(config.languages, languages);

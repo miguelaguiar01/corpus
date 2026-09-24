@@ -8,7 +8,7 @@ Four commands carry the work between the repository and the instance. This page 
 |---|---|
 | a new id | adds it; the source language counts as translated, every target as untranslated |
 | a string's text is the same | refreshes its metadata and examples; no state moves |
-| a string's text changed | updates it, marks every existing translation **stale**, keeps the old text |
+| a string's text changed | updates it, marks every translated or verified translation **stale**, keeps the old text; an untranslated row is left alone, and a text that was empty before marks nothing |
 | an id is gone | **archives** it: out of queues and progress, history kept, back if the id returns |
 
 Stale is the point of that table. A translation of a sentence that has since changed is not wrong, but it is not right either, and Corpus keeps it visible rather than silently correct.

@@ -65,15 +65,21 @@ test("re-pushing unchanged strings changes no states", () => {
   expect(report.stale).toBe(0);
 });
 
-test("changing a source stales its target rows and resets the source row", () => {
+test("changing a source stales its translated target rows and resets the source row", () => {
   const { db, project } = seed();
-  applySnapshot(db, project.id, FIXTURE);
+  applySnapshot(
+    db,
+    project.id,
+    withSeeds({
+      en: { "skin.seen-at-greenhouse-window": "Seen at the window." },
+    }),
+  );
   const changed = structuredClone(FIXTURE);
   changed.strings[0]!.source = "{person} apareceu.";
 
   const report = applySnapshot(db, project.id, changed);
   expect(report.changed).toBe(1);
-  expect(report.stale).toBe(1); // one target language (en)
+  expect(report.stale).toBe(1); // one translated target row (en)
 
   const s = stringRow(db, "skin.seen-at-greenhouse-window");
   const rows = db
@@ -85,6 +91,68 @@ test("changing a source stales its target rows and resets the source row", () =>
   const source = rows.find((r) => r.language === "pt-PT");
   expect(source?.state).toBe("translated");
   expect(source?.stale).toBe(false);
+});
+
+test("a changed source marks stale the translated and verified rows only; an untranslated row is left alone (#620)", () => {
+  const { db, project } = seed(["pt-PT", "en", "fr", "de"]);
+  applySnapshot(db, project.id, FIXTURE);
+  const s = stringRow(db, "skin.seen-at-greenhouse-window")!;
+  for (const [language, state] of [
+    ["fr", "translated"],
+    ["de", "verified"],
+  ] as const) {
+    db.update(stringTranslations)
+      .set({ state, text: "…" })
+      .where(
+        and(
+          eq(stringTranslations.stringId, s.id),
+          eq(stringTranslations.language, language),
+        ),
+      )
+      .run();
+  }
+  const changed = structuredClone(FIXTURE);
+  changed.strings[0]!.source = "{person} apareceu.";
+
+  const report = applySnapshot(db, project.id, changed);
+  expect(report.changed).toBe(1);
+  expect(report.stale).toBe(2);
+  const staleOf = (language: string) =>
+    translationOf(db, "skin.seen-at-greenhouse-window", language)?.stale;
+  expect(staleOf("en")).toBe(false);
+  expect(staleOf("fr")).toBe(true);
+  expect(staleOf("de")).toBe(true);
+  expect(staleOf("pt-PT")).toBe(false);
+});
+
+test("a source that was the empty string takes its text with no stale mark, and the report counts it (#620)", () => {
+  const { db, project } = seed();
+  const empty = structuredClone(FIXTURE);
+  empty.strings[0]!.source = "";
+  applySnapshot(db, project.id, {
+    ...empty,
+    seedTranslations: {
+      en: { "skin.seen-at-greenhouse-window": "Seen at the window." },
+    },
+  });
+  expect(translationOf(db, "skin.seen-at-greenhouse-window", "en")?.state).toBe(
+    "translated",
+  );
+
+  const keyed = structuredClone(FIXTURE);
+  keyed.strings[0]!.source = "skin.seen-at-greenhouse-window";
+  const report = applySnapshot(db, project.id, keyed);
+  expect(report).toMatchObject({ changed: 1, stale: 0, fromEmpty: 1 });
+  expect(stringRow(db, "skin.seen-at-greenhouse-window")?.source).toBe(
+    "skin.seen-at-greenhouse-window",
+  );
+  expect(
+    translationOf(db, "skin.seen-at-greenhouse-window", "en"),
+  ).toMatchObject({
+    state: "translated",
+    stale: false,
+    text: "Seen at the window.",
+  });
 });
 
 test("a string dropped from the snapshot is archived; entity is removed", () => {
@@ -328,7 +396,13 @@ test("an applied push records one history row with its report; a dry run records
   applySnapshot(db, project.id, FIXTURE, { dryRun: true });
   expect(db.select().from(pushes).all()).toHaveLength(0);
 
-  const report = applySnapshot(db, project.id, FIXTURE);
+  const report = applySnapshot(
+    db,
+    project.id,
+    withSeeds({
+      en: { "skin.seen-at-greenhouse-window": "Seen at the window." },
+    }),
+  );
   const rows = db.select().from(pushes).all();
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({
@@ -339,7 +413,7 @@ test("an applied push records one history row with its report; a dry run records
     stale: 0,
     archived: 0,
     unarchived: 0,
-    seeded: 0,
+    seeded: 1,
   });
   expect(rows[0]?.at).toBeInstanceOf(Date);
 

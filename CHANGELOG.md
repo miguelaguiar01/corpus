@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+### Fixed
+
+- A changed source marks stale its `translated` and `verified` rows only; an untranslated row has nothing to go stale and is left alone, where every target row of a moved source used to join the stale queue whether anyone had translated it or not. A source whose text was the empty string takes its text with no stale mark, and `corpus push` says so (`578 source(s) took their text where it was empty, nothing marked stale`): the first 0.19.0 push of a key-is-text catalogue (Ghost) changed 578 sources from `""` to their keys and marked all 35,898 of their rows stale, 22,564 translated ones included, which also opened every seeded translation to agent drafts.
+
 ## [0.19.0] - 2026-09-23
 
 What the 0.18.0 trial found: the door (empty i18next sources, HTML with attributes, printf verbs, the config init writes) and the size (a 128 MiB push, seeds sent once, a gzipped pull).

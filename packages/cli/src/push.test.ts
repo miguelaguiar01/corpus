@@ -89,6 +89,29 @@ test("push builds, uploads with the bearer token, and prints the report", async 
   );
 });
 
+test("a push whose sources went from empty to their text says so, and that nothing was marked stale (#620)", async () => {
+  const { server, url } = await startServer(() => ({
+    status: 200,
+    json: {
+      report: {
+        added: 0,
+        changed: 578,
+        stale: 0,
+        archived: 0,
+        fromEmpty: 578,
+      },
+    },
+  }));
+  active = server;
+  process.env.CORPUS_SERVER = url;
+
+  const c = ctx();
+  expect(await run(["push"], c)).toBe(0);
+  expect(c.output.join("\n")).toContain(
+    "0 added, 578 changed, 0 stale, 0 archived, 578 source(s) took their text where it was empty, nothing marked stale",
+  );
+});
+
 test("a push digests its seeds per language, leaves out the languages the server already holds, and says so (#601)", async () => {
   const { mkdtempSync, cpSync, writeFileSync, mkdirSync, readFileSync } =
     await import("node:fs");

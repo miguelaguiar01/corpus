@@ -8,7 +8,7 @@ function current(overrides: Partial<CurrentString> = {}): CurrentString {
     stringId: "s1",
     source: "original",
     archived: false,
-    targetLanguages: ["en"],
+    translatedTargets: ["en"],
     ...overrides,
   };
 }
@@ -35,15 +35,15 @@ test("same id, unchanged source → refresh only, no state changes", () => {
   expect(plan.report).toMatchObject({ added: 0, changed: 0, stale: 0 });
 });
 
-test("same id, changed source → update, stale every target, reset source state", () => {
+test("same id, changed source → update, stale every translated target, reset source state", () => {
   const plan = diffSnapshot(
     LANGS,
-    [current({ source: "old", targetLanguages: ["en", "fr"] })],
+    [current({ source: "old", translatedTargets: ["en", "fr"] })],
     [{ id: "s1", source: "new" }],
   );
   expect(plan.updateSource).toEqual(["s1"]);
   expect(plan.refresh).toEqual([]);
-  // stale = the two existing target rows
+  // stale = the two target rows in translated or verified
   expect(plan.report).toMatchObject({ changed: 1, stale: 2 });
 });
 
@@ -74,7 +74,7 @@ test("archived id returning, unchanged source → unarchive + refresh", () => {
 test("archived id returning, changed source → unarchive + update + stale", () => {
   const plan = diffSnapshot(
     LANGS,
-    [current({ archived: true, source: "old", targetLanguages: ["en"] })],
+    [current({ archived: true, source: "old", translatedTargets: ["en"] })],
     [{ id: "s1", source: "new" }],
   );
   expect(plan.unarchive).toEqual(["s1"]);
@@ -82,13 +82,24 @@ test("archived id returning, changed source → unarchive + update + stale", () 
   expect(plan.report).toMatchObject({ unarchived: 1, changed: 1, stale: 1 });
 });
 
-test("a string with no target rows contributes zero stale on source change", () => {
+test("a string with no translated target rows contributes zero stale on source change", () => {
   const plan = diffSnapshot(
     LANGS,
-    [current({ source: "old", targetLanguages: [] })],
+    [current({ source: "old", translatedTargets: [] })],
     [{ id: "s1", source: "new" }],
   );
   expect(plan.report).toMatchObject({ changed: 1, stale: 0 });
+});
+
+test("a source that was the empty string takes its text as an update with no stale mark, counted apart (#620)", () => {
+  const plan = diffSnapshot(
+    LANGS,
+    [current({ source: "", translatedTargets: ["en", "fr"] })],
+    [{ id: "s1", source: "s1" }],
+  );
+  expect(plan.updateSource).toEqual(["s1"]);
+  expect(plan.fromEmpty).toEqual(["s1"]);
+  expect(plan.report).toMatchObject({ changed: 1, stale: 0, fromEmpty: 1 });
 });
 
 test("mixed snapshot classifies each id independently", () => {

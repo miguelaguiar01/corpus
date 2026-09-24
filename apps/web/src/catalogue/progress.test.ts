@@ -53,6 +53,13 @@ test("progress excludes archived strings", () => {
 
 test("stale is counted after a source change", () => {
   const { db, p } = pushed();
+  // Only a translated row goes stale (#620): seed en first.
+  applySnapshot(db, p.id, {
+    ...(moonlightManor as Snapshot),
+    seedTranslations: {
+      en: { "skin.seen-at-greenhouse-window": "Seen at the window." },
+    },
+  });
   const changed = structuredClone(moonlightManor) as Snapshot;
   changed.strings[0]!.source = "{person} apareceu.";
   applySnapshot(db, p.id, changed);
