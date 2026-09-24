@@ -401,6 +401,19 @@ test("init counts the placeholder shapes: one {{ }} among printf verbs is not i1
     /library: printf, from printf verbs in src\/i18n\/pt-PT\.json/,
   );
 
+  // An iOS catalogue's %ld and %@ are printf verbs too (#614).
+  const ios = project();
+  stubCli(ios.dir);
+  mkdirSync(path.join(ios.dir, "src", "i18n"), { recursive: true });
+  writeFileSync(
+    path.join(ios.dir, "src", "i18n", "pt-PT.json"),
+    JSON.stringify({ a: "%ld photos", b: "%@ shared %lu", c: "Done" }),
+  );
+  expect(await run(FLAGS, ios.ctx)).toBe(0);
+  expect((await loadConfig(ios.dir)).sources[0]).toMatchObject({
+    library: "printf",
+  });
+
   // A catalogue where {{ }} strings outnumber the single-brace and the
   // printf ones is i18next; a tie is not, and one {{ }} alone still is.
   for (const [values2, i18next] of [

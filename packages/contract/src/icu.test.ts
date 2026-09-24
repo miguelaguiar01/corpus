@@ -363,6 +363,33 @@ test("printf: verbs are placeholders named by position, %% is a percent, and bra
   expect([...tagsOf('<a href="%s">x</a>', "printf")]).toEqual([]);
 });
 
+test("printf: a C length modifier rides with the verb, and %@ is Objective-C's object verb (#614)", () => {
+  expect([
+    ...placeholderWrittenOf(
+      "%ld of %lu, %zu bytes, %lld ms, %hhd, %5.2Lf",
+      "printf",
+    ),
+  ]).toEqual([
+    ["1", "%ld"],
+    ["2", "%lu"],
+    ["3", "%zu"],
+    ["4", "%lld"],
+    ["5", "%hhd"],
+    ["6", "%5.2Lf"],
+  ]);
+  expect([...placeholderWrittenOf("%2$@ by %@", "printf")]).toEqual([
+    ["2", "%2$@"],
+    ["3", "%@"],
+  ]);
+  // Go's %t and %q stay verbs of their own when no letter follows; a
+  // letter after one reads as C's modifier and verb.
+  expect([...placeholderWrittenOf("%t or %q, %td", "printf")]).toEqual([
+    ["1", "%t"],
+    ["2", "%q"],
+    ["3", "%td"],
+  ]);
+});
+
 test("an unclosed, mismatched or stray tag is a parse error naming it", () => {
   expect(parseIcu("<link>terms")).toMatchObject({
     ok: false,

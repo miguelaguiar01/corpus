@@ -11,7 +11,13 @@
 // the target and none may be added, wherever it moves.
 // Errors are data (code + params); callers render them through their
 // own message catalog.
-import { parseIcu, pluralCategoriesOf, type IcuNode, tagIdentity } from "./icu";
+import {
+  parseIcu,
+  pluralCategoriesOf,
+  printfVerbOf,
+  type IcuNode,
+  tagIdentity,
+} from "./icu";
 import type { Library } from "./strings";
 
 export type ValidationError =
@@ -72,6 +78,9 @@ type Shape = {
   // the order they appear (#594).
   written: Map<string, string>;
   order: string[];
+  // How many placeholders the text writes, positions repeated included:
+  // fewer than the source's is what a dropped verb looks like (#614).
+  count: number;
 };
 
 function shapeOf(
@@ -84,12 +93,14 @@ function shapeOf(
     tags: new Set(),
     written: new Map(),
     order: [],
+    count: 0,
   },
 ): Shape {
   for (const node of nodes) {
     if (node.kind === "placeholder") {
       shape.placeholders.add(node.name);
       shape.order.push(node.name);
+      shape.count += 1;
       if (node.written && !shape.written.has(node.name))
         shape.written.set(node.name, node.written);
       if (node.format && !shape.formats.has(node.name)) {
@@ -183,17 +194,32 @@ export function validateTranslation(
     const cStyle = [...expected.written.values()].some((w) =>
       /^%\d+\$/.test(w),
     );
+    // The verb is the modifier and the letter together: `%ld` against
+    // `%lu` is a changed verb (#614).
+    const verbOf = (written: string) => printfVerbOf(written) ?? written;
+    const changed: Extract<ValidationError, { code: "changed-verb" }>[] = [];
     for (const [name, written] of expected.written) {
       const got = actual.written.get(name);
-      if (got === undefined || got.slice(-1) === written.slice(-1)) continue;
-      const letter = got.slice(-1);
-      errors.push({
+      if (got === undefined || verbOf(got) === verbOf(written)) continue;
+      changed.push({
         code: "changed-verb",
         name,
         expected: written,
         actual: got,
-        indexed: cStyle ? `%n$${letter}` : `%[n]${letter}`,
+        indexed: cStyle ? `%n$${verbOf(got)}` : `%[n]${verbOf(got)}`,
       });
+    }
+    // One dropped verb shifts every verb after it one place: read by
+    // position that is a changed verb at each place from the drop on and
+    // a missing last, and it is said as the one omission it is (#614).
+    // Anything else, a reorder or a drop beside a change, is said as it
+    // reads.
+    const drop = droppedVerb(expected, actual, changed, errors, verbOf);
+    if (drop) {
+      errors.length = 0;
+      errors.push(drop);
+    } else {
+      errors.push(...changed);
     }
   }
   for (const [name, type] of expected.formats) {
@@ -252,4 +278,37 @@ export function validateTranslation(
   return incomplete.length === 0
     ? { ok: false, errors: invalid }
     : { ok: false, errors: invalid, incomplete };
+}
+
+// The one omission a shifted tail is (#614): the translation writes one
+// verb fewer, the only missing position is the source's last, every
+// verb from the first changed position on is the source's next verb,
+// and nothing is unexpected. Then the source's verb at the first changed
+// position is what was dropped. Undefined for any other reading.
+function droppedVerb(
+  expected: Shape,
+  actual: Shape,
+  changed: Extract<ValidationError, { code: "changed-verb" }>[],
+  errors: ValidationError[],
+  verbOf: (written: string) => string,
+): ValidationError | undefined {
+  if (actual.count !== expected.count - 1 || changed.length === 0) return;
+  const positions = [...expected.written.keys()].map(Number);
+  const last = Math.max(...positions);
+  const missing = errors.filter((e) => e.code === "missing-placeholder");
+  if (errors.length !== missing.length) return;
+  if (missing.length !== 1 || missing[0]!.name !== String(last)) return;
+  const first = Math.min(...changed.map((c) => Number(c.name)));
+  for (let n = first; n < last; n++) {
+    const got = actual.written.get(String(n));
+    const next = expected.written.get(String(n + 1));
+    if (got === undefined || next === undefined || verbOf(got) !== verbOf(next))
+      return;
+  }
+  const written = expected.written.get(String(first));
+  return {
+    code: "missing-placeholder",
+    name: String(first),
+    ...(written ? { written } : {}),
+  };
 }

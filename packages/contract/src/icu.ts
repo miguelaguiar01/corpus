@@ -93,10 +93,19 @@ class ParseFailure extends Error {
 }
 
 // printf's verb: Go's `%[n]verb` or C's `%n$verb` index, then flags,
-// width and precision, then the verb letter. `%%` is a literal percent.
-// The space flag is left out: "50% off" is prose, not a verb.
+// width and precision, then C's length modifier (`%ld`, `%zu`, `%lld`)
+// and the verb letter, `@` being Objective-C's object verb (#614).
+// `%%` is a literal percent. The space flag is left out: "50% off" is
+// prose, not a verb.
 const PRINTF_VERB_RE =
-  /^%(?:\[(\d+)\]|(\d+)\$)?([-+0#]*(?:\d+|\*)?(?:\.(?:\d+|\*))?)([a-zA-Z])/;
+  /^%(?:\[(\d+)\]|(\d+)\$)?([-+0#]*(?:\d+|\*)?(?:\.(?:\d+|\*))?)((?:hh|h|ll|l|z|j|t|L|q)?[a-zA-Z@])/;
+
+// The verb of a printf placeholder as written, modifier and letter
+// (`ld` of `%2$-8ld`): what a translation must keep at the position,
+// and what the index form names. Undefined for text that is not a verb.
+export function printfVerbOf(written: string): string | undefined {
+  return PRINTF_VERB_RE.exec(written)?.[4];
+}
 
 class Parser {
   private pos = 0;
