@@ -485,6 +485,22 @@ test("a first pull into a missing .arb writes @@locale first and none of the sou
   "photosCount": "{count, plural, one {# Foto} other {# Fotos}}"
 }
 `);
+  // gen-l10n compares @@locale, as written, with the file name's locale
+  // normalised to underscores, so a hyphenated code is written with
+  // underscores whatever the file name says (#585).
+  expect(
+    entriesToMessages(template, translations, undefined, { locale: "pt-PT" }),
+  ).toBe(`{
+  "@@locale": "pt_PT",
+  "wallpaper": "Hintergrund",
+  "photosCount": "{count, plural, one {# Foto} other {# Fotos}}"
+}
+`);
+  expect(
+    entriesToMessages(template, translations, undefined, {
+      locale: "zh-Hant-TW",
+    }),
+  ).toContain('"@@locale": "zh_Hant_TW"');
   // An empty file is a missing one; a .json first pull carries no locale.
   expect(entriesToMessages(template, translations, "", { locale: "de" })).toBe(
     entriesToMessages(template, translations, undefined, { locale: "de" }),

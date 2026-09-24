@@ -86,7 +86,10 @@ function collision(id: string): never {
 // the source's `@@locale` and the shells of its `@key` metadata behind;
 // a missing .arb is written from the template's strings alone, with
 // `@@locale` first, since gen-l10n reads the locale from it before the
-// file name (#568). The `@key` metadata stays in the source, where
+// file name (#568), in the underscore form: gen-l10n compares `@@locale`
+// as written with the file name's locale normalised to underscores and
+// refuses a mismatch, so `pt-PT` is written `pt_PT` whatever the file
+// name says (#585). The `@key` metadata stays in the source, where
 // gen-l10n reads it.
 export function entriesToMessages(
   template: string,
@@ -136,7 +139,7 @@ function fromTemplate(
   const tree = parseTree(template);
   const nested = isNested(tree);
   const out: Tree = Object.create(null) as Tree;
-  if (locale !== undefined) out["@@locale"] = locale;
+  if (locale !== undefined) out["@@locale"] = locale.replaceAll("-", "_");
   const seen = new Set<string>();
   for (const [path] of leaves(tree)) {
     const id = path.join(".");
