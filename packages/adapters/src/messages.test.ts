@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { stringEntrySchema } from "@corpus/contract";
-import { messagesToEntries, KEY_IS_TEXT, keyIsSentence } from "./messages";
+import { messagesToEntries, keyIsSentence } from "./messages";
 
 test("flat catalog maps key -> id with the configured type", () => {
   const entries = messagesToEntries(
@@ -95,7 +95,7 @@ test("an empty value under a sentence key reads the key as the text; a dotted ke
     ["ui.empty", ""],
     ["ui.title", "Title"],
   ]);
-  expect(entries.filter((e) => KEY_IS_TEXT.has(e)).map((e) => e.id)).toEqual([
+  expect(entries.filter((e) => e.keyIsText).map((e) => e.id)).toEqual([
     "{amount} off",
     "Sign in",
     "Email",

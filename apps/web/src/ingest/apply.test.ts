@@ -155,6 +155,22 @@ test("a source that was the empty string takes its text with no stale mark, and 
   });
 });
 
+test("a pushed entry's keyIsText is kept on the row, false when the push does not carry it (#611)", () => {
+  const { db, project } = seed();
+  const keyed = structuredClone(FIXTURE);
+  keyed.strings[0] = {
+    ...keyed.strings[0]!,
+    source: keyed.strings[0]!.id,
+    keyIsText: true,
+  };
+  applySnapshot(db, project.id, keyed);
+  expect(stringRow(db, keyed.strings[0]!.id)?.keyIsText).toBe(true);
+  expect(stringRow(db, keyed.strings[1]!.id)?.keyIsText).toBe(false);
+  // The next push, from a CLI that does not send the field, clears it.
+  applySnapshot(db, project.id, { ...keyed, strings: FIXTURE.strings });
+  expect(stringRow(db, keyed.strings[0]!.id)?.keyIsText).toBe(false);
+});
+
 test("a string dropped from the snapshot is archived; entity is removed", () => {
   const { db, project } = seed();
   applySnapshot(db, project.id, FIXTURE);

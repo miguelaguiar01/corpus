@@ -90,6 +90,17 @@ test("the service's refusals: unchanged, invalid ICU, a source pull cannot write
     message: `${HEARD} comes from a source that pull cannot write; the writable sources are src/skins/{lang}.json, src/ui/{lang}.json`,
   });
 
+  db.update(strings)
+    .set({ file: null, keyIsText: true })
+    .where(eq(strings.id, stringRowId(db, HEARD)))
+    .run();
+  const keyed = await propose(token, HEARD, { kind: "edit", text: "Nada." });
+  expect(keyed.status).toBe(422);
+  expect(await keyed.json()).toEqual({
+    error: "not-writable",
+    message: `the text of ${HEARD} is its key: change it in the code that calls t(), and the catalogue follows`,
+  });
+
   const bad = await propose(token, CONTINUE, { kind: "rename" });
   expect(bad.status).toBe(422);
   expect((await propose(token, "no.such", { kind: "delete" })).status).toBe(

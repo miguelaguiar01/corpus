@@ -92,3 +92,10 @@ test("a string pull cannot write shows the note and no buttons", () => {
   expect(screen.getByText(/cannot write back/)).toBeTruthy();
   expect(screen.queryByRole("button")).toBeNull();
 });
+
+test("a string whose text is its key says so in place of the buttons (#611)", () => {
+  panel({ writable: false, keyIsText: true });
+  expect(screen.getByText(/is its key/)).toBeTruthy();
+  expect(screen.queryByText(/cannot write back/)).toBeNull();
+  expect(screen.queryByRole("button")).toBeNull();
+});

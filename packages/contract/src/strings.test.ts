@@ -204,6 +204,15 @@ test("an example parses with or without per-language values; keys are language c
   ).toBe(false);
 });
 
+test("an entry may say its text is its key (#611)", () => {
+  const entry = { id: "Sign in", type: "t", source: "Sign in" };
+  const keyed = stringEntrySchema.safeParse({ ...entry, keyIsText: true });
+  expect(keyed.success && keyed.data.keyIsText).toBe(true);
+  expect(
+    stringEntrySchema.safeParse({ ...entry, keyIsText: "yes" }).success,
+  ).toBe(false);
+});
+
 test("an entry may name the file it was read from", () => {
   const entry = { id: "a", type: "t", source: "x" };
   expect(stringEntrySchema.safeParse(entry).success).toBe(true);

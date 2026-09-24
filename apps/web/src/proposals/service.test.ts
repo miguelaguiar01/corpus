@@ -97,6 +97,22 @@ test("an edit needs a writable string, valid ICU and a change; the newest supers
   );
 });
 
+test("a string whose text is its key refuses proposals with its own reason (#611)", () => {
+  const { db, ana } = pushed();
+  const ui = row(db, "ui.continue");
+  db.update(strings)
+    .set({ file: null, keyIsText: true })
+    .where(eq(strings.id, ui.id))
+    .run();
+  expect(
+    proposeEdit(db, { stringRowId: ui.id, text: "Seguir", actor: ana }),
+  ).toEqual({ ok: false, reason: "key-is-text" });
+  expect(proposeDelete(db, { stringRowId: ui.id, actor: ana })).toEqual({
+    ok: false,
+    reason: "key-is-text",
+  });
+});
+
 test("a string without a file (exec) refuses proposals", () => {
   const { db, ana } = pushed();
   const ui = row(db, "ui.continue");
