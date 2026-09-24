@@ -11,12 +11,6 @@ export type MessagesOptions = {
   keyIsText?: boolean;
 };
 
-// An entry whose source is its key carries `keyIsText` (§4): an i18next
-// catalogue with natural keys writes the sentence as the key and "" as
-// the value, and the app falls back to the key (#589). Corpus reads the
-// key as the text; build drops the file from such an entry, since a
-// proposal would have nothing to write, and says how many took the key.
-
 // A key that is a sentence rather than a path: whitespace, or anything
 // outside a dotted identifier. One such key with an empty value means
 // the file uses natural keys, and then every empty value takes its key
@@ -32,6 +26,11 @@ function keyIsPath(id: string): boolean {
   return /^[a-z0-9_-]+(\.[a-z0-9_-]+)+$/.test(id);
 }
 
+// An entry whose source is its key carries `keyIsText` (§4): an i18next
+// catalogue with natural keys writes the sentence as the key and "" as
+// the value, and the app falls back to the key (#589). Corpus reads the
+// key as the text; build drops the file from such an entry, since a
+// proposal would have nothing to write, and says how many took the key.
 function takeKeys(
   entries: StringEntry[],
   options: MessagesOptions,

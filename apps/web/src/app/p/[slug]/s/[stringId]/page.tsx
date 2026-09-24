@@ -54,6 +54,8 @@ const PROPOSAL_ERROR_KEY: Record<string, MessageKey> = {
   forbidden: "proposal.errorForbidden",
   "not-pending": "proposal.errorNotPending",
   "invalid-icu": "proposal.invalidIcu",
+  // Reachable from a page rendered before a push marked the string (#611).
+  "key-is-text": "proposal.keyIsText",
 };
 
 const ERROR_KEY: Record<string, MessageKey> = {
