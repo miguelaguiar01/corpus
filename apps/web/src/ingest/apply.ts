@@ -151,6 +151,7 @@ export function applySnapshot(
           .run();
       }
 
+      const fromEmpty = new Set(plan.fromEmpty);
       for (const id of plan.updateSource) {
         const entry = bySnapshotId.get(id)!;
         const rowId = currentRowId.get(id)!;
@@ -167,12 +168,21 @@ export function applySnapshot(
           })
           .where(eq(strings.id, rowId))
           .run();
-        // Targets go stale (old text kept); the source-language row is reset
-        // to translated for re-verification (§8).
-        tx.update(stringTranslations)
-          .set({ stale: true })
-          .where(eq(stringTranslations.stringId, rowId))
-          .run();
+        // Translated and verified targets go stale (old text kept), an
+        // untranslated row has nothing to mark, and a source that was the
+        // empty string marks none; the source-language row is reset to
+        // translated for re-verification (§8).
+        if (!fromEmpty.has(id)) {
+          tx.update(stringTranslations)
+            .set({ stale: true })
+            .where(
+              and(
+                eq(stringTranslations.stringId, rowId),
+                inArray(stringTranslations.state, ["translated", "verified"]),
+              ),
+            )
+            .run();
+        }
         tx.update(stringTranslations)
           .set({ state: "translated", stale: false })
           .where(
@@ -248,12 +258,13 @@ function loadCurrent(
     .select({
       stringId: stringTranslations.stringId,
       language: stringTranslations.language,
+      state: stringTranslations.state,
     })
     .from(stringTranslations)
     .all();
   const targetsByString = new Map<number, string[]>();
   for (const t of translations) {
-    if (t.language === sourceLanguage) continue;
+    if (t.language === sourceLanguage || t.state === "untranslated") continue;
     const list = targetsByString.get(t.stringId) ?? [];
     list.push(t.language);
     targetsByString.set(t.stringId, list);
@@ -263,7 +274,7 @@ function loadCurrent(
     stringId: row.stringId,
     source: row.source,
     archived: row.archived,
-    targetLanguages: targetsByString.get(row.id) ?? [],
+    translatedTargets: targetsByString.get(row.id) ?? [],
   }));
 }
 

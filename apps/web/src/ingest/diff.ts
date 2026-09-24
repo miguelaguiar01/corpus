@@ -6,9 +6,10 @@ export type CurrentString = {
   stringId: string;
   source: string;
   archived: boolean;
-  // Languages that already have a translation row — the rows marked stale
-  // when the source changes.
-  targetLanguages: string[];
+  // Target languages whose row is translated or verified: the rows a
+  // source change marks stale. An untranslated row has nothing to go
+  // stale (#620).
+  translatedTargets: string[];
 };
 
 export type SnapshotString = { id: string; source: string };
@@ -25,12 +26,16 @@ export type DiffReport = {
   archived: number;
   unarchived: number;
   unchanged: number;
+  // Sources whose text was the empty string: applied as updates with
+  // no stale mark, since nothing was translated against nothing (#620).
+  fromEmpty: number;
 };
 
 export type DiffPlan = {
   insert: string[];
   refresh: string[];
   updateSource: string[];
+  fromEmpty: string[];
   archive: string[];
   unarchive: string[];
   report: DiffReport;
@@ -48,6 +53,7 @@ export function diffSnapshot(
     insert: [],
     refresh: [],
     updateSource: [],
+    fromEmpty: [],
     archive: [],
     unarchive: [],
     report: {
@@ -57,6 +63,7 @@ export function diffSnapshot(
       archived: 0,
       unarchived: 0,
       unchanged: 0,
+      fromEmpty: 0,
     },
   };
 
@@ -81,7 +88,12 @@ export function diffSnapshot(
     } else {
       plan.updateSource.push(entry.id);
       plan.report.changed += 1;
-      plan.report.stale += existing.targetLanguages.length;
+      if (existing.source === "") {
+        plan.fromEmpty.push(entry.id);
+        plan.report.fromEmpty += 1;
+      } else {
+        plan.report.stale += existing.translatedTargets.length;
+      }
     }
   }
 
