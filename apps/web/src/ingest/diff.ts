@@ -14,6 +14,10 @@ export type CurrentString = {
 
 export type SnapshotString = { id: string; source: string };
 
+// The states a source change marks stale: the diff counts the rows in
+// them, the apply loop bounds its update to them, one list for both.
+export const STALE_STATES = ["translated", "verified"] as const;
+
 export type DiffLanguages = {
   sourceLanguage: string;
   targetLanguages: string[];

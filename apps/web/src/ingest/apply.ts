@@ -11,7 +11,12 @@ import {
 } from "@/db/schema";
 import { reconcileProposals } from "@/proposals/service";
 import { ensureTranslationRows } from "@/translations/rows";
-import { diffSnapshot, type CurrentString, type DiffReport } from "./diff";
+import {
+  diffSnapshot,
+  STALE_STATES,
+  type CurrentString,
+  type DiffReport,
+} from "./diff";
 
 export type IngestReport = DiffReport & {
   entitiesUpserted: number;
@@ -178,7 +183,7 @@ export function applySnapshot(
             .where(
               and(
                 eq(stringTranslations.stringId, rowId),
-                inArray(stringTranslations.state, ["translated", "verified"]),
+                inArray(stringTranslations.state, [...STALE_STATES]),
               ),
             )
             .run();
@@ -264,7 +269,8 @@ function loadCurrent(
     .all();
   const targetsByString = new Map<number, string[]>();
   for (const t of translations) {
-    if (t.language === sourceLanguage || t.state === "untranslated") continue;
+    if (t.language === sourceLanguage) continue;
+    if (!(STALE_STATES as readonly string[]).includes(t.state)) continue;
     const list = targetsByString.get(t.stringId) ?? [];
     list.push(t.language);
     targetsByString.set(t.stringId, list);
