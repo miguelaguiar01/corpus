@@ -197,7 +197,7 @@ export function validateTranslation(
     // The verb is the modifier and the letter together: `%ld` against
     // `%lu` is a changed verb (#614).
     const verbOf = (written: string) => printfVerbOf(written) ?? written;
-    const changed: ValidationError[] = [];
+    const changed: Extract<ValidationError, { code: "changed-verb" }>[] = [];
     for (const [name, written] of expected.written) {
       const got = actual.written.get(name);
       if (got === undefined || verbOf(got) === verbOf(written)) continue;
@@ -209,32 +209,17 @@ export function validateTranslation(
         indexed: cStyle ? `%n$${verbOf(got)}` : `%[n]${verbOf(got)}`,
       });
     }
-    // A dropped middle verb shifts the ones after it: with fewer verbs
-    // than the source, a changed verb at n followed by a missing n+1
-    // whose verb is what now sits at n is one dropped verb at n, and is
-    // said as that (#614). A reorder writes as many verbs as the source.
-    const dropped = actual.count < expected.count;
-    for (const error of changed) {
-      if (error.code !== "changed-verb") continue;
-      const next = String(Number(error.name) + 1);
-      const missingAt = !dropped
-        ? -1
-        : errors.findIndex(
-            (e) =>
-              e.code === "missing-placeholder" &&
-              e.name === next &&
-              e.written !== undefined &&
-              verbOf(e.written) === verbOf(error.actual),
-          );
-      if (missingAt === -1) {
-        errors.push(error);
-        continue;
-      }
-      errors[missingAt] = {
-        code: "missing-placeholder",
-        name: error.name,
-        written: error.expected,
-      };
+    // One dropped verb shifts every verb after it one place: read by
+    // position that is a changed verb at each place from the drop on and
+    // a missing last, and it is said as the one omission it is (#614).
+    // Anything else, a reorder or a drop beside a change, is said as it
+    // reads.
+    const drop = droppedVerb(expected, actual, changed, errors, verbOf);
+    if (drop) {
+      errors.length = 0;
+      errors.push(drop);
+    } else {
+      errors.push(...changed);
     }
   }
   for (const [name, type] of expected.formats) {
@@ -293,4 +278,37 @@ export function validateTranslation(
   return incomplete.length === 0
     ? { ok: false, errors: invalid }
     : { ok: false, errors: invalid, incomplete };
+}
+
+// The one omission a shifted tail is (#614): the translation writes one
+// verb fewer, the only missing position is the source's last, every
+// verb from the first changed position on is the source's next verb,
+// and nothing is unexpected. Then the source's verb at the first changed
+// position is what was dropped. Undefined for any other reading.
+function droppedVerb(
+  expected: Shape,
+  actual: Shape,
+  changed: Extract<ValidationError, { code: "changed-verb" }>[],
+  errors: ValidationError[],
+  verbOf: (written: string) => string,
+): ValidationError | undefined {
+  if (actual.count !== expected.count - 1 || changed.length === 0) return;
+  const positions = [...expected.written.keys()].map(Number);
+  const last = Math.max(...positions);
+  const missing = errors.filter((e) => e.code === "missing-placeholder");
+  if (errors.length !== missing.length) return;
+  if (missing.length !== 1 || missing[0]!.name !== String(last)) return;
+  const first = Math.min(...changed.map((c) => Number(c.name)));
+  for (let n = first; n < last; n++) {
+    const got = actual.written.get(String(n));
+    const next = expected.written.get(String(n + 1));
+    if (got === undefined || next === undefined || verbOf(got) !== verbOf(next))
+      return;
+  }
+  const written = expected.written.get(String(first));
+  return {
+    code: "missing-placeholder",
+    name: String(first),
+    ...(written ? { written } : {}),
+  };
 }

@@ -284,7 +284,9 @@ const ICU_ARGUMENT_RE = /\{\s*[^{},]+\s*,\s*(?:select|plural)\s*,/;
 // i18next's {{ name }}, a single-brace {name}, and a printf verb.
 const DOUBLE_BRACE_RE = /\{\{\s*[^{}]+\}\}/;
 const SINGLE_BRACE_RE = /(?<!\{)\{\s*[A-Za-z_][\w.-]*\s*\}(?!\})/;
-const PRINTF_RE = /%(?:\[\d+\]|\d+\$)?[-+0#]*\d*(?:\.\d+)?[sdvfxXqcbeEgGtTp]/;
+// C's length modifiers and Objective-C's %@ count as verbs too (#614).
+const PRINTF_RE =
+  /%(?:\[\d+\]|\d+\$)?[-+0#]*\d*(?:\.\d+)?(?:hh|h|ll|l|z|j|t|L|q)?[sdvfxXqcbeEgGtTpu@]/;
 const PLURAL_SUFFIX_RE = /_(?:zero|one|two|few|many|other)$/;
 // Any ICU argument, not only the branching ones: a `{when, date, short}`
 // in a catalogue with a stray pipe is still ICU, not vue-i18n.

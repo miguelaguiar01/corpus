@@ -243,6 +243,39 @@ describe("printf", () => {
     expect(
       errorsOf(go, "%s enviou commits para %s", "pt-PT", "printf"),
     ).toEqual([{ code: "missing-placeholder", name: "2", written: "%d" }]);
+    // The same for a verb dropped early in a longer string: every verb
+    // after it shifted one place, which is one omission, not three
+    // changes and a fourth missing.
+    expect(
+      errorsOf("%d of %s in %f at %x", "%s %f %x", "pt-PT", "printf"),
+    ).toEqual([{ code: "missing-placeholder", name: "1", written: "%d" }]);
+    // A drop that also changes a verb is not one omission: said as it reads.
+    expect(
+      errorsOf("%d of %s in %f at %x", "%s %d %x", "pt-PT", "printf"),
+    ).toEqual([
+      { code: "missing-placeholder", name: "4", written: "%x" },
+      {
+        code: "changed-verb",
+        name: "1",
+        expected: "%d",
+        actual: "%s",
+        indexed: "%[n]s",
+      },
+      {
+        code: "changed-verb",
+        name: "2",
+        expected: "%s",
+        actual: "%d",
+        indexed: "%[n]d",
+      },
+      {
+        code: "changed-verb",
+        name: "3",
+        expected: "%f",
+        actual: "%x",
+        indexed: "%[n]x",
+      },
+    ]);
     expect(
       errorsOf(go, "%s pushed %d commits to %s extra %d", "pt-PT", "printf"),
     ).toEqual([{ code: "unexpected-placeholder", name: "4", written: "%d" }]);
