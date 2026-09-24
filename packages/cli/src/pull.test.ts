@@ -599,7 +599,10 @@ test("a first pull into a missing .arb writes @@locale first; a missing .json ge
         /sources: \[[\s\S]*?\n {2}\],/,
         'sources: [{ adapter: "messages", type: "chrome", path: "arb/strings_{lang}.arb" }, { adapter: "messages", type: "email", path: "i18n/{lang}.json" }],',
       )
-      .replace(/languages: \[[^\]]*\]/, 'languages: ["en", "pt", "de"]'),
+      .replace(
+        /languages: \[[^\]]*\]/,
+        'languages: ["en", "pt", "de", "pt-PT", "sr_Latn"]',
+      ),
   );
   mkdirSync(path.join(repo, "arb"));
   writeFileSync(
@@ -633,12 +636,22 @@ test("a first pull into a missing .arb writes @@locale first; a missing .json ge
         greeting: "Hello {name}",
       },
       de: { wallpaper: "Hintergrund", greeting: "Hallo {name}" },
+      "pt-PT": { wallpaper: "Fundo" },
+      sr_Latn: { wallpaper: "Pozadina" },
     },
   });
   const c = ctx();
   expect(await run(["pull"], c)).toBe(0);
   expect(read("arb/strings_de.arb")).toBe(
     `{\n  "@@locale": "de",\n  "wallpaper": "Hintergrund"\n}\n`,
+  );
+  // A hyphenated code takes the underscore form gen-l10n checks against,
+  // whatever form the file name carries; an underscore code is as it is (#585).
+  expect(read("arb/strings_pt-PT.arb")).toBe(
+    `{\n  "@@locale": "pt_PT",\n  "wallpaper": "Fundo"\n}\n`,
+  );
+  expect(read("arb/strings_sr_Latn.arb")).toBe(
+    `{\n  "@@locale": "sr_Latn",\n  "wallpaper": "Pozadina"\n}\n`,
   );
   expect(read("i18n/de.json")).toBe(`{\n  "greeting": "Hallo {name}"\n}\n`);
 });
