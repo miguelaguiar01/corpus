@@ -1,7 +1,6 @@
 import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { createJiti } from "jiti";
-import { KEY_IS_TEXT } from "@corpus/adapters";
 import {
   corpusConfigSchema,
   LANGUAGE_RE,
@@ -348,7 +347,7 @@ async function libraryFor(
       );
       texts.push(...entries.map((entry) => entry.source));
       ids.push(...entries.map((entry) => entry.id));
-      keyed += entries.filter((entry) => KEY_IS_TEXT.has(entry)).length;
+      keyed += entries.filter((entry) => entry.keyIsText).length;
     }
   } catch {
     return {};

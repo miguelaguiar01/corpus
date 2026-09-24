@@ -22,6 +22,14 @@ export function proposalRefusal(
         "not-writable",
         `${key} comes from a source that pull cannot write; ${writableSourcesClause(project)}`,
       );
+    case "key-is-text":
+      // The same code as a source pull cannot write, since a client
+      // acts on it the same way (#611); the reason is the string's.
+      return apiError(
+        422,
+        "not-writable",
+        `the text of ${key} is its key: change it in the code that calls t(), and the catalogue follows`,
+      );
     case "invalid-icu":
       return apiError(
         422,

@@ -27,6 +27,7 @@ export type ProposeResult =
         | "not-found"
         | "archived"
         | "not-writable"
+        | "key-is-text"
         | "invalid-icu"
         | "invalid-key"
         | "unchanged"
@@ -84,6 +85,7 @@ function forString(
     .get();
   if (!row) return { ok: false, reason: "not-found" };
   if (row.archived) return { ok: false, reason: "archived" };
+  if (row.keyIsText) return { ok: false, reason: "key-is-text" };
   if (!row.file) return { ok: false, reason: "not-writable" };
   if (kind === "edit") {
     if (text === undefined || !validIcu(text, row.syntax ?? "icu")) {

@@ -51,6 +51,7 @@ export function ProposalPanel({
   syntax = "icu",
   slots,
   writable,
+  keyIsText = false,
   pending,
   canWithdraw = false,
   history,
@@ -63,6 +64,8 @@ export function ProposalPanel({
   syntax?: Library;
   slots: Slot[];
   writable: boolean;
+  // The text is the key (#611): the sentence says where to change it.
+  keyIsText?: boolean;
   pending?: PendingProposal;
   canWithdraw?: boolean;
   history: ProposalRecord[];
@@ -101,7 +104,11 @@ export function ProposalPanel({
 
   return (
     <div className="space-y-3">
-      {!writable ? (
+      {keyIsText ? (
+        <p className="text-sm text-muted-foreground">
+          {t("proposal.keyIsText")}
+        </p>
+      ) : !writable ? (
         <p className="text-sm text-muted-foreground">
           {t("proposal.notWritable")}
         </p>

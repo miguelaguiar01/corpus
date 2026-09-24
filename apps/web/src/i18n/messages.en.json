@@ -137,6 +137,7 @@
   "proposal.errorUnchanged": "That is the current source text.",
   "proposal.heading": "Source proposals",
   "proposal.invalidIcu": "The text must parse as a source.",
+  "proposal.keyIsText": "The text of this string is its key: change it in the code that calls t(), and the catalogue follows.",
   "proposal.kindAdd": "New string",
   "proposal.kindDelete": "Removal",
   "proposal.kindEdit": "Change",

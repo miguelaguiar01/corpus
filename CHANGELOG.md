@@ -10,6 +10,7 @@ contract (`corpus/1`) is the only one.
 ### Fixed
 
 - A changed source marks stale its `translated` and `verified` rows only; an untranslated row has nothing to go stale and is left alone, where every target row of a moved source used to join the stale queue whether anyone had translated it or not. A source whose text was the empty string takes its text with no stale mark, and `corpus push` says so (`578 source(s) took their text where it was empty, nothing marked stale`): the first 0.19.0 push of a key-is-text catalogue (Ghost) changed 578 sources from `""` to their keys and marked all 35,898 of their rows stale, 22,564 translated ones included, which also opened every seeded translation to agent drafts.
+- A proposal on a string whose text is its key is refused with the reason: "the text of `<key>` is its key: change it in the code that calls t(), and the catalogue follows", on the API, through the MCP `propose_change` and `propose_removal` tools, from `corpus agent propose`, and on the string page in place of the proposal buttons. It used to say the string came from a source pull cannot write, and list the writable sources, the string's own among them. The snapshot entry carries `keyIsText` (additive, still `corpus/1`), the instance keeps it (migration 0016; an older CLI's push leaves it false), and `get_string` carries it so an agent knows before it tries. A proposal on an exec or `.ts` string keeps its message.
 
 ## [0.19.0] - 2026-09-23
 

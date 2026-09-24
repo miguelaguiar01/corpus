@@ -3,11 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { createJiti } from "jiti";
 import { z } from "zod";
-import {
-  KEY_IS_TEXT,
-  messagesToEntries,
-  tableToEntries,
-} from "@corpus/adapters";
+import { messagesToEntries, tableToEntries } from "@corpus/adapters";
 import {
   entitySchema,
   libraryOf,
@@ -180,7 +176,7 @@ export async function buildSnapshotReport(
     // it, and only where pull can write it: a .ts catalogue carries none,
     // so a proposal on its strings is refused up front, not left pending.
     const writable = writesBack(source.path);
-    const keyed = entries.filter((entry) => KEY_IS_TEXT.has(entry)).length;
+    const keyed = entries.filter((entry) => entry.keyIsText).length;
     if (keyed > 0) {
       notes.push(
         `${file}: ${keyed} string(s) have an empty value and take the key as the text; a proposal on them is refused, since the text is the key`,
@@ -192,7 +188,7 @@ export async function buildSnapshotReport(
           ...entry,
           // A key-is-text entry carries no file: a proposal would rewrite
           // the key, which is the code's, not the catalogue's.
-          ...(writable && !KEY_IS_TEXT.has(entry) ? { file } : {}),
+          ...(writable && !entry.keyIsText ? { file } : {}),
           ...libraryFields(source),
         },
         file,
@@ -427,11 +423,10 @@ export async function readEntries(
       : tableToEntries(data, { type: source.type, map: source.map });
   // A namespaced file's ids are `ns:key` (#513), i18next's own separator.
   return source.namespace
-    ? entries.map((entry) => {
-        const prefixed = { ...entry, id: `${source.namespace}:${entry.id}` };
-        if (KEY_IS_TEXT.has(entry)) KEY_IS_TEXT.add(prefixed);
-        return prefixed;
-      })
+    ? entries.map((entry) => ({
+        ...entry,
+        id: `${source.namespace}:${entry.id}`,
+      }))
     : entries;
 }
 

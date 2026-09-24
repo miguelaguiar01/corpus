@@ -302,6 +302,7 @@ export default async function StringPage({
                 syntax={string.syntax}
                 slots={slots}
                 writable={string.file !== null}
+                keyIsText={string.keyIsText}
                 pending={pendingProposal}
                 canWithdraw={
                   pendingProposal !== undefined &&

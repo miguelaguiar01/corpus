@@ -100,6 +100,10 @@ test("the service's refusals: unchanged, invalid ICU, a source pull cannot write
     error: "not-writable",
     message: `the text of ${HEARD} is its key: change it in the code that calls t(), and the catalogue follows`,
   });
+  db.update(strings)
+    .set({ keyIsText: false })
+    .where(eq(strings.id, stringRowId(db, HEARD)))
+    .run();
 
   const bad = await propose(token, CONTINUE, { kind: "rename" });
   expect(bad.status).toBe(422);

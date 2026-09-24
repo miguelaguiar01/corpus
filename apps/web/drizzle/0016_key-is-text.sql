@@ -1,0 +1,1 @@
+ALTER TABLE `strings` ADD `key_is_text` integer DEFAULT false NOT NULL;

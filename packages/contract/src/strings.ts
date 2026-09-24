@@ -98,6 +98,10 @@ export const stringEntrySchema = z.looseObject({
   // The repository path the entry was read from (§4): what lets a
   // proposal be written back to the right file. Exec entries have none.
   file: z.string().min(1).optional(),
+  // The text is the entry's key, read from an empty value under a
+  // sentence key (§3, #589): it lives in the code that calls t(), so a
+  // proposal on it is refused by that name (#611). Additive.
+  keyIsText: z.boolean().optional(),
   // What the repository says about this one string, for a translator:
   // an ARB's @key.description (§4, #567). Never written back.
   note: z.string().min(1).optional(),
