@@ -319,6 +319,38 @@ test("the agent pages name every tool the server has, and no other", async () =>
   for (const name of called) expect(names).toContain(name);
 });
 
+test("the recorded sessions and the health answer were taken against the package version (#588)", () => {
+  // The live recordings carry the instance's version in every status
+  // and in the MCP server's own; a release branch bumps the package and
+  // must re-take them, and the health example on the team page is a
+  // recording too, so it cannot lag a release by hand.
+  const { version } = JSON.parse(
+    readFileSync(
+      fileURLToPath(new URL("../package.json", import.meta.url)),
+      "utf8",
+    ),
+  ) as { version: string };
+  const files = [
+    "mcp-session.txt",
+    "mcp-results.txt",
+    "agent-stdin.txt",
+    "health.json",
+  ];
+  for (const name of files) {
+    const text = readFileSync(path.join(recordings, name), "utf8");
+    const found = [
+      ...text.matchAll(/"version":\s*"(v?\d+\.\d+\.\d+[^"]*)"/g),
+    ].map((match) => match[1]!);
+    expect(found.length, `${name} records no version`).toBeGreaterThan(0);
+    for (const recorded of found) {
+      expect(
+        recorded.replace(/^v/, ""),
+        `${name} was recorded against ${recorded}, the package is ${version}; run bin/wiki-record-live`,
+      ).toBe(version);
+    }
+  }
+});
+
 test("the refusal the agent page quotes is the refusal the server sends", async () => {
   // The page shows the message as a literal, so it drifts silently when
   // the route is reworded. The route builds it from a template; this
