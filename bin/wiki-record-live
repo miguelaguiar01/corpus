@@ -46,7 +46,10 @@ for _ in $(seq 1 120); do
   kill -0 "$WB_PGID" 2>/dev/null || { cat "$TMP/workbench.log" >&2; exit 1; }
   sleep 0.5
 done
-curl -sf "http://localhost:$PORT/api/health" >/dev/null
+# The team page shows the health answer; recorded, it cannot lag a
+# release by hand (#588).
+curl -sf "http://localhost:$PORT/api/health" > "$ROOT/docs/wiki/recorded/health.json"
+printf '\n' >> "$ROOT/docs/wiki/recorded/health.json"
 node "$CLI" push >/dev/null
 
 # One request per line, one reply per line, nothing else on stdout.
@@ -125,4 +128,4 @@ STDIN_OPS='{"op":"status"}
   printf '%s\n' "$STDIN_OPS" | node "$CLI" agent --stdin 2>&1 | sed 's/^/  > /' || true
 } > "$ROOT/docs/wiki/recorded/agent-stdin.txt"
 
-echo "wiki-record-live: wrote the mcp and agent recordings"
+echo "wiki-record-live: wrote the health answer and the mcp and agent recordings"
