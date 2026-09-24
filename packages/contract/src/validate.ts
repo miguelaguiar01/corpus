@@ -11,7 +11,13 @@
 // the target and none may be added, wherever it moves.
 // Errors are data (code + params); callers render them through their
 // own message catalog.
-import { parseIcu, pluralCategoriesOf, type IcuNode, tagIdentity } from "./icu";
+import {
+  parseIcu,
+  pluralCategoriesOf,
+  printfVerbOf,
+  type IcuNode,
+  tagIdentity,
+} from "./icu";
 import type { Library } from "./strings";
 
 export type ValidationError =
@@ -183,17 +189,43 @@ export function validateTranslation(
     const cStyle = [...expected.written.values()].some((w) =>
       /^%\d+\$/.test(w),
     );
+    // The verb is the modifier and the letter together: `%ld` against
+    // `%lu` is a changed verb (#614).
+    const verbOf = (written: string) => printfVerbOf(written) ?? written;
+    const changed: ValidationError[] = [];
     for (const [name, written] of expected.written) {
       const got = actual.written.get(name);
-      if (got === undefined || got.slice(-1) === written.slice(-1)) continue;
-      const letter = got.slice(-1);
-      errors.push({
+      if (got === undefined || verbOf(got) === verbOf(written)) continue;
+      changed.push({
         code: "changed-verb",
         name,
         expected: written,
         actual: got,
-        indexed: cStyle ? `%n$${letter}` : `%[n]${letter}`,
+        indexed: cStyle ? `%n$${verbOf(got)}` : `%[n]${verbOf(got)}`,
       });
+    }
+    // A dropped middle verb shifts the ones after it: a changed verb at
+    // n followed by a missing n+1 whose verb is what now sits at n is
+    // one dropped verb at n, and is said as that (#614).
+    for (const error of changed) {
+      if (error.code !== "changed-verb") continue;
+      const next = String(Number(error.name) + 1);
+      const missingAt = errors.findIndex(
+        (e) =>
+          e.code === "missing-placeholder" &&
+          e.name === next &&
+          e.written !== undefined &&
+          verbOf(e.written) === verbOf(error.actual),
+      );
+      if (missingAt === -1) {
+        errors.push(error);
+        continue;
+      }
+      errors[missingAt] = {
+        code: "missing-placeholder",
+        name: error.name,
+        written: error.expected,
+      };
     }
   }
   for (const [name, type] of expected.formats) {

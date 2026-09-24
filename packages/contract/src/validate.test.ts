@@ -238,20 +238,11 @@ describe("printf", () => {
       ),
     ).toEqual({ ok: true });
     // Dropping the middle verb shifts the last one to its position,
-    // where it prints the count with %s: said as a changed verb and a
-    // missing third.
+    // where it reads as a changed verb at 2 and a missing 3; the two are
+    // what one dropped %d looks like, and are said as that (#614).
     expect(
       errorsOf(go, "%s enviou commits para %s", "pt-PT", "printf"),
-    ).toEqual([
-      { code: "missing-placeholder", name: "3", written: "%s" },
-      {
-        code: "changed-verb",
-        name: "2",
-        expected: "%d",
-        actual: "%s",
-        indexed: "%[n]s",
-      },
-    ]);
+    ).toEqual([{ code: "missing-placeholder", name: "2", written: "%d" }]);
     expect(
       errorsOf(go, "%s pushed %d commits to %s extra %d", "pt-PT", "printf"),
     ).toEqual([{ code: "unexpected-placeholder", name: "4", written: "%d" }]);
@@ -315,6 +306,36 @@ describe("printf", () => {
         indexed: "%n$s",
       },
     ]);
+    // A length modifier is part of the verb: %ld against %lu is a
+    // changed verb naming both, and the index form keeps it (#614).
+    expect(
+      validateTranslation("%ld of %lu", "%ld de %lu", "pt-PT", "printf"),
+    ).toEqual({ ok: true });
+    expect(errorsOf("%ld of %lu", "%lu de %lu", "pt-PT", "printf")).toEqual([
+      {
+        code: "changed-verb",
+        name: "1",
+        expected: "%ld",
+        actual: "%lu",
+        indexed: "%[n]lu",
+      },
+    ]);
+    expect(errorsOf("%ld items", "%d items", "pt-PT", "printf")).toEqual([
+      {
+        code: "changed-verb",
+        name: "1",
+        expected: "%ld",
+        actual: "%d",
+        indexed: "%[n]d",
+      },
+    ]);
+    // iOS: %@ is checked like any verb, and dropped it is named as written.
+    expect(
+      validateTranslation("%@ sent %ld", "%@ enviou %ld", "pt-PT", "printf"),
+    ).toEqual({ ok: true });
+    expect(
+      errorsOf("%1$@ sent %2$ld", "%2$ld enviados", "pt-PT", "printf"),
+    ).toEqual([{ code: "missing-placeholder", name: "1", written: "%1$@" }]);
     // %% is a percent on both sides and never a placeholder.
     expect(
       validateTranslation("%d%% done", "%d %% feito", "pt-PT", "printf"),
