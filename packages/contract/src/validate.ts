@@ -78,6 +78,9 @@ type Shape = {
   // the order they appear (#594).
   written: Map<string, string>;
   order: string[];
+  // How many placeholders the text writes, positions repeated included:
+  // fewer than the source's is what a dropped verb looks like (#614).
+  count: number;
 };
 
 function shapeOf(
@@ -90,12 +93,14 @@ function shapeOf(
     tags: new Set(),
     written: new Map(),
     order: [],
+    count: 0,
   },
 ): Shape {
   for (const node of nodes) {
     if (node.kind === "placeholder") {
       shape.placeholders.add(node.name);
       shape.order.push(node.name);
+      shape.count += 1;
       if (node.written && !shape.written.has(node.name))
         shape.written.set(node.name, node.written);
       if (node.format && !shape.formats.has(node.name)) {
@@ -204,19 +209,23 @@ export function validateTranslation(
         indexed: cStyle ? `%n$${verbOf(got)}` : `%[n]${verbOf(got)}`,
       });
     }
-    // A dropped middle verb shifts the ones after it: a changed verb at
-    // n followed by a missing n+1 whose verb is what now sits at n is
-    // one dropped verb at n, and is said as that (#614).
+    // A dropped middle verb shifts the ones after it: with fewer verbs
+    // than the source, a changed verb at n followed by a missing n+1
+    // whose verb is what now sits at n is one dropped verb at n, and is
+    // said as that (#614). A reorder writes as many verbs as the source.
+    const dropped = actual.count < expected.count;
     for (const error of changed) {
       if (error.code !== "changed-verb") continue;
       const next = String(Number(error.name) + 1);
-      const missingAt = errors.findIndex(
-        (e) =>
-          e.code === "missing-placeholder" &&
-          e.name === next &&
-          e.written !== undefined &&
-          verbOf(e.written) === verbOf(error.actual),
-      );
+      const missingAt = !dropped
+        ? -1
+        : errors.findIndex(
+            (e) =>
+              e.code === "missing-placeholder" &&
+              e.name === next &&
+              e.written !== undefined &&
+              verbOf(e.written) === verbOf(error.actual),
+          );
       if (missingAt === -1) {
         errors.push(error);
         continue;

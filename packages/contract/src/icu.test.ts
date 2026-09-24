@@ -366,7 +366,7 @@ test("printf: verbs are placeholders named by position, %% is a percent, and bra
 test("printf: a C length modifier rides with the verb, and %@ is Objective-C's object verb (#614)", () => {
   expect([
     ...placeholderWrittenOf(
-      "%ld of %lu, %zu bytes, %lld ms, %hhd, %2$@ by %@, %5.2Lf",
+      "%ld of %lu, %zu bytes, %lld ms, %hhd, %5.2Lf",
       "printf",
     ),
   ]).toEqual([
@@ -375,15 +375,19 @@ test("printf: a C length modifier rides with the verb, and %@ is Objective-C's o
     ["3", "%zu"],
     ["4", "%lld"],
     ["5", "%hhd"],
+    ["6", "%5.2Lf"],
+  ]);
+  expect([...placeholderWrittenOf("%2$@ by %@", "printf")]).toEqual([
     ["2", "%2$@"],
     ["3", "%@"],
-    ["4", "%5.2Lf"],
   ]);
-  // A modifier with no verb letter after it opens no verb.
-  expect(parseIcu("%l and %z.", "printf")).toMatchObject({
-    ok: true,
-    nodes: [{ kind: "literal", text: "%l and %z." }],
-  });
+  // Go's %t and %q stay verbs of their own when no letter follows; a
+  // letter after one reads as C's modifier and verb.
+  expect([...placeholderWrittenOf("%t or %q, %td", "printf")]).toEqual([
+    ["1", "%t"],
+    ["2", "%q"],
+    ["3", "%td"],
+  ]);
 });
 
 test("an unclosed, mismatched or stray tag is a parse error naming it", () => {
