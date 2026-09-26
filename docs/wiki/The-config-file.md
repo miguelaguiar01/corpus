@@ -92,7 +92,7 @@ server: process.env.CORPUS_SERVER ?? "http://localhost:3000",
 
 **`stringTypes`** declares the metadata a type of string may carry, which is what makes a string page useful rather than bare. **`typeNotes`** is one sentence per type on its voice, shown to whoever translates it. **`richText`** names the types an HTML renderer reads, `{ email: "html" }`, so a translation's tags need not match the source's. **`entityTypes`** and the entities an `exec` source emits describe the people and places your text refers to. **`glossary`** points at one JSON file per target language, each an array of `{ term, forms?, target, note? }`. A term matches the word it names, ignoring case and accents, so `forms` lists its plurals and agreements; in a script written without spaces between words, such as Chinese, Japanese or Thai, it matches as a run of characters instead. The terms that occur in a string are shown beside it while it is translated.
 
-[Metadata, types, entities and the glossary](Metadata-types-entities-and-the-glossary) will cover all four in full; none is required.
+[Metadata, types, entities and the glossary](Metadata-types-entities-and-the-glossary) covers them in full; none is required.
 
 ## Where the token comes from
 

@@ -77,8 +77,6 @@ export const projects = sqliteTable("projects", {
   typeNotes: text("type_notes", { mode: "json" }).$type<
     Record<string, string>
   >(),
-  // The string types an HTML renderer reads (#622), refreshed by a push
-  // that carries them.
   richText: text("rich_text", { mode: "json" }).$type<
     Record<string, RichText>
   >(),

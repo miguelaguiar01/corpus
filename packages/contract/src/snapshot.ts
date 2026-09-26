@@ -51,7 +51,6 @@ export const snapshotSchema = z.looseObject({
   // Voice and register per string type (§5); the repository's, replaced
   // whole by a push that carries it.
   typeNotes: z.record(z.string(), z.string().min(1)).optional(),
-  // The string types read as HTML (#622), replaced whole like typeNotes.
   richText: z.record(z.string(), richTextSchema).optional(),
   // Per target language (§5); the repository's, replaced whole by a push
   // that carries it.

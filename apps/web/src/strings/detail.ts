@@ -37,7 +37,6 @@ export type StringDetail = {
     keyIsText: boolean;
     // The message syntax the text is written in (§5).
     syntax: Library;
-    // "html" when the type is read by an HTML renderer (#622).
     richText: RichText | null;
     metadata: Record<string, MetadataValue> | null;
     examples: Example[] | null;
