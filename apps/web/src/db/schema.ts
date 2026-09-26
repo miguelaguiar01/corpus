@@ -178,7 +178,13 @@ export const stringTranslations = sqliteTable(
   },
   (t) => [
     uniqueIndex("translations_string_language").on(t.stringId, t.language),
-    index("translations_state").on(t.state),
+    // Covers the progress counts, read in (language, state) order (#603).
+    index("translations_language_state").on(
+      t.language,
+      t.state,
+      t.stale,
+      t.stringId,
+    ),
   ],
 );
 

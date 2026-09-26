@@ -4,7 +4,7 @@ import { requireUser } from "@/auth/session";
 import { getDb } from "@/db";
 import { progressCounts } from "@/catalogue/progress";
 import { pendingCount } from "@/proposals/service";
-import { allQueues } from "@/catalogue/queues";
+import { queueSummaries } from "@/catalogue/queues";
 import { Page } from "@/components/page-container";
 import { PageHeader } from "@/components/page-header";
 import { ProgressByType } from "@/components/progress-by-type";
@@ -26,7 +26,7 @@ export default async function ProjectHome({
   const db = getDb();
   const project = getProjectBySlug(db, slug);
   if (!project) notFound();
-  const queues = allQueues(db, project.id);
+  const queues = queueSummaries(db, project.id);
   const progress = progressCounts(db, project.id);
   const pending = pendingCount(db, project.id);
 

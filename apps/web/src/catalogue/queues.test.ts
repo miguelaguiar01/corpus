@@ -7,7 +7,7 @@ import { memoryDb } from "@/db/test-helpers";
 import { applySnapshot } from "@/ingest/apply";
 import { applyTransition } from "@/translations/service";
 import { ensureAgentActor } from "@/agents/actor";
-import { allQueues, neighbours, queueCounts, queueItems } from "./queues";
+import { neighbours, queueCounts, queueItems, queueSummaries } from "./queues";
 
 const FIXTURE = moonlightManor as Snapshot;
 
@@ -174,18 +174,39 @@ test("queues are scoped to the project", () => {
   });
 });
 
-test("allQueues returns every queue keyed by kind from one load", () => {
+test("the summaries give every queue's count and first item, as its items do (#603)", () => {
   const { db, p } = pushed();
-  const all = allQueues(db, p.id);
+  const all = queueSummaries(db, p.id);
   expect(Object.keys(all).sort()).toEqual([
     "agentDrafts",
     "stale",
     "untranslated",
     "unverifiedSource",
   ]);
-  expect(all.untranslated).toEqual(queueItems(db, p.id, "untranslated"));
-  expect(all.stale.count).toBe(0);
+  const untranslated = queueItems(db, p.id, "untranslated");
+  expect(all.untranslated).toEqual({
+    count: untranslated.count,
+    first: untranslated.first,
+  });
+  expect(all.stale).toEqual({ count: 0, first: null });
   expect(all.unverifiedSource.first).toEqual(item(db, IDS[0]!, "pt-PT"));
+  expect(queueCounts(db, p.id).untranslated).toBe(untranslated.count);
+});
+
+test("a queue narrowed by language and type holds exactly the matching items (#603)", () => {
+  const { db, p } = pushed();
+  const all = queueItems(db, p.id, "unverifiedSource").items;
+  const narrowed = queueItems(db, p.id, "unverifiedSource", {
+    language: "pt-PT",
+    type: "chrome",
+  }).items;
+  expect(narrowed).toEqual(
+    all.filter((i) => i.language === "pt-PT" && i.type === "chrome"),
+  );
+  expect(narrowed.length).toBeGreaterThan(0);
+  expect(
+    queueItems(db, p.id, "unverifiedSource", { language: "en" }).items,
+  ).toEqual([]);
 });
 
 test("neighbours finds the previous and next items around the current one", () => {
@@ -227,7 +248,10 @@ test("agent drafts lists the translated rows an agent last edited, and leaves wh
   expect(queueItems(db, p.id, "agentDrafts").items).toEqual([
     item(db, "ui.continue", "en"),
   ]);
-  expect(allQueues(db, p.id).agentDrafts.count).toBe(1);
+  expect(queueSummaries(db, p.id).agentDrafts).toEqual({
+    count: 1,
+    first: item(db, "ui.continue", "en"),
+  });
 
   applyTransition(db, {
     stringId: dbId(db, "ui.continue"),
@@ -236,4 +260,37 @@ test("agent drafts lists the translated rows an agent last edited, and leaves wh
     actor: maintainer,
   });
   expect(queueCounts(db, p.id).agentDrafts).toBe(0);
+});
+
+test("agent drafts are counted in SQL, however many strings agents have edited on the instance (#603)", () => {
+  const { db, p } = pushed();
+  const other = db
+    .insert(projects)
+    .values({
+      slug: "other",
+      name: "Other",
+      sourceLanguage: "en",
+      languages: ["en", "de"],
+    })
+    .returning()
+    .get();
+  const agent = ensureAgentActor(db, other);
+  const client = (
+    db as unknown as { $client: import("better-sqlite3").Database }
+  ).$client;
+  // More distinct edited strings than SQLite takes variables in one
+  // statement.
+  client.exec(`
+    with recursive n(i) as (select 1 union all select i + 1 from n where i < 40000)
+    insert into strings (project_id, string_id, type, source, archived, created_at)
+      select ${other.id}, 'k' || i, 'ui', 'Text', 0, 0 from n;
+    insert into edits (string_id, language, user_id, at, old_text, new_text, old_state, new_state)
+      select id, 'de', ${agent.id}, 0, null, 'Text', 'untranslated', 'translated'
+      from strings where project_id = ${other.id};
+  `);
+  expect(queueCounts(db, p.id).agentDrafts).toBe(0);
+  expect(queueSummaries(db, p.id).agentDrafts).toEqual({
+    count: 0,
+    first: null,
+  });
 });

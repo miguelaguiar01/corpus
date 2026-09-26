@@ -1,7 +1,12 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, ne, sql } from "drizzle-orm";
 import type { Db } from "@/db";
-import { projects, strings, stringTranslations } from "@/db/schema";
-import { agentEditedRows, rowKey } from "@/agents/latest-edit";
+import {
+  edits,
+  projects,
+  strings,
+  stringTranslations,
+  users,
+} from "@/db/schema";
 
 // The dashboard queues (§9.1) over string × language rows, excluding
 // archived strings (§11). Items are ordered by string id then language so
@@ -36,29 +41,73 @@ export type Queue = {
 };
 export type QueueCounts = Record<QueueKind, number>;
 
-type Row = {
-  stringId: number;
-  key: string;
-  language: string;
-  type: string;
-  source: string;
-  text: string | null;
-  state: string;
-  stale: boolean;
-  isSource: boolean;
-  agentEdited: boolean;
-};
+type Filter = { language?: string | null; type?: string | null };
 
-const MATCHERS: Record<QueueKind, (row: Row) => boolean> = {
-  untranslated: (row) => !row.isSource && row.state === "untranslated",
-  stale: (row) => row.stale,
-  unverifiedSource: (row) => row.isSource && row.state === "translated",
-  agentDrafts: (row) => row.state === "translated" && row.agentEdited,
-};
+// Rows whose latest edit was an agent's (§10), in SQL: the list of such
+// rows grows with every draft on the instance.
+const agentLast = sql`(${stringTranslations.stringId}, ${stringTranslations.language}) in (
+  select e.string_id, e.language from ${edits} e
+  join ${users} u on u.id = e.user_id
+  where u.agent = 1 and e.id in (
+    select max(id) from ${edits} group by string_id, language
+  )
+)`;
 
-function loadRows(db: Db, projectId: number): Row[] {
-  const agentEdited = agentEditedRows(db);
-  return db
+function condition(kind: QueueKind, sourceLanguage: string) {
+  switch (kind) {
+    case "untranslated":
+      return and(
+        ne(stringTranslations.language, sourceLanguage),
+        eq(stringTranslations.state, "untranslated"),
+      );
+    case "stale":
+      return eq(stringTranslations.stale, true);
+    case "unverifiedSource":
+      return and(
+        eq(stringTranslations.language, sourceLanguage),
+        eq(stringTranslations.state, "translated"),
+      );
+    case "agentDrafts":
+      return and(eq(stringTranslations.state, "translated"), agentLast);
+  }
+}
+
+function sourceLanguageOf(db: Db, projectId: number): string {
+  return (
+    db
+      .select({ sourceLanguage: projects.sourceLanguage })
+      .from(projects)
+      .where(eq(projects.id, projectId))
+      .get()?.sourceLanguage ?? ""
+  );
+}
+
+function where(
+  projectId: number,
+  kind: QueueKind,
+  sourceLanguage: string,
+  filter: Filter,
+) {
+  return and(
+    eq(strings.projectId, projectId),
+    eq(strings.archived, false),
+    condition(kind, sourceLanguage),
+    filter.language != null
+      ? eq(stringTranslations.language, filter.language)
+      : undefined,
+    filter.type != null ? eq(strings.type, filter.type) : undefined,
+  );
+}
+
+function select(
+  db: Db,
+  projectId: number,
+  kind: QueueKind,
+  sourceLanguage: string,
+  filter: Filter,
+  limit?: number,
+): QueueItem[] {
+  const query = db
     .select({
       stringId: stringTranslations.stringId,
       key: strings.stringId,
@@ -66,59 +115,71 @@ function loadRows(db: Db, projectId: number): Row[] {
       language: stringTranslations.language,
       source: strings.source,
       text: stringTranslations.text,
-      state: stringTranslations.state,
-      stale: stringTranslations.stale,
-      sourceLanguage: projects.sourceLanguage,
     })
     .from(stringTranslations)
     .innerJoin(strings, eq(strings.id, stringTranslations.stringId))
-    .innerJoin(projects, eq(projects.id, strings.projectId))
-    .where(and(eq(strings.projectId, projectId), eq(strings.archived, false)))
-    .orderBy(asc(strings.id), asc(stringTranslations.language))
-    .all()
-    .map(({ sourceLanguage, ...row }) => ({
-      ...row,
-      isSource: row.language === sourceLanguage,
-      agentEdited: agentEdited.has(rowKey(row.stringId, row.language)),
-    }));
+    .where(where(projectId, kind, sourceLanguage, filter))
+    .orderBy(asc(strings.id), asc(stringTranslations.language));
+  return limit === undefined ? query.all() : query.limit(limit).all();
 }
 
-function pick(rows: Row[], kind: QueueKind): Queue {
-  const items = rows
-    .filter(MATCHERS[kind])
-    .map(({ stringId, key, language, type, source, text }) => ({
-      stringId,
-      key,
-      language,
-      type,
-      source,
-      text,
-    }));
+function count(
+  db: Db,
+  projectId: number,
+  kind: QueueKind,
+  sourceLanguage: string,
+): number {
+  return (
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(stringTranslations)
+      .innerJoin(strings, eq(strings.id, stringTranslations.stringId))
+      .where(where(projectId, kind, sourceLanguage, {}))
+      .get()?.count ?? 0
+  );
+}
+
+export function queueItems(
+  db: Db,
+  projectId: number,
+  kind: QueueKind,
+  filter: Filter = {},
+): Queue {
+  const items = select(
+    db,
+    projectId,
+    kind,
+    sourceLanguageOf(db, projectId),
+    filter,
+  );
   return { kind, count: items.length, first: items[0] ?? null, items };
 }
 
-export function queueItems(db: Db, projectId: number, kind: QueueKind): Queue {
-  return pick(loadRows(db, projectId), kind);
-}
-
-// Every queue from one load, for the dashboard (§9.1).
-export function allQueues(db: Db, projectId: number): Record<QueueKind, Queue> {
-  const rows = loadRows(db, projectId);
+// The dashboard's view (§9.1): each queue's count and its first item.
+export function queueSummaries(
+  db: Db,
+  projectId: number,
+): Record<QueueKind, { count: number; first: QueueItem | null }> {
+  const source = sourceLanguageOf(db, projectId);
+  const summary = (kind: QueueKind) => ({
+    count: count(db, projectId, kind, source),
+    first: select(db, projectId, kind, source, {}, 1)[0] ?? null,
+  });
   return {
-    untranslated: pick(rows, "untranslated"),
-    stale: pick(rows, "stale"),
-    unverifiedSource: pick(rows, "unverifiedSource"),
-    agentDrafts: pick(rows, "agentDrafts"),
+    untranslated: summary("untranslated"),
+    stale: summary("stale"),
+    unverifiedSource: summary("unverifiedSource"),
+    agentDrafts: summary("agentDrafts"),
   };
 }
 
 export function queueCounts(db: Db, projectId: number): QueueCounts {
-  const rows = loadRows(db, projectId);
+  const source = sourceLanguageOf(db, projectId);
   return {
-    untranslated: rows.filter(MATCHERS.untranslated).length,
-    stale: rows.filter(MATCHERS.stale).length,
-    unverifiedSource: rows.filter(MATCHERS.unverifiedSource).length,
-    agentDrafts: rows.filter(MATCHERS.agentDrafts).length,
+    untranslated: count(db, projectId, "untranslated", source),
+    stale: count(db, projectId, "stale", source),
+    unverifiedSource: count(db, projectId, "unverifiedSource", source),
+    agentDrafts: count(db, projectId, "agentDrafts", source),
   };
 }
 
