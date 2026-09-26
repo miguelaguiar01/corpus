@@ -222,3 +222,11 @@ test("a CRLF file stays CRLF on a change, an append and a delete", () => {
     "a = A\r\nc = C\r\n",
   );
 });
+
+test("a line that starts with whitespace and then . [ or * is escaped too", () => {
+  const text = "texto\n  .attr = x\n  [nota] y";
+  const out = entriesToFluent("a = A\n", { a: text }, undefined);
+  expect(fluentToEntries(out, { type: "ui" })[0]?.source).toBe(
+    "texto\n.attr = x\n[nota] y",
+  );
+});

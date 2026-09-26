@@ -276,7 +276,11 @@ function render(icu: string, style: Style, refs: Set<string>): string {
       if (c === "}") return [out, i];
       const wasStart = atStart;
       atStart = false;
-      if (wasStart && (c === "." || c === "[" || c === "*")) {
+      if (wasStart && (c === " " || c === "\t")) {
+        out += c;
+        atStart = true;
+        i++;
+      } else if (wasStart && (c === "." || c === "[" || c === "*")) {
         out += `{"${c}"}`;
         i++;
       } else if (c === "#" && count !== undefined) {
