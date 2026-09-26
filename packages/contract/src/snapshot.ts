@@ -30,6 +30,9 @@ export const writableSourceSchema = z.looseObject({
   path: z.string().min(1),
   adapter: z.enum(["messages", "table", "android", "fluent"]),
   type: identifier(),
+  // The namespace a `{ns}` pattern captured for this file (#582): its
+  // ids are `ns:key`, and a new string proposed into it takes the prefix.
+  namespace: z.string().min(1).optional(),
   // The library a new string in this file is written for (§5, §11);
   // `syntax` is the old name, sent beside it until 1.0.
   library: librarySchema.optional(),

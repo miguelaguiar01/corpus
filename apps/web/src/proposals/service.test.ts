@@ -373,3 +373,55 @@ test("a refused text says what is wrong and what to do; an empty one says only t
     proposeEdit(db, { stringRowId: ui.id, text: "  ", actor: ana }),
   ).toEqual({ ok: false, reason: "invalid-icu" });
 });
+
+test("a new string for a namespaced file takes the file's namespace, and the push that lands it applies it (#582)", () => {
+  const { db, p, ana } = pushed();
+  const sources = [
+    {
+      path: "locales/{lang}/admin.json",
+      adapter: "messages" as const,
+      type: "chrome",
+      namespace: "admin",
+    },
+    {
+      path: "locales/{lang}/common.json",
+      adapter: "messages" as const,
+      type: "chrome",
+      namespace: "common",
+    },
+  ];
+  applySnapshot(db, p.id, { ...FIXTURE, sources });
+  const base = {
+    projectId: p.id,
+    sourcePath: "locales/{lang}/admin.json",
+    text: "Título",
+    actor: ana,
+  };
+  const bare = proposeAdd(db, { ...base, key: "title" });
+  expect(bare.ok && bare.proposal.key).toBe("admin:title");
+  const prefixed = proposeAdd(db, { ...base, key: "admin:subtitle" });
+  expect(prefixed.ok && prefixed.proposal.key).toBe("admin:subtitle");
+  applySnapshot(db, p.id, {
+    ...FIXTURE,
+    sources,
+    strings: [
+      ...FIXTURE.strings,
+      { id: "admin:title", type: "chrome", source: "Título" },
+    ],
+  });
+  const landed = db
+    .select()
+    .from(sourceChanges)
+    .where(eq(sourceChanges.key, "admin:title"))
+    .get();
+  expect(landed?.status).toBe("applied");
+  for (const key of ["admin:", "common:title", "x".repeat(995)])
+    expect(proposeAdd(db, { ...base, key })).toEqual({
+      ok: false,
+      reason: "invalid-key",
+    });
+  const sentence = proposeAdd(db, { ...base, key: "Error: file not found" });
+  expect(sentence.ok && sentence.proposal.key).toBe(
+    "admin:Error: file not found",
+  );
+});

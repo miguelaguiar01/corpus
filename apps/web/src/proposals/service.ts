@@ -150,13 +150,18 @@ export function proposeAdd(
     .where(eq(projects.id, input.projectId))
     .get();
   if (!project) return { ok: false, reason: "not-found" };
-  const key = input.key.trim();
-  if (!stringEntrySchema.shape.id.safeParse(key).success)
+  const typed = input.key.trim();
+  if (!stringEntrySchema.shape.id.safeParse(typed).success)
     return { ok: false, reason: "invalid-key" };
   const source = (project.sources ?? []).find(
     (s) => s.path === input.sourcePath,
   );
   if (!source) return { ok: false, reason: "unknown-source" };
+  const namespaces = (project.sources ?? []).flatMap((s) =>
+    s.namespace ? [s.namespace] : [],
+  );
+  const key = namespacedKey(source, typed, namespaces);
+  if (key === undefined) return { ok: false, reason: "invalid-key" };
   if (!validIcu(input.text, libraryOf(source))) {
     const message = invalidIcuMessage(input.text, libraryOf(source));
     return {
@@ -189,6 +194,30 @@ export function proposeAdd(
       .get();
     return { ok: true, proposal };
   });
+}
+
+// A namespaced file's ids carry its namespace, as push reads them
+// (#582): a bare key takes the prefix, one already carrying it stays,
+// and one that is only the prefix, starts with another file's
+// namespace, or grows past an id's limit is no key for this file. A
+// sentence key may hold a colon of its own.
+export function namespacedKey(
+  source: { namespace?: string },
+  typed: string,
+  namespaces: string[] = [],
+): string | undefined {
+  if (!source.namespace) return typed;
+  const prefix = `${source.namespace}:`;
+  const other = namespaces.some(
+    (ns) => ns !== source.namespace && typed.startsWith(`${ns}:`),
+  );
+  const key = typed.startsWith(prefix)
+    ? typed
+    : other
+      ? undefined
+      : prefix + typed;
+  if (key === undefined || key === prefix) return undefined;
+  return stringEntrySchema.shape.id.safeParse(key).success ? key : undefined;
 }
 
 export type WithdrawResult =

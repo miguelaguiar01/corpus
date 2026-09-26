@@ -196,7 +196,7 @@ export function tools(api: Api): Tool[] {
       name: "add_string",
       op: "add",
       description:
-        "Propose a new string into one of the project's writable source files, by the file's path as push declared it or as get_string reports it.",
+        "Propose a new string into one of the project's writable source files, by the file's path as push declared it or as get_string reports it; a file whose ids carry a namespace (admin:title) gives the key its prefix.",
       inputSchema: {
         type: "object",
         properties: {

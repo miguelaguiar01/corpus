@@ -144,3 +144,48 @@ test("an unknown field on a new string is refused, not dropped", async () => {
   expect(res.status).toBe(422);
   expect((await res.json()).message).toBe("unknown field state");
 });
+
+test("a new string for a namespaced file, named by its concrete path, takes the prefix; a refusal names the prefixed key (#582)", async () => {
+  const { db, project, token } = seeded;
+  applySnapshot(db, project.id, {
+    ...FIXTURE,
+    sources: [
+      {
+        path: "locales/{lang}/admin.json",
+        adapter: "messages",
+        type: "chrome",
+        namespace: "admin",
+      },
+    ],
+  });
+  const body = {
+    key: "title",
+    file: "locales/pt-PT/admin.json",
+    text: "Título",
+  };
+  const created = await add(token, body);
+  expect(created.status).toBe(201);
+  expect(await created.json()).toMatchObject({
+    key: "admin:title",
+    file: "locales/pt-PT/admin.json",
+  });
+  applySnapshot(db, project.id, {
+    ...FIXTURE,
+    strings: [
+      ...FIXTURE.strings,
+      { id: "admin:title", type: "chrome", source: "Título" },
+    ],
+    sources: [
+      {
+        path: "locales/{lang}/admin.json",
+        adapter: "messages",
+        type: "chrome",
+        namespace: "admin",
+      },
+    ],
+  });
+  const again = await add(token, body);
+  expect(again.status).toBe(409);
+  expect((await again.json()).message).toContain("admin:title");
+  applySnapshot(db, project.id, FIXTURE);
+});
