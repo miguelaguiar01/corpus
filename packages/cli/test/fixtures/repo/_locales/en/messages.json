@@ -1,0 +1,7 @@
+﻿{
+  "copied": {
+    "message": "Copied $ITEM$",
+    "description": "After a copy.",
+    "placeholders": { "item": { "content": "$1", "example": "a login" } }
+  }
+}

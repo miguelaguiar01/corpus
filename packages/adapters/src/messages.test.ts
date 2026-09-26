@@ -146,3 +146,46 @@ test("an ARB catalogue's @ entries are metadata, not strings (#558)", () => {
     /got array/,
   );
 });
+
+test("a Chrome i18n catalogue reads message as the text, description as the note, a placeholder's example as its value (#595)", () => {
+  const catalogue = {
+    copied: {
+      message: "Copied $CURRENT$ of $Total$",
+      description: "Shown after a copy.",
+      placeholders: {
+        current: { content: "$1", example: "3" },
+        TOTAL: { content: "$2" },
+      },
+    },
+    appName: { message: "Bitwarden" },
+    blank: { message: "Save", description: " " },
+  };
+  expect(messagesToEntries(catalogue, { type: "ui", chrome: true })).toEqual([
+    {
+      id: "copied",
+      type: "ui",
+      source: "Copied $CURRENT$ of $Total$",
+      note: "Shown after a copy.",
+      examples: [{ values: { current: "3" }, rendered: "Copied 3 of $Total$" }],
+    },
+    { id: "appName", type: "ui", source: "Bitwarden" },
+    { id: "blank", type: "ui", source: "Save" },
+  ]);
+  expect(() =>
+    messagesToEntries({ a: { message: 1 } }, { type: "ui", chrome: true }),
+  ).toThrow(
+    /under library chrome every value must be an object with a string message/,
+  );
+  expect(messagesToEntries({}, { type: "ui", chrome: true })).toEqual([]);
+  // Without the library the same shape is nesting: a toast catalogue of
+  // `{ title, message }` keeps its titles (#630 review).
+  expect(
+    messagesToEntries(
+      { saved: { title: "Saved", message: "All good" } },
+      { type: "ui" },
+    ),
+  ).toEqual([
+    { id: "saved.title", type: "ui", source: "Saved" },
+    { id: "saved.message", type: "ui", source: "All good" },
+  ]);
+});

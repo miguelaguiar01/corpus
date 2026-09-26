@@ -509,3 +509,118 @@ test("a first pull into a missing .arb writes @@locale first and none of the sou
     `{\n  "a": "B"\n}\n`,
   );
 });
+
+describe("a Chrome i18n catalogue (#595)", () => {
+  const CHROME = { chrome: true };
+  const SOURCE = `\uFEFF{
+  "copied": {
+    "message": "Copied $CURRENT$",
+    "description": "After a copy.",
+    "placeholders": {
+      "current": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "save": {
+    "message": "Save"
+  }
+}
+`;
+  const TARGET = `\uFEFF{
+  "copied": {
+    "message": "Copiado $CURRENT$",
+    "description": "After a copy.",
+    "placeholders": {
+      "current": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  }
+}
+`;
+
+  test("an unchanged pull is byte-identical, BOM included; a changed message edits its message alone", () => {
+    expect(
+      entriesToMessages(
+        SOURCE,
+        { copied: "Copiado $CURRENT$" },
+        TARGET,
+        CHROME,
+      ),
+    ).toBe(TARGET);
+    expect(
+      entriesToMessages(
+        SOURCE,
+        { copied: "$CURRENT$ copiados" },
+        TARGET,
+        CHROME,
+      ),
+    ).toBe(TARGET.replace("Copiado $CURRENT$", "$CURRENT$ copiados"));
+  });
+
+  test("a new key copies the source's description and placeholders, in the file's layout", () => {
+    expect(entriesToMessages(SOURCE, { save: "Guardar" }, TARGET, CHROME)).toBe(
+      TARGET.replace(
+        "\n  }\n}\n",
+        '\n  },\n  "save": {\n    "message": "Guardar"\n  }\n}\n',
+      ),
+    );
+    const fresh = `\uFEFF{\n  "save": {\n    "message": "Guardar"\n  }\n}\n`;
+    expect(entriesToMessages(SOURCE, { save: "Guardar" }, fresh, CHROME)).toBe(
+      fresh,
+    );
+    const empty = `{\n}\n`;
+    const out = entriesToMessages(
+      SOURCE,
+      { copied: "Copiado $CURRENT$" },
+      empty,
+      CHROME,
+    );
+    expect(JSON.parse(out)).toEqual({
+      copied: {
+        message: "Copiado $CURRENT$",
+        description: "After a copy.",
+        placeholders: { current: { content: "$1", example: "3" } },
+      },
+    });
+  });
+
+  test("a missing file is the source with its messages translated and the untranslated keys left out, BOM kept", () => {
+    expect(
+      entriesToMessages(
+        SOURCE,
+        { copied: "Copiado $CURRENT$" },
+        undefined,
+        CHROME,
+      ),
+    ).toBe(TARGET);
+  });
+
+  test("a key named like a prototype member is added and written like any other", () => {
+    const out = entriesToMessages(
+      `{\n  "toString": { "message": "Text" }\n}\n`,
+      { toString: "Texto" },
+      "{}\n",
+      CHROME,
+    );
+    expect(JSON.parse(out)).toEqual({ toString: { message: "Texto" } });
+  });
+
+  test("proposal ops edit, add and remove a whole entry", () => {
+    const out = applyMessagesOps(
+      SOURCE,
+      [
+        { kind: "edit", id: "save", text: "Save it" },
+        { kind: "add", id: "cancel", text: "Cancel" },
+        { kind: "delete", id: "copied" },
+      ],
+      CHROME,
+    );
+    expect(out).toBe(
+      `\uFEFF{\n  "save": {\n    "message": "Save it"\n  },\n  "cancel": {\n    "message": "Cancel"\n  }\n}\n`,
+    );
+  });
+});

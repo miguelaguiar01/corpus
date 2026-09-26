@@ -300,6 +300,33 @@ test("an exporter past 1 MiB builds, and one past the cap or killed is named (#5
   ).toBe('exec "node x.mjs" exited 2: boom');
 });
 
+test("a Chrome i18n file reads as Chrome under library chrome, BOM and all, and as nesting without it (#595)", async () => {
+  const source = (library?: "chrome") =>
+    config({
+      languages: ["en"],
+      sources: [
+        {
+          adapter: "messages",
+          type: "ui",
+          path: "_locales/{lang}/messages.json",
+          ...(library && { library }),
+        },
+      ],
+    });
+  const chrome = await buildSnapshot(source("chrome"), REPO);
+  expect(chrome.strings).toEqual([
+    expect.objectContaining({
+      id: "copied",
+      source: "Copied $ITEM$",
+      note: "After a copy.",
+      library: "chrome",
+      examples: [{ values: { item: "a login" }, rendered: "Copied a login" }],
+    }),
+  ]);
+  const plain = await buildSnapshot(source(), REPO);
+  expect(plain.strings.map((s) => s.id)).toContain("copied.message");
+});
+
 test("an empty value under a sentence key is the key as text: no file on the entry, a note in the report (#589)", async () => {
   const keyed = config({
     languages: ["en", "pt"],

@@ -7,10 +7,12 @@ import {
   entriesToMessages,
   entriesToTable,
   messagesToEntries,
+  stripBom,
   type SourceOp,
 } from "@corpus/adapters";
 import { option, options } from "./args";
 import {
+  libraryOf,
   MIN_STATES,
   pullPayloadSchema,
   type CorpusConfig,
@@ -131,12 +133,10 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
         continue;
       const next =
         source.adapter === "messages"
-          ? entriesToMessages(
-              template,
-              translations,
-              existing,
-              isArb(file) ? { locale: language } : {},
-            )
+          ? entriesToMessages(template, translations, existing, {
+              ...(isArb(file) && { locale: language }),
+              chrome: libraryOf(source) === "chrome",
+            })
           : entriesToTable(template, translations, source.map, existing);
       if (next !== existing) {
         if (!check) writeFileSync(path.join(ctx.cwd, file), next);
@@ -194,7 +194,9 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
       try {
         next =
           source.adapter === "messages"
-            ? applyMessagesOps(existing, targetOps)
+            ? applyMessagesOps(existing, targetOps, {
+                chrome: libraryOf(source) === "chrome",
+              })
             : applyTableOps(existing, targetOps, source.map);
       } catch (error) {
         throw new CliError(
@@ -358,9 +360,10 @@ async function download(
 function ownIds(template: string, source: FileSource): Set<string> | undefined {
   if (source.adapter !== "messages") return undefined;
   try {
-    const entries = messagesToEntries(JSON.parse(template), {
+    const entries = messagesToEntries(JSON.parse(stripBom(template)), {
       type: source.type,
       arb: isArb(source.path),
+      chrome: libraryOf(source) === "chrome",
     });
     const prefix = source.namespace ? `${source.namespace}:` : "";
     return new Set(entries.map((e) => `${prefix}${e.id}`));

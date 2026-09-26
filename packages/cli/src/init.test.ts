@@ -376,6 +376,30 @@ test("without --library, a source file with {{ }} and no ICU argument is read as
   expect((await loadConfig(none.dir)).sources[0]).not.toHaveProperty("library");
 });
 
+test("init names the chrome library for a Chrome i18n catalogue (#595)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "src", "i18n"), { recursive: true });
+  writeFileSync(
+    path.join(p.dir, "src", "i18n", "pt-PT.json"),
+    "\uFEFF" +
+      JSON.stringify({
+        appName: { message: "Bitwarden" },
+        copied: {
+          message: "$ITEM$ copied",
+          placeholders: { item: { content: "$1" } },
+        },
+      }),
+  );
+  expect(await run(FLAGS, p.ctx)).toBe(0);
+  expect((await loadConfig(p.dir)).sources[0]).toMatchObject({
+    library: "chrome",
+  });
+  expect(p.out.join("\n")).toMatch(
+    /library: chrome, from the Chrome i18n shape in src\/i18n\/pt-PT\.json/,
+  );
+});
+
 test("init counts the placeholder shapes: one {{ }} among printf verbs is not i18next, and the verbs name printf (#591, #594)", async () => {
   const p = project();
   stubCli(p.dir);

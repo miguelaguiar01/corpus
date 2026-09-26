@@ -6,7 +6,7 @@ A source declares the library its catalogue was written for:
 
 One value decides how placeholders are spelled, how plurals are written, and what is escaped. `icu` is the default and what an absent field means.
 
-`corpus init` looks at your source file and writes the library it finds, saying so as it does: `i18next` when more values use `{{name}}` than use a single-brace `{name}` or a printf verb, and none holds an ICU plural or select, `vue` when they use a top-level pipe or a `{'…'}` literal and neither of those. It writes nothing for a plain ICU catalogue, since that is the default.
+`corpus init` looks at your source file and writes the library it finds, saying so as it does: `i18next` when more values use `{{name}}` than use a single-brace `{name}` or a printf verb, and none holds an ICU plural or select, `vue` when they use a top-level pipe or a `{'…'}` literal and neither of those, `chrome` when every value is a Chrome i18n entry with a `message`. It writes nothing for a plain ICU catalogue, since that is the default.
 
 (`syntax` is the old name for this field. A config that still uses it works, and `build`, `push` and `validate` each say once that the field has been renamed. It goes at 1.0.)
 
@@ -142,6 +142,47 @@ Two things to know. **A moved verb needs its index.** Unindexed verbs are read i
 **C's length modifiers and iOS's `%@`.** `%ld`, `%lu`, `%zu`, `%lld` and `%hhd` are one verb each, modifier and letter together, so `%lu` where the source has `%ld` is a changed verb and the chip inserts `%ld` whole; `%@`, the object verb of an iOS `.strings` file through an exec source, is checked like any other. A letter right after Go's `%t` or `%q` reads as a modifier and a verb (`%td`), so keep the space Go's own strings keep. Two things stay as they are: Java's `%,d` grouping flag is not read, so that verb is text, and Go's `%[2]*d`, a width taken from an argument, reads as one verb at position 2.
 
 `init` names the library when most placeholder-bearing strings carry verbs.
+
+## Chrome i18n: browser extensions
+
+<!-- from: examples/chrome.config.ts -->
+```ts
+import { defineCorpus } from "@corpus-tool/cli";
+
+export default defineCorpus({
+  project: "acme-extension",
+  server: "http://localhost:3000",
+  sourceLanguage: "en",
+  languages: ["en", "de", "pt_BR"],
+  sources: [
+    {
+      adapter: "messages",
+      type: "ui",
+      path: "src/_locales/{lang}/messages.json",
+      library: "chrome",
+    },
+  ],
+});
+```
+
+Every browser extension keeps `_locales/{lang}/messages.json`, one object per key:
+
+```json
+{
+  "copied": {
+    "message": "Copied $CURRENT$ of $TOTAL$",
+    "description": "Shown after a copy.",
+    "placeholders": {
+      "current": { "content": "$1", "example": "3" },
+      "total": { "content": "$2" }
+    }
+  }
+}
+```
+
+Under `library: "chrome"` the `messages` adapter reads each entry as Chrome does: `message` is the text, `description` the string's note, and a placeholder's `example` its example value, which the chip's tooltip and the preview show. `$CURRENT$` is a placeholder, named without regard to case as Chrome matches it, so `$current$` in a translation is the same one; `$$` is a dollar, and braces, angle brackets and `%` are text. A translation must keep every placeholder the source has, and the chip inserts it as the source writes it.
+
+A pull writes a translation into its entry's `message` and leaves the rest of the entry, and a byte-order mark, where they were; a key new to a language copies the source's `description` and `placeholders` beside it. `init` names the library when every value in the source file is such an object; without the library, the same file reads as nested keys (`copied.message`), since a catalogue of `{ title, message }` objects has that shape too. An extension split over several apps, as Bitwarden's is, is one `{ns}` pattern per layout: `apps/{ns}/src/_locales/{lang}/messages.json`.
 
 ## gettext, Android, iOS
 

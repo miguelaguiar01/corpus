@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { createJiti } from "jiti";
 import { z } from "zod";
-import { messagesToEntries, tableToEntries } from "@corpus/adapters";
+import { messagesToEntries, stripBom, tableToEntries } from "@corpus/adapters";
 import {
   entitySchema,
   libraryOf,
@@ -419,6 +419,7 @@ export async function readEntries(
       ? messagesToEntries(data, {
           type: source.type,
           arb: isArb(file),
+          chrome: libraryOf(source) === "chrome",
           keyIsText: sourceFile,
         })
       : tableToEntries(data, { type: source.type, map: source.map });
@@ -442,7 +443,7 @@ async function readModule(
         `a JSON file has no exports; drop export ${JSON.stringify(exportName)}`,
       );
     }
-    return JSON.parse(readFileSync(abs, "utf8"));
+    return JSON.parse(stripBom(readFileSync(abs, "utf8")));
   }
   if (exportName === undefined) return jiti.import(abs, { default: true });
   const mod = (await jiti.import(abs)) as Record<string, unknown>;
@@ -547,7 +548,7 @@ function readGlossary(
     }
     let json: unknown;
     try {
-      json = JSON.parse(raw);
+      json = JSON.parse(stripBom(raw));
     } catch (error) {
       errors.push(`${file}: not a glossary: ${(error as Error).message}`);
       continue;

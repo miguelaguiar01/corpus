@@ -100,6 +100,11 @@ class ParseFailure extends Error {
 const PRINTF_VERB_RE =
   /^%(?:\[(\d+)\]|(\d+)\$)?([-+0#]*(?:\d+|\*)?(?:\.(?:\d+|\*))?)((?:hh|h|ll|l|z|j|t|L|q)?[a-zA-Z@])/;
 
+// Chrome i18n's `$NAME$` (#595): letters, digits and `_`, matched
+// case-insensitively against the `placeholders` map, so the name is
+// lowercased and the written form kept.
+const CHROME_PLACEHOLDER_RE = /^\$([A-Za-z0-9_]+)\$/;
+
 // The verb of a printf placeholder as written, modifier and letter
 // (`ld` of `%2$-8ld`): what a translation must keep at the position,
 // and what the index form names. Undefined for text that is not a verb.
@@ -146,6 +151,30 @@ class Parser {
         }
         flush();
         return nodes;
+      }
+      if (this.syntax === "chrome") {
+        if (ch === "$") {
+          if (this.source[this.pos + 1] === "$") {
+            literal += "$";
+            this.pos += 2;
+            continue;
+          }
+          const match = CHROME_PLACEHOLDER_RE.exec(this.source.slice(this.pos));
+          if (match) {
+            flush();
+            nodes.push({
+              kind: "placeholder",
+              name: match[1]!.toLowerCase(),
+              written: match[0],
+            });
+            this.pos += match[0].length;
+            literalStart = this.pos;
+            continue;
+          }
+        }
+        literal += ch;
+        this.pos += 1;
+        continue;
       }
       // printf: braces, angle brackets and `#` are text; `%` opens a verb.
       if (this.syntax === "printf") {
