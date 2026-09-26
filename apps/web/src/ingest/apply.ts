@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { libraryOf, type Library, type Snapshot } from "@corpus/contract";
 import type { Db } from "@/db";
 import {
@@ -42,6 +42,118 @@ class DryRunRollback extends Error {
 function entryLibrary(entry: Snapshot["strings"][number]): Library | null {
   const library = libraryOf(entry);
   return library === "icu" ? null : library;
+}
+
+type Entry = Snapshot["strings"][number];
+
+// The per-string writes of a push, each prepared once: a statement
+// prepared per row holds native memory SQLite does not return (#604).
+function stringWrites(
+  tx: Db,
+  sourceLanguage: string,
+  targetLanguages: string[],
+) {
+  const p = (name: string) => sql`${sql.placeholder(name)}`;
+  const rowId = sql.placeholder("rowId");
+  const fields = {
+    type: p("type"),
+    metadata: p("metadata"),
+    examples: p("examples"),
+    file: p("file"),
+    keyIsText: p("keyIsText"),
+    note: p("note"),
+    syntax: p("syntax"),
+  };
+  // An entry without metadata or examples leaves what the row holds, as
+  // an update that left the field out did.
+  const kept = {
+    ...fields,
+    metadata: sql`coalesce(${sql.placeholder("metadata")}, ${strings.metadata})`,
+    examples: sql`coalesce(${sql.placeholder("examples")}, ${strings.examples})`,
+    archived: false,
+  };
+  const params = (entry: Entry) => ({
+    type: entry.type,
+    metadata:
+      entry.metadata === undefined ? null : JSON.stringify(entry.metadata),
+    examples:
+      entry.examples === undefined ? null : JSON.stringify(entry.examples),
+    file: entry.file ?? null,
+    keyIsText: entry.keyIsText ? 1 : 0,
+    note: entry.note ?? null,
+    syntax: entryLibrary(entry),
+  });
+  const insertString = tx
+    .insert(strings)
+    .values({
+      projectId: p("projectId"),
+      stringId: p("stringId"),
+      source: p("source"),
+      ...fields,
+    })
+    .returning({ id: strings.id })
+    .prepare();
+  const insertRows = tx
+    .insert(stringTranslations)
+    .values([
+      { stringId: p("rowId"), language: sourceLanguage, state: "translated" },
+      ...targetLanguages.map((language) => ({
+        stringId: p("rowId"),
+        language,
+        state: "untranslated" as const,
+      })),
+    ])
+    .prepare();
+  const refresh = tx
+    .update(strings)
+    .set(kept)
+    .where(eq(strings.id, rowId))
+    .prepare();
+  const updateSource = tx
+    .update(strings)
+    .set({ ...kept, source: p("source") })
+    .where(eq(strings.id, rowId))
+    .prepare();
+  const markStale = tx
+    .update(stringTranslations)
+    .set({ stale: true })
+    .where(
+      and(
+        eq(stringTranslations.stringId, rowId),
+        inArray(stringTranslations.state, [...STALE_STATES]),
+      ),
+    )
+    .prepare();
+  const resetSourceRow = tx
+    .update(stringTranslations)
+    .set({ state: "translated", stale: false })
+    .where(
+      and(
+        eq(stringTranslations.stringId, rowId),
+        eq(stringTranslations.language, sourceLanguage),
+      ),
+    )
+    .prepare();
+  return {
+    insert(projectId: number, entry: Entry): number {
+      const row = insertString.get({
+        ...params(entry),
+        projectId,
+        stringId: entry.id,
+        source: entry.source,
+      })!;
+      insertRows.run({ rowId: row.id });
+      return row.id;
+    },
+    refresh(id: number, entry: Entry) {
+      refresh.run({ ...params(entry), rowId: id });
+    },
+    updateSource(id: number, entry: Entry, stale: boolean) {
+      updateSource.run({ ...params(entry), source: entry.source, rowId: id });
+      if (stale) markStale.run({ rowId: id });
+      resetSourceRow.run({ rowId: id });
+    },
+  };
 }
 
 // Apply a validated snapshot to a project in one transaction (§8). The
@@ -104,103 +216,28 @@ export function applySnapshot(
       const bySnapshotId = new Map(snapshot.strings.map((s) => [s.id, s]));
       const currentRowId = new Map(current.map((c) => [c.stringId, c.rowId]));
 
-      for (const id of plan.insert) {
-        const entry = bySnapshotId.get(id)!;
-        const row = tx
-          .insert(strings)
-          .values({
-            projectId,
-            stringId: entry.id,
-            type: entry.type,
-            source: entry.source,
-            metadata: entry.metadata,
-            examples: entry.examples,
-            file: entry.file ?? null,
-            keyIsText: entry.keyIsText ?? false,
-            note: entry.note ?? null,
-            syntax: entryLibrary(entry),
-          })
-          .returning()
-          .get();
-        tx.insert(stringTranslations)
-          .values([
-            {
-              stringId: row.id,
-              language: project.sourceLanguage,
-              state: "translated",
-            },
-            ...targetLanguages.map((language) => ({
-              stringId: row.id,
-              language,
-              state: "untranslated" as const,
-            })),
-          ])
-          .run();
-      }
+      const writes = stringWrites(tx, project.sourceLanguage, targetLanguages);
+      for (const id of plan.insert)
+        writes.insert(projectId, bySnapshotId.get(id)!);
 
       // A language added in settings before this push, or before rows
       // were created on adding one: existing strings get their rows.
       ensureTranslationRows(tx, projectId, targetLanguages);
 
-      for (const id of plan.refresh) {
-        const entry = bySnapshotId.get(id)!;
-        tx.update(strings)
-          .set({
-            type: entry.type,
-            metadata: entry.metadata,
-            examples: entry.examples,
-            file: entry.file ?? null,
-            keyIsText: entry.keyIsText ?? false,
-            note: entry.note ?? null,
-            syntax: entryLibrary(entry),
-            archived: false,
-          })
-          .where(eq(strings.id, currentRowId.get(id)!))
-          .run();
-      }
+      for (const id of plan.refresh)
+        writes.refresh(currentRowId.get(id)!, bySnapshotId.get(id)!);
 
+      // Translated and verified targets go stale (old text kept), an
+      // untranslated row has nothing to mark, and a source that was the
+      // empty string marks none; the source-language row is reset to
+      // translated for re-verification (§8).
       const fromEmpty = new Set(plan.fromEmpty);
       for (const id of plan.updateSource) {
-        const entry = bySnapshotId.get(id)!;
-        const rowId = currentRowId.get(id)!;
-        tx.update(strings)
-          .set({
-            type: entry.type,
-            source: entry.source,
-            metadata: entry.metadata,
-            examples: entry.examples,
-            file: entry.file ?? null,
-            keyIsText: entry.keyIsText ?? false,
-            note: entry.note ?? null,
-            syntax: entryLibrary(entry),
-            archived: false,
-          })
-          .where(eq(strings.id, rowId))
-          .run();
-        // Translated and verified targets go stale (old text kept), an
-        // untranslated row has nothing to mark, and a source that was the
-        // empty string marks none; the source-language row is reset to
-        // translated for re-verification (§8).
-        if (!fromEmpty.has(id)) {
-          tx.update(stringTranslations)
-            .set({ stale: true })
-            .where(
-              and(
-                eq(stringTranslations.stringId, rowId),
-                inArray(stringTranslations.state, [...STALE_STATES]),
-              ),
-            )
-            .run();
-        }
-        tx.update(stringTranslations)
-          .set({ state: "translated", stale: false })
-          .where(
-            and(
-              eq(stringTranslations.stringId, rowId),
-              eq(stringTranslations.language, project.sourceLanguage),
-            ),
-          )
-          .run();
+        writes.updateSource(
+          currentRowId.get(id)!,
+          bySnapshotId.get(id)!,
+          !fromEmpty.has(id),
+        );
       }
 
       if (plan.archive.length > 0) {
@@ -388,26 +425,48 @@ function applySeeds(
       .all()
       .map((edit) => rowKey(edit.stringId, edit.language)),
   );
-  // What every row holds, read once: a repository pushes its whole
-  // catalogue as seeds on every push, and a push that changes nothing
-  // must cost a comparison, not a write per row.
-  const current = new Map(
-    db
-      .select({
-        stringId: stringTranslations.stringId,
-        language: stringTranslations.language,
-        text: stringTranslations.text,
-        state: stringTranslations.state,
-      })
-      .from(stringTranslations)
-      .innerJoin(strings, eq(strings.id, stringTranslations.stringId))
-      .where(eq(strings.projectId, projectId))
-      .all()
-      .map((row) => [rowKey(row.stringId, row.language), row]),
-  );
+  // What a language's rows hold, read once per language: a repository
+  // pushes its whole catalogue as seeds, and a push that changes nothing
+  // must cost a comparison, not a write per row; one language at a time
+  // keeps a 67-language project's rows out of memory at once (#604).
+  const rowsOf = db
+    .select({
+      stringId: stringTranslations.stringId,
+      text: stringTranslations.text,
+      state: stringTranslations.state,
+    })
+    .from(stringTranslations)
+    .innerJoin(strings, eq(strings.id, stringTranslations.stringId))
+    .where(
+      and(
+        eq(strings.projectId, projectId),
+        eq(stringTranslations.language, sql.placeholder("language")),
+      ),
+    )
+    .prepare();
 
+  // One statement for every write: a statement prepared per seed holds
+  // native memory SQLite does not return, 2.8 GB after Bitwarden's 316k
+  // seeds (#604).
+  const write = db
+    .update(stringTranslations)
+    .set({
+      text: sql`${sql.placeholder("text")}`,
+      state: sql`${sql.placeholder("state")}`,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(stringTranslations.stringId, sql.placeholder("rowId")),
+        eq(stringTranslations.language, sql.placeholder("language")),
+      ),
+    )
+    .prepare();
   for (const [language, texts] of Object.entries(seeds)) {
     const known = targetLanguages.includes(language);
+    const current = new Map(
+      known ? rowsOf.all({ language }).map((row) => [row.stringId, row]) : [],
+    );
     for (const [stringId, text] of Object.entries(texts)) {
       const string = byStringId.get(stringId);
       if (
@@ -424,18 +483,9 @@ function applySeeds(
       const state = identical ? "untranslated" : "translated";
       // A seed the row already holds is nothing: no write, no count, and
       // the editor's "changed since you opened it" stays quiet.
-      const row = current.get(rowKey(rowId, language));
+      const row = current.get(rowId);
       if (row && row.text === text && row.state === state) continue;
-      const { changes } = db
-        .update(stringTranslations)
-        .set({ text, state, updatedAt: new Date() })
-        .where(
-          and(
-            eq(stringTranslations.stringId, rowId),
-            eq(stringTranslations.language, language),
-          ),
-        )
-        .run();
+      const { changes } = write.run({ text, state, rowId, language });
       if (!identical) seeded += changes;
     }
   }
