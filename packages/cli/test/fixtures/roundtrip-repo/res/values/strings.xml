@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Ecrã de entrada -->
+    <string name="app_package" translatable="false">pt.exemplo.app</string>
+    <string name="login_status">Entrou como %1$s em %2$s.\n\nNão é você? Saia.</string>
+    <string name="quoted">"  Dois  espaços  "</string>
+    <string name="amp">Livros &amp; discos</string>
+    <plurals name="episodes">
+        <item quantity="one">%d episódio</item>
+        <item quantity="other">%d episódios</item>
+    </plurals>
+</resources>

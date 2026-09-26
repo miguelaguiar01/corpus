@@ -305,6 +305,15 @@ test("describe words every error code", () => {
   ).toBe(
     "%s at position 2 is %d in the source; a verb that moved needs its index, %[n]s",
   );
+  expect(
+    describe({ code: "missing-placeholder", name: "quantity" }, "android"),
+  ).toBe("a <string> where the source is a <plurals> on quantity");
+  expect(
+    describe(
+      { code: "missing-placeholder", name: "2", written: "%2$s" },
+      "android",
+    ),
+  ).toBe("missing %2$s");
   expect(describe({ code: "missing-tag", name: "link" })).toBe(
     "missing the <link> tag",
   );

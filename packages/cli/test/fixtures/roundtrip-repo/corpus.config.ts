@@ -22,5 +22,7 @@ export default defineCorpus({
       path: "data/steps.{lang}.json",
       map: { id: "id", text: "text" },
     },
+    { adapter: "android", type: "screen", path: "res" },
   ],
+  richText: { screen: "html" },
 });

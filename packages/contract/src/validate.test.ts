@@ -467,6 +467,36 @@ describe("rich-text tags", () => {
   });
 });
 
+describe("android library", () => {
+  test("a dropped verb, a changed verb and an added tag are named; a plural keeps its verbs per branch (#596)", () => {
+    const source = "Logged in as %1$s on %2$s.";
+    expect(errorsOf(source, "Kevreet evel %1$s.", "br", "android")).toEqual([
+      { code: "missing-placeholder", name: "2", written: "%2$s" },
+    ]);
+    expect(
+      errorsOf(source, "Kevreet evel <i>%1$s</i> war %2$s.", "br", "android"),
+    ).toEqual([{ code: "unexpected-tag", name: "i" }]);
+    expect(
+      validateTranslation(
+        "{quantity, plural, one {%d episode} other {%d episodes}}",
+        "{quantity, plural, one {%d episódio} many {%d episódios} other {%d episódios}}",
+        "pt",
+        "android",
+      ),
+    ).toEqual({ ok: true });
+    expect(
+      errorsOf(
+        "{quantity, plural, one {%d episode} other {%d episodes}}",
+        "{quantity, plural, one {%s episódio} many {%d episódios} other {%d episódios}}",
+        "pt",
+        "android",
+      ),
+    ).toMatchObject([
+      { code: "changed-verb", expected: "%d", actual: "%s", indexed: "%n$s" },
+    ]);
+  });
+});
+
 describe("chrome library", () => {
   test("a dropped $NAME$ is named as written; its case and place are the translator's (#595)", () => {
     const source = "Copied $CURRENT$ of $TOTAL$";

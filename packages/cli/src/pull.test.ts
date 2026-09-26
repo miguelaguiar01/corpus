@@ -697,3 +697,96 @@ test("an array of patterns of one type is held together: a pull that changes not
   expect(read("a/pt.json")).toBe(`{\n  "one": "Um"\n}\n`);
   expect(read("b/pt.json")).toBe(`{\n  "two": "Dois"\n}\n`);
 });
+
+test("an android source builds, pulls into values-<qualifier>/strings.xml and validates its verbs and tags (#596)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "pt-BR", "br"],
+  sources: [{ adapter: "android", type: "ui", path: "res" }],
+});
+`,
+  );
+  mkdirSync(path.join(repo, "res", "values"), { recursive: true });
+  mkdirSync(path.join(repo, "res", "values-br"), { recursive: true });
+  writeFileSync(
+    path.join(repo, "res", "values", "strings.xml"),
+    `<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="status">Logged in as %1$s on %2$s</string>
+    <plurals name="episodes">
+        <item quantity="one">%d episode</item>
+        <item quantity="other">%d episodes</item>
+    </plurals>
+</resources>
+`,
+  );
+  const breton = `<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="status">Kevreet evel <i>%1$s</i></string>
+</resources>
+`;
+  writeFileSync(path.join(repo, "res", "values-br", "strings.xml"), breton);
+
+  const built = ctx();
+  const out = path.join(repo, "snapshot.json");
+  expect(await run(["build", "--out", out], built)).toBe(0);
+  const snapshot = JSON.parse(readFileSync(out, "utf8"));
+  expect(snapshot.strings).toEqual([
+    expect.objectContaining({
+      id: "status",
+      library: "android",
+      file: "res/values/strings.xml",
+    }),
+    expect.objectContaining({
+      id: "episodes",
+      source: "{quantity, plural, one {%d episode} other {%d episodes}}",
+    }),
+  ]);
+  expect(snapshot.seedTranslations).toEqual({
+    br: { status: "Kevreet evel <i>%1$s</i>" },
+  });
+  expect(snapshot.sources).toEqual([
+    expect.objectContaining({
+      adapter: "android",
+      path: "res/values/strings.xml",
+    }),
+  ]);
+
+  const checked = ctx();
+  expect(await run(["validate"], checked)).toBe(1);
+  expect(checked.output.join("\n")).toContain(
+    "res/values-br/strings.xml:status: missing %2$s",
+  );
+  expect(checked.output.join("\n")).toContain("unexpected <i> tag");
+
+  await serve(200, {
+    ...PAYLOAD,
+    types: { status: "ui", episodes: "ui" },
+    translations: {
+      "pt-BR": {
+        status: "Conectado como %1$s em %2$s",
+        episodes: "{quantity, plural, one {%d episódio} other {%d episódios}}",
+      },
+      br: { status: "Kevreet evel <i>%1$s</i>" },
+    },
+  });
+  const pulled = ctx();
+  expect(await run(["pull"], pulled)).toBe(0);
+  expect(read("res/values-pt-rBR/strings.xml"))
+    .toBe(`<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="status">Conectado como %1$s em %2$s</string>
+    <plurals name="episodes">
+        <item quantity="one">%d episódio</item>
+        <item quantity="other">%d episódios</item>
+    </plurals>
+</resources>
+`);
+  expect(read("res/values-br/strings.xml")).toBe(breton);
+});

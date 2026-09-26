@@ -79,6 +79,9 @@ type Shape = {
   // printf: each verb as written, by position, and the positions in
   // the order they appear (#594).
   written: Map<string, string>;
+  // Every verb as written, a position repeated in each plural branch
+  // included (#596).
+  verbs: [string, string][];
   order: string[];
   // How many placeholders the text writes, positions repeated included:
   // fewer than the source's is what a dropped verb looks like (#614).
@@ -94,6 +97,7 @@ function shapeOf(
     plurals: new Map(),
     tags: new Set(),
     written: new Map(),
+    verbs: [],
     order: [],
     count: 0,
   },
@@ -103,8 +107,11 @@ function shapeOf(
       shape.placeholders.add(node.name);
       shape.order.push(node.name);
       shape.count += 1;
-      if (node.written && !shape.written.has(node.name))
-        shape.written.set(node.name, node.written);
+      if (node.written) {
+        if (!shape.written.has(node.name))
+          shape.written.set(node.name, node.written);
+        shape.verbs.push([node.name, node.written]);
+      }
       if (node.format && !shape.formats.has(node.name)) {
         shape.formats.set(node.name, node.format.type);
       }
@@ -191,19 +198,26 @@ export function validateTranslation(
         ...writtenAs(actual, name),
       });
   }
-  if (syntax === "printf") {
+  if (syntax === "printf" || syntax === "android") {
     // Go's fmt has no `%n$`, so the hint is Go's `%[n]` unless the
     // source itself writes a `%n$` index, as C, Java and Android do.
-    const cStyle = [...expected.written.values()].some((w) =>
-      /^%\d+\$/.test(w),
-    );
+    const cStyle =
+      syntax === "android" ||
+      [...expected.written.values()].some((w) => /^%\d+\$/.test(w));
     // The verb is the modifier and the letter together: `%ld` against
     // `%lu` is a changed verb (#614).
     const verbOf = (written: string) => printfVerbOf(written) ?? written;
     const changed: Extract<ValidationError, { code: "changed-verb" }>[] = [];
-    for (const [name, written] of expected.written) {
-      const got = actual.written.get(name);
-      if (got === undefined || verbOf(got) === verbOf(written)) continue;
+    const positions = [...expected.written.keys()];
+    const verbs = [...actual.verbs].sort(
+      ([a], [b]) => positions.indexOf(a) - positions.indexOf(b),
+    );
+    const said = new Set<string>();
+    for (const [name, got] of verbs) {
+      const written = expected.written.get(name);
+      if (written === undefined || verbOf(got) === verbOf(written)) continue;
+      if (said.has(name)) continue;
+      said.add(name);
       changed.push({
         code: "changed-verb",
         name,

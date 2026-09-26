@@ -142,7 +142,7 @@ class Parser {
 
     while (this.pos < this.source.length) {
       const ch = this.source[this.pos];
-      if (ch === "}" && this.syntax === "icu") {
+      if (ch === "}" && (this.syntax === "icu" || this.syntax === "android")) {
         if (!inBranch) {
           throw new ParseFailure("unmatched '}'", this.pos);
         }
@@ -177,7 +177,8 @@ class Parser {
         continue;
       }
       // printf: braces, angle brackets and `#` are text; `%` opens a verb.
-      if (this.syntax === "printf") {
+      // android (#596): the verbs, with ICU's plural and tags around them.
+      if (this.syntax === "printf" || this.syntax === "android") {
         if (ch === "%") {
           if (this.source[this.pos + 1] === "%") {
             literal += "%";
@@ -200,9 +201,11 @@ class Parser {
             continue;
           }
         }
-        literal += ch;
-        this.pos += 1;
-        continue;
+        if (this.syntax === "printf" || ch === "%" || ch === "#") {
+          literal += ch;
+          this.pos += 1;
+          continue;
+        }
       }
       if (ch === "<") {
         const tag = this.readTag();
@@ -455,6 +458,9 @@ class Parser {
         );
       }
       this.pos += 1; // consume '{'
+      // Each Android plural item is a string of its own: its verbs count
+      // from 1.
+      if (this.syntax === "android") this.printfNext = 1;
       branches[key] = this.parseSequence(
         true,
         type === "plural" ? name : undefined,
