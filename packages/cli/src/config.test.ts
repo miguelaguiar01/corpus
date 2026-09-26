@@ -107,3 +107,36 @@ test("an invalid config names the file and the field", async () => {
     /corpus\.config\.ts is not a valid config: languages/,
   );
 });
+
+test("a hyphenated code beside a Flutter file named with an underscore is refused with the code to write (#627)", async () => {
+  const flutter = (languages: string[]) => {
+    const dir = client(
+      "corpus.config.mjs",
+      `export default {
+  project: "app",
+  server: "http://localhost:3000",
+  sourceLanguage: "en",
+  languages: ${JSON.stringify(languages)},
+  sources: [{ adapter: "messages", type: "ui", path: "l10n/strings_{lang}.arb" }],
+};
+`,
+    );
+    mkdirSync(path.join(dir, "l10n"));
+    for (const name of ["en", "pt_PT", "pt_BR", "de"])
+      writeFileSync(path.join(dir, "l10n", `strings_${name}.arb`), "{}\n");
+    return dir;
+  };
+  await expect(
+    loadConfig(flutter(["en", "pt-PT", "pt-BR", "de"])),
+  ).rejects.toThrow(
+    "l10n/strings_{lang}.arb names its files with underscores: write pt-PT as pt_PT and pt-BR as pt_BR in the config's languages, as gen-l10n does, so pull writes into l10n/strings_pt_PT.arb rather than beside it",
+  );
+  await expect(
+    loadConfig(flutter(["en", "pt_PT", "pt_BR", "de"])),
+  ).resolves.toMatchObject({ project: "app" });
+  // A hyphen-named file that exists, and a code with no file yet, are
+  // not refused.
+  const both = flutter(["en", "pt-PT", "fr-CA"]);
+  writeFileSync(path.join(both, "l10n", "strings_pt-PT.arb"), "{}\n");
+  await expect(loadConfig(both)).resolves.toMatchObject({ project: "app" });
+});
