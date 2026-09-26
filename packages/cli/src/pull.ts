@@ -4,7 +4,10 @@ import path from "node:path";
 import {
   androidToEntries,
   applyAndroidOps,
+  applyFluentOps,
   entriesToAndroid,
+  entriesToFluent,
+  fluentToEntries,
   applyMessagesOps,
   applyTableOps,
   entriesToMessages,
@@ -88,7 +91,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
   const notHeld = new Set<string>();
   const heldByType = new Map<string, Set<string>>();
   for (const source of config.sources) {
-    if (source.adapter !== "messages" && source.adapter !== "android") continue;
+    if (source.adapter === "table" || source.adapter === "exec") continue;
     if (!hasLanguages(source) || !sourceWritesBack(source)) continue;
     const template = readRepoFile(
       ctx.cwd,
@@ -143,12 +146,14 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
       const next =
         source.adapter === "android"
           ? entriesToAndroid(template, translations, existing)
-          : source.adapter === "messages"
-            ? entriesToMessages(template, translations, existing, {
-                ...(isArb(file) && { locale: language }),
-                chrome: libraryOf(source) === "chrome",
-              })
-            : entriesToTable(template, translations, source.map, existing);
+          : source.adapter === "fluent"
+            ? entriesToFluent(template, translations, existing)
+            : source.adapter === "messages"
+              ? entriesToMessages(template, translations, existing, {
+                  ...(isArb(file) && { locale: language }),
+                  chrome: libraryOf(source) === "chrome",
+                })
+              : entriesToTable(template, translations, source.map, existing);
       if (next !== existing) {
         if (!check) {
           // A language new to the repository may need its directory.
@@ -212,11 +217,13 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
         next =
           source.adapter === "android"
             ? applyAndroidOps(existing, targetOps)
-            : source.adapter === "messages"
-              ? applyMessagesOps(existing, targetOps, {
-                  chrome: libraryOf(source) === "chrome",
-                })
-              : applyTableOps(existing, targetOps, source.map);
+            : source.adapter === "fluent"
+              ? applyFluentOps(existing, targetOps)
+              : source.adapter === "messages"
+                ? applyMessagesOps(existing, targetOps, {
+                    chrome: libraryOf(source) === "chrome",
+                  })
+                : applyTableOps(existing, targetOps, source.map);
       } catch (error) {
         throw new CliError(
           `${target}: proposal(s) for ${targetOps.map((o) => o.id).join(", ")}: ${(error as Error).message}`,
@@ -381,6 +388,18 @@ function ownIds(template: string, source: FileSource): Set<string> | undefined {
     return new Set(
       androidToEntries(template, { type: source.type }).map((e) => e.id),
     );
+  }
+  if (source.adapter === "fluent") {
+    const prefix = source.namespace ? `${source.namespace}:` : "";
+    try {
+      return new Set(
+        fluentToEntries(template, { type: source.type }).map(
+          (e) => `${prefix}${e.id}`,
+        ),
+      );
+    } catch {
+      return undefined;
+    }
   }
   if (source.adapter !== "messages") return undefined;
   try {

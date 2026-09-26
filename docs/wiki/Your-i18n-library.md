@@ -205,6 +205,34 @@ A `<string>` is a string, and a `<plurals>` is one string whose text is an ICU p
 
 The library is `android`: printf verbs as under `printf` (the index form is `%n$s`), and tags as under ICU, so a translation's `<i>` the source lacks is named. A string the app shows through `Html.fromHtml` may take the translator's own tags; declare its type `richText: { ui: "html" }` ([Types read as HTML](Metadata-types-entities-and-the-glossary#types-read-as-html)).
 
+## Fluent
+
+<!-- from: examples/fluent.config.ts -->
+```ts
+import { defineCorpus } from "@corpus-tool/cli";
+
+export default defineCorpus({
+  project: "acme-app",
+  server: "http://localhost:3000",
+  sourceLanguage: "en",
+  languages: ["en", "de", "pt"],
+  sources: [{ adapter: "fluent", type: "ui", path: "i18n/{lang}/app.ftl" }],
+});
+```
+
+A `fluent` source reads `.ftl` files: messages with a value, as Project Fluent writes them for COSMIC and other Rust apps. The editor sees ICU: `{$items}` is the placeholder `{items}`, a reference to another message such as `{trash}` is a placeholder named after it, and a select on a variable is a plural when its keys are plural categories or numbers:
+
+```
+copied = Copied {$items} {$items ->
+    [one] item
+   *[other] items
+  } to {trash}
+```
+
+reads as `Copied {items} {items, plural, one {item} other {items}} to {trash}`. A select on other keys is an ICU select, so a translation that selects a count on words (`[unha]`, `[outra]`, which Fluent never matches) is named by `validate`. A pull writes a changed message back in that message's own layout and appends a new one at the end; everything else, comments included, stays byte for byte.
+
+Attributes (`.title =`), terms (`-brand`), function calls (`NUMBER($n)`) and string literals are refused by name, every one in the file at once, until a project needs them.
+
 ## gettext and iOS
 
 No adapter reads `.po` or `.strings`. An `exec` source can, by converting in both directions; see [Sources and adapters](Sources-and-adapters). A converter that leaves the verbs as they are can declare `library: "printf"` on the exec source's strings, so the verbs are checked.

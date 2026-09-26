@@ -60,10 +60,17 @@ const androidSchema = z.looseObject({
   path: z.string().min(1),
 });
 
+// Fluent `.ftl` (#597): messages as ICU, a select as a plural or select.
+const fluentFields = {
+  adapter: z.literal("fluent"),
+  type: identifier(),
+};
+
 // What a config file declares.
 export const sourceInputSchema = z.discriminatedUnion("adapter", [
   z.looseObject({ ...messagesFields, path: patterns(langPattern) }),
   z.looseObject({ ...tableFields, path: patterns(z.string().min(1)) }),
+  z.looseObject({ ...fluentFields, path: patterns(langPattern) }),
   androidSchema,
   execSchema,
 ]);
@@ -79,6 +86,11 @@ export const sourceSchema = z.discriminatedUnion("adapter", [
   z.looseObject({
     ...tableFields,
     path: z.string().min(1),
+    namespace: z.string().min(1).optional(),
+  }),
+  z.looseObject({
+    ...fluentFields,
+    path: langPattern,
     namespace: z.string().min(1).optional(),
   }),
   androidSchema,
