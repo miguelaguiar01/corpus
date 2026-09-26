@@ -129,9 +129,14 @@ test("a hyphenated code beside a Flutter file named with an underscore is refuse
   await expect(
     loadConfig(flutter(["en", "pt-PT", "pt-BR", "de"])),
   ).rejects.toThrow(
-    "l10n/strings_{lang}.arb names its files with underscores: write pt-PT as pt_PT and pt-BR as pt_BR in the config's languages, as gen-l10n does, so pull writes into strings_pt_PT.arb rather than beside it",
+    "l10n/strings_{lang}.arb names its files with underscores: write pt-PT as pt_PT and pt-BR as pt_BR in the config's languages, as gen-l10n does, so pull writes into l10n/strings_pt_PT.arb rather than beside it",
   );
   await expect(
     loadConfig(flutter(["en", "pt_PT", "pt_BR", "de"])),
   ).resolves.toMatchObject({ project: "app" });
+  // A hyphen-named file that exists, and a code with no file yet, are
+  // not refused.
+  const both = flutter(["en", "pt-PT", "fr-CA"]);
+  writeFileSync(path.join(both, "l10n", "strings_pt-PT.arb"), "{}\n");
+  await expect(loadConfig(both)).resolves.toMatchObject({ project: "app" });
 });
