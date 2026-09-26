@@ -386,6 +386,25 @@ test("a first push of many strings in many languages stays under SQLite's variab
   expect(translationOf(db, "ui.s148", "x119")?.state).toBe("untranslated");
 });
 
+test("a new string named like an object's own property takes no seed it does not have (#600)", () => {
+  const { db, project } = seed();
+  const names = ["constructor", "toString", "__proto__"];
+  const report = applySnapshot(db, project.id, {
+    ...FIXTURE,
+    strings: [
+      ...FIXTURE.strings,
+      ...names.map((id) => ({ id, type: "chrome", source: `Texto ${id}` })),
+    ],
+    seedTranslations: { en: { "ui.continue": "Continue" } },
+  });
+  expect(report.seeded).toBe(1);
+  for (const id of names)
+    expect(translationOf(db, id, "en")).toMatchObject({
+      state: "untranslated",
+      text: null,
+    });
+});
+
 test("seedTranslations on a first push import as translated and are counted", () => {
   const { db, project } = seed();
   const report = applySnapshot(

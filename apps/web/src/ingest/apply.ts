@@ -105,6 +105,8 @@ function stringWrites(
           ...Object.fromEntries(
             Object.keys(fields).map((name) => [name, p(`${name}${k}`)]),
           ),
+          // Spelled out as well, so the insert's type sees the column it
+          // requires.
           type: p(`type${k}`),
         })),
       )
@@ -136,7 +138,9 @@ function stringWrites(
   const seeded = (entry: Entry, k: number) =>
     Object.fromEntries(
       targetLanguages.flatMap((language, i) => {
-        const text = seeds[language]?.[entry.id];
+        const texts = seeds[language];
+        const text =
+          texts && Object.hasOwn(texts, entry.id) ? texts[entry.id] : undefined;
         return [
           [`text${k}_${i}`, text ?? null],
           [
