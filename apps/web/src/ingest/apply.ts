@@ -445,9 +445,6 @@ function applySeeds(
     )
     .prepare();
 
-  // One statement for every write: a statement prepared per seed holds
-  // native memory SQLite does not return, 2.8 GB after Bitwarden's 316k
-  // seeds (#604).
   const write = db
     .update(stringTranslations)
     .set({

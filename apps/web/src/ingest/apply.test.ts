@@ -267,8 +267,6 @@ function translationOf(db: Db, stringId: string, language: string) {
 }
 
 test("seeds are written through one prepared statement, however many there are (#604)", () => {
-  // A statement prepared per row holds native memory SQLite never gives
-  // back: 316k seeds kept a 586k-row instance at 2.8 GB.
   const prepares = (seeds: Record<string, Record<string, string>>) => {
     const { db, project } = seed();
     applySnapshot(db, project.id, FIXTURE);
