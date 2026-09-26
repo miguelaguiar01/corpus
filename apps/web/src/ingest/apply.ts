@@ -52,6 +52,7 @@ function stringWrites(
   tx: Db,
   sourceLanguage: string,
   targetLanguages: string[],
+  seeds: NonNullable<Snapshot["seedTranslations"]>,
 ) {
   const p = (name: string) => sql`${sql.placeholder(name)}`;
   const rowId = sql.placeholder("rowId");
@@ -83,27 +84,74 @@ function stringWrites(
     note: entry.note ?? null,
     syntax: entryLibrary(entry),
   });
-  const insertString = tx
-    .insert(strings)
-    .values({
-      projectId: p("projectId"),
-      stringId: p("stringId"),
-      source: p("source"),
-      ...fields,
-    })
-    .returning({ id: strings.id })
-    .prepare();
-  const insertRows = tx
-    .insert(stringTranslations)
-    .values([
-      { stringId: p("rowId"), language: sourceLanguage, state: "translated" },
-      ...targetLanguages.map((language) => ({
-        stringId: p("rowId"),
-        language,
-        state: "untranslated" as const,
-      })),
-    ])
-    .prepare();
+  // New strings and their rows go in batches (#600), a statement per
+  // batch size prepared once; a batch's parameters stay under SQLite's
+  // limit of 32,766 whatever the number of languages.
+  const batch = Math.max(
+    1,
+    // Drizzle binds every column of a row, defaults included: six a row.
+    Math.min(100, Math.floor(30000 / (6 * (1 + targetLanguages.length)))),
+  );
+  const stringBatch = new Map<number, ReturnType<typeof prepareStrings>>();
+  const rowBatch = new Map<number, ReturnType<typeof prepareRows>>();
+  function prepareStrings(n: number) {
+    return tx
+      .insert(strings)
+      .values(
+        Array.from({ length: n }, (_, k) => ({
+          projectId: p("projectId"),
+          stringId: p(`id${k}`),
+          source: p(`source${k}`),
+          ...Object.fromEntries(
+            Object.keys(fields).map((name) => [name, p(`${name}${k}`)]),
+          ),
+          // Spelled out as well, so the insert's type sees the column it
+          // requires.
+          type: p(`type${k}`),
+        })),
+      )
+      .returning({ id: strings.id, stringId: strings.stringId })
+      .prepare();
+  }
+  function prepareRows(n: number) {
+    return tx
+      .insert(stringTranslations)
+      .values(
+        Array.from({ length: n }, (_, k) => [
+          {
+            stringId: p(`row${k}`),
+            language: sourceLanguage,
+            state: "translated" as const,
+          },
+          // A string this push creates takes its seeds in the insert
+          // rather than in an update of every row after it.
+          ...targetLanguages.map((language, i) => ({
+            stringId: p(`row${k}`),
+            language,
+            text: p(`text${k}_${i}`),
+            state: p(`state${k}_${i}`),
+          })),
+        ]).flat(),
+      )
+      .prepare();
+  }
+  const seeded = (entry: Entry, k: number) =>
+    Object.fromEntries(
+      targetLanguages.flatMap((language, i) => {
+        const texts = seeds[language];
+        const text =
+          texts && Object.hasOwn(texts, entry.id) ? texts[entry.id] : undefined;
+        return [
+          [`text${k}_${i}`, text ?? null],
+          [
+            `state${k}_${i}`,
+            text === undefined || text === entry.source
+              ? "untranslated"
+              : "translated",
+          ],
+        ];
+      }),
+    );
   const refresh = tx
     .update(strings)
     .set(kept)
@@ -135,15 +183,32 @@ function stringWrites(
     )
     .prepare();
   return {
-    insert(projectId: number, entry: Entry): number {
-      const row = insertString.get({
-        ...params(entry),
-        projectId,
-        stringId: entry.id,
-        source: entry.source,
-      })!;
-      insertRows.run({ rowId: row.id });
-      return row.id;
+    insert(projectId: number, entries: Entry[]) {
+      for (let at = 0; at < entries.length; at += batch) {
+        const chunk = entries.slice(at, at + batch);
+        const n = chunk.length;
+        if (!stringBatch.has(n)) stringBatch.set(n, prepareStrings(n));
+        if (!rowBatch.has(n)) rowBatch.set(n, prepareRows(n));
+        const values: Record<string, unknown> = { projectId };
+        chunk.forEach((entry, k) => {
+          values[`id${k}`] = entry.id;
+          values[`source${k}`] = entry.source;
+          for (const [name, value] of Object.entries(params(entry)))
+            values[`${name}${k}`] = value;
+        });
+        const ids = new Map(
+          stringBatch
+            .get(n)!
+            .all(values)
+            .map((row) => [row.stringId, row.id]),
+        );
+        const rows: Record<string, unknown> = {};
+        chunk.forEach((entry, k) => {
+          rows[`row${k}`] = ids.get(entry.id);
+          Object.assign(rows, seeded(entry, k));
+        });
+        rowBatch.get(n)!.run(rows);
+      }
     },
     refresh(id: number, entry: Entry) {
       refresh.run({ ...params(entry), rowId: id });
@@ -216,13 +281,21 @@ export function applySnapshot(
       const bySnapshotId = new Map(snapshot.strings.map((s) => [s.id, s]));
       const currentRowId = new Map(current.map((c) => [c.stringId, c.rowId]));
 
-      const writes = stringWrites(tx, project.sourceLanguage, targetLanguages);
-      for (const id of plan.insert)
-        writes.insert(projectId, bySnapshotId.get(id)!);
-
       // A language added in settings before this push, or before rows
-      // were created on adding one: existing strings get their rows.
+      // were created on adding one: existing strings get their rows. The
+      // strings this push creates get every row in their insert, so it
+      // runs first and a first push has nothing to scan.
       ensureTranslationRows(tx, projectId, targetLanguages);
+      const writes = stringWrites(
+        tx,
+        project.sourceLanguage,
+        targetLanguages,
+        snapshot.seedTranslations ?? {},
+      );
+      writes.insert(
+        projectId,
+        plan.insert.map((id) => bySnapshotId.get(id)!),
+      );
 
       for (const id of plan.refresh)
         writes.refresh(currentRowId.get(id)!, bySnapshotId.get(id)!);
@@ -253,7 +326,13 @@ export function applySnapshot(
       }
 
       const entityResult = applyEntities(tx, projectId, snapshot);
-      const seedResult = applySeeds(tx, projectId, targetLanguages, snapshot);
+      const seedResult = applySeeds(
+        tx,
+        projectId,
+        targetLanguages,
+        snapshot,
+        new Set(plan.insert),
+      );
 
       // Proposals that this push lands or overtakes (§8, §11).
       const proposals = reconcileProposals(
@@ -393,6 +472,7 @@ function applySeeds(
   projectId: number,
   targetLanguages: string[],
   snapshot: Snapshot,
+  created: Set<string>,
 ): { seeded: number; seedsIgnored: number; seedsIdentical: number } {
   const seeds = snapshot.seedTranslations ?? {};
   let seeded = 0;
@@ -461,8 +541,12 @@ function applySeeds(
     .prepare();
   for (const [language, texts] of Object.entries(seeds)) {
     const known = targetLanguages.includes(language);
+    // Rows this push created hold their seeds already; a language whose
+    // seeds are all theirs has nothing to compare.
+    const compare =
+      known && Object.keys(texts).some((stringId) => !created.has(stringId));
     const current = new Map(
-      known ? rowsOf.all({ language }).map((row) => [row.stringId, row]) : [],
+      compare ? rowsOf.all({ language }).map((row) => [row.stringId, row]) : [],
     );
     for (const [stringId, text] of Object.entries(texts)) {
       const string = byStringId.get(stringId);
@@ -478,6 +562,10 @@ function applySeeds(
       const identical = text === string.source;
       if (identical) seedsIdentical += 1;
       const state = identical ? "untranslated" : "translated";
+      if (created.has(stringId)) {
+        if (!identical) seeded += 1;
+        continue;
+      }
       // A seed the row already holds is nothing: no write, no count, and
       // the editor's "changed since you opened it" stays quiet.
       const row = current.get(rowId);
