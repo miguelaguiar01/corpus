@@ -89,6 +89,16 @@ export function deleteLeaf(text: string, path: string[]): string {
   return removeProperty(text, path);
 }
 
+// The property at `path` removed whatever it holds, as deleteLeaf
+// removes a string: a Chrome i18n entry goes with its description and
+// placeholders (#595).
+export function deleteKey(text: string, path: string[]): string {
+  checkPath(path);
+  return findNodeAtLocation(root(text), path)
+    ? removeProperty(text, path)
+    : text;
+}
+
 function removeProperty(text: string, path: string[]): string {
   const node = findNodeAtLocation(root(text), path);
   const property = node?.parent;

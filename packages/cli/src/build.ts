@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { createJiti } from "jiti";
 import { z } from "zod";
-import { messagesToEntries, tableToEntries } from "@corpus/adapters";
+import { messagesToEntries, stripBom, tableToEntries } from "@corpus/adapters";
 import {
   entitySchema,
   libraryOf,
@@ -442,7 +442,7 @@ async function readModule(
         `a JSON file has no exports; drop export ${JSON.stringify(exportName)}`,
       );
     }
-    return JSON.parse(readFileSync(abs, "utf8"));
+    return JSON.parse(stripBom(readFileSync(abs, "utf8")));
   }
   if (exportName === undefined) return jiti.import(abs, { default: true });
   const mod = (await jiti.import(abs)) as Record<string, unknown>;

@@ -60,6 +60,7 @@ export function messagesToEntries(
   data: unknown,
   options: MessagesOptions,
 ): StringEntry[] {
+  if (isChromeMessages(data)) return chromeEntries(data, options.type);
   const entries: StringEntry[] = [];
   if (
     options.arb &&
@@ -86,6 +87,67 @@ export function messagesToEntries(
   }
   walk(data, [], options.type, entries);
   return takeKeys(entries, options);
+}
+
+type ChromeMessage = {
+  message: string;
+  description?: unknown;
+  placeholders?: unknown;
+};
+
+// Chrome i18n's `_locales/{lang}/messages.json` (#595): every top-level
+// value an object with a string `message`.
+export function isChromeMessages(
+  data: unknown,
+): data is Record<string, ChromeMessage> {
+  if (data === null || typeof data !== "object" || Array.isArray(data))
+    return false;
+  const values = Object.values(data);
+  return (
+    values.length > 0 &&
+    values.every(
+      (value) =>
+        value !== null &&
+        typeof value === "object" &&
+        typeof (value as { message?: unknown }).message === "string",
+    )
+  );
+}
+
+function chromeEntries(
+  data: Record<string, ChromeMessage>,
+  type: string,
+): StringEntry[] {
+  return Object.entries(data).map(([id, value]) => {
+    const entry: StringEntry = { id, type, source: value.message };
+    if (typeof value.description === "string" && value.description.trim())
+      entry.note = value.description;
+    const values = chromeExamples(value.placeholders);
+    if (Object.keys(values).length > 0) {
+      entry.examples = [
+        { values, rendered: renderChrome(value.message, values) },
+      ];
+    }
+    return entry;
+  });
+}
+
+function chromeExamples(placeholders: unknown): Record<string, string> {
+  const values: Record<string, string> = {};
+  if (placeholders === null || typeof placeholders !== "object") return values;
+  for (const [name, spec] of Object.entries(placeholders)) {
+    const example = (spec as { example?: unknown } | null)?.example;
+    if (typeof example === "string") values[name.toLowerCase()] = example;
+  }
+  return values;
+}
+
+function renderChrome(message: string, values: Record<string, string>): string {
+  return message.replace(
+    /\$\$|\$([A-Za-z0-9_]+)\$/g,
+    (written, name?: string) =>
+      name === undefined ? "$" : (values[name.toLowerCase()] ?? written),
+  );
 }
 
 function walk(

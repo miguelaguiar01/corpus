@@ -467,6 +467,26 @@ describe("rich-text tags", () => {
   });
 });
 
+describe("chrome library", () => {
+  test("a dropped $NAME$ is named as written; its case and place are the translator's (#595)", () => {
+    const source = "Copied $CURRENT$ of $TOTAL$";
+    expect(
+      validateTranslation(
+        source,
+        "$total$: $Current$ copiados",
+        "pt",
+        "chrome",
+      ),
+    ).toEqual({ ok: true });
+    expect(errorsOf(source, "Copiados $CURRENT$", "pt", "chrome")).toEqual([
+      { code: "missing-placeholder", name: "total", written: "$TOTAL$" },
+    ]);
+    expect(errorsOf("Copy", "Copiar $ITEM$", "pt", "chrome")).toEqual([
+      { code: "unexpected-placeholder", name: "item", written: "$ITEM$" },
+    ]);
+  });
+});
+
 describe("i18next syntax", () => {
   test("a placeholder must survive, spaces inside the braces or not; a single brace is text", () => {
     expect(

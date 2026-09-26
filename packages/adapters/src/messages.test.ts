@@ -146,3 +146,36 @@ test("an ARB catalogue's @ entries are metadata, not strings (#558)", () => {
     /got array/,
   );
 });
+
+test("a Chrome i18n catalogue reads message as the text, description as the note, a placeholder's example as its value (#595)", () => {
+  const catalogue = {
+    copied: {
+      message: "Copied $CURRENT$ of $Total$",
+      description: "Shown after a copy.",
+      placeholders: {
+        current: { content: "$1", example: "3" },
+        TOTAL: { content: "$2" },
+      },
+    },
+    appName: { message: "Bitwarden" },
+    blank: { message: "Save", description: " " },
+  };
+  expect(messagesToEntries(catalogue, { type: "ui" })).toEqual([
+    {
+      id: "copied",
+      type: "ui",
+      source: "Copied $CURRENT$ of $Total$",
+      note: "Shown after a copy.",
+      examples: [{ values: { current: "3" }, rendered: "Copied 3 of $Total$" }],
+    },
+    { id: "appName", type: "ui", source: "Bitwarden" },
+    { id: "blank", type: "ui", source: "Save" },
+  ]);
+  // Not the shape: a message that is not a string reads as nesting does.
+  expect(() =>
+    messagesToEntries({ a: { message: 1 } }, { type: "ui" }),
+  ).toThrow(/a.message must be a string/);
+  expect(messagesToEntries({ a: { title: "x" } }, { type: "ui" })).toEqual([
+    { id: "a.title", type: "ui", source: "x" },
+  ]);
+});

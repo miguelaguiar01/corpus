@@ -7,6 +7,7 @@ import {
   entriesToMessages,
   entriesToTable,
   messagesToEntries,
+  stripBom,
   type SourceOp,
 } from "@corpus/adapters";
 import { option, options } from "./args";
@@ -358,7 +359,7 @@ async function download(
 function ownIds(template: string, source: FileSource): Set<string> | undefined {
   if (source.adapter !== "messages") return undefined;
   try {
-    const entries = messagesToEntries(JSON.parse(template), {
+    const entries = messagesToEntries(JSON.parse(stripBom(template)), {
       type: source.type,
       arb: isArb(source.path),
     });

@@ -1,6 +1,7 @@
-import { existsSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { createJiti } from "jiti";
+import { isChromeMessages, stripBom } from "@corpus/adapters";
 import {
   corpusConfigSchema,
   LANGUAGE_RE,
@@ -21,7 +22,7 @@ import {
 import { ignoreCorpusDir } from "./corpus-dir";
 
 export const INIT_USAGE =
-  "corpus init --project <slug> --source <lang> --messages <path with {lang}> [--languages <a,b>] [--server <url>] [--type <name>] [--library <icu|i18next|vue|printf>]";
+  "corpus init --project <slug> --source <lang> --messages <path with {lang}> [--languages <a,b>] [--server <url>] [--type <name>] [--library <icu|i18next|vue|printf|chrome>]";
 
 // `corpus init` writes the config from flags alone, so it scripts;
 // it validates the config before writing and never overwrites one.
@@ -151,7 +152,9 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
         ? "{{ }}"
         : library.value === "printf"
           ? "printf verbs"
-          : "a pipe or a quoted literal";
+          : library.value === "chrome"
+            ? "the Chrome i18n shape"
+            : "a pipe or a quoted literal";
     ctx.out(
       `library: ${library.value}${library.detected ? `, from ${why} in ${library.detected}` : ""}`,
     );
@@ -294,6 +297,15 @@ const ICU_ANY_ARGUMENT_RE = /\{\s*[^{},]+\s*,\s*[a-z]+/;
 
 // A source file that is absent or does not read decides nothing: push
 // will say what is wrong with it.
+function chromeShaped(file: string): boolean {
+  if (!file.endsWith(".json")) return false;
+  try {
+    return isChromeMessages(JSON.parse(stripBom(readFileSync(file, "utf8"))));
+  } catch {
+    return false;
+  }
+}
+
 async function libraryFor(
   args: string[],
   cwd: string,
@@ -355,6 +367,10 @@ async function libraryFor(
     return {};
   }
   if (concretes.length === 0) return {};
+  const chrome = concretes.every((concrete) =>
+    chromeShaped(path.join(cwd, concrete.replace("{lang}", sourceLanguage))),
+  );
+  if (chrome) return { library: { value: "chrome", detected: file } };
   // Shapes are counted, not spotted: {{ }} names i18next when it
   // outnumbers the single-brace and the printf strings; one {{ }} among
   // four thousand printf strings is a template, not the library (#591).

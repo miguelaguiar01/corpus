@@ -321,6 +321,26 @@ test("a tag keeps its attribute text as its identity, and a void tag opens nothi
   expect(Date.now() - started).toBeLessThan(500);
 });
 
+test("chrome: $NAME$ is a placeholder named case-insensitively, $$ is a dollar, and braces, brackets and % are text (#595)", () => {
+  const source =
+    "Hi $USER$, $$5 for {one} <b>%s</b> at $Site$; a lone $ and $not a name";
+  const result = parseIcu(source, "chrome");
+  expect(result.ok).toBe(true);
+  if (!result.ok) throw new Error("parse failed");
+  expect(result.nodes).toEqual([
+    { kind: "literal", text: "Hi " },
+    { kind: "placeholder", name: "user", written: "$USER$" },
+    { kind: "literal", text: ", $5 for {one} <b>%s</b> at " },
+    { kind: "placeholder", name: "site", written: "$Site$" },
+    { kind: "literal", text: "; a lone $ and $not a name" },
+  ]);
+  expect([...placeholdersOf(source, "chrome")]).toEqual(["user", "site"]);
+  expect([...placeholderWrittenOf(source, "chrome")]).toEqual([
+    ["user", "$USER$"],
+    ["site", "$Site$"],
+  ]);
+});
+
 test("printf: verbs are placeholders named by position, %% is a percent, and braces and brackets are text (#594)", () => {
   const source =
     'Pushed %d commits to <a href="%s">%s</a>: 100%% done, {not} an argument';
