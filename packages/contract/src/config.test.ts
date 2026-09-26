@@ -147,6 +147,24 @@ test("typeNotes is optional in the config and refuses an empty note", () => {
   ).toBe(false);
 });
 
+test("richText names the string types an HTML renderer reads (#622)", () => {
+  const base = corpusConfigSchema.parse({
+    project: "x",
+    server: "https://corpus.example",
+    sourceLanguage: "en",
+    languages: ["en"],
+    sources: [{ adapter: "messages", type: "ui", path: "i18n/{lang}.json" }],
+  });
+  expect(base.richText).toBeUndefined();
+  expect(
+    corpusConfigSchema.safeParse({ ...base, richText: { ui: "html" } }).success,
+  ).toBe(true);
+  expect(
+    corpusConfigSchema.safeParse({ ...base, richText: { ui: "markdown" } })
+      .success,
+  ).toBe(false);
+});
+
 test("a language code may use underscores, as i18next and Crowdin write it", () => {
   const config = defineCorpus({
     project: "outline",

@@ -52,6 +52,11 @@ export const LIBRARIES = ["icu", "i18next", "vue", "printf"] as const;
 export type Library = (typeof LIBRARIES)[number];
 export const librarySchema = z.enum(LIBRARIES);
 
+// A string type whose text an HTML renderer reads (#622): its tags are
+// markup, so a translation's need not match the source's.
+export const richTextSchema = z.enum(["html"]);
+export type RichText = z.infer<typeof richTextSchema>;
+
 // What a source, an entry or a declaration is written for: the library
 // it names, the old `syntax` if that is all it has, plain ICU otherwise.
 export function libraryOf(

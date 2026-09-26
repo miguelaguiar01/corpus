@@ -495,6 +495,13 @@ test("the config's string and entity type declarations travel in the snapshot", 
   );
   expect(noted.typeNotes).toEqual({ chrome: "Short and plain." });
   expect(bare.typeNotes).toEqual({});
+  // As are the types read as HTML (#622), always sent so a push clears one.
+  const html = await buildSnapshot(
+    config({ richText: { chrome: "html" } }),
+    REPO,
+  );
+  expect(html.richText).toEqual({ chrome: "html" });
+  expect(bare.richText).toEqual({});
   expect(bare.glossary).toEqual({});
 });
 

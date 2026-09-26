@@ -251,6 +251,11 @@ export default async function StringPage({
                 <p className="text-sm">{string.note}</p>
               </Section>
             )}
+            {string.richText === "html" && (
+              <p className="text-sm text-muted-foreground">
+                {t("string.richTextHtml", { type: string.type })}
+              </p>
+            )}
             {target && (
               <GlossaryTerms
                 entries={string.glossary[target] ?? []}
@@ -357,6 +362,7 @@ export default async function StringPage({
                 action={saveString}
                 source={string.source}
                 syntax={string.syntax}
+                richText={string.richText}
                 slots={slots}
                 language={target}
                 initialText={carriedDraft ?? targetRow.text ?? ""}

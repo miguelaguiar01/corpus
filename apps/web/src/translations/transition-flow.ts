@@ -65,6 +65,7 @@ export function transitionFlow(db: Db, input: TransitionFlowInput): FlowResult {
       action.text,
       language,
       detail.string.syntax,
+      { richText: detail.string.richText ?? undefined },
     );
     if (!validation.ok) {
       // The draft rides along, so the pane names what is wrong.

@@ -1,10 +1,12 @@
 import { eq } from "drizzle-orm";
 import { expect, test } from "vitest";
 import { strings, stringTranslations } from "@/db/schema";
+import { applySnapshot } from "@/ingest/apply";
 import { stringDetail } from "@/strings/detail";
 import { agentDraft } from "./draft";
 import {
   CONTINUE,
+  FIXTURE,
   GREENHOUSE,
   HEARD,
   personSaves,
@@ -41,6 +43,24 @@ test("a draft lands on an untranslated row as translated, attributed to the agen
     agent: true,
     language: "en",
   });
+});
+
+test("a draft adds a tag the source lacks only where the type is read as HTML (#622)", () => {
+  const { db, project } = pushedProject();
+  const draft = () =>
+    agentDraft(db, {
+      project,
+      key: CONTINUE,
+      language: "en",
+      text: "<b>Continue</b>",
+    });
+  expect(draft()).toMatchObject({
+    ok: false,
+    reason: "invalid-translation",
+  });
+  applySnapshot(db, project.id, { ...FIXTURE, richText: { chrome: "html" } });
+  expect(draft()).toMatchObject({ ok: true, text: "<b>Continue</b>" });
+  expect(stringDetail(db, project.id, CONTINUE)!.string.richText).toBe("html");
 });
 
 test("a row a person saved is refused as human-edited, even untouched by the agent since", () => {

@@ -73,6 +73,41 @@ test("a sentence key with an empty value validates its translations against the 
   expect(c.stderr.join("\n")).toMatch(/corpus: 1 invalid translation\(s\)$/);
 });
 
+test("a string type read as HTML validates without comparing tags, in a file or an exporter (#622)", async () => {
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  const withHtml = (config: string) =>
+    config.replace(
+      "sources: [",
+      'richText: { chrome: "html", computed: "html" },\n  sources: [',
+    );
+  writeFileSync(
+    path.join(repo, "scripts", "export.mjs"),
+    `console.log(JSON.stringify({
+      strings: [{ id: "exec.bye", type: "computed", source: "Bye {who}" }],
+      translations: { pt: { "exec.bye": "<i>Adeus</i> {who}<br/>" } },
+    }))`,
+  );
+  write("i18n/pt.json", { greeting: "<b>Olá</b> {name}" });
+  const plain = ctx();
+  expect(await run(["validate"], plain)).toBe(1);
+  expect(plain.stderr.join("\n")).toContain(
+    "i18n/pt.json:greeting: unexpected <b> tag",
+  );
+  expect(plain.stderr.join("\n")).toContain(
+    "[exec.bye] pt: unexpected <i> tag",
+  );
+  const original = readFileSync(path.join(repo, configFile), "utf8");
+  writeFileSync(path.join(repo, configFile), withHtml(original));
+  const html = ctx();
+  expect(await run(["validate"], html)).toBe(0);
+  write("i18n/pt.json", { greeting: "<b>Olá {name}" });
+  const unclosed = ctx();
+  expect(await run(["validate"], unclosed)).toBe(1);
+  expect(unclosed.stderr.join("\n")).toContain("i18n/pt.json:greeting:");
+});
+
 test("a clean repository is valid, exec sources are named as not validated, missing keys are not findings", async () => {
   write("i18n/pt.json", { greeting: "Olá {name}" });
   const c = ctx();

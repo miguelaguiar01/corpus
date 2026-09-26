@@ -23,6 +23,18 @@ It is shown beside every string of that type, to people and to agents alike. Thi
 
 The repository owns them. A push replaces them whole, so deleting one here deletes it there.
 
+## Types read as HTML
+
+By default a tag in a string is a component the code renders, `<link>` or `<b>`, so a translation must keep every tag the source has and add none. When the application reads a type's strings as HTML instead, through `dangerouslySetInnerHTML`, Android's `fromHtml` or an email template, the tags are markup and a translation may write its own:
+
+```ts
+richText: { email: "html" },
+```
+
+Under it a translation's tags are not compared with the source's: a Breton translation that sets the user's name in `<i>` and breaks lines with `<br/>` where English has neither is fine. Placeholders, plurals and selects are checked as before, and a tag that does not close is still refused. The string page says the type is read as HTML, and an agent reads `richText` on the string. Set it only for types that really are rendered as HTML; where a tag names a component, the check is what catches a dropped link.
+
+A push replaces the map whole, like the type notes.
+
 ## Metadata
 
 A string can carry fields beside its text. A `table` source takes them from the record's other columns; `map.metadata` names which, or omits the key to take them all.

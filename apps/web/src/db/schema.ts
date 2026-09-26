@@ -5,6 +5,7 @@ import type {
   FieldDeclaration,
   Glossary,
   Library,
+  RichText,
 } from "@corpus/contract";
 import {
   index,
@@ -75,6 +76,9 @@ export const projects = sqliteTable("projects", {
   // carries them; a push from an older CLI leaves them.
   typeNotes: text("type_notes", { mode: "json" }).$type<
     Record<string, string>
+  >(),
+  richText: text("rich_text", { mode: "json" }).$type<
+    Record<string, RichText>
   >(),
   // The glossary per target language (§5), refreshed by a push that
   // carries it; a push from an older CLI leaves it.

@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+### Added
+
+- A string type may be declared as read by an HTML renderer, `richText: { ui: "html" }` in the config: its translations' tags are not compared with the source's, so a translation may write `<i>` or `<br/>` the source lacks, while placeholders, plurals and selects are checked as before and an unclosed tag is still refused. `corpus validate`, the editor, a save and an agent draft all read it; the snapshot carries the map (additive, still `corpus/1`), the instance keeps it (migration 0017) and a push replaces it whole; the string page says the type is read as HTML, and the API's string and `get_string` carry `richText`. AntennaPod's Breton and Korean translations of a string Android shows through `fromHtml` drew four findings for tags that render correctly.
+
 ### Fixed
 
 - A changed source marks stale its `translated` and `verified` rows only; an untranslated row has nothing to go stale and is left alone, where every target row of a moved source used to join the stale queue whether anyone had translated it or not. A source whose text was the empty string takes its text with no stale mark, and `corpus push` says so (`578 source(s) took their text where it was empty, nothing marked stale`): the first 0.19.0 push of a key-is-text catalogue (Ghost) changed 578 sources from `""` to their keys and marked all 35,898 of their rows stale, 22,564 translated ones included, which also opened every seeded translation to agent drafts.

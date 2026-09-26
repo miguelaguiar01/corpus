@@ -74,6 +74,7 @@ export function applySnapshot(
           entityTypes: snapshot.entityTypes ?? null,
           sources: snapshot.sources ?? null,
           ...(snapshot.typeNotes && { typeNotes: snapshot.typeNotes }),
+          ...(snapshot.richText && { richText: snapshot.richText }),
           ...(snapshot.glossary && { glossary: snapshot.glossary }),
           // The languages this push digested replace their entries; the
           // rest stay, as a push carries digests for every target

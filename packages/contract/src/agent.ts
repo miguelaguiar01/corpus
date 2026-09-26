@@ -3,7 +3,7 @@
 // Additive to corpus/1.
 import { z } from "zod";
 import { stringId } from "./strings";
-import type { Example, Library } from "./strings";
+import type { Example, Library, RichText } from "./strings";
 import type { GlossaryEntry } from "./glossary";
 
 export const QUEUE_KINDS = [
@@ -49,6 +49,9 @@ export type StringResponse = {
   plurals: string[];
   // The rich-text tags the source wraps text in (§5); additive.
   tags: string[];
+  // "html" when the string's type is read by an HTML renderer (#622): a
+  // translation's tags need not match the source's; null otherwise.
+  richText: RichText | null;
   // The i18n library the source and its translations are written for
   // (§5): "icu", "i18next" for {{name}} interpolation, "vue" for pipe
   // plurals and {'…'} literals, or "printf" for %s and %[2]s verbs

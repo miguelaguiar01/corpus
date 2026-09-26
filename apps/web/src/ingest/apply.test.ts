@@ -480,6 +480,25 @@ test("a push carries the type notes whole; one from an older CLI leaves them", (
   expect(notes()).toEqual({});
 });
 
+test("a push carries the types read as HTML whole; one from an older CLI leaves them (#622)", () => {
+  const { db, project } = seed();
+  const html = () =>
+    db.select().from(projects).where(eq(projects.id, project.id)).get()
+      ?.richText;
+  applySnapshot(db, project.id, {
+    ...(moonlightManor as Snapshot),
+    richText: { chrome: "html" },
+  });
+  expect(html()).toEqual({ chrome: "html" });
+  applySnapshot(db, project.id, moonlightManor as Snapshot);
+  expect(html()).toEqual({ chrome: "html" });
+  applySnapshot(db, project.id, {
+    ...(moonlightManor as Snapshot),
+    richText: {},
+  });
+  expect(html()).toEqual({});
+});
+
 test("a push carries the glossary whole; one from an older CLI leaves it", () => {
   const { db, project } = seed();
   applySnapshot(db, project.id, moonlightManor as Snapshot);

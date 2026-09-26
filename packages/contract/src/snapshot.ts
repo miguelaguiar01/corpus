@@ -8,6 +8,7 @@ import {
   languageCode,
   entityId,
   librarySchema,
+  richTextSchema,
 } from "./strings";
 import { glossarySchema } from "./glossary";
 
@@ -50,6 +51,7 @@ export const snapshotSchema = z.looseObject({
   // Voice and register per string type (§5); the repository's, replaced
   // whole by a push that carries it.
   typeNotes: z.record(z.string(), z.string().min(1)).optional(),
+  richText: z.record(z.string(), richTextSchema).optional(),
   // Per target language (§5); the repository's, replaced whole by a push
   // that carries it.
   glossary: glossarySchema.optional(),

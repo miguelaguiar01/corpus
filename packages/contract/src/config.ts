@@ -7,6 +7,7 @@ import {
   identifier,
   languageCode,
   librarySchema,
+  richTextSchema,
 } from "./strings";
 
 // A pattern names one file per language with `{lang}`; it may also carry
@@ -85,6 +86,9 @@ const configFields = {
   // One sentence per string type on voice and register (§5); a map of
   // its own so it cannot collide with a metadata field named `note`.
   typeNotes: z.record(z.string(), z.string().min(1)).optional(),
+  // The string types an HTML renderer reads (#622), a map of its own
+  // for the same reason.
+  richText: z.record(z.string(), richTextSchema).optional(),
   // The glossary files (§5), one per target language, `{lang}` in the
   // path; the repository owns them and pull never writes them.
   glossary: z

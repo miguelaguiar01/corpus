@@ -418,6 +418,53 @@ describe("rich-text tags", () => {
       ),
     ).toEqual({ ok: true });
   });
+
+  test("under richText html a translation's tags need not match the source's; placeholders and parsing still hold (#622)", () => {
+    const html = { richText: "html" } as const;
+    const source = "Logged in as {user} on {host}.";
+    expect(
+      validateTranslation(
+        source,
+        "Kevreet evel <i>{user}</i> war {host}.<br/><br/>",
+        "br",
+        "icu",
+        html,
+      ),
+    ).toEqual({ ok: true });
+    expect(
+      validateTranslation(
+        "Read the <b>docs</b>",
+        "Lê a documentação",
+        "pt",
+        "icu",
+        html,
+      ),
+    ).toEqual({ ok: true });
+    expect(
+      validateTranslation(
+        source,
+        "Kevreet evel <i>{user}</i>.",
+        "br",
+        "icu",
+        html,
+      ),
+    ).toEqual({
+      ok: false,
+      errors: [{ code: "missing-placeholder", name: "host" }],
+    });
+    const unclosed = validateTranslation(
+      source,
+      "<i>{user} {host}",
+      "br",
+      "icu",
+      html,
+    );
+    expect(unclosed.ok).toBe(false);
+    expect(!unclosed.ok && unclosed.errors[0]?.code).toBe("invalid-icu");
+    expect(errorsOf(source, "<i>{user}</i> {host}")).toEqual([
+      { code: "unexpected-tag", name: "i" },
+    ]);
+  });
 });
 
 describe("i18next syntax", () => {

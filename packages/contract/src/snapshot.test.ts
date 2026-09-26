@@ -133,6 +133,17 @@ test("typeNotes is an optional map of non-empty sentences per string type (§5)"
   ).toBe(false);
 });
 
+test("richText is an optional map of string type to html (#622)", () => {
+  const html = snapshotSchema.safeParse({
+    ...MINIMAL,
+    richText: { ui: "html" },
+  });
+  expect(html.success && html.data.richText).toEqual({ ui: "html" });
+  expect(
+    snapshotSchema.safeParse({ ...MINIMAL, richText: { ui: "xml" } }).success,
+  ).toBe(false);
+});
+
 test("a string id may be the sentence itself, as i18next's natural keys are; control characters are refused", () => {
   const sentence =
     "Are you sure about that? Deleting the <em>{{ templateName }}</em> template is permanent.";
