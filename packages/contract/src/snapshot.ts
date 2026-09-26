@@ -28,7 +28,7 @@ export const entityTypeDeclarationSchema = z.looseObject({
 // The sources pull can rewrite in place (§4): where a new string may go.
 export const writableSourceSchema = z.looseObject({
   path: z.string().min(1),
-  adapter: z.enum(["messages", "table", "android"]),
+  adapter: z.enum(["messages", "table", "android", "fluent"]),
   type: identifier(),
   // The library a new string in this file is written for (§5, §11);
   // `syntax` is the old name, sent beside it until 1.0.

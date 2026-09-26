@@ -6,6 +6,7 @@ import { z } from "zod";
 import {
   androidDirOf,
   androidToEntries,
+  fluentToEntries,
   messagesToEntries,
   stripBom,
   tableToEntries,
@@ -404,7 +405,8 @@ function libraryFields(source: FileSource): {
 export type FileSource = Exclude<Source, { adapter: "exec" }>;
 
 export function sourceLibrary(source: FileSource): Library {
-  return source.adapter === "android" ? "android" : libraryOf(source);
+  if (source.adapter === "android") return "android";
+  return source.adapter === "fluent" ? "icu" : libraryOf(source);
 }
 
 // The file a source keeps a language in: its pattern with {lang}
@@ -427,7 +429,8 @@ export function hasLanguages(source: FileSource): boolean {
 }
 
 export function sourceWritesBack(source: FileSource): boolean {
-  return source.adapter === "android" || writesBack(source.path);
+  if (source.adapter === "android" || source.adapter === "fluent") return true;
+  return writesBack(source.path);
 }
 
 // A catalogue file through its source's adapter: the entries push would
@@ -446,6 +449,15 @@ export async function readEntries(
     return androidToEntries(readFileSync(path.join(cwd, file), "utf8"), {
       type: source.type,
     });
+  }
+  if (source.adapter === "fluent") {
+    const entries = fluentToEntries(
+      readFileSync(path.join(cwd, file), "utf8"),
+      { type: source.type },
+    );
+    return source.namespace
+      ? entries.map((e) => ({ ...e, id: `${source.namespace}:${e.id}` }))
+      : entries;
   }
   const data = await readModule(
     jiti,
@@ -544,7 +556,7 @@ export function pushOnlyNotes(config: CorpusConfig): string[] {
           `exec "${source.command}" is push-only: add importCommand to write translations back`,
         );
       }
-    } else if (source.adapter === "android") {
+    } else if (source.adapter === "android" || source.adapter === "fluent") {
       continue;
     } else if (!source.path.includes("{lang}")) {
       notes.push(

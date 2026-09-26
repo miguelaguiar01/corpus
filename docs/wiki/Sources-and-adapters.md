@@ -45,6 +45,16 @@ An Android app's string resources.
 
 `path` is the `res` directory; `values/strings.xml` is the source and each `values-<qualifier>/strings.xml` a language. See [Your i18n library](Your-i18n-library#android-string-resources) for what it reads and how it writes back.
 
+## fluent
+
+Project Fluent's `.ftl` catalogues.
+
+```ts
+{ adapter: "fluent", type: "ui", path: "i18n/{lang}/app.ftl" }
+```
+
+One file per language, `{lang}` in the path. See [Your i18n library](Your-i18n-library#fluent) for the subset it reads.
+
 ## exec
 
 A command that prints the entries as JSON, for text that lives somewhere no adapter reads: a database, a spreadsheet, a game engine's own format.

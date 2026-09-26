@@ -122,7 +122,28 @@ export default defineCorpus({
     //    The library is `android` (§5).
     { adapter: "android", type: "ui", path: "app/src/main/res" },
 
-    // 4. Custom exporter hook: a script in the client repo that emits
+    // 4. Fluent `.ftl`: messages with a value, read as ICU. `{$var}` is a
+    //    placeholder, a message reference `{name}` a placeholder named
+    //    after the message (written back without `$` where the source's
+    //    message writes it so, or where the name is a message the source
+    //    never uses as a variable), and a select on a variable an ICU
+    //    plural when every key is a CLDR category or a number (`[0]` is
+    //    `=0`) and an ICU select otherwise; a default that is not
+    //    `other` is carried as an `other` branch with its text, which is
+    //    ICU's fallback, and a changed message is written with `*[other]`.
+    //    Attributes, terms, function calls, string literals other than
+    //    `{""}` and `{"."}`-style line escapes, and a `#` in a plural
+    //    variant are refused by name, the file's refusals listed at
+    //    once. A pull rewrites a changed message in its own layout
+    //    (placeable spacing, a value on its own line, the variants' and
+    //    the closing brace's indentation, the file's line endings),
+    //    writes an empty pattern as `{""}` and escapes a line that starts
+    //    with `.`, `[` or `*`, and appends a new message at the end; a
+    //    format a translation writes (`{n, number}`) has no Fluent form
+    //    without a function and is written as the bare variable.
+    { adapter: "fluent", type: "ui", path: "i18n/{lang}/app.ftl" },
+
+    // 5. Custom exporter hook: a script in the client repo that emits
     //    snapshot entries (strings and/or entities) directly. Used when only
     //    the project's own code understands its corpus — templates, computed
     //    metadata, pre-rendered examples. Its output may also carry
@@ -388,7 +409,7 @@ Code:
 ## 15. Testing
 
 - **Contract:** zod schema round-trip tests; golden snapshot fixtures (including one modeled on the *Moonlight Manor* examples with selects, refs, and examples).
-- **Invariant:** push∘pull byte-identical round-trip for `messages`, `table` and `android` adapters (repo fixture with source and target catalogues in, identical files out; the source files untouched while no proposal is pending, the target files rewritten through the writer); with one pending proposal, exactly its source's files change, exactly at its key.
+- **Invariant:** push∘pull byte-identical round-trip for `messages`, `table`, `android` and `fluent` adapters (repo fixture with source and target catalogues in, identical files out; the source files untouched while no proposal is pending, the target files rewritten through the writer); with one pending proposal, exactly its source's files change, exactly at its key.
 - **Diff semantics:** table-driven tests for §8's four cases, including stale marking, archive/unarchive, and seed-ignored-after-edit.
 - **Validation:** the placeholder/select rule table (§5, §7 — placeholders must survive; selects may collapse entirely but not be malformed; branch keys must match source when present) as pure unit tests, enforced client- and server-side.
 - **UI:** component tests for the editor's validation feedback; **one Playwright smoke** (invite → dashboard → queue → translate with placeholder chips → verify as maintainer → progress updates) running in CI from the first milestone that has an editor.

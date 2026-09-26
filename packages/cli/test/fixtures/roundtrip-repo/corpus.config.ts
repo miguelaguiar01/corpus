@@ -23,6 +23,7 @@ export default defineCorpus({
       map: { id: "id", text: "text" },
     },
     { adapter: "android", type: "screen", path: "res" },
+    { adapter: "fluent", type: "message", path: "ftl/{lang}/app.ftl" },
   ],
   richText: { screen: "html" },
 });

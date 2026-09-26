@@ -790,3 +790,85 @@ export default defineCorpus({
 `);
   expect(read("res/values-br/strings.xml")).toBe(breton);
 });
+
+test("a fluent source builds, validates and pulls in the file's layout; an attribute is refused by name (#597)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "gl", "pt"],
+  sources: [{ adapter: "fluent", type: "ui", path: "i18n/{lang}/app.ftl" }],
+});
+`,
+  );
+  for (const lang of ["en", "gl"])
+    mkdirSync(path.join(repo, "i18n", lang), { recursive: true });
+  writeFileSync(
+    path.join(repo, "i18n", "en", "app.ftl"),
+    `trash = Trash
+copied = Copied {$items} {$items ->
+    [one] item
+    *[other] items
+  } to {trash}
+`,
+  );
+  const galician = `trash = Lixo
+copied = Copiado {$items} {$items ->
+    [unha] elemento
+   *[outra] elementos
+  } ao {trash}
+`;
+  writeFileSync(path.join(repo, "i18n", "gl", "app.ftl"), galician);
+
+  const out = path.join(repo, "snapshot.json");
+  const built = ctx();
+  expect(await run(["build", "--out", out], built)).toBe(0);
+  expect(built.output.join("\n")).not.toContain("cannot be written back");
+  const snapshot = JSON.parse(readFileSync(out, "utf8"));
+  expect(snapshot.strings[1]).toMatchObject({
+    id: "copied",
+    source:
+      "Copied {items} {items, plural, one {item} other {items}} to {trash}",
+    file: "i18n/en/app.ftl",
+  });
+
+  const checked = ctx();
+  expect(await run(["validate"], checked)).toBe(1);
+  expect(checked.output.join("\n")).toContain("i18n/gl/app.ftl:copied:");
+
+  await serve(200, {
+    ...PAYLOAD,
+    types: { trash: "ui", copied: "ui" },
+    translations: {
+      pt: {
+        trash: "Lixo",
+        copied:
+          "Copiado {items} {items, plural, one {item} many {itens} other {itens}} para {trash}",
+      },
+      gl: { trash: "Lixo" },
+    },
+  });
+  expect(await run(["pull"], ctx())).toBe(0);
+  expect(read("i18n/pt/app.ftl")).toBe(`trash = Lixo
+copied = Copiado {$items} {$items ->
+    [one] item
+    [many] itens
+    *[other] itens
+  } para {trash}
+`);
+  expect(read("i18n/gl/app.ftl")).toBe(galician);
+
+  writeFileSync(
+    path.join(repo, "i18n", "en", "app.ftl"),
+    "login = Log in\n    .title = Log in to your account\n",
+  );
+  const refused = ctx();
+  expect(await run(["build", "--out", out], refused)).toBe(1);
+  expect(refused.output.join("\n")).toContain(
+    "i18n/en/app.ftl: fluent: login has an attribute (.title)",
+  );
+});
