@@ -324,6 +324,68 @@ test("a push prepares as many statements for twenty strings as for two, insertin
   expect(prepares(20)).toEqual(prepares(2));
 });
 
+test("a first push that seeds the strings it creates leaves the rows and counts of creating them, then seeding them (#600)", () => {
+  const seeds = {
+    en: {
+      "ui.continue": "Continue",
+      "skin.heard-nothing": "Heard nothing.",
+      [FIXTURE.strings[0]!.id]: FIXTURE.strings[0]!.source,
+    },
+    de: { "ui.continue": "Weiter" },
+  };
+  const rows = (db: Db) =>
+    db
+      .select({
+        stringId: stringTranslations.stringId,
+        language: stringTranslations.language,
+        text: stringTranslations.text,
+        state: stringTranslations.state,
+        stale: stringTranslations.stale,
+      })
+      .from(stringTranslations)
+      .orderBy(stringTranslations.stringId, stringTranslations.language)
+      .all();
+  const once = seed();
+  const onceReport = applySnapshot(once.db, once.project.id, withSeeds(seeds));
+  const twice = seed();
+  applySnapshot(twice.db, twice.project.id, FIXTURE);
+  const twiceReport = applySnapshot(
+    twice.db,
+    twice.project.id,
+    withSeeds(seeds),
+  );
+  expect(rows(once.db)).toEqual(rows(twice.db));
+  for (const count of ["seeded", "seedsIdentical", "seedsIgnored"] as const)
+    expect(onceReport[count]).toBe(twiceReport[count]);
+  expect(onceReport).toMatchObject({
+    seeded: 2,
+    seedsIdentical: 1,
+    seedsIgnored: 1,
+  });
+});
+
+test("a first push of many strings in many languages stays under SQLite's variable limit (#600)", () => {
+  const languages = Array.from({ length: 120 }, (_, i) => `x${i}`);
+  const { db, project } = seed(["pt-PT", ...languages]);
+  const strings = Array.from({ length: 150 }, (_, i) => ({
+    id: `ui.s${i}`,
+    type: "chrome",
+    source: `Texto ${i}`,
+  }));
+  const report = applySnapshot(db, project.id, {
+    ...FIXTURE,
+    strings: [...FIXTURE.strings, ...strings],
+    seedTranslations: { x7: { "ui.s149": "Text 149" } },
+  });
+  expect(report.added).toBe(FIXTURE.strings.length + 150);
+  expect(report.seeded).toBe(1);
+  expect(translationOf(db, "ui.s149", "x7")).toMatchObject({
+    state: "translated",
+    text: "Text 149",
+  });
+  expect(translationOf(db, "ui.s148", "x119")?.state).toBe("untranslated");
+});
+
 test("seedTranslations on a first push import as translated and are counted", () => {
   const { db, project } = seed();
   const report = applySnapshot(
