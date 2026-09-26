@@ -1,4 +1,5 @@
 import { moonlightManor, type Snapshot } from "@corpus/contract";
+import type { Database as BetterSqlite } from "better-sqlite3";
 import { and, eq } from "drizzle-orm";
 import { expect, test } from "vitest";
 import type { Db } from "@/db";
@@ -264,6 +265,64 @@ function translationOf(db: Db, stringId: string, language: string) {
     )
     .get();
 }
+
+test("seeds are written through one prepared statement, however many there are (#604)", () => {
+  const prepares = (seeds: Record<string, Record<string, string>>) => {
+    const { db, project } = seed();
+    applySnapshot(db, project.id, FIXTURE);
+    const client = (db as unknown as { $client: BetterSqlite }).$client;
+    const prepare = client.prepare.bind(client);
+    let count = 0;
+    client.prepare = ((source: string) => {
+      count += 1;
+      return prepare(source);
+    }) as typeof client.prepare;
+    applySnapshot(db, project.id, withSeeds(seeds));
+    return count;
+  };
+  const one = prepares({ en: { "ui.continue": "Continue" } });
+  const every = prepares({
+    en: Object.fromEntries(FIXTURE.strings.map((s) => [s.id, `EN ${s.id}`])),
+  });
+  expect(FIXTURE.strings.length).toBeGreaterThan(2);
+  expect(every).toBe(one);
+});
+
+test("a push prepares as many statements for twenty strings as for two, inserting, refreshing or changing them (#604)", () => {
+  const snapshot = (n: number, prefix: string): Snapshot => ({
+    ...FIXTURE,
+    strings: [
+      ...FIXTURE.strings,
+      ...Array.from({ length: n }, (_, i) => ({
+        id: `ui.extra-${i}`,
+        type: "chrome",
+        source: `${prefix} ${i}`,
+      })),
+    ],
+  });
+  const prepares = (n: number) => {
+    const { db, project } = seed();
+    const client = (db as unknown as { $client: BetterSqlite }).$client;
+    const prepare = client.prepare.bind(client);
+    const counts: number[] = [];
+    let count = 0;
+    client.prepare = ((source: string) => {
+      count += 1;
+      return prepare(source);
+    }) as typeof client.prepare;
+    for (const push of [
+      snapshot(n, "One"),
+      snapshot(n, "One"),
+      snapshot(n, "Two"),
+    ]) {
+      count = 0;
+      applySnapshot(db, project.id, push);
+      counts.push(count);
+    }
+    return counts;
+  };
+  expect(prepares(20)).toEqual(prepares(2));
+});
 
 test("seedTranslations on a first push import as translated and are counted", () => {
   const { db, project } = seed();

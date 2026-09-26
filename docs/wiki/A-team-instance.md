@@ -88,6 +88,10 @@ Yarn and npm refuse the install outright. pnpm installs the fresh version and wr
 
 Two more walls met on real repositories. pnpm 11 with `verifyDepsBeforeRun` set (Immich has `install`) stops `pnpm corpus …` before Corpus runs when a build script was ignored, as `better-sqlite3`'s is unless approved; `pnpm exec corpus` and `node_modules/.bin/corpus` run it, and the prebuilt binary serves. And a repository whose own tree is heavy (Documenso's is 2 GB and was still installing when it was stopped after eleven minutes) can try Corpus without installing anything into it: `npx --package=@corpus-tool/cli@<version> --package=@corpus-tool/workbench@<version> corpus <command>` runs both from the npm cache, `corpus workbench` finds the workbench beside the CLI, and the config has to be a plain module, `corpus.config.mjs` exporting the object, since `defineCorpus` is not in the repository to import.
 
+## How much memory
+
+An idle instance holds about 110 MiB. A push costs memory while it runs and gives most of it back: Bitwarden's first push, 8,617 strings with 316,203 translations in 67 languages (a 48 MiB body, 586,000 rows), returns with about 340 MiB resident and settles near 160 MiB, and an unchanged push of it runs at about 560 MiB and settles near 210 MiB. Give a container for a project that size 1 GiB; a few thousand strings in a handful of languages need a fraction of it. The database of that project is about 85 MiB, with a write-ahead log of the same size until SQLite checkpoints it.
+
 ## Backups
 
 The volume is the instance. Stop the container, copy the whole `/data` directory, start it again. Copying `corpus.db` alone from a running container gets you a database missing whatever is still in the write-ahead log.
