@@ -78,7 +78,13 @@ export async function POST(request: Request): Promise<Response> {
   });
   if (!result.ok) {
     const key = source
-      ? (namespacedKey(source, body.value.key.trim()) ?? body.value.key)
+      ? (namespacedKey(
+          source,
+          body.value.key.trim(),
+          (auth.project.sources ?? []).flatMap((s) =>
+            s.namespace ? [s.namespace] : [],
+          ),
+        ) ?? body.value.key)
       : body.value.key;
     return proposalRefusal(result, key, auth.project);
   }

@@ -383,6 +383,12 @@ test("a new string for a namespaced file takes the file's namespace, and the pus
       type: "chrome",
       namespace: "admin",
     },
+    {
+      path: "locales/{lang}/common.json",
+      adapter: "messages" as const,
+      type: "chrome",
+      namespace: "common",
+    },
   ];
   applySnapshot(db, p.id, { ...FIXTURE, sources });
   const base = {
@@ -414,4 +420,8 @@ test("a new string for a namespaced file takes the file's namespace, and the pus
       ok: false,
       reason: "invalid-key",
     });
+  const sentence = proposeAdd(db, { ...base, key: "Error: file not found" });
+  expect(sentence.ok && sentence.proposal.key).toBe(
+    "admin:Error: file not found",
+  );
 });
