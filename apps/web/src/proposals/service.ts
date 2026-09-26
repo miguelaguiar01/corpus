@@ -157,9 +157,8 @@ export function proposeAdd(
     (s) => s.path === input.sourcePath,
   );
   if (!source) return { ok: false, reason: "unknown-source" };
-  // A namespaced file's ids carry its namespace, as push reads them.
-  const prefix = source.namespace ? `${source.namespace}:` : "";
-  const key = prefix && !typed.startsWith(prefix) ? prefix + typed : typed;
+  const key = namespacedKey(source, typed);
+  if (key === undefined) return { ok: false, reason: "invalid-key" };
   if (!validIcu(input.text, libraryOf(source))) {
     const message = invalidIcuMessage(input.text, libraryOf(source));
     return {
@@ -192,6 +191,25 @@ export function proposeAdd(
       .get();
     return { ok: true, proposal };
   });
+}
+
+// A namespaced file's ids carry its namespace, as push reads them
+// (#582): a bare key takes the prefix, one already carrying it stays,
+// and one that is only the prefix, names another namespace, or grows
+// past an id's limit is no key for this file.
+export function namespacedKey(
+  source: { namespace?: string },
+  typed: string,
+): string | undefined {
+  if (!source.namespace) return typed;
+  const prefix = `${source.namespace}:`;
+  const key = typed.startsWith(prefix)
+    ? typed
+    : typed.includes(":")
+      ? undefined
+      : prefix + typed;
+  if (key === undefined || key === prefix) return undefined;
+  return stringEntrySchema.shape.id.safeParse(key).success ? key : undefined;
 }
 
 export type WithdrawResult =

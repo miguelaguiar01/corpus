@@ -403,5 +403,15 @@ test("a new string for a namespaced file takes the file's namespace, and the pus
       { id: "admin:title", type: "chrome", source: "Título" },
     ],
   });
-  expect(pendingKeys(db, p.id)).not.toContain("admin:title");
+  const landed = db
+    .select()
+    .from(sourceChanges)
+    .where(eq(sourceChanges.key, "admin:title"))
+    .get();
+  expect(landed?.status).toBe("applied");
+  for (const key of ["admin:", "common:title", "x".repeat(995)])
+    expect(proposeAdd(db, { ...base, key })).toEqual({
+      ok: false,
+      reason: "invalid-key",
+    });
 });

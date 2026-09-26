@@ -108,7 +108,7 @@ A source's `path` may be an array of patterns, each with `{lang}`, all sharing t
 { adapter: "messages", type: "ui", path: "public/locales/{lang}/{ns}.json" }
 ```
 
-Every file that fills `{ns}` for the source language is a source of its own, and the ids it contributes are `ns:key`, with `:` as the separator (i18next's own, not configurable), so `common.json` and `admin.json` may both hold `title`. `pull` writes each string back to the file its id names, and a target file only ever takes the ids its source-language file holds. A new string proposed into a namespaced file, from the workbench or an agent, takes the prefix by itself: `title` into `admin.json` becomes `admin:title`, and the form's file list says so. `init` reads the languages and the library through a `{ns}` pattern and writes it as given. A bare `*` is not a pattern: a wildcard alone cannot say which language a file holds.
+Every file that fills `{ns}` for the source language is a source of its own, and the ids it contributes are `ns:key`, with `:` as the separator (i18next's own, not configurable), so `common.json` and `admin.json` may both hold `title`. `pull` writes each string back to the file its id names, and a target file only ever takes the ids its source-language file holds. A new string proposed into a namespaced file, from the workbench or an agent, takes the prefix by itself: `title` into `admin.json` becomes `admin:title`, `admin:title` stays as typed, and a key naming another file's namespace is refused; the form's file list says which prefix each file adds. `init` reads the languages and the library through a `{ns}` pattern and writes it as given. A bare `*` is not a pattern: a wildcard alone cannot say which language a file holds.
 
 ## More than one source
 

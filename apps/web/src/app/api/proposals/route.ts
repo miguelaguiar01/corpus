@@ -7,7 +7,11 @@ import { ensureAgentActor, findAgentActor } from "@/agents/actor";
 import { authenticateProject } from "@/api/bearer";
 import { readBody } from "@/api/body";
 import { proposalCreated, proposalRefusal } from "@/api/proposal-response";
-import { pendingProposals, proposeAdd } from "@/proposals/service";
+import {
+  pendingProposals,
+  proposeAdd,
+  namespacedKey,
+} from "@/proposals/service";
 import { users } from "@/db/schema";
 import { inArray } from "drizzle-orm";
 
@@ -72,6 +76,11 @@ export async function POST(request: Request): Promise<Response> {
     text: body.value.text,
     actor,
   });
-  if (!result.ok) return proposalRefusal(result, body.value.key, auth.project);
+  if (!result.ok) {
+    const key = source
+      ? (namespacedKey(source, body.value.key.trim()) ?? body.value.key)
+      : body.value.key;
+    return proposalRefusal(result, key, auth.project);
+  }
   return proposalCreated(result.proposal, actor.name);
 }
