@@ -1,7 +1,12 @@
-import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, eq, ne, sql } from "drizzle-orm";
 import type { Db } from "@/db";
-import { projects, strings, stringTranslations } from "@/db/schema";
-import { agentEditedRows, rowKey } from "@/agents/latest-edit";
+import {
+  edits,
+  projects,
+  strings,
+  stringTranslations,
+  users,
+} from "@/db/schema";
 
 // The dashboard queues (§9.1) over string × language rows, excluding
 // archived strings (§11). Items are ordered by string id then language so
@@ -38,15 +43,17 @@ export type QueueCounts = Record<QueueKind, number>;
 
 type Filter = { language?: string | null; type?: string | null };
 
-// Each queue is a condition in SQL (#603): a 586k-row project loaded
-// every row to filter it here, seconds a request. Agent drafts are the
-// translated rows of the strings an agent last edited, few, checked
-// exactly by row after.
-function condition(
-  kind: QueueKind,
-  sourceLanguage: string,
-  agentIds: number[],
-) {
+// Rows whose latest edit was an agent's (§10), in SQL: the list of such
+// rows grows with every draft on the instance.
+const agentLast = sql`(${stringTranslations.stringId}, ${stringTranslations.language}) in (
+  select e.string_id, e.language from ${edits} e
+  join ${users} u on u.id = e.user_id
+  where u.agent = 1 and e.id in (
+    select max(id) from ${edits} group by string_id, language
+  )
+)`;
+
+function condition(kind: QueueKind, sourceLanguage: string) {
   switch (kind) {
     case "untranslated":
       return and(
@@ -61,44 +68,34 @@ function condition(
         eq(stringTranslations.state, "translated"),
       );
     case "agentDrafts":
-      return and(
-        eq(stringTranslations.state, "translated"),
-        inArray(stringTranslations.stringId, agentIds),
-      );
+      return and(eq(stringTranslations.state, "translated"), agentLast);
   }
 }
 
-function scope(db: Db, projectId: number) {
-  const project = db
-    .select({ sourceLanguage: projects.sourceLanguage })
-    .from(projects)
-    .where(eq(projects.id, projectId))
-    .get();
-  const agentEdited = agentEditedRows(db);
-  const agentIds = [
-    ...new Set([...agentEdited].map((key) => Number(key.split(" ")[0]))),
-  ];
-  return {
-    sourceLanguage: project?.sourceLanguage ?? "",
-    agentEdited,
-    agentIds,
-  };
+function sourceLanguageOf(db: Db, projectId: number): string {
+  return (
+    db
+      .select({ sourceLanguage: projects.sourceLanguage })
+      .from(projects)
+      .where(eq(projects.id, projectId))
+      .get()?.sourceLanguage ?? ""
+  );
 }
 
 function where(
   projectId: number,
   kind: QueueKind,
-  context: ReturnType<typeof scope>,
+  sourceLanguage: string,
   filter: Filter,
 ) {
   return and(
     eq(strings.projectId, projectId),
     eq(strings.archived, false),
-    condition(kind, context.sourceLanguage, context.agentIds),
-    filter.language
+    condition(kind, sourceLanguage),
+    filter.language != null
       ? eq(stringTranslations.language, filter.language)
       : undefined,
-    filter.type ? eq(strings.type, filter.type) : undefined,
+    filter.type != null ? eq(strings.type, filter.type) : undefined,
   );
 }
 
@@ -106,7 +103,7 @@ function select(
   db: Db,
   projectId: number,
   kind: QueueKind,
-  context: ReturnType<typeof scope>,
+  sourceLanguage: string,
   filter: Filter,
   limit?: number,
 ): QueueItem[] {
@@ -121,35 +118,23 @@ function select(
     })
     .from(stringTranslations)
     .innerJoin(strings, eq(strings.id, stringTranslations.stringId))
-    .where(where(projectId, kind, context, filter))
+    .where(where(projectId, kind, sourceLanguage, filter))
     .orderBy(asc(strings.id), asc(stringTranslations.language));
-  const rows =
-    kind === "agentDrafts" || limit === undefined
-      ? query.all()
-      : query.limit(limit).all();
-  const items =
-    kind === "agentDrafts"
-      ? rows.filter((row) =>
-          context.agentEdited.has(rowKey(row.stringId, row.language)),
-        )
-      : rows;
-  return limit === undefined ? items : items.slice(0, limit);
+  return limit === undefined ? query.all() : query.limit(limit).all();
 }
 
 function count(
   db: Db,
   projectId: number,
   kind: QueueKind,
-  context: ReturnType<typeof scope>,
+  sourceLanguage: string,
 ): number {
-  if (kind === "agentDrafts")
-    return select(db, projectId, kind, context, {}).length;
   return (
     db
       .select({ count: sql<number>`count(*)` })
       .from(stringTranslations)
       .innerJoin(strings, eq(strings.id, stringTranslations.stringId))
-      .where(where(projectId, kind, context, {}))
+      .where(where(projectId, kind, sourceLanguage, {}))
       .get()?.count ?? 0
   );
 }
@@ -160,7 +145,13 @@ export function queueItems(
   kind: QueueKind,
   filter: Filter = {},
 ): Queue {
-  const items = select(db, projectId, kind, scope(db, projectId), filter);
+  const items = select(
+    db,
+    projectId,
+    kind,
+    sourceLanguageOf(db, projectId),
+    filter,
+  );
   return { kind, count: items.length, first: items[0] ?? null, items };
 }
 
@@ -169,10 +160,10 @@ export function queueSummaries(
   db: Db,
   projectId: number,
 ): Record<QueueKind, { count: number; first: QueueItem | null }> {
-  const context = scope(db, projectId);
+  const source = sourceLanguageOf(db, projectId);
   const summary = (kind: QueueKind) => ({
-    count: count(db, projectId, kind, context),
-    first: select(db, projectId, kind, context, {}, 1)[0] ?? null,
+    count: count(db, projectId, kind, source),
+    first: select(db, projectId, kind, source, {}, 1)[0] ?? null,
   });
   return {
     untranslated: summary("untranslated"),
@@ -183,12 +174,12 @@ export function queueSummaries(
 }
 
 export function queueCounts(db: Db, projectId: number): QueueCounts {
-  const context = scope(db, projectId);
+  const source = sourceLanguageOf(db, projectId);
   return {
-    untranslated: count(db, projectId, "untranslated", context),
-    stale: count(db, projectId, "stale", context),
-    unverifiedSource: count(db, projectId, "unverifiedSource", context),
-    agentDrafts: count(db, projectId, "agentDrafts", context),
+    untranslated: count(db, projectId, "untranslated", source),
+    stale: count(db, projectId, "stale", source),
+    unverifiedSource: count(db, projectId, "unverifiedSource", source),
+    agentDrafts: count(db, projectId, "agentDrafts", source),
   };
 }
 

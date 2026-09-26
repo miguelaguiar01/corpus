@@ -261,3 +261,36 @@ test("agent drafts lists the translated rows an agent last edited, and leaves wh
   });
   expect(queueCounts(db, p.id).agentDrafts).toBe(0);
 });
+
+test("agent drafts are counted in SQL, however many strings agents have edited on the instance (#603)", () => {
+  const { db, p } = pushed();
+  const other = db
+    .insert(projects)
+    .values({
+      slug: "other",
+      name: "Other",
+      sourceLanguage: "en",
+      languages: ["en", "de"],
+    })
+    .returning()
+    .get();
+  const agent = ensureAgentActor(db, other);
+  const client = (
+    db as unknown as { $client: import("better-sqlite3").Database }
+  ).$client;
+  // More distinct edited strings than SQLite takes variables in one
+  // statement.
+  client.exec(`
+    with recursive n(i) as (select 1 union all select i + 1 from n where i < 40000)
+    insert into strings (project_id, string_id, type, source, archived, created_at)
+      select ${other.id}, 'k' || i, 'ui', 'Text', 0, 0 from n;
+    insert into edits (string_id, language, user_id, at, old_text, new_text, old_state, new_state)
+      select id, 'de', ${agent.id}, 0, null, 'Text', 'untranslated', 'translated'
+      from strings where project_id = ${other.id};
+  `);
+  expect(queueCounts(db, p.id).agentDrafts).toBe(0);
+  expect(queueSummaries(db, p.id).agentDrafts).toEqual({
+    count: 0,
+    first: null,
+  });
+});
