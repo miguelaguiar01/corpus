@@ -403,6 +403,35 @@ test("a tag chip inserts the open and close tags with the caret between them; a 
   ).toBe(true);
 });
 
+test("under richText html a translation's own tags save, and its chips are the source's (#622)", () => {
+  render(
+    <TargetPane
+      action={vi.fn()}
+      source="See the <link>docs</link>."
+      richText="html"
+      slots={[]}
+      language="en"
+      initialText=""
+      slug="mm"
+      stringKey="k"
+      openedVersion={1}
+      sourceLanguage="pt-PT"
+    />,
+  );
+  expect(screen.getByRole("button", { name: "<link>" })).toBeTruthy();
+  fireEvent.change(screen.getByRole("textbox"), {
+    target: { value: "See the <i>docs</i>.<br/>" },
+  });
+  expect(screen.queryByText(/tag/)).toBeNull();
+  expect(
+    (
+      screen.getByRole("button", {
+        name: "Save translation",
+      }) as HTMLButtonElement
+    ).disabled,
+  ).toBe(false);
+});
+
 test("an attributed tag's chip inserts it whole with the bare close, and a void tag's chip inserts it self-closed (#590)", () => {
   render(
     <TargetPane

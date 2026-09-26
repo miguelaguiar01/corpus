@@ -13,6 +13,7 @@ import {
   type Example,
   type PreviewSegment,
   type Library,
+  type RichText,
 } from "@corpus/contract";
 import { chipText } from "@/components/source-view";
 import { sourceStamp } from "@/translations/stamp";
@@ -88,6 +89,7 @@ export function TargetPane({
   action,
   source,
   syntax = "icu",
+  richText = null,
   slots,
   language,
   initialText,
@@ -101,6 +103,7 @@ export function TargetPane({
   action: (formData: FormData) => void | Promise<void>;
   source: string;
   syntax?: Library;
+  richText?: RichText | null;
   slots: Slot[];
   language: string;
   initialText: string;
@@ -129,7 +132,9 @@ export function TargetPane({
     resolved[0]?.language === language ? resolved[0].values[slot] : undefined;
   const validation = blank
     ? { ok: true as const }
-    : validateTranslation(source, text, language, syntax);
+    : validateTranslation(source, text, language, syntax, {
+        richText: richText ?? undefined,
+      });
   const errors = validation.ok ? [] : validation.errors;
   // A plural missing a category its language uses saves with a warning
   // (#556); the chip for the category is still offered.

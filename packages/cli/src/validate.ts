@@ -7,6 +7,7 @@ import {
   type CorpusConfig,
   type ValidationError,
   type Library,
+  type RichText,
   stringEntrySchema,
   type StringEntry,
 } from "@corpus/contract";
@@ -131,6 +132,7 @@ export async function validateRepo(
         cwd,
         targets,
         config.sourceLanguage,
+        config.richText ?? {},
       );
       findings.push(...exec.findings);
       if (!exec.validated) unvalidated.push(source.command);
@@ -171,6 +173,7 @@ export async function validateRepo(
           target,
           language,
           libraryOf(source),
+          { richText: config.richText?.[source.type] },
         );
         for (const error of result.incomplete ?? []) {
           findings.push({
@@ -269,6 +272,7 @@ function validateExec(
   cwd: string,
   targets: string[],
   sourceLanguage: string,
+  richText: Record<string, RichText>,
 ): { findings: Finding[]; validated: boolean } {
   const ran = runExporter(command, cwd);
   if (!ran.ok) throw new CliError(ran.error);
@@ -312,6 +316,7 @@ function validateExec(
         target,
         language,
         library,
+        { richText: richText[entry.type] },
       );
       for (const error of result.incomplete ?? []) {
         findings.push({

@@ -54,6 +54,7 @@ test("what the editor shows: the string, every language, the proposal, the note,
   expect(body.sourceLanguage).toBe("pt-PT");
   expect(body.file).toBe("src/skins/pt-PT.json");
   expect(body.keyIsText).toBe(false);
+  expect(body.richText).toBeNull();
   expect(body.placeholders).toEqual(["person", "room_de", "hour"]);
   expect(body.slots).toEqual([
     {

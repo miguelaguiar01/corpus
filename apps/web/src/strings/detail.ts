@@ -10,6 +10,7 @@ import {
   type GlossaryEntry,
   type MetadataValue,
   type Library,
+  type RichText,
 } from "@corpus/contract";
 import type { Db } from "@/db";
 import {
@@ -36,6 +37,8 @@ export type StringDetail = {
     keyIsText: boolean;
     // The message syntax the text is written in (§5).
     syntax: Library;
+    // "html" when the type is read by an HTML renderer (#622).
+    richText: RichText | null;
     metadata: Record<string, MetadataValue> | null;
     examples: Example[] | null;
     // The type's voice note (§5), when the project carries one.
@@ -146,6 +149,7 @@ export function stringDetail(
       file: string.file,
       keyIsText: string.keyIsText,
       syntax: string.syntax ?? "icu",
+      richText: project.richText?.[string.type] ?? null,
       metadata,
       examples: string.examples ?? null,
       note: project.typeNotes?.[string.type] ?? null,

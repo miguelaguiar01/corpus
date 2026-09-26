@@ -56,6 +56,7 @@ export async function GET(
     selects: [...selectArgsOf(detail.string.source, detail.string.syntax)],
     plurals: [...pluralArgsOf(detail.string.source, detail.string.syntax)],
     tags: [...tagsOf(detail.string.source, detail.string.syntax)],
+    richText: detail.string.richText,
     library: detail.string.syntax,
     syntax: detail.string.syntax,
     slots: slotsOf(

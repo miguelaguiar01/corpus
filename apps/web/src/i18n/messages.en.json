@@ -216,6 +216,7 @@
   "string.glossaryHeading": "Glossary terms in this string ({language})",
   "string.historyHeading": "History",
   "string.noteLabel": "How every {type} string reads",
+  "string.richTextHtml": "Every {type} string is read as HTML: a translation may write its own tags.",
   "string.otherLanguagesHeading": "Other languages",
   "string.otherLanguagesMore": "{count, plural, one {# more language} other {# more languages}}",
   "string.otherLanguagesNone": "No translation yet",

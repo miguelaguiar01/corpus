@@ -8,7 +8,9 @@
 // value the source has; with the target language given, a plural's
 // categories must be the ones that language uses. A rich-text tag is a
 // component the client renders: every tag in the source must occur in
-// the target and none may be added, wherever it moves.
+// the target and none may be added, wherever it moves, unless the
+// string's type is read as HTML (`richText: "html"`), where a tag is
+// markup the translation may write its own way.
 // Errors are data (code + params); callers render them through their
 // own message catalog.
 import {
@@ -18,7 +20,7 @@ import {
   type IcuNode,
   tagIdentity,
 } from "./icu";
-import type { Library } from "./strings";
+import type { Library, RichText } from "./strings";
 
 export type ValidationError =
   | {
@@ -138,6 +140,7 @@ export function validateTranslation(
   target: string,
   language?: string,
   syntax: Library = "icu",
+  options: { richText?: RichText } = {},
 ): ValidationResult {
   const parsedSource = parseIcu(source, syntax);
   if (!parsedSource.ok) {
@@ -234,11 +237,14 @@ export function validateTranslation(
       });
     }
   }
-  for (const name of expected.tags) {
-    if (!actual.tags.has(name)) errors.push({ code: "missing-tag", name });
-  }
-  for (const name of actual.tags) {
-    if (!expected.tags.has(name)) errors.push({ code: "unexpected-tag", name });
+  if (options.richText !== "html") {
+    for (const name of expected.tags) {
+      if (!actual.tags.has(name)) errors.push({ code: "missing-tag", name });
+    }
+    for (const name of actual.tags) {
+      if (!expected.tags.has(name))
+        errors.push({ code: "unexpected-tag", name });
+    }
   }
   const categories = language === undefined ? [] : pluralCategoriesOf(language);
   for (const [arg, keys] of actual.plurals) {

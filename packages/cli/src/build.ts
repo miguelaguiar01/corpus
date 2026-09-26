@@ -226,6 +226,7 @@ export async function buildSnapshotReport(
     ...(config.stringTypes && { stringTypes: config.stringTypes }),
     ...(config.entityTypes && { entityTypes: config.entityTypes }),
     typeNotes: config.typeNotes ?? {},
+    richText: config.richText ?? {},
     glossary,
     ...(Object.keys(seedTranslations).length > 0 && { seedTranslations }),
     // Always sent, empty included, so the server can tell "nothing
