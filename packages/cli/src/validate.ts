@@ -15,10 +15,13 @@ import type { RunContext } from "./cli";
 import {
   deprecations,
   execTranslationsSchema,
+  fileOf,
+  hasLanguages,
   readEntries,
   runExporter,
   type FileSource,
-  writesBack,
+  sourceLibrary,
+  sourceWritesBack,
 } from "./build";
 import { CliError, loadConfig } from "./config";
 
@@ -138,8 +141,13 @@ export async function validateRepo(
       if (!exec.validated) unvalidated.push(source.command);
       continue;
     }
-    if (!source.path.includes("{lang}") || !writesBack(source.path)) continue;
-    const sourceFile = source.path.replace("{lang}", config.sourceLanguage);
+    if (!hasLanguages(source) || !sourceWritesBack(source)) continue;
+    const library = sourceLibrary(source);
+    const sourceFile = fileOf(
+      source,
+      config.sourceLanguage,
+      config.sourceLanguage,
+    );
     const sources = await texts(jiti, cwd, sourceFile, source, true);
     if (sources === undefined) {
       throw new CliError(`source file ${sourceFile} does not exist`);
@@ -147,7 +155,7 @@ export async function validateRepo(
     // A source that does not parse is the source file's finding, once.
     const brokenSources = new Set<string>();
     for (const language of targets) {
-      const file = source.path.replace("{lang}", language);
+      const file = fileOf(source, language, config.sourceLanguage);
       const translations = await texts(jiti, cwd, file, source);
       if (translations === undefined) continue;
       for (const [key, target] of translations) {
@@ -172,7 +180,7 @@ export async function validateRepo(
           original,
           target,
           language,
-          libraryOf(source),
+          library,
           { richText: config.richText?.[source.type] },
         );
         for (const error of result.incomplete ?? []) {
@@ -182,7 +190,7 @@ export async function validateRepo(
             language,
             code: error.code,
             severity: "incomplete",
-            message: describe(error, libraryOf(source)),
+            message: describe(error, library),
           });
         }
         if (result.ok) continue;
@@ -197,7 +205,7 @@ export async function validateRepo(
             language: inSource ? config.sourceLanguage : language,
             code: error.code,
             severity: "invalid",
-            message: describe(error, libraryOf(source)),
+            message: describe(error, library),
           });
         }
       }
@@ -235,6 +243,10 @@ export function describe(
     case "invalid-icu":
       return `invalid ${syntax === "i18next" ? "i18next" : "ICU"} in the ${error.where} at ${error.position}: ${error.message}`;
     case "missing-placeholder":
+      // Under android a value that is not a verb is the plural's count:
+      // the translation is a <string> where the source is a <plurals>.
+      if (syntax === "android" && error.written === undefined)
+        return `a <string> where the source is a <plurals> on ${error.name}`;
       return `missing ${error.written ?? written(error.name)}`;
     case "unexpected-placeholder":
       return `unexpected ${error.written ?? written(error.name)}`;

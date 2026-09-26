@@ -3,7 +3,13 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { createJiti } from "jiti";
 import { z } from "zod";
-import { messagesToEntries, stripBom, tableToEntries } from "@corpus/adapters";
+import {
+  androidDirOf,
+  androidToEntries,
+  messagesToEntries,
+  stripBom,
+  tableToEntries,
+} from "@corpus/adapters";
 import {
   entitySchema,
   libraryOf,
@@ -163,7 +169,7 @@ export async function buildSnapshotReport(
     }
     // Push reads the source-language file; a table path may carry {lang}
     // too when its translations are pulled back per language (§8).
-    const file = source.path.replace("{lang}", config.sourceLanguage);
+    const file = fileOf(source, config.sourceLanguage, config.sourceLanguage);
     let entries: StringEntry[];
     try {
       entries = await readEntries(jiti, cwd, file, source, true);
@@ -175,7 +181,7 @@ export async function buildSnapshotReport(
     // The file rides with the entry (§4) so a proposal can come back to
     // it, and only where pull can write it: a .ts catalogue carries none,
     // so a proposal on its strings is refused up front, not left pending.
-    const writable = writesBack(source.path);
+    const writable = sourceWritesBack(source);
     const keyed = entries.filter((entry) => entry.keyIsText).length;
     if (keyed > 0) {
       notes.push(
@@ -391,11 +397,38 @@ function libraryFields(source: FileSource): {
   library?: Library;
   syntax?: Library;
 } {
-  const library = libraryOf(source);
+  const library = sourceLibrary(source);
   return library === "icu" ? {} : { library, syntax: library };
 }
 
 export type FileSource = Exclude<Source, { adapter: "exec" }>;
+
+export function sourceLibrary(source: FileSource): Library {
+  return source.adapter === "android" ? "android" : libraryOf(source);
+}
+
+// The file a source keeps a language in: its pattern with {lang}
+// filled, or, for Android, the `values` directory of the language.
+export function fileOf(
+  source: FileSource,
+  language: string,
+  sourceLanguage: string,
+): string {
+  if (source.adapter !== "android")
+    return source.path.replace("{lang}", language);
+  const dir = language === sourceLanguage ? "values" : androidDirOf(language);
+  return path.posix.join(source.path, dir, "strings.xml");
+}
+
+// Whether a source keeps a file per language, and so takes
+// translations back.
+export function hasLanguages(source: FileSource): boolean {
+  return source.adapter === "android" || source.path.includes("{lang}");
+}
+
+export function sourceWritesBack(source: FileSource): boolean {
+  return source.adapter === "android" || writesBack(source.path);
+}
 
 // A catalogue file through its source's adapter: the entries push would
 // send for it, or, for a target file, the translations it holds.
@@ -409,6 +442,11 @@ export async function readEntries(
   source: FileSource,
   sourceFile = false,
 ): Promise<StringEntry[]> {
+  if (source.adapter === "android") {
+    return androidToEntries(readFileSync(path.join(cwd, file), "utf8"), {
+      type: source.type,
+    });
+  }
   const data = await readModule(
     jiti,
     path.join(cwd, file),
@@ -460,10 +498,15 @@ async function readModule(
 // it takes no translations.
 export function writableSources(config: CorpusConfig): WritableSource[] {
   return config.sources.flatMap((source) =>
-    source.adapter !== "exec" && writesBack(source.path)
+    source.adapter !== "exec" && sourceWritesBack(source)
       ? [
           {
-            path: source.path,
+            // Android's source file itself: the server fills {lang} in
+            // a pattern, and a res directory has none.
+            path:
+              source.adapter === "android"
+                ? fileOf(source, config.sourceLanguage, config.sourceLanguage)
+                : source.path,
             adapter: source.adapter,
             type: source.type,
             ...libraryFields(source),
@@ -477,7 +520,9 @@ export function writableSources(config: CorpusConfig): WritableSource[] {
 // name once, naming every source that uses it (§3).
 export function deprecations(config: CorpusConfig): string[] {
   const named = config.sources.flatMap((source) =>
-    source.adapter !== "exec" && source.syntax !== undefined
+    source.adapter !== "exec" &&
+    source.adapter !== "android" &&
+    source.syntax !== undefined
       ? [source.path]
       : [],
   );
@@ -499,6 +544,8 @@ export function pushOnlyNotes(config: CorpusConfig): string[] {
           `exec "${source.command}" is push-only: add importCommand to write translations back`,
         );
       }
+    } else if (source.adapter === "android") {
+      continue;
     } else if (!source.path.includes("{lang}")) {
       notes.push(
         `${source.path} has no {lang}: its translations cannot be written back`,
@@ -604,11 +651,11 @@ async function readSeeds(
     }
   }
   for (const source of config.sources) {
-    if (source.adapter === "exec" || !source.path.includes("{lang}")) continue;
-    if (!writesBack(source.path)) continue;
+    if (source.adapter === "exec" || !hasLanguages(source)) continue;
+    if (!sourceWritesBack(source)) continue;
     for (const lang of config.languages) {
       if (lang === config.sourceLanguage) continue;
-      const file = source.path.replace("{lang}", lang);
+      const file = fileOf(source, lang, config.sourceLanguage);
       if (!existsSync(path.join(cwd, file))) continue;
       try {
         for (const entry of await readEntries(jiti, cwd, file, source)) {

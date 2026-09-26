@@ -184,9 +184,30 @@ Under `library: "chrome"` the `messages` adapter reads each entry as Chrome does
 
 A pull writes a translation into its entry's `message` and leaves the rest of the entry, and a byte-order mark, where they were; a key new to a language copies the source's `description` and `placeholders` beside it. `init` names the library when every value in the source file is such an object; without the library, the same file reads as nested keys (`copied.message`), since a catalogue of `{ title, message }` objects has that shape too. An extension split over several apps, as Bitwarden's is, is one `{ns}` pattern per layout: `apps/{ns}/src/_locales/{lang}/messages.json`.
 
-## gettext, Android, iOS
+## Android string resources
 
-No adapter reads `.po`, `strings.xml` or `.strings`. An `exec` source can, by converting in both directions; see [Sources and adapters](Sources-and-adapters). A converter that leaves the verbs as they are can declare `library: "printf"` on the exec source's strings, so the verbs are checked.
+<!-- from: examples/android.config.ts -->
+```ts
+import { defineCorpus } from "@corpus-tool/cli";
+
+export default defineCorpus({
+  project: "acme-app",
+  server: "http://localhost:3000",
+  sourceLanguage: "en",
+  languages: ["en", "de", "pt-BR", "sr-Latn"],
+  sources: [{ adapter: "android", type: "ui", path: "app/src/main/res" }],
+});
+```
+
+An `android` source names the `res` directory. `values/strings.xml` is the source, and each language in the config has its `values-<qualifier>` directory by Android's own rule: `de` is `values-de`, `pt-BR` is `values-pt-rBR`, `sr-Latn` is `values-b+sr+Latn`, and the legacy `in` and `iw` are `values-in` and `values-iw`. So write the config's languages the way the directories name them; a repository that spells one with `b+` where `-r` would do (`values-b+pt+BR`) needs `pt-BR` moved to `values-pt-rBR` first.
+
+A `<string>` is a string, and a `<plurals>` is one string whose text is an ICU plural on `quantity`, one branch per `<item>`: the translator sees and writes `{quantity, plural, one {%d episode} other {%d episodes}}`, and a draft with a `many` branch comes back as a `<plurals>` with a `many` item. Strings marked `translatable="false"`, `product` variants other than the default, and values that are an `@string/` reference are left out and left as they are; `<string-array>` is not read. The text is what the app shows: `\'`, `\"`, `\n`, entities, CDATA and the double quotes that keep spaces are undone for the editor and written back escaped, while markup inside a string, `<b>` or `<xliff:g id="name">`, stays as written. A pull edits only the elements and plural items whose text changed and appends new ones before `</resources>`, so an unchanged file stays byte for byte, comments included.
+
+The library is `android`: printf verbs as under `printf` (the index form is `%n$s`), and tags as under ICU, so a translation's `<i>` the source lacks is named. A string the app shows through `Html.fromHtml` may take the translator's own tags; declare its type `richText: { ui: "html" }` ([Types read as HTML](Metadata-types-entities-and-the-glossary#types-read-as-html)).
+
+## gettext and iOS
+
+No adapter reads `.po` or `.strings`. An `exec` source can, by converting in both directions; see [Sources and adapters](Sources-and-adapters). A converter that leaves the verbs as they are can declare `library: "printf"` on the exec source's strings, so the verbs are checked.
 
 ## When the library is wrong
 

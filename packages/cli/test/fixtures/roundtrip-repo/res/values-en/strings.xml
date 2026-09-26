@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="login_status"><![CDATA[Signed in as <i>%1$s</i> on %2$s.<br/><br/>Isn\'t you? Sign out.]]></string>
+    <string name="quoted">"  Two  spaces  "</string>
+    <string name="amp">Books &amp; records</string>
+    <!-- plurals -->
+    <plurals name="episodes">
+        <item quantity="one">%d episode</item>
+        <item quantity="other">%d episodes</item>
+    </plurals>
+</resources>

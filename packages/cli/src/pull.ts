@@ -1,7 +1,10 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import {
+  androidToEntries,
+  applyAndroidOps,
+  entriesToAndroid,
   applyMessagesOps,
   applyTableOps,
   entriesToMessages,
@@ -23,9 +26,11 @@ import type { RunContext } from "./cli";
 import {
   describeExecFailure,
   EXEC_MAX_BUFFER,
+  fileOf,
+  hasLanguages,
   isArb,
   type FileSource,
-  writesBack,
+  sourceWritesBack,
 } from "./build";
 import { CliError, loadConfig, requireToken } from "./config";
 import { request, serverMessage, UNAUTHORIZED } from "./server";
@@ -83,11 +88,11 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
   const notHeld = new Set<string>();
   const heldByType = new Map<string, Set<string>>();
   for (const source of config.sources) {
-    if (source.adapter !== "messages") continue;
-    if (!source.path.includes("{lang}") || !writesBack(source.path)) continue;
+    if (source.adapter !== "messages" && source.adapter !== "android") continue;
+    if (!hasLanguages(source) || !sourceWritesBack(source)) continue;
     const template = readRepoFile(
       ctx.cwd,
-      source.path.replace("{lang}", config.sourceLanguage),
+      fileOf(source, config.sourceLanguage, config.sourceLanguage),
     );
     if (template === undefined) continue;
     const held = heldByType.get(source.type) ?? new Set<string>();
@@ -96,7 +101,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
   }
   for (const source of config.sources) {
     if (source.adapter === "exec") continue;
-    if (!source.path.includes("{lang}")) {
+    if (!hasLanguages(source)) {
       // Source-only: nothing to write back, and its ids stay available to
       // an exec importer rather than vanishing.
       ctx.err(
@@ -104,14 +109,18 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
       );
       continue;
     }
-    if (!writesBack(source.path)) {
+    if (!sourceWritesBack(source)) {
       ctx.err(
         `corpus: ${source.path} is not JSON: pull writes JSON only, so its translations cannot be written back`,
       );
       continue;
     }
     claimedTypes.add(source.type);
-    const templatePath = source.path.replace("{lang}", config.sourceLanguage);
+    const templatePath = fileOf(
+      source,
+      config.sourceLanguage,
+      config.sourceLanguage,
+    );
     const template = readRepoFile(ctx.cwd, templatePath);
     if (template === undefined) {
       throw new CliError(`source file ${templatePath} does not exist`);
@@ -121,7 +130,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     // sources of one type each write their own strings (#513).
     const own = ownIds(template, source);
     for (const language of targets) {
-      const file = source.path.replace("{lang}", language);
+      const file = fileOf(source, language, config.sourceLanguage);
       const existing = readRepoFile(ctx.cwd, file);
       const forSource = forType(payload, language, source.type);
       const translations = unprefixed(forSource, source, own);
@@ -132,14 +141,22 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
       if (existing === undefined && Object.keys(translations).length === 0)
         continue;
       const next =
-        source.adapter === "messages"
-          ? entriesToMessages(template, translations, existing, {
-              ...(isArb(file) && { locale: language }),
-              chrome: libraryOf(source) === "chrome",
-            })
-          : entriesToTable(template, translations, source.map, existing);
+        source.adapter === "android"
+          ? entriesToAndroid(template, translations, existing)
+          : source.adapter === "messages"
+            ? entriesToMessages(template, translations, existing, {
+                ...(isArb(file) && { locale: language }),
+                chrome: libraryOf(source) === "chrome",
+              })
+            : entriesToTable(template, translations, source.map, existing);
       if (next !== existing) {
-        if (!check) writeFileSync(path.join(ctx.cwd, file), next);
+        if (!check) {
+          // A language new to the repository may need its directory.
+          mkdirSync(path.dirname(path.join(ctx.cwd, file)), {
+            recursive: true,
+          });
+          writeFileSync(path.join(ctx.cwd, file), next);
+        }
         changed.push(file);
       }
     }
@@ -159,9 +176,9 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     const source = config.sources.find(
       (s): s is Exclude<typeof s, { adapter: "exec" }> =>
         s.adapter !== "exec" &&
-        s.path.replace("{lang}", config.sourceLanguage) === file,
+        fileOf(s, config.sourceLanguage, config.sourceLanguage) === file,
     );
-    if (!source || !writesBack(source.path)) {
+    if (!source || !sourceWritesBack(source)) {
       ctx.err(
         `corpus: proposal(s) for ${ops.map((o) => o.id).join(", ")}: ${file} matches no writable source; not written`,
       );
@@ -178,9 +195,9 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     proposalsWritten += kept.length;
     const files: [string, SourceOp[]][] = [[file, kept]];
     const removals = kept.filter((o) => o.kind === "delete");
-    if (removals.length > 0 && source.path.includes("{lang}")) {
+    if (removals.length > 0 && hasLanguages(source)) {
       for (const language of allTargets) {
-        files.push([source.path.replace("{lang}", language), removals]);
+        files.push([fileOf(source, language, config.sourceLanguage), removals]);
       }
     }
     for (const [target, targetOps] of files) {
@@ -193,11 +210,13 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
       let next: string;
       try {
         next =
-          source.adapter === "messages"
-            ? applyMessagesOps(existing, targetOps, {
-                chrome: libraryOf(source) === "chrome",
-              })
-            : applyTableOps(existing, targetOps, source.map);
+          source.adapter === "android"
+            ? applyAndroidOps(existing, targetOps)
+            : source.adapter === "messages"
+              ? applyMessagesOps(existing, targetOps, {
+                  chrome: libraryOf(source) === "chrome",
+                })
+              : applyTableOps(existing, targetOps, source.map);
       } catch (error) {
         throw new CliError(
           `${target}: proposal(s) for ${targetOps.map((o) => o.id).join(", ")}: ${(error as Error).message}`,
@@ -358,6 +377,11 @@ async function download(
 
 // The ids a source-language file holds, as the snapshot names them.
 function ownIds(template: string, source: FileSource): Set<string> | undefined {
+  if (source.adapter === "android") {
+    return new Set(
+      androidToEntries(template, { type: source.type }).map((e) => e.id),
+    );
+  }
   if (source.adapter !== "messages") return undefined;
   try {
     const entries = messagesToEntries(JSON.parse(stripBom(template)), {

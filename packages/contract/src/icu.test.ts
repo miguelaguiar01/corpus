@@ -341,6 +341,38 @@ test("chrome: $NAME$ is a placeholder named case-insensitively, $$ is a dollar, 
   ]);
 });
 
+test("android: printf verbs and tags, a plural on quantity whose branches each count their verbs from 1, and # as text (#596)", () => {
+  const source = "Logged in as %1$s on <b>%2$s</b>, 100%% sure";
+  expect([...placeholderWrittenOf(source, "android")]).toEqual([
+    ["1", "%1$s"],
+    ["2", "%2$s"],
+  ]);
+  expect([...tagsOf(source, "android")]).toEqual(["b"]);
+  const plural =
+    "{quantity, plural, one {%d episode #1} other {%d episodes in %s}}";
+  const parsed = parseIcu(plural, "android");
+  expect(parsed.ok).toBe(true);
+  if (!parsed.ok) throw new Error("parse failed");
+  expect(parsed.nodes).toEqual([
+    {
+      kind: "plural",
+      arg: "quantity",
+      branches: {
+        one: [
+          { kind: "placeholder", name: "1", written: "%d" },
+          { kind: "literal", text: " episode #1" },
+        ],
+        other: [
+          { kind: "placeholder", name: "1", written: "%d" },
+          { kind: "literal", text: " episodes in " },
+          { kind: "placeholder", name: "2", written: "%s" },
+        ],
+      },
+    },
+  ]);
+  expect(parseIcu("<i>unclosed %s", "android").ok).toBe(false);
+});
+
 test("printf: verbs are placeholders named by position, %% is a percent, and braces and brackets are text (#594)", () => {
   const source =
     'Pushed %d commits to <a href="%s">%s</a>: 100%% done, {not} an argument';

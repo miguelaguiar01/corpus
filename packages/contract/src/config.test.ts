@@ -271,3 +271,14 @@ test("a source may name several patterns, each with {lang}, or a {ns} pattern (#
     }).success,
   ).toBe(false);
 });
+
+test("an android source names its res directory and nothing else (#596)", () => {
+  const parsed = corpusConfigSchema.safeParse({
+    project: "x",
+    server: "https://corpus.example",
+    sourceLanguage: "en",
+    languages: ["en", "pt-BR"],
+    sources: [{ adapter: "android", type: "ui", path: "app/src/main/res" }],
+  });
+  expect(parsed.success).toBe(true);
+});

@@ -35,6 +35,16 @@ A module that exports records, where the text is one field among others.
 
 A table with `{lang}` in its path has translations per language like a catalogue. One without still pushes, and its translations have nowhere to go; `build` and `push` say so.
 
+## android
+
+An Android app's string resources.
+
+```ts
+{ adapter: "android", type: "ui", path: "app/src/main/res" }
+```
+
+`path` is the `res` directory; `values/strings.xml` is the source and each `values-<qualifier>/strings.xml` a language. See [Your i18n library](Your-i18n-library#android-string-resources) for what it reads and how it writes back.
+
 ## exec
 
 A command that prints the entries as JSON, for text that lives somewhere no adapter reads: a database, a spreadsheet, a game engine's own format.

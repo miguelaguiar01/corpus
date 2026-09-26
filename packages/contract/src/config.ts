@@ -52,10 +52,19 @@ const execSchema = z.looseObject({
   importCommand: z.string().min(1).optional(),
 });
 
+// Android's `res` directory (#596): `values/strings.xml` is the source
+// and each `values-<qualifier>` a language; the library is android.
+const androidSchema = z.looseObject({
+  adapter: z.literal("android"),
+  type: identifier(),
+  path: z.string().min(1),
+});
+
 // What a config file declares.
 export const sourceInputSchema = z.discriminatedUnion("adapter", [
   z.looseObject({ ...messagesFields, path: patterns(langPattern) }),
   z.looseObject({ ...tableFields, path: patterns(z.string().min(1)) }),
+  androidSchema,
   execSchema,
 ]);
 
@@ -72,6 +81,7 @@ export const sourceSchema = z.discriminatedUnion("adapter", [
     path: z.string().min(1),
     namespace: z.string().min(1).optional(),
   }),
+  androidSchema,
   execSchema,
 ]);
 
