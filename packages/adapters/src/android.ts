@@ -1,39 +1,35 @@
-// Android string resources (§3, #596): `values/strings.xml` and one
-// `values-<qualifier>/strings.xml` per language. A <string> is a string;
-// a <plurals> is one string whose text is an ICU plural on `quantity`,
-// one branch per <item>. Text is shown as the app shows it: aapt's
-// escapes (\' \" \n \t \\ \@ \?), XML entities and double quotes that
-// keep whitespace are undone on read and written back on change. A
-// file is edited in place, element by element, so a pull that changes
-// nothing writes nothing and one that changes a string reads as it.
+// Android string resources (§3, #596). Text is what the app shows, aapt's
+// escapes undone on read and written back on change; a file is patched
+// element by element, so an unchanged pull writes the same bytes.
 import type { StringEntry } from "@corpus/contract";
 
 export type AndroidOp =
   | { kind: "edit" | "add"; id: string; text: string }
   | { kind: "delete"; id: string };
 
-type Element = {
+type Span = { start: number; end: number };
+type Element = Span & {
   kind: "string" | "plurals";
   name: string;
-  start: number;
-  end: number;
-  // The content's span, absent for `<string name="x"/>`.
-  inner?: { start: number; end: number };
+  // Absent for `<string name="x"/>`.
+  inner?: Span;
 };
-
-type Item = { quantity: string; raw: string; start: number; end: number };
+type Item = Span & { quantity: string; raw: Span };
+type Patch = Span & { text: string };
 
 const SKELETON = `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n</resources>\n`;
 const CDATA_RE = /^<!\[CDATA\[([\s\S]*)\]\]>$/;
+// Markup inside a string, `<b>`, `</b>`, `<xliff:g id="x">`: kept as
+// written, its quotes are not aapt's.
+const MARKUP_RE = /<\/?[A-Za-z][\w:.-]*(?:\s[^<>]*)?\/?>/g;
+const QUANTITIES = ["zero", "one", "two", "few", "many", "other"];
 
-// Comments are blanked, offsets kept, so a string commented out is not
-// read.
 function masked(xml: string): string {
   return xml.replace(/<!--[\s\S]*?-->/g, (c) => " ".repeat(c.length));
 }
 
 function attr(attrs: string, name: string): string | undefined {
-  return new RegExp(`\\b${name}="([^"]*)"`).exec(attrs)?.[1];
+  return new RegExp(`\\b${name}=(["'])(.*?)\\1`).exec(attrs)?.[2];
 }
 
 function elements(xml: string): Element[] {
@@ -46,21 +42,30 @@ function elements(xml: string): Element[] {
     const attrs = (plural ? m[4] : m[1]) ?? "";
     const name = attr(attrs, "name");
     if (name === undefined || attr(attrs, "translatable") === "false") continue;
+    // A product variant (`product="tablet"`) stays as written; the
+    // default is the string.
+    const product = attr(attrs, "product");
+    if (product !== undefined && product !== "default") continue;
     const openEnd = text.indexOf(">", m.index) + 1;
-    const selfClosing = !plural && m[2] === "/>";
+    const inner =
+      !plural && m[2] === "/>"
+        ? undefined
+        : {
+            start: openEnd,
+            end: re.lastIndex - (plural ? "</plurals>" : "</string>").length,
+          };
+    if (
+      inner &&
+      !plural &&
+      /^@(?:android:)?string\//.test(xml.slice(inner.start, inner.end).trim())
+    )
+      continue;
     out.push({
       kind: plural ? "plurals" : "string",
       name,
       start: m.index,
       end: re.lastIndex,
-      ...(selfClosing
-        ? {}
-        : {
-            inner: {
-              start: openEnd,
-              end: re.lastIndex - (plural ? "</plurals>" : "</string>").length,
-            },
-          }),
+      ...(inner && { inner }),
     });
   }
   return out;
@@ -68,55 +73,70 @@ function elements(xml: string): Element[] {
 
 function items(xml: string, element: Element): Item[] {
   if (!element.inner) return [];
-  const body = masked(xml).slice(element.inner.start, element.inner.end);
+  const { start: base } = element.inner;
+  const body = masked(xml).slice(base, element.inner.end);
   const out: Item[] = [];
   const re = /<item\b([^>]*)>([\s\S]*?)<\/item>/g;
   for (let m = re.exec(body); m; m = re.exec(body)) {
     const quantity = attr(m[1] ?? "", "quantity");
     if (quantity === undefined) continue;
-    const start = element.inner.start + m.index;
-    const open = m[0].indexOf(">") + 1;
+    const start = base + m.index;
+    const end = start + m[0].length;
     out.push({
       quantity,
-      raw: xml.slice(start + open, start + m[0].length - "</item>".length),
       start,
-      end: start + m[0].length,
+      end,
+      raw: {
+        start: start + m[0].indexOf(">") + 1,
+        end: end - "</item>".length,
+      },
     });
   }
   return out;
 }
 
 function decodeEntities(text: string): string {
+  const named: Record<string, string> = {
+    lt: "<",
+    gt: ">",
+    amp: "&",
+    quot: '"',
+    apos: "'",
+  };
   return text.replace(
     /&(lt|gt|amp|quot|apos|#\d+|#x[0-9a-fA-F]+);/g,
     (all, name: string) => {
-      if (name === "lt") return "<";
-      if (name === "gt") return ">";
-      if (name === "amp") return "&";
-      if (name === "quot") return '"';
-      if (name === "apos") return "'";
+      if (name in named) return named[name]!;
       const code =
         name[1] === "x" ? parseInt(name.slice(2), 16) : Number(name.slice(1));
-      return String.fromCodePoint(code);
+      return code <= 0x10ffff ? String.fromCodePoint(code) : all;
     },
   );
 }
 
 // aapt's reading: a backslash escapes the next character, a double
 // quote toggles a run whose whitespace is kept, and outside one a run
-// of whitespace is a single space, trimmed at the ends.
+// of ASCII whitespace is one space, trimmed at the ends.
 function unescape(text: string): string {
   const out: { ch: string; kept: boolean }[] = [];
+  const markup = new RegExp(MARKUP_RE.source, "y");
   let quoted = false;
   for (let i = 0; i < text.length; i++) {
     const ch = text[i]!;
+    if (ch === "<") {
+      markup.lastIndex = i;
+      const tag = markup.exec(text);
+      if (tag) {
+        for (const c of tag[0]) out.push({ ch: c, kept: true });
+        i += tag[0].length - 1;
+        continue;
+      }
+    }
     if (ch === "\\" && i + 1 < text.length) {
       const next = text[++i]!;
-      if (next === "u" && /^[0-9a-fA-F]{4}$/.test(text.slice(i + 1, i + 5))) {
-        out.push({
-          ch: String.fromCharCode(parseInt(text.slice(i + 1, i + 5), 16)),
-          kept: true,
-        });
+      const hex = text.slice(i + 1, i + 5);
+      if (next === "u" && /^[0-9a-fA-F]{4}$/.test(hex)) {
+        out.push({ ch: String.fromCharCode(parseInt(hex, 16)), kept: true });
         i += 4;
       } else {
         const escaped: Record<string, string> = { n: "\n", t: "\t" };
@@ -128,8 +148,9 @@ function unescape(text: string): string {
       quoted = !quoted;
       continue;
     }
-    if (!quoted && /\s/.test(ch)) {
-      if (out.at(-1)?.ch === " " && !out.at(-1)!.kept) continue;
+    if (!quoted && /[ \t\r\n]/.test(ch)) {
+      const last = out.at(-1);
+      if (last && last.ch === " " && !last.kept) continue;
       out.push({ ch: " ", kept: false });
       continue;
     }
@@ -142,45 +163,54 @@ function unescape(text: string): string {
 
 function decode(raw: string): string {
   const cdata = CDATA_RE.exec(raw.trim());
-  if (cdata) return unescape(cdata[1]!);
-  return unescape(decodeEntities(raw));
+  return cdata ? unescape(cdata[1]!) : unescape(decodeEntities(raw));
 }
 
-function escape(text: string, cdata: boolean): string {
-  let out = text
+function escapeText(text: string, cdata: boolean): string {
+  const out = text
     .replace(/\\/g, "\\\\")
     .replace(/\n/g, "\\n")
     .replace(/\t/g, "\\t")
     .replace(/"/g, '\\"')
     .replace(/'/g, "\\'");
-  if (/^[@?]/.test(out)) out = `\\${out}`;
-  if (!cdata) {
-    // A tag is markup and stays one; any other `<` is text.
-    out = out.replace(/&/g, "&amp;").replace(/<(?![A-Za-z/])/g, "&lt;");
+  return cdata ? out : out.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+}
+
+function escape(text: string, cdata: boolean): string {
+  let out = "";
+  let at = 0;
+  for (const tag of text.matchAll(MARKUP_RE)) {
+    const markup = cdata
+      ? tag[0]
+      : tag[0].replace(/&(?!(?:[A-Za-z]+|#\d+|#x[0-9a-fA-F]+);)/g, "&amp;");
+    out += escapeText(text.slice(at, tag.index), cdata) + markup;
+    at = tag.index + tag[0].length;
   }
-  // Spaces aapt would collapse or trim are kept inside quotes.
+  out += escapeText(text.slice(at), cdata);
+  if (/^[@?]/.test(out)) out = `\\${out}`;
   if (/^ | $| {2}/.test(out)) out = `"${out}"`;
   return cdata ? `<![CDATA[${out}]]>` : out;
 }
 
-function isCdata(raw: string): boolean {
-  return CDATA_RE.test(raw.trim());
-}
+const slice = (xml: string, span: Span) => xml.slice(span.start, span.end);
+const isCdata = (raw: string) => CDATA_RE.test(raw.trim());
 
 function pluralText(xml: string, element: Element): string {
   const branches = items(xml, element).map(
-    (item) => `${item.quantity} {${decode(item.raw)}}`,
+    (item) => `${item.quantity} {${decode(slice(xml, item.raw))}}`,
   );
   return `{quantity, plural, ${branches.join(" ")}}`;
 }
 
-// The branches of an ICU plural, keyed as written, their text raw. A
-// text that is not one is a single `other`.
-function pluralBranches(text: string): [string, string][] {
-  const head = /^\{\s*[A-Za-z_]\w*\s*,\s*plural\s*,/.exec(text.trim());
-  if (!head) return [["other", text]];
+const PLURAL_HEAD_RE = /^\{\s*[A-Za-z_]\w*\s*,\s*plural\s*,/;
+
+// An ICU plural's branches, their text raw; a text that is not one is a
+// single `other`.
+function pluralBranches(text: string): Map<string, string> {
+  const head = PLURAL_HEAD_RE.exec(text.trim());
+  if (!head) return new Map([["other", text]]);
   const body = text.trim().slice(head[0].length, -1);
-  const out: [string, string][] = [];
+  const out = new Map<string, string>();
   const re = /\s*(=?\w+)\s*\{/g;
   for (let m = re.exec(body); m; m = re.exec(body)) {
     let depth = 1;
@@ -190,14 +220,10 @@ function pluralBranches(text: string): [string, string][] {
       else if (body[at] === "}") depth--;
       at++;
     }
-    out.push([m[1]!, body.slice(re.lastIndex, at - 1)]);
+    out.set(m[1]!, body.slice(re.lastIndex, at - 1));
     re.lastIndex = at;
   }
   return out;
-}
-
-function isPlural(text: string): boolean {
-  return /^\{\s*[A-Za-z_]\w*\s*,\s*plural\s*,/.test(text.trim());
 }
 
 export function androidToEntries(
@@ -211,155 +237,210 @@ export function androidToEntries(
       element.kind === "plurals"
         ? pluralText(xml, element)
         : element.inner
-          ? decode(xml.slice(element.inner.start, element.inner.end))
+          ? decode(slice(xml, element.inner))
           : "",
   }));
 }
 
-function lineIndent(xml: string, at: number): string {
-  const lineStart = xml.lastIndexOf("\n", at - 1) + 1;
-  return /^[ \t]*/.exec(xml.slice(lineStart, at))?.[0] ?? "";
+function lineStart(xml: string, at: number): number {
+  return xml.lastIndexOf("\n", at - 1) + 1;
 }
 
-function unitOf(xml: string): string {
+function indentAt(xml: string, at: number): string {
+  return /^[ \t]*/.exec(xml.slice(lineStart(xml, at), at))?.[0] ?? "";
+}
+
+// The span to remove for an element or item: its whole line when it is
+// alone on it.
+function lineOf(xml: string, span: Span): Span {
+  const start = lineStart(xml, span.start);
+  const newline = xml.indexOf("\n", span.end);
+  const end = newline < 0 ? xml.length : newline + 1;
+  const alone =
+    xml.slice(start, span.start).trim() === "" &&
+    xml.slice(span.end, end).trim() === "";
+  return alone ? { start, end } : span;
+}
+
+type Style = { unit: string; eol: string };
+
+function styleOf(xml: string): Style {
   const last = elements(xml).at(-1);
-  return last ? lineIndent(xml, last.start) || "    " : "    ";
+  return {
+    unit: (last && indentAt(xml, last.start)) || "    ",
+    eol: xml.includes("\r\n") ? "\r\n" : "\n",
+  };
 }
 
-function renderItems(
-  branches: [string, string][],
+function renderItem(
   indent: string,
+  quantity: string,
+  text: string,
   cdata: boolean,
-  eol: string,
+) {
+  return `${indent}<item quantity="${quantity}">${escape(text, cdata)}</item>`;
+}
+
+function render(
+  id: string,
+  text: string,
+  kind: Element["kind"],
+  { unit, eol }: Style,
 ): string {
-  return branches
-    .map(
-      ([quantity, text]) =>
-        `${indent}<item quantity="${quantity}">${escape(text, cdata)}</item>`,
-    )
-    .join(eol);
-}
-
-function render(id: string, text: string, unit: string, eol: string): string {
-  if (!isPlural(text))
+  if (kind === "string")
     return `${unit}<string name="${id}">${escape(text, false)}</string>`;
-  return `${unit}<plurals name="${id}">${eol}${renderItems(pluralBranches(text), unit + unit, false, eol)}${eol}${unit}</plurals>`;
-}
-
-function append(xml: string, id: string, text: string): string {
-  const close = xml.lastIndexOf("</resources>");
-  if (close < 0) throw new Error("android: file has no </resources>");
-  const eol = xml.includes("\r\n") ? "\r\n" : "\n";
-  const lineStart = xml.lastIndexOf("\n", close - 1) + 1;
-  const before = xml.slice(0, lineStart);
-  return `${before}${render(id, text, unitOf(xml), eol)}${eol}${xml.slice(lineStart)}`;
-}
-
-function set(xml: string, element: Element, text: string): string {
-  const eol = xml.includes("\r\n") ? "\r\n" : "\n";
-  if (element.kind === "string") {
-    if (!element.inner) {
-      return (
-        xml.slice(0, element.start) +
-        `<string name="${element.name}">${escape(text, false)}</string>` +
-        xml.slice(element.end)
-      );
-    }
-    const raw = xml.slice(element.inner.start, element.inner.end);
-    if (decode(raw) === text) return xml;
-    return (
-      xml.slice(0, element.inner.start) +
-      escape(text, isCdata(raw)) +
-      xml.slice(element.inner.end)
-    );
-  }
-  if (pluralText(xml, element) === text) return xml;
-  const old = items(xml, element);
-  const byQuantity = new Map(old.map((item) => [item.quantity, item]));
-  const indent = old[0]
-    ? lineIndent(xml, old[0].start)
-    : lineIndent(xml, element.start) + unitOf(xml);
-  const cdata = old.some((item) => isCdata(item.raw));
-  const body = pluralBranches(text)
-    .map(([quantity, branch]) => {
-      const kept = byQuantity.get(quantity);
-      return kept && decode(kept.raw) === branch
-        ? `${indent}${xml.slice(kept.start, kept.end)}`
-        : renderItems([[quantity, branch]], indent, cdata, eol);
-    })
-    .join(eol);
-  const inner = element.inner!;
-  const closeIndent = lineIndent(xml, inner.end);
-  return (
-    xml.slice(0, inner.start) +
-    eol +
-    body +
-    eol +
-    closeIndent +
-    xml.slice(inner.end)
+  const itemLines = [...pluralBranches(text)].map(([q, t]) =>
+    renderItem(unit + unit, q, t, false),
   );
+  return `${unit}<plurals name="${id}">${eol}${itemLines.join(eol)}${eol}${unit}</plurals>`;
 }
 
-function remove(xml: string, element: Element): string {
-  const lineStart = xml.lastIndexOf("\n", element.start - 1) + 1;
-  const onItsLine = xml.slice(lineStart, element.start).trim() === "";
-  const next = xml.indexOf("\n", element.end);
-  const tail = xml.slice(element.end, next < 0 ? xml.length : next);
-  if (onItsLine && tail.trim() === "")
-    return (
-      xml.slice(0, lineStart) + xml.slice(next < 0 ? xml.length : next + 1)
-    );
-  return xml.slice(0, element.start) + xml.slice(element.end);
+function stringPatches(xml: string, element: Element, text: string): Patch[] {
+  if (!element.inner) {
+    if (text === "") return [];
+    const open = slice(xml, element).replace(/\s*\/>$/, "");
+    return [{ ...element, text: `${open}>${escape(text, false)}</string>` }];
+  }
+  const raw = slice(xml, element.inner);
+  if (decode(raw) === text) return [];
+  return [{ ...element.inner, text: escape(text, isCdata(raw)) }];
 }
 
-function write(xml: string, id: string, text: string): string {
-  const element = elements(xml).find((e) => e.name === id);
-  return element ? set(xml, element, text) : append(xml, id, text);
+// A plural's items patched one by one, so comments between them and
+// their order stay; a new quantity goes after the last item before it
+// in CLDR order.
+function pluralPatches(
+  xml: string,
+  element: Element,
+  text: string,
+  { unit, eol }: Style,
+): Patch[] {
+  if (pluralText(xml, element) === text) return [];
+  const old = items(xml, element);
+  const wanted = pluralBranches(text);
+  const cdata = old.some((item) => isCdata(slice(xml, item.raw)));
+  const indent = old[0]
+    ? indentAt(xml, old[0].start)
+    : indentAt(xml, element.start) + unit;
+  const patches: Patch[] = [];
+  for (const item of old) {
+    const next = wanted.get(item.quantity);
+    if (next === undefined) {
+      patches.push({ ...lineOf(xml, item), text: "" });
+    } else if (decode(slice(xml, item.raw)) !== next) {
+      patches.push({
+        ...item.raw,
+        text: escape(next, isCdata(slice(xml, item.raw))),
+      });
+    }
+  }
+  const rank = (q: string) => {
+    const at = QUANTITIES.indexOf(q);
+    return at < 0 ? QUANTITIES.length - 1.5 : at;
+  };
+  const added = [...wanted]
+    .filter(([q]) => !old.some((item) => item.quantity === q))
+    .sort(([a], [b]) => rank(a) - rank(b));
+  const inserts = new Map<number, string[]>();
+  for (const [quantity, branch] of added) {
+    const before = old.filter((item) => rank(item.quantity) < rank(quantity));
+    const line = renderItem(indent, quantity, branch, cdata);
+    if (before.length > 0) {
+      const at = before.at(-1)!.end;
+      inserts.set(at, [...(inserts.get(at) ?? []), `${eol}${line}`]);
+    } else if (old[0]) {
+      const at = lineStart(xml, old[0].start);
+      inserts.set(at, [...(inserts.get(at) ?? []), `${line}${eol}`]);
+    } else {
+      const at = element.inner!.start;
+      inserts.set(at, [...(inserts.get(at) ?? []), `${eol}${line}`]);
+    }
+  }
+  for (const [at, texts] of inserts)
+    patches.push({ start: at, end: at, text: texts.join("") });
+  return patches;
 }
 
-// A target file from the translations: the existing file edited in
-// place, or, when there is none, a bare <resources> filled in the
-// source's order. Ids the translations do not mention are kept.
+function applyPatches(xml: string, patches: Patch[]): string {
+  let out = xml;
+  for (const patch of [...patches].sort((a, b) => b.start - a.start))
+    out = out.slice(0, patch.start) + patch.text + out.slice(patch.end);
+  return out;
+}
+
+// Every change against one reading of the file: the elements that
+// exist are patched in place, the rest appended before </resources>.
+function patchAll(
+  xml: string,
+  changes: { id: string; text?: string; kind?: Element["kind"] }[],
+): string {
+  const style = styleOf(xml);
+  const byName = new Map<string, Element>();
+  for (const element of elements(xml))
+    if (!byName.has(element.name)) byName.set(element.name, element);
+  const patches: Patch[] = [];
+  const appended: string[] = [];
+  for (const { id, text, kind } of changes) {
+    const element = byName.get(id);
+    if (text === undefined) {
+      if (element) patches.push({ ...lineOf(xml, element), text: "" });
+    } else if (element?.kind === "plurals") {
+      patches.push(...pluralPatches(xml, element, text, style));
+    } else if (element) {
+      patches.push(...stringPatches(xml, element, text));
+    } else {
+      const as =
+        kind ?? (PLURAL_HEAD_RE.test(text.trim()) ? "plurals" : "string");
+      appended.push(render(id, text, as, style));
+    }
+  }
+  if (appended.length > 0) {
+    const close = xml.lastIndexOf("</resources>");
+    if (close < 0) throw new Error("android: file has no </resources>");
+    const at = lineStart(xml, close);
+    patches.push({
+      start: at,
+      end: at,
+      text: appended.map((line) => line + style.eol).join(""),
+    });
+  }
+  return applyPatches(xml, patches);
+}
+
+// A target file from the translations: the existing file patched, or,
+// when there is none, a bare <resources> filled in the source's order.
+// Ids the translations do not mention are kept.
 export function entriesToAndroid(
   template: string,
   translations: Record<string, string>,
   existing: string | undefined,
 ): string {
-  let xml =
+  const xml =
     existing === undefined || existing.trim() === "" ? SKELETON : existing;
-  const order = androidToEntries(template, { type: "" }).map((e) => e.id);
+  const kinds = new Map(elements(template).map((e) => [e.name, e.kind]));
   const ids = [
-    ...order.filter((id) => Object.hasOwn(translations, id)),
-    ...Object.keys(translations).filter((id) => !order.includes(id)),
+    ...[...kinds.keys()].filter((id) => Object.hasOwn(translations, id)),
+    ...Object.keys(translations).filter((id) => !kinds.has(id)),
   ];
-  for (const id of ids) xml = write(xml, id, translations[id]!);
-  return xml;
+  return patchAll(
+    xml,
+    ids.map((id) => ({ id, text: translations[id]!, kind: kinds.get(id) })),
+  );
 }
 
+// Proposals are few; each is applied to the file the one before left.
 export function applyAndroidOps(xml: string, ops: AndroidOp[]): string {
   let out = xml.trim() === "" ? SKELETON : xml;
   for (const op of ops) {
-    if (op.kind === "delete") {
-      const element = elements(out).find((e) => e.name === op.id);
-      if (element) out = remove(out, element);
-    } else {
-      out = write(out, op.id, op.text);
-    }
+    out = patchAll(out, [
+      op.kind === "delete" ? { id: op.id } : { id: op.id, text: op.text },
+    ]);
   }
   return out;
 }
 
-// A `values-<qualifier>` directory's language by Android's rule: `-r`
-// before a region, `b+` for a BCP-47 tag; a directory with any other
-// qualifier (night, v21, land) is not a language.
-export function androidLanguageOf(dir: string): string | undefined {
-  const bcp = /^values-b\+([A-Za-z0-9+]+)$/.exec(dir);
-  if (bcp) return bcp[1]!.split("+").join("-");
-  const plain = /^values-([a-z]{2,3})(?:-r([A-Z]{2}|[0-9]{3}))?$/.exec(dir);
-  if (!plain) return undefined;
-  return plain[2] ? `${plain[1]}-${plain[2]}` : plain[1];
-}
-
+// A config language's `values` directory by Android's rule: `-r` before
+// a region, `b+` for any other BCP-47 tag.
 export function androidDirOf(language: string): string {
   const parts = language.split(/[-_]/);
   if (parts.length === 1) return `values-${parts[0]}`;

@@ -494,6 +494,22 @@ describe("android library", () => {
     ).toMatchObject([
       { code: "changed-verb", expected: "%d", actual: "%s", indexed: "%n$s" },
     ]);
+    // Each item numbers its own verbs, so position 1 may be %s in one
+    // and %d in another; a translation identical to the source, or one
+    // with only `other`, is valid (#632 review).
+    const mixed =
+      "{quantity, plural, one {One episode in %s} other {%d episodes in %s}}";
+    expect(validateTranslation(mixed, mixed, "en", "android")).toEqual({
+      ok: true,
+    });
+    expect(
+      validateTranslation(
+        mixed,
+        "{quantity, plural, other {%d 個のエピソード（%s）}}",
+        "ja",
+        "android",
+      ),
+    ).toEqual({ ok: true });
   });
 });
 

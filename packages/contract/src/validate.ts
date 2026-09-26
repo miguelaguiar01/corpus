@@ -212,10 +212,16 @@ export function validateTranslation(
     const verbs = [...actual.verbs].sort(
       ([a], [b]) => positions.indexOf(a) - positions.indexOf(b),
     );
+    // A position's verbs are every verb the source writes there: each
+    // Android plural item numbers its own from 1 (#596).
+    const allowed = new Map<string, Set<string>>();
+    for (const [name, written] of expected.verbs)
+      allowed.set(name, (allowed.get(name) ?? new Set()).add(verbOf(written)));
     const said = new Set<string>();
     for (const [name, got] of verbs) {
       const written = expected.written.get(name);
-      if (written === undefined || verbOf(got) === verbOf(written)) continue;
+      if (written === undefined || allowed.get(name)?.has(verbOf(got)))
+        continue;
       if (said.has(name)) continue;
       said.add(name);
       changed.push({

@@ -108,14 +108,17 @@ export default defineCorpus({
     //    `map.metadata: ["scene"]` lists.
 
     // 3. Android string resources: the `res` directory, whose
-    //    values/strings.xml is the source and each values-<qualifier>
-    //    directory a language (values-pt-rBR is pt-BR, values-b+sr+Latn
-    //    is sr-Latn). A <string> is a string and a <plurals> one string,
-    //    an ICU plural on `quantity`; translatable="false" is skipped,
+    //    values/strings.xml is the source and whose values-<qualifier>
+    //    directory is each config language's, by Android's rule (pt-BR
+    //    is values-pt-rBR, sr-Latn is values-b+sr+Latn). A <string> is a
+    //    string and a <plurals> one string, an ICU plural on `quantity`;
+    //    translatable="false", a product variant other than the default
+    //    and an @string/ reference are skipped and kept as written, and
     //    <string-array> is not read. Text is shown as the app shows it,
     //    aapt's escapes, entities, CDATA and whitespace-keeping quotes
-    //    undone, and written back escaped; a pull edits the elements it
-    //    changes in place and appends a new one before </resources>.
+    //    undone (markup inside a string kept as written), and written
+    //    back escaped; a pull patches the elements and plural items it
+    //    changes in place and appends new ones before </resources>.
     //    The library is `android` (§5).
     { adapter: "android", type: "ui", path: "app/src/main/res" },
 

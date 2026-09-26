@@ -1,7 +1,6 @@
 import { expect, test } from "vitest";
 import {
   androidDirOf,
-  androidLanguageOf,
   androidToEntries,
   applyAndroidOps,
   entriesToAndroid,
@@ -126,17 +125,118 @@ test("proposal ops edit, add and remove a string in the source file", () => {
   expect(out).toContain('<!-- <string name="commented">');
 });
 
-test("a values directory is a language by Android's rule, and back", () => {
-  expect(androidLanguageOf("values")).toBeUndefined();
-  expect(androidLanguageOf("values-de")).toBe("de");
-  expect(androidLanguageOf("values-pt-rBR")).toBe("pt-BR");
-  expect(androidLanguageOf("values-b+sr+Latn")).toBe("sr-Latn");
-  expect(androidLanguageOf("values-in")).toBe("in");
-  expect(androidLanguageOf("values-night")).toBeUndefined();
-  expect(androidLanguageOf("values-v21")).toBeUndefined();
+test("a language's values directory by Android's rule", () => {
   expect(androidDirOf("de")).toBe("values-de");
   expect(androidDirOf("pt-BR")).toBe("values-pt-rBR");
   expect(androidDirOf("pt_BR")).toBe("values-pt-rBR");
   expect(androidDirOf("es-419")).toBe("values-es-r419");
   expect(androidDirOf("sr-Latn")).toBe("values-b+sr+Latn");
+});
+
+test("markup with attributes reads and writes verbatim; only the text between tags is escaped (#632 review)", () => {
+  const xml = `<resources>\n    <string name="a">Hi <xliff:g id="name">%1$s</xliff:g>, <a href='https://x.org/?a=1&amp;b=2'>docs</a></string>\n</resources>\n`;
+  const [entry] = androidToEntries(xml, { type: "ui" });
+  expect(entry?.source).toBe(
+    `Hi <xliff:g id="name">%1$s</xliff:g>, <a href='https://x.org/?a=1&b=2'>docs</a>`,
+  );
+  const edited = entriesToAndroid(
+    xml,
+    { a: `Olá <xliff:g id="name">%1$s</xliff:g>, it's "a<b"` },
+    xml,
+  );
+  expect(
+    entriesToAndroid(
+      xml,
+      { a: `Ver <a href='https://x.org/?a=1&b=2'>docs</a>` },
+      xml,
+    ),
+  ).toContain(`<a href='https://x.org/?a=1&amp;b=2'>docs</a>`);
+  expect(edited).toContain(
+    `<string name="a">Olá <xliff:g id="name">%1$s</xliff:g>, it\\'s \\"a&lt;b\\"</string>`,
+  );
+});
+
+test("non-ASCII spaces are text, not whitespace aapt collapses", () => {
+  const xml = `<resources>\n    <string name="a">Prix\u00a0: 5\u3000円</string>\n</resources>\n`;
+  expect(androidToEntries(xml, { type: "ui" })[0]?.source).toBe(
+    "Prix\u00a0: 5\u3000円",
+  );
+});
+
+test("a product variant is left alone; the default is the string", () => {
+  const xml = `<resources>\n    <string name="a">Phone</string>\n    <string name="a" product="tablet">Tablet</string>\n</resources>\n`;
+  expect(androidToEntries(xml, { type: "ui" })).toEqual([
+    { id: "a", type: "ui", source: "Phone" },
+  ]);
+  expect(entriesToAndroid(xml, { a: "Telemóvel" }, xml)).toBe(
+    xml.replace(">Phone<", ">Telemóvel<"),
+  );
+});
+
+test("an empty self-closed string stays as it is, and filled keeps its attributes", () => {
+  const xml = `<resources>\n    <string name="a" tools:ignore="X"/>\n</resources>\n`;
+  expect(entriesToAndroid(xml, { a: "" }, xml)).toBe(xml);
+  expect(entriesToAndroid(xml, { a: "Olá" }, xml)).toContain(
+    `<string name="a" tools:ignore="X">Olá</string>`,
+  );
+});
+
+test("a changed plural item is edited where it is; comments and order between items stay", () => {
+  const xml = `<resources>\n    <plurals name="p">\n        <!-- singular -->\n        <item quantity="one">%d rann</item>\n        <item quantity="other">%d rann</item>\n    </plurals>\n</resources>\n`;
+  expect(
+    entriesToAndroid(
+      xml,
+      { p: "{quantity, plural, one {%d rann} few {%d rann} other {%d ranno}}" },
+      xml,
+    ),
+  ).toBe(
+    xml
+      .replace(
+        '<item quantity="one">%d rann</item>',
+        '<item quantity="one">%d rann</item>\n        <item quantity="few">%d rann</item>',
+      )
+      .replace(
+        ">%d rann</item>\n    </plurals>",
+        ">%d ranno</item>\n    </plurals>",
+      ),
+  );
+});
+
+test("a new string's kind is the source's; references and out-of-range entities are safe", () => {
+  const source = `<resources>\n    <string name="s">{quantity, plural, one {x} other {y}}</string>\n    <string name="ref">@string/s</string>\n    <string name="e">A&#9999999;</string>\n</resources>\n`;
+  expect(androidToEntries(source, { type: "ui" }).map((e) => e.id)).toEqual([
+    "s",
+    "e",
+  ]);
+  expect(androidToEntries(source, { type: "ui" })[1]?.source).toBe(
+    "A&#9999999;",
+  );
+  expect(
+    entriesToAndroid(
+      source,
+      { s: "{quantity, plural, one {x} other {y}}" },
+      undefined,
+    ),
+  ).toContain('<string name="s">');
+});
+
+test("an unchanged pull of a large file is linear", () => {
+  const n = 6000;
+  const lines = Array.from(
+    { length: n },
+    (_, i) => `    <string name="k${i}">Text ${i}</string>`,
+  );
+  const xml = `<resources>\n${lines.join("\n")}\n</resources>\n`;
+  const same = Object.fromEntries(
+    Array.from({ length: n }, (_, i) => [`k${i}`, `Text ${i}`]),
+  );
+  const started = Date.now();
+  expect(entriesToAndroid(xml, same, xml)).toBe(xml);
+  expect(entriesToAndroid(xml, same, undefined)).toBe(
+    xml.replace(
+      "<resources>",
+      '<?xml version="1.0" encoding="utf-8"?>\n<resources>',
+    ),
+  );
+  expect(Date.now() - started).toBeLessThan(2000);
 });
