@@ -419,6 +419,7 @@ export async function readEntries(
       ? messagesToEntries(data, {
           type: source.type,
           arb: isArb(file),
+          chrome: libraryOf(source) === "chrome",
           keyIsText: sourceFile,
         })
       : tableToEntries(data, { type: source.type, map: source.map });
@@ -547,7 +548,7 @@ function readGlossary(
     }
     let json: unknown;
     try {
-      json = JSON.parse(raw);
+      json = JSON.parse(stripBom(raw));
     } catch (error) {
       errors.push(`${file}: not a glossary: ${(error as Error).message}`);
       continue;

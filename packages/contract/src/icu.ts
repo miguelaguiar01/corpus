@@ -152,7 +152,6 @@ class Parser {
         flush();
         return nodes;
       }
-      // chrome: `$NAME$` is a placeholder, `$$` a dollar, the rest text.
       if (this.syntax === "chrome") {
         if (ch === "$") {
           if (this.source[this.pos + 1] === "$") {

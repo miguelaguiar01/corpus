@@ -180,9 +180,9 @@ Every browser extension keeps `_locales/{lang}/messages.json`, one object per ke
 }
 ```
 
-The `messages` adapter reads that shape on its own: `message` is the text, `description` the string's note, and a placeholder's `example` its example value, which the chip's tooltip and the preview show. Under `library: "chrome"`, `$CURRENT$` is a placeholder, named without regard to case as Chrome matches it, so `$current$` in a translation is the same one; `$$` is a dollar, and braces, angle brackets and `%` are text. A translation must keep every placeholder the source has, and the chip inserts it as the source writes it.
+Under `library: "chrome"` the `messages` adapter reads each entry as Chrome does: `message` is the text, `description` the string's note, and a placeholder's `example` its example value, which the chip's tooltip and the preview show. `$CURRENT$` is a placeholder, named without regard to case as Chrome matches it, so `$current$` in a translation is the same one; `$$` is a dollar, and braces, angle brackets and `%` are text. A translation must keep every placeholder the source has, and the chip inserts it as the source writes it.
 
-A pull writes a translation into its entry's `message` and leaves the rest of the entry, and a byte-order mark, where they were; a key new to a language copies the source's `description` and `placeholders` beside it. `init` names the library when every value in the source file is such an object. An extension split over several apps, as Bitwarden's is, is one `{ns}` pattern per layout: `apps/{ns}/src/_locales/{lang}/messages.json`.
+A pull writes a translation into its entry's `message` and leaves the rest of the entry, and a byte-order mark, where they were; a key new to a language copies the source's `description` and `placeholders` beside it. `init` names the library when every value in the source file is such an object; without the library, the same file reads as nested keys (`copied.message`), since a catalogue of `{ title, message }` objects has that shape too. An extension split over several apps, as Bitwarden's is, is one `{ns}` pattern per layout: `apps/{ns}/src/_locales/{lang}/messages.json`.
 
 ## gettext, Android, iOS
 

@@ -295,8 +295,6 @@ const PLURAL_SUFFIX_RE = /_(?:zero|one|two|few|many|other)$/;
 // in a catalogue with a stray pipe is still ICU, not vue-i18n.
 const ICU_ANY_ARGUMENT_RE = /\{\s*[^{},]+\s*,\s*[a-z]+/;
 
-// A source file that is absent or does not read decides nothing: push
-// will say what is wrong with it.
 function chromeShaped(file: string): boolean {
   if (!file.endsWith(".json")) return false;
   try {
@@ -306,6 +304,8 @@ function chromeShaped(file: string): boolean {
   }
 }
 
+// A source file that is absent or does not read decides nothing: push
+// will say what is wrong with it.
 async function libraryFor(
   args: string[],
   cwd: string,

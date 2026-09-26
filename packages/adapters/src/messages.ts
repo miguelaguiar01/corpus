@@ -8,6 +8,7 @@ import type { StringEntry } from "@corpus/contract";
 export type MessagesOptions = {
   type: string;
   arb?: boolean;
+  chrome?: boolean;
   keyIsText?: boolean;
 };
 
@@ -60,7 +61,7 @@ export function messagesToEntries(
   data: unknown,
   options: MessagesOptions,
 ): StringEntry[] {
-  if (isChromeMessages(data)) return chromeEntries(data, options.type);
+  if (options.chrome) return chromeEntries(data, options.type);
   const entries: StringEntry[] = [];
   if (
     options.arb &&
@@ -96,7 +97,9 @@ type ChromeMessage = {
 };
 
 // Chrome i18n's `_locales/{lang}/messages.json` (#595): every top-level
-// value an object with a string `message`.
+// value an object with a string `message`. Read so only under `library:
+// "chrome"`, since a nested catalogue of `{ title, message }` has the
+// same shape; init uses it to name the library.
 export function isChromeMessages(
   data: unknown,
 ): data is Record<string, ChromeMessage> {
@@ -114,10 +117,18 @@ export function isChromeMessages(
   );
 }
 
-function chromeEntries(
-  data: Record<string, ChromeMessage>,
-  type: string,
-): StringEntry[] {
+function chromeEntries(data: unknown, type: string): StringEntry[] {
+  if (
+    data !== null &&
+    typeof data === "object" &&
+    Object.keys(data).length === 0
+  )
+    return [];
+  if (!isChromeMessages(data)) {
+    throw new Error(
+      `messages: under library chrome every value must be an object with a string message`,
+    );
+  }
   return Object.entries(data).map(([id, value]) => {
     const entry: StringEntry = { id, type, source: value.message };
     if (typeof value.description === "string" && value.description.trim())

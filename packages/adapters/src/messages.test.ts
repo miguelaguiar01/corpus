@@ -160,7 +160,7 @@ test("a Chrome i18n catalogue reads message as the text, description as the note
     appName: { message: "Bitwarden" },
     blank: { message: "Save", description: " " },
   };
-  expect(messagesToEntries(catalogue, { type: "ui" })).toEqual([
+  expect(messagesToEntries(catalogue, { type: "ui", chrome: true })).toEqual([
     {
       id: "copied",
       type: "ui",
@@ -171,11 +171,21 @@ test("a Chrome i18n catalogue reads message as the text, description as the note
     { id: "appName", type: "ui", source: "Bitwarden" },
     { id: "blank", type: "ui", source: "Save" },
   ]);
-  // Not the shape: a message that is not a string reads as nesting does.
   expect(() =>
-    messagesToEntries({ a: { message: 1 } }, { type: "ui" }),
-  ).toThrow(/a.message must be a string/);
-  expect(messagesToEntries({ a: { title: "x" } }, { type: "ui" })).toEqual([
-    { id: "a.title", type: "ui", source: "x" },
+    messagesToEntries({ a: { message: 1 } }, { type: "ui", chrome: true }),
+  ).toThrow(
+    /under library chrome every value must be an object with a string message/,
+  );
+  expect(messagesToEntries({}, { type: "ui", chrome: true })).toEqual([]);
+  // Without the library the same shape is nesting: a toast catalogue of
+  // `{ title, message }` keeps its titles (#630 review).
+  expect(
+    messagesToEntries(
+      { saved: { title: "Saved", message: "All good" } },
+      { type: "ui" },
+    ),
+  ).toEqual([
+    { id: "saved.title", type: "ui", source: "Saved" },
+    { id: "saved.message", type: "ui", source: "All good" },
   ]);
 });
