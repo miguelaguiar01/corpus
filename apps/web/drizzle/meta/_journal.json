@@ -127,6 +127,13 @@
       "when": 1790380979596,
       "tag": "0017_rich-text",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1790426217885,
+      "tag": "0018_translations-language-state",
+      "breakpoints": true
     }
   ]
 }

@@ -122,3 +122,41 @@ test("a string type that names the prototype cannot poison the process", () => {
     false,
   );
 });
+
+test("a project of one type counts as a project of several does, archived and stale rows included (#603)", () => {
+  const counts = (retype: boolean) => {
+    const { db, p } = pushed();
+    const base = moonlightManor as Snapshot;
+    const typed = (s: Snapshot): Snapshot =>
+      retype
+        ? { ...s, strings: s.strings.map((e) => ({ ...e, type: "chrome" })) }
+        : s;
+    applySnapshot(
+      db,
+      p.id,
+      typed({
+        ...base,
+        seedTranslations: { en: { "ui.continue": "Continue" } },
+      }),
+    );
+    applySnapshot(
+      db,
+      p.id,
+      typed({
+        ...base,
+        strings: base.strings
+          .filter((s) => s.id !== "skin.heard-nothing")
+          .map((s) =>
+            s.id === "ui.continue" ? { ...s, source: `${s.source}!` } : s,
+          ),
+      }),
+    );
+    return progressCounts(db, p.id);
+  };
+  const several = counts(false);
+  const one = counts(true);
+  expect(Object.keys(one.perType)).toEqual(["chrome"]);
+  expect(one.perLanguage).toEqual(several.perLanguage);
+  expect(one.perType.chrome).toEqual(one.perLanguage);
+  expect(one.perLanguage.en).toMatchObject({ stale: 1, total: 3 });
+});
