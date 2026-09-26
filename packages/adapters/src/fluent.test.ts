@@ -53,7 +53,7 @@ b = {$g ->
 `;
   expect(fluentToEntries(ftl, { type: "ui" }).map((e) => e.source)).toEqual([
     "{n, plural, =0 {none} one {one} many {many} other {many}}",
-    "{g, select, unha {unha} outra {outra}}",
+    "{g, select, unha {unha} outra {outra} other {outra}}",
   ]);
 });
 
@@ -159,4 +159,66 @@ trash = Trash
       undefined,
     ),
   ).toContain("} em {trash}");
+});
+
+test("review of #634: a key with no ] is refused, not a stack overflow; a BOM keeps the first message; } may sit at column 0", () => {
+  expect(() =>
+    fluentToEntries("a = { $n ->\n    [one x\n", { type: "ui" }),
+  ).toThrow(/a has a select Corpus does not read/);
+  const bom = "﻿trash = Trash\nother = Other\n";
+  expect(fluentToEntries(bom, { type: "ui" }).map((e) => e.id)).toEqual([
+    "trash",
+    "other",
+  ]);
+  expect(entriesToFluent(bom, { trash: "Lixo" }, bom)).toBe(
+    "﻿trash = Lixo\nother = Other\n",
+  );
+  expect(
+    fluentToEntries("a = {$n ->\n    [one] x\n   *[other] y\n}\nb = B\n", {
+      type: "ui",
+    }).map((e) => e.id),
+  ).toEqual(["a", "b"]);
+});
+
+test("a select's default survives as other, and a changed one keeps it", () => {
+  const source = "a = {$g ->\n    [female] her\n   *[male] his\n  }\n";
+  expect(fluentToEntries(source, { type: "ui" })[0]?.source).toBe(
+    "{g, select, female {her} male {his} other {his}}",
+  );
+  expect(
+    entriesToFluent(
+      source,
+      { a: "{g, select, female {dela} male {dele} other {dele}}" },
+      source,
+    ),
+  ).toBe(
+    "a = {$g ->\n    [female] dela\n    [male] dele\n   *[other] dele\n  }\n",
+  );
+});
+
+test("an empty pattern and a line starting with . [ or * are written as Fluent reads them, and read back", () => {
+  const source = "a = A\nb = {$n ->\n    [one] one\n   *[other] other\n  }\n";
+  const out = entriesToFluent(
+    source,
+    { a: ".config is\n[not] *special*", b: "{n, plural, one {} other {x}}" },
+    undefined,
+  );
+  expect(out).toBe(
+    'a = {"."}config is\n    {"["}not] *special*\nb = {$n ->\n    [one] {""}\n   *[other] x\n  }\n',
+  );
+  expect(fluentToEntries(out, { type: "ui" }).map((e) => e.source)).toEqual([
+    ".config is\n[not] *special*",
+    "{n, plural, one {} other {x}}",
+  ]);
+  expect(entriesToFluent("a = A\n", { a: "" }, undefined)).toBe('a = {""}\n');
+});
+
+test("a CRLF file stays CRLF on a change, an append and a delete", () => {
+  const crlf = "a = A\r\nb = B\r\nc = C\r\n";
+  expect(entriesToFluent(crlf, { a: "Um\ndois", d: "D" }, crlf)).toBe(
+    "a = Um\r\n    dois\r\nb = B\r\nc = C\r\nd = D\r\n",
+  );
+  expect(applyFluentOps(crlf, [{ kind: "delete", id: "b" }])).toBe(
+    "a = A\r\nc = C\r\n",
+  );
 });

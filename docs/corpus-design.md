@@ -128,13 +128,19 @@ export default defineCorpus({
     //    message writes it so, or where the name is a message the source
     //    never uses as a variable), and a select on a variable an ICU
     //    plural when every key is a CLDR category or a number (`[0]` is
-    //    `=0`; a plural whose default is not `other` gets one from the
-    //    default) and an ICU select otherwise. Attributes, terms,
-    //    function calls, string literals and a `#` in a plural variant
-    //    are refused by name, the file's refusals listed at once. A pull
-    //    rewrites a changed message in its own layout (placeable spacing,
-    //    a value on its own line, the variants' and the closing brace's
-    //    indentation) and appends a new one at the end.
+    //    `=0`) and an ICU select otherwise; a default that is not
+    //    `other` is carried as an `other` branch with its text, which is
+    //    ICU's fallback, and a changed message is written with `*[other]`.
+    //    Attributes, terms, function calls, string literals other than
+    //    `{""}` and `{"."}`-style line escapes, and a `#` in a plural
+    //    variant are refused by name, the file's refusals listed at
+    //    once. A pull rewrites a changed message in its own layout
+    //    (placeable spacing, a value on its own line, the variants' and
+    //    the closing brace's indentation, the file's line endings),
+    //    writes an empty pattern as `{""}` and escapes a line that starts
+    //    with `.`, `[` or `*`, and appends a new message at the end; a
+    //    format a translation writes (`{n, number}`) has no Fluent form
+    //    without a function and is written as the bare variable.
     { adapter: "fluent", type: "ui", path: "i18n/{lang}/app.ftl" },
 
     // 5. Custom exporter hook: a script in the client repo that emits

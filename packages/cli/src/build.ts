@@ -556,7 +556,7 @@ export function pushOnlyNotes(config: CorpusConfig): string[] {
           `exec "${source.command}" is push-only: add importCommand to write translations back`,
         );
       }
-    } else if (source.adapter === "android") {
+    } else if (source.adapter === "android" || source.adapter === "fluent") {
       continue;
     } else if (!source.path.includes("{lang}")) {
       notes.push(

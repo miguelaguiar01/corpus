@@ -50,23 +50,32 @@ function messages(text: string): Message[] {
     offsets.push(at);
     at += line.length + 1;
   }
+  const bom = text.startsWith("\uFEFF") ? 1 : 0;
+  const braces = (line: string) =>
+    (line.match(/\{/g)?.length ?? 0) - (line.match(/\}/g)?.length ?? 0);
   for (let i = 0; i < lines.length; i++) {
-    const head = /^(-?[A-Za-z][\w-]*)[ \t]*=/.exec(lines[i]!);
+    const skip = i === 0 ? bom : 0;
+    const head = /^(-?[A-Za-z][\w-]*)[ \t]*=/.exec(lines[i]!.slice(skip));
     if (!head) continue;
     let last = i;
     let attribute: string | undefined;
+    // Inside an open placeable a line continues the message wherever
+    // it starts: a select's `}` may sit at column 0.
+    let depth = braces(lines[i]!);
     for (let j = i + 1; j < lines.length; j++) {
       const line = lines[j]!.replace(/\r$/, "");
-      if (/^[ \t]+\S/.test(line)) {
-        last = j;
+      if (depth > 0 || /^[ \t]+\S/.test(line)) {
+        if (line.trim() !== "") last = j;
+        depth += braces(line);
         attribute ??= /^[ \t]+\.([A-Za-z][\w-]*)[ \t]*=/.exec(line)?.[1];
       } else if (line.trim() !== "") break;
     }
+    const start = offsets[i]! + skip;
     out.push({
       id: head[1]!,
-      start: offsets[i]!,
+      start,
       end: offsets[last]! + lines[last]!.replace(/\r$/, "").length,
-      valueStart: offsets[i]! + head[0].length,
+      valueStart: start + head[0].length,
       ...(attribute && { attribute }),
     });
     i = last;
@@ -122,6 +131,10 @@ function parsePlaceable(s: string, i: number, id: string): [string, number] {
   let j = skipSpace(s, i);
   const c = s[j];
   if (c === "-") throw new Refusal(`${id} refers to a term`);
+  // `{""}` is an empty pattern and `{"."}` the escape for a line that
+  // starts with a special character; other literals are refused.
+  const literal = /^"([.[*]?)"\s*\}/.exec(s.slice(j));
+  if (literal) return [literal[1]!, j + literal[0].length];
   if (c === '"' || c === "{" || (c && /[0-9]/.test(c)))
     throw new Refusal(`${id} has a string literal`);
   const variable = c === "$";
@@ -148,6 +161,7 @@ function parsePlaceable(s: string, i: number, id: string): [string, number] {
     if (s[j] !== "[")
       throw new Refusal(`${id} has a select Corpus does not read`);
     const close = s.indexOf("]", j);
+    if (close < 0) throw new Refusal(`${id} has a select Corpus does not read`);
     const key = s.slice(j + 1, close).trim();
     j = close + 1;
     while (s[j] === " " || s[j] === "\t") j++;
@@ -165,7 +179,9 @@ function parsePlaceable(s: string, i: number, id: string): [string, number] {
   const branches = variants.map(
     (v) => `${plural && /^\d+$/.test(v.key) ? `=${v.key}` : v.key} {${v.text}}`,
   );
-  if (plural && !variants.some((v) => v.key === "other")) {
+  // The default carries over as `other`, which is what ICU falls back
+  // to; a select keeps its own keys beside it.
+  if (!variants.some((v) => v.key === "other")) {
     const fallback = variants.find((v) => v.fallback) ?? variants.at(-1)!;
     branches.push(`other {${fallback.text}}`);
   }
@@ -246,12 +262,24 @@ const hasSelect = (text: string, m: Message) =>
 function render(icu: string, style: Style, refs: Set<string>): string {
   const place = (inner: string) =>
     style.spaced ? `{ ${inner} }` : `{${inner}}`;
-  const seq = (i: number, count?: string): [string, number] => {
+  // A line that starts with `.`, `[` or `*` would read as an attribute
+  // or a variant; Fluent's escape is a string literal.
+  const seq = (
+    i: number,
+    count?: string,
+    lineStart = false,
+  ): [string, number] => {
     let out = "";
+    let atStart = lineStart;
     while (i < icu.length) {
       const c = icu[i]!;
       if (c === "}") return [out, i];
-      if (c === "#" && count !== undefined) {
+      const wasStart = atStart;
+      atStart = false;
+      if (wasStart && (c === "." || c === "[" || c === "*")) {
+        out += `{"${c}"}`;
+        i++;
+      } else if (c === "#" && count !== undefined) {
         out += place(`$${count}`);
         i++;
       } else if (c === "{") {
@@ -260,6 +288,7 @@ function render(icu: string, style: Style, refs: Set<string>): string {
         i = next;
       } else if (c === "\n") {
         out += `\n${style.cont}`;
+        atStart = true;
         i++;
       } else {
         out += c;
@@ -296,13 +325,14 @@ function render(icu: string, style: Style, refs: Set<string>): string {
       : branches.at(-1)![0];
     const lines = branches.map(
       ([key, text]) =>
-        `${key === fallback ? `${style.fallback}*` : style.variant}[${key}]${text ? ` ${text}` : ""}`,
+        `${key === fallback ? `${style.fallback}*` : style.variant}[${key}] ${text || '{""}'}`,
     );
     const open = style.spaced ? `{ $${name} ->` : `{$${name} ->`;
     return [`${open}\n${lines.join("\n")}\n${style.close}}`, j];
   };
-  const [body] = seq(0);
-  return style.block ? `\n${style.cont}${body}` : body === "" ? "" : ` ${body}`;
+  const [body = ""] = seq(0, undefined, true);
+  const value = body === "" ? '{""}' : body;
+  return style.block ? `\n${style.cont}${value}` : ` ${value}`;
 }
 
 type Change = { id: string; text?: string };
@@ -330,27 +360,33 @@ function patch(text: string, changes: Change[], template: Template): string {
         : styleOf(template.text, source);
     return own ? { ...base, block: styleOf(text, own).block } : base;
   };
+  const eol = text.includes("\r\n") ? "\r\n" : "\n";
+  const lines = (value: string) => value.replace(/\n/g, eol);
   const patches: { start: number; end: number; text: string }[] = [];
   const appended: string[] = [];
   for (const { id, text: next } of changes) {
     const message = byId.get(id);
     if (next === undefined) {
       if (!message) continue;
-      const end = text[message.end] === "\n" ? message.end + 1 : message.end;
+      let end = message.end;
+      if (text[end] === "\r") end++;
+      if (text[end] === "\n") end++;
       patches.push({ start: message.start, end, text: "" });
     } else if (message) {
       if (toIcu(text, message) === next) continue;
       patches.push({
         start: message.valueStart,
         end: message.end,
-        text: render(next, styleFor(id), template.refsFor(id)),
+        text: lines(render(next, styleFor(id), template.refsFor(id))),
       });
     } else {
       // A new message is inline unless it selects and the file writes
       // its selects as blocks.
       const block = /,\s*(?:plural|select)\s*,/.test(next) && fileStyle.block;
       appended.push(
-        `${id} =${render(next, { ...styleFor(id), block }, template.refsFor(id))}\n`,
+        lines(
+          `${id} =${render(next, { ...styleFor(id), block }, template.refsFor(id))}\n`,
+        ),
       );
     }
   }
@@ -358,7 +394,7 @@ function patch(text: string, changes: Change[], template: Template): string {
   for (const p of patches.sort((a, b) => b.start - a.start))
     out = out.slice(0, p.start) + p.text + out.slice(p.end);
   if (appended.length === 0) return out;
-  if (out !== "" && !out.endsWith("\n")) out += "\n";
+  if (out !== "" && !out.endsWith("\n")) out += eol;
   return out + appended.join("");
 }
 

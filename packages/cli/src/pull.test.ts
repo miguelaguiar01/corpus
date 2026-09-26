@@ -825,7 +825,9 @@ copied = Copiado {$items} {$items ->
   writeFileSync(path.join(repo, "i18n", "gl", "app.ftl"), galician);
 
   const out = path.join(repo, "snapshot.json");
-  expect(await run(["build", "--out", out], ctx())).toBe(0);
+  const built = ctx();
+  expect(await run(["build", "--out", out], built)).toBe(0);
+  expect(built.output.join("\n")).not.toContain("cannot be written back");
   const snapshot = JSON.parse(readFileSync(out, "utf8"));
   expect(snapshot.strings[1]).toMatchObject({
     id: "copied",

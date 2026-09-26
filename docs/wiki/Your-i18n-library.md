@@ -231,7 +231,7 @@ copied = Copied {$items} {$items ->
 
 reads as `Copied {items} {items, plural, one {item} other {items}} to {trash}`. A select on other keys is an ICU select, so a translation that selects a count on words (`[unha]`, `[outra]`, which Fluent never matches) is named by `validate`. A pull writes a changed message back in that message's own layout and appends a new one at the end; everything else, comments included, stays byte for byte.
 
-Attributes (`.title =`), terms (`-brand`), function calls (`NUMBER($n)`) and string literals are refused by name, every one in the file at once, until a project needs them.
+Attributes (`.title =`), terms (`-brand`), function calls (`NUMBER($n)`) and string literals are refused by name, every one in the file at once, until a project needs them; the literals Corpus writes itself, `{""}` for an empty variant and `{"."}` for a line that starts with `.`, `[` or `*`, read back. A select whose default is not `[other]` gains an `other` branch with the default's text, since that is what ICU falls back to, and a message the translator changes is written with `*[other]` as its default.
 
 ## gettext and iOS
 
