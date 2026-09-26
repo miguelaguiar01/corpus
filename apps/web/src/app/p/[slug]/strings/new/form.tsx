@@ -51,10 +51,16 @@ export function AddStringForm({
         >
           {sources.map((source) => (
             <option key={source.path} value={source.path}>
-              {t("proposal.addSourceOption", {
-                path: source.path,
-                type: source.type,
-              })}
+              {source.namespace
+                ? t("proposal.addSourceOptionNamespaced", {
+                    path: source.path,
+                    type: source.type,
+                    namespace: source.namespace,
+                  })
+                : t("proposal.addSourceOption", {
+                    path: source.path,
+                    type: source.type,
+                  })}
             </option>
           ))}
         </select>

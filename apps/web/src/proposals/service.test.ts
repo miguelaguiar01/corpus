@@ -373,3 +373,35 @@ test("a refused text says what is wrong and what to do; an empty one says only t
     proposeEdit(db, { stringRowId: ui.id, text: "  ", actor: ana }),
   ).toEqual({ ok: false, reason: "invalid-icu" });
 });
+
+test("a new string for a namespaced file takes the file's namespace, and the push that lands it applies it (#582)", () => {
+  const { db, p, ana } = pushed();
+  const sources = [
+    {
+      path: "locales/{lang}/admin.json",
+      adapter: "messages" as const,
+      type: "chrome",
+      namespace: "admin",
+    },
+  ];
+  applySnapshot(db, p.id, { ...FIXTURE, sources });
+  const base = {
+    projectId: p.id,
+    sourcePath: "locales/{lang}/admin.json",
+    text: "Título",
+    actor: ana,
+  };
+  const bare = proposeAdd(db, { ...base, key: "title" });
+  expect(bare.ok && bare.proposal.key).toBe("admin:title");
+  const prefixed = proposeAdd(db, { ...base, key: "admin:subtitle" });
+  expect(prefixed.ok && prefixed.proposal.key).toBe("admin:subtitle");
+  applySnapshot(db, p.id, {
+    ...FIXTURE,
+    sources,
+    strings: [
+      ...FIXTURE.strings,
+      { id: "admin:title", type: "chrome", source: "Título" },
+    ],
+  });
+  expect(pendingKeys(db, p.id)).not.toContain("admin:title");
+});

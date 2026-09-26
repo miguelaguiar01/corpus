@@ -150,13 +150,16 @@ export function proposeAdd(
     .where(eq(projects.id, input.projectId))
     .get();
   if (!project) return { ok: false, reason: "not-found" };
-  const key = input.key.trim();
-  if (!stringEntrySchema.shape.id.safeParse(key).success)
+  const typed = input.key.trim();
+  if (!stringEntrySchema.shape.id.safeParse(typed).success)
     return { ok: false, reason: "invalid-key" };
   const source = (project.sources ?? []).find(
     (s) => s.path === input.sourcePath,
   );
   if (!source) return { ok: false, reason: "unknown-source" };
+  // A namespaced file's ids carry its namespace, as push reads them.
+  const prefix = source.namespace ? `${source.namespace}:` : "";
+  const key = prefix && !typed.startsWith(prefix) ? prefix + typed : typed;
   if (!validIcu(input.text, libraryOf(source))) {
     const message = invalidIcuMessage(input.text, libraryOf(source));
     return {

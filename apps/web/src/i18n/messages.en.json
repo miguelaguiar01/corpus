@@ -123,6 +123,7 @@
   "proposal.addNoSources": "This project declares no source Corpus can write to. Push from a repository with a JSON catalogue first.",
   "proposal.addSource": "Source file",
   "proposal.addSourceOption": "{path} ({type})",
+  "proposal.addSourceOptionNamespaced": "{path} ({type}), keys prefixed {namespace}:",
   "proposal.addSubmit": "Propose the string",
   "proposal.addText": "Source text",
   "proposal.added": "Proposed {key}. It reaches the repository with the next corpus pull.",

@@ -412,9 +412,9 @@ test("a {ns} pattern is one source per namespace, its ids prefixed ns:, and an a
   expect(snapshot.strings.find((s) => s.id === "admin:title")?.file).toBe(
     "ns/en/admin.json",
   );
-  expect(writableSources(ns).map((s) => s.path)).toEqual([
-    "ns/{lang}/admin.json",
-    "ns/{lang}/common.json",
+  expect(writableSources(ns).map((s) => [s.path, s.namespace])).toEqual([
+    ["ns/{lang}/admin.json", "admin"],
+    ["ns/{lang}/common.json", "common"],
   ]);
 
   // Two patterns share the source's type and library; a duplicate id

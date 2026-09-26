@@ -521,6 +521,9 @@ export function writableSources(config: CorpusConfig): WritableSource[] {
                 : source.path,
             adapter: source.adapter,
             type: source.type,
+            ...(typeof source.namespace === "string" && {
+              namespace: source.namespace,
+            }),
             ...libraryFields(source),
           },
         ]
