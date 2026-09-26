@@ -133,7 +133,42 @@ export function expandSources(input: CorpusInput, cwd: string): CorpusConfig {
     }
     seen.set(file, source.path);
   }
+  const misspelled = arbUnderscoreCodes(sources, input.languages, cwd);
+  if (misspelled) throw new CliError(misspelled);
   return { ...input, sources };
+}
+
+// gen-l10n names a Flutter project's files with underscores
+// (`strings_pt_PT.arb`); a config that writes `pt-PT` would pull a second
+// file beside it and seed nothing from it (#627), so it is told the code
+// to write instead.
+function arbUnderscoreCodes(
+  sources: Source[],
+  languages: string[],
+  cwd: string,
+): string | undefined {
+  for (const source of sources) {
+    if (source.adapter !== "messages" || !source.path.endsWith(".arb"))
+      continue;
+    const wrong = languages.filter((code) => {
+      if (!code.includes("-")) return false;
+      const underscore = code.replaceAll("-", "_");
+      return (
+        !existsSync(path.join(cwd, source.path.replace("{lang}", code))) &&
+        existsSync(path.join(cwd, source.path.replace("{lang}", underscore)))
+      );
+    });
+    if (wrong.length === 0) continue;
+    const pairs = wrong
+      .map((code) => `${code} as ${code.replaceAll("-", "_")}`)
+      .join(" and ");
+    const example = source.path
+      .replace("{lang}", wrong[0]!.replaceAll("-", "_"))
+      .split("/")
+      .at(-1);
+    return `${source.path} names its files with underscores: write ${pairs} in the config's languages, as gen-l10n does, so pull writes into ${example} rather than beside it`;
+  }
+  return undefined;
 }
 
 // The files a pattern names: `{lang}` is one segment holding a language

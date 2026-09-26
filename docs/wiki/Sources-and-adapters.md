@@ -90,7 +90,7 @@ Without `importCommand` the source is push-only, and every command that reads it
 
 A proposal is a separate matter: any writable `.json` source takes proposals back, `{lang}` or not, because a proposal is written into the source-language file.
 
-A `.arb` target that does not exist yet is written on the first pull with `"@@locale"` first, set to its language in the underscore form `gen-l10n` checks it against (`pt_PT` for a config's `pt-PT`, whatever form the file name carries), then the strings; the `@key` metadata stays in the source ARB, where `gen-l10n` reads it.
+A `.arb` target that does not exist yet is written on the first pull with `"@@locale"` first, set to its language in the underscore form `gen-l10n` checks it against (`pt_PT` for a config's `pt-PT`, whatever form the file name carries), then the strings; the `@key` metadata stays in the source ARB, where `gen-l10n` reads it. gen-l10n names the files themselves with underscores, `strings_pt_PT.arb`, so write the config's languages the same way, `pt_PT`: a config that says `pt-PT` over such a file is refused with the code to write, since pull would otherwise create `strings_pt-PT.arb` beside it.
 
 `build` and `push` print one line per source that cannot take translations back, so you learn it before anyone translates into it rather than after.
 
