@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   defineCorpus,
@@ -799,4 +802,36 @@ test("a config that still says syntax builds the same and is named once", async 
       }),
     ),
   ).toEqual([]);
+});
+
+test("a <br></br> pair builds under icu, a lone <br> is refused there, and an HTML type takes either (#643)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-br-"));
+  mkdirSync(path.join(dir, "i18n"));
+  writeFileSync(
+    path.join(dir, "i18n", "en.json"),
+    JSON.stringify({
+      pair: "Scroll<br></br>to zoom",
+      lone: "Scroll<br>to zoom",
+    }),
+  );
+  const at = (richText?: Record<string, "html">) =>
+    config({
+      languages: ["en"],
+      sources: [{ adapter: "messages", type: "ui", path: "i18n/{lang}.json" }],
+      ...(richText && { richText }),
+    });
+  const plain = await buildSnapshotReport(at(), dir);
+  expect(plain.snapshot.strings.map((s) => s.id)).toEqual(["pair"]);
+  expect(plain.refused).toEqual([
+    expect.objectContaining({
+      id: "lone",
+      message: expect.stringContaining("unclosed <br>"),
+    }),
+  ]);
+  const html = await buildSnapshotReport(at({ ui: "html" }), dir);
+  expect(html.snapshot.strings.map((s) => s.id).sort()).toEqual([
+    "lone",
+    "pair",
+  ]);
+  rmSync(dir, { recursive: true, force: true });
 });

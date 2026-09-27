@@ -1,5 +1,6 @@
 import {
   libraryOf,
+  hasVoidTags,
   parseIcu,
   refusalAdvice,
   snapshotSchema,
@@ -47,7 +48,9 @@ export function validateSnapshot(body: unknown): ValidationResult {
     stringIds.add(entry.id);
 
     const library = libraryOf(entry);
-    const icu = parseIcu(entry.source, library);
+    const icu = parseIcu(entry.source, library, {
+      html: hasVoidTags(library, snapshot.richText?.[entry.type]),
+    });
     if (!icu.ok) {
       // The CLI refuses these before a push, so this message reaches
       // every other client: the MCP tools, a hand-rolled POST. It

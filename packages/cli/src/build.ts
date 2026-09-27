@@ -14,6 +14,7 @@ import {
 import {
   entitySchema,
   libraryOf,
+  hasVoidTags,
   parseIcu,
   snapshotSchema,
   stringEntrySchema,
@@ -165,6 +166,7 @@ export async function buildSnapshotReport(
         execSeeds,
         errors,
         refused,
+        config.richText,
       );
       continue;
     }
@@ -201,6 +203,7 @@ export async function buildSnapshotReport(
         file,
         sourced,
         refused,
+        config.richText,
       );
     }
   }
@@ -277,9 +280,12 @@ function validateEntry(
   file: string,
   sourced: Sourced[],
   refused: Refused[],
+  richText: CorpusConfig["richText"],
 ): void {
   const syntax = libraryOf(entry);
-  const icu = parseIcu(entry.source, syntax);
+  const icu = parseIcu(entry.source, syntax, {
+    html: hasVoidTags(syntax, richText?.[entry.type]),
+  });
   if (icu.ok) sourced.push({ entry, file });
   else {
     const message = icu.errors[0]?.message ?? "";
@@ -355,6 +361,7 @@ function collectExec(
   execSeeds: ExecSeeds[],
   errors: string[],
   refused: Refused[],
+  richText: CorpusConfig["richText"],
 ): void {
   const ran = runExporter(command, cwd);
   if (!ran.ok) {
@@ -372,7 +379,7 @@ function collectExec(
     // pick what it rewrites, and an exec source is not rewritable.
     const entry = { ...parsedEntry.data };
     delete entry.file;
-    validateEntry(entry, `exec:${command}`, sourced, refused);
+    validateEntry(entry, `exec:${command}`, sourced, refused, richText);
   }
   for (const raw of out.entities ?? []) {
     const entity = entitySchema.safeParse(raw);

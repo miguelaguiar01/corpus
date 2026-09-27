@@ -310,9 +310,13 @@ test("a tag keeps its attribute text as its identity, and a void tag opens nothi
     ok: false,
     errors: [{ message: "unexpected </br>" }],
   });
+  // The advice never tells a pair to drop its close (#643).
   expect(refusalAdvice("one</br>two", "icu", "unexpected </br>")).toContain(
-    "<br> needs no closing tag: remove it",
+    "remove it, or open a matching <br>",
   );
+  expect(parseIcu(source, "icu", { html: false })).toMatchObject({
+    ok: false,
+  });
   // A name followed by a run of whitespace and no close is text, read
   // in linear time: the attribute group must not overlap the spaces.
   const started = Date.now();
@@ -543,4 +547,31 @@ test("i18next syntax: {{name}} is a placeholder, a single brace is text, there a
   });
   // The same text under ICU is an error, so the syntax is not optional.
   expect(parseIcu("{{ count }} items", "icu").ok).toBe(false);
+});
+
+test("<br> opens nothing only in HTML mode, where <br></br> is one <br> as browsers read it (#643)", () => {
+  expect(parseIcu("a<br></br>b", "icu", { html: false }).ok).toBe(true);
+  expect(parseIcu("a<br>b", "icu", { html: false })).toMatchObject({
+    ok: false,
+  });
+  expect(parseIcu("a<br>b", "icu").ok).toBe(true);
+  expect(parseIcu("a<br></br>b", "icu").ok).toBe(true);
+  expect([...tagsOf("a<br></br>b")]).toEqual(["br"]);
+  expect(parseIcu("a</br>b", "icu")).toMatchObject({ ok: false });
+});
+
+test("the lenient reading falls back to the strict one, so every source the strict reading takes has its parts read (#643)", () => {
+  for (const source of ["a<br> </br>b", "<br><b>x</b></br>"]) {
+    expect(parseIcu(source, "icu", { html: false }).ok).toBe(true);
+    expect(parseIcu(source).ok).toBe(true);
+    expect(tagsOf(source).has("br")).toBe(true);
+  }
+  // An unclosed void tag is advised as self-closing, never as </br>,
+  // which a browser renders as a second line break.
+  expect(refusalAdvice("a<br>b", "icu", "unclosed <br>")).toContain("<br/>");
+  expect(refusalAdvice("a<br>b", "icu", "unclosed <br>")).not.toContain(
+    "</br>",
+  );
+  // Void names are HTML's, which ignores case.
+  expect(parseIcu("a<BR>b", "icu").ok).toBe(true);
 });

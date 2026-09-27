@@ -7,6 +7,7 @@ import {
   parseIcu,
   pluralCategoriesOf,
   renderPreviewSegments,
+  hasVoidTags,
   isVoidTag,
   tagsOf,
   validateTranslation,
@@ -245,11 +246,12 @@ export function TargetPane({
         >
           {tags.map((name) => {
             // The identity carries the attribute text; the close is the
-            // bare name, and a void tag has no close (#590).
+            // bare name, and a void tag has none where the text is HTML
+            // (#590, #643).
             const bare = name.split(/\s/)[0]!;
-            const token = isVoidTag(bare)
-              ? `<${name}/>`
-              : `<${name}></${bare}>`;
+            const voided =
+              isVoidTag(bare) && hasVoidTags(syntax, richText ?? undefined);
+            const token = voided ? `<${name}/>` : `<${name}></${bare}>`;
             return (
               <button
                 key={name}
@@ -261,7 +263,7 @@ export function TargetPane({
                 })}
                 title={t("editor.insertTag", { name })}
                 onClick={() =>
-                  insert(token, isVoidTag(bare) ? undefined : name.length + 2)
+                  insert(token, voided ? undefined : name.length + 2)
                 }
               >
                 {`<${name}>`}

@@ -67,11 +67,12 @@ const PLURAL_KEY_RE = /^(?:zero|one|two|few|many|other|=[0-9]+)$/;
 // close, with nothing else matching spaces, so a name followed by a run
 // of whitespace and no `>` is linear, not cubic; readTag trims it.
 const TAG_RE = /^<(\/?)([A-Za-z][A-Za-z0-9_-]*|[0-9]+)((?:\s[^<>]*?)?)(\/?)>/;
-// HTML's void elements: <br> opens nothing and </br> is never right.
+// HTML's void elements, read so only where the text's tags are HTML or
+// its library treats them so (#643); HTML ignores their case.
 const VOID_TAGS = new Set(["br", "hr", "wbr", "img"]);
 
 export function isVoidTag(name: string): boolean {
-  return VOID_TAGS.has(name);
+  return VOID_TAGS.has(name.toLowerCase());
 }
 
 // A tag's identity for a chip and for the check that a translation
@@ -120,6 +121,7 @@ class Parser {
   constructor(
     private readonly source: string,
     private readonly syntax: Library,
+    private readonly html: boolean,
   ) {}
 
   // Inside a plural's branch, `#` is the number; anywhere else it is text.
@@ -350,12 +352,19 @@ class Parser {
     const start = this.pos;
     this.pos += match[0].length;
     const name = match[2]!;
+    const voided = this.html && match[4] !== "/" && isVoidTag(name);
     const kind =
-      match[1] === "/"
-        ? "close"
-        : match[4] === "/" || VOID_TAGS.has(name)
-          ? "self"
-          : "open";
+      match[1] === "/" ? "close" : match[4] === "/" || voided ? "self" : "open";
+    // `<br></br>` is one tag here: react-i18next reads it so, and a
+    // browser renders the `</br>` as a second break, which is still no
+    // unclosed tag.
+    const close = `</${name}>`;
+    if (
+      voided &&
+      this.source.slice(this.pos, this.pos + close.length).toLowerCase() ===
+        close.toLowerCase()
+    )
+      this.pos += close.length;
     return { kind, name, ...(attrs ? { attrs } : {}), start };
   }
 
@@ -485,9 +494,29 @@ class Parser {
   }
 }
 
+// `html` reads `<br>`, `<hr>`, `<wbr>` and `<img>` as void elements
+// (#643): without it, where a component renders each tag, `<br></br>` is
+// a pair like any other and a lone `<br>` is unclosed. Validation passes
+// it for the text in hand; reading a source for its parts leaves it
+// unset, which takes whatever either reading takes.
 export function parseIcu(
   source: string,
   syntax: Library = "icu",
+  options: { html?: boolean } = {},
+): IcuParseResult {
+  if (options.html === undefined) {
+    const lenient = parseWith(source, syntax, true);
+    if (lenient.ok) return lenient;
+    const strict = parseWith(source, syntax, false);
+    return strict.ok ? strict : lenient;
+  }
+  return parseWith(source, syntax, options.html);
+}
+
+function parseWith(
+  source: string,
+  syntax: Library,
+  html: boolean,
 ): IcuParseResult {
   try {
     if (syntax === "vue") {
@@ -521,7 +550,7 @@ export function parseIcu(
         }
       }
       const branches = parts.map((part) =>
-        new Parser(part.trim(), syntax).parseSequence(false),
+        new Parser(part.trim(), syntax, html).parseSequence(false),
       );
       return {
         ok: true,
@@ -529,7 +558,10 @@ export function parseIcu(
           branches.length === 1 ? branches[0]! : [{ kind: "forms", branches }],
       };
     }
-    return { ok: true, nodes: new Parser(source, syntax).parseSequence(false) };
+    return {
+      ok: true,
+      nodes: new Parser(source, syntax, html).parseSequence(false),
+    };
   } catch (error) {
     if (error instanceof ParseFailure) {
       return {
@@ -797,9 +829,13 @@ function refusal(
 ): { cause: RefusalCause; advice: string } | undefined {
   const unclosed = /^unclosed <([^>]+)>$/.exec(message);
   if (unclosed) {
+    // `</br>` would render a second break in HTML; `<br/>` closes itself
+    // for a component and for HTML alike (#643).
     return {
       cause: "tag",
-      advice: `; a <name> is a rich-text tag: close it with </${unclosed[1]}>, or write the brackets so they do not open a tag`,
+      advice: isVoidTag(unclosed[1]!)
+        ? `; write <${unclosed[1]}/>, which closes itself, or declare the string's type richText: "html" if the app renders it as HTML`
+        : `; a <name> is a rich-text tag: close it with </${unclosed[1]}>, or write the brackets so they do not open a tag`,
     };
   }
   const mismatched = /^unexpected <\/([^>]+)>; <([^>]+)> is open$/.exec(
@@ -815,9 +851,7 @@ function refusal(
   if (stray) {
     return {
       cause: "tag",
-      advice: isVoidTag(stray[1]!)
-        ? `; <${stray[1]}> needs no closing tag: remove it`
-        : `; a <name> is a rich-text tag: remove it, or open a matching <${stray[1]}>`,
+      advice: `; a <name> is a rich-text tag: remove it, or open a matching <${stray[1]}>`,
     };
   }
   // The library hints fire on the error the wrong library produces and

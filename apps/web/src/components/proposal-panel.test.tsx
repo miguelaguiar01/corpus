@@ -49,6 +49,27 @@ test("text equal to the source or failing the ICU parse disables the submit and 
   expect(submit.disabled).toBe(false);
 });
 
+test("a lone <br> disables the submit under icu, as the server refuses it, and not in an HTML type (#643)", () => {
+  panel({ source: "Scroll<br></br>to zoom", slots: [] });
+  fireEvent.click(screen.getByRole("button", { name: "Propose a change" }));
+  const box = screen.getByLabelText("Proposed source text");
+  fireEvent.change(box, { target: { value: "Scroll<br>to zoom in" } });
+  const submit = () =>
+    (
+      screen.getByRole("button", {
+        name: "Propose",
+      }) as HTMLButtonElement
+    ).disabled;
+  expect(submit()).toBe(true);
+  cleanup();
+  panel({ source: "Scroll<br></br>to zoom", slots: [], richText: "html" });
+  fireEvent.click(screen.getByRole("button", { name: "Propose a change" }));
+  fireEvent.change(screen.getByLabelText("Proposed source text"), {
+    target: { value: "Scroll<br>to zoom in" },
+  });
+  expect(submit()).toBe(false);
+});
+
 test("a pending proposal shows its kind, text and author; withdraw only when allowed; the buttons stay", () => {
   panel({
     pending: {

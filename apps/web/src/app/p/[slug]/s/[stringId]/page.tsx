@@ -307,6 +307,7 @@ export default async function StringPage({
                 language={target}
                 source={string.source}
                 syntax={string.syntax}
+                richText={string.richText}
                 slots={slots}
                 writable={string.file !== null}
                 keyIsText={string.keyIsText}
