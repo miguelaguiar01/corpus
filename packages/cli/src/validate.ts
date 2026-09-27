@@ -74,7 +74,7 @@ export async function validate(
     for (const f of invalid) ctx.err(line(f));
     for (const { first, targets } of byKey.values()) {
       ctx.err(
-        `${first.sourceFile}:${first.key}: ${first.message}; ${targets} target file(s) carry it`,
+        `${first.sourceFile}:${printable(first.key)}: ${first.message}; ${targets} target file(s) carry it`,
       );
     }
     for (const f of incomplete) ctx.err(line(f));

@@ -227,7 +227,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
                 : applyTableOps(existing, targetOps, source.map);
       } catch (error) {
         throw new CliError(
-          `${target}: proposal(s) for ${targetOps.map((o) => o.id).join(", ")}: ${(error as Error).message}`,
+          `${target}: proposal(s) for ${targetOps.map((o) => printable(o.id)).join(", ")}: ${(error as Error).message}`,
         );
       }
       if (next !== existing) {
