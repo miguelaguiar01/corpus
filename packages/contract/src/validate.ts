@@ -16,6 +16,7 @@
 import {
   parseIcu,
   pluralCategoriesOf,
+  pluralCategoryCovered,
   printfVerbOf,
   type IcuNode,
   tagIdentity,
@@ -294,8 +295,18 @@ export function validateTranslation(
       continue;
     }
     if (categories.length === 0) continue;
+    // `=01` is not `=1` to the runtimes, which match the key as written.
+    const exact = new Set(
+      [...keys]
+        .filter((k) => /^=(0|[1-9]\d*)$/.test(k))
+        .map((k) => Number(k.slice(1))),
+    );
     for (const key of categories) {
-      if (!keys.has(key)) errors.push({ code: "missing-category", arg, key });
+      if (
+        !keys.has(key) &&
+        !(language && pluralCategoryCovered(language, key, exact))
+      )
+        errors.push({ code: "missing-category", arg, key });
     }
     for (const key of keys) {
       if (!key.startsWith("=") && !categories.includes(key))
