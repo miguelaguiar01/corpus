@@ -156,6 +156,8 @@ export default defineCorpus({
     //    text the repository already holds for its strings, seeded on push (§8);
     //    a text may be `{ text, state: "translated" }`, a translation the
     //    repository marks done though it equals the source (a loanword).
+    // `importCommand` writes translations back; with `importCheck: true`
+    //    it honours CORPUS_PULL_CHECK=1, and `pull --check` runs it (§8).
     { adapter: "exec", command: "npx tsx scripts/corpus-export.ts" },
   ],
   // pull writes translations back through the same adapters in reverse;

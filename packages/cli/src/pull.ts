@@ -491,7 +491,12 @@ function changedFiles(stdout: string): string[] | undefined {
 // to the repository, forward slashes; undefined outside it.
 function repoPath(cwd: string, file: string): string | undefined {
   const rel = path.relative(cwd, path.resolve(cwd, file.replaceAll("\\", "/")));
-  if (rel === "" || rel.startsWith("..") || path.isAbsolute(rel))
+  if (
+    rel === "" ||
+    rel === ".." ||
+    rel.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(rel)
+  )
     return undefined;
   return rel.split(path.sep).join("/");
 }
