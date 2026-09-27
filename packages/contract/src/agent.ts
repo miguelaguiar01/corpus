@@ -62,8 +62,8 @@ export type StringResponse = {
   // (§5): "icu", "i18next" for {{name}} interpolation, "vue" for pipe
   // plurals and {'…'} literals, "printf" for %s and %[2]s verbs named
   // by position (#594), "chrome" for $NAME$ (#595), "counterpart" for
-  // %(name)s and bare <tag> substitutions (#663), or "easy_localization"
-  // for {} and @:key links (#664). `syntax` is the
+  // %(name)s and bare <tag> substitutions (#663), "easy_localization"
+  // for {} and @:key links (#664), or "rails" for %{name} (#665). `syntax` is the
   // field's old name, sent beside it with the same value until 1.0,
   // when it goes with the config's alias (#522).
   library: Library;

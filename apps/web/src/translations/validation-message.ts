@@ -21,7 +21,9 @@ export function validationMessage(
       if (
         (syntax === "printf" ||
           syntax === "android" ||
-          syntax === "counterpart") &&
+          syntax === "counterpart" ||
+          syntax === "easy_localization" ||
+          syntax === "rails") &&
         error.written === undefined
       )
         return t("editor.pluralDropped", { name: error.name });

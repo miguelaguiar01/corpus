@@ -603,6 +603,7 @@ test("each library has a name for messages (#644)", () => {
     "Android",
     "counterpart",
     "easy_localization",
+    "Rails I18n",
   ]);
 });
 

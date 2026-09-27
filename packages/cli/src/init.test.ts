@@ -913,3 +913,24 @@ test("a vue catalogue's links and an ICU catalogue's stray {} do not make easy_l
     library: "printf",
   });
 });
+
+test("init names rails where %{name} placeholders dominate (#665)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "src", "i18n"), { recursive: true });
+  writeFileSync(
+    path.join(p.dir, "src", "i18n", "pt-PT.json"),
+    JSON.stringify({
+      a: "Welcome to %{application_name}",
+      b: "%{count} posts",
+      c: "Plain",
+    }),
+  );
+  expect(await run(FLAGS, p.ctx)).toBe(0);
+  expect((await loadConfig(p.dir)).sources[0]).toMatchObject({
+    library: "rails",
+  });
+  expect(p.out.join("\n")).toMatch(
+    /library: rails, from %\{name\} placeholders/,
+  );
+});
