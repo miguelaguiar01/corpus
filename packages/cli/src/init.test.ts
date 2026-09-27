@@ -758,4 +758,5 @@ test("init refuses a catalogue no adapter reads, by its format (#647)", async ()
     ),
   ).toBe(1);
   expect(p.err.join("\n")).toMatch(/a Qt Linguist catalogue/);
+  expect(existsSync(path.join(p.dir, "corpus.config.mjs"))).toBe(false);
 });

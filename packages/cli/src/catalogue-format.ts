@@ -41,7 +41,7 @@ export function unreadableCatalogue(
   if (
     ext === ".ts" &&
     head !== undefined &&
-    /^\uFEFF?\s*<(\?xml|TS\b)/.test(head)
+    /^\uFEFF?\s*<(\?xml|!DOCTYPE TS\b|TS\b)/.test(head)
   )
     return `a Qt Linguist catalogue, which no adapter reads: ${EXEC}`;
   if (READ.has(ext)) return null;
