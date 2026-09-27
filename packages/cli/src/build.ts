@@ -544,9 +544,14 @@ export function fileOf(
 export function readsPluralObjects(source: FileSource): boolean {
   return (
     source.adapter === "messages" &&
-    ["icu", "i18next", "printf", "counterpart", "easy_localization"].includes(
-      libraryOf(source),
-    )
+    [
+      "icu",
+      "i18next",
+      "printf",
+      "counterpart",
+      "easy_localization",
+      "rails",
+    ].includes(libraryOf(source))
   );
 }
 

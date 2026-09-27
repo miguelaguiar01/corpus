@@ -23,7 +23,7 @@ import {
 import { ignoreCorpusDir } from "./corpus-dir";
 
 export const INIT_USAGE =
-  "corpus init --project <slug> --source <lang> --messages <path with {lang}> [--languages <a,b>] [--server <url>] [--type <name>] [--library <icu|i18next|vue|printf|chrome|counterpart|easy_localization>]";
+  "corpus init --project <slug> --source <lang> --messages <path with {lang}> [--languages <a,b>] [--server <url>] [--type <name>] [--library <icu|i18next|vue|printf|chrome|counterpart|easy_localization|rails>]";
 
 // `corpus init` writes the config from flags alone, so it scripts;
 // it validates the config before writing and never overwrites one.
@@ -171,7 +171,9 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
               ? "%(name)s placeholders"
               : library.value === "easy_localization"
                 ? "{} placeholders or @:key links"
-                : "a pipe or a quoted literal";
+                : library.value === "rails"
+                  ? "%{name} placeholders"
+                  : "a pipe or a quoted literal";
     ctx.out(
       `library: ${library.value}${library.detected ? `, from ${why} in ${library.detected}` : ""}`,
     );
@@ -361,6 +363,7 @@ const ICU_ARGUMENT_RE = /\{\s*[^{},]+\s*,\s*(?:select|plural)\s*,/;
 // i18next's {{ name }}, a single-brace {name}, and a printf verb.
 const DOUBLE_BRACE_RE = /\{\{\s*[^{}]+\}\}/;
 const COUNTERPART_RE = /%\([^()\s]+\)[sd]/;
+const RAILS_RE = /%\{[^{}\s]+\}/;
 const SINGLE_BRACE_RE = /(?<!\{)\{\s*[\p{L}_][\p{L}\p{M}\p{N}_.-]*\s*\}(?!\})/u;
 // C's length modifiers and Objective-C's %@ count as verbs too (#614).
 const PRINTF_RE =
@@ -474,6 +477,19 @@ async function libraryFor(
   // outnumbers the single-brace and the printf strings; one {{ }} among
   // four thousand printf strings is a template, not the library (#591).
   const doubles = texts.filter((text) => DOUBLE_BRACE_RE.test(text)).length;
+  // Rails I18n (#665): `%{name}`, whose braces would count as ICU's.
+  const rails = texts.filter((text) => RAILS_RE.test(text)).length;
+  const bare = texts.filter(
+    (text) =>
+      !RAILS_RE.test(text) &&
+      !DOUBLE_BRACE_RE.test(text) &&
+      SINGLE_BRACE_RE.test(text),
+  ).length;
+  if (
+    rails > doubles + bare &&
+    rails > texts.filter((text) => PRINTF_RE.test(text)).length
+  )
+    return { library: { value: "rails", detected: file } };
   const singles = texts.filter(
     (text) => !DOUBLE_BRACE_RE.test(text) && SINGLE_BRACE_RE.test(text),
   ).length;

@@ -1068,3 +1068,41 @@ test("under easy_localization {} is positional, {name} named, and a link must be
     validateTranslation("Open @:appName.", "Öffne @:appName.", "de", lib),
   ).toEqual({ ok: true });
 });
+
+test("under rails %{name} is a placeholder, %%{ a literal, braces text (#665)", () => {
+  const lib = "rails" as const;
+  // Discourse: a draft writing {application_name} breaks at runtime.
+  expect(
+    validateTranslation(
+      "Welcome to %{application_name}",
+      "Willkommen bei {application_name}",
+      "de",
+      lib,
+    ),
+  ).toEqual({
+    ok: false,
+    errors: [
+      {
+        code: "missing-placeholder",
+        name: "application_name",
+        written: "%{application_name}",
+      },
+    ],
+  });
+  expect(
+    validateTranslation(
+      "Type %%{name} for {curly} and <b>%{count}</b> %",
+      "Tippe %%{name} für {curly} und <b>%{count}</b> %",
+      "de",
+      lib,
+    ),
+  ).toEqual({ ok: true });
+  expect(
+    validateTranslation(
+      "{count, plural, one {%{count} post} other {%{count} posts}}",
+      "{count, plural, one {%{count} Beitrag} other {%{count} Beiträge}}",
+      "de",
+      lib,
+    ),
+  ).toEqual({ ok: true });
+});

@@ -6,7 +6,7 @@ A source declares the library its catalogue was written for:
 
 One value decides how placeholders are spelled, how plurals are written, and what is escaped. `icu` is the default and what an absent field means.
 
-`corpus init` looks at your source file and writes the library it finds, saying so as it does: `i18next` when more values use `{{name}}` than use a single-brace `{name}` or a printf verb, and none holds an ICU plural or select, `vue` when they use a top-level pipe or a `{'…'}` literal and neither of those, `chrome` when every value is a Chrome i18n entry with a `message`, `counterpart` when `%(name)s` placeholders outnumber every other shape, `easy_localization` when a string holds `{}` or an `@:key` link. It writes nothing for a plain ICU catalogue, since that is the default.
+`corpus init` looks at your source file and writes the library it finds, saying so as it does: `i18next` when more values use `{{name}}` than use a single-brace `{name}` or a printf verb, and none holds an ICU plural or select, `vue` when they use a top-level pipe or a `{'…'}` literal and neither of those, `chrome` when every value is a Chrome i18n entry with a `message`, `counterpart` when `%(name)s` placeholders outnumber every other shape, `easy_localization` when a string holds `{}` or an `@:key` link, `rails` when `%{name}` placeholders outnumber every other shape. It writes nothing for a plain ICU catalogue, since that is the default.
 
 (`syntax` is the old name for this field. A config that still uses it works, and `build`, `push` and `validate` each say once that the field has been renamed. It goes at 1.0.)
 
@@ -162,6 +162,12 @@ Two things to know. **A moved verb needs its index.** Unindexed verbs are read i
 `library: "easy_localization"` is the Flutter package's syntax. `{}` is a positional placeholder, the first `{}` of a string the first argument, so a translation keeps their order, and `{name}` a named one; `@:key` links to another key's text, and `@.upper:key` (or `.lower`, `.capitalize`) links with a modifier. A translation keeps each placeholder and each link as written: a draft that drops `@:appName` is refused, and one that writes `@:appName-Konto`, which the package reads as a link to a key named `appName-Konto`, is told the link it lost and the one it made. Braces around anything else, `#` and angle brackets are text. Plurals are JSON objects, `{ "one": "{} file", "other": "{} files" }`, read as one plural whose `{}` is the count.
 
 `corpus init` writes it when strings with `{}` or links outnumber those with single-brace or ICU arguments (vue-i18n writes `@:key` links too, so a link counts only where nothing else says vue), and a `{}` refused under another library says to declare it.
+
+## Rails I18n and I18n.js
+
+`library: "rails"` is Rails' interpolation, which I18n.js shares. `%{name}` is a placeholder a translation keeps as written, and the chip inserts it whole: `{application_name}` without the `%` is text to Rails and prints as it stands, so a translation that writes it is refused with `missing %{application_name}`. `%%{` is a literal `%{`; other braces, `#` and a lone `%` are text; tags are read as under ICU unless the type is declared `richText: { ui: "html" }`. Plurals are hashes, `{ "one": "%{count} post", "other": "%{count} posts" }`, read as one plural.
+
+`corpus init` writes it when `%{name}` placeholders outnumber every other shape.
 
 ## Chrome i18n: browser extensions
 

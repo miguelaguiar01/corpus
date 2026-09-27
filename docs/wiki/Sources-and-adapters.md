@@ -12,7 +12,7 @@ One key-value catalogue per language.
 
 The files are JSON (`.json`, Flutter's `.arb`) or a JavaScript or TypeScript module that default-exports the object. Any other catalogue, gettext `.po`, YAML, XLIFF, a String Catalog, Qt Linguist's XML `.ts`, is refused by name, and an [exec](#exec) source converts it.
 
-An object whose keys are all plural categories, `other` among them, is one string, not one per key: `"rooms": { "one": "{{count}} room", "other": "{{count}} rooms" }` reads as `{count, plural, one {{{count}} room} other {{{count}} rooms}}`, so the editor shows one plural and a Polish translation gains `few` and `many`, which a pull writes back into the object in CLDR's order. This holds under `icu`, `i18next`, `printf`, `counterpart` and `easy_localization`; under `vue` the forms stay keys of their own.
+An object whose keys are all plural categories, `other` among them, is one string, not one per key: `"rooms": { "one": "{{count}} room", "other": "{{count}} rooms" }` reads as `{count, plural, one {{{count}} room} other {{{count}} rooms}}`, so the editor shows one plural and a Polish translation gains `few` and `many`, which a pull writes back into the object in CLDR's order. This holds under `icu`, `i18next`, `printf`, `counterpart`, `easy_localization` and `rails`; under `vue` the forms stay keys of their own.
 
 `{lang}` is required and is filled with each language in turn, so the source language's file is what push reads, and every other file is a translation it already has when the path is `.json`. Nested objects flatten to dotted keys, so `{ "editor": { "save": "Save" } }` is the string `editor.save`.
 

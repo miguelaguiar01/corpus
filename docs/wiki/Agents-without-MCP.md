@@ -109,7 +109,7 @@ $ corpus agent proposals
         "text": "Save the document",
         "status": "pending",
         "author": "acme-app agent",
-        "createdAt": "2026-09-27T22:18:08.124Z",
+        "createdAt": "2026-09-27T22:36:45.216Z",
         "mine": true
       }
     ]
@@ -129,7 +129,7 @@ $ corpus agent --stdin
   < {"op":"status"}
   < {"id":"d1","op":"draft","key":"editor.unsaved","language":"pt-PT","text":"Tem {count, plural, one {# alteração} many {# de alterações} other {# alterações}}"}
   < {"id":"bad","op":"draft","key":"editor.save","language":"pt-PT"}
-  > {"op":"status","ok":true,"result":{"project":"acme-app","sourceLanguage":"en","languages":["en","pt-PT"],"strings":2,"lastPushAt":"2026-09-27T22:18:04.694Z","version":"v0.20.0","pendingProposals":1,"writableSources":["src/i18n/{lang}.json"],"seedDigests":{"pt-PT":"811c9dc59747b28c"},"progress":{"perLanguage":{"en":{"untranslated":0,"translated":2,"verified":0,"stale":0,"invalid":0,"total":2},"pt-PT":{"untranslated":0,"translated":2,"verified":0,"stale":0,"invalid":0,"total":2}},"perType":{"ui":{"en":{"untranslated":0,"translated":2,"verified":0,"stale":0,"invalid":0,"total":2},"pt-PT":{"untranslated":0,"translated":2,"verified":0,"stale":0,"invalid":0,"total":2}}}}}}
+  > {"op":"status","ok":true,"result":{"project":"acme-app","sourceLanguage":"en","languages":["en","pt-PT"],"strings":2,"lastPushAt":"2026-09-27T22:36:41.824Z","version":"v0.20.0","pendingProposals":1,"writableSources":["src/i18n/{lang}.json"],"seedDigests":{"pt-PT":"811c9dc59747b28c"},"progress":{"perLanguage":{"en":{"untranslated":0,"translated":2,"verified":0,"stale":0,"invalid":0,"total":2},"pt-PT":{"untranslated":0,"translated":2,"verified":0,"stale":0,"invalid":0,"total":2}},"perType":{"ui":{"en":{"untranslated":0,"translated":2,"verified":0,"stale":0,"invalid":0,"total":2},"pt-PT":{"untranslated":0,"translated":2,"verified":0,"stale":0,"invalid":0,"total":2}}}}}}
   > {"id":"d1","op":"draft","ok":true,"result":{"key":"editor.unsaved","language":"pt-PT","state":"translated","text":"Tem {count, plural, one {# alteração} many {# de alterações} other {# alterações}}","actor":"acme-app agent"}}
   > {"id":"bad","op":"draft","ok":false,"error":"bad-line","message":"text is missing or not a string"}
 ```
