@@ -237,25 +237,15 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     }
   }
 
-  if (check) {
-    for (const source of config.sources) {
-      if (source.adapter === "exec" && source.importCommand) {
-        ctx.err(
-          `corpus: exec "${source.importCommand}" is not checked: an import command's writes are its own`,
-        );
-      }
-    }
-    const files = [...new Set(changed)];
-    for (const file of files) ctx.out(file);
-    ctx.out(
-      `pull --check ${config.project} at ${minState}: ${files.length} file(s) would change`,
-    );
-    return files.length === 0 ? 0 : 1;
-  }
-
   let ran = 0;
   for (const source of config.sources) {
     if (source.adapter !== "exec" || !source.importCommand) continue;
+    if (check && !source.importCheck) {
+      ctx.err(
+        `corpus: exec "${source.importCommand}" is not checked: set importCheck: true once it honours CORPUS_PULL_CHECK=1`,
+      );
+      continue;
+    }
     const translations: PullPayload["translations"] = {};
     for (const [language, texts] of Object.entries(payload.translations)) {
       if (!targets.includes(language)) continue;
@@ -265,25 +255,54 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
         ),
       );
     }
-    const result = spawnSync(source.importCommand, {
+    // Under --check the importer is asked, through the environment, which
+    // reaches it through `npm run` and a chained command where a flag
+    // would not, to report and not write (#659).
+    const command = source.importCommand;
+    const result = spawnSync(command, {
       shell: true,
       cwd: ctx.cwd,
       encoding: "utf8",
+      env: { ...process.env, CORPUS_PULL_CHECK: check ? "1" : undefined },
       input: JSON.stringify({ ...payload, translations }),
       maxBuffer: EXEC_MAX_BUFFER,
     });
     if (result.status !== 0) {
-      throw new CliError(
-        describeExecFailure(source.importCommand, result, "import"),
-      );
+      throw new CliError(describeExecFailure(command, result, "import"));
     }
     ran++;
-    ctx.out(`ran ${source.importCommand}`);
-    // What the importer said is the only account of what it wrote: the
-    // file count below is the adapters' alone (#599).
+    // Under --check stdout is the list of files, so the rest goes aside.
+    const say = (line: string) => (check ? ctx.err(line) : ctx.out(line));
+    say(`ran ${command}${check ? " (CORPUS_PULL_CHECK=1)" : ""}`);
     for (const line of result.stderr.split(/\r?\n/)) {
-      if (line.trim() !== "") ctx.out(`  ${line}`);
+      if (line.trim() !== "") say(`  ${line}`);
     }
+    // An importer that prints `{"changed": [paths]}` as its last line
+    // has its files counted with the adapters' (#659); one that does
+    // not is its own account, as before (#599), and is no check.
+    const reported = changedFiles(result.stdout);
+    if (reported) {
+      for (const file of reported) {
+        const rel = repoPath(ctx.cwd, file);
+        if (rel === undefined)
+          throw new CliError(
+            `exec "${command}" reported ${file} changed, which is outside the repository`,
+          );
+        changed.push(rel);
+      }
+    } else if (check)
+      ctx.err(
+        `corpus: exec "${source.importCommand}" is not checked: it printed no {"changed": […]} line under CORPUS_PULL_CHECK=1`,
+      );
+  }
+
+  if (check) {
+    const files = [...new Set(changed)];
+    for (const file of files) ctx.out(file);
+    ctx.out(
+      `pull --check ${config.project} at ${minState}: ${files.length} file(s) would change`,
+    );
+    return files.length === 0 ? 0 : 1;
   }
 
   const importers = config.sources.filter(
@@ -451,4 +470,33 @@ function stripNamespace(
     else refused.push(op);
   }
   return { ops: kept, refused };
+}
+
+// The files an importer says it changed, from its last stdout line.
+function changedFiles(stdout: string): string[] | undefined {
+  const last = stdout.trimEnd().split(/\r?\n/).pop()?.trim();
+  if (!last?.startsWith("{")) return undefined;
+  try {
+    const parsed = JSON.parse(last) as { changed?: unknown };
+    return Array.isArray(parsed.changed) &&
+      parsed.changed.every((f) => typeof f === "string")
+      ? (parsed.changed as string[])
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+// A path an importer reported, as the adapters' are written: relative
+// to the repository, forward slashes; undefined outside it.
+function repoPath(cwd: string, file: string): string | undefined {
+  const rel = path.relative(cwd, path.resolve(cwd, file.replaceAll("\\", "/")));
+  if (
+    rel === "" ||
+    rel === ".." ||
+    rel.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(rel)
+  )
+    return undefined;
+  return rel.split(path.sep).join("/");
 }

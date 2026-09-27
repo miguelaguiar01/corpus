@@ -63,6 +63,10 @@ const execSchema = z.looseObject({
   adapter: z.literal("exec"),
   command: z.string().min(1),
   importCommand: z.string().min(1).optional(),
+  // The import command honours CORPUS_PULL_CHECK=1 by reporting what
+  // it would change and writing nothing, so `pull --check` may run it
+  // (#659). Without it, a check never runs an import command.
+  importCheck: z.boolean().optional(),
 });
 
 // Android's `res` directory (#596): `values/strings.xml` is the source

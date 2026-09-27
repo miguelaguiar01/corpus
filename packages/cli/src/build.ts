@@ -199,6 +199,7 @@ export async function buildSnapshotReport(
         errors,
         refused,
         config.richText,
+        notes,
       );
       continue;
     }
@@ -259,6 +260,8 @@ export async function buildSnapshotReport(
     new Set(sourced.map((s) => s.entry.id)),
     execSeeds,
     errors,
+    notes,
+    new Set(refused.map((r) => r.id)),
   );
   // A mark counts only for a seed that is there to import.
   const seedTranslated: Record<string, string[]> = {};
@@ -382,7 +385,9 @@ export type ExporterOutput = {
 export function runExporter(
   command: string,
   cwd: string,
-): { ok: true; output: ExporterOutput } | { ok: false; error: string } {
+):
+  | { ok: true; output: ExporterOutput; stderr: string }
+  | { ok: false; error: string } {
   const result = spawnSync(command, {
     shell: true,
     cwd,
@@ -393,11 +398,19 @@ export function runExporter(
     return { ok: false, error: describeExecFailure(command, result) };
   }
   try {
-    return { ok: true, output: JSON.parse(result.stdout) as ExporterOutput };
+    return {
+      ok: true,
+      output: JSON.parse(result.stdout) as ExporterOutput,
+      stderr: result.stderr ?? "",
+    };
   } catch {
     return { ok: false, error: `exec "${command}" did not emit valid JSON` };
   }
 }
+
+// How much of an exporter's stderr is said: a converter's summary, not
+// a tool's every warning.
+const STDERR_LINES = 20;
 
 function collectExec(
   command: string,
@@ -408,12 +421,23 @@ function collectExec(
   errors: string[],
   refused: Refused[],
   richText: CorpusConfig["richText"],
+  notes: string[],
 ): void {
   const ran = runExporter(command, cwd);
   if (!ran.ok) {
     errors.push(ran.error);
     return;
   }
+  // What an exporter says on stderr is its own account, skipped or
+  // fuzzy entries (#659): said under its command, as pull says an
+  // importer's.
+  const said = ran.stderr.split(/\r?\n/).filter((line) => line.trim() !== "");
+  for (const line of said.slice(0, STDERR_LINES))
+    notes.push(`exec "${command}": ${line}`);
+  if (said.length > STDERR_LINES)
+    notes.push(
+      `exec "${command}": … and ${said.length - STDERR_LINES} more line(s) on stderr`,
+    );
   const out = ran.output;
   for (const raw of out.strings ?? []) {
     const parsedEntry = stringEntrySchema.safeParse(raw);
@@ -705,9 +729,16 @@ async function readSeeds(
   ids: Set<string>,
   execSeeds: ExecSeeds[],
   errors: string[],
+  notes: string[],
+  refusedIds: Set<string>,
 ): Promise<Record<string, Record<string, string>>> {
   const seeds: Record<string, Record<string, string>> = {};
   for (const { command, translations } of execSeeds) {
+    // Every translation an exporter hands over is accounted for (#659):
+    // Discourse's 252,417 came to six fewer seeds, with no line why.
+    let unknown = 0;
+    let refusedCount = 0;
+    let empty = 0;
     for (const [lang, texts] of Object.entries(translations)) {
       if (lang === config.sourceLanguage) {
         errors.push(
@@ -722,10 +753,21 @@ async function readSeeds(
         continue;
       }
       for (const [id, text] of Object.entries(texts)) {
-        if (!ids.has(id) || text.trim() === "") continue;
-        (seeds[lang] ??= {})[id] = text;
+        if (refusedIds.has(id)) refusedCount += 1;
+        else if (!ids.has(id)) unknown += 1;
+        else if (text.trim() === "") empty += 1;
+        else (seeds[lang] ??= {})[id] = text;
       }
     }
+    const left = [
+      unknown ? `${unknown} for ids it did not emit` : "",
+      refusedCount ? `${refusedCount} for strings refused above` : "",
+      empty ? `${empty} empty` : "",
+    ].filter(Boolean);
+    if (left.length > 0)
+      notes.push(
+        `exec "${command}": ${unknown + refusedCount + empty} translation(s) not seeded: ${left.join(", ")}`,
+      );
   }
   for (const source of config.sources) {
     if (source.adapter === "exec" || !hasLanguages(source)) continue;

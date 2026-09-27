@@ -11,6 +11,7 @@ export default defineCorpus({
       adapter: "exec",
       command: "node scripts/export.mjs",
       importCommand: "node scripts/import.mjs",
+      importCheck: true,
     },
   ],
 });
