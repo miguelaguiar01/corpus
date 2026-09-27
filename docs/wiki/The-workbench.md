@@ -16,7 +16,7 @@ Corpus workbench 0.16.0 is running at http://localhost:3000
   stop      Ctrl-C
 ```
 
-Three things now exist under `.corpus/`, which `init` and `workbench` both add to your `.gitignore`, creating the file when there is none:
+Three things now exist under `.corpus/`, which `init` and `workbench` both add to your `.gitignore`, creating the file when there is none, unless git already ignores it (a parent `.gitignore`, `.git/info/exclude`, your global excludes file):
 
 - **`corpus.db`**, the database, with `corpus.db-wal` and `corpus.db-shm` beside it while it runs. SQLite in write-ahead mode keeps all three, which matters when you copy them.
 - **`secret`**, the instance secret. Anyone with it can join.
