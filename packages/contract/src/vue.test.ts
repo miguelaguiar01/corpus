@@ -159,5 +159,8 @@ test("formsOf counts a vue source's pipe forms, and nothing else (#660)", () => 
   expect(formsOf("no posts | one post | {n} posts", "vue")).toBe(3);
   expect(formsOf("{count} script | {count} scripts", "vue")).toBe(2);
   expect(formsOf("Pipe (|)", "vue")).toBe(0);
+  expect(formsOf("a {'|'} b", "vue")).toBe(0);
+  // A source that does not parse has no forms to count.
+  expect(formsOf("a | {b", "vue")).toBe(0);
   expect(formsOf("{n, plural, one {a} other {b}}", "icu")).toBe(0);
 });
