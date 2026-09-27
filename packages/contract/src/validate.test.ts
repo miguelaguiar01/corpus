@@ -669,6 +669,38 @@ test("an =1 branch is the one category where one holds only 1; not in French, wh
   ).toMatchObject({
     incomplete: [{ code: "missing-category", arg: "n", key: "one" }],
   });
+  // Arabic's and Welsh's zero is 0 alone; Brazilian Portuguese's one
+  // holds 0 and 1, Portugal's 1 alone.
+  for (const language of ["ar", "cy"])
+    expect(
+      validateTranslation(
+        "{n, plural, other {x}}",
+        "{n, plural, =0 {a} one {b} two {c} few {d} many {e} other {f}}",
+        language,
+      ),
+    ).not.toHaveProperty("incomplete");
+  expect(
+    validateTranslation(
+      source,
+      "{n, plural, =1 {a} many {b} other {c}}",
+      "pt-PT",
+    ),
+  ).not.toHaveProperty("incomplete");
+  expect(
+    validateTranslation(source, "{n, plural, =1 {a} many {b} other {c}}", "pt"),
+  ).toMatchObject({ incomplete: [{ key: "one" }] });
+  // A key the runtimes match as written: =01 is not =1.
+  expect(
+    validateTranslation(source, "{n, plural, =01 {a} other {b}}", "de"),
+  ).toMatchObject({ incomplete: [{ key: "one" }] });
+  // Unbounded categories are never covered by a list of =N.
+  expect(
+    validateTranslation(
+      source,
+      "{n, plural, =1 {a} =1000000 {b} =2000000 {c} other {d}}",
+      "es",
+    ),
+  ).toMatchObject({ incomplete: [{ key: "many" }] });
   // Spanish's many is a million and up: no =N covers it.
   expect(
     validateTranslation(source, "{n, plural, =1 {a} other {b}}", "es"),

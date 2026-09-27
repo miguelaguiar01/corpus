@@ -811,7 +811,9 @@ const samplesByLanguage = new Map<string, Map<string, number[]>>();
 // Whether a plural's `=N` branches reach every value the language puts
 // in a category, so the category's own branch would never be taken
 // (#650): `=1` is German's `one`, not French's, which holds 0 and 1.5,
-// nor Russian's, which holds 21.
+// nor Russian's, which holds 21. Only a category bounded within the
+// samples can be covered: Spanish `many` holds every million, Slovenian
+// `one` 101 and 1001, and no finite list of `=N` names them all.
 export function pluralCategoryCovered(
   language: string,
   category: string,
@@ -824,12 +826,14 @@ export function pluralCategoryCovered(
     samples = new Map();
     for (const n of SAMPLES) {
       const key = rules.select(n);
-      samples.set(key, [...(samples.get(key) ?? []), n]);
+      const values = samples.get(key);
+      if (values) values.push(n);
+      else samples.set(key, [n]);
     }
     samplesByLanguage.set(language, samples);
   }
   const values = samples.get(category);
-  return values !== undefined && values.every((n) => exact.has(n));
+  return values !== undefined && values.every((n) => n <= 100 && exact.has(n));
 }
 
 // The branch a plural takes for a value (§7): an exact `=N` first, then
