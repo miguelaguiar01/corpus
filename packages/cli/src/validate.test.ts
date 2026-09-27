@@ -147,7 +147,7 @@ test("an exec source's translations are validated from its exporter, the command
   expect(err).not.toContain("[exec.bye] fr");
   expect(err).not.toMatch(/is not validated/);
   expect(err).toContain(
-    "exec:node scripts/export.mjs:exec.gone: the exporter's strings no longer have this id",
+    "exec:node scripts/export.mjs [exec.gone] pt: the exporter's strings no longer have this id",
   );
   expect(err).toMatch(
     /1 invalid translation\(s\), 1 orphan key\(s\) in 1 file\(s\), 1 incomplete plural\(s\)/,

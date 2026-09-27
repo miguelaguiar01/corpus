@@ -867,3 +867,32 @@ describe("a plural object reads as one plural and writes back as the object (#66
     ).toEqual({ rooms: { other: "{count} 个房间" } });
   });
 });
+
+describe("a plural the object cannot hold is refused, not flattened into other (#662)", () => {
+  const source = `{\n  "rooms": { "one": "{{count}} room", "other": "{{count}} rooms" }\n}\n`;
+  test("an =0 branch, or a brace a form leaves open", () => {
+    const refused: string[] = [];
+    const target = `{\n  "rooms": { "one": "a", "other": "b" }\n}\n`;
+    for (const text of [
+      "{count, plural, =0 {none} one {one} other {many}}",
+      "{count, plural, one {a { b} other {c}}",
+    ]) {
+      expect(
+        entriesToMessages(source, { rooms: text }, target, {
+          plurals: true,
+          onRefused: (id) => refused.push(id),
+        }),
+      ).toBe(target);
+    }
+    expect(refused).toEqual(["rooms", "rooms"]);
+  });
+
+  test("an object whose form would not come back through the plural keeps its keys", () => {
+    expect(
+      messagesToEntries(
+        { k: { one: "a } b", other: "c" } },
+        { type: "ui", plurals: true },
+      ).map((e) => e.id),
+    ).toEqual(["k.one", "k.other"]);
+  });
+});

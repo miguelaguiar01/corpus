@@ -224,6 +224,10 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
                   ...(isArb(file) && { locale: language }),
                   chrome: libraryOf(source) === "chrome",
                   plurals: readsPluralObjects(source),
+                  onRefused: (id) =>
+                    ctx.err(
+                      `corpus: ${file}: ${printable(id)} is a plural its object cannot hold (an =N branch, or a brace a form leaves open); not written`,
+                    ),
                 })
               : entriesToTable(template, translations, source.map, existing);
       if (next !== existing) {

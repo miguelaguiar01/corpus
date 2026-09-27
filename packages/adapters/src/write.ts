@@ -83,6 +83,21 @@ function pathsOf(tree: Tree, plurals = false): Map<string, string[]> {
   return new Map(leaves(tree, plurals).map(([path]) => [path.join("."), path]));
 }
 
+// Why an id's text was not written, for the caller to say.
+export type Refusal = (id: string, text: string) => void;
+
+// The forms a translation of a plural object writes: its branches, or a
+// plain text as the other form; undefined for a plural the object cannot
+// hold, an `=0` branch or a brace a form leaves open, which would
+// otherwise land whole in `other`.
+function formsOf(text: string): Record<string, string> | undefined {
+  const forms = pluralBranches(text);
+  if (forms) return forms;
+  return /^\s*\{\s*[\p{L}_][\p{L}\p{M}\p{N}_.-]*\s*,\s*plural\s*,/u.test(text)
+    ? undefined
+    : { other: text };
+}
+
 // A plural written as the object its file keeps (#662): each form of
 // the text at `path.form`, in CLDR's order, and a form the text no
 // longer has removed; a text that is not a plural is the `other` form.
@@ -92,8 +107,13 @@ function writePlural(
   plural: string,
   unit: string,
   order?: (objectPath: string[]) => string[] | undefined,
+  onRefused?: Refusal,
 ): string {
-  const forms = pluralBranches(plural) ?? { other: plural };
+  const forms = formsOf(plural);
+  if (!forms) {
+    onRefused?.(path.join("."), plural);
+    return text;
+  }
   const at = path.join("\u0000");
   const inOrder = (objectPath: string[]) =>
     objectPath.join("\u0000") === at
@@ -169,14 +189,26 @@ export function entriesToMessages(
   template: string,
   translations: Record<string, string>,
   existing?: string,
-  options: { locale?: string; chrome?: boolean; plurals?: boolean } = {},
+  options: {
+    locale?: string;
+    chrome?: boolean;
+    plurals?: boolean;
+    onRefused?: Refusal;
+  } = {},
 ): string {
   if (options.chrome) return chromeMessages(template, translations, existing);
   const plurals = options.plurals ?? false;
+  const onRefused = options.onRefused;
   const base = existing !== undefined ? existing : template;
   const missing = existing === undefined || existing.trim() === "";
   if (base.trim() === "" || (missing && options.locale !== undefined))
-    return fromTemplate(template, translations, options.locale, plurals);
+    return fromTemplate(
+      template,
+      translations,
+      options.locale,
+      plurals,
+      onRefused,
+    );
   const baseTree = parseTree(base);
   const style = styleOf(base);
   const nested = isNested(baseTree);
@@ -198,7 +230,7 @@ export function entriesToMessages(
       if (next === value) continue;
       text =
         plural || sourcePlurals.has(id)
-          ? writePlural(text, path, next, style.indent, order)
+          ? writePlural(text, path, next, style.indent, order, onRefused)
           : (editLeaf(text, path, next) ?? text);
     } else if (existing === undefined) {
       text = plural ? deleteKey(text, path) : deleteLeaf(text, path);
@@ -208,7 +240,14 @@ export function entriesToMessages(
     if (seen.has(id)) continue;
     const path = sourcePaths.get(id) ?? (nested ? id.split(".") : [id]);
     text = sourcePlurals.has(id)
-      ? writePlural(text, path, translations[id]!, style.indent, order)
+      ? writePlural(
+          text,
+          path,
+          translations[id]!,
+          style.indent,
+          order,
+          onRefused,
+        )
       : addLeaf(text, path, translations[id]!, style.indent, order);
   }
   return text;
@@ -259,6 +298,7 @@ function fromTemplate(
   translations: Record<string, string>,
   locale?: string,
   plurals = false,
+  onRefused?: Refusal,
 ): string {
   const style = styleOf(template);
   const tree = parseTree(template);
@@ -273,7 +313,11 @@ function fromTemplate(
     if (value === undefined) continue;
     if (!plural) setPath(out, path, value);
     else {
-      const forms = pluralBranches(value) ?? { other: value };
+      const forms = formsOf(value);
+      if (!forms) {
+        onRefused?.(id, value);
+        continue;
+      }
       for (const form of PLURAL_OBJECT_CATEGORIES)
         if (forms[form] !== undefined)
           setPath(out, [...path, form], forms[form]);

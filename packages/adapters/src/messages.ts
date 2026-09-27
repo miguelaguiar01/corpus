@@ -31,13 +31,22 @@ export function isPluralObject(node: unknown): node is Record<string, string> {
   if (node === null || typeof node !== "object" || Array.isArray(node))
     return false;
   const entries = Object.entries(node);
-  return (
-    Object.hasOwn(node, "other") &&
-    entries.every(
+  if (
+    !Object.hasOwn(node, "other") ||
+    !entries.every(
       ([key, value]) =>
         (PLURAL_OBJECT_CATEGORIES as readonly string[]).includes(key) &&
         typeof value === "string",
     )
+  )
+    return false;
+  // Only forms that come back as they went: a form with a stray brace
+  // could not be split out of the plural again, so its keys stay keys.
+  const back = pluralBranches(pluralObjectText(node as Record<string, string>));
+  return (
+    back !== undefined &&
+    entries.every(([key, value]) => back[key] === value) &&
+    Object.keys(back).length === entries.length
   );
 }
 
