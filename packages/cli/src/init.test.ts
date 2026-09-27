@@ -851,3 +851,65 @@ test("init names counterpart where %(name)s placeholders dominate, as Element's 
     /library: counterpart, from %\(name\)s placeholders/,
   );
 });
+
+test("init names easy_localization where {} or @:key appear, as AppFlowy's catalogue does (#664)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "src", "i18n"), { recursive: true });
+  writeFileSync(
+    path.join(p.dir, "src", "i18n", "pt-PT.json"),
+    JSON.stringify({ a: "Welcome to @:appName", b: "{} files", c: "Plain" }),
+  );
+  expect(await run(FLAGS, p.ctx)).toBe(0);
+  expect((await loadConfig(p.dir)).sources[0]).toMatchObject({
+    library: "easy_localization",
+  });
+});
+
+test("a vue catalogue's links and an ICU catalogue's stray {} do not make easy_localization (#664)", async () => {
+  const vue = project();
+  stubCli(vue.dir);
+  mkdirSync(path.join(vue.dir, "src", "i18n"), { recursive: true });
+  writeFileSync(
+    path.join(vue.dir, "src", "i18n", "pt-PT.json"),
+    JSON.stringify({
+      a: "Welcome to @:brand",
+      b: "Write {'@'} to mention",
+      c: "no apples | one apple | {count} apples",
+    }),
+  );
+  expect(await run(FLAGS, vue.ctx)).toBe(0);
+  expect((await loadConfig(vue.dir)).sources[0]).toMatchObject({
+    library: "vue",
+  });
+  const icu = project();
+  stubCli(icu.dir);
+  mkdirSync(path.join(icu.dir, "src", "i18n"), { recursive: true });
+  writeFileSync(
+    path.join(icu.dir, "src", "i18n", "pt-PT.json"),
+    JSON.stringify({
+      a: "{n, plural, one {# item} other {# items}}",
+      b: "Use {} as a wildcard",
+      c: "Hello {name}",
+    }),
+  );
+  expect(await run(FLAGS, icu.ctx)).toBe(0);
+  expect((await loadConfig(icu.dir)).sources[0]?.library).toBeUndefined();
+  const printf = project();
+  stubCli(printf.dir);
+  mkdirSync(path.join(printf.dir, "src", "i18n"), { recursive: true });
+  writeFileSync(
+    path.join(printf.dir, "src", "i18n", "pt-PT.json"),
+    JSON.stringify({
+      a: "%d files in %s",
+      b: "%s deleted",
+      c: "%d left",
+      d: "Match {} and {}",
+      e: "Use {}",
+    }),
+  );
+  expect(await run(FLAGS, printf.ctx)).toBe(0);
+  expect((await loadConfig(printf.dir)).sources[0]).toMatchObject({
+    library: "printf",
+  });
+});

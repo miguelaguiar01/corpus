@@ -23,7 +23,7 @@ import {
 import { ignoreCorpusDir } from "./corpus-dir";
 
 export const INIT_USAGE =
-  "corpus init --project <slug> --source <lang> --messages <path with {lang}> [--languages <a,b>] [--server <url>] [--type <name>] [--library <icu|i18next|vue|printf|chrome|counterpart>]";
+  "corpus init --project <slug> --source <lang> --messages <path with {lang}> [--languages <a,b>] [--server <url>] [--type <name>] [--library <icu|i18next|vue|printf|chrome|counterpart|easy_localization>]";
 
 // `corpus init` writes the config from flags alone, so it scripts;
 // it validates the config before writing and never overwrites one.
@@ -169,7 +169,9 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
             ? "the Chrome i18n shape"
             : library.value === "counterpart"
               ? "%(name)s placeholders"
-              : "a pipe or a quoted literal";
+              : library.value === "easy_localization"
+                ? "{} placeholders or @:key links"
+                : "a pipe or a quoted literal";
     ctx.out(
       `library: ${library.value}${library.detected ? `, from ${why} in ${library.detected}` : ""}`,
     );
@@ -444,6 +446,30 @@ async function libraryFor(
     chromeShaped(path.join(cwd, concrete.replace("{lang}", sourceLanguage))),
   );
   if (chrome) return { library: { value: "chrome", detected: file } };
+  // Flutter's easy_localization (#664), counted like every shape: `{}`
+  // is its positional placeholder, and `@:key` its link, which vue-i18n
+  // writes too, so a link counts only where no vue sign is there.
+  const vueSigns = texts.some(
+    (text) => /\{'[^']*'\}/.test(text) || text.includes("|"),
+  );
+  const easy =
+    texts.filter((text) => text.includes("{}")).length +
+    (vueSigns
+      ? 0
+      : texts.filter((text) => /@(?:\.[a-z]+)?:[\w(]/.test(text)).length);
+  const argued = texts.filter(
+    (text) =>
+      SINGLE_BRACE_RE.test(text) ||
+      PRINTF_RE.test(text) ||
+      COUNTERPART_RE.test(text) ||
+      (ICU_ARGUMENT_RE.test(text) && !text.includes("{}")),
+  ).length;
+  if (
+    easy >= 2 &&
+    easy > argued &&
+    !texts.some((text) => DOUBLE_BRACE_RE.test(text))
+  )
+    return { library: { value: "easy_localization", detected: file } };
   // Shapes are counted, not spotted: {{ }} names i18next when it
   // outnumbers the single-brace and the printf strings; one {{ }} among
   // four thousand printf strings is a template, not the library (#591).

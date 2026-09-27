@@ -999,3 +999,72 @@ test("under counterpart %(name)s is a placeholder and a bare <tag> a substitutio
     ),
   ).toEqual({ ok: true });
 });
+
+test("under easy_localization {} is positional, {name} named, and a link must be kept (#664)", () => {
+  const lib = "easy_localization" as const;
+  expect(
+    validateTranslation(
+      "Hello {}, you have {} files",
+      "Hallo {}, du hast {} Dateien",
+      "de",
+      lib,
+    ),
+  ).toEqual({ ok: true });
+  expect(
+    validateTranslation("Hello {}, you have {} files", "Hallo {}", "de", lib),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-placeholder", written: "{}" }],
+  });
+  expect(validateTranslation("Hi {name}", "Hallo {name}", "de", lib)).toEqual({
+    ok: true,
+  });
+  // AppFlowy: a draft that drops @:appName is refused.
+  expect(
+    validateTranslation("Your @:appName account", "Dein Konto", "de", lib),
+  ).toEqual({
+    ok: false,
+    errors: [
+      { code: "missing-placeholder", name: "@:appName", written: "@:appName" },
+    ],
+  });
+  expect(
+    validateTranslation(
+      "@.upper:appName ready",
+      "@.upper:appName bereit",
+      "de",
+      lib,
+    ),
+  ).toEqual({ ok: true });
+  // A plural object read whole: {} in a form is the count.
+  expect(
+    validateTranslation(
+      "{count, plural, one {{} file} other {{} files}}",
+      "{count, plural, one {{} Datei} other {{} Dateien}}",
+      "de",
+      lib,
+    ),
+  ).toEqual({ ok: true });
+  // Braces around text and angle brackets are text.
+  expect(validateTranslation("a {b c} <d>", "x {b c} <d>", "de", lib)).toEqual({
+    ok: true,
+  });
+  // A nested link is one link; the sentence's dot is not its key's.
+  expect(
+    validateTranslation(
+      "See @:chat.changeFormat.bullet.",
+      "Siehe @:chat.changeFormat.numbr.",
+      "de",
+      lib,
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [
+      { code: "missing-placeholder", name: "@:chat.changeFormat.bullet" },
+      { code: "unexpected-placeholder", name: "@:chat.changeFormat.numbr" },
+    ],
+  });
+  expect(
+    validateTranslation("Open @:appName.", "Öffne @:appName.", "de", lib),
+  ).toEqual({ ok: true });
+});

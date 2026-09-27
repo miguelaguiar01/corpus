@@ -107,6 +107,14 @@ const PRINTF_VERB_RE =
 // it: the name in parentheses, then `s` or `d`.
 const COUNTERPART_PLACEHOLDER_RE = /^%\(([^()\s]+)\)[sd]/;
 
+// easy_localization (#664): `{}` positional or `{name}`, and a link to
+// another key, `@:key` or `@.upper:key`, whose key is word characters,
+// hyphens, `|` and dots as the package's own pattern reads it, a nested
+// `@:chat.changeFormat.bullet` included, or parenthesised; a dot that
+// ends the sentence is not the key's.
+const EASY_PLACEHOLDER_RE = /^\{([\p{L}_][\p{L}\p{M}\p{N}_]*)?\}/u;
+const EASY_LINK_RE = /^@(?:\.[a-z]+)?:(?:\([\w|.-]+\)|[\w|.-]*[\w|-])/;
+
 // Chrome i18n's `$NAME$` (#595): letters, digits and `_`, matched
 // case-insensitively against the `placeholders` map, so the name is
 // lowercased and the written form kept.
@@ -118,6 +126,15 @@ const CHROME_PLACEHOLDER_RE = /^\$([A-Za-z0-9_]+)\$/;
 export function printfVerbOf(written: string): string | undefined {
   return PRINTF_VERB_RE.exec(written)?.[4];
 }
+
+// The libraries whose text has no ICU arguments of its own, so a text
+// that is one plural from end to end is read as that plural.
+export const WHOLE_PLURAL_LIBRARIES: ReadonlySet<Library> = new Set([
+  "printf",
+  "i18next",
+  "counterpart",
+  "easy_localization",
+]);
 
 // A printf or i18next text that is one ICU plural from end to end
 // (#652, #662): a converter's gettext plural, or a plural object read
@@ -182,6 +199,8 @@ class Parser {
   private pos = 0;
   // The next verb's position when none is written (#594).
   private printfNext = 1;
+  // The next `{}`'s position under easy_localization (#664).
+  private positional = 0;
 
   constructor(
     private readonly source: string,
@@ -248,6 +267,37 @@ class Parser {
           }
         }
         if (ch === "#" || (ch === "{" && !(this.printfPlural && !inBranch))) {
+          literal += ch;
+          this.pos += 1;
+          continue;
+        }
+      }
+      // easy_localization (#664): `{}` and `{name}` are placeholders, a
+      // link must be kept, and braces around anything else, `#` and
+      // angle brackets are text, but for a plural read whole.
+      if (this.syntax === "easy_localization") {
+        const rest = this.source.slice(this.pos);
+        const link = ch === "@" ? EASY_LINK_RE.exec(rest) : null;
+        if (link) {
+          flush();
+          nodes.push({ kind: "placeholder", name: link[0], written: link[0] });
+          this.pos += link[0].length;
+          literalStart = this.pos;
+          continue;
+        }
+        const opensPlural = this.printfPlural && !inBranch && ch === "{";
+        const brace =
+          ch === "{" && !opensPlural ? EASY_PLACEHOLDER_RE.exec(rest) : null;
+        if (brace) {
+          flush();
+          // In a plural's form, `{}` is the count.
+          const name = brace[1] ?? pluralArg ?? String(this.positional++);
+          nodes.push({ kind: "placeholder", name, written: brace[0] });
+          this.pos += brace[0].length;
+          literalStart = this.pos;
+          continue;
+        }
+        if (ch === "#" || ch === "<" || (ch === "{" && !opensPlural)) {
           literal += ch;
           this.pos += 1;
           continue;
@@ -674,12 +724,7 @@ function parseWith(
           branches.length === 1 ? branches[0]! : [{ kind: "forms", branches }],
       };
     }
-    if (
-      (syntax === "printf" ||
-        syntax === "i18next" ||
-        syntax === "counterpart") &&
-      PRINTF_PLURAL_RE.test(source)
-    ) {
+    if (WHOLE_PLURAL_LIBRARIES.has(syntax) && PRINTF_PLURAL_RE.test(source)) {
       const plural = printfPlural(source, html, syntax);
       if (plural) return { ok: true, nodes: plural };
     }
@@ -1050,6 +1095,13 @@ function refusal(
   // whatever else the string holds, though a branch that opens with a
   // placeholder puts `{{` in it.
   const badName = /^invalid placeholder name "(.*)"$/.exec(message);
+  // `{}` is easy_localization's positional placeholder (#664).
+  if (library !== "easy_localization" && badName && badName[1] === "") {
+    return {
+      cause: "library",
+      advice: `; {} is easy_localization's positional placeholder: declare library: "easy_localization" on the source`,
+    };
+  }
   const unsupported = /^argument type "([^"]+)" is not supported/.exec(message);
   if (
     library !== "i18next" &&
