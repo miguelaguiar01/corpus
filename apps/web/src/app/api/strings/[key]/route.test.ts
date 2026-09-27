@@ -86,6 +86,7 @@ test("what the editor shows: the string, every language, the proposal, the note,
     },
   ]);
   expect(body.selects).toEqual(["person_gender"]);
+  expect(body.forms).toBe(0);
   expect(body.tags).toEqual([]);
   // `library` is the name; `syntax` rides beside it until 1.0 (#522).
   expect(body.library).toBe("icu");

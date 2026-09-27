@@ -823,6 +823,15 @@ export function selectArgsOf(
   return selectArgs;
 }
 
+// How many vue-i18n pipe forms a source has (#660): `no posts | one post
+// | {n} posts` is 3, anything else 0.
+export function formsOf(source: string, syntax: Library = "icu"): number {
+  const result = parseIcu(source, syntax);
+  const only =
+    result.ok && result.nodes.length === 1 ? result.nodes[0] : undefined;
+  return only?.kind === "forms" ? only.branches.length : 0;
+}
+
 export function pluralArgsOf(
   source: string,
   syntax: Library = "icu",

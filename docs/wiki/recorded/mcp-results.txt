@@ -33,6 +33,7 @@ get_string {"key":"editor.unsaved"}
     "plurals": [
       "count"
     ],
+    "forms": 0,
     "tags": [],
     "richText": null,
     "library": "icu",
@@ -89,8 +90,8 @@ get_string {"key":"editor.unsaved"}
     "siblingCount": 1
   }
 
-save_draft {"key":"editor.unsaved","language":"pt-PT","text":"Tem {count, plural, one {# alteração} few {# alterações} other {# alterações}}"}
-  refused: invalid-translation: Plural count has a few branch this language does not use
+save_draft {"key":"editor.unsaved","language":"pt-PT","text":"Tem {count, plural, one {# alteração} many {# de alterações} other {# alterações}} em {ficheiro}"}
+  refused: invalid-translation: Unexpected {ficheiro}
 
 save_draft {"key":"editor.unsaved","language":"pt-PT","text":"Tem {count, plural, one {# alteração} many {# de alterações} other {# alterações}}"}
   {
@@ -110,7 +111,7 @@ status {}
       "pt-PT"
     ],
     "strings": 2,
-    "lastPushAt": "2026-09-27T17:51:16.406Z",
+    "lastPushAt": "2026-09-27T21:06:07.331Z",
     "version": "v0.20.0",
     "pendingProposals": 0,
     "writableSources": [

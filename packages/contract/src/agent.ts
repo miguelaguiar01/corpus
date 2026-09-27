@@ -50,6 +50,9 @@ export type StringResponse = {
   // The counts the source pluralises on (§5); additive, since a client
   // ignores fields it does not know (§4).
   plurals: string[];
+  // How many vue-i18n pipe forms the source has, 0 when it has none
+  // (#660); additive.
+  forms: number;
   // The rich-text tags the source wraps text in (§5); additive.
   tags: string[];
   // "html" when the string's type is read by an HTML renderer (#622): a

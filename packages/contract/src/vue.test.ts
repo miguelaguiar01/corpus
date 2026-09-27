@@ -1,7 +1,7 @@
 // vue-i18n's two departures from plain ICU (#495, #496): a top-level
 // pipe separates positional plural forms, and `{'…'}` is a literal.
 import { expect, test } from "vitest";
-import { parseIcu } from "./icu";
+import { formsOf, parseIcu } from "./icu";
 import { validateTranslation } from "./validate";
 
 const nodes = (source: string, library: "vue" | "icu" = "vue") => {
@@ -153,4 +153,11 @@ test("a quoted brace closes where the quotes end", () => {
 
 test("an escaped quote stays inside the literal", () => {
   expect(nodes("{'it\\'s'}")).toEqual([{ kind: "literal", text: "it's" }]);
+});
+
+test("formsOf counts a vue source's pipe forms, and nothing else (#660)", () => {
+  expect(formsOf("no posts | one post | {n} posts", "vue")).toBe(3);
+  expect(formsOf("{count} script | {count} scripts", "vue")).toBe(2);
+  expect(formsOf("Pipe (|)", "vue")).toBe(0);
+  expect(formsOf("{n, plural, one {a} other {b}}", "icu")).toBe(0);
 });
