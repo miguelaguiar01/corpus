@@ -86,9 +86,11 @@ function skeleton({ kind, arg, keys }: Branching, syntax: Library) {
             ? "{}"
             : syntax === "rails"
               ? `%{${arg}}`
-              : syntax === "printf" || syntax === "android"
-                ? ""
-                : "#";
+              : syntax === "qt"
+                ? "%n"
+                : syntax === "printf" || syntax === "android"
+                  ? ""
+                  : "#";
   const head = `{${arg}, ${kind}, ${keys[0]} {${fill}`;
   const rest = keys
     .slice(1)

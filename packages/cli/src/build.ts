@@ -551,6 +551,7 @@ export function readsPluralObjects(source: FileSource): boolean {
       "counterpart",
       "easy_localization",
       "rails",
+      "qt",
     ].includes(libraryOf(source))
   );
 }

@@ -23,7 +23,8 @@ export function validationMessage(
           syntax === "android" ||
           syntax === "counterpart" ||
           syntax === "easy_localization" ||
-          syntax === "rails") &&
+          syntax === "rails" ||
+          syntax === "qt") &&
         error.written === undefined
       )
         return t("editor.pluralDropped", { name: error.name });

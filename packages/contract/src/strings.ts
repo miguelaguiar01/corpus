@@ -85,6 +85,7 @@ export const LIBRARIES = [
   "counterpart",
   "easy_localization",
   "rails",
+  "qt",
 ] as const;
 export type Library = (typeof LIBRARIES)[number];
 export const librarySchema = z.enum(LIBRARIES);
@@ -99,6 +100,7 @@ const LIBRARY_NAMES: Record<Library, string> = {
   counterpart: "counterpart",
   easy_localization: "easy_localization",
   rails: "Rails I18n",
+  qt: "Qt",
 };
 
 export function libraryName(library: Library): string {

@@ -169,6 +169,10 @@ Two things to know. **A moved verb needs its index.** Unindexed verbs are read i
 
 `corpus init` writes it when `%{name}` placeholders outnumber every other shape.
 
+## Qt
+
+`library: "qt"` is Qt's `tr()` substitution, for strings a converter brings from Qt Linguist `.ts` files. `%1` to `%99` are placeholders named by their number, which may repeat and come in any order; `%L1` is `%1` shown in the locale's digits and counts as `%1`; `%n` is the count of a numerus form. Any other `%` is text (`100%`, `%N` in help text), as are braces and `#`, and so are angle brackets, which Qt catalogues use for prose such as `<dir>`, unless the type is declared `richText: { ui: "html" }`. `%1h %2m` is two placeholders and some letters, not two printf verbs, and `% 1` or `1%` is no `%1`: a translation that writes either is told it lost `%1`.
+
 ## Chrome i18n: browser extensions
 
 <!-- from: examples/chrome.config.ts -->

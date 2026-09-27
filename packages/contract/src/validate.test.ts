@@ -1119,3 +1119,37 @@ test("under rails %{name} is a placeholder, %%{ a literal, braces text (#665)", 
     ),
   ).toEqual({ ok: true });
 });
+
+test("under qt %1–%99, %L1 and %n are placeholders by number; any other % and <dir> are text (#666)", () => {
+  const lib = "qt" as const;
+  // Time formats: %1h %2m are two placeholders, not printf verbs.
+  expect(validateTranslation("%1h %2m", "%1 ч %2 мин", "ru", lib)).toEqual({
+    ok: true,
+  });
+  // A correct Arabic %1 before a letter is saved; a dropped %1 refused.
+  expect(validateTranslation("%1 s", "%1 ث", "ar", lib)).toEqual({ ok: true });
+  expect(
+    validateTranslation("Moved %1 to %2", "Déplacé vers %2", "fr", lib),
+  ).toEqual({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "1", written: "%1" }],
+  });
+  // `% 1` and `1%` are not %1.
+  expect(
+    validateTranslation("%1 files", "% 1 Dateien", "de", lib),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "1" }],
+  });
+  // Order is free, numbers may repeat, %L1 is %1 localised, %n the count.
+  expect(
+    validateTranslation("%1 of %2 (%1)", "%2 中的 %L1 (%1)", "zh", lib),
+  ).toEqual({ ok: true });
+  expect(validateTranslation("%n file(s)", "%n Datei(en)", "de", lib)).toEqual({
+    ok: true,
+  });
+  // 100% and <dir> are text; so are braces.
+  expect(
+    validateTranslation("100% of <dir> {x}", "100% von <dir> {x}", "de", lib),
+  ).toEqual({ ok: true });
+});

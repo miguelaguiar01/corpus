@@ -272,7 +272,8 @@ export function describe(
         (syntax === "printf" ||
           syntax === "counterpart" ||
           syntax === "easy_localization" ||
-          syntax === "rails") &&
+          syntax === "rails" ||
+          syntax === "qt") &&
         error.written === undefined
       )
         return `the source is a plural on ${error.name}: write the translation as one`;

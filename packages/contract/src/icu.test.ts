@@ -604,6 +604,7 @@ test("each library has a name for messages (#644)", () => {
     "counterpart",
     "easy_localization",
     "Rails I18n",
+    "Qt",
   ]);
 });
 
