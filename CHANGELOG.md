@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-09-27
+
+The formats projects have, and what 0.19.0 left: Chrome i18n, Android string resources and Fluent read natively, a string type read as HTML, and a large project that pushes in seconds and answers status and queues at once.
+
 ### Added
 
 - A string type may be declared as read by an HTML renderer, `richText: { ui: "html" }` in the config: its translations' tags are not compared with the source's, so a translation may write `<i>` or `<br/>` the source lacks, while placeholders, plurals and selects are checked as before and an unclosed tag is still refused. `corpus validate`, the editor, a save and an agent draft all read it; the snapshot carries the map (additive, still `corpus/1`), the instance keeps it (migration 0017) and a push replaces it whole; the string page says the type is read as HTML, and the API's string and `get_string` carry `richText`. AntennaPod's Breton and Korean translations of a string Android shows through `fromHtml` drew four findings for tags that render correctly.
@@ -17,7 +21,7 @@ contract (`corpus/1`) is the only one.
 ### Fixed
 
 - Status and the queues answer quickly on a large project: the progress numbers are counted in SQL over a new `(language, state, stale, string_id)` index (migration 0018, which replaces the `state` index), and each queue is a condition in SQL with the API's `?language=` and `?type=` applied there, where every translation row used to be loaded and filtered in the server. On Bitwarden's 586k rows `GET /api/status` takes 0.13 s (1.1 s) and `GET /api/queues?language=de` 0.01 s (2.6 s); the dashboard reads each queue's count and first item. The index costs a first push of that size about half a second (10.0 s).
-- A first push is quicker: new strings and their translation rows go in batches of statements prepared once, a string's seeds are written into the rows that create it instead of in an update of every row afterwards, and the check for rows a language added in settings lacks runs before the new strings rather than over them. Bitwarden's first push, 8,617 strings with 316,203 seeds in 67 languages, takes 9.4 s from the command line where it took 20 s after the fix above (80 s before it); an unchanged push is as it was, and the report is identical.
+- A first push is quicker: new strings and their translation rows go in batches of statements prepared once, a string's seeds are written into the rows that create it instead of in an update of every row afterwards, and the check for rows a language added in settings lacks runs before the new strings rather than over them. Bitwarden's first push, 8,617 strings with 316,203 seeds in 67 languages, takes 9.4 s from the command line where it took 20 s after the memory fix below (80 s before it); an unchanged push is as it was, and the report is identical.
 - A config that writes `pt-PT` over a Flutter project whose files follow gen-l10n's own naming, `strings_pt_PT.arb`, is refused when it loads, naming the code to write (`pt_PT`). A first pull used to create a second file, `strings_pt-PT.arb`, beside the real one, which gen-l10n then refuses as two files for one locale, and push seeded nothing from the real one.
 - A new string proposed into a namespaced file (a `{ns}` pattern's `admin.json`) takes the file's prefix, `title` becoming `admin:title`, whether it comes from the workbench's form, which now says which prefix each file adds, or from an agent. It used to be created under the bare key, which `pull` refused and the next push never matched, so it stayed pending for good. A writable source carries its `namespace` (additive, still `corpus/1`).
 - A large push no longer leaves the instance holding gigabytes: every seed and every string was written through a statement prepared for it alone, and SQLite's native memory for those statements was never returned to the system, so Bitwarden's first push (316,203 seeds, 586k rows) left the instance at 2.8 GB resident, 3.7 GB as the push returned. Each write is now prepared once per push, and the seeds are compared one language at a time: the same push returns at 340 MiB, settles near 160 MiB, and takes 20 s where it took 80. The report is unchanged; the wiki's *A team instance* says what memory a project that size needs.
@@ -400,7 +404,8 @@ The first published version.
 - The `messages`, `table` and `exec` adapters, and the `corpus/1` snapshot contract with its ICU subset (placeholders and `select`).
 - The package ships plain JavaScript for Node 22 with type declarations; a client's config imports `defineCorpus` from `@corpus-tool/cli`.
 
-[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.19.0...HEAD
+[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.20.0...HEAD
+[0.20.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.20.0
 [0.19.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.19.0
 [0.18.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.18.0
 [0.17.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.17.0

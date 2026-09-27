@@ -34,6 +34,7 @@ get_string {"key":"editor.unsaved"}
       "count"
     ],
     "tags": [],
+    "richText": null,
     "library": "icu",
     "syntax": "icu",
     "slots": [
@@ -105,8 +106,8 @@ status {}
       "pt-PT"
     ],
     "strings": 2,
-    "lastPushAt": "2026-09-24T15:18:51.161Z",
-    "version": "v0.19.0",
+    "lastPushAt": "2026-09-27T02:13:25.257Z",
+    "version": "v0.20.0",
     "pendingProposals": 0,
     "writableSources": [
       "src/i18n/{lang}.json"

@@ -65,7 +65,7 @@ curl -s https://corpus.example/api/health
 
 <!-- from: recorded/health.json -->
 ```json
-{"status":"ok","version":"v0.19.0"}
+{"status":"ok","version":"v0.20.0"}
 ```
 
 ## Creating the project

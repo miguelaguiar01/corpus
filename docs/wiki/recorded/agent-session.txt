@@ -25,6 +25,7 @@ $ corpus agent string editor.save
     "selects": [],
     "plurals": [],
     "tags": [],
+    "richText": null,
     "library": "icu",
     "syntax": "icu",
     "slots": [],
@@ -97,7 +98,7 @@ $ corpus agent proposals
         "text": "Save the document",
         "status": "pending",
         "author": "acme-app agent",
-        "createdAt": "2026-09-24T15:18:54.439Z",
+        "createdAt": "2026-09-27T02:13:28.535Z",
         "mine": true
       }
     ]
