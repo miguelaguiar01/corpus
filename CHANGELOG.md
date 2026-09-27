@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-09-27
+
+The formats projects have, and what 0.19.0 left: Chrome i18n, Android string resources and Fluent read natively, a string type read as HTML, and a large project that pushes in seconds and answers status and queues at once.
+
 ### Added
 
 - A string type may be declared as read by an HTML renderer, `richText: { ui: "html" }` in the config: its translations' tags are not compared with the source's, so a translation may write `<i>` or `<br/>` the source lacks, while placeholders, plurals and selects are checked as before and an unclosed tag is still refused. `corpus validate`, the editor, a save and an agent draft all read it; the snapshot carries the map (additive, still `corpus/1`), the instance keeps it (migration 0017) and a push replaces it whole; the string page says the type is read as HTML, and the API's string and `get_string` carry `richText`. AntennaPod's Breton and Korean translations of a string Android shows through `fromHtml` drew four findings for tags that render correctly.
@@ -400,7 +404,8 @@ The first published version.
 - The `messages`, `table` and `exec` adapters, and the `corpus/1` snapshot contract with its ICU subset (placeholders and `select`).
 - The package ships plain JavaScript for Node 22 with type declarations; a client's config imports `defineCorpus` from `@corpus-tool/cli`.
 
-[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.19.0...HEAD
+[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.20.0...HEAD
+[0.20.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.20.0
 [0.19.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.19.0
 [0.18.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.18.0
 [0.17.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.17.0
