@@ -531,6 +531,38 @@ test("check says how many test files it skipped (#656)", async () => {
     });
     expect(code).toBe(0);
     expect(err.join("\n")).toMatch(/check skipped 1 test, spec or story file/);
+
+    // A directory of nothing but tests says so, and why: a directory of
+    // its own, as a rewritten config at the same path is cached.
+    const only = mkdtempSync(path.join(os.tmpdir(), "corpus-check-"));
+    try {
+      mkdirSync(path.join(only, "i18n"));
+      mkdirSync(path.join(only, "e2e"));
+      writeFileSync(path.join(only, "i18n", "en.json"), "{}\n");
+      writeFileSync(
+        path.join(only, "e2e", "App.spec.tsx"),
+        "export const T = () => <p>Fixture</p>;\n",
+      );
+      writeFileSync(
+        path.join(only, "corpus.config.mjs"),
+        `export default { project: "p", server: "http://localhost:3000", sourceLanguage: "en", languages: ["en"], sources: [{ adapter: "messages", type: "ui", path: "i18n/{lang}.json" }], check: { include: ["e2e"] } };\n`,
+      );
+      const err2: string[] = [];
+      expect(
+        await run(["check"], {
+          cwd: only,
+          env: {},
+          out: () => {},
+          err: (l) => err2.push(l),
+        }),
+      ).toBe(1);
+      expect(err2.join("\n")).toMatch(/check skipped 1 test/);
+      expect(err2.join("\n")).toMatch(
+        /parsed no files in e2e: every file there is a test, spec or story/,
+      );
+    } finally {
+      rmSync(only, { recursive: true, force: true });
+    }
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
