@@ -75,6 +75,7 @@ test("after a first push: every target row is untranslated, every source row unv
     stale: 0,
     unverifiedSource: 4,
     agentDrafts: 0,
+    invalid: 0,
   });
 });
 
@@ -143,6 +144,7 @@ test("archived strings are excluded from every queue", () => {
     stale: 0,
     unverifiedSource: 3,
     agentDrafts: 0,
+    invalid: 0,
   });
   expect(
     queueItems(db, p.id, "untranslated").items.map((i) => i.stringId),
@@ -171,6 +173,7 @@ test("queues are scoped to the project", () => {
     stale: 0,
     unverifiedSource: 0,
     agentDrafts: 0,
+    invalid: 0,
   });
 });
 
@@ -179,6 +182,7 @@ test("the summaries give every queue's count and first item, as its items do (#6
   const all = queueSummaries(db, p.id);
   expect(Object.keys(all).sort()).toEqual([
     "agentDrafts",
+    "invalid",
     "stale",
     "untranslated",
     "unverifiedSource",
@@ -293,4 +297,23 @@ test("agent drafts are counted in SQL, however many strings agents have edited o
     count: 0,
     first: null,
   });
+});
+
+test("the Invalid queue lists a seeded translation that fails validation, and a save takes it out (#646)", () => {
+  const { db, p, maintainer } = pushed();
+  applySnapshot(db, p.id, {
+    ...FIXTURE,
+    seedTranslations: { en: { "skin.seen-at-greenhouse-window": "Seen." } },
+  });
+  expect(queueItems(db, p.id, "invalid").items).toEqual([
+    item(db, "skin.seen-at-greenhouse-window", "en"),
+  ]);
+  expect(queueSummaries(db, p.id).invalid.count).toBe(1);
+  applyTransition(db, {
+    stringId: dbId(db, "skin.seen-at-greenhouse-window"),
+    language: "en",
+    action: { type: "save", text: FIXTURE.strings[0]!.source },
+    actor: maintainer,
+  });
+  expect(queueCounts(db, p.id).invalid).toBe(0);
 });

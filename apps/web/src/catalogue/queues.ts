@@ -17,6 +17,7 @@ export const QUEUE_KINDS = [
   "stale",
   "unverifiedSource",
   "agentDrafts",
+  "invalid",
 ] as const;
 export type QueueKind = (typeof QUEUE_KINDS)[number];
 
@@ -69,6 +70,8 @@ function condition(kind: QueueKind, sourceLanguage: string) {
       );
     case "agentDrafts":
       return and(eq(stringTranslations.state, "translated"), agentLast);
+    case "invalid":
+      return eq(stringTranslations.invalid, true);
   }
 }
 
@@ -170,6 +173,7 @@ export function queueSummaries(
     stale: summary("stale"),
     unverifiedSource: summary("unverifiedSource"),
     agentDrafts: summary("agentDrafts"),
+    invalid: summary("invalid"),
   };
 }
 
@@ -180,6 +184,7 @@ export function queueCounts(db: Db, projectId: number): QueueCounts {
     stale: count(db, projectId, "stale", source),
     unverifiedSource: count(db, projectId, "unverifiedSource", source),
     agentDrafts: count(db, projectId, "agentDrafts", source),
+    invalid: count(db, projectId, "invalid", source),
   };
 }
 

@@ -128,6 +128,31 @@ test("verify by a maintainer transitions the source row and logs the sign-off", 
   expect(translation(db, string.id, "pt-PT")?.state).toBe("verified");
 });
 
+test("a verify keeps an invalid seed marked; a save clears it (#646)", () => {
+  const { db, string, maintainer } = seed();
+  db.update(stringTranslations)
+    .set({ text: "Someone was seen.", state: "translated", invalid: true })
+    .where(eq(stringTranslations.language, "en"))
+    .run();
+  applyTransition(db, {
+    stringId: string.id,
+    language: "en",
+    action: { type: "verify" },
+    actor: maintainer,
+  });
+  expect(translation(db, string.id, "en")).toMatchObject({
+    state: "verified",
+    invalid: true,
+  });
+  applyTransition(db, {
+    stringId: string.id,
+    language: "en",
+    action: { type: "save", text: "{person} was seen." },
+    actor: maintainer,
+  });
+  expect(translation(db, string.id, "en")?.invalid).toBe(false);
+});
+
 test("a transition bumps updatedAt", () => {
   const { db, string, maintainer } = seed();
   const before = translation(db, string.id, "pt-PT")!.updatedAt;

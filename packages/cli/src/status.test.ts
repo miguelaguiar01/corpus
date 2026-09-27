@@ -93,10 +93,10 @@ test("status fetches with the token and prints the tables and the drift", async 
     `push-fixture on ${url}: 2 string(s), last push 2026-09-07T01:00:00.000Z, server v0.5.0`,
   );
   expect(out).toContain(
-    "language  untranslated  translated  verified  stale  total",
+    "language  untranslated  translated  verified  stale  invalid  total",
   );
   expect(out).toContain(
-    "pt-PT                1           1         0      0      2",
+    "pt-PT                1           1         0      0        0      2",
   );
   expect(out).toContain("chrome    untranslated");
   // The fixture's config declares en only; the project has pt-PT too.
@@ -135,10 +135,10 @@ test("a long type name widens the first column of every table", () => {
     "http://x",
   );
   expect(lines).toContain(
-    "language       untranslated  translated  verified  stale  total",
+    "language       untranslated  translated  verified  stale  invalid  total",
   );
   expect(lines).toContain(
-    "dialogue-line  untranslated  translated  verified  stale  total",
+    "dialogue-line  untranslated  translated  verified  stale  invalid  total",
   );
 });
 
@@ -157,7 +157,7 @@ test("render says never pushed and shows a language with no rows as zeros", () =
     "push-fixture on https://corpus.example: 0 string(s), never pushed, server v0.5.0",
   );
   expect(lines).toContain(
-    "fr                   0           0         0      0      0",
+    "fr                   0           0         0      0        0      0",
   );
 });
 

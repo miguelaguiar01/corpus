@@ -8,7 +8,11 @@ export const QUEUE_LABEL: Record<QueueKind, MessageKey> = {
   stale: "queue.stale",
   unverifiedSource: "queue.unverifiedSource",
   agentDrafts: "queue.agentDrafts",
+  invalid: "queue.invalid",
 };
+
+// Queues shown only when something is in them.
+export const OPTIONAL_QUEUES: readonly QueueKind[] = ["agentDrafts", "invalid"];
 
 const QUEUES = (Object.keys(QUEUE_LABEL) as QueueKind[]).map((kind) => ({
   kind,
@@ -31,7 +35,7 @@ export function QueueList({
   return (
     <ul className="divide-y divide-border border-y border-border">
       {QUEUES.filter(
-        ({ kind }) => kind !== "agentDrafts" || counts.agentDrafts > 0,
+        ({ kind }) => !OPTIONAL_QUEUES.includes(kind) || counts[kind] > 0,
       ).map(({ kind, label }) => {
         const count = counts[kind];
         const item = first[kind];

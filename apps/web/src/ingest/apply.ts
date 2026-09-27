@@ -1,5 +1,11 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { libraryOf, type Library, type Snapshot } from "@corpus/contract";
+import {
+  libraryOf,
+  validateTranslation,
+  type Library,
+  type RichText,
+  type Snapshot,
+} from "@corpus/contract";
 import type { Db } from "@/db";
 import {
   edits,
@@ -46,6 +52,23 @@ function entryLibrary(entry: Snapshot["strings"][number]): Library | null {
 
 type Entry = Snapshot["strings"][number];
 
+// A seed that fails validation is kept, marked, and listed in the
+// Invalid queue rather than counted as done (#646); a missing plural
+// category is only incomplete. Text free of every library's syntax
+// characters always validates, and a first push can hold half a million
+// seeds.
+const PLAIN = /^[^{}<>%$@|'"#&\\[\]]*$/;
+function seedInvalid(
+  source: string,
+  text: string,
+  language: string,
+  library: Library,
+  richText?: RichText,
+): boolean {
+  if (PLAIN.test(source) && PLAIN.test(text)) return false;
+  return !validateTranslation(source, text, language, library, { richText }).ok;
+}
+
 // The per-string writes of a push, each prepared once: a statement
 // prepared per row holds native memory SQLite does not return (#604).
 function stringWrites(
@@ -53,6 +76,7 @@ function stringWrites(
   sourceLanguage: string,
   targetLanguages: string[],
   seeds: NonNullable<Snapshot["seedTranslations"]>,
+  richText: NonNullable<Snapshot["richText"]>,
 ) {
   const p = (name: string) => sql`${sql.placeholder(name)}`;
   const rowId = sql.placeholder("rowId");
@@ -141,17 +165,41 @@ function stringWrites(
         const texts = seeds[language];
         const text =
           texts && Object.hasOwn(texts, entry.id) ? texts[entry.id] : undefined;
+        const translated = text !== undefined && text !== entry.source;
         return [
           [`text${k}_${i}`, text ?? null],
-          [
-            `state${k}_${i}`,
-            text === undefined || text === entry.source
-              ? "untranslated"
-              : "translated",
-          ],
+          [`state${k}_${i}`, translated ? "translated" : "untranslated"],
         ];
       }),
     );
+  // The few seeds that fail validation are marked after their batch, so
+  // the insert binds nothing more for the many that pass (#646).
+  const markInvalid = tx
+    .update(stringTranslations)
+    .set({ invalid: true })
+    .where(
+      and(
+        eq(stringTranslations.stringId, rowId),
+        eq(stringTranslations.language, sql.placeholder("language")),
+      ),
+    )
+    .prepare();
+  const invalidSeeds = (entry: Entry) =>
+    targetLanguages.filter((language) => {
+      const texts = seeds[language];
+      if (!texts || !Object.hasOwn(texts, entry.id)) return false;
+      const text = texts[entry.id]!;
+      return (
+        text !== entry.source &&
+        seedInvalid(
+          entry.source,
+          text,
+          language,
+          libraryOf(entry),
+          richText[entry.type],
+        )
+      );
+    });
   const refresh = tx
     .update(strings)
     .set(kept)
@@ -208,6 +256,9 @@ function stringWrites(
           Object.assign(rows, seeded(entry, k));
         });
         rowBatch.get(n)!.run(rows);
+        for (const entry of chunk)
+          for (const language of invalidSeeds(entry))
+            markInvalid.run({ rowId: ids.get(entry.id), language });
       }
     },
     refresh(id: number, entry: Entry) {
@@ -286,11 +337,14 @@ export function applySnapshot(
       // strings this push creates get every row in their insert, so it
       // runs first and a first push has nothing to scan.
       ensureTranslationRows(tx, projectId, targetLanguages);
+      // What the project reads as HTML once this push lands.
+      const richText = snapshot.richText ?? project.richText ?? {};
       const writes = stringWrites(
         tx,
         project.sourceLanguage,
         targetLanguages,
         snapshot.seedTranslations ?? {},
+        richText,
       );
       writes.insert(
         projectId,
@@ -331,6 +385,7 @@ export function applySnapshot(
         projectId,
         targetLanguages,
         snapshot,
+        richText,
         new Set(plan.insert),
       );
 
@@ -472,6 +527,7 @@ function applySeeds(
   projectId: number,
   targetLanguages: string[],
   snapshot: Snapshot,
+  richText: NonNullable<Snapshot["richText"]>,
   created: Set<string>,
 ): { seeded: number; seedsIgnored: number; seedsIdentical: number } {
   const seeds = snapshot.seedTranslations ?? {};
@@ -484,6 +540,8 @@ function applySeeds(
         id: strings.id,
         stringId: strings.stringId,
         source: strings.source,
+        type: strings.type,
+        syntax: strings.syntax,
       })
       .from(strings)
       .where(eq(strings.projectId, projectId))
@@ -514,6 +572,7 @@ function applySeeds(
       stringId: stringTranslations.stringId,
       text: stringTranslations.text,
       state: stringTranslations.state,
+      invalid: stringTranslations.invalid,
     })
     .from(stringTranslations)
     .innerJoin(strings, eq(strings.id, stringTranslations.stringId))
@@ -530,8 +589,19 @@ function applySeeds(
     .set({
       text: sql`${sql.placeholder("text")}`,
       state: sql`${sql.placeholder("state")}`,
+      invalid: sql`${sql.placeholder("invalid")}`,
       updatedAt: new Date(),
     })
+    .where(
+      and(
+        eq(stringTranslations.stringId, sql.placeholder("rowId")),
+        eq(stringTranslations.language, sql.placeholder("language")),
+      ),
+    )
+    .prepare();
+  const mark = db
+    .update(stringTranslations)
+    .set({ invalid: sql`${sql.placeholder("invalid")}` })
     .where(
       and(
         eq(stringTranslations.stringId, sql.placeholder("rowId")),
@@ -566,11 +636,31 @@ function applySeeds(
         if (!identical) seeded += 1;
         continue;
       }
+      const invalid =
+        !identical &&
+        seedInvalid(
+          string.source,
+          text,
+          language,
+          string.syntax ?? "icu",
+          richText[string.type],
+        );
       // A seed the row already holds is nothing: no write, no count, and
-      // the editor's "changed since you opened it" stays quiet.
+      // the editor's "changed since you opened it" stays quiet. Its mark
+      // follows the source it is read against now.
       const row = current.get(rowId);
-      if (row && row.text === text && row.state === state) continue;
-      const { changes } = write.run({ text, state, rowId, language });
+      if (row && row.text === text && row.state === state) {
+        if (row.invalid !== invalid)
+          mark.run({ rowId, language, invalid: invalid ? 1 : 0 });
+        continue;
+      }
+      const { changes } = write.run({
+        text,
+        state,
+        rowId,
+        language,
+        invalid: invalid ? 1 : 0,
+      });
       if (!identical) seeded += changes;
     }
   }

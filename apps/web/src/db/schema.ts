@@ -14,6 +14,7 @@ import {
   text,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
 import type { TranslationState } from "@/translations/state";
 
 // Users per spec §10: a display name and one flag. The first person to
@@ -172,12 +173,24 @@ export const stringTranslations = sqliteTable(
       .notNull()
       .default("untranslated"),
     stale: integer("stale", { mode: "boolean" }).notNull().default(false),
+    // A text the repository seeded that fails validation (#646); a save
+    // clears it, as does a push whose text passes.
+    // Written inline, not bound per row: the batch of a first push is
+    // sized to the variables it binds.
+    invalid: integer("invalid", { mode: "boolean" })
+      .notNull()
+      .default(sql`false`),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })
       .notNull()
       .$defaultFn(() => new Date()),
   },
   (t) => [
     uniqueIndex("translations_string_language").on(t.stringId, t.language),
+    // The invalid rows only, few: status counts them and the queue
+    // lists them without touching the rest (#646).
+    index("translations_invalid")
+      .on(t.language, t.stringId)
+      .where(sql`${t.invalid} = 1`),
     // Covers the progress counts, read in (language, state) order (#603).
     index("translations_language_state").on(
       t.language,

@@ -134,6 +134,13 @@
       "when": 1790426217885,
       "tag": "0018_translations-language-state",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1790531607606,
+      "tag": "0019_translation-invalid",
+      "breakpoints": true
     }
   ]
 }

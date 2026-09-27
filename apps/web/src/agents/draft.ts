@@ -34,7 +34,9 @@ type DraftResult =
   | ({ ok: false } & DraftRefusal);
 
 function openToAgent(row: StringDetail["translations"][string]): boolean {
-  return row.state === "untranslated" || row.stale || row.agentDraft;
+  return (
+    row.state === "untranslated" || row.stale || row.invalid || row.agentDraft
+  );
 }
 
 export function agentDraft(

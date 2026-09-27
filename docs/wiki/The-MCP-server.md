@@ -61,7 +61,7 @@ Nine, each one API call.
 
 | Tool | What it does |
 |---|---|
-| `list_queue` | A queue's items: `untranslated`, `stale`, `unverifiedSource` or `agentDrafts`, narrowed by language, by string type, or both |
+| `list_queue` | A queue's items: `untranslated`, `stale`, `unverifiedSource`, `agentDrafts` or `invalid` (each item with its `problem`), narrowed by language, by string type, or both |
 | `get_string` | One string: the source and the file it came from, its placeholders, selects, plurals and tags, its slots with their example values, every language's text and state, the type's note, the glossary terms it contains, the entities it refers to, its siblings under the same key prefix, and any pending proposal |
 | `save_draft` | A translation for one string in one language |
 | `propose_change` | New source text for a string, as a proposal |
@@ -80,18 +80,18 @@ Six messages against a real instance, recorded rather than written. The reposito
 <!-- from: recorded/mcp-session.txt -->
 ```text
 → {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"wiki","version":"0"}}}
-← {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{}},"serverInfo":{"name":"corpus","version":"0.20.0"},"instructions":"Corpus holds this repository's strings and their translations. A draft you save lands on an untranslated row, a stale row or your own earlier draft; a row a person edited refuses with human-edited, so propose a change instead of retrying. Every draft is attributed to the project's agent actor and waits for a maintainer to verify it; you cannot verify. Placeholders and selects must survive translation. Proposals go into the project's writable sources, which status lists as writableSources; a project pushed before sources were declared has none until its next corpus push. A proposal stays pending until its change is pulled, committed and pushed and the next corpus push sees it; list_proposals shows the pending ones and withdraw_proposal takes back one of yours."}}
+← {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{}},"serverInfo":{"name":"corpus","version":"0.20.0"},"instructions":"Corpus holds this repository's strings and their translations. A draft you save lands on an untranslated row, a stale row, an invalid seed or your own earlier draft; a row a person edited refuses with human-edited, so propose a change instead of retrying. Every draft is attributed to the project's agent actor and waits for a maintainer to verify it; you cannot verify. Placeholders and selects must survive translation. Proposals go into the project's writable sources, which status lists as writableSources; a project pushed before sources were declared has none until its next corpus push. A proposal stays pending until its change is pulled, committed and pushed and the next corpus push sees it; list_proposals shows the pending ones and withdraw_proposal takes back one of yours."}}
 → {"jsonrpc":"2.0","method":"notifications/initialized"}
 → {"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_queue","arguments":{"queue":"untranslated","language":"pt-PT"}}}
 ← {"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"{\n  \"queue\": \"untranslated\",\n  \"count\": 2,\n  \"items\": [\n    {\n      \"key\": \"editor.save\",\n      \"language\": \"pt-PT\",\n      \"type\": \"ui\",\n      \"source\": \"Save\",\n      \"text\": null\n    },\n    {\n      \"key\": \"editor.unsaved\",\n      \"language\": \"pt-PT\",\n      \"type\": \"ui\",\n      \"source\": \"You have {count, plural, one {# change} other {# changes}}\",\n      \"text\": null\n    }\n  ]\n}"}],"structuredContent":{"queue":"untranslated","count":2,"items":[{"key":"editor.save","language":"pt-PT","type":"ui","source":"Save","text":null},{"key":"editor.unsaved","language":"pt-PT","type":"ui","source":"You have {count, plural, one {# change} other {# changes}}","text":null}]}}}
 → {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"get_string","arguments":{"key":"editor.unsaved"}}}
-← {"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"{\n  \"key\": \"editor.unsaved\",\n  \"type\": \"ui\",\n  \"source\": \"You have {count, plural, one {# change} other {# changes}}\",\n  \"sourceLanguage\": \"en\",\n  \"file\": \"src/i18n/en.json\",\n  \"archived\": false,\n  \"placeholders\": [],\n  \"selects\": [],\n  \"plurals\": [\n    \"count\"\n  ],\n  \"tags\": [],\n  \"richText\": null,\n  \"library\": \"icu\",\n  \"syntax\": \"icu\",\n  \"slots\": [\n    {\n      \"name\": \"count\",\n      \"description\": null,\n      \"role\": null,\n      \"format\": null,\n      \"written\": null,\n      \"values\": {}\n    }\n  ],\n  \"examples\": [],\n  \"metadata\": null,\n  \"note\": null,\n  \"stringNote\": null,\n  \"keyIsText\": false,\n  \"glossary\": {},\n  \"entities\": [],\n  \"translations\": {\n    \"en\": {\n      \"state\": \"translated\",\n      \"stale\": false,\n      \"text\": null,\n      \"agentDraft\": false\n    },\n    \"pt-PT\": {\n      \"state\": \"untranslated\",\n      \"stale\": false,\n      \"text\": null,\n      \"agentDraft\": false\n    }\n  },\n  \"proposal\": null,\n  \"siblings\": [\n    {\n      \"key\": \"editor.save\",\n      \"source\": \"Save\",\n      \"translations\": {\n        \"pt-PT\": {\n          \"state\": \"untranslated\",\n          \"stale\": false,\n          \"text\": null\n        }\n      }\n    }\n  ],\n  \"siblingCount\": 1\n}"}],"structuredContent":{"key":"editor.unsaved","type":"ui","source":"You have {count, plural, one {# change} other {# changes}}","sourceLanguage":"en","file":"src/i18n/en.json","archived":false,"placeholders":[],"selects":[],"plurals":["count"],"tags":[],"richText":null,"library":"icu","syntax":"icu","slots":[{"name":"count","description":null,"role":null,"format":null,"written":null,"values":{}}],"examples":[],"metadata":null,"note":null,"stringNote":null,"keyIsText":false,"glossary":{},"entities":[],"translations":{"en":{"state":"translated","stale":false,"text":null,"agentDraft":false},"pt-PT":{"state":"untranslated","stale":false,"text":null,"agentDraft":false}},"proposal":null,"siblings":[{"key":"editor.save","source":"Save","translations":{"pt-PT":{"state":"untranslated","stale":false,"text":null}}}],"siblingCount":1}}}
+← {"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"{\n  \"key\": \"editor.unsaved\",\n  \"type\": \"ui\",\n  \"source\": \"You have {count, plural, one {# change} other {# changes}}\",\n  \"sourceLanguage\": \"en\",\n  \"file\": \"src/i18n/en.json\",\n  \"archived\": false,\n  \"placeholders\": [],\n  \"selects\": [],\n  \"plurals\": [\n    \"count\"\n  ],\n  \"tags\": [],\n  \"richText\": null,\n  \"library\": \"icu\",\n  \"syntax\": \"icu\",\n  \"slots\": [\n    {\n      \"name\": \"count\",\n      \"description\": null,\n      \"role\": null,\n      \"format\": null,\n      \"written\": null,\n      \"values\": {}\n    }\n  ],\n  \"examples\": [],\n  \"metadata\": null,\n  \"note\": null,\n  \"stringNote\": null,\n  \"keyIsText\": false,\n  \"glossary\": {},\n  \"entities\": [],\n  \"translations\": {\n    \"en\": {\n      \"state\": \"translated\",\n      \"stale\": false,\n      \"text\": null,\n      \"agentDraft\": false,\n      \"invalid\": false,\n      \"problem\": null\n    },\n    \"pt-PT\": {\n      \"state\": \"untranslated\",\n      \"stale\": false,\n      \"text\": null,\n      \"agentDraft\": false,\n      \"invalid\": false,\n      \"problem\": null\n    }\n  },\n  \"proposal\": null,\n  \"siblings\": [\n    {\n      \"key\": \"editor.save\",\n      \"source\": \"Save\",\n      \"translations\": {\n        \"pt-PT\": {\n          \"state\": \"untranslated\",\n          \"stale\": false,\n          \"text\": null\n        }\n      }\n    }\n  ],\n  \"siblingCount\": 1\n}"}],"structuredContent":{"key":"editor.unsaved","type":"ui","source":"You have {count, plural, one {# change} other {# changes}}","sourceLanguage":"en","file":"src/i18n/en.json","archived":false,"placeholders":[],"selects":[],"plurals":["count"],"tags":[],"richText":null,"library":"icu","syntax":"icu","slots":[{"name":"count","description":null,"role":null,"format":null,"written":null,"values":{}}],"examples":[],"metadata":null,"note":null,"stringNote":null,"keyIsText":false,"glossary":{},"entities":[],"translations":{"en":{"state":"translated","stale":false,"text":null,"agentDraft":false,"invalid":false,"problem":null},"pt-PT":{"state":"untranslated","stale":false,"text":null,"agentDraft":false,"invalid":false,"problem":null}},"proposal":null,"siblings":[{"key":"editor.save","source":"Save","translations":{"pt-PT":{"state":"untranslated","stale":false,"text":null}}}],"siblingCount":1}}}
 → {"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"save_draft","arguments":{"key":"editor.unsaved","language":"pt-PT","text":"Tem {count, plural, one {# alteração} few {# alterações} other {# alterações}}"}}}
 ← {"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"invalid-translation: Plural count has a few branch this language does not use"}],"isError":true}}
 → {"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"save_draft","arguments":{"key":"editor.unsaved","language":"pt-PT","text":"Tem {count, plural, one {# alteração} many {# de alterações} other {# alterações}}"}}}
 ← {"jsonrpc":"2.0","id":5,"result":{"content":[{"type":"text","text":"{\n  \"key\": \"editor.unsaved\",\n  \"language\": \"pt-PT\",\n  \"state\": \"translated\",\n  \"text\": \"Tem {count, plural, one {# alteração} many {# de alterações} other {# alterações}}\",\n  \"actor\": \"acme-app agent\"\n}"}],"structuredContent":{"key":"editor.unsaved","language":"pt-PT","state":"translated","text":"Tem {count, plural, one {# alteração} many {# de alterações} other {# alterações}}","actor":"acme-app agent"}}}
 → {"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"status","arguments":{}}}
-← {"jsonrpc":"2.0","id":6,"result":{"content":[{"type":"text","text":"{\n  \"project\": \"acme-app\",\n  \"sourceLanguage\": \"en\",\n  \"languages\": [\n    \"en\",\n    \"pt-PT\"\n  ],\n  \"strings\": 2,\n  \"lastPushAt\": \"2026-09-27T02:13:25.257Z\",\n  \"version\": \"v0.20.0\",\n  \"pendingProposals\": 0,\n  \"writableSources\": [\n    \"src/i18n/{lang}.json\"\n  ],\n  \"seedDigests\": {\n    \"pt-PT\": \"811c9dc59747b28c\"\n  },\n  \"progress\": {\n    \"perLanguage\": {\n      \"en\": {\n        \"untranslated\": 0,\n        \"translated\": 2,\n        \"verified\": 0,\n        \"stale\": 0,\n        \"total\": 2\n      },\n      \"pt-PT\": {\n        \"untranslated\": 1,\n        \"translated\": 1,\n        \"verified\": 0,\n        \"stale\": 0,\n        \"total\": 2\n      }\n    },\n    \"perType\": {\n      \"ui\": {\n        \"en\": {\n          \"untranslated\": 0,\n          \"translated\": 2,\n          \"verified\": 0,\n          \"stale\": 0,\n          \"total\": 2\n        },\n        \"pt-PT\": {\n          \"untranslated\": 1,\n          \"translated\": 1,\n          \"verified\": 0,\n          \"stale\": 0,\n          \"total\": 2\n        }\n      }\n    }\n  }\n}"}],"structuredContent":{"project":"acme-app","sourceLanguage":"en","languages":["en","pt-PT"],"strings":2,"lastPushAt":"2026-09-27T02:13:25.257Z","version":"v0.20.0","pendingProposals":0,"writableSources":["src/i18n/{lang}.json"],"seedDigests":{"pt-PT":"811c9dc59747b28c"},"progress":{"perLanguage":{"en":{"untranslated":0,"translated":2,"verified":0,"stale":0,"total":2},"pt-PT":{"untranslated":1,"translated":1,"verified":0,"stale":0,"total":2}},"perType":{"ui":{"en":{"untranslated":0,"translated":2,"verified":0,"stale":0,"total":2},"pt-PT":{"untranslated":1,"translated":1,"verified":0,"stale":0,"total":2}}}}}}}
+← {"jsonrpc":"2.0","id":6,"result":{"content":[{"type":"text","text":"{\n  \"project\": \"acme-app\",\n  \"sourceLanguage\": \"en\",\n  \"languages\": [\n    \"en\",\n    \"pt-PT\"\n  ],\n  \"strings\": 2,\n  \"lastPushAt\": \"2026-09-27T17:51:16.406Z\",\n  \"version\": \"v0.20.0\",\n  \"pendingProposals\": 0,\n  \"writableSources\": [\n    \"src/i18n/{lang}.json\"\n  ],\n  \"seedDigests\": {\n    \"pt-PT\": \"811c9dc59747b28c\"\n  },\n  \"progress\": {\n    \"perLanguage\": {\n      \"en\": {\n        \"untranslated\": 0,\n        \"translated\": 2,\n        \"verified\": 0,\n        \"stale\": 0,\n        \"invalid\": 0,\n        \"total\": 2\n      },\n      \"pt-PT\": {\n        \"untranslated\": 1,\n        \"translated\": 1,\n        \"verified\": 0,\n        \"stale\": 0,\n        \"invalid\": 0,\n        \"total\": 2\n      }\n    },\n    \"perType\": {\n      \"ui\": {\n        \"en\": {\n          \"untranslated\": 0,\n          \"translated\": 2,\n          \"verified\": 0,\n          \"stale\": 0,\n          \"invalid\": 0,\n          \"total\": 2\n        },\n        \"pt-PT\": {\n          \"untranslated\": 1,\n          \"translated\": 1,\n          \"verified\": 0,\n          \"stale\": 0,\n          \"invalid\": 0,\n          \"total\": 2\n        }\n      }\n    }\n  }\n}"}],"structuredContent":{"project":"acme-app","sourceLanguage":"en","languages":["en","pt-PT"],"strings":2,"lastPushAt":"2026-09-27T17:51:16.406Z","version":"v0.20.0","pendingProposals":0,"writableSources":["src/i18n/{lang}.json"],"seedDigests":{"pt-PT":"811c9dc59747b28c"},"progress":{"perLanguage":{"en":{"untranslated":0,"translated":2,"verified":0,"stale":0,"invalid":0,"total":2},"pt-PT":{"untranslated":1,"translated":1,"verified":0,"stale":0,"invalid":0,"total":2}},"perType":{"ui":{"en":{"untranslated":0,"translated":2,"verified":0,"stale":0,"invalid":0,"total":2},"pt-PT":{"untranslated":1,"translated":1,"verified":0,"stale":0,"invalid":0,"total":2}}}}}}}
 ```
 
 That is the wire. Decoded, each call's result:
@@ -159,13 +159,17 @@ get_string {"key":"editor.unsaved"}
         "state": "translated",
         "stale": false,
         "text": null,
-        "agentDraft": false
+        "agentDraft": false,
+        "invalid": false,
+        "problem": null
       },
       "pt-PT": {
         "state": "untranslated",
         "stale": false,
         "text": null,
-        "agentDraft": false
+        "agentDraft": false,
+        "invalid": false,
+        "problem": null
       }
     },
     "proposal": null,
@@ -206,7 +210,7 @@ status {}
       "pt-PT"
     ],
     "strings": 2,
-    "lastPushAt": "2026-09-27T02:13:25.257Z",
+    "lastPushAt": "2026-09-27T17:51:16.406Z",
     "version": "v0.20.0",
     "pendingProposals": 0,
     "writableSources": [
@@ -222,6 +226,7 @@ status {}
           "translated": 2,
           "verified": 0,
           "stale": 0,
+          "invalid": 0,
           "total": 2
         },
         "pt-PT": {
@@ -229,6 +234,7 @@ status {}
           "translated": 1,
           "verified": 0,
           "stale": 0,
+          "invalid": 0,
           "total": 2
         }
       },
@@ -239,6 +245,7 @@ status {}
             "translated": 2,
             "verified": 0,
             "stale": 0,
+            "invalid": 0,
             "total": 2
           },
           "pt-PT": {
@@ -246,6 +253,7 @@ status {}
             "translated": 1,
             "verified": 0,
             "stale": 0,
+            "invalid": 0,
             "total": 2
           }
         }

@@ -1,4 +1,9 @@
-import type { Library, ValidationError } from "@corpus/contract";
+import {
+  validateTranslation,
+  type Library,
+  type RichText,
+  type ValidationError,
+} from "@corpus/contract";
 import { chipText } from "@/components/source-view";
 import { t } from "@/i18n";
 
@@ -58,4 +63,21 @@ export function validationMessage(
     case "invalid-icu":
       return t("editor.invalidIcu", { message: error.message });
   }
+}
+
+// What is wrong with a translation, as the editor would say it; null
+// when it passes (#646).
+export function problemOf(
+  source: string,
+  text: string,
+  language: string,
+  syntax: Library,
+  richText: RichText | null,
+): string | null {
+  const check = validateTranslation(source, text, language, syntax, {
+    richText: richText ?? undefined,
+  });
+  return check.ok
+    ? null
+    : check.errors.map((error) => validationMessage(error, syntax)).join("; ");
 }

@@ -11,6 +11,7 @@ const counts = (verified: number, translated: number, total: number) => ({
   translated,
   untranslated: total - verified - translated,
   stale: 0,
+  invalid: 0,
   total,
 });
 

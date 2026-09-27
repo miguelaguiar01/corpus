@@ -58,7 +58,13 @@ export function apiOver(server: string, token: string): Api {
   };
 }
 
-const QUEUES = ["untranslated", "stale", "unverifiedSource", "agentDrafts"];
+const QUEUES = [
+  "untranslated",
+  "stale",
+  "unverifiedSource",
+  "agentDrafts",
+  "invalid",
+];
 
 const key = {
   type: "string",
@@ -78,7 +84,7 @@ export function tools(api: Api): Tool[] {
       name: "list_queue",
       op: "queue",
       description:
-        "The items of one queue: untranslated, stale, unverifiedSource or agentDrafts; narrowed to a language and a string type when given. Each item is a key, a language, the string's type, its source text and the row's current text (null when there is none), so a batch can be translated from the queue alone and the agent drafts queue reads back as a review list.",
+        "The items of one queue: untranslated, stale, unverifiedSource, agentDrafts, or invalid (translations the repository holds that fail validation); narrowed to a language and a string type when given. Each item is a key, a language, the string's type, its source text and the row's current text (null when there is none), so a batch can be translated from the queue alone and the agent drafts queue reads back as a review list.",
       inputSchema: {
         type: "object",
         properties: {
@@ -134,7 +140,7 @@ export function tools(api: Api): Tool[] {
       name: "save_draft",
       op: "draft",
       description:
-        "Save a translation as a draft for a maintainer to verify. Accepted on an untranslated row, a stale row or your own earlier draft; refused (human-edited) where a person's work is, in which case propose instead. Placeholders and selects must match the source.",
+        "Save a translation as a draft for a maintainer to verify. Accepted on an untranslated row, a stale row, an invalid seed or your own earlier draft; refused (human-edited) where a person's work is, in which case propose instead. Placeholders and selects must match the source.",
       inputSchema: {
         type: "object",
         properties: {

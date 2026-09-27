@@ -12,6 +12,7 @@ import { slotsOf } from "@/strings/slots";
 import { pendingForString } from "@/proposals/service";
 import { stringDetail } from "@/strings/detail";
 import { siblingsOf } from "@/strings/siblings";
+import { problemOf } from "@/translations/validation-message";
 
 // What the editor shows for one string (§9.3), for an agent (§10).
 export async function GET(
@@ -41,6 +42,17 @@ export async function GET(
       stale: row.stale,
       text: row.text,
       agentDraft: row.agentDraft,
+      invalid: row.invalid,
+      problem:
+        row.invalid && row.text !== null
+          ? problemOf(
+              detail.string.source,
+              row.text,
+              language,
+              detail.string.syntax,
+              detail.string.richText,
+            )
+          : null,
     };
   }
   const body: StringResponse = {

@@ -9,6 +9,7 @@ const translations = {
   "pt-PT": {
     state: "verified" as const,
     stale: false,
+    invalid: false,
     text: "Olá",
     version: 1,
     agentDraft: false,
@@ -16,6 +17,7 @@ const translations = {
   en: {
     state: "translated" as const,
     stale: true,
+    invalid: false,
     text: "Hello",
     version: 2,
     agentDraft: false,
@@ -23,6 +25,7 @@ const translations = {
   fr: {
     state: "untranslated" as const,
     stale: false,
+    invalid: false,
     text: null,
     version: 0,
     agentDraft: false,
@@ -89,6 +92,7 @@ test("past five, the rest fold behind their count and open on demand", () => {
       {
         state: "translated" as const,
         stale: false,
+        invalid: false,
         text: `text ${l}`,
         version: 1,
         agentDraft: false,

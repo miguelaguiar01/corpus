@@ -6,14 +6,29 @@ import { ProjectCard } from "./project-card";
 afterEach(cleanup);
 
 const PROGRESS = {
-  en: { untranslated: 0, translated: 2, verified: 1, stale: 0, total: 3 },
-  "pt-PT": { untranslated: 3, translated: 0, verified: 0, stale: 0, total: 3 },
+  en: {
+    untranslated: 0,
+    translated: 2,
+    verified: 1,
+    stale: 0,
+    invalid: 0,
+    total: 3,
+  },
+  "pt-PT": {
+    untranslated: 3,
+    translated: 0,
+    verified: 0,
+    stale: 0,
+    invalid: 0,
+    total: 3,
+  },
 };
 const COUNTS = {
   untranslated: 3,
   stale: 1,
   unverifiedSource: 2,
   agentDrafts: 0,
+  invalid: 0,
 };
 const NAME = "Moonlight Manor";
 

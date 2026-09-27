@@ -54,6 +54,7 @@ export type StringDetail = {
     {
       state: TranslationState;
       stale: boolean;
+      invalid: boolean;
       text: string | null;
       version: number;
       // The latest edit was the agent actor's (§10): open to another
@@ -132,6 +133,7 @@ export function stringDetail(
     translations[row.language] = {
       state: row.state,
       stale: row.stale,
+      invalid: row.invalid,
       text: row.text,
       version: versionOf(row),
       agentDraft: latestByLanguage.get(row.language)?.agent ?? false,

@@ -108,7 +108,7 @@ jobs:
 
 ## A gate of your own
 
-`corpus status --json` is the dashboard's numbers as one object. `progress.perLanguage` is language to counts; `progress.perType` is type to language to the same counts, one level deeper. The counts are `untranslated`, `translated`, `verified`, `stale` and `total`. Beside `progress` are `pendingProposals`, `lastPushAt`, the string count and the server's version. Anything you can express about those is a gate:
+`corpus status --json` is the dashboard's numbers as one object. `progress.perLanguage` is language to counts; `progress.perType` is type to language to the same counts, one level deeper. The counts are `untranslated`, `translated`, `verified`, `stale`, `invalid` and `total`; a stale or invalid row is also counted under its state. `invalid` is the translations the repository holds that fail the editor's checks, so `.progress.perLanguage | map(.invalid) | add == 0` is a gate on them, as `corpus validate` is without a server. Beside `progress` are `pendingProposals`, `lastPushAt`, the string count and the server's version. Anything you can express about those is a gate:
 
 ```sh
 npx corpus status --json | jq -e '.progress.perLanguage["pt-PT"].untranslated == 0'

@@ -405,6 +405,51 @@ test("a new string named like an object's own property takes no seed it does not
     });
 });
 
+test("a seed that fails validation is marked invalid, on the push that creates the row or a later one, and a fixed seed clears it (#646)", () => {
+  const { db, project } = seed();
+  const broken = {
+    en: {
+      "skin.seen-at-greenhouse-window": "Seen at the window.",
+      "ui.continue": "Continue",
+    },
+  };
+  applySnapshot(db, project.id, withSeeds(broken));
+  expect(
+    translationOf(db, "skin.seen-at-greenhouse-window", "en"),
+  ).toMatchObject({
+    state: "translated",
+    invalid: true,
+  });
+  expect(translationOf(db, "ui.continue", "en")?.invalid).toBe(false);
+  // A row that holds the seed already, unmarked as one from before the
+  // mark existed, is marked when the seed arrives again.
+  db.update(stringTranslations).set({ invalid: false }).run();
+  applySnapshot(db, project.id, withSeeds(broken));
+  expect(
+    translationOf(db, "skin.seen-at-greenhouse-window", "en")?.invalid,
+  ).toBe(true);
+  // A later push writing another broken text keeps it flagged; a valid
+  // text clears it.
+  const fixed =
+    "{person} was {person_gender, select, m {seen} f {seen}} at the window {room_de} at {hour} — and was not {person_gender, select, m {alone} f {alone}}.";
+  applySnapshot(
+    db,
+    project.id,
+    withSeeds({ en: { "skin.seen-at-greenhouse-window": fixed } }),
+  );
+  expect(
+    translationOf(db, "skin.seen-at-greenhouse-window", "en")?.invalid,
+  ).toBe(false);
+  applySnapshot(
+    db,
+    project.id,
+    withSeeds({ en: { "skin.seen-at-greenhouse-window": "Seen." } }),
+  );
+  expect(
+    translationOf(db, "skin.seen-at-greenhouse-window", "en")?.invalid,
+  ).toBe(true);
+});
+
 test("seedTranslations on a first push import as translated and are counted", () => {
   const { db, project } = seed();
   const report = applySnapshot(

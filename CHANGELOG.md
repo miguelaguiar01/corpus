@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+### Added
+
+- A translation a push seeds from the repository that fails validation is kept and marked **invalid**, where it used to count as done: Hoppscotch's `af` `"Join {team}"`, left behind when the source moved to `{workspace}`, was one of 209 such seeds, and a team saw German 942/2140 translated with no way to find its broken 11 but `corpus validate` offline. The dashboard and a project's card list an **Invalid** queue once a project has any, `corpus status` and `/api/status` count them per language and type (a new `invalid` column), and `/api/queues`, `list_queue` and `corpus agent queue invalid` list them, each item with its `problem` as the editor says it; `get_string` carries `invalid` and `problem` per language. A save clears the mark, and so does a push whose text passes; a verify does not. An agent may redraft an invalid row, as it may a stale one. The instance keeps the mark (migration 0019), and the migration forgets the seed digests (#601), so the first push after upgrading resends every language's seeds and marks the ones the instance already holds. A first push checks every seed, about half a second on Bitwarden's 546k.
+
 ### Fixed
 
 - printf's hint for a moved verb follows the source: `%n$` where the source writes one, Go's `%[n]` where it writes that, and both (`%n$s or %[n]s`) where it writes neither. It offered Go's `%[n]` to every source without a `%n$`, and Joplin's JavaScript sprintf throws on it. A verb whose type changed where it stands (`%d` against `%lld`, `%i` against `%s`) is said as a changed type, with no index hint: nothing moved. The finding carries `moved` (additive).

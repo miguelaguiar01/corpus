@@ -159,6 +159,7 @@
   "proposal.withdraw": "Withdraw",
   "proposal.withdrawn": "Withdrawn.",
   "queue.agentDrafts": "Agent drafts",
+  "queue.invalid": "Invalid",
   "queue.navLabel": "Queue",
   "queue.next": "Next",
   "queue.position": "{index} of {count}",

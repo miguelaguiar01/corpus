@@ -20,7 +20,7 @@ One paragraph each, in the order the words tend to come up.
 
 **Verified.** The state a maintainer puts a translation in, and the one `corpus pull` writes back to the repository by default. Nothing an agent does reaches verified.
 
-**Queue.** A list telling a translator what to work on next: untranslated, stale, unverified source, agent drafts. Narrowed by language and by type.
+**Queue.** A list telling a translator what to work on next: untranslated, stale, unverified source, agent drafts, invalid. Narrowed by language and by type.
 
 **Proposal.** A change to the repository, proposed from inside Corpus: new source text for a string, a string's removal, or a string that should exist. It is pending until `corpus pull` writes it into a file, somebody reviews the diff and merges it, and the next push sees the repository agreeing and marks it applied. Corpus proposes; the repository decides.
 

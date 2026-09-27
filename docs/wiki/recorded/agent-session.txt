@@ -41,13 +41,17 @@ $ corpus agent string editor.save
         "state": "translated",
         "stale": false,
         "text": null,
-        "agentDraft": false
+        "agentDraft": false,
+        "invalid": false,
+        "problem": null
       },
       "pt-PT": {
         "state": "untranslated",
         "stale": false,
         "text": null,
-        "agentDraft": false
+        "agentDraft": false,
+        "invalid": false,
+        "problem": null
       }
     },
     "proposal": null,
@@ -98,7 +102,7 @@ $ corpus agent proposals
         "text": "Save the document",
         "status": "pending",
         "author": "acme-app agent",
-        "createdAt": "2026-09-27T02:13:28.535Z",
+        "createdAt": "2026-09-27T17:51:19.703Z",
         "mine": true
       }
     ]

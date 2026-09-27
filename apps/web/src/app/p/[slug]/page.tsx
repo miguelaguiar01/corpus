@@ -53,12 +53,14 @@ export default async function ProjectHome({
               stale: queues.stale.count,
               unverifiedSource: queues.unverifiedSource.count,
               agentDrafts: queues.agentDrafts.count,
+              invalid: queues.invalid.count,
             }}
             first={{
               untranslated: queues.untranslated.first,
               stale: queues.stale.first,
               unverifiedSource: queues.unverifiedSource.first,
               agentDrafts: queues.agentDrafts.first,
+              invalid: queues.invalid.first,
             }}
           />
           {pending > 0 && (
