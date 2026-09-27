@@ -565,6 +565,61 @@ test("check.include is not written when src alone holds the components, nor when
   writeFileSync(path.join(none.dir, "lib", "dist", "b.jsx"), "");
   expect(await run(FLAGS, none.ctx)).toBe(0);
   expect((await loadConfig(none.dir)).check).toBeUndefined();
+  // Nothing found is said, so the first corpus check is no surprise.
+  expect(none.out.join("\n")).toMatch(
+    /check\.include: init found no components where it looks/,
+  );
+});
+
+test("in a monorepo, check.include is the components directories below the root (#655)", async () => {
+  // Hoppscotch: packages/hoppscotch-common/src/components.
+  const p = project();
+  stubCli(p.dir);
+  for (const dir of [
+    "packages/hoppscotch-common/src/components/app",
+    "packages/ui/components",
+    "packages/node_modules/x/components",
+  ]) {
+    mkdirSync(path.join(p.dir, dir), { recursive: true });
+    writeFileSync(path.join(p.dir, dir, "A.vue"), "");
+  }
+  expect(await run(FLAGS, p.ctx)).toBe(0);
+  expect((await loadConfig(p.dir)).check).toEqual({
+    include: [
+      "packages/hoppscotch-common/src/components",
+      "packages/ui/components",
+    ],
+  });
+});
+
+test("with no components directory, the catalogue's own package's roots (#655)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "web", "locales"), { recursive: true });
+  writeFileSync(path.join(p.dir, "web", "package.json"), "{}\n");
+  writeFileSync(path.join(p.dir, "web", "locales", "pt-PT.json"), "{}\n");
+  mkdirSync(path.join(p.dir, "web", "pages", "home"), { recursive: true });
+  writeFileSync(path.join(p.dir, "web", "pages", "home", "index.tsx"), "");
+  const flags = FLAGS.map((f) =>
+    f === "src/i18n/{lang}.json" ? "web/locales/{lang}.json" : f,
+  );
+  expect(await run(flags, p.ctx)).toBe(0);
+  expect((await loadConfig(p.dir)).check).toEqual({ include: ["web/pages"] });
+
+  // A path outside the repository names no package of its own, and an
+  // absolute one ends the search rather than looping at the root.
+  for (const messages of [
+    "../web/locales/{lang}.json",
+    `${p.dir}/web/locales/{lang}.json`,
+  ]) {
+    const q = project();
+    stubCli(q.dir);
+    const outside = FLAGS.map((f) =>
+      f === "src/i18n/{lang}.json" ? messages : f,
+    );
+    await run(outside, q.ctx);
+    expect(q.out.join("\n")).not.toMatch(/check\.include: \.\./);
+  }
 });
 
 test("an .arb catalogue is read for its languages and its library (#558)", async () => {

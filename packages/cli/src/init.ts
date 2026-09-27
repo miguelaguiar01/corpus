@@ -102,7 +102,8 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     ctx,
   );
   const library = detected.library;
-  const include = checkIncludeFor(ctx.cwd);
+  const components = checkIncludeFor(ctx.cwd, messages);
+  const include = components.include;
   const parsed = corpusConfigSchema.safeParse({
     project,
     server,
@@ -175,6 +176,10 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   if (include) {
     ctx.out(
       `check.include: ${include.join(", ")} (the directories holding components, which corpus check scans)`,
+    );
+  } else if (!components.found) {
+    ctx.out(
+      `check.include: init found no components where it looks; corpus check scans src, so set check.include in ${filename} to where they are`,
     );
   }
   const siblings = siblingCatalogues(ctx.cwd, messages, sourceLanguage);
@@ -258,18 +263,71 @@ ${check}`;
 // is what check scans by default, so it is not written.
 const CHECK_ROOTS = ["src", "app", "lib", "components", "shared"] as const;
 
-function checkIncludeFor(cwd: string): string[] | undefined {
+// A monorepo keeps them deeper (#655): Hoppscotch's are in
+// packages/hoppscotch-common/src/components, so without a root that
+// holds them the `components` directories to four levels down count,
+// and without those the roots of the catalogue's own package.
+const COMPONENT_DEPTH = 4;
+const PACKAGE_ROOTS = ["src", "app", "pages", "components"] as const;
+
+function checkIncludeFor(
+  cwd: string,
+  messages: string,
+): { include?: string[]; found: boolean } {
   const found = CHECK_ROOTS.filter((root) =>
     holdsCheckedFile(path.join(cwd, root)),
   );
-  if (found.length === 0) return undefined;
-  if (
-    found.length === DEFAULT_INCLUDE.length &&
-    found.every((root, i) => root === DEFAULT_INCLUDE[i])
-  ) {
-    return undefined;
+  if (found.length > 0) {
+    const isDefault =
+      found.length === DEFAULT_INCLUDE.length &&
+      found.every((root, i) => root === DEFAULT_INCLUDE[i]);
+    return { include: isDefault ? undefined : found, found: true };
   }
-  return found;
+  const components = componentDirs(cwd, "", 0);
+  if (components.length > 0) return { include: components, found: true };
+  const pkg = packageOf(cwd, messages);
+  if (pkg !== undefined) {
+    const roots = PACKAGE_ROOTS.map((root) => `${pkg}/${root}`).filter((dir) =>
+      holdsCheckedFile(path.join(cwd, dir)),
+    );
+    if (roots.length > 0) return { include: roots, found: true };
+  }
+  return { found: false };
+}
+
+function componentDirs(cwd: string, rel: string, depth: number): string[] {
+  if (depth >= COMPONENT_DEPTH) return [];
+  let entries;
+  try {
+    entries = readdirSync(path.join(cwd, rel), { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const out: string[] = [];
+  for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+    if (!entry.isDirectory() || SKIP_DIRS.has(entry.name)) continue;
+    if (entry.name.startsWith(".")) continue;
+    const child = rel ? `${rel}/${entry.name}` : entry.name;
+    if (entry.name === "components" && holdsCheckedFile(path.join(cwd, child)))
+      out.push(child);
+    else out.push(...componentDirs(cwd, child, depth + 1));
+  }
+  return out;
+}
+
+// The package a catalogue belongs to: the nearest directory above its
+// path, below the repository root, with a package.json.
+function packageOf(cwd: string, messages: string): string | undefined {
+  const relative = path.posix.normalize(messages.replaceAll("\\", "/"));
+  if (relative.startsWith("/") || relative.startsWith("..")) return undefined;
+  const fixed = relative.split("/");
+  const at = fixed.findIndex((segment) => segment.includes("{"));
+  let dir = fixed.slice(0, at < 0 ? -1 : at).join("/");
+  while (dir !== "" && dir !== ".") {
+    if (existsSync(path.join(cwd, dir, "package.json"))) return dir;
+    dir = path.posix.dirname(dir);
+  }
+  return undefined;
 }
 
 // A symlinked directory is not followed: a Dirent reports it as a link,

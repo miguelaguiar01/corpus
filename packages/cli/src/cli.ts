@@ -12,7 +12,7 @@ import {
 import { type CorpusConfig, seedDigest, type Snapshot } from "@corpus/contract";
 import { option, refuseUnknown } from "./args";
 import { COMMAND_WORDS, KNOWN_FLAGS, USAGE } from "./commands";
-import { CliError, loadConfig, requireToken } from "./config";
+import { CliError, configFileName, loadConfig, requireToken } from "./config";
 import { checkFiles, DEFAULT_INCLUDE, READS } from "./check";
 import { init } from "./init";
 import { agent } from "./agent";
@@ -311,7 +311,7 @@ async function check(ctx: RunContext): Promise<number> {
   }
   if (scanned.length === 0) {
     ctx.err(
-      `corpus: check scanned nothing: no directory among ${include.join(", ")}; set check.include in corpus.config.ts to the directories with your components`,
+      `corpus: check scanned nothing: no directory among ${include.join(", ")}; set check.include in ${configFileName(ctx.cwd)} to the directories with your components`,
     );
     return 1;
   }

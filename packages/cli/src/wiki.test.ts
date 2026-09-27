@@ -121,6 +121,9 @@ test("the wiki's first-push page shows what corpus init and build really do", as
       `${JSON.stringify(strings, null, 2)}\n`,
     );
   }
+  // A component beside the catalogue, as an app has, so init's first
+  // run reads as it does in one.
+  writeFileSync(path.join(project.dir, "src", "App.tsx"), "");
 
   expect(
     await run(
