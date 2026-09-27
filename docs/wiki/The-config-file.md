@@ -85,7 +85,9 @@ server: process.env.CORPUS_SERVER ?? "http://localhost:3000",
   languageFiles: { "zh-CN": "cn", "zh-TW": "tw" } }
 ```
 
-The project then knows the language as `zh-CN`, with its plural rules and name, and push, validate and pull read and write `cn.json`. A code that is not a tag is refused by name, and a POSIX one is told the tag and the mapping to write. It seeds the project's list at creation. After that the instance owns it: adding a language on the settings page makes rows for every string at once, and `corpus push` warns when the two lists have drifted rather than changing either.
+The project then knows the language as `zh-CN`, with its plural rules and name, and push, validate and pull read and write `cn.json`. A code that is not a tag is refused by name, and a POSIX one is told the tag and the mapping to write. A map names only target languages the config lists, and no two of them may share a file.
+
+The `languages` list seeds the project's list at creation. After that the instance owns it: adding a language on the settings page makes rows for every string at once, and `corpus push` warns when the two lists have drifted rather than changing either.
 
 **`sources`** is where your text is. Each entry names an adapter, a type, and a path. [Sources and adapters](Sources-and-adapters) covers them; a config with more than one source is normal, one per shape of file.
 

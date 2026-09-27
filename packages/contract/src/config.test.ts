@@ -324,4 +324,35 @@ test("a messages or fluent source may name the file code of a language (#657)", 
       sources: [{ ...config.sources[0], languageFiles: { "zh-CN": "a/b" } }],
     }).success,
   ).toBe(false);
+  const refused = (
+    languageFiles: Record<string, string>,
+    adapter = "messages",
+  ) => {
+    const parsed = corpusConfigSchema.safeParse({
+      ...config,
+      languages: ["en", "zh-CN", "sr-Latn", "pt", "pt-BR"],
+      sources: [
+        {
+          ...config.sources[0],
+          adapter,
+          languageFiles,
+          ...(adapter === "table" && { map: { id: "id", text: "text" } }),
+        },
+      ],
+    });
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  // Two languages in one file would overwrite each other on a pull.
+  expect(refused({ "pt-BR": "pt" })).toEqual([
+    "pt and pt-BR would share the file of pt",
+  ]);
+  expect(refused({ en: "english" })).toEqual([
+    "the source language en keeps its tag as its file's name; languageFiles maps target languages",
+  ]);
+  expect(refused({ "zh-cn": "cn" })).toEqual([
+    "languageFiles names zh-cn, which languages does not list",
+  ]);
+  expect(refused({ "zh-CN": "cn" }, "table")).toEqual([
+    "languageFiles is for messages and fluent sources",
+  ]);
 });
