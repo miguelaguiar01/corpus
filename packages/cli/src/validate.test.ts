@@ -147,7 +147,7 @@ test("an exec source's translations are validated from its exporter, the command
   expect(err).not.toContain("[exec.bye] fr");
   expect(err).not.toMatch(/is not validated/);
   expect(err).toContain(
-    "exec:node scripts/export.mjs:exec.gone: the exporter's strings no longer have this id; 1 target file(s) carry it",
+    "exec:node scripts/export.mjs:exec.gone: the exporter's strings no longer have this id",
   );
   expect(err).toMatch(
     /1 invalid translation\(s\), 1 orphan key\(s\) in 1 file\(s\), 1 incomplete plural\(s\)/,
@@ -383,7 +383,7 @@ test("a dropped placeholder, a malformed select and an orphan key are findings, 
     "i18n/pt.json:seen: select on {who} has the branch dog, which the source does not",
   );
   expect(err).toContain(
-    "i18n/en.json:gone: the source no longer has this key; 1 target file(s) carry it",
+    "i18n/pt.json:gone: the source no longer has this key (i18n/en.json)",
   );
   expect(err).toMatch(
     /3 invalid translation\(s\), 1 orphan key\(s\) in 1 file\(s\)/,
@@ -453,8 +453,8 @@ test("an orphan key is summarised once across the target files; --json keeps one
   expect(await run(["validate"], c)).toBe(1);
   const lines = c.stderr.filter((l) => l.includes("no longer has"));
   expect(lines).toEqual([
-    "i18n/en.json:gone: the source no longer has this key; 2 target file(s) carry it",
-    "i18n/en.json:old: the source no longer has this key; 2 target file(s) carry it",
+    "i18n/pt.json:gone: the source no longer has this key (i18n/en.json); 1 more target file(s) carry it",
+    "i18n/pt.json:old: the source no longer has this key (i18n/en.json); 1 more target file(s) carry it",
   ]);
   expect(c.stderr.join("\n")).toMatch(
     /corpus: 2 orphan key\(s\) in 3 file\(s\)$/m,
@@ -536,8 +536,8 @@ test("the same orphan key under two sources is two lines, one per source", async
   const c = ctx();
   expect(await run(["validate"], c)).toBe(1);
   expect(c.stderr.filter((l) => l.includes("no longer has"))).toEqual([
-    "i18n/en.json:gone: the source no longer has this key; 1 target file(s) carry it",
-    "extra/en.json:gone: the source no longer has this key; 1 target file(s) carry it",
+    "i18n/pt.json:gone: the source no longer has this key (i18n/en.json)",
+    "extra/pt.json:gone: the source no longer has this key (extra/en.json)",
   ]);
   expect(c.stderr.join("\n")).toMatch(
     /corpus: 2 orphan key\(s\) in 2 file\(s\)$/m,
@@ -627,7 +627,7 @@ test("a key with a newline prints escaped on one line; --json keeps it raw (#648
     "keyed/pt.json:Could not remove\\n{name}: missing {name}",
   );
   expect(c.stderr.join("\n")).toContain(
-    "keyed/en.json:Gone\\nnow: the source no longer has this key; 1 target file(s) carry it",
+    "keyed/pt.json:Gone\\nnow: the source no longer has this key (keyed/en.json)",
   );
   const j = ctx();
   await run(["validate", "--json"], j);

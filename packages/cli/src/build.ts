@@ -538,6 +538,16 @@ export function fileOf(
   return path.posix.join(source.path, dir, "strings.xml");
 }
 
+// A `{ one, other }` object is one plural string (#662) where the
+// library's text can carry one read whole: not vue, whose plurals are
+// pipes, nor Chrome's entries.
+export function readsPluralObjects(source: FileSource): boolean {
+  return (
+    source.adapter === "messages" &&
+    ["icu", "i18next", "printf"].includes(libraryOf(source))
+  );
+}
+
 // Whether a source keeps a file per language, and so takes
 // translations back.
 export function hasLanguages(source: FileSource): boolean {
@@ -587,6 +597,7 @@ export async function readEntries(
           arb: isArb(file),
           chrome: libraryOf(source) === "chrome",
           keyIsText: sourceFile,
+          plurals: readsPluralObjects(source),
         })
       : tableToEntries(data, { type: source.type, map: source.map });
   // A namespaced file's ids are `ns:key` (#513), i18next's own separator.

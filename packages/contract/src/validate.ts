@@ -220,9 +220,9 @@ export function validateTranslation(
   // A translation of a printf plural that opens as one but is not one
   // is a broken plural, not text (#652).
   const brokenPlural =
-    syntax === "printf" &&
+    (syntax === "printf" || syntax === "i18next") &&
     parsedSource.nodes.some((node) => node.kind === "plural")
-      ? printfPluralError(target, html)
+      ? printfPluralError(target, html, syntax)
       : undefined;
   if (brokenPlural)
     return {

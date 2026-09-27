@@ -1069,3 +1069,62 @@ export default defineCorpus({
   expect(JSON.parse(read("shared/en.json")).greeting).toBe("Hi {name}");
   expect(c.output.join("\n")).toMatch(/1 proposal\(s\) written/);
 });
+
+test("a plural object pushes as one plural string, validates without orphans, and pulls into an object with the language's forms (#662)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "pl"],
+  sources: [{ adapter: "messages", type: "chrome", library: "i18next", path: "i18n/{lang}.json" }],
+});
+`,
+  );
+  writeFileSync(
+    path.join(repo, "i18n", "en.json"),
+    `{\n  "rooms": {\n    "one": "{{count}} room",\n    "other": "{{count}} rooms"\n  }\n}\n`,
+  );
+  writeFileSync(
+    path.join(repo, "i18n", "pl.json"),
+    `{\n  "rooms": {\n    "one": "{{count}} pokój",\n    "few": "{{count}} pokoje",\n    "many": "{{count}} pokoi",\n    "other": "{{count}} pokoju"\n  }\n}\n`,
+  );
+  const { buildSnapshot } = await import("./build");
+  const { loadConfig } = await import("./config");
+  const snapshot = await buildSnapshot(await loadConfig(repo), repo);
+  expect(snapshot.strings.map((s) => [s.id, s.source])).toEqual([
+    ["rooms", "{count, plural, one {{{count}} room} other {{{count}} rooms}}"],
+  ]);
+  const pl = snapshot.seedTranslations?.pl?.rooms;
+  expect(pl).toBe(
+    "{count, plural, one {{{count}} pokój} few {{{count}} pokoje} many {{{count}} pokoi} other {{{count}} pokoju}}",
+  );
+  const v = ctx();
+  expect(await run(["validate"], v)).toBe(0);
+  expect(v.output.join("\n")).not.toMatch(/no longer has/);
+  // The pushed seed pulled back changes nothing; a new form is added.
+  await serve(200, {
+    ...PAYLOAD,
+    types: { rooms: "chrome" },
+    translations: { en: {}, pl: { rooms: pl } },
+  });
+  expect(await run(["pull", "--check"], ctx())).toBe(0);
+  active?.close();
+  await serve(200, {
+    ...PAYLOAD,
+    types: { rooms: "chrome" },
+    translations: {
+      en: {},
+      pl: {
+        rooms:
+          "{count, plural, one {{{count}} pokój} few {{{count}} pokoje} many {{{count}} pokoi} other {{{count}} pokoju!}}",
+      },
+    },
+  });
+  expect(await run(["pull"], ctx())).toBe(0);
+  expect(JSON.parse(read("i18n/pl.json")).rooms.other).toBe(
+    "{{count}} pokoju!",
+  );
+});

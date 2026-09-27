@@ -115,7 +115,9 @@ export function printfVerbOf(written: string): string | undefined {
   return PRINTF_VERB_RE.exec(written)?.[4];
 }
 
-// A printf text that is one ICU plural from end to end (#652).
+// A printf or i18next text that is one ICU plural from end to end
+// (#652, #662): a converter's gettext plural, or a plural object read
+// as one string, its forms written in the library's own syntax.
 const PRINTF_PLURAL_OPENS_RE =
   /^\s*\{\s*[\p{L}_][\p{L}\p{M}\p{N}_.-]*\s*,\s*plural\s*,/u;
 const PRINTF_PLURAL_RE = new RegExp(
@@ -126,8 +128,12 @@ const PRINTF_PLURAL_RE = new RegExp(
 // The printf text read as one plural, or undefined where it is not one
 // from end to end, or does not parse as one: then it is printf text as
 // before (#652).
-function printfPlural(source: string, html: boolean): IcuNode[] | undefined {
-  const read = readPrintfPlural(source, html);
+function printfPlural(
+  source: string,
+  html: boolean,
+  syntax: Library,
+): IcuNode[] | undefined {
+  const read = readPrintfPlural(source, html, syntax);
   return "nodes" in read ? read.nodes : undefined;
 }
 
@@ -136,18 +142,20 @@ function printfPlural(source: string, html: boolean): IcuNode[] | undefined {
 export function printfPluralError(
   text: string,
   html = false,
+  syntax: Library = "printf",
 ): IcuError | undefined {
   if (!PRINTF_PLURAL_OPENS_RE.test(text)) return undefined;
-  const read = readPrintfPlural(text, html);
+  const read = readPrintfPlural(text, html, syntax);
   return "error" in read ? read.error : undefined;
 }
 
 function readPrintfPlural(
   source: string,
   html: boolean,
+  syntax: Library,
 ): { nodes: IcuNode[] } | { error: IcuError } {
   try {
-    const nodes = new Parser(source, "printf", html, true).parseSequence(false);
+    const nodes = new Parser(source, syntax, html, true).parseSequence(false);
     const kept = nodes.filter(
       (node) => !(node.kind === "literal" && node.text.trim() === ""),
     );
@@ -155,7 +163,7 @@ function readPrintfPlural(
     const after = source.search(/\}[^}]*$/) + 1;
     return {
       error: {
-        message: "text after the plural: a printf plural is the whole text",
+        message: "text after the plural: a plural read whole is the whole text",
         position: after,
       },
     };
@@ -320,7 +328,8 @@ class Parser {
         }
         // i18next: {{name}} is a placeholder, a single brace is text,
         // and there are no arguments, so nothing else opens here.
-        if (this.syntax === "i18next") {
+        // A plural read whole opens with a single brace (#662).
+        if (this.syntax === "i18next" && !(this.printfPlural && !inBranch)) {
           if (this.source[this.pos + 1] !== "{") {
             literal += ch;
             this.pos += 1;
@@ -336,7 +345,7 @@ class Parser {
         literalStart = this.pos;
         continue;
       }
-      if (ch === "#" && pluralArg !== undefined) {
+      if (ch === "#" && pluralArg !== undefined && this.syntax !== "i18next") {
         flush();
         nodes.push({ kind: "count", arg: pluralArg });
         this.pos += 1;
@@ -626,8 +635,11 @@ function parseWith(
           branches.length === 1 ? branches[0]! : [{ kind: "forms", branches }],
       };
     }
-    if (syntax === "printf" && PRINTF_PLURAL_RE.test(source)) {
-      const plural = printfPlural(source, html);
+    if (
+      (syntax === "printf" || syntax === "i18next") &&
+      PRINTF_PLURAL_RE.test(source)
+    ) {
+      const plural = printfPlural(source, html, syntax);
       if (plural) return { ok: true, nodes: plural };
     }
     return {

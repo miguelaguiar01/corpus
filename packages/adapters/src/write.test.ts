@@ -796,3 +796,74 @@ describe("a key new to a target file lands in the source file's order (#654)", (
     ).toBe(`{ "a": "a", "b": "b", "c": "c" }`);
   });
 });
+
+describe("a plural object reads as one plural and writes back as the object (#662)", () => {
+  const source = `{
+  "rooms": {
+    "one": "%(count)s room",
+    "other": "%(count)s rooms"
+  },
+  "title": "Rooms"
+}
+`;
+
+  test("a target's forms are written in CLDR's order, a form it gains added in place", () => {
+    const target = `{
+  "rooms": {
+    "one": "%(count)s pokój",
+    "other": "%(count)s pokoi"
+  },
+  "title": "Pokoje"
+}
+`;
+    const pl =
+      "{count, plural, one {%(count)s pokój} few {%(count)s pokoje} many {%(count)s pokoi} other {%(count)s pokoju}}";
+    expect(entriesToMessages(source, { rooms: pl }, target, { plurals: true }))
+      .toBe(`{
+  "rooms": {
+    "one": "%(count)s pokój",
+    "few": "%(count)s pokoje",
+    "many": "%(count)s pokoi",
+    "other": "%(count)s pokoju"
+  },
+  "title": "Pokoje"
+}
+`);
+  });
+
+  test("what the file holds writes back byte for byte", () => {
+    const target = `{
+  "rooms": { "one": "a", "other": "b" },
+  "title": "T"
+}
+`;
+    const read = messagesToEntries(JSON.parse(target), {
+      type: "ui",
+      plurals: true,
+    });
+    const translations = Object.fromEntries(read.map((e) => [e.id, e.source]));
+    expect(
+      entriesToMessages(source, translations, target, { plurals: true }),
+    ).toBe(target);
+  });
+
+  test("a new file writes the plural as an object; a plain text is the other form", () => {
+    expect(
+      JSON.parse(
+        entriesToMessages(
+          source,
+          { rooms: "{count, plural, one {x} other {y}}", title: "T" },
+          "",
+          { plurals: true },
+        ),
+      ),
+    ).toEqual({ rooms: { one: "x", other: "y" }, title: "T" });
+    expect(
+      JSON.parse(
+        entriesToMessages(source, { rooms: "{count} 个房间" }, "{}\n", {
+          plurals: true,
+        }),
+      ),
+    ).toEqual({ rooms: { other: "{count} 个房间" } });
+  });
+});

@@ -31,9 +31,10 @@ import {
   describeExecFailure,
   EXEC_MAX_BUFFER,
   fileOf,
+  type FileSource,
   hasLanguages,
   isArb,
-  type FileSource,
+  readsPluralObjects,
   sourceWritesBack,
 } from "./build";
 import { CliError, loadConfig, requireToken } from "./config";
@@ -222,6 +223,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
               ? entriesToMessages(template, translations, existing, {
                   ...(isArb(file) && { locale: language }),
                   chrome: libraryOf(source) === "chrome",
+                  plurals: readsPluralObjects(source),
                 })
               : entriesToTable(template, translations, source.map, existing);
       if (next !== existing) {
@@ -314,6 +316,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
               : source.adapter === "messages"
                 ? applyMessagesOps(existing, targetOps, {
                     chrome: libraryOf(source) === "chrome",
+                    plurals: readsPluralObjects(source),
                   })
                 : applyTableOps(existing, targetOps, source.map);
       } catch (error) {
@@ -518,6 +521,7 @@ function ownIds(template: string, source: FileSource): Set<string> | undefined {
       type: source.type,
       arb: isArb(source.path),
       chrome: libraryOf(source) === "chrome",
+      plurals: readsPluralObjects(source),
     });
     const prefix = source.namespace ? `${source.namespace}:` : "";
     return new Set(entries.map((e) => `${prefix}${e.id}`));

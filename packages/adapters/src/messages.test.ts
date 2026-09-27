@@ -1,6 +1,11 @@
 import { expect, test } from "vitest";
 import { stringEntrySchema } from "@corpus/contract";
-import { messagesToEntries, keyIsSentence } from "./messages";
+import {
+  keyIsSentence,
+  messagesToEntries,
+  pluralBranches,
+  pluralObjectText,
+} from "./messages";
 
 test("flat catalog maps key -> id with the configured type", () => {
   const entries = messagesToEntries(
@@ -197,4 +202,52 @@ test("two key paths that flatten to one id are refused, naming both (#642)", () 
       { type: "ui" },
     ),
   ).toThrow(/a\.b\.c is written twice: \["a\.b","c"\] and \["a","b\.c"\]/);
+});
+
+test("an object of plural categories with other is one plural string on count (#662)", () => {
+  const data = {
+    room: {
+      n_rooms: { one: "%(count)s room", other: "%(count)s rooms" },
+      title: "Rooms",
+    },
+    // Not every key a category, or no other: nesting, as before.
+    size: { one: "Small", big: "Big" },
+    pair: { one: "One", two: "Two" },
+  };
+  expect(messagesToEntries(data, { type: "ui", plurals: true })).toEqual([
+    {
+      id: "room.n_rooms",
+      type: "ui",
+      source: "{count, plural, one {%(count)s room} other {%(count)s rooms}}",
+    },
+    { id: "room.title", type: "ui", source: "Rooms" },
+    { id: "size.one", type: "ui", source: "Small" },
+    { id: "size.big", type: "ui", source: "Big" },
+    { id: "pair.one", type: "ui", source: "One" },
+    { id: "pair.two", type: "ui", source: "Two" },
+  ]);
+  // Without the option (vue, chrome), the forms stay keys of their own.
+  expect(
+    messagesToEntries(data, { type: "ui" })
+      .map((e) => e.id)
+      .slice(0, 2),
+  ).toEqual(["room.n_rooms.one", "room.n_rooms.other"]);
+});
+
+test("a plural string reads back into its forms; any other text is not one (#662)", () => {
+  const forms = { one: "{{count}} room", other: "{{count}} rooms" };
+  expect(pluralBranches(pluralObjectText(forms))).toEqual(forms);
+  expect(
+    pluralBranches("{count, plural, one {a} few {b {x} c} other {d}}"),
+  ).toEqual({
+    one: "a",
+    few: "b {x} c",
+    other: "d",
+  });
+  expect(pluralBranches("{count, plural, one {a}}")).toBeUndefined();
+  expect(
+    pluralBranches("{count, plural, one {a} other {b}} tail"),
+  ).toBeUndefined();
+  expect(pluralBranches("{n, plural, one {a} other {b}}")).toBeUndefined();
+  expect(pluralBranches("Rooms")).toBeUndefined();
 });
