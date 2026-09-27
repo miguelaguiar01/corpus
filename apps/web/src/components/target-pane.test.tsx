@@ -363,6 +363,7 @@ test("under i18next a plural chip fills each branch with the count's placeholder
     ["counterpart", "%(count)s", "%(count)s"],
     ["easy_localization", "{}", "{}"],
     ["rails", "%{count}", "%{count}"],
+    ["qt", "%n", "%n"],
   ] as const) {
     render(
       <TargetPane

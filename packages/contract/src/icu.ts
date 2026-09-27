@@ -351,9 +351,11 @@ class Parser {
             : null;
         if (match) {
           flush();
+          // Named by its value: `%01` is Qt's `%1`.
+          const digits = match[2]!;
           nodes.push({
             kind: "placeholder",
-            name: match[2]!,
+            name: digits === "n" ? "n" : String(Number(digits)),
             written: match[0],
           });
           this.pos += match[0].length;

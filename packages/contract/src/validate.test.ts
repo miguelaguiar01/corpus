@@ -1148,6 +1148,16 @@ test("under qt %1–%99, %L1 and %n are placeholders by number; any other % and 
   expect(validateTranslation("%n file(s)", "%n Datei(en)", "de", lib)).toEqual({
     ok: true,
   });
+  // Qt reads %0 and %01 too: %01 is %1, and a stray %0 is a placeholder.
+  expect(validateTranslation("%1 left", "%01 übrig", "de", lib)).toEqual({
+    ok: true,
+  });
+  expect(
+    validateTranslation("%1 left", "%0 %1 übrig", "de", lib),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "unexpected-placeholder", name: "0" }],
+  });
   // 100% and <dir> are text; so are braces.
   expect(
     validateTranslation("100% of <dir> {x}", "100% von <dir> {x}", "de", lib),
