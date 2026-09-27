@@ -115,8 +115,9 @@ const COUNTERPART_PLACEHOLDER_RE = /^%\(([^()\s]+)\)[sd]/;
 const EASY_PLACEHOLDER_RE = /^\{([\p{L}_][\p{L}\p{M}\p{N}_]*)?\}/u;
 const EASY_LINK_RE = /^@(?:\.[a-z]+)?:(?:\([\w|.-]+\)|[\w|.-]*[\w|-])/;
 
-// Qt's `%1`–`%99`, localised `%L1`, and `%n`, the numerus count (#666).
-const QT_PLACEHOLDER_RE = /^%(L?)([1-9][0-9]?|n)/;
+// Qt's `%1`–`%99`, `%0` and `%01` among them as Qt reads at most two
+// digits, localised `%L1`, and `%n`, the numerus count (#666).
+const QT_PLACEHOLDER_RE = /^%(L?)([0-9][0-9]?|n)/;
 
 // Rails I18n's `%{name}` and its format style `%<count>d`,
 // `%<amount>.2f` (#665); `%%` is a literal `%`.
