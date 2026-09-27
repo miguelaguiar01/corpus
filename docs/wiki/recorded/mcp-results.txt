@@ -111,7 +111,7 @@ status {}
       "pt-PT"
     ],
     "strings": 2,
-    "lastPushAt": "2026-09-27T22:36:41.824Z",
+    "lastPushAt": "2026-09-27T22:49:22.323Z",
     "version": "v0.20.0",
     "pendingProposals": 0,
     "writableSources": [

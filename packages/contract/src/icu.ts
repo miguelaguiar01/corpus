@@ -115,6 +115,10 @@ const COUNTERPART_PLACEHOLDER_RE = /^%\(([^()\s]+)\)[sd]/;
 const EASY_PLACEHOLDER_RE = /^\{([\p{L}_][\p{L}\p{M}\p{N}_]*)?\}/u;
 const EASY_LINK_RE = /^@(?:\.[a-z]+)?:(?:\([\w|.-]+\)|[\w|.-]*[\w|-])/;
 
+// Qt's `%1`–`%99`, `%0` and `%01` among them as Qt reads at most two
+// digits, localised `%L1`, and `%n`, the numerus count (#666).
+const QT_PLACEHOLDER_RE = /^%(L?)([0-9][0-9]?|n)/;
+
 // Rails I18n's `%{name}` and its format style `%<count>d`,
 // `%<amount>.2f` (#665); `%%` is a literal `%`.
 const RAILS_PLACEHOLDER_RE =
@@ -140,6 +144,7 @@ export const WHOLE_PLURAL_LIBRARIES: ReadonlySet<Library> = new Set([
   "counterpart",
   "easy_localization",
   "rails",
+  "qt",
 ]);
 
 // A printf or i18next text that is one ICU plural from end to end
@@ -331,6 +336,37 @@ class Parser {
           continue;
         }
         if (ch === "#" || (ch === "{" && !(this.printfPlural && !inBranch))) {
+          literal += ch;
+          this.pos += 1;
+          continue;
+        }
+      }
+      // Qt (#666): a placeholder is its number, `%L1` being `%1` shown
+      // in the locale's digits; any other `%`, braces and `#` are text,
+      // and angle brackets too unless the type is read as HTML.
+      if (this.syntax === "qt") {
+        const match =
+          ch === "%"
+            ? QT_PLACEHOLDER_RE.exec(this.source.slice(this.pos))
+            : null;
+        if (match) {
+          flush();
+          // Named by its value: `%01` is Qt's `%1`.
+          const digits = match[2]!;
+          nodes.push({
+            kind: "placeholder",
+            name: digits === "n" ? "n" : String(Number(digits)),
+            written: match[0],
+          });
+          this.pos += match[0].length;
+          literalStart = this.pos;
+          continue;
+        }
+        if (
+          ch === "#" ||
+          (ch === "<" && !this.html) ||
+          (ch === "{" && !(this.printfPlural && !inBranch))
+        ) {
           literal += ch;
           this.pos += 1;
           continue;

@@ -23,7 +23,7 @@ import {
 import { ignoreCorpusDir } from "./corpus-dir";
 
 export const INIT_USAGE =
-  "corpus init --project <slug> --source <lang> --messages <path with {lang}> [--languages <a,b>] [--server <url>] [--type <name>] [--library <icu|i18next|vue|printf|chrome|counterpart|easy_localization|rails>]";
+  "corpus init --project <slug> --source <lang> --messages <path with {lang}> [--languages <a,b>] [--server <url>] [--type <name>] [--library <icu|i18next|vue|printf|chrome|counterpart|easy_localization|rails|qt>]";
 
 // `corpus init` writes the config from flags alone, so it scripts;
 // it validates the config before writing and never overwrites one.
