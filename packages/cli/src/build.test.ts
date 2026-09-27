@@ -828,3 +828,25 @@ test("a <br></br> pair builds under icu, a lone <br> is refused there, and an HT
   ]);
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("a catalogue no adapter reads is refused by its format, a Qt .ts told from TypeScript (#647)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-format-"));
+  mkdirSync(path.join(dir, "i18n"));
+  writeFileSync(path.join(dir, "i18n", "en.po"), 'msgid "a"\nmsgstr "A"\n');
+  writeFileSync(
+    path.join(dir, "i18n", "app_en.ts"),
+    '<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE TS>\n<TS version="2.1"></TS>\n',
+  );
+  const at = (file: string) =>
+    config({
+      languages: ["en"],
+      sources: [{ adapter: "messages", type: "ui", path: `i18n/${file}` }],
+    });
+  await expect(buildSnapshot(at("{lang}.po"), dir)).rejects.toThrow(
+    /i18n\/en\.po: a gettext catalogue, which no adapter reads: an exec source/,
+  );
+  await expect(buildSnapshot(at("app_{lang}.ts"), dir)).rejects.toThrow(
+    /i18n\/app_en\.ts: a Qt Linguist catalogue/,
+  );
+  rmSync(dir, { recursive: true, force: true });
+});

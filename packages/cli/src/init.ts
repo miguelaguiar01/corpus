@@ -9,6 +9,7 @@ import {
   localeOf,
   type Library,
 } from "@corpus/contract";
+import { headOf, unreadableCatalogue } from "./catalogue-format";
 import { option } from "./args";
 import { readEntries } from "./build";
 import { DEFAULT_INCLUDE, EXTENSIONS, SKIP_DIRS } from "./check";
@@ -52,6 +53,17 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       `--messages must contain {lang}, such as src/i18n/{lang}.json`,
     );
   }
+  const sourceFile = path.join(
+    ctx.cwd,
+    messages.replaceAll("{lang}", sourceLanguage),
+  );
+  const unreadable = unreadableCatalogue(
+    sourceFile,
+    /\.ts$/i.test(sourceFile) && existsSync(sourceFile)
+      ? headOf(sourceFile)
+      : undefined,
+  );
+  if (unreadable) throw new CliError(`--messages ${messages}: ${unreadable}`);
   // The flag given without a value is an error, as for every option
   // (args.ts); only its absence means "read the files".
   const present = args.includes("--languages");

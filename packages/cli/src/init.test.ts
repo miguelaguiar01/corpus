@@ -712,3 +712,50 @@ test("init reads languages through a {ns} pattern in either order, and names sib
   ).toBe(0);
   expect(langs.out.join("\n")).not.toMatch(/sibling catalogue/);
 });
+
+test("init refuses a catalogue no adapter reads, by its format (#647)", async () => {
+  const p = project();
+  mkdirSync(path.join(p.dir, "config", "locales"), { recursive: true });
+  writeFileSync(
+    path.join(p.dir, "config", "locales", "client.en.yml"),
+    "en:\n  a: A\n",
+  );
+  const code = await run(
+    [
+      "init",
+      "--project",
+      "x",
+      "--source",
+      "en",
+      "--messages",
+      "config/locales/client.{lang}.yml",
+    ],
+    p.ctx,
+  );
+  expect(code).toBe(1);
+  expect(p.err.join("\n")).toMatch(
+    /--messages config\/locales\/client\.\{lang\}\.yml: a YAML catalogue, which no adapter reads/,
+  );
+  expect(existsSync(path.join(p.dir, "corpus.config.mjs"))).toBe(false);
+
+  mkdirSync(path.join(p.dir, "lang"));
+  writeFileSync(
+    path.join(p.dir, "lang", "app_en.ts"),
+    '<?xml version="1.0"?>\n<TS version="2.1"></TS>\n',
+  );
+  expect(
+    await run(
+      [
+        "init",
+        "--project",
+        "x",
+        "--source",
+        "en",
+        "--messages",
+        "lang/app_{lang}.ts",
+      ],
+      p.ctx,
+    ),
+  ).toBe(1);
+  expect(p.err.join("\n")).toMatch(/a Qt Linguist catalogue/);
+});

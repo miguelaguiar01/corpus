@@ -32,6 +32,7 @@ import {
   refusalCause,
   type RefusalCause,
 } from "@corpus/contract";
+import { headOf, unreadableCatalogue } from "./catalogue-format";
 import { CliError } from "./config";
 
 type Sourced = { entry: StringEntry; file: string };
@@ -495,6 +496,11 @@ async function readModule(
   abs: string,
   exportName?: string,
 ): Promise<unknown> {
+  const unreadable = unreadableCatalogue(
+    abs,
+    /\.ts$/i.test(abs) && existsSync(abs) ? headOf(abs) : undefined,
+  );
+  if (unreadable) throw new Error(unreadable);
   if (abs.endsWith(".json") || isArb(abs)) {
     if (exportName !== undefined) {
       throw new Error(
