@@ -288,7 +288,7 @@ test("--check writes nothing, asks the importer to report, lists the files a pul
   expect(() => read("i18n/pt.json")).toThrow();
   expect(() => read("imported.json")).toThrow();
   const out = c.output.join("\n");
-  expect(out).toContain("ran node scripts/import.mjs --check");
+  expect(out).toContain("ran node scripts/import.mjs (CORPUS_PULL_CHECK=1)");
   expect(out).toContain("i18n/pt.json");
   expect(out).toContain("imported.json");
   expect(out).toMatch(/2 file\(s\) would change/);
@@ -311,8 +311,20 @@ test("a pull counts the files an importer reports; one that reports nothing unde
   const q = ctx();
   await run(["pull", "--check"], q);
   expect(q.output.join("\n")).toMatch(
-    /exec "node scripts\/import-silent.mjs" is not checked: it printed no \{"changed": \[…\]\} line under --check/,
+    /exec "node scripts\/import-silent.mjs" is not checked: it printed no \{"changed": \[…\]\} line under CORPUS_PULL_CHECK=1/,
   );
+  // Without importCheck a check never runs an import command.
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    read("corpus.config.ts").replace("importCheck: true,", ""),
+  );
+  rmSync(path.join(repo, "imported.json"), { force: true });
+  const r = ctx();
+  await run(["pull", "--check"], r);
+  expect(r.output.join("\n")).toMatch(
+    /exec "node scripts\/import-silent.mjs" is not checked: set importCheck: true/,
+  );
+  expect(() => read("imported.json")).toThrow();
 });
 
 test("--check exits 0 when the repository already carries what the server would give", async () => {
@@ -935,4 +947,30 @@ export default defineCorpus({
     `{\n  "app.title": "Corpus",\n  "greeting": "你好 {name}"\n}\n`,
   );
   expect(existsSync(path.join(repo, "i18n", "zh-CN.json"))).toBe(false);
+});
+
+test("an importer's reported paths are the repository's, spelt as the adapters spell them; one outside it is refused (#659)", async () => {
+  await serve();
+  const script = (changed: string) =>
+    `process.stdin.resume();\nprocess.stdin.on("end", () => console.log(JSON.stringify({ changed: ${changed} })));\n`;
+  writeFileSync(
+    path.join(repo, "scripts", "import.mjs"),
+    script(
+      `["./i18n/pt.json", process.cwd() + "/i18n/pt.json", "i18n\\\\pt.json", "imported.json"]`,
+    ),
+  );
+  const c = ctx();
+  expect(await run(["pull"], c)).toBe(0);
+  expect(c.output.at(-1)).toBe(
+    "pulled pull-fixture at verified: 2 file(s) changed, 1 import command(s) ran",
+  );
+  writeFileSync(
+    path.join(repo, "scripts", "import.mjs"),
+    script(`["../x.json"]`),
+  );
+  const d = ctx();
+  expect(await run(["pull"], d)).toBe(1);
+  expect(d.output.join("\n")).toMatch(
+    /reported \.\.\/x\.json changed, which is outside the repository/,
+  );
 });

@@ -240,6 +240,12 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
   let ran = 0;
   for (const source of config.sources) {
     if (source.adapter !== "exec" || !source.importCommand) continue;
+    if (check && !source.importCheck) {
+      ctx.err(
+        `corpus: exec "${source.importCommand}" is not checked: set importCheck: true once it honours CORPUS_PULL_CHECK=1`,
+      );
+      continue;
+    }
     const translations: PullPayload["translations"] = {};
     for (const [language, texts] of Object.entries(payload.translations)) {
       if (!targets.includes(language)) continue;
@@ -249,15 +255,15 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
         ),
       );
     }
-    // Under --check the importer is asked to report and not write (#659);
-    // what it writes is its own, so the contract is the wiki's.
-    const command = check
-      ? `${source.importCommand} --check`
-      : source.importCommand;
+    // Under --check the importer is asked, through the environment, which
+    // reaches it through `npm run` and a chained command where a flag
+    // would not, to report and not write (#659).
+    const command = source.importCommand;
     const result = spawnSync(command, {
       shell: true,
       cwd: ctx.cwd,
       encoding: "utf8",
+      env: check ? { ...process.env, CORPUS_PULL_CHECK: "1" } : process.env,
       input: JSON.stringify({ ...payload, translations }),
       maxBuffer: EXEC_MAX_BUFFER,
     });
@@ -265,18 +271,28 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
       throw new CliError(describeExecFailure(command, result, "import"));
     }
     ran++;
-    ctx.out(`ran ${command}`);
+    // Under --check stdout is the list of files, so the rest goes aside.
+    const say = (line: string) => (check ? ctx.err(line) : ctx.out(line));
+    say(`ran ${command}${check ? " (CORPUS_PULL_CHECK=1)" : ""}`);
     for (const line of result.stderr.split(/\r?\n/)) {
-      if (line.trim() !== "") ctx.out(`  ${line}`);
+      if (line.trim() !== "") say(`  ${line}`);
     }
     // An importer that prints `{"changed": [paths]}` as its last line
     // has its files counted with the adapters' (#659); one that does
     // not is its own account, as before (#599), and is no check.
     const reported = changedFiles(result.stdout);
-    if (reported) changed.push(...reported);
-    else if (check)
+    if (reported) {
+      for (const file of reported) {
+        const rel = repoPath(ctx.cwd, file);
+        if (rel === undefined)
+          throw new CliError(
+            `exec "${command}" reported ${file} changed, which is outside the repository`,
+          );
+        changed.push(rel);
+      }
+    } else if (check)
       ctx.err(
-        `corpus: exec "${source.importCommand}" is not checked: it printed no {"changed": […]} line under --check`,
+        `corpus: exec "${source.importCommand}" is not checked: it printed no {"changed": […]} line under CORPUS_PULL_CHECK=1`,
       );
   }
 
@@ -469,4 +485,13 @@ function changedFiles(stdout: string): string[] | undefined {
   } catch {
     return undefined;
   }
+}
+
+// A path an importer reported, as the adapters' are written: relative
+// to the repository, forward slashes; undefined outside it.
+function repoPath(cwd: string, file: string): string | undefined {
+  const rel = path.relative(cwd, path.resolve(cwd, file.replaceAll("\\", "/")));
+  if (rel === "" || rel.startsWith("..") || path.isAbsolute(rel))
+    return undefined;
+  return rel.split(path.sep).join("/");
 }
