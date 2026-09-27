@@ -353,7 +353,7 @@ test("a messages or fluent source may name the file code of a language (#657)", 
     "languageFiles names zh-cn, which languages does not list",
   ]);
   expect(refused({ "zh-CN": "cn" }, "table")).toEqual([
-    "languageFiles is for messages and fluent sources",
+    "languageFiles is for messages, fluent and xliff sources",
   ]);
 });
 

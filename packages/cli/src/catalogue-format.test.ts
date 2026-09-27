@@ -9,7 +9,7 @@ test("a catalogue no adapter reads is named by its format, pointing at exec (#64
     /^a YAML catalogue/,
   );
   expect(unreadableCatalogue("src/locales/messages.fr.xlf")).toMatch(
-    /^an XLIFF catalogue/,
+    /^an XLIFF catalogue: declare it \{ adapter: "xliff"/,
   );
   expect(unreadableCatalogue("Localizable.xcstrings")).toMatch(
     /^a String Catalog/,

@@ -18,12 +18,12 @@ import {
   deprecations,
   execTranslationsSchema,
   fileOf,
+  type FileSource,
   hasLanguages,
   readEntries,
+  readsTargets,
   runExporter,
-  type FileSource,
   sourceLibrary,
-  sourceWritesBack,
 } from "./build";
 import { headOf, unreadableCatalogue } from "./catalogue-format";
 import { CliError, loadConfig } from "./config";
@@ -166,7 +166,7 @@ export async function validateRepo(
       );
       if (unreadable) throw new CliError(`${sourceFile}: ${unreadable}`);
     }
-    if (!sourceWritesBack(source)) continue;
+    if (!readsTargets(source)) continue;
     const library = sourceLibrary(source);
     const sources = await texts(jiti, cwd, sourceFile, source, true);
     if (sources === undefined) {

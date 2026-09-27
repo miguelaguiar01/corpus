@@ -179,7 +179,9 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     }
     if (!sourceWritesBack(source)) {
       ctx.err(
-        `corpus: ${source.path} is not JSON: pull writes JSON only, so its translations cannot be written back`,
+        source.adapter === "xliff"
+          ? `corpus: ${source.path}: pull does not write XLIFF yet; its translations are read and pushed`
+          : `corpus: ${source.path} is not JSON: pull writes JSON only, so its translations cannot be written back`,
       );
       continue;
     }
@@ -229,8 +231,10 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
                       `corpus: ${file}: ${printable(id)} is a plural its object cannot hold (an =N branch, or a brace a form leaves open); not written`,
                     ),
                 })
-              : entriesToTable(template, translations, source.map, existing);
-      if (next !== existing) {
+              : source.adapter === "table"
+                ? entriesToTable(template, translations, source.map, existing)
+                : existing;
+      if (next !== undefined && next !== existing) {
         if (!check) {
           // A language new to the repository may need its directory.
           mkdirSync(path.dirname(path.join(ctx.cwd, file)), {
@@ -322,7 +326,9 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
                     chrome: libraryOf(source) === "chrome",
                     plurals: readsPluralObjects(source),
                   })
-                : applyTableOps(existing, targetOps, source.map);
+                : source.adapter === "table"
+                  ? applyTableOps(existing, targetOps, source.map)
+                  : existing;
       } catch (error) {
         throw new CliError(
           `${target}: proposal(s) for ${targetOps.map((o) => printable(o.id)).join(", ")}: ${(error as Error).message}`,

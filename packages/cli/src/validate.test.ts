@@ -638,3 +638,31 @@ test("a key with a newline prints escaped on one line; --json keeps it raw (#648
     "Could not remove\n{name}",
   );
 });
+
+test("validate refuses an xliff target whose START_LINK and CLOSE_LINK are reversed (#710)", async () => {
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8").replace(
+      /sources: \[[\s\S]*?\n {2}\],/,
+      'sources: [{ adapter: "xliff", type: "ui", path: "locale/messages.{lang}.xlf", sourcePath: "locale/messages.xlf" }],',
+    ),
+  );
+  mkdirSync(path.join(repo, "locale"), { recursive: true });
+  const file = (target: string) =>
+    `<xliff version="1.2"><file source-language="en"><body><trans-unit id="signIn"><source>Sign in with <x id="START_LINK"/>Google<x id="CLOSE_LINK"/></source>${target}</trans-unit></body></file></xliff>\n`;
+  writeFileSync(path.join(repo, "locale", "messages.xlf"), file(""));
+  writeFileSync(
+    path.join(repo, "locale", "messages.pt.xlf"),
+    file(
+      '<target state="translated">Entrar com <x id="CLOSE_LINK"/>Google<x id="START_LINK"/></target>',
+    ),
+  );
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(1);
+  expect(c.stderr.join("\n")).toMatch(
+    /locale\/messages\.pt\.xlf:signIn: invalid ICU in the target/,
+  );
+});

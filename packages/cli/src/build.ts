@@ -7,6 +7,8 @@ import {
   androidDirOf,
   androidToEntries,
   fluentToEntries,
+  xliffToEntries,
+  xliffTranslations,
   messagesToEntries,
   stripBom,
   tableToEntries,
@@ -307,6 +309,16 @@ export async function buildSnapshotReport(
       );
       if (kept.length > 0) (seedTranslated[lang] ??= []).push(...kept);
     }
+  // An XLIFF target marked translated whose text is the source's is a
+  // translation, not work (#658, #710): only such targets are seeds.
+  for (const source of config.sources) {
+    if (source.adapter !== "xliff") continue;
+    const file = fileOf(source, config.sourceLanguage, config.sourceLanguage);
+    for (const { entry } of sourced.filter((s) => s.file === file))
+      for (const [lang, texts] of Object.entries(seedTranslations))
+        if (texts[entry.id] === entry.source)
+          (seedTranslated[lang] ??= []).push(entry.id);
+  }
   const snapshot = {
     contract: "corpus/1" as const,
     project: config.project,
@@ -522,7 +534,15 @@ export type FileSource = Exclude<Source, { adapter: "exec" }>;
 
 export function sourceLibrary(source: FileSource): Library {
   if (source.adapter === "android") return "android";
-  return source.adapter === "fluent" ? "icu" : libraryOf(source);
+  return source.adapter === "fluent" || source.adapter === "xliff"
+    ? "icu"
+    : libraryOf(source);
+}
+
+// Whether a source's target files are read for their translations: a
+// file source pull writes back, and XLIFF, whose write-back is #711.
+export function readsTargets(source: FileSource): boolean {
+  return source.adapter === "xliff" || sourceWritesBack(source);
 }
 
 // The file a source keeps a language in: its pattern with {lang}
@@ -532,6 +552,12 @@ export function fileOf(
   language: string,
   sourceLanguage: string,
 ): string {
+  if (
+    source.adapter === "xliff" &&
+    source.sourcePath &&
+    language === sourceLanguage
+  )
+    return source.sourcePath;
   if (source.adapter !== "android")
     return source.path.replace("{lang}", fileCodeOf(source, language));
   const dir = language === sourceLanguage ? "values" : androidDirOf(language);
@@ -583,6 +609,12 @@ export async function readEntries(
     return androidToEntries(readFileSync(path.join(cwd, file), "utf8"), {
       type: source.type,
     });
+  }
+  if (source.adapter === "xliff") {
+    const xml = readFileSync(path.join(cwd, file), "utf8");
+    return sourceFile
+      ? xliffToEntries(xml, { type: source.type })
+      : xliffTranslations(xml).map((e) => ({ ...e, type: source.type }));
   }
   if (source.adapter === "fluent") {
     const entries = fluentToEntries(
@@ -650,7 +682,9 @@ async function readModule(
 // it takes no translations.
 export function writableSources(config: CorpusConfig): WritableSource[] {
   return config.sources.flatMap((source) =>
-    source.adapter !== "exec" && sourceWritesBack(source)
+    source.adapter !== "exec" &&
+    source.adapter !== "xliff" &&
+    sourceWritesBack(source)
       ? [
           {
             // Android's source file itself: the server fills {lang} in
@@ -701,6 +735,10 @@ export function pushOnlyNotes(config: CorpusConfig): string[] {
       }
     } else if (source.adapter === "android" || source.adapter === "fluent") {
       continue;
+    } else if (source.adapter === "xliff") {
+      notes.push(
+        `${source.path}: pull does not write XLIFF yet; its translations are read and pushed`,
+      );
     } else if (!source.path.includes("{lang}")) {
       notes.push(
         `${source.path} has no {lang}: its translations cannot be written back`,
@@ -826,7 +864,7 @@ async function readSeeds(
   const seededFrom: Record<string, Record<string, string>> = {};
   for (const source of config.sources) {
     if (source.adapter === "exec" || !hasLanguages(source)) continue;
-    if (!sourceWritesBack(source)) continue;
+    if (!readsTargets(source)) continue;
     for (const lang of config.languages) {
       if (lang === config.sourceLanguage) continue;
       const file = fileOf(source, lang, config.sourceLanguage);
