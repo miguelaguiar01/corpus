@@ -632,3 +632,47 @@ describe("i18next syntax", () => {
     ).toEqual({ ok: true });
   });
 });
+
+test("an =1 branch is the one category where one holds only 1; not in French, where it holds 0 and 1 (#650)", () => {
+  const source = "{n, plural, =1 {Profile} other {Profiles}}";
+  for (const language of ["de", "nl", "es", "it", "ca", "tr", "en"]) {
+    const result = validateTranslation(
+      source,
+      "{n, plural, =1 {Profil} other {Profile}}",
+      language,
+    );
+    expect(result.ok).toBe(true);
+    const incomplete = "incomplete" in result ? (result.incomplete ?? []) : [];
+    expect(incomplete).not.toContainEqual(
+      expect.objectContaining({ key: "one" }),
+    );
+  }
+  expect(
+    validateTranslation(
+      source,
+      "{n, plural, =1 {Profil} other {Profils}}",
+      "fr",
+    ),
+  ).toMatchObject({
+    ok: true,
+    incomplete: expect.arrayContaining([
+      { code: "missing-category", arg: "n", key: "one" },
+    ]),
+  });
+  // Russian's one is 1, 21, 31…: =1 does not cover it.
+  expect(
+    validateTranslation(
+      source,
+      "{n, plural, =1 {a} few {b} many {c} other {d}}",
+      "ru",
+    ),
+  ).toMatchObject({
+    incomplete: [{ code: "missing-category", arg: "n", key: "one" }],
+  });
+  // Spanish's many is a million and up: no =N covers it.
+  expect(
+    validateTranslation(source, "{n, plural, =1 {a} other {b}}", "es"),
+  ).toMatchObject({
+    incomplete: [{ code: "missing-category", arg: "n", key: "many" }],
+  });
+});

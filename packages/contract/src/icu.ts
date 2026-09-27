@@ -794,6 +794,44 @@ export function pluralCategoriesOf(language: string): string[] {
   return [...categories];
 }
 
+// The values a category is tried on: integers to a thousand, millions
+// (Spanish and French `many`), and fractions (French `one` holds 1.5).
+const SAMPLES = [
+  ...Array.from({ length: 1001 }, (_, i) => i),
+  1e6,
+  2e6,
+  0.1,
+  0.5,
+  1.1,
+  1.5,
+  2.5,
+];
+const samplesByLanguage = new Map<string, Map<string, number[]>>();
+
+// Whether a plural's `=N` branches reach every value the language puts
+// in a category, so the category's own branch would never be taken
+// (#650): `=1` is German's `one`, not French's, which holds 0 and 1.5,
+// nor Russian's, which holds 21.
+export function pluralCategoryCovered(
+  language: string,
+  category: string,
+  exact: ReadonlySet<number>,
+): boolean {
+  if (exact.size === 0 || !known(language)) return false;
+  let samples = samplesByLanguage.get(language);
+  if (!samples) {
+    const rules = new Intl.PluralRules(localeOf(language));
+    samples = new Map();
+    for (const n of SAMPLES) {
+      const key = rules.select(n);
+      samples.set(key, [...(samples.get(key) ?? []), n]);
+    }
+    samplesByLanguage.set(language, samples);
+  }
+  const values = samples.get(category);
+  return values !== undefined && values.every((n) => exact.has(n));
+}
+
 // The branch a plural takes for a value (§7): an exact `=N` first, then
 // the language's category, then `other`.
 export function pluralBranch(
