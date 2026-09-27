@@ -765,4 +765,3 @@ test("an other-only language may write a plural as the plain text of its other b
     ),
   ).toMatchObject({ ok: false });
 });
-});
