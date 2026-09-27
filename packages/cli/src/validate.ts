@@ -38,8 +38,9 @@ export type Finding = {
   // source's command does not (#592).
   language: string;
   code: ValidationError["code"] | "orphan";
-  // A plural missing a category its language uses is incomplete, not
-  // invalid (#556): printed apart, and never the reason for exit 1.
+  // A plural missing a category its language uses, or with one it never
+  // selects, is incomplete, not invalid (#556, #651): printed apart, and
+  // never the reason for exit 1.
   severity: "invalid" | "incomplete";
   message: string;
   sourceFile?: string;
@@ -92,7 +93,7 @@ export async function validate(
         ? `${byKey.size} orphan key(s) in ${new Set(orphans.map((f) => f.file)).size} file(s)`
         : "",
       incomplete.length
-        ? `${incomplete.length} incomplete plural(s), a category the language uses and the translation lacks`
+        ? `${incomplete.length} incomplete plural(s), a category the language uses and the translation lacks or one it never selects`
         : "",
     ].filter(Boolean);
     ctx.err(`corpus: ${parts.join(", ")}`);

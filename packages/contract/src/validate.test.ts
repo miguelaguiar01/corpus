@@ -190,13 +190,18 @@ describe("selects may collapse but not be malformed", () => {
         { code: "missing-category", arg: "n", key: "many" },
       ],
     });
+    // A branch the language never selects is dead text, incomplete
+    // rather than invalid (#651): the runtime's CLDR may differ.
     expect(
-      errorsOf(
+      validateTranslation(
         PLURAL,
         "{n, plural, one {# mark} few {# marks} other {# marks}}",
         "en",
       ),
-    ).toEqual([{ code: "unexpected-category", arg: "n", key: "few" }]);
+    ).toEqual({
+      ok: true,
+      incomplete: [{ code: "unexpected-category", arg: "n", key: "few" }],
+    });
     // No language, or one the runtime does not know: only the shape is checked.
     expect(
       validateTranslation(PLURAL, "{n, plural, few {x} other {y}}"),
@@ -707,4 +712,55 @@ test("an =1 branch is the one category where one holds only 1; not in French, wh
   ).toMatchObject({
     incomplete: [{ code: "missing-category", arg: "n", key: "many" }],
   });
+});
+
+test("an other-only language may write a plural as the plain text of its other branch (#651)", () => {
+  const source = "{count, plural, one {# post} other {# posts}}";
+  expect(validateTranslation(source, "{count}件の投稿", "ja")).toEqual({
+    ok: true,
+  });
+  // The other branch's values must survive: # is the count.
+  expect(validateTranslation(source, "投稿", "ja")).toEqual({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "count" }],
+  });
+  // An other branch without # needs no count.
+  expect(
+    validateTranslation(
+      "{count, plural, one {One post by {name}} other {Posts by {name}}}",
+      "{name}の投稿",
+      "ko",
+    ),
+  ).toEqual({ ok: true });
+  // A dead one branch in Japanese is a warning.
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, one {# 件} other {# 件}}",
+      "ja",
+    ),
+  ).toEqual({
+    ok: true,
+    incomplete: [{ code: "unexpected-category", arg: "count", key: "one" }],
+  });
+  // A language with categories still needs the count.
+  expect(
+    validateTranslation(
+      "{count, plural, one {One post by {name}} other {Posts by {name}}}",
+      "Beiträge von {name}",
+      "de",
+    ),
+  ).toEqual({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "count" }],
+  });
+  // Android: a <string> where the source is a <plurals>, for zh.
+  expect(
+    validateTranslation(
+      "{quantity, plural, one {%d episode} other {%d episodes}}",
+      "%d 集",
+      "zh",
+      "android",
+    ),
+  ).toEqual({ ok: true });
 });
