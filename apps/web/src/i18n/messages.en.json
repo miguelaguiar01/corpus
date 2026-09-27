@@ -26,6 +26,7 @@
   "editor.missingCategory": "Plural {arg} is missing the {key} branch this language uses",
   "editor.missingPlaceholder": "Missing {name}",
   "editor.changedVerb": "{actual} at position {name} is {expected} in the source; a verb that moved needs its index, {indexed}",
+  "editor.changedVerbType": "{actual} at position {name} where the source has {expected}",
   "editor.missingTag": "Missing the <{name}> tag",
   "editor.noLanguageMatches": "No language matches.",
   "editor.pickLanguage": "Pick a language",

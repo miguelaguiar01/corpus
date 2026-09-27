@@ -273,6 +273,28 @@ test("describe words every error code", () => {
       "i18next",
     ),
   ).toBe("invalid i18next message in the source at 0: x");
+  expect(
+    describe({
+      code: "changed-verb",
+      name: "1",
+      expected: "%lld",
+      actual: "%d",
+      indexed: "%n$d or %[n]d",
+      moved: false,
+    }),
+  ).toBe("%d at position 1 where the source has %lld");
+  expect(
+    describe({
+      code: "changed-verb",
+      name: "2",
+      expected: "%d",
+      actual: "%s",
+      indexed: "%n$s or %[n]s",
+      moved: true,
+    }),
+  ).toBe(
+    "%s at position 2 is %d in the source; a verb that moved needs its index, %n$s or %[n]s",
+  );
   expect(describe({ code: "missing-placeholder", name: "n" })).toBe(
     "missing {n}",
   );
@@ -314,6 +336,7 @@ test("describe words every error code", () => {
       expected: "%d",
       actual: "%s",
       indexed: "%[n]s",
+      moved: true,
     }),
   ).toBe(
     "%s at position 2 is %d in the source; a verb that moved needs its index, %[n]s",

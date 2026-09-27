@@ -19,12 +19,18 @@ export function validationMessage(
         name: chipText(error.name, syntax, null, error.written),
       });
     case "changed-verb":
-      return t("editor.changedVerb", {
-        name: error.name,
-        expected: error.expected,
-        actual: error.actual,
-        indexed: error.indexed,
-      });
+      return error.moved
+        ? t("editor.changedVerb", {
+            name: error.name,
+            expected: error.expected,
+            actual: error.actual,
+            indexed: error.indexed,
+          })
+        : t("editor.changedVerbType", {
+            name: error.name,
+            expected: error.expected,
+            actual: error.actual,
+          });
     case "unknown-select":
       return t("editor.unknownSelect", { arg: error.arg });
     case "missing-branch":

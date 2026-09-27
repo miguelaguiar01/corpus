@@ -252,7 +252,9 @@ export function describe(
     case "unexpected-placeholder":
       return `unexpected ${error.written ?? written(error.name)}`;
     case "changed-verb":
-      return `${error.actual} at position ${error.name} is ${error.expected} in the source; a verb that moved needs its index, ${error.indexed}`;
+      return error.moved
+        ? `${error.actual} at position ${error.name} is ${error.expected} in the source; a verb that moved needs its index, ${error.indexed}`
+        : `${error.actual} at position ${error.name} where the source has ${error.expected}`;
     case "unknown-select":
       return `select on {${error.arg}}, which the source does not select on`;
     case "missing-branch":

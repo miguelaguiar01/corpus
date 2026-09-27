@@ -60,6 +60,10 @@ export type ValidationError =
       expected: string;
       actual: string;
       indexed: string;
+      // Whether the translation's verb is one the source writes at
+      // another position (a verb that moved), or a type the source
+      // does not have (#645).
+      moved: boolean;
     };
 
 // A plural missing a category its language uses is incomplete rather
@@ -207,11 +211,16 @@ export function validateTranslation(
       });
   }
   if (syntax === "printf" || syntax === "android") {
-    // Go's fmt has no `%n$`, so the hint is Go's `%[n]` unless the
-    // source itself writes a `%n$` index, as C, Java and Android do.
-    const cStyle =
-      syntax === "android" ||
-      [...expected.written.values()].some((w) => /^%\d+\$/.test(w));
+    // The index form follows the source: `%n$` where it writes one (C,
+    // Java, JavaScript's sprintf, Android), Go's `%[n]` where it writes
+    // that, and both where it writes neither, since only the project's
+    // language decides and Go has no `%n$` nor sprintf-js a `%[n]` (#645).
+    const writtenForms = [...expected.written.values()];
+    const posix =
+      syntax === "android" || writtenForms.some((w) => /^%\d+\$/.test(w));
+    const go = writtenForms.some((w) => /^%\[\d+\]/.test(w));
+    const indexFor = (verb: string) =>
+      posix ? `%n$${verb}` : go ? `%[n]${verb}` : `%n$${verb} or %[n]${verb}`;
     // The verb is the modifier and the letter together: `%ld` against
     // `%lu` is a changed verb (#614).
     const verbOf = (written: string) => printfVerbOf(written) ?? written;
@@ -237,7 +246,10 @@ export function validateTranslation(
         name,
         expected: written,
         actual: got,
-        indexed: cStyle ? `%n$${verbOf(got)}` : `%[n]${verbOf(got)}`,
+        indexed: indexFor(verbOf(got)),
+        moved: expected.verbs.some(
+          ([other, w]) => other !== name && verbOf(w) === verbOf(got),
+        ),
       });
     }
     // One dropped verb shifts every verb after it one place: read by
