@@ -107,7 +107,7 @@ What it does check is that every placeholder survives into every form, and it re
 
 **`{'…'}` is a literal.** It is how a catalogue writes an `@`, a `|` or a brace that vue-i18n would otherwise read as syntax — `"e.g. frederic{'@'}vikunja.io"` — and a pipe inside one is text rather than a separator, so `"Pipe ({'|'})"` is one form and not two. Written without the escape, `"Pipe (|)"` is refused rather than split in silence: a form with no word, number, symbol or brace in it — here `)` — is punctuation the pipe cut, and the message says to write `{'|'}`. vue-i18n itself would render `Pipe (`.
 
-Angle brackets are text: vue-i18n has no tag syntax (its component interpolation, `<i18n-t>`, fills `{name}` slots), so `Replace <access token> with your token` is prose and is left alone.
+Angle brackets are text: vue-i18n has no tag syntax (its component interpolation, `<i18n-t>`, fills `{name}` slots), so `Replace <access token> with your token` is prose and is left alone; `richText` has nothing to change for a vue source.
 
 Not yet read: `@:linked.keys`. A catalogue that uses them parses, and the link is text.
 
