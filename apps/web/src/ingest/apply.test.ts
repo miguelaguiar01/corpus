@@ -14,6 +14,7 @@ import {
 } from "@/db/schema";
 import { memoryDb } from "@/db/test-helpers";
 import { applyTransition } from "@/translations/service";
+import { queueItems } from "@/catalogue/queues";
 import { applySnapshot } from "./apply";
 
 const FIXTURE = moonlightManor as Snapshot;
@@ -855,4 +856,53 @@ test("a push that names only the library stores it, as one that names only the o
   expect(stringRow(db, "a")?.syntax).toBe("i18next");
   expect(stringRow(db, "b")?.syntax).toBe("i18next");
   expect(stringRow(db, "c")?.syntax).toBeNull();
+});
+
+test("a seed identical to the source is translated in a variant of the source, or where the repository marks it (#658)", () => {
+  const { db, project } = seed(["pt-PT", "en", "pt-BR"]);
+  const seeds = {
+    en: {
+      "ui.continue": "Continuar",
+      "skin.heard-nothing": "Não ouvi nada a noite toda.",
+    },
+    "pt-BR": { "ui.continue": "Continuar" },
+  };
+  // Without the declaration, identical seeds stay untranslated.
+  applySnapshot(db, project.id, withSeeds(seeds));
+  expect(translationOf(db, "ui.continue", "pt-BR")?.state).toBe("untranslated");
+  // Declared, a push turns the rows it already has translated, and a
+  // marked loanword in another language too.
+  const report = applySnapshot(db, project.id, {
+    ...withSeeds(seeds),
+    sourceVariants: ["pt-BR"],
+    seedTranslated: { en: ["ui.continue"] },
+  });
+  expect(translationOf(db, "ui.continue", "pt-BR")?.state).toBe("translated");
+  expect(translationOf(db, "ui.continue", "en")?.state).toBe("translated");
+  expect(translationOf(db, "skin.heard-nothing", "en")?.state).toBe(
+    "untranslated",
+  );
+  expect(report.seedsIdentical).toBe(1);
+  // A variant's untranslated rows are no work; another language's are.
+  const languages = new Set(
+    queueItems(db, project.id, "untranslated").items.map((i) => i.language),
+  );
+  expect(languages.has("pt-BR")).toBe(false);
+  expect(languages.has("en")).toBe(true);
+  // The declaration is the project's until a push drops it.
+  applySnapshot(db, project.id, { ...FIXTURE, sourceVariants: [] });
+  expect(
+    new Set(
+      queueItems(db, project.id, "untranslated").items.map((i) => i.language),
+    ).has("pt-BR"),
+  ).toBe(true);
+});
+
+test("a first push seeds a variant's identical rows translated (#658)", () => {
+  const { db, project } = seed(["pt-PT", "en", "pt-BR"]);
+  applySnapshot(db, project.id, {
+    ...withSeeds({ "pt-BR": { "ui.continue": "Continuar" } }),
+    sourceVariants: ["pt-BR"],
+  });
+  expect(translationOf(db, "ui.continue", "pt-BR")?.state).toBe("translated");
 });

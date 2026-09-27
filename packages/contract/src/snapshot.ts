@@ -61,6 +61,15 @@ export const snapshotSchema = z.looseObject({
   seedTranslations: z
     .record(z.string(), z.record(z.string(), z.string()))
     .optional(),
+  // Per target language, the seeds the repository marks translated
+  // though their text is the source's (#658): a loanword, `Status` in
+  // German, an exporter says is done.
+  seedTranslated: z.record(z.string(), z.array(z.string())).optional(),
+  // The target languages that are variants of the source, en-GB of en
+  // (#658): a seed identical to the source is translated there, and an
+  // untranslated row is not queued as work, the runtime falling back to
+  // the source. Replaced whole by a push that carries it.
+  sourceVariants: z.array(languageCode()).optional(),
   // Per target language, `seedDigest` of the seeds the repository holds
   // (#601): the server keeps the last push's, status returns them, and
   // a push leaves out the seeds of a language whose digest the server

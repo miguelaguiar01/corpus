@@ -60,11 +60,40 @@ export type BuildReport = {
 type ExecSeeds = {
   command: string;
   translations: Record<string, Record<string, string>>;
+  // The ids the exporter marks translated though their text is the
+  // source's (#658).
+  translated: Record<string, string[]>;
 };
+// A translation is its text, or `{ text, state: "translated" }` for one
+// the exporter says is done whatever its text: a loanword (#658).
+const execTranslation = z.union([
+  z.string(),
+  z.object({ text: z.string(), state: z.literal("translated").optional() }),
+]);
 export const execTranslationsSchema = z.record(
   z.string(),
-  z.record(z.string(), z.string()),
+  z.record(
+    z.string(),
+    execTranslation.transform((t) => (typeof t === "string" ? t : t.text)),
+  ),
 );
+const execStatesSchema = z.record(
+  z.string(),
+  z.record(z.string(), execTranslation),
+);
+
+function translatedIds(raw: unknown): Record<string, string[]> {
+  const parsed = execStatesSchema.safeParse(raw);
+  if (!parsed.success) return {};
+  return Object.fromEntries(
+    Object.entries(parsed.data).map(([lang, texts]) => [
+      lang,
+      Object.entries(texts)
+        .filter(([, t]) => typeof t === "object" && t.state === "translated")
+        .map(([id]) => id),
+    ]),
+  );
+}
 
 // The strict build: a refused entry fails it, for a caller that wants
 // the whole catalogue or nothing.
@@ -231,6 +260,15 @@ export async function buildSnapshotReport(
     execSeeds,
     errors,
   );
+  // A mark counts only for a seed that is there to import.
+  const seedTranslated: Record<string, string[]> = {};
+  for (const { translated } of execSeeds)
+    for (const [lang, ids] of Object.entries(translated)) {
+      const kept = ids.filter(
+        (id) => seedTranslations[lang]?.[id] !== undefined,
+      );
+      if (kept.length > 0) (seedTranslated[lang] ??= []).push(...kept);
+    }
   const snapshot = {
     contract: "corpus/1" as const,
     project: config.project,
@@ -243,6 +281,10 @@ export async function buildSnapshotReport(
     richText: config.richText ?? {},
     glossary,
     ...(Object.keys(seedTranslations).length > 0 && { seedTranslations }),
+    ...(Object.keys(seedTranslated).length > 0 && { seedTranslated }),
+    // Always sent, so a config that drops a variant drops it on the
+    // server too (#658).
+    sourceVariants: config.sourceVariants ?? [],
     // Always sent, empty included, so the server can tell "nothing
     // writable" from a push that predates the field (§4).
     sources,
@@ -394,7 +436,11 @@ function collectExec(
   if (out.translations !== undefined) {
     const translations = execTranslationsSchema.safeParse(out.translations);
     if (translations.success) {
-      execSeeds.push({ command, translations: translations.data });
+      execSeeds.push({
+        command,
+        translations: translations.data,
+        translated: translatedIds(out.translations),
+      });
     } else {
       errors.push(
         `exec "${command}" emitted invalid translations: a map of language to id to text`,

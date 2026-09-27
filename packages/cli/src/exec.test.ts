@@ -70,3 +70,15 @@ test("translations for the source language or an undeclared one fail the build, 
     ),
   ).rejects.toThrow(/export-seeds-junk\.mjs" emitted invalid translations/);
 });
+
+test("an exporter may mark a translation translated, identical or not; the text seeds as before (#658)", async () => {
+  const snapshot = await buildSnapshot(
+    withExec("node export-loanwords.mjs", ["en", "de"]),
+    REPO,
+  );
+  expect(snapshot.seedTranslations).toEqual({
+    de: { "exec.status": "Status", "exec.name": "Name" },
+  });
+  expect(snapshot.seedTranslated).toEqual({ de: ["exec.status"] });
+  expect(snapshot.sourceVariants).toEqual([]);
+});
