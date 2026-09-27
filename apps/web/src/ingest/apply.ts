@@ -337,12 +337,14 @@ export function applySnapshot(
       // strings this push creates get every row in their insert, so it
       // runs first and a first push has nothing to scan.
       ensureTranslationRows(tx, projectId, targetLanguages);
+      // What the project reads as HTML once this push lands.
+      const richText = snapshot.richText ?? project.richText ?? {};
       const writes = stringWrites(
         tx,
         project.sourceLanguage,
         targetLanguages,
         snapshot.seedTranslations ?? {},
-        snapshot.richText ?? {},
+        richText,
       );
       writes.insert(
         projectId,
@@ -383,6 +385,7 @@ export function applySnapshot(
         projectId,
         targetLanguages,
         snapshot,
+        richText,
         new Set(plan.insert),
       );
 
@@ -524,6 +527,7 @@ function applySeeds(
   projectId: number,
   targetLanguages: string[],
   snapshot: Snapshot,
+  richText: NonNullable<Snapshot["richText"]>,
   created: Set<string>,
 ): { seeded: number; seedsIgnored: number; seedsIdentical: number } {
   const seeds = snapshot.seedTranslations ?? {};
@@ -568,6 +572,7 @@ function applySeeds(
       stringId: stringTranslations.stringId,
       text: stringTranslations.text,
       state: stringTranslations.state,
+      invalid: stringTranslations.invalid,
     })
     .from(stringTranslations)
     .innerJoin(strings, eq(strings.id, stringTranslations.stringId))
@@ -587,6 +592,16 @@ function applySeeds(
       invalid: sql`${sql.placeholder("invalid")}`,
       updatedAt: new Date(),
     })
+    .where(
+      and(
+        eq(stringTranslations.stringId, sql.placeholder("rowId")),
+        eq(stringTranslations.language, sql.placeholder("language")),
+      ),
+    )
+    .prepare();
+  const mark = db
+    .update(stringTranslations)
+    .set({ invalid: sql`${sql.placeholder("invalid")}` })
     .where(
       and(
         eq(stringTranslations.stringId, sql.placeholder("rowId")),
@@ -621,10 +636,6 @@ function applySeeds(
         if (!identical) seeded += 1;
         continue;
       }
-      // A seed the row already holds is nothing: no write, no count, and
-      // the editor's "changed since you opened it" stays quiet.
-      const row = current.get(rowId);
-      if (row && row.text === text && row.state === state) continue;
       const invalid =
         !identical &&
         seedInvalid(
@@ -632,8 +643,17 @@ function applySeeds(
           text,
           language,
           string.syntax ?? "icu",
-          snapshot.richText?.[string.type],
+          richText[string.type],
         );
+      // A seed the row already holds is nothing: no write, no count, and
+      // the editor's "changed since you opened it" stays quiet. Its mark
+      // follows the source it is read against now.
+      const row = current.get(rowId);
+      if (row && row.text === text && row.state === state) {
+        if (row.invalid !== invalid)
+          mark.run({ rowId, language, invalid: invalid ? 1 : 0 });
+        continue;
+      }
       const { changes } = write.run({
         text,
         state,

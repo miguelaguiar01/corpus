@@ -421,6 +421,13 @@ test("a seed that fails validation is marked invalid, on the push that creates t
     invalid: true,
   });
   expect(translationOf(db, "ui.continue", "en")?.invalid).toBe(false);
+  // A row that holds the seed already, unmarked as one from before the
+  // mark existed, is marked when the seed arrives again.
+  db.update(stringTranslations).set({ invalid: false }).run();
+  applySnapshot(db, project.id, withSeeds(broken));
+  expect(
+    translationOf(db, "skin.seen-at-greenhouse-window", "en")?.invalid,
+  ).toBe(true);
   // A later push writing another broken text keeps it flagged; a valid
   // text clears it.
   const fixed =
