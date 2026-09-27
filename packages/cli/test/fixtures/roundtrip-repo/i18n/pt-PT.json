@@ -5,5 +5,10 @@
   },
   "nav": {
     "catalogue": "Catálogo"
+  },
+  "evento": {
+    "m.sala.topico": {
+      "removido": "O tópico foi removido."
+    }
   }
 }

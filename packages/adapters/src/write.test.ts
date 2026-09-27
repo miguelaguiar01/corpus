@@ -624,3 +624,65 @@ describe("a Chrome i18n catalogue (#595)", () => {
     );
   });
 });
+
+describe("a key segment with a dot in it (#642)", () => {
+  const SOURCE = `{
+  "timeline": {
+    "m.room.topic": {
+      "removed": "%(senderDisplayName)s removed the topic.",
+      "changed": "%(senderDisplayName)s changed the topic."
+    }
+  }
+}
+`;
+  const TARGET = `{
+  "timeline": {
+    "m.room.topic": {
+      "changed": "%(senderDisplayName)s a changé le sujet."
+    }
+  }
+}
+`;
+
+  test("a new key is written under the segment the source file has, not split on its dots", () => {
+    const out = entriesToMessages(
+      SOURCE,
+      {
+        "timeline.m.room.topic.changed":
+          "%(senderDisplayName)s a changé le sujet.",
+        "timeline.m.room.topic.removed":
+          "%(senderDisplayName)s a retiré le sujet.",
+      },
+      TARGET,
+    );
+    expect(JSON.parse(out)).toEqual({
+      timeline: {
+        "m.room.topic": {
+          changed: "%(senderDisplayName)s a changé le sujet.",
+          removed: "%(senderDisplayName)s a retiré le sujet.",
+        },
+      },
+    });
+  });
+
+  test("a first pull into a missing file keeps the source's segments too", () => {
+    const out = entriesToMessages(
+      SOURCE,
+      { "timeline.m.room.topic.removed": "Sujet retiré." },
+      "",
+    );
+    expect(JSON.parse(out)).toEqual({
+      timeline: { "m.room.topic": { removed: "Sujet retiré." } },
+    });
+  });
+
+  test("a proposal edits and removes a key under a dotted segment", () => {
+    const out = applyMessagesOps(SOURCE, [
+      { kind: "edit", id: "timeline.m.room.topic.changed", text: "Changed." },
+      { kind: "delete", id: "timeline.m.room.topic.removed" },
+    ]);
+    expect(JSON.parse(out)).toEqual({
+      timeline: { "m.room.topic": { changed: "Changed." } },
+    });
+  });
+});

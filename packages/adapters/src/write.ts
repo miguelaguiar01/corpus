@@ -55,6 +55,13 @@ function leaves(
   return out;
 }
 
+// Each id's key path as a file writes it: a segment may hold dots
+// (`"m.room.topic": { … }`), so an id is never split to find its
+// place when a file already names it (#642).
+function pathsOf(tree: Tree): Map<string, string[]> {
+  return new Map(leaves(tree).map(([path]) => [path.join("."), path]));
+}
+
 function isNested(tree: Tree): boolean {
   return Object.values(tree).some((value) => typeof value !== "string");
 }
@@ -111,6 +118,7 @@ export function entriesToMessages(
   const baseTree = parseTree(base);
   const style = styleOf(base);
   const nested = isNested(baseTree);
+  const sourcePaths = pathsOf(parseTree(template));
   let text = base;
   const seen = new Set<string>();
   for (const [path, value] of leaves(baseTree)) {
@@ -127,7 +135,7 @@ export function entriesToMessages(
     if (seen.has(id)) continue;
     text = addLeaf(
       text,
-      nested ? id.split(".") : [id],
+      sourcePaths.get(id) ?? (nested ? id.split(".") : [id]),
       translations[id]!,
       style.indent,
     );
@@ -272,11 +280,13 @@ export function applyMessagesOps(
 ): string {
   if (text.trim() === "") text = "{}\n";
   if (options.chrome) return chromeOps(text, ops);
-  const nested = isNested(parseTree(text));
+  const tree = parseTree(text);
+  const nested = isNested(tree);
+  const paths = pathsOf(tree);
   const { indent } = styleOf(text);
   let out = text;
   for (const op of ops) {
-    const path = nested ? op.id.split(".") : [op.id];
+    const path = paths.get(op.id) ?? (nested ? op.id.split(".") : [op.id]);
     if (op.kind === "delete") {
       // Absent already (a second pull, a target file without the key):
       // nothing to do; the push that lands the removal marks it applied.

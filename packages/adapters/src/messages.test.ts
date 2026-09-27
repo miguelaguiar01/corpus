@@ -189,3 +189,12 @@ test("a Chrome i18n catalogue reads message as the text, description as the note
     { id: "saved.message", type: "ui", source: "All good" },
   ]);
 });
+
+test("two key paths that flatten to one id are refused, naming both (#642)", () => {
+  expect(() =>
+    messagesToEntries(
+      { "a.b": { c: "one" }, a: { "b.c": "two" } },
+      { type: "ui" },
+    ),
+  ).toThrow(/a\.b\.c is written twice: \["a\.b","c"\] and \["a","b\.c"\]/);
+});
