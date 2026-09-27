@@ -60,7 +60,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   // XLIFF has its own adapter (#712); Angular names the source-language
   // file with no language in it, `messages.xlf` beside `messages.de.xlf`.
   const xliff = /\.(?:xlf|xliff)$/i.test(messages);
-  const bare = messages.replace(/[._-]?\{lang\}/, "");
+  const bare = path.posix.normalize(messages.replace(/[._-]?\{lang\}/, ""));
   const sourcePath =
     xliff && !existsSync(sourceFile) && existsSync(path.join(ctx.cwd, bare))
       ? bare
@@ -90,14 +90,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   }
   const languages = present
     ? listed
-    : sourcePath
-      ? [
-          sourceLanguage,
-          ...[...new Set(matchPattern(ctx.cwd, messages).map((m) => m.lang))]
-            .filter((code) => code !== sourceLanguage)
-            .sort(),
-        ]
-      : languagesFromFiles(ctx.cwd, messages, sourceLanguage);
+    : languagesFromFiles(ctx.cwd, messages, sourceLanguage);
   if (languages.length === 0) {
     throw new CliError(
       `no ${messages} file to take the languages from; pass --languages`,
