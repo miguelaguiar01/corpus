@@ -1097,6 +1097,19 @@ test("under rails %{name} is a placeholder, %%{ a literal, braces text (#665)", 
       lib,
     ),
   ).toEqual({ ok: true });
+  // Rails' format style is a placeholder, and %% is always a pair.
+  expect(
+    validateTranslation(
+      "Total: %<count>d items, %<amount>.2f due, 100%%%{pct}",
+      "Summe: %<count>d, %<amount>.2f fällig, 100%%%{pct}",
+      "de",
+      lib,
+    ),
+  ).toEqual({ ok: true });
+  expect(validateTranslation("100%%%{pct}", "100%%", "de", lib)).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-placeholder", written: "%{pct}" }],
+  });
   expect(
     validateTranslation(
       "{count, plural, one {%{count} post} other {%{count} posts}}",

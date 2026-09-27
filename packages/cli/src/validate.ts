@@ -269,7 +269,10 @@ export function describe(
         return `a <string> where the source is a <plurals> on ${error.name}`;
       // Under printf a value that is not a verb is a plural's count (#652).
       if (
-        (syntax === "printf" || syntax === "counterpart") &&
+        (syntax === "printf" ||
+          syntax === "counterpart" ||
+          syntax === "easy_localization" ||
+          syntax === "rails") &&
         error.written === undefined
       )
         return `the source is a plural on ${error.name}: write the translation as one`;

@@ -115,8 +115,10 @@ const COUNTERPART_PLACEHOLDER_RE = /^%\(([^()\s]+)\)[sd]/;
 const EASY_PLACEHOLDER_RE = /^\{([\p{L}_][\p{L}\p{M}\p{N}_]*)?\}/u;
 const EASY_LINK_RE = /^@(?:\.[a-z]+)?:(?:\([\w|.-]+\)|[\w|.-]*[\w|-])/;
 
-// Rails I18n's `%{name}` (#665); `%%{` is a literal `%{`.
-const RAILS_PLACEHOLDER_RE = /^%\{([^{}\s]+)\}/;
+// Rails I18n's `%{name}` and its format style `%<count>d`,
+// `%<amount>.2f` (#665); `%%` is a literal `%`.
+const RAILS_PLACEHOLDER_RE =
+  /^%(?:\{([^{}\s]+)\}|<([^<>\s]+)>[-+ 0#]*\d*(?:\.\d+)?[a-zA-Z])/;
 
 // Chrome i18n's `$NAME$` (#595): letters, digits and `_`, matched
 // case-insensitively against the `placeholders` map, so the name is
@@ -311,9 +313,9 @@ class Parser {
       // braces and `#` text but for a plural read whole; tags as ICU's.
       if (this.syntax === "rails") {
         const rest = this.source.slice(this.pos);
-        if (rest.startsWith("%%{")) {
-          literal += "%%{";
-          this.pos += 3;
+        if (rest.startsWith("%%")) {
+          literal += "%%";
+          this.pos += 2;
           continue;
         }
         const match = ch === "%" ? RAILS_PLACEHOLDER_RE.exec(rest) : null;
@@ -321,7 +323,7 @@ class Parser {
           flush();
           nodes.push({
             kind: "placeholder",
-            name: match[1]!,
+            name: (match[1] ?? match[2])!,
             written: match[0],
           });
           this.pos += match[0].length;

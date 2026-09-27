@@ -357,14 +357,17 @@ test("a plural chip inserts the target language's categories with # in each bran
 });
 
 test("under i18next a plural chip fills each branch with the count's placeholder, under printf with nothing (#662, #689)", () => {
-  for (const [syntax, fill] of [
-    ["i18next", "{{count}}"],
-    ["printf", ""],
+  for (const [syntax, fill, placeholder] of [
+    ["i18next", "{{count}}", "{{count}}"],
+    ["printf", "", "%d"],
+    ["counterpart", "%(count)s", "%(count)s"],
+    ["easy_localization", "{}", "{}"],
+    ["rails", "%{count}", "%{count}"],
   ] as const) {
     render(
       <TargetPane
         action={vi.fn()}
-        source={`{count, plural, one {${syntax === "i18next" ? "{{count}}" : "%d"} room} other {${syntax === "i18next" ? "{{count}}" : "%d"} rooms}}`}
+        source={`{count, plural, one {${placeholder} room} other {${placeholder} rooms}}`}
         syntax={syntax}
         slots={[]}
         language="en"

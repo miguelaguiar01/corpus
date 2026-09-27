@@ -486,6 +486,7 @@ async function libraryFor(
       SINGLE_BRACE_RE.test(text),
   ).length;
   if (
+    rails >= 2 &&
     rails > doubles + bare &&
     rails > texts.filter((text) => PRINTF_RE.test(text)).length
   )
