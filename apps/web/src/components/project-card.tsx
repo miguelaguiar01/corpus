@@ -4,7 +4,7 @@ import type { QueueCounts } from "@/catalogue/queues";
 import { Chip } from "@/components/ui/chip";
 import { t } from "@/i18n";
 import { ProgressBar } from "./progress-bar";
-import { QUEUE_LABEL } from "./queue-list";
+import { OPTIONAL_QUEUES, QUEUE_LABEL } from "./queue-list";
 
 // One project on the home page (§9.1): where work is waiting, before a
 // translator opens anything.
@@ -53,7 +53,7 @@ export function ProjectCard({
       </div>
       <dl className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
         {(Object.keys(QUEUE_LABEL) as (keyof QueueCounts)[])
-          .filter((kind) => kind !== "agentDrafts" || counts.agentDrafts > 0)
+          .filter((kind) => !OPTIONAL_QUEUES.includes(kind) || counts[kind] > 0)
           .map((kind) => (
             <div
               key={kind}

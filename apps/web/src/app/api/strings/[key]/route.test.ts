@@ -4,10 +4,12 @@ import { agentDraft } from "@/agents/draft";
 import { ensureAgentActor } from "@/agents/actor";
 import {
   CONTINUE,
+  FIXTURE,
   GREENHOUSE,
   pushedProject,
   stringRowId,
 } from "@/agents/test-helpers";
+import { applySnapshot } from "@/ingest/apply";
 import { proposeEdit } from "@/proposals/service";
 
 const seeded = pushedProject();
@@ -55,6 +57,7 @@ test("what the editor shows: the string, every language, the proposal, the note,
   expect(body.file).toBe("src/skins/pt-PT.json");
   expect(body.keyIsText).toBe(false);
   expect(body.richText).toBeNull();
+  expect(body.translations.en).toMatchObject({ invalid: false, problem: null });
   expect(body.placeholders).toEqual(["person", "room_de", "hour"]);
   expect(body.slots).toEqual([
     {
@@ -147,4 +150,20 @@ test("what the editor shows: the string, every language, the proposal, the note,
       },
     },
   ]);
+});
+
+test("a seeded translation that fails validation carries the flag and what is wrong (#646)", async () => {
+  const { db, project, token } = seeded;
+  applySnapshot(db, project.id, {
+    ...FIXTURE,
+    seedTranslations: { en: { [CONTINUE]: "Continue {x}" } },
+  });
+  const res = await string(token, CONTINUE);
+  const body = (await res.json()) as StringResponse;
+  expect(body.translations.en).toMatchObject({
+    text: "Continue {x}",
+    invalid: true,
+    problem: "Unexpected {x}",
+  });
+  applySnapshot(db, project.id, FIXTURE);
 });

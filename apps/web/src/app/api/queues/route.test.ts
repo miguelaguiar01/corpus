@@ -1,7 +1,13 @@
 import { moonlightManor, type QueuesResponse } from "@corpus/contract";
 import { expect, test, vi } from "vitest";
 import { agentDraft } from "@/agents/draft";
-import { CONTINUE, personSaves, pushedProject } from "@/agents/test-helpers";
+import {
+  CONTINUE,
+  FIXTURE,
+  personSaves,
+  pushedProject,
+} from "@/agents/test-helpers";
+import { applySnapshot } from "@/ingest/apply";
 
 const seeded = pushedProject();
 vi.mock("@/db", async (importActual) => ({
@@ -37,6 +43,7 @@ test("every queue, keyed by kind, with its items; a language narrows them", asyn
     "stale",
     "unverifiedSource",
     "agentDrafts",
+    "invalid",
   ]);
   expect(all.type).toBeNull();
   expect(all.queues.untranslated.items).toEqual([
@@ -105,4 +112,27 @@ test("every queue, keyed by kind, with its items; a language narrows them", asyn
     await queues(token, "?type=nope")
   ).json()) as QueuesResponse;
   expect(none.queues.untranslated.count).toBe(0);
+});
+
+test("an invalid seed is listed with what is wrong with it (#646)", async () => {
+  const { db, project, token } = seeded;
+  applySnapshot(db, project.id, {
+    ...FIXTURE,
+    seedTranslations: { en: { "ui.marks-left": "Left {zzz}" } },
+  });
+  const body = (await (
+    await queues(token, "?language=en")
+  ).json()) as QueuesResponse;
+  expect(body.queues.invalid.items).toEqual([
+    {
+      key: "ui.marks-left",
+      language: "en",
+      type: "chrome",
+      source: moonlightManor.strings[3]!.source,
+      text: "Left {zzz}",
+      problem: expect.stringContaining("Unexpected {zzz}"),
+    },
+  ]);
+  expect(body.queues.agentDrafts.items[0]).not.toHaveProperty("problem");
+  applySnapshot(db, project.id, FIXTURE);
 });

@@ -10,6 +10,8 @@ type Counts = {
   translated: number;
   verified: number;
   stale: number;
+  // Seeds that fail validation (#646); absent from an older server.
+  invalid?: number;
   total: number;
 };
 
@@ -38,6 +40,7 @@ const COLUMNS = [
   "translated",
   "verified",
   "stale",
+  "invalid",
   "total",
 ] as const;
 
@@ -131,7 +134,7 @@ function table(
   };
   const cells = languages.map((language) => [
     language,
-    ...COLUMNS.map((c) => String((rows[language] ?? empty)[c])),
+    ...COLUMNS.map((c) => String((rows[language] ?? empty)[c] ?? 0)),
   ]);
   const head = [heading, ...COLUMNS];
   const widths = head.map((h, i) =>

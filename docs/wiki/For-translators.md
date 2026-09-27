@@ -14,6 +14,7 @@ The project's first page has two things: **Progress**, which is how much of each
 - **Stale** — somebody changed the source text after your translation was saved. The old translation is still there; it needs checking, not redoing.
 - **Unverified source** — source text nobody has proofread yet. Only for whoever is checking it.
 - **Agent drafts** — translations a machine drafted, waiting for a person. The queue is not shown when there are none.
+- **Invalid** — translations the repository already had that fail the editor's checks: a placeholder the source no longer has, a text that does not parse. Each says what is wrong; saving a fixed text clears it. Not shown when there are none.
 
 Open a queue and you are in the editor, on the first string, with **Next** and **Previous** to move through it. Work down a queue rather than hunting the catalogue: the queues exist so you never have to decide what is next.
 

@@ -1,0 +1,2 @@
+ALTER TABLE `string_translations` ADD `invalid` integer DEFAULT false NOT NULL;--> statement-breakpoint
+CREATE INDEX `translations_invalid` ON `string_translations` (`language`,`string_id`) WHERE "string_translations"."invalid" = 1;

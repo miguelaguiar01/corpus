@@ -9,7 +9,7 @@ usage: corpus push [--dry-run] | corpus pull [--min-state <untranslated|translat
        corpus status [--json]
        corpus validate [--json]
        corpus mcp
-       corpus agent queue <untranslated|stale|unverifiedSource|agentDrafts> [--lang <l>] [--type <t>] | string <key> | draft <key> <lang> <text> | propose <key> (--text <t> | --remove) | add <key> --file <f> --text <t> | proposals | withdraw <id> | status | --stdin
+       corpus agent queue <untranslated|stale|unverifiedSource|agentDrafts|invalid> [--lang <l>] [--type <t>] | string <key> | draft <key> <lang> <text> | propose <key> (--text <t> | --remove) | add <key> --file <f> --text <t> | proposals | withdraw <id> | status | --stdin
 ```
 
 `corpus --version` prints the version; `corpus --help` prints the above. Both exit 0.

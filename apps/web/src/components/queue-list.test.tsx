@@ -24,6 +24,7 @@ const first = {
     text: null,
   },
   agentDrafts: null,
+  invalid: null,
 };
 
 test("each queue shows its count and label", () => {
@@ -35,6 +36,7 @@ test("each queue shows its count and label", () => {
         stale: 0,
         unverifiedSource: 2,
         agentDrafts: 0,
+        invalid: 0,
       }}
       first={first}
     />,
@@ -56,6 +58,7 @@ test("a non-empty queue links to its first item with the queue in the URL", () =
         stale: 0,
         unverifiedSource: 2,
         agentDrafts: 0,
+        invalid: 0,
       }}
       first={first}
     />,
@@ -75,6 +78,7 @@ test("an empty queue is not a link", () => {
         stale: 0,
         unverifiedSource: 2,
         agentDrafts: 0,
+        invalid: 0,
       }}
       first={first}
     />,
@@ -92,6 +96,7 @@ test("the agent drafts queue appears once the project has any", () => {
         stale: 0,
         unverifiedSource: 0,
         agentDrafts: 0,
+        invalid: 0,
       }}
       first={{ ...first, agentDrafts: null }}
     />,
@@ -106,6 +111,7 @@ test("the agent drafts queue appears once the project has any", () => {
         stale: 0,
         unverifiedSource: 0,
         agentDrafts: 2,
+        invalid: 0,
       }}
       first={{
         ...first,

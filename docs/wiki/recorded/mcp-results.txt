@@ -59,13 +59,17 @@ get_string {"key":"editor.unsaved"}
         "state": "translated",
         "stale": false,
         "text": null,
-        "agentDraft": false
+        "agentDraft": false,
+        "invalid": false,
+        "problem": null
       },
       "pt-PT": {
         "state": "untranslated",
         "stale": false,
         "text": null,
-        "agentDraft": false
+        "agentDraft": false,
+        "invalid": false,
+        "problem": null
       }
     },
     "proposal": null,
@@ -106,7 +110,7 @@ status {}
       "pt-PT"
     ],
     "strings": 2,
-    "lastPushAt": "2026-09-27T02:13:25.257Z",
+    "lastPushAt": "2026-09-27T17:51:16.406Z",
     "version": "v0.20.0",
     "pendingProposals": 0,
     "writableSources": [
@@ -122,6 +126,7 @@ status {}
           "translated": 2,
           "verified": 0,
           "stale": 0,
+          "invalid": 0,
           "total": 2
         },
         "pt-PT": {
@@ -129,6 +134,7 @@ status {}
           "translated": 1,
           "verified": 0,
           "stale": 0,
+          "invalid": 0,
           "total": 2
         }
       },
@@ -139,6 +145,7 @@ status {}
             "translated": 2,
             "verified": 0,
             "stale": 0,
+            "invalid": 0,
             "total": 2
           },
           "pt-PT": {
@@ -146,6 +153,7 @@ status {}
             "translated": 1,
             "verified": 0,
             "stale": 0,
+            "invalid": 0,
             "total": 2
           }
         }

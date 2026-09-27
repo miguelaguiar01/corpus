@@ -775,12 +775,23 @@ function known(language: string): boolean {
 // The plural categories a language uses, by the runtime's CLDR data, in
 // CLDR order whatever order the runtime lists them; none for a tag the
 // runtime does not know, so nothing is enforced.
+// Asked once per language: building the rules costs more than the rest
+// of a validation, which a push runs for every seed (#646).
+const categoriesByLanguage = new Map<string, string[]>();
+
 export function pluralCategoriesOf(language: string): string[] {
-  if (!known(language)) return [];
-  const has = new Set(
-    new Intl.PluralRules(localeOf(language)).resolvedOptions().pluralCategories,
-  );
-  return PLURAL_CATEGORIES.filter((category) => has.has(category));
+  const cached = categoriesByLanguage.get(language);
+  if (cached) return [...cached];
+  let categories: string[] = [];
+  if (known(language)) {
+    const has = new Set(
+      new Intl.PluralRules(localeOf(language)).resolvedOptions()
+        .pluralCategories,
+    );
+    categories = PLURAL_CATEGORIES.filter((category) => has.has(category));
+  }
+  categoriesByLanguage.set(language, categories);
+  return [...categories];
 }
 
 // The branch a plural takes for a value (§7): an exact `=N` first, then

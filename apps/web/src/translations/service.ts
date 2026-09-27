@@ -69,6 +69,8 @@ export function applyTransition(db: Db, input: ApplyInput): ApplyResult {
         state: result.row.state,
         text: result.row.text,
         stale: result.row.stale,
+        // Every write here was validated or clears the text (#646).
+        invalid: false,
         updatedAt: new Date(),
       })
       .where(eq(stringTranslations.id, current.row.id))

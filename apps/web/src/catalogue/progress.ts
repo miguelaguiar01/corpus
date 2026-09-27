@@ -8,6 +8,8 @@ export type LanguageProgress = {
   translated: number;
   verified: number;
   stale: number;
+  // Seeded translations that fail validation (#646), within translated.
+  invalid: number;
   total: number;
 };
 
@@ -17,7 +19,14 @@ export type Progress = {
 };
 
 export function emptyProgress(): LanguageProgress {
-  return { untranslated: 0, translated: 0, verified: 0, stale: 0, total: 0 };
+  return {
+    untranslated: 0,
+    translated: 0,
+    verified: 0,
+    stale: 0,
+    invalid: 0,
+    total: 0,
+  };
 }
 
 // Progress numbers over string×language states, excluding archived strings
@@ -93,6 +102,21 @@ export function progressCounts(db: Db, projectId: number): Progress {
       bucket.total += row.count;
       bucket.stale += row.stale;
     }
+  }
+  // Few rows, read through their partial index.
+  const invalid = db.all<{ language: string; type: string; count: number }>(
+    sql`select st.language as language, s.type as type, count(*) as count
+        from ${stringTranslations} st cross join ${strings} s
+          on s.id = st.string_id
+        where st.invalid = 1 and s.project_id = ${projectId}
+          and s.archived = 0
+        group by st.language, s.type`,
+  );
+  for (const row of invalid) {
+    const lang = progress.perLanguage[row.language];
+    const typeLang = progress.perType[row.type]?.[row.language];
+    if (lang) lang.invalid += row.count;
+    if (typeLang) typeLang.invalid += row.count;
   }
   return progress;
 }

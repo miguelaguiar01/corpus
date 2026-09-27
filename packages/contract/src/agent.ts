@@ -11,6 +11,7 @@ export const QUEUE_KINDS = [
   "stale",
   "unverifiedSource",
   "agentDrafts",
+  "invalid",
 ] as const;
 export type QueueKind = (typeof QUEUE_KINDS)[number];
 
@@ -23,6 +24,8 @@ export type QueueItemResponse = {
   type: string;
   source: string;
   text: string | null;
+  // In the invalid queue only: what is wrong with the text (#646).
+  problem?: string | null;
 };
 export type QueuesResponse = {
   project: string;
@@ -91,6 +94,10 @@ export type StringResponse = {
       stale: boolean;
       text: string | null;
       agentDraft: boolean;
+      // A seeded text that fails validation (#646), and what is wrong
+      // with it; additive.
+      invalid: boolean;
+      problem: string | null;
     }
   >;
   proposal: {

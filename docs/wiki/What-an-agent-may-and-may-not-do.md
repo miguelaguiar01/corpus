@@ -2,7 +2,7 @@ Three rules hold for everything written through a project token, whether it came
 
 ## It never overwrites a person's work
 
-A draft lands on a row that is untranslated, a row that went stale, or the agent's own earlier draft. A row a person edited refuses:
+A draft lands on a row that is untranslated, a row that went stale, a seeded translation marked invalid, or the agent's own earlier draft. A row a person edited refuses:
 
 ```text
 human-edited: editor.save in pt-PT holds a person's work; propose a change if the source is the problem; otherwise leave the row to its author

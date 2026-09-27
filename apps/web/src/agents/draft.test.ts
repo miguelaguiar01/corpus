@@ -207,3 +207,28 @@ test("a plural missing a category the language uses saves, and the agent is told
     incomplete: ["Plural n is missing the one branch this language uses"],
   });
 });
+
+test("an agent may redraft a seeded translation that fails validation (#646)", () => {
+  const { db, project } = pushedProject();
+  applySnapshot(db, project.id, {
+    ...FIXTURE,
+    seedTranslations: { en: { "ui.continue": "Continue {x}" } },
+  });
+  expect(stringDetail(db, project.id, CONTINUE)!.translations.en).toMatchObject(
+    {
+      invalid: true,
+      state: "translated",
+    },
+  );
+  expect(
+    agentDraft(db, {
+      project,
+      key: CONTINUE,
+      language: "en",
+      text: "Continue",
+    }),
+  ).toMatchObject({ ok: true });
+  expect(stringDetail(db, project.id, CONTINUE)!.translations.en?.invalid).toBe(
+    false,
+  );
+});
