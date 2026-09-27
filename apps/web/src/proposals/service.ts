@@ -1,6 +1,7 @@
 import { and, count, desc, eq } from "drizzle-orm";
 import {
   hasVoidTags,
+  messageKind,
   parseIcu,
   stringEntrySchema,
   type SourceChange,
@@ -51,7 +52,7 @@ function invalidIcuMessage(
   const parsed = parseIcu(text, syntax, { html });
   if (parsed.ok) return undefined;
   const first = parsed.errors[0]!;
-  return `invalid ${syntax === "icu" ? "ICU" : syntax} at ${first.position}: ${first.message}${refusalAdvice(text, syntax, first.message)}`;
+  return `invalid ${messageKind(syntax)} at ${first.position}: ${first.message}${refusalAdvice(text, syntax, first.message)}`;
 }
 
 function validIcu(text: string, syntax: Library, html: boolean): boolean {

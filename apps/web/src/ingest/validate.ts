@@ -1,6 +1,7 @@
 import {
   libraryOf,
   hasVoidTags,
+  messageKind,
   parseIcu,
   refusalAdvice,
   snapshotSchema,
@@ -58,7 +59,7 @@ export function validateSnapshot(body: unknown): ValidationResult {
       const first = icu.errors[0]!;
       errors.push({
         id: entry.id,
-        message: `invalid ${library === "icu" ? "ICU" : library} at ${first.position}: ${first.message}${refusalAdvice(entry.source, library, first.message)}`,
+        message: `invalid ${messageKind(library)} at ${first.position}: ${first.message}${refusalAdvice(entry.source, library, first.message)}`,
       });
     }
 

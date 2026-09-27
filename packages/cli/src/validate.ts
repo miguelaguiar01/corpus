@@ -3,6 +3,7 @@ import path from "node:path";
 import { createJiti } from "jiti";
 import {
   libraryOf,
+  messageKind,
   validateTranslation,
   type CorpusConfig,
   type ValidationError,
@@ -241,7 +242,7 @@ export function describe(
     syntax === "i18next" ? `{{${name}}}` : `{${name}}`;
   switch (error.code) {
     case "invalid-icu":
-      return `invalid ${syntax === "i18next" ? "i18next" : "ICU"} in the ${error.where} at ${error.position}: ${error.message}`;
+      return `invalid ${messageKind(syntax)} in the ${error.where} at ${error.position}: ${error.message}`;
     case "missing-placeholder":
       // Under android a value that is not a verb is the plural's count:
       // the translation is a <string> where the source is a <plurals>.
