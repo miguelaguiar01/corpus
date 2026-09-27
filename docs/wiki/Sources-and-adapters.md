@@ -69,11 +69,17 @@ A command that prints the entries as JSON, for text that lives somewhere no adap
 }
 ```
 
-The export command prints `{ strings, entities?, translations? }`, up to 256 MiB, which no catalogue reaches. `strings` are the entries themselves; `entities` describe the people and places they refer to; `translations` is what the repository already holds, as language to id to text, which push imports as translated exactly as it does a catalogue file's. A text equal to the source seeds as untranslated, as a catalogue's does; where the repository means it, a loanword such as German `Status`, write it `{ "text": "Status", "state": "translated" }` and it seeds as translated. A language the config does not declare, or the source language, is an error rather than a silent skip.
+The export command prints `{ strings, entities?, translations? }`, up to 256 MiB, which no catalogue reaches. `strings` are the entries themselves; `entities` describe the people and places they refer to; `translations` is what the repository already holds, as language to id to text, which push imports as translated exactly as it does a catalogue file's. A text equal to the source seeds as untranslated, as a catalogue's does; where the repository means it, a loanword such as German `Status`, write it `{ "text": "Status", "state": "translated" }` and it seeds as translated. A language the config does not declare, or the source language, is an error rather than a silent skip. `build` and `push` print what the export command writes to stderr, under an `exec "<command>":` line, and say how many translations it handed over were not seeded and why (an id it did not emit, an empty text).
 
 The import command receives, on stdin, only the rows a pull selected, for the languages that pull asked for. That last point is where these go wrong: an import command that rewrites its file from what it receives deletes everything the payload does not carry, which is every string nobody has translated yet. It must merge.
 
-`pull` prints `ran <import command>` and, under it, whatever the command wrote to stderr, and counts it in the summary (`0 file(s) changed, 1 import command(s) ran`): the file count is the adapters' alone, so say what you wrote.
+`pull` prints `ran <import command>` and, under it, whatever the command wrote to stderr. To have its files counted, the import command prints, as the last line of its stdout, the files it changed:
+
+```json
+{"changed": ["po/de_DE.po"]}
+```
+
+`pull --check` runs it with `--check` appended: it must then write nothing and print the same line for the files it would change, which count toward the check's exit code. An import command that prints no such line is counted as a command that ran, and under `--check` is named as not checked. One that ignores `--check` writes during the check, so honour the flag before you rely on it in CI.
 
 Without `importCommand` the source is push-only, and every command that reads it says so. `corpus validate` runs the export command and validates the `translations` it hands over as it does a target file's, the command standing for the file; an exporter that emits none is named as not validated.
 

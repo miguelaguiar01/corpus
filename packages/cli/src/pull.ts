@@ -237,22 +237,6 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     }
   }
 
-  if (check) {
-    for (const source of config.sources) {
-      if (source.adapter === "exec" && source.importCommand) {
-        ctx.err(
-          `corpus: exec "${source.importCommand}" is not checked: an import command's writes are its own`,
-        );
-      }
-    }
-    const files = [...new Set(changed)];
-    for (const file of files) ctx.out(file);
-    ctx.out(
-      `pull --check ${config.project} at ${minState}: ${files.length} file(s) would change`,
-    );
-    return files.length === 0 ? 0 : 1;
-  }
-
   let ran = 0;
   for (const source of config.sources) {
     if (source.adapter !== "exec" || !source.importCommand) continue;
@@ -265,7 +249,12 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
         ),
       );
     }
-    const result = spawnSync(source.importCommand, {
+    // Under --check the importer is asked to report and not write (#659);
+    // what it writes is its own, so the contract is the wiki's.
+    const command = check
+      ? `${source.importCommand} --check`
+      : source.importCommand;
+    const result = spawnSync(command, {
       shell: true,
       cwd: ctx.cwd,
       encoding: "utf8",
@@ -273,17 +262,31 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
       maxBuffer: EXEC_MAX_BUFFER,
     });
     if (result.status !== 0) {
-      throw new CliError(
-        describeExecFailure(source.importCommand, result, "import"),
-      );
+      throw new CliError(describeExecFailure(command, result, "import"));
     }
     ran++;
-    ctx.out(`ran ${source.importCommand}`);
-    // What the importer said is the only account of what it wrote: the
-    // file count below is the adapters' alone (#599).
+    ctx.out(`ran ${command}`);
     for (const line of result.stderr.split(/\r?\n/)) {
       if (line.trim() !== "") ctx.out(`  ${line}`);
     }
+    // An importer that prints `{"changed": [paths]}` as its last line
+    // has its files counted with the adapters' (#659); one that does
+    // not is its own account, as before (#599), and is no check.
+    const reported = changedFiles(result.stdout);
+    if (reported) changed.push(...reported);
+    else if (check)
+      ctx.err(
+        `corpus: exec "${source.importCommand}" is not checked: it printed no {"changed": […]} line under --check`,
+      );
+  }
+
+  if (check) {
+    const files = [...new Set(changed)];
+    for (const file of files) ctx.out(file);
+    ctx.out(
+      `pull --check ${config.project} at ${minState}: ${files.length} file(s) would change`,
+    );
+    return files.length === 0 ? 0 : 1;
   }
 
   const importers = config.sources.filter(
@@ -451,4 +454,19 @@ function stripNamespace(
     else refused.push(op);
   }
   return { ops: kept, refused };
+}
+
+// The files an importer says it changed, from its last stdout line.
+function changedFiles(stdout: string): string[] | undefined {
+  const last = stdout.trimEnd().split(/\r?\n/).pop()?.trim();
+  if (!last?.startsWith("{")) return undefined;
+  try {
+    const parsed = JSON.parse(last) as { changed?: unknown };
+    return Array.isArray(parsed.changed) &&
+      parsed.changed.every((f) => typeof f === "string")
+      ? (parsed.changed as string[])
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }

@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { defineCorpus, type CorpusConfig } from "@corpus/contract";
 import { expect, test } from "vitest";
-import { buildSnapshot } from "./build";
+import { buildSnapshot, buildSnapshotReport } from "./build";
 import { expandSources } from "./config";
 
 const REPO = fileURLToPath(new URL("../test/fixtures/repo", import.meta.url));
@@ -81,4 +81,21 @@ test("an exporter may mark a translation translated, identical or not; the text 
   });
   expect(snapshot.seedTranslated).toEqual({ de: ["exec.status"] });
   expect(snapshot.sourceVariants).toEqual([]);
+});
+
+test("an exporter's stderr is said under its command, and every translation it hands over is accounted for (#659)", async () => {
+  const noisy = await buildSnapshotReport(
+    withExec("node export-noisy.mjs"),
+    REPO,
+  );
+  expect(noisy.notes).toContain(
+    'exec "node export-noisy.mjs": fuzzy: 3, skipped: 1',
+  );
+  const seeds = await buildSnapshotReport(
+    withExec("node export-seeds.mjs", ["en", "pt-PT"]),
+    REPO,
+  );
+  expect(seeds.notes).toContain(
+    'exec "node export-seeds.mjs": 2 translation(s) not seeded: 1 for ids it did not emit, 1 empty',
+  );
 });
