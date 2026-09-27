@@ -177,6 +177,7 @@ test("translations that match the repository's target catalogues write the same 
   translate("app.greeting", "Hello {name}");
   translate("step.open", "Open the door.");
   translate("step.key", "Find the key {where}.");
+  translate("page.signIn", "Sign in with <LINK>Google</LINK>");
   expect(await run(["pull", "--min-state", "translated"], ctx())).toBe(0);
   expect(tree(repo)).toEqual(before);
   expect(output.join("\n")).toContain("0 file(s) changed");
@@ -189,8 +190,17 @@ test("a translation saved in Corpus comes back in exactly the expected file and 
   translate("step.key", "Look for the key {where}.");
   // A key segment with dots stays one segment (#642).
   translate("evento.m.sala.topico.removido", "The topic was removed.");
+  translate("page.later", "Later");
   expect(await run(["pull", "--min-state", "translated"], ctx())).toBe(0);
   const after = tree(repo);
+  // XLIFF: the one target changed, its state with it; the source file stays.
+  expect(after["locale/messages.xlf"]).toBe(before["locale/messages.xlf"]);
+  expect(after["locale/messages.en.xlf"]).toBe(
+    before["locale/messages.en.xlf"]!.replace(
+      '<target state="new">Mais tarde</target>',
+      '<target state="translated">Later</target>',
+    ),
+  );
   expect(Object.keys(after).sort()).toEqual(Object.keys(before).sort());
   expect(after["i18n/pt-PT.json"]).toBe(before["i18n/pt-PT.json"]);
   expect(after["data/steps.pt-PT.json"]).toBe(before["data/steps.pt-PT.json"]);

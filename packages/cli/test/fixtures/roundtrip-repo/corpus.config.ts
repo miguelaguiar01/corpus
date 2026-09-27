@@ -24,6 +24,12 @@ export default defineCorpus({
     },
     { adapter: "android", type: "screen", path: "res" },
     { adapter: "fluent", type: "message", path: "ftl/{lang}/app.ftl" },
+    {
+      adapter: "xliff",
+      type: "page",
+      path: "locale/messages.{lang}.xlf",
+      sourcePath: "locale/messages.xlf",
+    },
   ],
   richText: { screen: "html" },
 });

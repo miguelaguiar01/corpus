@@ -589,7 +589,12 @@ export function hasLanguages(source: FileSource): boolean {
 }
 
 export function sourceWritesBack(source: FileSource): boolean {
-  if (source.adapter === "android" || source.adapter === "fluent") return true;
+  if (
+    source.adapter === "android" ||
+    source.adapter === "fluent" ||
+    source.adapter === "xliff"
+  )
+    return true;
   return writesBack(source.path);
 }
 
@@ -682,15 +687,14 @@ async function readModule(
 // it takes no translations.
 export function writableSources(config: CorpusConfig): WritableSource[] {
   return config.sources.flatMap((source) =>
-    source.adapter !== "exec" &&
-    source.adapter !== "xliff" &&
-    sourceWritesBack(source)
+    source.adapter !== "exec" && sourceWritesBack(source)
       ? [
           {
             // Android's source file itself: the server fills {lang} in
             // a pattern, and a res directory has none.
+            // XLIFF's source file too: its name may hold no language.
             path:
-              source.adapter === "android"
+              source.adapter === "android" || source.adapter === "xliff"
                 ? fileOf(source, config.sourceLanguage, config.sourceLanguage)
                 : source.path,
             adapter: source.adapter,
@@ -736,9 +740,7 @@ export function pushOnlyNotes(config: CorpusConfig): string[] {
     } else if (source.adapter === "android" || source.adapter === "fluent") {
       continue;
     } else if (source.adapter === "xliff") {
-      notes.push(
-        `${source.path}: pull does not write XLIFF yet; its translations are read and pushed`,
-      );
+      continue;
     } else if (!source.path.includes("{lang}")) {
       notes.push(
         `${source.path} has no {lang}: its translations cannot be written back`,

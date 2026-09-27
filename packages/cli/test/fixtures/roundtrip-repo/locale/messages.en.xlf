@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file source-language="pt-PT" target-language="en" datatype="plaintext" original="ng2.template">
+    <body>
+      <trans-unit id="page.signIn" datatype="html">
+        <source>Entrar com <x id="START_LINK" ctype="x-a" equiv-text="&lt;a&gt;"/>Google<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/></source>
+        <target state="translated">Sign in with <x id="START_LINK" ctype="x-a" equiv-text="&lt;a&gt;"/>Google<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/></target>
+        <note priority="1" from="description">O botão de entrada</note>
+      </trans-unit>
+      <trans-unit id="page.later" datatype="html">
+        <source>Mais tarde</source>
+        <target state="new">Mais tarde</target>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>
