@@ -179,7 +179,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     );
   } else if (!components.found) {
     ctx.out(
-      `check.include: no directory holding components found; corpus check scans src, so set check.include in ${filename} to where they are`,
+      `check.include: init found no components where it looks; corpus check scans src, so set check.include in ${filename} to where they are`,
     );
   }
   const siblings = siblingCatalogues(ctx.cwd, messages, sourceLanguage);
@@ -318,7 +318,9 @@ function componentDirs(cwd: string, rel: string, depth: number): string[] {
 // The package a catalogue belongs to: the nearest directory above its
 // path, below the repository root, with a package.json.
 function packageOf(cwd: string, messages: string): string | undefined {
-  const fixed = messages.split("/");
+  const relative = path.posix.normalize(messages.replaceAll("\\", "/"));
+  if (relative.startsWith("/") || relative.startsWith("..")) return undefined;
+  const fixed = relative.split("/");
   const at = fixed.findIndex((segment) => segment.includes("{"));
   let dir = fixed.slice(0, at < 0 ? -1 : at).join("/");
   while (dir !== "" && dir !== ".") {

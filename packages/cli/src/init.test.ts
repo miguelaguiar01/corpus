@@ -567,7 +567,7 @@ test("check.include is not written when src alone holds the components, nor when
   expect((await loadConfig(none.dir)).check).toBeUndefined();
   // Nothing found is said, so the first corpus check is no surprise.
   expect(none.out.join("\n")).toMatch(
-    /check\.include: no directory holding components found/,
+    /check\.include: init found no components where it looks/,
   );
 });
 
@@ -605,6 +605,21 @@ test("with no components directory, the catalogue's own package's roots (#655)",
   );
   expect(await run(flags, p.ctx)).toBe(0);
   expect((await loadConfig(p.dir)).check).toEqual({ include: ["web/pages"] });
+
+  // A path outside the repository names no package of its own, and an
+  // absolute one ends the search rather than looping at the root.
+  for (const messages of [
+    "../web/locales/{lang}.json",
+    `${p.dir}/web/locales/{lang}.json`,
+  ]) {
+    const q = project();
+    stubCli(q.dir);
+    const outside = FLAGS.map((f) =>
+      f === "src/i18n/{lang}.json" ? messages : f,
+    );
+    await run(outside, q.ctx);
+    expect(q.out.join("\n")).not.toMatch(/check\.include: \.\./);
+  }
 });
 
 test("an .arb catalogue is read for its languages and its library (#558)", async () => {
