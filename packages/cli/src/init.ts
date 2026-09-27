@@ -460,6 +460,8 @@ async function libraryFor(
   const argued = texts.filter(
     (text) =>
       SINGLE_BRACE_RE.test(text) ||
+      PRINTF_RE.test(text) ||
+      COUNTERPART_RE.test(text) ||
       (ICU_ARGUMENT_RE.test(text) && !text.includes("{}")),
   ).length;
   if (

@@ -895,4 +895,21 @@ test("a vue catalogue's links and an ICU catalogue's stray {} do not make easy_l
   );
   expect(await run(FLAGS, icu.ctx)).toBe(0);
   expect((await loadConfig(icu.dir)).sources[0]?.library).toBeUndefined();
+  const printf = project();
+  stubCli(printf.dir);
+  mkdirSync(path.join(printf.dir, "src", "i18n"), { recursive: true });
+  writeFileSync(
+    path.join(printf.dir, "src", "i18n", "pt-PT.json"),
+    JSON.stringify({
+      a: "%d files in %s",
+      b: "%s deleted",
+      c: "%d left",
+      d: "Match {} and {}",
+      e: "Use {}",
+    }),
+  );
+  expect(await run(FLAGS, printf.ctx)).toBe(0);
+  expect((await loadConfig(printf.dir)).sources[0]).toMatchObject({
+    library: "printf",
+  });
 });
