@@ -11,6 +11,7 @@ import {
   tagsOf,
   isVoidTag,
   refusalAdvice,
+  refusalCause,
   placeholderWrittenOf,
 } from "./icu";
 import { LIBRARIES, libraryName } from "./strings";
@@ -601,5 +602,14 @@ test("each library has a name for messages (#644)", () => {
     "Chrome i18n",
     "Android",
     "counterpart",
+    "easy_localization",
   ]);
+});
+
+test("a {} refused under another library advises easy_localization, and counts toward the stop (#664)", () => {
+  const message = 'invalid placeholder name ""';
+  expect(refusalAdvice("{} files", "icu", message)).toMatch(
+    /declare library: "easy_localization"/,
+  );
+  expect(refusalCause("{} files", "vue", message)).toBe("library");
 });

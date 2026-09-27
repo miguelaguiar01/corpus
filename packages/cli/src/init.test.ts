@@ -851,3 +851,17 @@ test("init names counterpart where %(name)s placeholders dominate, as Element's 
     /library: counterpart, from %\(name\)s placeholders/,
   );
 });
+
+test("init names easy_localization where {} or @:key appear, as AppFlowy's catalogue does (#664)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "src", "i18n"), { recursive: true });
+  writeFileSync(
+    path.join(p.dir, "src", "i18n", "pt-PT.json"),
+    JSON.stringify({ a: "Welcome to @:appName", b: "{} files", c: "Plain" }),
+  );
+  expect(await run(FLAGS, p.ctx)).toBe(0);
+  expect((await loadConfig(p.dir)).sources[0]).toMatchObject({
+    library: "easy_localization",
+  });
+});

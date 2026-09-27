@@ -16,6 +16,7 @@
 import {
   parseIcu,
   printfPluralError,
+  WHOLE_PLURAL_LIBRARIES,
   pluralCategoriesOf,
   pluralCategoryCovered,
   printfVerbOf,
@@ -220,7 +221,7 @@ export function validateTranslation(
   // A translation of a printf plural that opens as one but is not one
   // is a broken plural, not text (#652).
   const brokenPlural =
-    (syntax === "printf" || syntax === "i18next" || syntax === "counterpart") &&
+    WHOLE_PLURAL_LIBRARIES.has(syntax) &&
     parsedSource.nodes.some((node) => node.kind === "plural")
       ? printfPluralError(target, html, syntax)
       : undefined;

@@ -6,7 +6,7 @@ A source declares the library its catalogue was written for:
 
 One value decides how placeholders are spelled, how plurals are written, and what is escaped. `icu` is the default and what an absent field means.
 
-`corpus init` looks at your source file and writes the library it finds, saying so as it does: `i18next` when more values use `{{name}}` than use a single-brace `{name}` or a printf verb, and none holds an ICU plural or select, `vue` when they use a top-level pipe or a `{'…'}` literal and neither of those, `chrome` when every value is a Chrome i18n entry with a `message`, `counterpart` when `%(name)s` placeholders outnumber every other shape. It writes nothing for a plain ICU catalogue, since that is the default.
+`corpus init` looks at your source file and writes the library it finds, saying so as it does: `i18next` when more values use `{{name}}` than use a single-brace `{name}` or a printf verb, and none holds an ICU plural or select, `vue` when they use a top-level pipe or a `{'…'}` literal and neither of those, `chrome` when every value is a Chrome i18n entry with a `message`, `counterpart` when `%(name)s` placeholders outnumber every other shape, `easy_localization` when a string holds `{}` or an `@:key` link. It writes nothing for a plain ICU catalogue, since that is the default.
 
 (`syntax` is the old name for this field. A config that still uses it works, and `build`, `push` and `validate` each say once that the field has been renamed. It goes at 1.0.)
 
@@ -156,6 +156,12 @@ Two things to know. **A moved verb needs its index.** Unindexed verbs are read i
 ```
 
 `corpus init` writes it when `%(name)s` placeholders outnumber every other shape. Element's own substitution leaves a tag the code does not pass as text, `<empty string>`, which Corpus cannot know, so it asks a translation to keep such a tag as written too.
+
+## easy_localization: Flutter
+
+`library: "easy_localization"` is the Flutter package's syntax. `{}` is a positional placeholder, the first `{}` of a string the first argument, and `{name}` a named one; `@:key` links to another key's text, and `@.upper:key` (or `.lower`, `.capitalize`) links with a modifier. A translation keeps each placeholder and each link as written: a draft that drops `@:appName` is refused, and one that writes `@:appName-Konto`, which the package reads as a link to a key named `appName-Konto`, is told the link it lost and the one it made. Braces around anything else, `#` and angle brackets are text. Plurals are JSON objects, `{ "one": "{} file", "other": "{} files" }`, read as one plural whose `{}` is the count.
+
+`corpus init` writes it when a string holds `{}` or a link, and a `{}` refused under another library says to declare it.
 
 ## Chrome i18n: browser extensions
 

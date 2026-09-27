@@ -83,6 +83,7 @@ export const LIBRARIES = [
   "chrome",
   "android",
   "counterpart",
+  "easy_localization",
 ] as const;
 export type Library = (typeof LIBRARIES)[number];
 export const librarySchema = z.enum(LIBRARIES);
@@ -95,6 +96,7 @@ const LIBRARY_NAMES: Record<Library, string> = {
   chrome: "Chrome i18n",
   android: "Android",
   counterpart: "counterpart",
+  easy_localization: "easy_localization",
 };
 
 export function libraryName(library: Library): string {
