@@ -42,7 +42,34 @@ export const languageCode = () =>
   z
     .string()
     .min(1)
-    .regex(LANGUAGE_RE, "a language tag such as en, pt-PT or en_US");
+    .regex(LANGUAGE_RE, {
+      error: (issue) => notALanguageTag(String(issue.input)),
+    });
+
+// POSIX writes a script as a modifier (`sr@latin`, qBittorrent's files);
+// BCP 47 writes it as a subtag.
+const POSIX_SCRIPTS: Record<string, string> = {
+  latin: "Latn",
+  cyrillic: "Cyrl",
+  arabic: "Arab",
+  devanagari: "Deva",
+};
+
+// Why a code is not a tag, naming it (#657), and for a POSIX code the
+// tag to write and the mapping that keeps its files' names.
+export function notALanguageTag(code: string): string {
+  const posix = /^([A-Za-z]{2,3})(?:[-_]([A-Za-z]{2}))?@([A-Za-z]+)$/.exec(
+    code,
+  );
+  const script = posix && POSIX_SCRIPTS[posix[3]!.toLowerCase()];
+  if (posix && script) {
+    const tag = [posix[1]!.toLowerCase(), script, posix[2]?.toUpperCase()]
+      .filter(Boolean)
+      .join("-");
+    return `${JSON.stringify(code)} is not a language tag; write ${tag}, and map its files with languageFiles: { ${JSON.stringify(tag)}: ${JSON.stringify(code)} } on the source`;
+  }
+  return `${JSON.stringify(code)} is not a language tag such as en, pt-PT or en_US`;
+}
 // The i18n library a source is written for (§3, §5). One value carries
 // how placeholders are spelled, how plurals are written and what is
 // escaped: `icu` is plain ICU MessageFormat, as next-intl, FormatJS and

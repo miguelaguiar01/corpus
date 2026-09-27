@@ -34,7 +34,7 @@ import {
 } from "@corpus/contract";
 import { printable } from "./printable";
 import { headOf, unreadableCatalogue } from "./catalogue-format";
-import { CliError } from "./config";
+import { CliError, fileCodeOf } from "./config";
 
 type Sourced = { entry: StringEntry; file: string };
 // `hint` is the advice clause, kept apart from the message so refusals
@@ -428,7 +428,7 @@ export function fileOf(
   sourceLanguage: string,
 ): string {
   if (source.adapter !== "android")
-    return source.path.replace("{lang}", language);
+    return source.path.replace("{lang}", fileCodeOf(source, language));
   const dir = language === sourceLanguage ? "values" : androidDirOf(language);
   return path.posix.join(source.path, dir, "strings.xml");
 }

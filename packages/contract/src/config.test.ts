@@ -282,3 +282,77 @@ test("an android source names its res directory and nothing else (#596)", () => 
   });
   expect(parsed.success).toBe(true);
 });
+
+test("a language code that is not a tag is refused by name; a POSIX one is told its tag and the mapping (#657)", () => {
+  const base = {
+    project: "p",
+    server: "http://localhost:3000",
+    sourceLanguage: "en",
+    sources: [{ adapter: "messages", type: "ui", path: "i18n/{lang}.json" }],
+  };
+  const messages = (languages: string[]) => {
+    const parsed = corpusConfigSchema.safeParse({ ...base, languages });
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  expect(messages(["en", "sr@latin"])).toEqual([
+    '"sr@latin" is not a language tag; write sr-Latn, and map its files with languageFiles: { "sr-Latn": "sr@latin" } on the source',
+  ]);
+  expect(messages(["en", "e n"])).toEqual([
+    '"e n" is not a language tag such as en, pt-PT or en_US',
+  ]);
+});
+
+test("a messages or fluent source may name the file code of a language (#657)", () => {
+  const config = {
+    project: "p",
+    server: "http://localhost:3000",
+    sourceLanguage: "en",
+    languages: ["en", "zh-CN", "sr-Latn"],
+    sources: [
+      {
+        adapter: "messages",
+        type: "ui",
+        path: "i18n/{lang}.json",
+        languageFiles: { "zh-CN": "cn", "sr-Latn": "sr@latin" },
+      },
+    ],
+  };
+  expect(corpusConfigSchema.safeParse(config).success).toBe(true);
+  expect(
+    corpusConfigSchema.safeParse({
+      ...config,
+      sources: [{ ...config.sources[0], languageFiles: { "zh-CN": "a/b" } }],
+    }).success,
+  ).toBe(false);
+  const refused = (
+    languageFiles: Record<string, string>,
+    adapter = "messages",
+  ) => {
+    const parsed = corpusConfigSchema.safeParse({
+      ...config,
+      languages: ["en", "zh-CN", "sr-Latn", "pt", "pt-BR"],
+      sources: [
+        {
+          ...config.sources[0],
+          adapter,
+          languageFiles,
+          ...(adapter === "table" && { map: { id: "id", text: "text" } }),
+        },
+      ],
+    });
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  // Two languages in one file would overwrite each other on a pull.
+  expect(refused({ "pt-BR": "pt" })).toEqual([
+    "pt and pt-BR would share the file of pt",
+  ]);
+  expect(refused({ en: "english" })).toEqual([
+    "the source language en keeps its tag as its file's name; languageFiles maps target languages",
+  ]);
+  expect(refused({ "zh-cn": "cn" })).toEqual([
+    "languageFiles names zh-cn, which languages does not list",
+  ]);
+  expect(refused({ "zh-CN": "cn" }, "table")).toEqual([
+    "languageFiles is for messages and fluent sources",
+  ]);
+});

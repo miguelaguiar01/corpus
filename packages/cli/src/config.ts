@@ -106,6 +106,14 @@ export function requireToken(env: NodeJS.ProcessEnv, cwd: string): string {
   return readToken(env, cwd).token;
 }
 
+// The code a source's files name a language by: its `languageFiles`
+// entry, or the tag itself (#657).
+export function fileCodeOf(source: object, language: string): string {
+  const files = (source as { languageFiles?: Record<string, string> })
+    .languageFiles;
+  return files && Object.hasOwn(files, language) ? files[language]! : language;
+}
+
 // A source's patterns become concrete sources (#513): an array is one
 // source per pattern, and a `{ns}` pattern is one source per namespace
 // found in the source language's files, the namespace kept so the ids
@@ -116,7 +124,11 @@ export function expandSources(input: CorpusInput, cwd: string): CorpusConfig {
     const patterns = Array.isArray(source.path) ? source.path : [source.path];
     return patterns.flatMap((pattern): Source[] => {
       if (!pattern.includes("{ns}")) return [{ ...source, path: pattern }];
-      const names = namespacesOf(cwd, pattern, input.sourceLanguage);
+      const names = namespacesOf(
+        cwd,
+        pattern,
+        fileCodeOf(source, input.sourceLanguage),
+      );
       if (names.length === 0) {
         throw new CliError(
           `${pattern} matches no file for ${input.sourceLanguage}: nothing fills {ns}`,
@@ -133,7 +145,10 @@ export function expandSources(input: CorpusInput, cwd: string): CorpusConfig {
   const seen = new Map<string, string>();
   for (const source of sources) {
     if (source.adapter === "exec") continue;
-    const file = source.path.replace("{lang}", input.sourceLanguage);
+    const file = source.path.replace(
+      "{lang}",
+      fileCodeOf(source, input.sourceLanguage),
+    );
     const first = seen.get(file);
     if (first !== undefined) {
       throw new CliError(
@@ -162,7 +177,8 @@ function arbUnderscoreCodes(
     )
       continue;
     const wrong = languages.filter((code) => {
-      if (!code.includes("-")) return false;
+      if (!code.includes("-") || fileCodeOf(source, code) !== code)
+        return false;
       const underscore = code.replaceAll("-", "_");
       return (
         !existsSync(path.join(cwd, source.path.replace("{lang}", code))) &&

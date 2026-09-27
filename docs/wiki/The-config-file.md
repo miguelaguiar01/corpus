@@ -78,7 +78,16 @@ server: process.env.CORPUS_SERVER ?? "http://localhost:3000",
 
 **`sourceLanguage`** is the language your repository is written in. Its text belongs to the repository, so Corpus never writes it back from a translation; it is the one language that gets proofread rather than translated.
 
-**`languages`** lists every language, the source included. It seeds the project's list at creation. After that the instance owns it: adding a language on the settings page makes rows for every string at once, and `corpus push` warns when the two lists have drifted rather than changing either.
+**`languages`** lists every language, the source included, as language tags: `pt-PT`, `zh-CN`, `sr-Latn`, or with underscores (`en_US`) where your library writes them so. Where your files name a language otherwise, Hoppscotch's `cn.json` for Simplified Chinese or qBittorrent's `sr@latin.ts`, write the tag here and map the file's code on the source:
+
+```ts
+{ adapter: "messages", type: "ui", path: "locales/{lang}.json",
+  languageFiles: { "zh-CN": "cn", "zh-TW": "tw" } }
+```
+
+The project then knows the language as `zh-CN`, with its plural rules and name, and push, validate and pull read and write `cn.json`. A code that is not a tag is refused by name, and a POSIX one is told the tag and the mapping to write. A map names only target languages the config lists, and no two of them may share a file.
+
+The `languages` list seeds the project's list at creation. After that the instance owns it: adding a language on the settings page makes rows for every string at once, and `corpus push` warns when the two lists have drifted rather than changing either.
 
 **`sources`** is where your text is. Each entry names an adapter, a type, and a path. [Sources and adapters](Sources-and-adapters) covers them; a config with more than one source is normal, one per shape of file.
 

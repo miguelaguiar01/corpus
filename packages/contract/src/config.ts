@@ -22,6 +22,18 @@ const langPattern = z
   .refine((p) => p.includes("{lang}"), "path must contain {lang}");
 const patterns = <T extends z.ZodType<string>>(pattern: T) =>
   z.union([pattern, z.array(pattern).min(1)]);
+// The code a file names a language by, where it is not the language's
+// tag (#657): Hoppscotch keeps zh-CN in cn.json, qBittorrent sr-Latn in
+// sr@latin.ts. The project's language is the tag; the file keeps its
+// name.
+const languageFiles = z
+  .record(
+    languageCode(),
+    z
+      .string()
+      .regex(/^[^/\\{}]+$/, "a file's language code, no slash or brace"),
+  )
+  .optional();
 
 const messagesFields = {
   adapter: z.literal("messages"),
@@ -30,6 +42,7 @@ const messagesFields = {
   // absent. `syntax` is the old name, accepted until 1.0.
   library: librarySchema.optional(),
   syntax: librarySchema.optional(),
+  languageFiles,
 };
 const tableFields = {
   adapter: z.literal("table"),
@@ -64,6 +77,7 @@ const androidSchema = z.looseObject({
 const fluentFields = {
   adapter: z.literal("fluent"),
   type: identifier(),
+  languageFiles,
 };
 
 // What a config file declares.
@@ -160,7 +174,38 @@ export const corpusConfigSchema = z
         "a source sets library or syntax, not both; syntax is the old name for library",
       path: ["sources"],
     },
-  );
+  )
+  .superRefine((c, ctx) => {
+    c.sources.forEach((source, index) => {
+      const files = (source as { languageFiles?: Record<string, string> })
+        .languageFiles;
+      if (!files) return;
+      const path = ["sources", index, "languageFiles"];
+      const issue = (message: string) =>
+        ctx.addIssue({ code: "custom", message, path });
+      if (source.adapter !== "messages" && source.adapter !== "fluent") {
+        issue(`languageFiles is for messages and fluent sources`);
+        return;
+      }
+      // The server fills a writable source's pattern with the source
+      // language's tag when it places a proposal (#657).
+      if (Object.hasOwn(files, c.sourceLanguage))
+        issue(
+          `the source language ${c.sourceLanguage} keeps its tag as its file's name; languageFiles maps target languages`,
+        );
+      for (const tag of Object.keys(files))
+        if (!c.languages.includes(tag))
+          issue(`languageFiles names ${tag}, which languages does not list`);
+      const byCode = new Map<string, string>();
+      for (const tag of c.languages) {
+        const code = Object.hasOwn(files, tag) ? files[tag]! : tag;
+        const other = byCode.get(code);
+        if (other !== undefined)
+          issue(`${other} and ${tag} would share the file of ${code}`);
+        byCode.set(code, tag);
+      }
+    });
+  });
 
 // The config as written, and as loaded: the CLI expands every pattern
 // into concrete sources when it reads the file (#513).
