@@ -387,3 +387,35 @@ test("push builds and validates before it asks for the token", async () => {
   expect(await run(["push"], c2)).not.toBe(0);
   expect(c2.output.join("\n")).toMatch(/CORPUS_TOKEN is not set/);
 });
+
+test("a seed's digest changes with its marks and its language's variance, and only then (#658)", async () => {
+  const { seedDigestsOf } = await import("./cli");
+  const { seedDigest } = await import("@corpus/contract");
+  const config = {
+    sourceLanguage: "en",
+    languages: ["en", "de", "en-GB"],
+  } as Parameters<typeof seedDigestsOf>[1];
+  const base = {
+    seedTranslations: {
+      de: { status: "Status", save: "Speichern" },
+      "en-GB": { colour: "Colour" },
+    },
+  } as unknown as Parameters<typeof seedDigestsOf>[0];
+  const plain = seedDigestsOf(base, config);
+  // Nothing marked, no variant: the digest a 0.20 push sent, no resend.
+  expect(plain).toEqual({
+    de: seedDigest({ status: "Status", save: "Speichern" }),
+    "en-GB": seedDigest({ colour: "Colour" }),
+  });
+  const marked = seedDigestsOf(
+    { ...base, seedTranslated: { de: ["status"] } },
+    config,
+  );
+  expect(marked.de).not.toBe(plain.de);
+  expect(marked["en-GB"]).toBe(plain["en-GB"]);
+  const variant = seedDigestsOf({ ...base, sourceVariants: ["en-GB"] }, config);
+  expect(variant["en-GB"]).not.toBe(plain["en-GB"]);
+  expect(variant.de).toBe(plain.de);
+  // Dropping the variant gives the plain digest back, so it resends too.
+  expect(seedDigestsOf({ ...base, sourceVariants: [] }, config)).toEqual(plain);
+});

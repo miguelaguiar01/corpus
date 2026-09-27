@@ -77,6 +77,7 @@ function stringWrites(
   targetLanguages: string[],
   seeds: NonNullable<Snapshot["seedTranslations"]>,
   richText: NonNullable<Snapshot["richText"]>,
+  counts: (language: string, id: string) => boolean,
 ) {
   const p = (name: string) => sql`${sql.placeholder(name)}`;
   const rowId = sql.placeholder("rowId");
@@ -165,7 +166,9 @@ function stringWrites(
         const texts = seeds[language];
         const text =
           texts && Object.hasOwn(texts, entry.id) ? texts[entry.id] : undefined;
-        const translated = text !== undefined && text !== entry.source;
+        const translated =
+          text !== undefined &&
+          (text !== entry.source || counts(language, entry.id));
         return [
           [`text${k}_${i}`, text ?? null],
           [`state${k}_${i}`, translated ? "translated" : "untranslated"],
@@ -303,6 +306,11 @@ export function applySnapshot(
           sources: snapshot.sources ?? null,
           ...(snapshot.typeNotes && { typeNotes: snapshot.typeNotes }),
           ...(snapshot.richText && { richText: snapshot.richText }),
+          ...(snapshot.sourceVariants && {
+            sourceVariants: snapshot.sourceVariants.filter((language) =>
+              targetLanguages.includes(language),
+            ),
+          }),
           ...(snapshot.glossary && { glossary: snapshot.glossary }),
           // The languages this push digested replace their entries; the
           // rest stay, as a push carries digests for every target
@@ -339,12 +347,26 @@ export function applySnapshot(
       ensureTranslationRows(tx, projectId, targetLanguages);
       // What the project reads as HTML once this push lands.
       const richText = snapshot.richText ?? project.richText ?? {};
+      // A seed identical to the source counts as translated in a variant
+      // of the source, or where the repository marks it so (#658).
+      const variants = new Set(
+        snapshot.sourceVariants ?? project.sourceVariants ?? [],
+      );
+      const marked = new Map(
+        Object.entries(snapshot.seedTranslated ?? {}).map(([lang, ids]) => [
+          lang,
+          new Set(ids),
+        ]),
+      );
+      const counts = (language: string, id: string) =>
+        variants.has(language) || (marked.get(language)?.has(id) ?? false);
       const writes = stringWrites(
         tx,
         project.sourceLanguage,
         targetLanguages,
         snapshot.seedTranslations ?? {},
         richText,
+        counts,
       );
       writes.insert(
         projectId,
@@ -386,6 +408,7 @@ export function applySnapshot(
         targetLanguages,
         snapshot,
         richText,
+        counts,
         new Set(plan.insert),
       );
 
@@ -528,6 +551,7 @@ function applySeeds(
   targetLanguages: string[],
   snapshot: Snapshot,
   richText: NonNullable<Snapshot["richText"]>,
+  counts: (language: string, id: string) => boolean,
   created: Set<string>,
 ): { seeded: number; seedsIgnored: number; seedsIdentical: number } {
   const seeds = snapshot.seedTranslations ?? {};
@@ -629,7 +653,7 @@ function applySeeds(
         continue;
       }
       const rowId = string.id;
-      const identical = text === string.source;
+      const identical = text === string.source && !counts(language, stringId);
       if (identical) seedsIdentical += 1;
       const state = identical ? "untranslated" : "translated";
       if (created.has(stringId)) {

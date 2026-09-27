@@ -1,4 +1,4 @@
-import { and, asc, eq, ne, sql } from "drizzle-orm";
+import { and, asc, eq, ne, notInArray, sql } from "drizzle-orm";
 import type { Db } from "@/db";
 import {
   edits,
@@ -54,12 +54,20 @@ const agentLast = sql`(${stringTranslations.stringId}, ${stringTranslations.lang
   )
 )`;
 
-function condition(kind: QueueKind, sourceLanguage: string) {
+// The project's source language, and the target languages that are
+// variants of it (#658), whose untranslated rows fall back to the
+// source and are no work.
+type Scope = { sourceLanguage: string; variants: string[] };
+
+function condition(kind: QueueKind, { sourceLanguage, variants }: Scope) {
   switch (kind) {
     case "untranslated":
       return and(
         ne(stringTranslations.language, sourceLanguage),
         eq(stringTranslations.state, "untranslated"),
+        variants.length > 0
+          ? notInArray(stringTranslations.language, variants)
+          : undefined,
       );
     case "stale":
       return eq(stringTranslations.stale, true);
@@ -75,26 +83,31 @@ function condition(kind: QueueKind, sourceLanguage: string) {
   }
 }
 
-function sourceLanguageOf(db: Db, projectId: number): string {
-  return (
-    db
-      .select({ sourceLanguage: projects.sourceLanguage })
-      .from(projects)
-      .where(eq(projects.id, projectId))
-      .get()?.sourceLanguage ?? ""
-  );
+function scopeOf(db: Db, projectId: number): Scope {
+  const project = db
+    .select({
+      sourceLanguage: projects.sourceLanguage,
+      variants: projects.sourceVariants,
+    })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .get();
+  return {
+    sourceLanguage: project?.sourceLanguage ?? "",
+    variants: project?.variants ?? [],
+  };
 }
 
 function where(
   projectId: number,
   kind: QueueKind,
-  sourceLanguage: string,
+  scope: Scope,
   filter: Filter,
 ) {
   return and(
     eq(strings.projectId, projectId),
     eq(strings.archived, false),
-    condition(kind, sourceLanguage),
+    condition(kind, scope),
     filter.language != null
       ? eq(stringTranslations.language, filter.language)
       : undefined,
@@ -106,7 +119,7 @@ function select(
   db: Db,
   projectId: number,
   kind: QueueKind,
-  sourceLanguage: string,
+  scope: Scope,
   filter: Filter,
   limit?: number,
 ): QueueItem[] {
@@ -121,7 +134,7 @@ function select(
     })
     .from(stringTranslations)
     .innerJoin(strings, eq(strings.id, stringTranslations.stringId))
-    .where(where(projectId, kind, sourceLanguage, filter))
+    .where(where(projectId, kind, scope, filter))
     .orderBy(asc(strings.id), asc(stringTranslations.language));
   return limit === undefined ? query.all() : query.limit(limit).all();
 }
@@ -130,14 +143,14 @@ function count(
   db: Db,
   projectId: number,
   kind: QueueKind,
-  sourceLanguage: string,
+  scope: Scope,
 ): number {
   return (
     db
       .select({ count: sql<number>`count(*)` })
       .from(stringTranslations)
       .innerJoin(strings, eq(strings.id, stringTranslations.stringId))
-      .where(where(projectId, kind, sourceLanguage, {}))
+      .where(where(projectId, kind, scope, {}))
       .get()?.count ?? 0
   );
 }
@@ -148,13 +161,7 @@ export function queueItems(
   kind: QueueKind,
   filter: Filter = {},
 ): Queue {
-  const items = select(
-    db,
-    projectId,
-    kind,
-    sourceLanguageOf(db, projectId),
-    filter,
-  );
+  const items = select(db, projectId, kind, scopeOf(db, projectId), filter);
   return { kind, count: items.length, first: items[0] ?? null, items };
 }
 
@@ -163,7 +170,7 @@ export function queueSummaries(
   db: Db,
   projectId: number,
 ): Record<QueueKind, { count: number; first: QueueItem | null }> {
-  const source = sourceLanguageOf(db, projectId);
+  const source = scopeOf(db, projectId);
   const summary = (kind: QueueKind) => ({
     count: count(db, projectId, kind, source),
     first: select(db, projectId, kind, source, {}, 1)[0] ?? null,
@@ -178,7 +185,7 @@ export function queueSummaries(
 }
 
 export function queueCounts(db: Db, projectId: number): QueueCounts {
-  const source = sourceLanguageOf(db, projectId);
+  const source = scopeOf(db, projectId);
   return {
     untranslated: count(db, projectId, "untranslated", source),
     stale: count(db, projectId, "stale", source),

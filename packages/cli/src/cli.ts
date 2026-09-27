@@ -203,6 +203,28 @@ function refusedExit(refused: Refused[], ctx: RunContext, fate: string) {
   return 1;
 }
 
+// Per target language, the digest of what its seeds import as (#601):
+// the texts, and since #658 which are marked translated and whether the
+// language is a variant of the source, so either change resends them.
+export function seedDigestsOf(
+  snapshot: Snapshot,
+  config: CorpusConfig,
+): Record<string, string> {
+  const seedDigests: Record<string, string> = {};
+  const variants = new Set(snapshot.sourceVariants ?? []);
+  for (const language of config.languages) {
+    if (language === config.sourceLanguage) continue;
+    // A seed marked translated, or a language made a variant, changes
+    // what the seeds import as, so it changes the digest (#658).
+    const texts = { ...(snapshot.seedTranslations?.[language] ?? {}) };
+    for (const id of snapshot.seedTranslated?.[language] ?? [])
+      if (texts[id] !== undefined) texts[id] = `${texts[id]}\u0000translated`;
+    if (variants.has(language)) texts["\u0000variant"] = "";
+    seedDigests[language] = seedDigest(texts);
+  }
+  return seedDigests;
+}
+
 // A push carries the repository's whole catalogue as seeds; after the
 // first, most of it is what the server already holds (#601). The
 // snapshot digests every target language's seeds, and the languages
@@ -215,13 +237,7 @@ async function withoutUnchangedSeeds(
   base: string,
   token: string,
 ): Promise<{ body: Snapshot; unchanged: number }> {
-  const seedDigests: Record<string, string> = {};
-  for (const language of config.languages) {
-    if (language === config.sourceLanguage) continue;
-    seedDigests[language] = seedDigest(
-      snapshot.seedTranslations?.[language] ?? {},
-    );
-  }
+  const seedDigests = seedDigestsOf(snapshot, config);
   // Nothing to leave out means nothing to ask: a push without seeds
   // carries its digests and makes one request, as before.
   const carried = Object.keys(snapshot.seedTranslations ?? {}).length > 0;
@@ -240,10 +256,12 @@ async function withoutUnchangedSeeds(
     known = null;
   }
   const seedTranslations = { ...(snapshot.seedTranslations ?? {}) };
+  const seedTranslated = { ...(snapshot.seedTranslated ?? {}) };
   let unchanged = 0;
   for (const [language, digest] of Object.entries(seedDigests)) {
     if (known?.[language] !== digest) continue;
     if (language in seedTranslations) delete seedTranslations[language];
+    delete seedTranslated[language];
     unchanged++;
   }
   return {
@@ -253,6 +271,9 @@ async function withoutUnchangedSeeds(
       ...(Object.keys(seedTranslations).length > 0
         ? { seedTranslations }
         : { seedTranslations: undefined }),
+      ...(Object.keys(seedTranslated).length > 0
+        ? { seedTranslated }
+        : { seedTranslated: undefined }),
     },
     unchanged,
   };

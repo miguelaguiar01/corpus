@@ -116,6 +116,9 @@ const configFields = {
   server: z.string().min(1),
   sourceLanguage: languageCode(),
   languages: z.array(languageCode()).min(1),
+  // Target languages that are variants of the source (#658), en-GB of
+  // en: their seeds identical to the source count as translated.
+  sourceVariants: z.array(languageCode()).optional(),
   stringTypes: z
     .record(z.string(), z.record(z.string(), fieldDeclarationSchema))
     .optional(),
@@ -176,6 +179,13 @@ export const corpusConfigSchema = z
     },
   )
   .superRefine((c, ctx) => {
+    for (const variant of c.sourceVariants ?? [])
+      if (variant === c.sourceLanguage || !c.languages.includes(variant))
+        ctx.addIssue({
+          code: "custom",
+          message: `sourceVariants names ${variant}, which is not a target language of languages`,
+          path: ["sourceVariants"],
+        });
     c.sources.forEach((source, index) => {
       const files = (source as { languageFiles?: Record<string, string> })
         .languageFiles;

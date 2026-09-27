@@ -93,6 +93,9 @@ export const projects = sqliteTable("projects", {
   seedDigests: text("seed_digests", { mode: "json" }).$type<
     Record<string, string>
   >(),
+  // Target languages that are variants of the source (#658): identical
+  // seeds are translated there, and untranslated rows are no work.
+  sourceVariants: text("source_variants", { mode: "json" }).$type<string[]>(),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
     .$defaultFn(() => new Date()),
