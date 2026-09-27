@@ -326,6 +326,12 @@ async function check(ctx: RunContext): Promise<number> {
     );
   }
   if (parsed === 0) return 1;
+  const tests = scanned.reduce((n, s) => n + (s.tests ?? 0), 0);
+  if (tests > 0) {
+    ctx.err(
+      `corpus: check skipped ${tests} test, spec or story file(s); a __tests__ directory named in check.include is read`,
+    );
+  }
   for (const f of findings) ctx.err(`${f.file}:${f.line}: ${f.text}`);
   const tokens = findings.filter((f) => !/\s/.test(f.text)).length;
   if (findings.length >= 5 && tokens * 2 >= findings.length) {

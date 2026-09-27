@@ -456,3 +456,82 @@ test("an entry it cannot read is named and skipped, and the rest is still scanne
   ]);
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("test, spec and story files are skipped and counted; a __tests__ directory named in include is read (#656)", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-check-"));
+  try {
+    mkdirSync(path.join(dir, "src", "__tests__"), { recursive: true });
+    const jsx = (text: string) => `export const C = () => <p>${text}</p>;\n`;
+    writeFileSync(path.join(dir, "src", "App.tsx"), jsx("Real finding"));
+    writeFileSync(path.join(dir, "src", "App.test.tsx"), jsx("Fixture"));
+    writeFileSync(path.join(dir, "src", "App.spec.jsx"), jsx("Fixture"));
+    writeFileSync(path.join(dir, "src", "App.stories.tsx"), jsx("Story"));
+    writeFileSync(path.join(dir, "src", "__tests__", "a.tsx"), jsx("Fixture"));
+    const result = checkFiles(dir, { include: ["src"] });
+    expect(result.findings.map((f) => f.text)).toEqual(["Real finding"]);
+    expect(result.scanned).toEqual([{ dir: "src", parsed: 1, tests: 4 }]);
+    const named = checkFiles(dir, { include: ["src/__tests__"] });
+    expect(named.findings.map((f) => f.text)).toEqual(["Fixture"]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a text over several lines is reported at the line it starts on (#656)", () => {
+  const source = [
+    "export const C = () => (",
+    "  <p>",
+    "    Paste your Mermaid",
+    "    definition here",
+    "  </p>",
+    ");",
+  ].join("\n");
+  expect(findLiterals(source, "c.tsx")).toEqual([
+    { file: "c.tsx", line: 3, text: "Paste your Mermaid\n    definition here" },
+  ]);
+  // Excalidraw's TTDDialogOutput.tsx: a text shorter than its indent.
+  const short = [
+    "export const C = () => (",
+    "                <div>",
+    "                  Likely causes:",
+    "                </div>",
+    ");",
+  ].join("\n");
+  expect(findLiterals(short, "c.tsx")).toEqual([
+    { file: "c.tsx", line: 3, text: "Likely causes:" },
+  ]);
+});
+
+test("check says how many test files it skipped (#656)", async () => {
+  const { run } = await import("./cli");
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-check-"));
+  try {
+    mkdirSync(path.join(dir, "i18n"));
+    mkdirSync(path.join(dir, "src"));
+    writeFileSync(path.join(dir, "i18n", "en.json"), "{}\n");
+    writeFileSync(
+      path.join(dir, "corpus.config.mjs"),
+      `export default { project: "p", server: "http://localhost:3000", sourceLanguage: "en", languages: ["en"], sources: [{ adapter: "messages", type: "ui", path: "i18n/{lang}.json" }] };\n`,
+    );
+    writeFileSync(
+      path.join(dir, "src", "A.tsx"),
+      "export const A = () => null;\n",
+    );
+    writeFileSync(
+      path.join(dir, "src", "A.test.tsx"),
+      "export const T = () => <p>Fixture</p>;\n",
+    );
+    const out: string[] = [];
+    const err: string[] = [];
+    const code = await run(["check"], {
+      cwd: dir,
+      env: {},
+      out: (l) => out.push(l),
+      err: (l) => err.push(l),
+    });
+    expect(code).toBe(0);
+    expect(err.join("\n")).toMatch(/check skipped 1 test, spec or story file/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
