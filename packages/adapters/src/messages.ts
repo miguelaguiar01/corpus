@@ -175,7 +175,8 @@ function walk(
     const first = paths.get(id);
     if (first) {
       throw new Error(
-        `messages: ${id} is written twice: ${JSON.stringify(first)} and ${JSON.stringify(path)}`,
+        // The id escaped as its paths are: a msgid may span lines (#648).
+        `messages: ${JSON.stringify(id).slice(1, -1)} is written twice: ${JSON.stringify(first)} and ${JSON.stringify(path)}`,
       );
     }
     paths.set(id, path);

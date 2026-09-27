@@ -600,3 +600,35 @@ test("a catalogue no adapter reads is named by its format, not passed as valid (
     "po/app_en.ts: a Qt Linguist catalogue",
   );
 });
+
+test("a key with a newline prints escaped on one line; --json keeps it raw (#648)", async () => {
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8").replace(
+      /sources: \[[\s\S]*?\n {2}\],/,
+      'sources: [{ adapter: "messages", type: "ui", path: "keyed/{lang}.json" }],',
+    ),
+  );
+  mkdirSync(path.join(repo, "keyed"), { recursive: true });
+  write("keyed/en.json", { "Could not remove\n{name}": "" });
+  write("keyed/pt.json", {
+    "Could not remove\n{name}": "Não removido",
+    "Gone\nnow": "Foi",
+  });
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(1);
+  expect(c.stderr).toContain(
+    "keyed/pt.json:Could not remove\\n{name}: missing {name}",
+  );
+  expect(c.stderr.join("\n")).toContain(
+    "keyed/en.json:Gone\\nnow: the source no longer has this key; 1 target file(s) carry it",
+  );
+  const j = ctx();
+  await run(["validate", "--json"], j);
+  expect(JSON.parse(j.stdout.join("\n"))[0].key).toBe(
+    "Could not remove\n{name}",
+  );
+});

@@ -16,6 +16,7 @@ import {
   stripBom,
   type SourceOp,
 } from "@corpus/adapters";
+import { printable } from "./printable";
 import { option, options } from "./args";
 import {
   libraryOf,
@@ -185,14 +186,14 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     );
     if (!source || !sourceWritesBack(source)) {
       ctx.err(
-        `corpus: proposal(s) for ${ops.map((o) => o.id).join(", ")}: ${file} matches no writable source; not written`,
+        `corpus: proposal(s) for ${ops.map((o) => printable(o.id)).join(", ")}: ${file} matches no writable source; not written`,
       );
       continue;
     }
     const stripped = stripNamespace(ops, source);
     for (const op of stripped.refused) {
       ctx.err(
-        `corpus: proposal ${op.id} for ${file} lacks the namespace ${source.namespace}: that file's ids carry; not written`,
+        `corpus: proposal ${printable(op.id)} for ${file} lacks the namespace ${source.namespace}: that file's ids carry; not written`,
       );
     }
     const kept = stripped.ops;
@@ -226,7 +227,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
                 : applyTableOps(existing, targetOps, source.map);
       } catch (error) {
         throw new CliError(
-          `${target}: proposal(s) for ${targetOps.map((o) => o.id).join(", ")}: ${(error as Error).message}`,
+          `${target}: proposal(s) for ${targetOps.map((o) => printable(o.id)).join(", ")}: ${(error as Error).message}`,
         );
       }
       if (next !== existing) {
