@@ -426,7 +426,13 @@ export function applyMessagesOps(
         : deleteLeaf(out, path);
       out = next === out ? deleteLeaf(out, [op.id]) : next;
     } else if (pluralIds.has(op.id)) {
-      out = writePlural(out, path, op.text, indent);
+      // A proposal the object cannot hold fails the file loudly: it is
+      // counted written otherwise, and never lands.
+      out = writePlural(out, path, op.text, indent, undefined, (id) => {
+        throw new Error(
+          `messages: ${id} is a plural its object cannot hold (an =N branch, or a brace a form leaves open)`,
+        );
+      });
     } else {
       out = editLeaf(out, path, op.text) ?? addLeaf(out, path, op.text, indent);
     }

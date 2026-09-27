@@ -896,3 +896,27 @@ describe("a plural the object cannot hold is refused, not flattened into other (
     ).toEqual(["k.one", "k.other"]);
   });
 });
+
+test("a proposal a plural object cannot hold fails, naming the key (#662)", () => {
+  const source = `{\n  "k": { "one": "a", "other": "b" }\n}\n`;
+  expect(() =>
+    applyMessagesOps(
+      source,
+      [
+        {
+          kind: "edit",
+          id: "k",
+          text: "{count, plural, =0 {none} one {a} other {b}}",
+        },
+      ],
+      { plurals: true },
+    ),
+  ).toThrow(/k is a plural its object cannot hold/);
+  expect(
+    applyMessagesOps(
+      source,
+      [{ kind: "edit", id: "k", text: "{count, plural, one {x} other {y}}" }],
+      { plurals: true },
+    ),
+  ).toBe(`{\n  "k": { "one": "x", "other": "y" }\n}\n`);
+});
