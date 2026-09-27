@@ -119,11 +119,17 @@ export function fileCodeOf(source: object, language: string): string {
 // found in the source language's files, the namespace kept so the ids
 // it contributes are `ns:key` and a pull can strip it again.
 export function expandSources(input: CorpusInput, cwd: string): CorpusConfig {
-  const sources: Source[] = input.sources.flatMap((source): Source[] => {
+  const sources: Source[] = input.sources.flatMap((source, index): Source[] => {
     if (source.adapter === "exec") return [source];
     const patterns = Array.isArray(source.path) ? source.path : [source.path];
+    // The patterns of one source are one catalogue the app merges
+    // (#661): an id in two of them with the same text is one string.
+    // Set here and nowhere else: a `group` written in the config names
+    // nothing.
+    const group = { group: patterns.length > 1 ? index : undefined };
     return patterns.flatMap((pattern): Source[] => {
-      if (!pattern.includes("{ns}")) return [{ ...source, path: pattern }];
+      if (!pattern.includes("{ns}"))
+        return [{ ...source, path: pattern, ...group }];
       const names = namespacesOf(
         cwd,
         pattern,
@@ -138,6 +144,7 @@ export function expandSources(input: CorpusInput, cwd: string): CorpusConfig {
         ...source,
         path: pattern.replace("{ns}", ns),
         namespace: ns,
+        ...group,
       }));
     });
   });

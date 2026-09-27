@@ -241,12 +241,47 @@ export async function buildSnapshotReport(
     }
   }
 
-  const byId = new Map<string, string>();
-  for (const { entry, file } of sourced) {
+  // An id in two files of one source is one string when its text is the
+  // same in both (#661): Element merges its app's and its shared
+  // components' catalogues at runtime. Anywhere else a duplicate is an
+  // error.
+  const groupOf = new Map<string, number>();
+  for (const source of config.sources) {
+    if (source.adapter === "exec") continue;
+    const group = "group" in source ? source.group : undefined;
+    if (typeof group === "number")
+      groupOf.set(
+        fileOf(source, config.sourceLanguage, config.sourceLanguage),
+        group,
+      );
+  }
+  const byId = new Map<string, Sourced>();
+  const merged = new Set<Sourced>();
+  for (const item of sourced) {
+    const { entry, file } = item;
     const prev = byId.get(entry.id);
-    if (prev)
-      errors.push(`duplicate id ${printable(entry.id)} in ${prev} and ${file}`);
-    else byId.set(entry.id, file);
+    if (!prev) {
+      byId.set(entry.id, item);
+      continue;
+    }
+    const oneSource =
+      groupOf.has(file) && groupOf.get(file) === groupOf.get(prev.file);
+    if (oneSource && prev.entry.source === entry.source) {
+      // The copy that can take a proposal is the one kept: a key-is-text
+      // copy carries no file.
+      if (!prev.entry.file && entry.file) {
+        merged.add(prev);
+        byId.set(entry.id, item);
+      } else merged.add(item);
+    } else
+      errors.push(
+        `duplicate id ${printable(entry.id)} in ${prev.file} and ${file}${oneSource ? ", with different text" : ""}`,
+      );
+  }
+  if (merged.size > 0) {
+    const kept = sourced.filter((item) => !merged.has(item));
+    sourced.length = 0;
+    sourced.push(...kept);
   }
 
   // The declarations travel with the snapshot (§4): the server renders
@@ -769,6 +804,7 @@ async function readSeeds(
         `exec "${command}": ${unknown + refusedCount + empty} translation(s) not seeded: ${left.join(", ")}`,
       );
   }
+  const seededFrom: Record<string, Record<string, string>> = {};
   for (const source of config.sources) {
     if (source.adapter === "exec" || !hasLanguages(source)) continue;
     if (!sourceWritesBack(source)) continue;
@@ -781,7 +817,19 @@ async function readSeeds(
           // A key the source no longer has, or an empty value an
           // extraction tool left, is not a translation.
           if (!ids.has(entry.id) || entry.source.trim() === "") continue;
-          (seeds[lang] ??= {})[entry.id] = entry.source;
+          // A string two files of one source share has one translation:
+          // two that differ could not both survive a pull (#661).
+          const seeded = (seeds[lang] ??= {})[entry.id];
+          const from = (seededFrom[lang] ??= {})[entry.id];
+          if (seeded !== undefined && from !== undefined) {
+            if (seeded !== entry.source)
+              errors.push(
+                `${file}: ${printable(entry.id)} is translated otherwise in ${from}; a string the files share takes one translation, so write the same in both`,
+              );
+            continue;
+          }
+          seeds[lang][entry.id] = entry.source;
+          seededFrom[lang][entry.id] = file;
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
