@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import {
   appendFileSync,
   existsSync,
@@ -27,10 +28,17 @@ export function tokenPath(cwd: string): string {
 // create` and never starts the workbench, and a repository with no
 // .gitignore is one `git add .` from committing it, so the file is created
 // rather than the note left to chance. Returns what was done, or nothing
-// when the line was already there.
+// when the line was already there or git ignores the directory already,
+// by .git/info/exclude or a parent's .gitignore (#649); outside a work
+// tree, or without git, the line is written.
 export function ignoreCorpusDir(cwd: string): string | undefined {
   const gitignore = path.join(cwd, ".gitignore");
   const line = `${CORPUS_DIR}/`;
+  const check = spawnSync("git", ["check-ignore", "-q", line], {
+    cwd,
+    stdio: "ignore",
+  });
+  if (check.status === 0) return;
   if (!existsSync(gitignore)) {
     writeFileSync(gitignore, `${line}\n`);
     return `created .gitignore with ${line}`;
