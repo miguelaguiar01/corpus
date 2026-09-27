@@ -19,14 +19,25 @@ export const CONFIG_FILENAMES = [
 
 export class CliError extends Error {}
 
+function configPathOf(cwd: string): string | undefined {
+  return CONFIG_FILENAMES.map((name) => path.join(cwd, name)).find(
+    (candidate) => existsSync(candidate),
+  );
+}
+
+// The config's file name as the repository has it, for a message that
+// says where to set something (#655).
+export function configFileName(cwd: string): string {
+  const found = configPathOf(cwd);
+  return found ? path.basename(found) : CONFIG_FILENAMES[0]!;
+}
+
 // Loads and validates the client repo's config (§3). jiti is anchored at
 // the config file itself, so its imports (the CLI package, anything
 // relative) resolve from the client project no matter where the CLI runs
 // from; a TypeScript config needs no build step in the client repo.
 export async function loadConfig(cwd: string): Promise<CorpusConfig> {
-  const configPath = CONFIG_FILENAMES.map((name) => path.join(cwd, name)).find(
-    (candidate) => existsSync(candidate),
-  );
+  const configPath = configPathOf(cwd);
   if (!configPath) {
     throw new CliError(
       `no config found in ${cwd} (looked for ${CONFIG_FILENAMES.join(", ")})`,

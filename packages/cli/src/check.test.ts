@@ -244,7 +244,7 @@ test("check says when none of the included directories exists, instead of a clea
     expect(code).toBe(1);
     expect(out).toEqual([]);
     expect(err.join("\n")).toMatch(
-      /check scanned nothing: no directory among src; set check\.include/,
+      /check scanned nothing: no directory among src; set check\.include in corpus\.config\.mjs /,
     );
   } finally {
     rmSync(dir, { recursive: true, force: true });

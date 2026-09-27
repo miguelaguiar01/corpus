@@ -23,6 +23,7 @@ npx corpus init --project acme-app --source en --messages "src/i18n/{lang}.json"
 <!-- from: recorded/init.out -->
 ```text
 wrote corpus.config.ts
+check.include: no directory holding components found; corpus check scans src, so set check.include in corpus.config.ts to where they are
 created .gitignore with .corpus/
 
 Next:
