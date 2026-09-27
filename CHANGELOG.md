@@ -9,7 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
-- A pull writes a key new to a target file under the key path the source file gives it, so a segment that holds dots stays one segment: Element Web's `"m.room.topic": { "removed": … }` took a new translation as `"m": { "room": { "topic": … } }`, where its i18n never looks, and the app showed English. A proposal edits and removes such a key where it is. Two key paths that flatten to the same id (`"a.b": { "c" }` and `"a": { "b.c" }`) are refused at build, naming both.
+- A pull writes a key new to a target file under the key path the source file gives it, so a segment that holds dots stays one segment: Element Web's `"m.room.topic": { "removed": … }` took a new translation as `"m": { "room": { "topic": … } }`, where its i18n never looks, and the app showed English. A proposal edits and removes such a key where it is. Two key paths that flatten to the same id (`"a.b": { "c" }` and `"a": { "b.c" }`) are refused at build, naming both; a target file that already holds such a misplaced subtree from an earlier pull is named by that error, and removing the subtree fixes it.
 
 ## [0.20.0] - 2026-09-27
 
