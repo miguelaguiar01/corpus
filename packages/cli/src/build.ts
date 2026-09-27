@@ -32,6 +32,7 @@ import {
   refusalCause,
   type RefusalCause,
 } from "@corpus/contract";
+import { printable } from "./printable";
 import { headOf, unreadableCatalogue } from "./catalogue-format";
 import { CliError } from "./config";
 
@@ -138,7 +139,7 @@ function ruinedReasons(sourced: Sourced[], refused: Refused[]): string[] {
 }
 
 export function describeRefused({ file, id, message }: Refused): string {
-  return `${file} [${id}]: ${message}`;
+  return `${file} [${printable(id)}]: ${message}`;
 }
 
 // Reads the configured sources, feeds the pure adapters (and custom exec
@@ -213,7 +214,8 @@ export async function buildSnapshotReport(
   const byId = new Map<string, string>();
   for (const { entry, file } of sourced) {
     const prev = byId.get(entry.id);
-    if (prev) errors.push(`duplicate id ${entry.id} in ${prev} and ${file}`);
+    if (prev)
+      errors.push(`duplicate id ${printable(entry.id)} in ${prev} and ${file}`);
     else byId.set(entry.id, file);
   }
 

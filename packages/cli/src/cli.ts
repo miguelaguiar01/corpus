@@ -1,6 +1,7 @@
 import { writeFileSync } from "node:fs";
 import type { Readable } from "node:stream";
 import path from "node:path";
+import { printable } from "./printable";
 import {
   buildSnapshotReport,
   deprecations,
@@ -131,7 +132,7 @@ async function push(args: string[], ctx: RunContext): Promise<number> {
     };
     ctx.err("corpus: the server rejected the snapshot:");
     for (const error of body.errors ?? []) {
-      ctx.err(`  ${error.id}: ${error.message}`);
+      ctx.err(`  ${printable(error.id)}: ${error.message}`);
     }
     return 1;
   }

@@ -14,6 +14,7 @@ import {
   EXEC_MAX_BUFFER,
   buildSnapshotReport,
   deprecations,
+  describeRefused,
   writableSources,
 } from "./build";
 import { expandSources } from "./config";
@@ -849,4 +850,15 @@ test("a catalogue no adapter reads is refused by its format, a Qt .ts told from 
     /i18n\/app_en\.ts: a Qt Linguist catalogue/,
   );
   rmSync(dir, { recursive: true, force: true });
+});
+
+test("a refused id with a newline prints on one line (#648)", () => {
+  expect(
+    describeRefused({
+      file: "po.json",
+      id: "Line one\nline two",
+      message: "m",
+      hint: "",
+    }),
+  ).toBe("po.json [Line one\\nline two]: m");
 });

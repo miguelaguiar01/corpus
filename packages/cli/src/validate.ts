@@ -12,6 +12,7 @@ import {
   stringEntrySchema,
   type StringEntry,
 } from "@corpus/contract";
+import { printable } from "./printable";
 import type { RunContext } from "./cli";
 import {
   deprecations,
@@ -51,8 +52,8 @@ export type Finding = {
 // names it after the key, since the command stands for every language.
 function line(f: Finding): string {
   return f.file.startsWith("exec:")
-    ? `${f.file} [${f.key}] ${f.language}: ${f.message}`
-    : `${f.file}:${f.key}: ${f.message}`;
+    ? `${f.file} [${printable(f.key)}] ${f.language}: ${f.message}`
+    : `${f.file}:${printable(f.key)}: ${f.message}`;
 }
 
 export async function validate(
