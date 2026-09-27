@@ -318,11 +318,26 @@ async function check(ctx: RunContext): Promise<number> {
   // A tree of .vue or .svelte components parses to nothing here, and a
   // clean bill over code the command never read is worse than a finding:
   // every such directory is named, and parsing nothing at all is fatal.
-  const unread = scanned.filter((s) => s.parsed === 0).map((s) => s.dir);
+  // A directory whose files are all tests is said as that, not as one
+  // holding nothing check reads (#656).
+  const unread = scanned.filter((s) => s.parsed === 0);
+  const onlyTests = unread.filter((s) => s.tests).map((s) => s.dir);
+  const empty = unread.filter((s) => !s.tests).map((s) => s.dir);
   const parsed = scanned.reduce((n, s) => n + s.parsed, 0);
-  if (unread.length > 0) {
+  const tests = scanned.reduce((n, s) => n + (s.tests ?? 0), 0);
+  if (tests > 0) {
     ctx.err(
-      `corpus: check parsed no files in ${unread.join(", ")}; it reads ${READS}`,
+      `corpus: check skipped ${tests} test, spec or story file(s); a __tests__ directory named in check.include is read`,
+    );
+  }
+  if (empty.length > 0) {
+    ctx.err(
+      `corpus: check parsed no files in ${empty.join(", ")}; it reads ${READS}`,
+    );
+  }
+  if (onlyTests.length > 0) {
+    ctx.err(
+      `corpus: check parsed no files in ${onlyTests.join(", ")}: every file there is a test, spec or story, which it skips`,
     );
   }
   if (parsed === 0) return 1;

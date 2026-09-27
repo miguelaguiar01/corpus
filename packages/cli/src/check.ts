@@ -159,8 +159,11 @@ export function findLiterals(
   const visit = (node: ts.Node) => {
     if (isTransElement(node)) return;
     if (ts.isJsxText(node)) {
+      // From the node's full start: getStart already skips the leading
+      // whitespace, and adding it again ran a short text onto the next
+      // line (#656).
       const leading = node.text.length - node.text.trimStart().length;
-      report(node.getStart(sf) + leading, node.text);
+      report(node.pos + leading, node.text);
     } else if (
       ts.isJsxAttribute(node) &&
       node.initializer &&
@@ -232,7 +235,8 @@ export function ignoreMatcher(patterns: string[]): (rel: string) => boolean {
 // `scanned` is the included directories that exist, each with how many
 // files the walk read under it: the caller says so when a directory
 // parsed none, since a clean bill over unread code is a lie.
-export type Scanned = { dir: string; parsed: number };
+// `tests` is how many test, spec and story files it skipped (#656).
+export type Scanned = { dir: string; parsed: number; tests?: number };
 // An include entry that could not be scanned, and why (#499): one that
 // is missing or is a file narrows the lint silently while another entry
 // keeps the run green.
@@ -256,17 +260,22 @@ export const READS =
   " and " +
   EXTENSIONS[EXTENSIONS.length - 1];
 const PARSES = new RegExp(`(?:${EXTENSIONS.map((e) => `\\${e}`).join("|")})$`);
+// A test, a spec or a story holds fixtures, not the app's text (#656):
+// skipped unless the include entry is a __tests__ directory itself.
+const TEST_FILE = /\.(?:test|spec|stories)\.[^./]+$/;
+const TESTS_DIR = "__tests__";
 
 export function checkFiles(root: string, options: CheckOptions): CheckResult {
   const ignored = ignoreMatcher(options.ignore ?? []);
   const findings: Finding[] = [];
   const scanned: Scanned[] = [];
   let parsed = 0;
+  let tests = 0;
   const unscanned: Unscanned[] = [];
   // An entry that cannot be read — a dangling symlink, a directory
   // without permission — is skipped and named, not thrown and not
   // silently taken with the rest of the tree.
-  const walk = (dir: string): boolean => {
+  const walk = (dir: string, skipTests: boolean, inTests = false): boolean => {
     let names: string[];
     try {
       names = readdirSync(dir).sort();
@@ -289,7 +298,14 @@ export function checkFiles(root: string, options: CheckOptions): CheckResult {
         continue;
       }
       if (stat.isDirectory()) {
-        if (!SKIP_DIRS.has(name)) walk(abs);
+        if (!SKIP_DIRS.has(name))
+          walk(abs, skipTests, inTests || name === TESTS_DIR);
+      } else if (
+        PARSES.test(name) &&
+        skipTests &&
+        (inTests || TEST_FILE.test(name))
+      ) {
+        tests += 1;
       } else if (PARSES.test(name)) {
         let source;
         try {
@@ -323,7 +339,10 @@ export function checkFiles(root: string, options: CheckOptions): CheckResult {
       continue;
     }
     parsed = 0;
-    if (walk(abs)) scanned.push({ dir: inc, parsed });
+    tests = 0;
+    const skipTests = !inc.split("/").includes(TESTS_DIR);
+    if (walk(abs, skipTests))
+      scanned.push({ dir: inc, parsed, ...(tests > 0 && { tests }) });
   }
   return { findings, scanned, unscanned };
 }
