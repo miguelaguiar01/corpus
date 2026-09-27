@@ -263,7 +263,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
       shell: true,
       cwd: ctx.cwd,
       encoding: "utf8",
-      env: check ? { ...process.env, CORPUS_PULL_CHECK: "1" } : process.env,
+      env: { ...process.env, CORPUS_PULL_CHECK: check ? "1" : undefined },
       input: JSON.stringify({ ...payload, translations }),
       maxBuffer: EXEC_MAX_BUFFER,
     });
