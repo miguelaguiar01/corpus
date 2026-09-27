@@ -1,8 +1,8 @@
 {
-  "n0": "{n, plural, one {# x} other {# y}}",
-  "n1": "{n, plural, one {# x} other {# y}}",
-  "n2": "{n, plural, one {# x} other {# y}}",
-  "n3": "{n, plural, one {# x} other {# y}}",
+  "n0": "Hello {{name}}",
+  "n1": "Hello {{name}}",
+  "n2": "Hello {{name}}",
+  "n3": "Hello {{name}}",
   "tag": "See <baseurl>",
   "plain0": "Plain 0",
   "plain1": "Plain 1",

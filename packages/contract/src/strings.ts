@@ -59,6 +59,25 @@ export const LIBRARIES = [
 export type Library = (typeof LIBRARIES)[number];
 export const librarySchema = z.enum(LIBRARIES);
 
+const LIBRARY_NAMES: Record<Library, string> = {
+  icu: "ICU",
+  i18next: "i18next",
+  vue: "vue-i18n",
+  printf: "printf",
+  chrome: "Chrome i18n",
+  android: "Android",
+};
+
+export function libraryName(library: Library): string {
+  return LIBRARY_NAMES[library];
+}
+
+// What a text that does not parse is called in a message (#644):
+// "invalid ICU", "invalid vue-i18n message".
+export function messageKind(library: Library): string {
+  return library === "icu" ? "ICU" : `${libraryName(library)} message`;
+}
+
 // A string type whose text an HTML renderer reads (#622): its tags are
 // markup, so a translation's need not match the source's.
 export const richTextSchema = z.enum(["html"]);

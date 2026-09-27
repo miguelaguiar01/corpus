@@ -209,7 +209,8 @@ class Parser {
           continue;
         }
       }
-      if (ch === "<") {
+      // vue-i18n has no tag syntax: a `<` is text (#644).
+      if (ch === "<" && this.syntax !== "vue") {
         const tag = this.readTag();
         if (tag === undefined) {
           literal += ch;

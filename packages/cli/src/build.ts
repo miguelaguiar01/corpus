@@ -15,6 +15,7 @@ import {
   entitySchema,
   libraryOf,
   hasVoidTags,
+  messageKind,
   parseIcu,
   snapshotSchema,
   stringEntrySchema,
@@ -296,7 +297,7 @@ function validateEntry(
       id: entry.id,
       hint: advice,
       ...(cause ? { cause } : {}),
-      message: `invalid ${syntax === "icu" ? "ICU" : syntax}: ${message}${advice}`,
+      message: `invalid ${messageKind(syntax)}: ${message}${advice}`,
     });
   }
 }

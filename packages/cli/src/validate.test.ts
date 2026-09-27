@@ -260,6 +260,19 @@ test("describe words every error code", () => {
       position: 4,
     }),
   ).toBe("invalid ICU in the target at 4: unclosed brace");
+  // Named after the library the text was read under (#644).
+  expect(
+    describe(
+      { code: "invalid-icu", where: "target", message: "x", position: 0 },
+      "vue",
+    ),
+  ).toBe("invalid vue-i18n message in the target at 0: x");
+  expect(
+    describe(
+      { code: "invalid-icu", where: "source", message: "x", position: 0 },
+      "i18next",
+    ),
+  ).toBe("invalid i18next message in the source at 0: x");
   expect(describe({ code: "missing-placeholder", name: "n" })).toBe(
     "missing {n}",
   );

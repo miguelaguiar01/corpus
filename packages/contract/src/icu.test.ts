@@ -13,6 +13,7 @@ import {
   refusalAdvice,
   placeholderWrittenOf,
 } from "./icu";
+import { LIBRARIES, libraryName } from "./strings";
 
 const SIGHTING =
   "{person} foi {person_gender, select, m {visto} f {vista}} à janela {room_de} às {hour} — e não estava {person_gender, select, m {sozinho} f {sozinha}}.";
@@ -574,4 +575,30 @@ test("the lenient reading falls back to the strict one, so every source the stri
   );
   // Void names are HTML's, which ignores case.
   expect(parseIcu("a<BR>b", "icu").ok).toBe(true);
+});
+
+test("vue: angle brackets are text, since vue-i18n has no tag syntax (#644)", () => {
+  const source = "Replace <access token> with your token, <b>now</b>";
+  const parsed = parseIcu(source, "vue");
+  expect(parsed.ok).toBe(true);
+  expect([...tagsOf(source, "vue")]).toEqual([]);
+  expect(
+    validateTranslation(
+      source,
+      "Ersetze <access token> durch dein Token",
+      "de",
+      "vue",
+    ),
+  ).toEqual({ ok: true });
+});
+
+test("each library has a name for messages (#644)", () => {
+  expect(LIBRARIES.map(libraryName)).toEqual([
+    "ICU",
+    "i18next",
+    "vue-i18n",
+    "printf",
+    "Chrome i18n",
+    "Android",
+  ]);
 });

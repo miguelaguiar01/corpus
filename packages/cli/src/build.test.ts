@@ -249,18 +249,11 @@ test("refusals are counted per cause: two library advices are one cause, five ta
   await expect(tags).rejects.toThrow(
     /5 strings were refused for a rich-text tag written as prose, at or past the 5 that stops a build: one cause; each refusal above says how to write it/,
   );
-  // Four ICU arguments under vue and one tag are two causes: the build
-  // goes on, with the five refused.
+  // Four i18next interpolations under ICU and one tag are two causes:
+  // the build goes on, with the five refused. (vue has no tags, #644.)
   const mixed = await buildSnapshotReport(
     config({
-      sources: [
-        {
-          adapter: "messages",
-          type: "ui",
-          path: "mixed/{lang}.json",
-          library: "vue",
-        },
-      ],
+      sources: [{ adapter: "messages", type: "ui", path: "mixed/{lang}.json" }],
     }),
     REPO,
   );
