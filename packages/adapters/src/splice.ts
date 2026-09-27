@@ -24,6 +24,29 @@ function root(text: string): Node {
   return tree;
 }
 
+// The keys of each object in a file as written, for addLeaf's `order`:
+// read from the text, since a parsed object lists integer-like keys
+// ("404") first whatever their place (#654).
+export function keyOrder(
+  text: string,
+): (objectPath: string[]) => string[] | undefined {
+  const tree = root(text);
+  const cache = new Map<string, string[] | undefined>();
+  return (objectPath) => {
+    const id = objectPath.join("\u0000");
+    if (cache.has(id)) return cache.get(id);
+    const node = objectPath.length
+      ? findNodeAtLocation(tree, objectPath)
+      : tree;
+    const keys =
+      node?.type === "object"
+        ? (node.children ?? []).map((p) => String(p.children?.[0]?.value))
+        : undefined;
+    cache.set(id, keys);
+    return keys;
+  };
+}
+
 function eolOf(text: string): string {
   return text.includes("\r\n") ? "\r\n" : "\n";
 }

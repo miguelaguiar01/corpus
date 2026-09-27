@@ -766,6 +766,18 @@ describe("a key new to a target file lands in the source file's order (#654)", (
 `);
   });
 
+  test("in the file's order, integer-like keys included", () => {
+    expect(
+      entriesToMessages(
+        `{ "error": { "title": "Error", "404": "Not found", "500": "Failed" } }`,
+        { "error.title": "Fehler" },
+        `{ "error": { "404": "Nicht gefunden", "500": "Fehlgeschlagen" } }`,
+      ),
+    ).toBe(
+      `{ "error": { "title": "Fehler", "404": "Nicht gefunden", "500": "Fehlgeschlagen" } }`,
+    );
+  });
+
   test("on one line, too", () => {
     expect(
       entriesToMessages(
