@@ -148,6 +148,36 @@ function valuesOf(shape: Shape): Set<string> {
   return new Set([...shape.placeholders, ...shape.plurals.keys()]);
 }
 
+// The message as an other-only language renders it: each plural on
+// `args` replaced by its `other` branch, `#` by the count.
+function otherBranch(nodes: IcuNode[], args: Set<string>): IcuNode[] {
+  return nodes.flatMap((node): IcuNode[] => {
+    if (node.kind === "plural" && args.has(node.arg))
+      return otherBranch(node.branches.other ?? [], args);
+    if (node.kind === "count" && args.has(node.arg))
+      return [{ kind: "placeholder", name: node.arg }];
+    if (node.kind === "select" || node.kind === "plural")
+      return [
+        {
+          ...node,
+          branches: Object.fromEntries(
+            Object.entries(node.branches).map(([key, branch]) => [
+              key,
+              otherBranch(branch, args),
+            ]),
+          ),
+        },
+      ];
+    if (node.kind === "tag")
+      return [{ ...node, children: otherBranch(node.children, args) }];
+    if (node.kind === "forms")
+      return [
+        { ...node, branches: node.branches.map((b) => otherBranch(b, args)) },
+      ];
+    return [node];
+  });
+}
+
 // Where `<br>` and the other void elements open nothing (#643): a type
 // read as HTML, an Android string (rendered through fromHtml), and
 // i18next, whose react-i18next Trans keeps them void.
@@ -186,8 +216,18 @@ export function validateTranslation(
     };
   }
 
-  const expected = shapeOf(parsedSource.nodes);
   const actual = shapeOf(parsedTarget.nodes);
+  let expected = shapeOf(parsedSource.nodes);
+  // A language whose only category is `other` renders a plural as its
+  // `other` branch, so a translation may write that text plainly (#651);
+  // not on Android, where a <string> is another resource than the
+  // <plurals> the code asks for.
+  const categories = language === undefined ? [] : pluralCategoriesOf(language);
+  const flat = new Set(
+    [...expected.plurals.keys()].filter((arg) => !actual.plurals.has(arg)),
+  );
+  if (categories.length === 1 && flat.size > 0 && syntax !== "android")
+    expected = shapeOf(otherBranch(parsedSource.nodes, flat));
   const errors: ValidationError[] = [];
   const expectedValues = valuesOf(expected);
   const actualValues = valuesOf(actual);
@@ -288,7 +328,6 @@ export function validateTranslation(
         errors.push({ code: "unexpected-tag", name });
     }
   }
-  const categories = language === undefined ? [] : pluralCategoriesOf(language);
   for (const [arg, keys] of actual.plurals) {
     if (!expectedValues.has(arg)) {
       errors.push({ code: "unknown-plural", arg });
@@ -328,8 +367,12 @@ export function validateTranslation(
     }
   }
 
-  const incomplete = errors.filter((e) => e.code === "missing-category");
-  const invalid = errors.filter((e) => e.code !== "missing-category");
+  // A category missing falls back to `other`, and one the language never
+  // selects is dead text: neither breaks the message (#556, #651).
+  const warning = (e: ValidationError) =>
+    e.code === "missing-category" || e.code === "unexpected-category";
+  const incomplete = errors.filter(warning);
+  const invalid = errors.filter((e) => !warning(e));
   if (invalid.length === 0) {
     return incomplete.length === 0 ? { ok: true } : { ok: true, incomplete };
   }
