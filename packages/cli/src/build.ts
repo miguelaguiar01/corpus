@@ -817,15 +817,14 @@ async function readSeeds(
           // A key the source no longer has, or an empty value an
           // extraction tool left, is not a translation.
           if (!ids.has(entry.id) || entry.source.trim() === "") continue;
-          // A string two files of one source share is seeded from the
-          // first that holds it; a second that says otherwise is named,
-          // since a pull writes the server's text into both (#661).
+          // A string two files of one source share has one translation:
+          // two that differ could not both survive a pull (#661).
           const seeded = (seeds[lang] ??= {})[entry.id];
           const from = (seededFrom[lang] ??= {})[entry.id];
           if (seeded !== undefined && from !== undefined) {
             if (seeded !== entry.source)
-              notes.push(
-                `${file}: ${printable(entry.id)} differs from ${from}; ${from} is seeded, and a pull writes the instance's text into both`,
+              errors.push(
+                `${file}: ${printable(entry.id)} is translated otherwise in ${from}; a string the files share takes one translation, so write the same in both`,
               );
             continue;
           }

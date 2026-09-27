@@ -124,7 +124,9 @@ export function expandSources(input: CorpusInput, cwd: string): CorpusConfig {
     const patterns = Array.isArray(source.path) ? source.path : [source.path];
     // The patterns of one source are one catalogue the app merges
     // (#661): an id in two of them with the same text is one string.
-    const group = patterns.length > 1 ? { group: index } : {};
+    // Set here and nowhere else: a `group` written in the config names
+    // nothing.
+    const group = { group: patterns.length > 1 ? index : undefined };
     return patterns.flatMap((pattern): Source[] => {
       if (!pattern.includes("{ns}"))
         return [{ ...source, path: pattern, ...group }];

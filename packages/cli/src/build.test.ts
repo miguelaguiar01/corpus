@@ -891,8 +891,8 @@ test("an id in two files of one source is one string when its text is the same; 
     "save",
     "title",
   ]);
-  // Two target files that disagree on a shared string are named; the
-  // first is seeded.
+  // Two target files that disagree on a shared string fail the build:
+  // a pull could keep only one.
   writeFileSync(
     path.join(dir, "app", "pt.json"),
     JSON.stringify({ save: "Guardar" }),
@@ -901,13 +901,35 @@ test("an id in two files of one source is one string when its text is the same; 
     path.join(dir, "shared", "pt.json"),
     JSON.stringify({ save: "Salvar" }),
   );
-  const both = await buildSnapshotReport(
-    config({ ...merged, languages: ["en", "pt"] }),
-    dir,
+  await expect(
+    buildSnapshot(config({ ...merged, languages: ["en", "pt"] }), dir),
+  ).rejects.toThrow(
+    /shared\/pt\.json: save is translated otherwise in app\/pt\.json/,
   );
-  expect(both.snapshot.seedTranslations?.pt).toEqual({ save: "Guardar" });
-  expect(both.notes).toContain(
-    "shared/pt.json: save differs from app/pt.json; app/pt.json is seeded, and a pull writes the instance's text into both",
+  // A group written in the config merges nothing.
+  await expect(
+    buildSnapshot(
+      config({
+        languages: ["en"],
+        sources: [
+          {
+            adapter: "messages",
+            type: "ui",
+            path: "app/{lang}.json",
+            group: 0,
+          },
+          {
+            adapter: "messages",
+            type: "ui",
+            path: "shared/{lang}.json",
+            group: 0,
+          },
+        ] as never,
+      }),
+      dir,
+    ),
+  ).rejects.toThrow(
+    /duplicate id save in app\/en\.json and shared\/en\.json$/m,
   );
   writeFileSync(
     path.join(dir, "shared", "en.json"),
