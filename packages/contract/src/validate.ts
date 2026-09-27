@@ -52,8 +52,9 @@ export type ValidationError =
   // printf (#594): the verb at a position prints another type than the
   // source's (`%s` where the source has `%d`), which is what a verb
   // moved without an index looks like, since unindexed verbs are named
-  // by their order; `indexed` is the index form in the source's style,
-  // `%n$` when the source writes one and Go's `%[n]` otherwise.
+  // by their order; `indexed` is the index form in the source's style
+  // (#645), and `moved` says whether the verb is one the source writes
+  // elsewhere or a type it does not have.
   | {
       code: "changed-verb";
       name: string;
