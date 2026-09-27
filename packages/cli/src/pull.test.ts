@@ -872,3 +872,44 @@ copied = Copiado {$items} {$items ->
     "i18n/en/app.ftl: fluent: login has an attribute (.title)",
   );
 });
+
+test("a language whose files use another code is pulled into that file, and seeded from it (#657)", async () => {
+  // Hoppscotch keeps zh-CN in cn.json.
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "zh-CN"],
+  sources: [
+    { adapter: "messages", type: "chrome", path: "i18n/{lang}.json", languageFiles: { "zh-CN": "cn" } },
+  ],
+});
+`,
+  );
+  writeFileSync(
+    path.join(repo, "i18n", "cn.json"),
+    `{\n  "app.title": "Corpus"\n}\n`,
+  );
+  const { buildSnapshot } = await import("./build");
+  const { loadConfig } = await import("./config");
+  const snapshot = await buildSnapshot(await loadConfig(repo), repo);
+  expect(snapshot.seedTranslations?.["zh-CN"]).toEqual({
+    "app.title": "Corpus",
+  });
+  await serve(200, {
+    ...PAYLOAD,
+    types: { "app.title": "chrome", greeting: "chrome" },
+    translations: {
+      en: { "app.title": "Corpus", greeting: "Hello {name}" },
+      "zh-CN": { "app.title": "Corpus", greeting: "你好 {name}" },
+    },
+  });
+  expect(await run(["pull"], ctx())).toBe(0);
+  expect(read("i18n/cn.json")).toBe(
+    `{\n  "app.title": "Corpus",\n  "greeting": "你好 {name}"\n}\n`,
+  );
+  expect(existsSync(path.join(repo, "i18n", "zh-CN.json"))).toBe(false);
+});

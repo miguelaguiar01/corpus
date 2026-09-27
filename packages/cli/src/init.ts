@@ -533,12 +533,25 @@ export function languagesFromFiles(
   return found.size > 0 ? [sourceLanguage, ...rest] : [];
 }
 
-// Whether the runtime has locale data for a tag: a pseudo-locale a
-// translation tool exports (Crowdin's `cr`) passes the tag's grammar
-// but has none.
+// Whether a tag names a language: one the runtime has plural rules for,
+// or one CLDR has a name for, as it has for Karakalpak's `kaa`, Occitan
+// and Latgalian's `ltg`, which have no plural rules there (#657). A
+// pseudo-locale a translation tool exports is a real code it borrows
+// (Crowdin's `cr`, Cree, and its in-context `ach`, Acoli), so those are
+// said all the same.
+const PSEUDO_LOCALES = new Set(["cr", "ach"]);
+const LANGUAGE_NAMES = new Intl.DisplayNames(["en"], {
+  type: "language",
+  fallback: "none",
+});
+
 function knownLanguage(code: string): boolean {
+  const locale = localeOf(code);
+  if (PSEUDO_LOCALES.has(locale.toLowerCase())) return false;
   try {
-    return Intl.PluralRules.supportedLocalesOf([localeOf(code)]).length > 0;
+    if (Intl.PluralRules.supportedLocalesOf([locale]).length > 0) return true;
+    const language = new Intl.Locale(locale).language;
+    return LANGUAGE_NAMES.of(language) !== undefined;
   } catch {
     return false;
   }

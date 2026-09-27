@@ -22,6 +22,18 @@ const langPattern = z
   .refine((p) => p.includes("{lang}"), "path must contain {lang}");
 const patterns = <T extends z.ZodType<string>>(pattern: T) =>
   z.union([pattern, z.array(pattern).min(1)]);
+// The code a file names a language by, where it is not the language's
+// tag (#657): Hoppscotch keeps zh-CN in cn.json, qBittorrent sr-Latn in
+// sr@latin.ts. The project's language is the tag; the file keeps its
+// name.
+const languageFiles = z
+  .record(
+    languageCode(),
+    z
+      .string()
+      .regex(/^[^/\\{}]+$/, "a file's language code, no slash or brace"),
+  )
+  .optional();
 
 const messagesFields = {
   adapter: z.literal("messages"),
@@ -30,6 +42,7 @@ const messagesFields = {
   // absent. `syntax` is the old name, accepted until 1.0.
   library: librarySchema.optional(),
   syntax: librarySchema.optional(),
+  languageFiles,
 };
 const tableFields = {
   adapter: z.literal("table"),
@@ -64,6 +77,7 @@ const androidSchema = z.looseObject({
 const fluentFields = {
   adapter: z.literal("fluent"),
   type: identifier(),
+  languageFiles,
 };
 
 // What a config file declares.

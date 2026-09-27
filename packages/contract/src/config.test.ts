@@ -282,3 +282,46 @@ test("an android source names its res directory and nothing else (#596)", () => 
   });
   expect(parsed.success).toBe(true);
 });
+
+test("a language code that is not a tag is refused by name; a POSIX one is told its tag and the mapping (#657)", () => {
+  const base = {
+    project: "p",
+    server: "http://localhost:3000",
+    sourceLanguage: "en",
+    sources: [{ adapter: "messages", type: "ui", path: "i18n/{lang}.json" }],
+  };
+  const messages = (languages: string[]) => {
+    const parsed = corpusConfigSchema.safeParse({ ...base, languages });
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  expect(messages(["en", "sr@latin"])).toEqual([
+    '"sr@latin" is not a language tag; write sr-Latn, and map its files with languageFiles: { "sr-Latn": "sr@latin" } on the source',
+  ]);
+  expect(messages(["en", "e n"])).toEqual([
+    '"e n" is not a language tag such as en, pt-PT or en_US',
+  ]);
+});
+
+test("a messages or fluent source may name the file code of a language (#657)", () => {
+  const config = {
+    project: "p",
+    server: "http://localhost:3000",
+    sourceLanguage: "en",
+    languages: ["en", "zh-CN", "sr-Latn"],
+    sources: [
+      {
+        adapter: "messages",
+        type: "ui",
+        path: "i18n/{lang}.json",
+        languageFiles: { "zh-CN": "cn", "sr-Latn": "sr@latin" },
+      },
+    ],
+  };
+  expect(corpusConfigSchema.safeParse(config).success).toBe(true);
+  expect(
+    corpusConfigSchema.safeParse({
+      ...config,
+      sources: [{ ...config.sources[0], languageFiles: { "zh-CN": "a/b" } }],
+    }).success,
+  ).toBe(false);
+});

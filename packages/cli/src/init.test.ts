@@ -815,3 +815,17 @@ test("init refuses a catalogue no adapter reads, by its format (#647)", async ()
   expect(p.err.join("\n")).toMatch(/a Qt Linguist catalogue/);
   expect(existsSync(path.join(p.dir, "corpus.config.mjs"))).toBe(false);
 });
+
+test("a real language without plural data draws no warning; a pseudo-locale and a made-up code do (#657)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  const flags = FLAGS.map((f) =>
+    f === "pt-PT, en" ? "pt-PT, kaa, oc, oc-FR, ltg, qq, cr" : f,
+  );
+  expect(await run(flags, p.ctx)).toBe(0);
+  const err = p.err.join("\n");
+  for (const code of ["kaa", "oc", "oc-FR", "ltg"])
+    expect(err).not.toMatch(new RegExp(`\\b${code} is not a language tag`));
+  expect(err).toMatch(/qq is not a language tag the runtime knows/);
+  expect(err).toMatch(/cr is not a language tag the runtime knows/);
+});
