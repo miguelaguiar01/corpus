@@ -1,6 +1,6 @@
 import { and, count, desc, eq } from "drizzle-orm";
 import {
-  isHtmlText,
+  hasVoidTags,
   parseIcu,
   stringEntrySchema,
   type SourceChange,
@@ -64,7 +64,7 @@ function htmlOf(db: Db, projectId: number, type: string, syntax: Library) {
     .from(projects)
     .where(eq(projects.id, projectId))
     .get();
-  return isHtmlText(syntax, project?.richText?.[type]);
+  return hasVoidTags(syntax, project?.richText?.[type]);
 }
 
 // One pending proposal per string or key (§11): a newer one replaces
@@ -175,7 +175,7 @@ export function proposeAdd(
   );
   const key = namespacedKey(source, typed, namespaces);
   if (key === undefined) return { ok: false, reason: "invalid-key" };
-  const html = isHtmlText(libraryOf(source), project.richText?.[source.type]);
+  const html = hasVoidTags(libraryOf(source), project.richText?.[source.type]);
   if (!validIcu(input.text, libraryOf(source), html)) {
     const message = invalidIcuMessage(input.text, libraryOf(source), html);
     return {

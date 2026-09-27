@@ -453,6 +453,16 @@ describe("rich-text tags", () => {
     expect(validateTranslation("A<br>B", "C<br/>D", "de", "android")).toEqual({
       ok: true,
     });
+    // react-i18next's Trans keeps br void and reads <br></br> as one br:
+    // under i18next both forms hold.
+    expect(
+      validateTranslation(pair, "Desliza<br>para ampliar", "pt", "i18next"),
+    ).toEqual({ ok: true });
+    expect(
+      validateTranslation("A<br>B", "C<br></br>D", "pt", "i18next"),
+    ).toEqual({
+      ok: true,
+    });
   });
 
   test("under richText html a translation's tags need not match the source's; placeholders and parsing still hold (#622)", () => {

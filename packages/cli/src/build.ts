@@ -14,7 +14,7 @@ import {
 import {
   entitySchema,
   libraryOf,
-  isHtmlText,
+  hasVoidTags,
   parseIcu,
   snapshotSchema,
   stringEntrySchema,
@@ -284,7 +284,7 @@ function validateEntry(
 ): void {
   const syntax = libraryOf(entry);
   const icu = parseIcu(entry.source, syntax, {
-    html: isHtmlText(syntax, richText?.[entry.type]),
+    html: hasVoidTags(syntax, richText?.[entry.type]),
   });
   if (icu.ok) sourced.push({ entry, file });
   else {

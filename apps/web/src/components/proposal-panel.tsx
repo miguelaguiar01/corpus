@@ -1,7 +1,13 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { parseIcu, refusalAdvice, type Library } from "@corpus/contract";
+import {
+  hasVoidTags,
+  parseIcu,
+  refusalAdvice,
+  type Library,
+  type RichText,
+} from "@corpus/contract";
 import { chipText } from "@/components/source-view";
 import { Button } from "@/components/ui/button";
 import { Chip, chipVariants } from "@/components/ui/chip";
@@ -49,6 +55,7 @@ export function ProposalPanel({
   language,
   source,
   syntax = "icu",
+  richText = null,
   slots,
   writable,
   keyIsText = false,
@@ -62,6 +69,7 @@ export function ProposalPanel({
   language?: string;
   source: string;
   syntax?: Library;
+  richText?: RichText | null;
   slots: Slot[];
   writable: boolean;
   // The text is the key (#611): the sentence says where to change it.
@@ -78,7 +86,9 @@ export function ProposalPanel({
   const [open, setOpen] = useState(false);
   const [text, setText] = useState(source);
   const ref = useRef<HTMLTextAreaElement>(null);
-  const parsed = parseIcu(text, syntax);
+  const parsed = parseIcu(text, syntax, {
+    html: hasVoidTags(syntax, richText ?? undefined),
+  });
   const valid = text.trim() !== "" && parsed.ok && text !== source;
   const insert = (token: string) => {
     const el = ref.current;

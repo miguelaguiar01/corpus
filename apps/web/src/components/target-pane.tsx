@@ -7,7 +7,7 @@ import {
   parseIcu,
   pluralCategoriesOf,
   renderPreviewSegments,
-  isHtmlText,
+  hasVoidTags,
   isVoidTag,
   tagsOf,
   validateTranslation,
@@ -250,7 +250,7 @@ export function TargetPane({
             // (#590, #643).
             const bare = name.split(/\s/)[0]!;
             const voided =
-              isVoidTag(bare) && isHtmlText(syntax, richText ?? undefined);
+              isVoidTag(bare) && hasVoidTags(syntax, richText ?? undefined);
             const token = voided ? `<${name}/>` : `<${name}></${bare}>`;
             return (
               <button

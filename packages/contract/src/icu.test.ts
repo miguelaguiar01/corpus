@@ -559,3 +559,19 @@ test("<br> opens nothing only in HTML mode, where <br></br> is one <br> as brows
   expect([...tagsOf("a<br></br>b")]).toEqual(["br"]);
   expect(parseIcu("a</br>b", "icu")).toMatchObject({ ok: false });
 });
+
+test("the lenient reading falls back to the strict one, so every source the strict reading takes has its parts read (#643)", () => {
+  for (const source of ["a<br> </br>b", "<br><b>x</b></br>"]) {
+    expect(parseIcu(source, "icu", { html: false }).ok).toBe(true);
+    expect(parseIcu(source).ok).toBe(true);
+    expect(tagsOf(source).has("br")).toBe(true);
+  }
+  // An unclosed void tag is advised as self-closing, never as </br>,
+  // which a browser renders as a second line break.
+  expect(refusalAdvice("a<br>b", "icu", "unclosed <br>")).toContain("<br/>");
+  expect(refusalAdvice("a<br>b", "icu", "unclosed <br>")).not.toContain(
+    "</br>",
+  );
+  // Void names are HTML's, which ignores case.
+  expect(parseIcu("a<BR>b", "icu").ok).toBe(true);
+});

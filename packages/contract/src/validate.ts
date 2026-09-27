@@ -142,10 +142,11 @@ function valuesOf(shape: Shape): Set<string> {
   return new Set([...shape.placeholders, ...shape.plurals.keys()]);
 }
 
-// Where a string's tags are HTML (#643): a type read as HTML, or an
-// Android string, which the app renders through fromHtml.
-export function isHtmlText(syntax: Library, richText?: RichText): boolean {
-  return richText === "html" || syntax === "android";
+// Where `<br>` and the other void elements open nothing (#643): a type
+// read as HTML, an Android string (rendered through fromHtml), and
+// i18next, whose react-i18next Trans keeps them void.
+export function hasVoidTags(syntax: Library, richText?: RichText): boolean {
+  return richText === "html" || syntax === "android" || syntax === "i18next";
 }
 
 export function validateTranslation(
@@ -155,7 +156,7 @@ export function validateTranslation(
   syntax: Library = "icu",
   options: { richText?: RichText } = {},
 ): ValidationResult {
-  const html = isHtmlText(syntax, options.richText);
+  const html = hasVoidTags(syntax, options.richText);
   const parsedSource = parseIcu(source, syntax, { html });
   if (!parsedSource.ok) {
     return {

@@ -804,7 +804,7 @@ test("a config that still says syntax builds the same and is named once", async 
   ).toEqual([]);
 });
 
-test("a <br></br> pair builds where tags are components, a lone <br> is refused there, and an HTML type takes either (#643)", async () => {
+test("a <br></br> pair builds under icu, a lone <br> is refused there, and an HTML type takes either (#643)", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-br-"));
   mkdirSync(path.join(dir, "i18n"));
   writeFileSync(
@@ -817,14 +817,7 @@ test("a <br></br> pair builds where tags are components, a lone <br> is refused 
   const at = (richText?: Record<string, "html">) =>
     config({
       languages: ["en"],
-      sources: [
-        {
-          adapter: "messages",
-          type: "ui",
-          path: "i18n/{lang}.json",
-          library: "i18next",
-        },
-      ],
+      sources: [{ adapter: "messages", type: "ui", path: "i18n/{lang}.json" }],
       ...(richText && { richText }),
     });
   const plain = await buildSnapshotReport(at(), dir);
