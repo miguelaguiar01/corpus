@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { moonlightManor } from "./fixtures/moonlight-manor";
 import type { Library } from "./strings";
+import { parseIcu } from "./icu";
 import { validateTranslation, type ValidationError } from "./validate";
 
 const SIGHTING = moonlightManor.strings[0]!.source;
@@ -814,9 +815,39 @@ test("under printf a text that is one ICU plural has its verbs checked per branc
     "{n, plural, one {a}}",
     "{user.count, plural, one {a} other {b}}",
   ])
-    expect(validateTranslation(text, text, "de", "printf")).toEqual({
+    expect(parseIcu(text, "printf")).toEqual({
       ok: true,
+      nodes: [{ kind: "literal", text }],
     });
+  // A translation that opens as the plural but is not one says why.
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, one {%d Karte}}",
+      "de",
+      "printf",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [
+      {
+        code: "invalid-icu",
+        where: "target",
+        message: "plural needs an other branch",
+      },
+    ],
+  });
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, other {%d枚}} x",
+      "ja",
+      "printf",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "invalid-icu", where: "target" }],
+  });
   // A plain translation of a plural is told to write the plural.
   expect(validateTranslation(source, "%d Karten", "de", "printf")).toEqual({
     ok: false,

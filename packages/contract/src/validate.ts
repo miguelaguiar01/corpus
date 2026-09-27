@@ -15,6 +15,7 @@
 // own message catalog.
 import {
   parseIcu,
+  printfPluralError,
   pluralCategoriesOf,
   pluralCategoryCovered,
   printfVerbOf,
@@ -216,6 +217,18 @@ export function validateTranslation(
     };
   }
 
+  // A translation of a printf plural that opens as one but is not one
+  // is a broken plural, not text (#652).
+  const brokenPlural =
+    syntax === "printf" &&
+    parsedSource.nodes.some((node) => node.kind === "plural")
+      ? printfPluralError(target, html)
+      : undefined;
+  if (brokenPlural)
+    return {
+      ok: false,
+      errors: [{ code: "invalid-icu", where: "target", ...brokenPlural }],
+    };
   const actual = shapeOf(parsedTarget.nodes);
   let expected = shapeOf(parsedSource.nodes);
   // A language whose only category is `other` renders a plural as its
