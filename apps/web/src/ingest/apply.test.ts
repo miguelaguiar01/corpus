@@ -889,8 +889,10 @@ test("a seed identical to the source is translated in a variant of the source, o
   );
   expect(languages.has("pt-BR")).toBe(false);
   expect(languages.has("en")).toBe(true);
-  // The declaration is the project's until a push drops it.
-  applySnapshot(db, project.id, { ...FIXTURE, sourceVariants: [] });
+  // The declaration is the project's until a push drops it, and the
+  // seeds resent with it are untranslated again.
+  applySnapshot(db, project.id, { ...withSeeds(seeds), sourceVariants: [] });
+  expect(translationOf(db, "ui.continue", "pt-BR")?.state).toBe("untranslated");
   expect(
     new Set(
       queueItems(db, project.id, "untranslated").items.map((i) => i.language),

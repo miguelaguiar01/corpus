@@ -356,3 +356,24 @@ test("a messages or fluent source may name the file code of a language (#657)", 
     "languageFiles is for messages and fluent sources",
   ]);
 });
+
+test("sourceVariants names target languages only (#658)", () => {
+  const base = {
+    project: "p",
+    server: "http://localhost:3000",
+    sourceLanguage: "en",
+    languages: ["en", "en-GB"],
+    sources: [{ adapter: "messages", type: "ui", path: "i18n/{lang}.json" }],
+  };
+  const messages = (sourceVariants: string[]) => {
+    const parsed = corpusConfigSchema.safeParse({ ...base, sourceVariants });
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  expect(messages(["en-GB"])).toEqual([]);
+  expect(messages(["en"])).toEqual([
+    "sourceVariants names en, which is not a target language of languages",
+  ]);
+  expect(messages(["en-AU"])).toEqual([
+    "sourceVariants names en-AU, which is not a target language of languages",
+  ]);
+});

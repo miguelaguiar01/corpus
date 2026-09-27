@@ -312,7 +312,7 @@ function validateExec(
   const parsed = execTranslationsSchema.safeParse(ran.output.translations);
   if (!parsed.success) {
     throw new CliError(
-      `exec "${command}" emitted invalid translations: a map of language to id to text`,
+      `exec "${command}" emitted invalid translations: a map of language to id to text, or to { text, state: "translated" }`,
     );
   }
   const sources = new Map<string, StringEntry>();

@@ -203,18 +203,13 @@ function refusedExit(refused: Refused[], ctx: RunContext, fate: string) {
   return 1;
 }
 
-// A push carries the repository's whole catalogue as seeds; after the
-// first, most of it is what the server already holds (#601). The
-// snapshot digests every target language's seeds, and the languages
-// whose digest the server reported from the last push are sent
-// without theirs. A server without digests, or one that cannot be
-// asked (an older one answers 404), gets everything, as before.
-async function withoutUnchangedSeeds(
+// Per target language, the digest of what its seeds import as (#601):
+// the texts, and since #658 which are marked translated and whether the
+// language is a variant of the source, so either change resends them.
+export function seedDigestsOf(
   snapshot: Snapshot,
   config: CorpusConfig,
-  base: string,
-  token: string,
-): Promise<{ body: Snapshot; unchanged: number }> {
+): Record<string, string> {
   const seedDigests: Record<string, string> = {};
   const variants = new Set(snapshot.sourceVariants ?? []);
   for (const language of config.languages) {
@@ -227,6 +222,22 @@ async function withoutUnchangedSeeds(
     if (variants.has(language)) texts["\u0000variant"] = "";
     seedDigests[language] = seedDigest(texts);
   }
+  return seedDigests;
+}
+
+// A push carries the repository's whole catalogue as seeds; after the
+// first, most of it is what the server already holds (#601). The
+// snapshot digests every target language's seeds, and the languages
+// whose digest the server reported from the last push are sent
+// without theirs. A server without digests, or one that cannot be
+// asked (an older one answers 404), gets everything, as before.
+async function withoutUnchangedSeeds(
+  snapshot: Snapshot,
+  config: CorpusConfig,
+  base: string,
+  token: string,
+): Promise<{ body: Snapshot; unchanged: number }> {
+  const seedDigests = seedDigestsOf(snapshot, config);
   // Nothing to leave out means nothing to ask: a push without seeds
   // carries its digests and makes one request, as before.
   const carried = Object.keys(snapshot.seedTranslations ?? {}).length > 0;

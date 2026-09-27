@@ -443,7 +443,7 @@ function collectExec(
       });
     } else {
       errors.push(
-        `exec "${command}" emitted invalid translations: a map of language to id to text`,
+        `exec "${command}" emitted invalid translations: a map of language to id to text, or to { text, state: "translated" }`,
       );
     }
   }
