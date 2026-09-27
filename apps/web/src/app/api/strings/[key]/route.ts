@@ -1,6 +1,7 @@
 import {
   placeholdersOf,
   selectArgsOf,
+  formsOf,
   pluralArgsOf,
   tagsOf,
   type StringResponse,
@@ -67,6 +68,7 @@ export async function GET(
     ],
     selects: [...selectArgsOf(detail.string.source, detail.string.syntax)],
     plurals: [...pluralArgsOf(detail.string.source, detail.string.syntax)],
+    forms: formsOf(detail.string.source, detail.string.syntax),
     tags: [...tagsOf(detail.string.source, detail.string.syntax)],
     richText: detail.string.richText,
     library: detail.string.syntax,
