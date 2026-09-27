@@ -806,6 +806,22 @@ test("under printf a text that is one ICU plural has its verbs checked per branc
       "printf",
     ),
   ).toEqual({ ok: true });
+  // Anything that is not one plural from end to end, or does not parse
+  // as one, is printf text as before.
+  for (const text of [
+    "{n, plural, one {a} other {b}} and {c}",
+    "{n, plural, one {a {x} b} other {b}}",
+    "{n, plural, one {a}}",
+    "{user.count, plural, one {a} other {b}}",
+  ])
+    expect(validateTranslation(text, text, "de", "printf")).toEqual({
+      ok: true,
+    });
+  // A plain translation of a plural is told to write the plural.
+  expect(validateTranslation(source, "%d Karten", "de", "printf")).toEqual({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "count" }],
+  });
   // A printf text that is not wholly a plural keeps its braces as text.
   expect(
     validateTranslation("Hello {name} %s", "Olá {nome} %s", "pt", "printf"),

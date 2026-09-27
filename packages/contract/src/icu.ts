@@ -117,6 +117,22 @@ export function printfVerbOf(written: string): string | undefined {
 const PRINTF_PLURAL_RE =
   /^\s*\{\s*[\p{L}_][\p{L}\p{N}_.-]*\s*,\s*plural\s*,[\s\S]*\}\s*$/u;
 
+// The printf text read as one plural, or undefined where it is not one
+// from end to end, or does not parse as one: then it is printf text as
+// before (#652).
+function printfPlural(source: string, html: boolean): IcuNode[] | undefined {
+  try {
+    const nodes = new Parser(source, "printf", html, true).parseSequence(false);
+    const kept = nodes.filter(
+      (node) => !(node.kind === "literal" && node.text.trim() === ""),
+    );
+    return kept.length === 1 && kept[0]!.kind === "plural" ? nodes : undefined;
+  } catch (error) {
+    if (error instanceof ParseFailure) return undefined;
+    throw error;
+  }
+}
+
 class Parser {
   private pos = 0;
   // The next verb's position when none is written (#594).
@@ -577,14 +593,13 @@ function parseWith(
           branches.length === 1 ? branches[0]! : [{ kind: "forms", branches }],
       };
     }
+    if (syntax === "printf" && PRINTF_PLURAL_RE.test(source)) {
+      const plural = printfPlural(source, html);
+      if (plural) return { ok: true, nodes: plural };
+    }
     return {
       ok: true,
-      nodes: new Parser(
-        source,
-        syntax,
-        html,
-        syntax === "printf" && PRINTF_PLURAL_RE.test(source),
-      ).parseSequence(false),
+      nodes: new Parser(source, syntax, html).parseSequence(false),
     };
   } catch (error) {
     if (error instanceof ParseFailure) {
