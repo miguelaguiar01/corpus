@@ -161,14 +161,25 @@ function renderChrome(message: string, values: Record<string, string>): string {
   );
 }
 
+// Two key paths that flatten to one id (`"a.b": { "c" }` and
+// `"a": { "b.c" }`) would be one string written to one place (#642).
 function walk(
   node: unknown,
   path: string[],
   type: string,
   out: StringEntry[],
+  paths = new Map<string, string[]>(),
 ): void {
   if (typeof node === "string") {
-    out.push({ id: path.join("."), type, source: node });
+    const id = path.join(".");
+    const first = paths.get(id);
+    if (first) {
+      throw new Error(
+        `messages: ${id} is written twice: ${JSON.stringify(first)} and ${JSON.stringify(path)}`,
+      );
+    }
+    paths.set(id, path);
+    out.push({ id, type, source: node });
     return;
   }
   if (node === null || typeof node !== "object" || Array.isArray(node)) {
@@ -177,7 +188,7 @@ function walk(
     );
   }
   for (const [key, child] of Object.entries(node)) {
-    walk(child, [...path, key], type, out);
+    walk(child, [...path, key], type, out, paths);
   }
 }
 

@@ -187,6 +187,8 @@ test("a translation saved in Corpus comes back in exactly the expected file and 
   const before = tree(repo);
   translate("app.greeting", "Hi {name}");
   translate("step.key", "Look for the key {where}.");
+  // A key segment with dots stays one segment (#642).
+  translate("evento.m.sala.topico.removido", "The topic was removed.");
   expect(await run(["pull", "--min-state", "translated"], ctx())).toBe(0);
   const after = tree(repo);
   expect(Object.keys(after).sort()).toEqual(Object.keys(before).sort());
@@ -194,6 +196,7 @@ test("a translation saved in Corpus comes back in exactly the expected file and 
   expect(after["data/steps.pt-PT.json"]).toBe(before["data/steps.pt-PT.json"]);
   expect(JSON.parse(after["i18n/en.json"]!)).toEqual({
     app: { title: "Corpus", greeting: "Hi {name}" },
+    evento: { "m.sala.topico": { removido: "The topic was removed." } },
   });
   expect(JSON.parse(after["data/steps.en.json"]!)).toEqual([
     { id: "step.open", text: "Open the door.", kind: "hint" },
@@ -236,6 +239,7 @@ test("a pending proposal comes back in exactly its source's files, at its key; n
   expect(Object.keys(after).sort()).toEqual(Object.keys(before).sort());
   expect(JSON.parse(after["i18n/pt-PT.json"]!)).toEqual({
     app: { title: "Corpus", greeting: "Bem-vindo, {name}" },
+    evento: { "m.sala.topico": { removido: "O tópico foi removido." } },
   });
   // The nested removal reached the target file; nothing else in it moved.
   const enBefore = JSON.parse(before["i18n/en.json"]!) as Record<

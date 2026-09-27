@@ -84,7 +84,11 @@ export default defineCorpus({
   glossary: { path: "src/i18n/glossary.{lang}.json" },  // §5, one file per target language
   sources: [
     // 1. Standard i18n catalog adapter (flat or nested key-value JSON/TS,
-    //    ICU MessageFormat allowed). Zero config beyond the path pattern;
+    //    ICU MessageFormat allowed). A nested key's id joins its segments
+    //    with dots; a segment may itself hold dots (`"m.room.topic"`), so
+    //    pull writes a new key where the source file puts it, never by
+    //    re-splitting the id, and two paths that join to one id are refused.
+    //    Zero config beyond the path pattern;
     //    `library: "i18next"` for a catalogue written with {{name}},
     //    `library: "vue"` for vue-i18n's {name}, pipe plurals and {'…'}
     //    interpolation, read and written back as written (§5). The old
