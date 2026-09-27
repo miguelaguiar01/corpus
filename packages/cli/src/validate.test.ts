@@ -348,6 +348,9 @@ test("describe words every error code", () => {
     describe({ code: "missing-placeholder", name: "count" }, "printf"),
   ).toBe("the source is a plural on count: write the translation as one");
   expect(
+    describe({ code: "missing-placeholder", name: "count" }, "counterpart"),
+  ).toBe("the source is a plural on count: write the translation as one");
+  expect(
     describe(
       { code: "missing-placeholder", name: "2", written: "%2$s" },
       "android",

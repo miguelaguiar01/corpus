@@ -19,7 +19,9 @@ export function validationMessage(
       // Under printf and android a value that is not a verb is a plural's
       // count: the translation dropped the plural (#652).
       if (
-        (syntax === "printf" || syntax === "android") &&
+        (syntax === "printf" ||
+          syntax === "android" ||
+          syntax === "counterpart") &&
         error.written === undefined
       )
         return t("editor.pluralDropped", { name: error.name });

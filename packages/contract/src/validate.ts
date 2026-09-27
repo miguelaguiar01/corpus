@@ -265,6 +265,18 @@ export function validateTranslation(
         ...writtenAs(actual, name),
       });
   }
+  // counterpart substitutes `%(name)s` only as written: `%(n)d` for the
+  // source's `%(n)s` is text in the app (#663).
+  if (syntax === "counterpart") {
+    for (const [name, written] of expected.written) {
+      const got = actual.written.get(name);
+      if (got !== undefined && got !== written)
+        errors.push(
+          { code: "missing-placeholder", name, written },
+          { code: "unexpected-placeholder", name, written: got },
+        );
+    }
+  }
   if (syntax === "printf" || syntax === "android") {
     // The index form follows the source: `%n$` where it writes one (C,
     // Java, JavaScript's sprintf, Android), Go's `%[n]` where it writes

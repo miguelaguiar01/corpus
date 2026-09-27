@@ -979,6 +979,16 @@ test("under counterpart %(name)s is a placeholder and a bare <tag> a substitutio
     ok: false,
     errors: [{ code: "missing-tag", name: "pill" }],
   });
+  // The letter is part of the placeholder: Element substitutes %(n)s.
+  expect(validateTranslation("%(n)s left", "%(n)d zostało", "pl", lib)).toEqual(
+    {
+      ok: false,
+      errors: [
+        { code: "missing-placeholder", name: "n", written: "%(n)s" },
+        { code: "unexpected-placeholder", name: "n", written: "%(n)d" },
+      ],
+    },
+  );
   // A plural object read as one string, its forms counterpart's.
   expect(
     validateTranslation(
