@@ -100,16 +100,22 @@ export const sourceSchema = z.discriminatedUnion("adapter", [
     ...messagesFields,
     path: langPattern,
     namespace: z.string().min(1).optional(),
+    // The patterns of one source share it: one catalogue (#661).
+    group: z.number().int().optional(),
   }),
   z.looseObject({
     ...tableFields,
     path: z.string().min(1),
     namespace: z.string().min(1).optional(),
+    // The patterns of one source share it: one catalogue (#661).
+    group: z.number().int().optional(),
   }),
   z.looseObject({
     ...fluentFields,
     path: langPattern,
     namespace: z.string().min(1).optional(),
+    // The patterns of one source share it: one catalogue (#661).
+    group: z.number().int().optional(),
   }),
   androidSchema,
   execSchema,

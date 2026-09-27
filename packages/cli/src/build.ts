@@ -248,8 +248,8 @@ export async function buildSnapshotReport(
   const groupOf = new Map<string, number>();
   for (const source of config.sources) {
     if (source.adapter === "exec") continue;
-    const group = (source as { group?: number }).group;
-    if (group !== undefined)
+    const group = "group" in source ? source.group : undefined;
+    if (typeof group === "number")
       groupOf.set(
         fileOf(source, config.sourceLanguage, config.sourceLanguage),
         group,
@@ -266,8 +266,14 @@ export async function buildSnapshotReport(
     }
     const oneSource =
       groupOf.has(file) && groupOf.get(file) === groupOf.get(prev.file);
-    if (oneSource && prev.entry.source === entry.source) merged.add(item);
-    else
+    if (oneSource && prev.entry.source === entry.source) {
+      // The copy that can take a proposal is the one kept: a key-is-text
+      // copy carries no file.
+      if (!prev.entry.file && entry.file) {
+        merged.add(prev);
+        byId.set(entry.id, item);
+      } else merged.add(item);
+    } else
       errors.push(
         `duplicate id ${printable(entry.id)} in ${prev.file} and ${file}${oneSource ? ", with different text" : ""}`,
       );
@@ -798,6 +804,7 @@ async function readSeeds(
         `exec "${command}": ${unknown + refusedCount + empty} translation(s) not seeded: ${left.join(", ")}`,
       );
   }
+  const seededFrom: Record<string, Record<string, string>> = {};
   for (const source of config.sources) {
     if (source.adapter === "exec" || !hasLanguages(source)) continue;
     if (!sourceWritesBack(source)) continue;
@@ -810,7 +817,20 @@ async function readSeeds(
           // A key the source no longer has, or an empty value an
           // extraction tool left, is not a translation.
           if (!ids.has(entry.id) || entry.source.trim() === "") continue;
-          (seeds[lang] ??= {})[entry.id] = entry.source;
+          // A string two files of one source share is seeded from the
+          // first that holds it; a second that says otherwise is named,
+          // since a pull writes the server's text into both (#661).
+          const seeded = (seeds[lang] ??= {})[entry.id];
+          const from = (seededFrom[lang] ??= {})[entry.id];
+          if (seeded !== undefined && from !== undefined) {
+            if (seeded !== entry.source)
+              notes.push(
+                `${file}: ${printable(entry.id)} differs from ${from}; ${from} is seeded, and a pull writes the instance's text into both`,
+              );
+            continue;
+          }
+          seeds[lang][entry.id] = entry.source;
+          seededFrom[lang][entry.id] = file;
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

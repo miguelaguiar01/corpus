@@ -891,6 +891,24 @@ test("an id in two files of one source is one string when its text is the same; 
     "save",
     "title",
   ]);
+  // Two target files that disagree on a shared string are named; the
+  // first is seeded.
+  writeFileSync(
+    path.join(dir, "app", "pt.json"),
+    JSON.stringify({ save: "Guardar" }),
+  );
+  writeFileSync(
+    path.join(dir, "shared", "pt.json"),
+    JSON.stringify({ save: "Salvar" }),
+  );
+  const both = await buildSnapshotReport(
+    config({ ...merged, languages: ["en", "pt"] }),
+    dir,
+  );
+  expect(both.snapshot.seedTranslations?.pt).toEqual({ save: "Guardar" });
+  expect(both.notes).toContain(
+    "shared/pt.json: save differs from app/pt.json; app/pt.json is seeded, and a pull writes the instance's text into both",
+  );
   writeFileSync(
     path.join(dir, "shared", "en.json"),
     JSON.stringify({ save: "Save changes" }),

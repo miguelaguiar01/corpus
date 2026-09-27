@@ -83,6 +83,69 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
   );
   if (payload === undefined) return 1;
 
+  // The files of one source are one catalogue (#661): the ids each
+  // source-language file holds, by source, and the members of each.
+  const groups = new Map<number, FileSource[]>();
+  const sourceIds = new Map<FileSource, Set<string>>();
+  for (const source of config.sources) {
+    if (source.adapter === "exec") continue;
+    const group = "group" in source ? source.group : undefined;
+    if (typeof group !== "number") continue;
+    groups.set(group, [...(groups.get(group) ?? []), source]);
+    const template = readRepoFile(
+      ctx.cwd,
+      fileOf(source, config.sourceLanguage, config.sourceLanguage),
+    );
+    sourceIds.set(
+      source,
+      (template && ownIds(template, source)) || new Set<string>(),
+    );
+  }
+  const membersOf = (source: FileSource) => {
+    const group = "group" in source ? source.group : undefined;
+    return typeof group === "number" ? (groups.get(group) ?? []) : [];
+  };
+
+  // A string two files of one source share is written into each target
+  // file that holds it, and into the first file's when none does, so a
+  // push and a pull leave the files as they were (#661).
+  const targetIds = new Map<string, Set<string>>();
+  const idsInTarget = (member: FileSource, language: string) => {
+    const file = fileOf(member, language, config.sourceLanguage);
+    let ids = targetIds.get(file);
+    if (!ids) {
+      const text = readRepoFile(ctx.cwd, file);
+      ids = (text !== undefined && ownIds(text, member)) || new Set<string>();
+      targetIds.set(file, ids);
+    }
+    return ids;
+  };
+  const sharedFor = (
+    translations: Record<string, string>,
+    source: FileSource,
+    members: FileSource[],
+    language: string,
+  ): Record<string, string> => {
+    if (members.length < 2) return translations;
+    return Object.fromEntries(
+      Object.entries(translations).filter(([id]) => {
+        const holders = members.filter((m) => sourceIds.get(m)?.has(id));
+        if (holders.length < 2) return true;
+        if (idsInTarget(source, language).has(id)) return true;
+        return (
+          holders[0] === source &&
+          !holders.some((m) => idsInTarget(m, language).has(id))
+        );
+      }),
+    );
+  };
+
+  // Read before anything is written: what the files held when the pull
+  // began decides where a shared string goes.
+  for (const members of groups.values())
+    for (const member of members)
+      for (const language of targets) idsInTarget(member, language);
+
   const changed: string[] = [];
   const claimedTypes = new Set<string>();
   // Ids the server holds that no source-language file of their type does
@@ -133,10 +196,16 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     // the source's namespace when it has one, stripped for writing: two
     // sources of one type each write their own strings (#513).
     const own = ownIds(template, source);
+    const members = membersOf(source);
     for (const language of targets) {
       const file = fileOf(source, language, config.sourceLanguage);
       const existing = readRepoFile(ctx.cwd, file);
-      const forSource = forType(payload, language, source.type);
+      const forSource = sharedFor(
+        forType(payload, language, source.type),
+        source,
+        members,
+        language,
+      );
       const translations = unprefixed(forSource, source, own);
       const heldForType = heldByType.get(source.type);
       for (const id of Object.keys(forSource)) {
@@ -176,9 +245,31 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
 
   // The pending proposals (§8, §11): each into the source-language file
   // of the source it names, a removal into that source's target files
-  // too; a file that matches no source is refused by name.
-  let proposalsWritten = 0;
-  for (const [file, ops] of proposalsByFile(payload.sourceChanges ?? [])) {
+  // too; a file that matches no source is refused by name. An edit or a
+  // removal of a string two files of one source share goes into each
+  // (#661), or the next push finds them different.
+  const written = new Set<string>();
+  const sourceChanges = (payload.sourceChanges ?? []).flatMap((change) => {
+    if (change.kind === "add") return [change];
+    const named = config.sources.find(
+      (s): s is FileSource =>
+        s.adapter !== "exec" &&
+        fileOf(s, config.sourceLanguage, config.sourceLanguage) === change.file,
+    );
+    const others = named
+      ? membersOf(named).filter(
+          (m) => m !== named && sourceIds.get(m)?.has(change.id),
+        )
+      : [];
+    return [
+      change,
+      ...others.map((m) => ({
+        ...change,
+        file: fileOf(m, config.sourceLanguage, config.sourceLanguage),
+      })),
+    ];
+  });
+  for (const [file, ops] of proposalsByFile(sourceChanges)) {
     const source = config.sources.find(
       (s): s is Exclude<typeof s, { adapter: "exec" }> =>
         s.adapter !== "exec" &&
@@ -198,7 +289,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     }
     const kept = stripped.ops;
     if (kept.length === 0) continue;
-    proposalsWritten += kept.length;
+    for (const op of kept) written.add(`${op.kind}\u0000${op.id}`);
     const files: [string, SourceOp[]][] = [[file, kept]];
     const removals = kept.filter((o) => o.kind === "delete");
     if (removals.length > 0 && hasLanguages(source)) {
@@ -327,9 +418,9 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
   ctx.out(
     `pulled ${config.project} at ${minState}: ${files.length} file(s) changed${ran > 0 ? `, ${ran} import command(s) ran` : ""}`,
   );
-  if (proposalsWritten > 0) {
+  if (written.size > 0) {
     ctx.out(
-      `${proposalsWritten} proposal(s) written: commit and push, and the next corpus push marks them applied`,
+      `${written.size} proposal(s) written: commit and push, and the next corpus push marks them applied`,
     );
   }
   return 0;

@@ -975,7 +975,61 @@ test("an importer's reported paths are the repository's, spelt as the adapters s
   );
 });
 
-test("a string two files of one source share is written into each of their target files (#661)", async () => {
+test("a string two files of one source share goes into each target file that holds it, else the first's; a push and a pull change nothing (#661)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "pt", "de"],
+  sources: [
+    { adapter: "messages", type: "chrome", path: ["i18n/{lang}.json", "shared/{lang}.json"] },
+  ],
+});
+`,
+  );
+  mkdirSync(path.join(repo, "shared"));
+  writeFileSync(
+    path.join(repo, "shared", "en.json"),
+    `{\n  "greeting": "Hello {name}"\n}\n`,
+  );
+  // pt: only the shared file holds it. de: neither does.
+  writeFileSync(
+    path.join(repo, "shared", "pt.json"),
+    `{\n  "greeting": "Olá {name}"\n}\n`,
+  );
+  const { buildSnapshot } = await import("./build");
+  const { loadConfig } = await import("./config");
+  const snapshot = await buildSnapshot(await loadConfig(repo), repo);
+  const payload = {
+    ...PAYLOAD,
+    types: { "app.title": "chrome", greeting: "chrome" },
+    translations: {
+      en: { "app.title": "Corpus", greeting: "Hello {name}" },
+      ...snapshot.seedTranslations,
+    },
+  };
+  // A push and a pull of what was pushed leave every file as it was.
+  await serve(200, payload);
+  const c = ctx();
+  expect(await run(["pull", "--check"], c)).toBe(0);
+  // A new German draft goes into the first file only.
+  active?.close();
+  await serve(200, {
+    ...payload,
+    translations: { ...payload.translations, de: { greeting: "Hallo {name}" } },
+  });
+  expect(await run(["pull"], ctx())).toBe(0);
+  expect(JSON.parse(read("i18n/de.json"))).toEqual({
+    greeting: "Hallo {name}",
+  });
+  expect(existsSync(path.join(repo, "shared", "de.json"))).toBe(false);
+  expect(existsSync(path.join(repo, "i18n", "pt.json"))).toBe(false);
+});
+
+test("an edit or a removal proposed on a shared string goes into each source file that holds it (#661)", async () => {
   writeFileSync(
     path.join(repo, "corpus.config.ts"),
     `import { defineCorpus } from "@corpus/contract";
@@ -998,12 +1052,20 @@ export default defineCorpus({
   await serve(200, {
     ...PAYLOAD,
     types: { "app.title": "chrome", greeting: "chrome" },
-    translations: {
-      en: { "app.title": "Corpus", greeting: "Hello {name}" },
-      pt: { "app.title": "Corpus", greeting: "Olá {name}" },
-    },
+    translations: { en: {}, pt: {} },
+    sourceChanges: [
+      {
+        kind: "edit",
+        id: "greeting",
+        type: "chrome",
+        file: "i18n/en.json",
+        text: "Hi {name}",
+      },
+    ],
   });
-  expect(await run(["pull"], ctx())).toBe(0);
-  expect(JSON.parse(read("i18n/pt.json")).greeting).toBe("Olá {name}");
-  expect(read("shared/pt.json")).toBe(`{\n  "greeting": "Olá {name}"\n}\n`);
+  const c = ctx();
+  expect(await run(["pull"], c)).toBe(0);
+  expect(JSON.parse(read("i18n/en.json")).greeting).toBe("Hi {name}");
+  expect(JSON.parse(read("shared/en.json")).greeting).toBe("Hi {name}");
+  expect(c.output.join("\n")).toMatch(/1 proposal\(s\) written/);
 });
