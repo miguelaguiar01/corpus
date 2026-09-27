@@ -219,12 +219,14 @@ export function validateTranslation(
   const actual = shapeOf(parsedTarget.nodes);
   let expected = shapeOf(parsedSource.nodes);
   // A language whose only category is `other` renders a plural as its
-  // `other` branch, so a translation may write that text plainly (#651).
+  // `other` branch, so a translation may write that text plainly (#651);
+  // not on Android, where a <string> is another resource than the
+  // <plurals> the code asks for.
   const categories = language === undefined ? [] : pluralCategoriesOf(language);
   const flat = new Set(
     [...expected.plurals.keys()].filter((arg) => !actual.plurals.has(arg)),
   );
-  if (categories.length === 1 && flat.size > 0)
+  if (categories.length === 1 && flat.size > 0 && syntax !== "android")
     expected = shapeOf(otherBranch(parsedSource.nodes, flat));
   const errors: ValidationError[] = [];
   const expectedValues = valuesOf(expected);

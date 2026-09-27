@@ -754,7 +754,8 @@ test("an other-only language may write a plural as the plain text of its other b
     ok: false,
     errors: [{ code: "missing-placeholder", name: "count" }],
   });
-  // Android: a <string> where the source is a <plurals>, for zh.
+  // Not on Android: a <string> in values-zh is not the <plurals> the
+  // code asks for, and Chinese users would get the default's text.
   expect(
     validateTranslation(
       "{quantity, plural, one {%d episode} other {%d episodes}}",
@@ -762,5 +763,6 @@ test("an other-only language may write a plural as the plain text of its other b
       "zh",
       "android",
     ),
-  ).toEqual({ ok: true });
+  ).toMatchObject({ ok: false });
+});
 });
