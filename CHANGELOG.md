@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- A `<br></br>` in a catalogue whose tags a component renders (Excalidraw's `Trans`, react-i18next, next-intl) builds as the pair it is: it was refused as a stray `</br>` with the advice to remove it, and a lone `<br>` would have made the component drop every word after it. `br`, `hr`, `wbr` and `img` are void only where the text is HTML, a type declared `richText: "html"` or an Android string, where `<br></br>` reads as one `<br>` as a browser reads it; elsewhere a lone `<br>` is refused as unclosed, and the editor's chip inserts the pair.
 - A pull writes a key new to a target file under the key path the source file gives it, so a segment that holds dots stays one segment: Element Web's `"m.room.topic": { "removed": … }` took a new translation as `"m": { "room": { "topic": … } }`, where its i18n never looks, and the app showed English. A proposal edits and removes such a key where it is. Two key paths that flatten to the same id (`"a.b": { "c" }` and `"a": { "b.c" }`) are refused at build, naming both; a target file that already holds such a misplaced subtree from an earlier pull is named by that error, and removing the subtree fixes it.
 
 ## [0.20.0] - 2026-09-27

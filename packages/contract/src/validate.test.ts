@@ -377,6 +377,7 @@ describe("printf", () => {
 });
 
 describe("rich-text tags", () => {
+  // HTML text, where <br> is void: Android's strings (#643).
   test("an attributed tag must come back with its attribute text verbatim; a void tag needs no close (#590)", () => {
     const source =
       'Read the <a href="%s" target="_blank">docs</a>.<br>Then go.';
@@ -384,16 +385,28 @@ describe("rich-text tags", () => {
       validateTranslation(
         source,
         'Lê a <a href="%s" target="_blank">documentação</a>.<br/>Depois vai.',
+        "pt",
+        "android",
       ),
     ).toEqual({ ok: true });
-    expect(errorsOf(source, 'Lê a <a href="%s">documentação</a>.<br>')).toEqual(
-      [
-        { code: "missing-tag", name: 'a href="%s" target="_blank"' },
-        { code: "unexpected-tag", name: 'a href="%s"' },
-      ],
-    );
     expect(
-      errorsOf(source, 'Lê a <a href="%s" target="_blank">documentação</a>.'),
+      errorsOf(
+        source,
+        'Lê a <a href="%s">documentação</a>.<br>',
+        "pt",
+        "android",
+      ),
+    ).toEqual([
+      { code: "missing-tag", name: 'a href="%s" target="_blank"' },
+      { code: "unexpected-tag", name: 'a href="%s"' },
+    ]);
+    expect(
+      errorsOf(
+        source,
+        'Lê a <a href="%s" target="_blank">documentação</a>.',
+        "pt",
+        "android",
+      ),
     ).toEqual([{ code: "missing-tag", name: "br" }]);
   });
 
@@ -417,6 +430,29 @@ describe("rich-text tags", () => {
         "<b>{g, select, m {he} other {they}}</b>",
       ),
     ).toEqual({ ok: true });
+  });
+
+  test("<br> is void only where the text is HTML; elsewhere <br></br> is a pair and a lone <br> is unclosed (#643)", () => {
+    const pair = "Scroll<br></br>to zoom";
+    expect(
+      validateTranslation(pair, "Desliza<br></br>para ampliar", "pt"),
+    ).toEqual({ ok: true });
+    const lone = validateTranslation(pair, "Desliza<br>para ampliar", "pt");
+    expect(lone.ok).toBe(false);
+    expect(!lone.ok && lone.errors[0]).toMatchObject({
+      code: "invalid-icu",
+      where: "target",
+      message: "unclosed <br>",
+    });
+    expect(
+      validateTranslation(pair, "Desliza<br>para ampliar", "pt", "icu", {
+        richText: "html",
+      }),
+    ).toEqual({ ok: true });
+    // Android strings are HTML: a lone <br> is void there.
+    expect(validateTranslation("A<br>B", "C<br/>D", "de", "android")).toEqual({
+      ok: true,
+    });
   });
 
   test("under richText html a translation's tags need not match the source's; placeholders and parsing still hold (#622)", () => {

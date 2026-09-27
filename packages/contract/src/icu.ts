@@ -120,6 +120,7 @@ class Parser {
   constructor(
     private readonly source: string,
     private readonly syntax: Library,
+    private readonly html: boolean,
   ) {}
 
   // Inside a plural's branch, `#` is the number; anywhere else it is text.
@@ -350,12 +351,12 @@ class Parser {
     const start = this.pos;
     this.pos += match[0].length;
     const name = match[2]!;
+    const voided = this.html && match[4] !== "/" && VOID_TAGS.has(name);
     const kind =
-      match[1] === "/"
-        ? "close"
-        : match[4] === "/" || VOID_TAGS.has(name)
-          ? "self"
-          : "open";
+      match[1] === "/" ? "close" : match[4] === "/" || voided ? "self" : "open";
+    // A browser reads `<br></br>` as one <br>.
+    if (voided && this.source.startsWith(`</${name}>`, this.pos))
+      this.pos += name.length + 3;
     return { kind, name, ...(attrs ? { attrs } : {}), start };
   }
 
@@ -485,10 +486,17 @@ class Parser {
   }
 }
 
+// `html` reads `<br>`, `<hr>`, `<wbr>` and `<img>` as HTML's void
+// elements (#643): where a component renders the tags, `<br></br>` is a
+// pair like any other and a lone `<br>` is unclosed. Validation turns it
+// off unless the text is HTML; reading a source for its parts leaves it
+// on, which accepts both forms.
 export function parseIcu(
   source: string,
   syntax: Library = "icu",
+  options: { html?: boolean } = {},
 ): IcuParseResult {
+  const html = options.html ?? true;
   try {
     if (syntax === "vue") {
       const parts = splitVueSource(source);
@@ -521,7 +529,7 @@ export function parseIcu(
         }
       }
       const branches = parts.map((part) =>
-        new Parser(part.trim(), syntax).parseSequence(false),
+        new Parser(part.trim(), syntax, html).parseSequence(false),
       );
       return {
         ok: true,
@@ -529,7 +537,10 @@ export function parseIcu(
           branches.length === 1 ? branches[0]! : [{ kind: "forms", branches }],
       };
     }
-    return { ok: true, nodes: new Parser(source, syntax).parseSequence(false) };
+    return {
+      ok: true,
+      nodes: new Parser(source, syntax, html).parseSequence(false),
+    };
   } catch (error) {
     if (error instanceof ParseFailure) {
       return {
@@ -815,9 +826,7 @@ function refusal(
   if (stray) {
     return {
       cause: "tag",
-      advice: isVoidTag(stray[1]!)
-        ? `; <${stray[1]}> needs no closing tag: remove it`
-        : `; a <name> is a rich-text tag: remove it, or open a matching <${stray[1]}>`,
+      advice: `; a <name> is a rich-text tag: remove it, or open a matching <${stray[1]}>`,
     };
   }
   // The library hints fire on the error the wrong library produces and

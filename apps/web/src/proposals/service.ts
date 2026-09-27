@@ -1,5 +1,6 @@
 import { and, count, desc, eq } from "drizzle-orm";
 import {
+  isHtmlText,
   parseIcu,
   stringEntrySchema,
   type SourceChange,
@@ -43,17 +44,27 @@ export type ProposeResult =
 // when it parses; an empty text has nothing to say beyond the reason.
 function invalidIcuMessage(
   text: string,
-  syntax: Library = "icu",
+  syntax: Library,
+  html: boolean,
 ): string | undefined {
   if (text.trim() === "") return undefined;
-  const parsed = parseIcu(text, syntax);
+  const parsed = parseIcu(text, syntax, { html });
   if (parsed.ok) return undefined;
   const first = parsed.errors[0]!;
   return `invalid ${syntax === "icu" ? "ICU" : syntax} at ${first.position}: ${first.message}${refusalAdvice(text, syntax, first.message)}`;
 }
 
-function validIcu(text: string, syntax: Library = "icu"): boolean {
-  return text.trim() !== "" && parseIcu(text, syntax).ok;
+function validIcu(text: string, syntax: Library, html: boolean): boolean {
+  return text.trim() !== "" && parseIcu(text, syntax, { html }).ok;
+}
+
+function htmlOf(db: Db, projectId: number, type: string, syntax: Library) {
+  const project = db
+    .select({ richText: projects.richText })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .get();
+  return isHtmlText(syntax, project?.richText?.[type]);
 }
 
 // One pending proposal per string or key (§11): a newer one replaces
@@ -88,8 +99,10 @@ function forString(
   if (row.keyIsText) return { ok: false, reason: "key-is-text" };
   if (!row.file) return { ok: false, reason: "not-writable" };
   if (kind === "edit") {
-    if (text === undefined || !validIcu(text, row.syntax ?? "icu")) {
-      const message = invalidIcuMessage(text ?? "", row.syntax ?? "icu");
+    const syntax = row.syntax ?? "icu";
+    const html = htmlOf(db, row.projectId, row.type, syntax);
+    if (text === undefined || !validIcu(text, syntax, html)) {
+      const message = invalidIcuMessage(text ?? "", syntax, html);
       return {
         ok: false,
         reason: "invalid-icu",
@@ -162,8 +175,9 @@ export function proposeAdd(
   );
   const key = namespacedKey(source, typed, namespaces);
   if (key === undefined) return { ok: false, reason: "invalid-key" };
-  if (!validIcu(input.text, libraryOf(source))) {
-    const message = invalidIcuMessage(input.text, libraryOf(source));
+  const html = isHtmlText(libraryOf(source), project.richText?.[source.type]);
+  if (!validIcu(input.text, libraryOf(source), html)) {
+    const message = invalidIcuMessage(input.text, libraryOf(source), html);
     return {
       ok: false,
       reason: "invalid-icu",

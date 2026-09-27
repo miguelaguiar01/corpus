@@ -432,11 +432,12 @@ test("under richText html a translation's own tags save, and its chips are the s
   ).toBe(false);
 });
 
-test("an attributed tag's chip inserts it whole with the bare close, and a void tag's chip inserts it self-closed (#590)", () => {
+test("an attributed tag's chip inserts it whole with the bare close, and a void tag's chip inserts it self-closed where the text is HTML (#590, #643)", () => {
   render(
     <TargetPane
       action={vi.fn()}
       source='Read the <a href="%s" target="_blank">docs</a>.<br>Then go.'
+      syntax="android"
       slots={[]}
       language="en"
       initialText=""
@@ -459,6 +460,25 @@ test("an attributed tag's chip inserts it whole with the bare close, and a void 
   expect(
     screen.getByText('Missing the <a href="%s" target="_blank"> tag'),
   ).toBeTruthy();
+});
+
+test("outside HTML a <br> chip inserts a pair, as the source writes it (#643)", () => {
+  render(
+    <TargetPane
+      action={vi.fn()}
+      source="Scroll<br></br>to zoom"
+      slots={[]}
+      language="en"
+      initialText=""
+      slug="mm"
+      stringKey="k"
+      openedVersion={1}
+      sourceLanguage="pt-PT"
+    />,
+  );
+  const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
+  fireEvent.click(screen.getByRole("button", { name: "<br>" }));
+  expect(textarea.value).toBe("<br></br>");
 });
 
 test("under printf a chip inserts the verb as the source writes it, and a dropped verb is named as written (#594)", () => {

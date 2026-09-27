@@ -142,6 +142,12 @@ function valuesOf(shape: Shape): Set<string> {
   return new Set([...shape.placeholders, ...shape.plurals.keys()]);
 }
 
+// Where a string's tags are HTML (#643): a type read as HTML, or an
+// Android string, which the app renders through fromHtml.
+export function isHtmlText(syntax: Library, richText?: RichText): boolean {
+  return richText === "html" || syntax === "android";
+}
+
 export function validateTranslation(
   source: string,
   target: string,
@@ -149,7 +155,8 @@ export function validateTranslation(
   syntax: Library = "icu",
   options: { richText?: RichText } = {},
 ): ValidationResult {
-  const parsedSource = parseIcu(source, syntax);
+  const html = isHtmlText(syntax, options.richText);
+  const parsedSource = parseIcu(source, syntax, { html });
   if (!parsedSource.ok) {
     return {
       ok: false,
@@ -160,7 +167,7 @@ export function validateTranslation(
       })),
     };
   }
-  const parsedTarget = parseIcu(target, syntax);
+  const parsedTarget = parseIcu(target, syntax, { html });
   if (!parsedTarget.ok) {
     return {
       ok: false,
