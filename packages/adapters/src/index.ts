@@ -6,3 +6,4 @@ export * from "./table";
 export * from "./write";
 export * from "./android";
 export * from "./fluent";
+export * from "./xliff";

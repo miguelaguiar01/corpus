@@ -84,12 +84,23 @@ const fluentFields = {
   languageFiles,
 };
 
+// XLIFF 1.2 and 2.0 (#667): a file per language; Angular's source file
+// has no language in its name, so `sourcePath` names it apart.
+const xliffSchema = z.looseObject({
+  adapter: z.literal("xliff"),
+  type: identifier(),
+  path: langPattern,
+  sourcePath: z.string().min(1).optional(),
+  languageFiles,
+});
+
 // What a config file declares.
 export const sourceInputSchema = z.discriminatedUnion("adapter", [
   z.looseObject({ ...messagesFields, path: patterns(langPattern) }),
   z.looseObject({ ...tableFields, path: patterns(z.string().min(1)) }),
   z.looseObject({ ...fluentFields, path: patterns(langPattern) }),
   androidSchema,
+  xliffSchema,
   execSchema,
 ]);
 
@@ -118,6 +129,7 @@ export const sourceSchema = z.discriminatedUnion("adapter", [
     group: z.number().int().optional(),
   }),
   androidSchema,
+  xliffSchema,
   execSchema,
 ]);
 
@@ -203,8 +215,12 @@ export const corpusConfigSchema = z
       const path = ["sources", index, "languageFiles"];
       const issue = (message: string) =>
         ctx.addIssue({ code: "custom", message, path });
-      if (source.adapter !== "messages" && source.adapter !== "fluent") {
-        issue(`languageFiles is for messages and fluent sources`);
+      if (
+        source.adapter !== "messages" &&
+        source.adapter !== "fluent" &&
+        source.adapter !== "xliff"
+      ) {
+        issue(`languageFiles is for messages, fluent and xliff sources`);
         return;
       }
       // The server fills a writable source's pattern with the source

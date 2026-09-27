@@ -17,8 +17,6 @@ const NAMED: Record<string, string> = {
   ".pot": "a gettext template",
   ".yml": "a YAML catalogue",
   ".yaml": "a YAML catalogue",
-  ".xlf": "an XLIFF catalogue",
-  ".xliff": "an XLIFF catalogue",
   ".xcstrings": "a String Catalog",
   ".strings": "an Apple .strings catalogue",
   ".stringsdict": "an Apple .stringsdict catalogue",
@@ -45,6 +43,8 @@ export function unreadableCatalogue(
   )
     return `a Qt Linguist catalogue, which no adapter reads: ${EXEC}`;
   if (READ.has(ext)) return null;
+  if (ext === ".xlf" || ext === ".xliff")
+    return `an XLIFF catalogue: declare it { adapter: "xliff", type, path, sourcePath? }`;
   if (ext === ".ftl")
     return `a Fluent catalogue: declare it { adapter: "fluent", type, path }`;
   if (ext === ".xml")

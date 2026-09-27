@@ -15,6 +15,7 @@ import {
   buildSnapshotReport,
   deprecations,
   describeRefused,
+  pushOnlyNotes,
   writableSources,
 } from "./build";
 import { expandSources } from "./config";
@@ -992,6 +993,81 @@ test("an Element-shaped catalogue builds under counterpart with nothing refused 
     "empty",
     "invite",
     "rooms",
+  ]);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("an xliff source reads Angular's files: units, states, the source file apart (#710)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-xliff-"));
+  mkdirSync(path.join(dir, "locale"));
+  const unit = (id: string, source: string, target?: string) =>
+    `      <trans-unit id="${id}" datatype="html">
+        <source>${source}</source>${target ?? ""}
+      </trans-unit>`;
+  const file = (units: string[], target?: string) =>
+    `<?xml version="1.0" encoding="UTF-8" ?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file source-language="en"${target ? ` target-language="${target}"` : ""} datatype="plaintext" original="ng2.template">
+    <body>
+${units.join("\n")}
+    </body>
+  </file>
+</xliff>
+`;
+  const link = (text: string) =>
+    `<x id="START_LINK" ctype="x-a" equiv-text="&lt;a&gt;"/>${text}<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/>`;
+  writeFileSync(
+    path.join(dir, "locale", "messages.xlf"),
+    file([
+      unit("signIn", `Sign in with ${link("Google")}`),
+      unit("status", "Status"),
+      unit("later", "Later"),
+    ]),
+  );
+  writeFileSync(
+    path.join(dir, "locale", "messages.de.xlf"),
+    file(
+      [
+        unit(
+          "signIn",
+          `Sign in with ${link("Google")}`,
+          `\n        <target state="translated">Mit ${link("Google")} anmelden</target>`,
+        ),
+        unit(
+          "status",
+          "Status",
+          `\n        <target state="final">Status</target>`,
+        ),
+        unit("later", "Later", `\n        <target state="new">Later</target>`),
+      ],
+      "de",
+    ),
+  );
+  const cfg = config({
+    languages: ["en", "de"],
+    sources: [
+      {
+        adapter: "xliff",
+        type: "ui",
+        path: "locale/messages.{lang}.xlf",
+        sourcePath: "locale/messages.xlf",
+      },
+    ],
+  });
+  const report = await buildSnapshotReport(cfg, dir);
+  expect(report.refused).toEqual([]);
+  expect(report.snapshot.strings.map((s) => [s.id, s.source])).toEqual([
+    ["signIn", "Sign in with <LINK>Google</LINK>"],
+    ["status", "Status"],
+    ["later", "Later"],
+  ]);
+  expect(report.snapshot.seedTranslations).toEqual({
+    de: { signIn: "Mit <LINK>Google</LINK> anmelden", status: "Status" },
+  });
+  // Status in German is a loanword the file marks final: translated.
+  expect(report.snapshot.seedTranslated).toEqual({ de: ["status"] });
+  expect(pushOnlyNotes(cfg)).toEqual([
+    "locale/messages.{lang}.xlf: pull does not write XLIFF yet; its translations are read and pushed",
   ]);
   rmSync(dir, { recursive: true, force: true });
 });
