@@ -45,9 +45,11 @@ export type IcuError = { message: string; position: number };
 export type IcuParseResult =
   { ok: true; nodes: IcuNode[] } | { ok: false; errors: IcuError[] };
 
-// An argument name is an identifier or, as ICU allows and older
-// catalogues write, a bare number ({0}, {1}).
-const NAME_RE = /^(?:[A-Za-z_][A-Za-z0-9_]*|[0-9]+)$/;
+// An argument name is an identifier in any script, marks included for
+// Thai and Devanagari, or, as ICU allows and older catalogues write, a
+// bare number ({0}, {1}): a translated name is then a placeholder the
+// source lacks, not a parse error (#653).
+const NAME_RE = /^(?:[\p{L}_][\p{L}\p{M}\p{N}_]*|[0-9]+)$/u;
 // A branch key is a word, or a bare number (`1 {marca} other {marcas}`).
 const KEY_RE = /^(?:[A-Za-z_][A-Za-z0-9_]*|[0-9]+)$/;
 // A plural branch is a CLDR category or an exact number (`=1 {…}`).
@@ -82,7 +84,7 @@ export function tagIdentity(tag: { name: string; attrs?: string }): string {
 }
 // i18next's interpolation name: an identifier, dotted into an object
 // ({{user.name}}); a format after a comma ({{date, short}}) is ignored.
-const I18NEXT_NAME_RE = /^[A-Za-z_$][A-Za-z0-9_.$]*$/;
+const I18NEXT_NAME_RE = /^[\p{L}_$][\p{L}\p{M}\p{N}_.$]*$/u;
 
 class ParseFailure extends Error {
   constructor(

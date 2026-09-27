@@ -858,3 +858,46 @@ test("under printf a text that is one ICU plural has its verbs checked per branc
     validateTranslation("Hello {name} %s", "Olá {nome} %s", "pt", "printf"),
   ).toEqual({ ok: true });
 });
+
+test("a placeholder named in any script is a placeholder, so a translated name is missing and unexpected (#653)", () => {
+  expect(
+    validateTranslation("Uploaded {time}", "อัปโหลดเมื่อ {เวลา}", "th"),
+  ).toEqual({
+    ok: false,
+    errors: [
+      { code: "missing-placeholder", name: "time" },
+      { code: "unexpected-placeholder", name: "เวลา" },
+    ],
+  });
+  expect(validateTranslation("{count} items", "{đếm} mục", "vi")).toEqual({
+    ok: false,
+    errors: [
+      { code: "missing-placeholder", name: "count" },
+      { code: "unexpected-placeholder", name: "đếm" },
+    ],
+  });
+  // A source may name them so too, and a translation keeps them.
+  expect(
+    validateTranslation("こんにちは {名前}", "Hello {名前}", "en"),
+  ).toEqual({
+    ok: true,
+  });
+  expect(
+    validateTranslation("Hi {name}", "Привет {наме}", "ru", "vue"),
+  ).toMatchObject({
+    ok: false,
+    errors: [
+      { code: "missing-placeholder" },
+      { code: "unexpected-placeholder", name: "наме" },
+    ],
+  });
+  expect(
+    validateTranslation("Hi {{name}}", "Olá {{nome_é}}", "pt", "i18next"),
+  ).toMatchObject({
+    ok: false,
+    errors: [
+      { code: "missing-placeholder" },
+      { code: "unexpected-placeholder", name: "nome_é" },
+    ],
+  });
+});
