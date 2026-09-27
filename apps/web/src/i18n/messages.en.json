@@ -23,6 +23,7 @@
   "editor.invalidIcu": "Malformed message: {message}",
   "editor.languages": "Language",
   "editor.missingBranch": "Select {arg} is missing the {key} branch",
+  "editor.pluralDropped": "The source is a plural on {name}: write the translation as one",
   "editor.missingCategory": "Plural {arg} is missing the {key} branch this language uses",
   "editor.missingPlaceholder": "Missing {name}",
   "editor.changedVerb": "{actual} at position {name} is {expected} in the source; a verb that moved needs its index, {indexed}",

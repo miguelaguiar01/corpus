@@ -113,6 +113,57 @@ export function printfVerbOf(written: string): string | undefined {
   return PRINTF_VERB_RE.exec(written)?.[4];
 }
 
+// A printf text that is one ICU plural from end to end (#652).
+const PRINTF_PLURAL_OPENS_RE =
+  /^\s*\{\s*[\p{L}_][\p{L}\p{N}_.-]*\s*,\s*plural\s*,/u;
+const PRINTF_PLURAL_RE = new RegExp(
+  `${PRINTF_PLURAL_OPENS_RE.source}[\\s\\S]*\\}\\s*$`,
+  "u",
+);
+
+// The printf text read as one plural, or undefined where it is not one
+// from end to end, or does not parse as one: then it is printf text as
+// before (#652).
+function printfPlural(source: string, html: boolean): IcuNode[] | undefined {
+  const read = readPrintfPlural(source, html);
+  return "nodes" in read ? read.nodes : undefined;
+}
+
+// Why a printf text that opens as a plural is not one (#652), for a
+// translation of a plural, where falling back to text would hide it.
+export function printfPluralError(
+  text: string,
+  html = false,
+): IcuError | undefined {
+  if (!PRINTF_PLURAL_OPENS_RE.test(text)) return undefined;
+  const read = readPrintfPlural(text, html);
+  return "error" in read ? read.error : undefined;
+}
+
+function readPrintfPlural(
+  source: string,
+  html: boolean,
+): { nodes: IcuNode[] } | { error: IcuError } {
+  try {
+    const nodes = new Parser(source, "printf", html, true).parseSequence(false);
+    const kept = nodes.filter(
+      (node) => !(node.kind === "literal" && node.text.trim() === ""),
+    );
+    if (kept.length === 1 && kept[0]!.kind === "plural") return { nodes };
+    const after = source.search(/\}[^}]*$/) + 1;
+    return {
+      error: {
+        message: "text after the plural: a printf plural is the whole text",
+        position: after,
+      },
+    };
+  } catch (error) {
+    if (error instanceof ParseFailure)
+      return { error: { message: error.message, position: error.position } };
+    throw error;
+  }
+}
+
 class Parser {
   private pos = 0;
   // The next verb's position when none is written (#594).
@@ -122,6 +173,10 @@ class Parser {
     private readonly source: string,
     private readonly syntax: Library,
     private readonly html: boolean,
+    // printf text that is wholly one ICU plural, as a gettext or String
+    // Catalog converter writes it (#652): its braces are the plural's,
+    // its branches printf.
+    private readonly printfPlural = false,
   ) {}
 
   // Inside a plural's branch, `#` is the number; anywhere else it is text.
@@ -144,7 +199,12 @@ class Parser {
 
     while (this.pos < this.source.length) {
       const ch = this.source[this.pos];
-      if (ch === "}" && (this.syntax === "icu" || this.syntax === "android")) {
+      if (
+        ch === "}" &&
+        (this.syntax === "icu" ||
+          this.syntax === "android" ||
+          (this.printfPlural && inBranch))
+      ) {
         if (!inBranch) {
           throw new ParseFailure("unmatched '}'", this.pos);
         }
@@ -203,7 +263,12 @@ class Parser {
             continue;
           }
         }
-        if (this.syntax === "printf" || ch === "%" || ch === "#") {
+        const opensPlural = this.printfPlural && !inBranch && ch === "{";
+        if (
+          (this.syntax === "printf" && !opensPlural) ||
+          ch === "%" ||
+          ch === "#"
+        ) {
           literal += ch;
           this.pos += 1;
           continue;
@@ -470,7 +535,7 @@ class Parser {
       this.pos += 1; // consume '{'
       // Each Android plural item is a string of its own: its verbs count
       // from 1.
-      if (this.syntax === "android") this.printfNext = 1;
+      if (this.syntax === "android" || this.printfPlural) this.printfNext = 1;
       branches[key] = this.parseSequence(
         true,
         type === "plural" ? name : undefined,
@@ -558,6 +623,10 @@ function parseWith(
         nodes:
           branches.length === 1 ? branches[0]! : [{ kind: "forms", branches }],
       };
+    }
+    if (syntax === "printf" && PRINTF_PLURAL_RE.test(source)) {
+      const plural = printfPlural(source, html);
+      if (plural) return { ok: true, nodes: plural };
     }
     return {
       ok: true,

@@ -16,6 +16,13 @@ export function validationMessage(
 ): string {
   switch (error.code) {
     case "missing-placeholder":
+      // Under printf and android a value that is not a verb is a plural's
+      // count: the translation dropped the plural (#652).
+      if (
+        (syntax === "printf" || syntax === "android") &&
+        error.written === undefined
+      )
+        return t("editor.pluralDropped", { name: error.name });
       return t("editor.missingPlaceholder", {
         name: chipText(error.name, syntax, null, error.written),
       });

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { moonlightManor } from "./fixtures/moonlight-manor";
 import type { Library } from "./strings";
+import { parseIcu } from "./icu";
 import { validateTranslation, type ValidationError } from "./validate";
 
 const SIGHTING = moonlightManor.strings[0]!.source;
@@ -764,4 +765,96 @@ test("an other-only language may write a plural as the plain text of its other b
       "android",
     ),
   ).toMatchObject({ ok: false });
+});
+
+test("under printf a text that is one ICU plural has its verbs checked per branch (#652)", () => {
+  const source = "{count, plural, one {%d card} other {%d cards}}";
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, one {%d Karte} other {%d Karten}}",
+      "de",
+      "printf",
+    ),
+  ).toEqual({ ok: true });
+  // Joplin's draft: stray verbs in a branch are refused.
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, one {Karte} other {Karten %s %x}}",
+      "de",
+      "printf",
+    ),
+  ).toMatchObject({ ok: false });
+  // The plural is checked too: a category German does not use is a warning.
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, one {%d Karte} few {%d Karten} other {%d Karten}}",
+      "de",
+      "printf",
+    ),
+  ).toEqual({
+    ok: true,
+    incomplete: [{ code: "unexpected-category", arg: "count", key: "few" }],
+  });
+  // Tags and # stay text under printf.
+  expect(
+    validateTranslation(
+      "{n, plural, one {<b>#</b> %lld post} other {<b>#</b> %lld posts}}",
+      "{n, plural, one {<i>#</i> %lld Beitrag} other {<i>#</i> %lld Beiträge}}",
+      "de",
+      "printf",
+    ),
+  ).toEqual({ ok: true });
+  // Anything that is not one plural from end to end, or does not parse
+  // as one, is printf text as before.
+  for (const text of [
+    "{n, plural, one {a} other {b}} and {c}",
+    "{n, plural, one {a {x} b} other {b}}",
+    "{n, plural, one {a}}",
+    "{user.count, plural, one {a} other {b}}",
+  ])
+    expect(parseIcu(text, "printf")).toEqual({
+      ok: true,
+      nodes: [{ kind: "literal", text }],
+    });
+  // A translation that opens as the plural but is not one says why.
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, one {%d Karte}}",
+      "de",
+      "printf",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [
+      {
+        code: "invalid-icu",
+        where: "target",
+        message: "plural needs an other branch",
+      },
+    ],
+  });
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, other {%d枚}} x",
+      "ja",
+      "printf",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "invalid-icu", where: "target" }],
+  });
+  // A plain translation of a plural is told to write the plural.
+  expect(validateTranslation(source, "%d Karten", "de", "printf")).toEqual({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "count" }],
+  });
+  // A printf text that is not wholly a plural keeps its braces as text.
+  expect(
+    validateTranslation("Hello {name} %s", "Olá {nome} %s", "pt", "printf"),
+  ).toEqual({ ok: true });
 });

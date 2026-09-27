@@ -239,7 +239,7 @@ Attributes (`.title =`), terms (`-brand`), function calls (`NUMBER($n)`) and str
 
 ## gettext and iOS
 
-No adapter reads `.po` or `.strings`. An `exec` source can, by converting in both directions; see [Sources and adapters](Sources-and-adapters). A converter that leaves the verbs as they are can declare `library: "printf"` on the exec source's strings, so the verbs are checked.
+No adapter reads `.po` or `.strings`. An `exec` source can, by converting in both directions; see [Sources and adapters](Sources-and-adapters). A converter that leaves the verbs as they are can declare `library: "printf"` on the exec source's strings, so the verbs are checked. A gettext `msgid_plural` or a String Catalog's plural variations become one string by writing the whole text as an ICU plural with the verbs inside each branch, `{count, plural, one {%d card} other {%d cards}}`: under `printf` that text is read as a plural, each branch's verbs are checked on their own, as an Android `<item>`'s are, and the branches the language needs are checked too. Only a text that parses as one plural from start to end is read this way; anything else, text after the plural, a brace inside a branch, a plural without `other`, is printf text as before, and `#` and angle brackets are text even inside a plural.
 
 ## When the library is wrong
 
