@@ -30,7 +30,9 @@ function root(text: string): Node {
 export function keyOrder(
   text: string,
 ): (objectPath: string[]) => string[] | undefined {
-  const tree = root(text);
+  // A blank source reads as an empty object elsewhere; it has no order.
+  const tree = parseTree(text);
+  if (!tree || tree.type !== "object") return () => undefined;
   const cache = new Map<string, string[] | undefined>();
   return (objectPath) => {
     const id = objectPath.join("\u0000");

@@ -778,6 +778,14 @@ describe("a key new to a target file lands in the source file's order (#654)", (
     );
   });
 
+  test("a blank source file gives no order and no error", () => {
+    const target = '{\n  "b": "y"\n}\n';
+    expect(entriesToMessages("", {}, target)).toBe(target);
+    expect(entriesToMessages("  \n", { a: "x" }, target)).toBe(
+      '{\n  "b": "y",\n  "a": "x"\n}\n',
+    );
+  });
+
   test("on one line, too", () => {
     expect(
       entriesToMessages(
