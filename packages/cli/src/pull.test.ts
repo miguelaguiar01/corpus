@@ -974,3 +974,36 @@ test("an importer's reported paths are the repository's, spelt as the adapters s
     /reported \.\.\/x\.json changed, which is outside the repository/,
   );
 });
+
+test("a string two files of one source share is written into each of their target files (#661)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "pt"],
+  sources: [
+    { adapter: "messages", type: "chrome", path: ["i18n/{lang}.json", "shared/{lang}.json"] },
+  ],
+});
+`,
+  );
+  mkdirSync(path.join(repo, "shared"));
+  writeFileSync(
+    path.join(repo, "shared", "en.json"),
+    `{\n  "greeting": "Hello {name}"\n}\n`,
+  );
+  await serve(200, {
+    ...PAYLOAD,
+    types: { "app.title": "chrome", greeting: "chrome" },
+    translations: {
+      en: { "app.title": "Corpus", greeting: "Hello {name}" },
+      pt: { "app.title": "Corpus", greeting: "Olá {name}" },
+    },
+  });
+  expect(await run(["pull"], ctx())).toBe(0);
+  expect(JSON.parse(read("i18n/pt.json")).greeting).toBe("Olá {name}");
+  expect(read("shared/pt.json")).toBe(`{\n  "greeting": "Olá {name}"\n}\n`);
+});

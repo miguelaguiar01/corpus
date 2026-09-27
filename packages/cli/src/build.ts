@@ -241,12 +241,41 @@ export async function buildSnapshotReport(
     }
   }
 
-  const byId = new Map<string, string>();
-  for (const { entry, file } of sourced) {
+  // An id in two files of one source is one string when its text is the
+  // same in both (#661): Element merges its app's and its shared
+  // components' catalogues at runtime. Anywhere else a duplicate is an
+  // error.
+  const groupOf = new Map<string, number>();
+  for (const source of config.sources) {
+    if (source.adapter === "exec") continue;
+    const group = (source as { group?: number }).group;
+    if (group !== undefined)
+      groupOf.set(
+        fileOf(source, config.sourceLanguage, config.sourceLanguage),
+        group,
+      );
+  }
+  const byId = new Map<string, Sourced>();
+  const merged = new Set<Sourced>();
+  for (const item of sourced) {
+    const { entry, file } = item;
     const prev = byId.get(entry.id);
-    if (prev)
-      errors.push(`duplicate id ${printable(entry.id)} in ${prev} and ${file}`);
-    else byId.set(entry.id, file);
+    if (!prev) {
+      byId.set(entry.id, item);
+      continue;
+    }
+    const oneSource =
+      groupOf.has(file) && groupOf.get(file) === groupOf.get(prev.file);
+    if (oneSource && prev.entry.source === entry.source) merged.add(item);
+    else
+      errors.push(
+        `duplicate id ${printable(entry.id)} in ${prev.file} and ${file}${oneSource ? ", with different text" : ""}`,
+      );
+  }
+  if (merged.size > 0) {
+    const kept = sourced.filter((item) => !merged.has(item));
+    sourced.length = 0;
+    sourced.push(...kept);
   }
 
   // The declarations travel with the snapshot (§4): the server renders

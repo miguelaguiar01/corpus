@@ -862,3 +862,60 @@ test("a refused id with a newline prints on one line (#648)", () => {
     }),
   ).toBe("po.json [Line one\\nline two]: m");
 });
+
+test("an id in two files of one source is one string when its text is the same; otherwise an error (#661)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-merged-"));
+  mkdirSync(path.join(dir, "app"));
+  mkdirSync(path.join(dir, "shared"));
+  writeFileSync(
+    path.join(dir, "app", "en.json"),
+    JSON.stringify({ save: "Save", title: "Element" }),
+  );
+  writeFileSync(
+    path.join(dir, "shared", "en.json"),
+    JSON.stringify({ save: "Save", close: "Close" }),
+  );
+  const merged = config({
+    languages: ["en"],
+    sources: [
+      {
+        adapter: "messages",
+        type: "ui",
+        path: ["app/{lang}.json", "shared/{lang}.json"],
+      },
+    ],
+  });
+  const snapshot = await buildSnapshot(merged, dir);
+  expect(snapshot.strings.map((s) => s.id).sort()).toEqual([
+    "close",
+    "save",
+    "title",
+  ]);
+  writeFileSync(
+    path.join(dir, "shared", "en.json"),
+    JSON.stringify({ save: "Save changes" }),
+  );
+  await expect(buildSnapshot(merged, dir)).rejects.toThrow(
+    /duplicate id save in app\/en\.json and shared\/en\.json, with different text/,
+  );
+  // Two sources are two catalogues: a shared id is still an error.
+  writeFileSync(
+    path.join(dir, "shared", "en.json"),
+    JSON.stringify({ save: "Save" }),
+  );
+  await expect(
+    buildSnapshot(
+      config({
+        languages: ["en"],
+        sources: [
+          { adapter: "messages", type: "ui", path: "app/{lang}.json" },
+          { adapter: "messages", type: "ui", path: "shared/{lang}.json" },
+        ],
+      }),
+      dir,
+    ),
+  ).rejects.toThrow(
+    /duplicate id save in app\/en\.json and shared\/en\.json$/m,
+  );
+  rmSync(dir, { recursive: true, force: true });
+});
