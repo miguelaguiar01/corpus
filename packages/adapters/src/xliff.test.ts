@@ -1,5 +1,11 @@
-import { expect, test } from "vitest";
-import { xliffToEntries, xliffTranslations, xliffUnits } from "./xliff";
+import { describe, expect, test } from "vitest";
+import {
+  applyXliffOps,
+  entriesToXliff,
+  xliffToEntries,
+  xliffTranslations,
+  xliffUnits,
+} from "./xliff";
 
 // Angular's `ng extract-i18n` output, as Ghostfolio keeps it.
 const SOURCE_12 = `<?xml version="1.0" encoding="UTF-8" ?>
@@ -145,4 +151,113 @@ test("comments, fuzzy matches, ignorables and native code are not the unit's tex
       '<xlf:xliff><xlf:file><xlf:body><xlf:trans-unit id="a"><xlf:source>x</xlf:source></xlf:trans-unit></xlf:body></xlf:file></xlf:xliff>',
     ),
   ).toThrow(/namespace prefix/);
+});
+
+describe("writing targets back (#711)", () => {
+  const link = (text: string) =>
+    `<x id="START_LINK" ctype="x-a" equiv-text="&lt;a&gt;"/>${text}<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/>`;
+  const SOURCE = `<?xml version="1.0" encoding="UTF-8" ?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file source-language="en" datatype="plaintext" original="ng2.template">
+    <body>
+      <trans-unit id="signIn" datatype="html">
+        <source>Sign in with ${link("Google")}</source>
+        <note priority="1" from="description">The sign-in button</note>
+      </trans-unit>
+      <trans-unit id="count" datatype="html">
+        <source>{VAR_PLURAL, plural, =1 {one item} other {<x id="INTERPOLATION" equiv-text="{{ n }}"/> items}}</source>
+      </trans-unit>
+      <trans-unit id="later" datatype="html">
+        <source>Later</source>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>
+`;
+  const TARGET = SOURCE.replace(
+    'source-language="en"',
+    'source-language="en" target-language="de"',
+  )
+    .replace(
+      `Sign in with ${link("Google")}</source>`,
+      `Sign in with ${link("Google")}</source>
+        <target state="translated">Mit ${link("Google")} anmelden</target>`,
+    )
+    .replace(
+      "<source>Later</source>",
+      `<source>Later</source>
+        <target state="new">Later</target>`,
+    );
+
+  test("what the file holds writes back byte for byte", () => {
+    const translations = Object.fromEntries(
+      xliffTranslations(TARGET).map((e) => [e.id, e.source]),
+    );
+    expect(entriesToXliff(SOURCE, translations, TARGET, "de")).toBe(TARGET);
+  });
+
+  test("a changed target keeps its inline elements; a new one fills in; a state that said work is translated", () => {
+    const out = entriesToXliff(
+      SOURCE,
+      {
+        signIn: "Über <LINK>Google</LINK> anmelden & weiter",
+        count:
+          "{VAR_PLURAL, plural, =1 {ein Element} other {{INTERPOLATION} Elemente}}",
+        later: "Später",
+      },
+      TARGET,
+      "de",
+    );
+    expect(out).toContain(
+      `<target state="translated">Über ${link("Google")} anmelden &amp; weiter</target>`,
+    );
+    expect(out).toContain(
+      `<source>{VAR_PLURAL, plural, =1 {one item} other {<x id="INTERPOLATION" equiv-text="{{ n }}"/> items}}</source>
+        <target state="translated">{VAR_PLURAL, plural, =1 {ein Element} other {<x id="INTERPOLATION" equiv-text="{{ n }}"/> Elemente}}</target>`,
+    );
+    expect(out).toContain(`<target state="translated">Später</target>`);
+    expect(xliffTranslations(out).map((e) => e.id)).toEqual([
+      "signIn",
+      "count",
+      "later",
+    ]);
+  });
+
+  test("a missing target file is the source file with its language, and a unit the file lacks is appended", () => {
+    const fresh = entriesToXliff(SOURCE, { later: "Später" }, undefined, "fr");
+    expect(fresh).toContain('<file target-language="fr" source-language="en"');
+    expect(xliffTranslations(fresh)).toEqual([
+      { id: "later", type: "", source: "Später" },
+    ]);
+    const short = TARGET.replace(
+      /\s*<trans-unit id="later"[\s\S]*?<\/trans-unit>/,
+      "",
+    );
+    const grown = entriesToXliff(SOURCE, { later: "Später" }, short, "de");
+    expect(xliffTranslations(grown).map((e) => e.id)).toEqual([
+      "signIn",
+      "later",
+    ]);
+  });
+
+  test("a proposal edits, adds and removes units in the source file", () => {
+    let out = applyXliffOps(SOURCE, [
+      { kind: "edit", id: "signIn", text: "Log in with <LINK>Google</LINK>" },
+    ]);
+    expect(out).toContain(`<source>Log in with ${link("Google")}</source>`);
+    out = applyXliffOps(out, [
+      { kind: "add", id: "fresh", text: "Fresh & new" },
+      { kind: "delete", id: "later" },
+    ]);
+    expect(
+      xliffToEntries(out, { type: "ui" }).map((e) => [e.id, e.source]),
+    ).toEqual([
+      ["signIn", "Log in with <LINK>Google</LINK>"],
+      [
+        "count",
+        "{VAR_PLURAL, plural, =1 {one item} other {{INTERPOLATION} items}}",
+      ],
+      ["fresh", "Fresh & new"],
+    ]);
+  });
 });

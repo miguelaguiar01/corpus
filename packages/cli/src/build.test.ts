@@ -1066,8 +1066,6 @@ ${units.join("\n")}
   });
   // Status in German is a loanword the file marks final: translated.
   expect(report.snapshot.seedTranslated).toEqual({ de: ["status"] });
-  expect(pushOnlyNotes(cfg)).toEqual([
-    "locale/messages.{lang}.xlf: pull does not write XLIFF yet; its translations are read and pushed",
-  ]);
+  expect(pushOnlyNotes(cfg)).toEqual([]);
   rmSync(dir, { recursive: true, force: true });
 });
