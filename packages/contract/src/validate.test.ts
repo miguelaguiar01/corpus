@@ -1049,4 +1049,22 @@ test("under easy_localization {} is positional, {name} named, and a link must be
   expect(validateTranslation("a {b c} <d>", "x {b c} <d>", "de", lib)).toEqual({
     ok: true,
   });
+  // A nested link is one link; the sentence's dot is not its key's.
+  expect(
+    validateTranslation(
+      "See @:chat.changeFormat.bullet.",
+      "Siehe @:chat.changeFormat.numbr.",
+      "de",
+      lib,
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [
+      { code: "missing-placeholder", name: "@:chat.changeFormat.bullet" },
+      { code: "unexpected-placeholder", name: "@:chat.changeFormat.numbr" },
+    ],
+  });
+  expect(
+    validateTranslation("Open @:appName.", "Öffne @:appName.", "de", lib),
+  ).toEqual({ ok: true });
 });

@@ -446,12 +446,26 @@ async function libraryFor(
     chromeShaped(path.join(cwd, concrete.replace("{lang}", sourceLanguage))),
   );
   if (chrome) return { library: { value: "chrome", detected: file } };
-  // Flutter's easy_localization (#664): `{}` is its positional
-  // placeholder and `@:key` its link, neither of which another library
-  // writes.
+  // Flutter's easy_localization (#664), counted like every shape: `{}`
+  // is its positional placeholder, and `@:key` its link, which vue-i18n
+  // writes too, so a link counts only where no vue sign is there.
+  const vueSigns = texts.some(
+    (text) => /\{'[^']*'\}/.test(text) || text.includes("|"),
+  );
+  const easy =
+    texts.filter((text) => text.includes("{}")).length +
+    (vueSigns
+      ? 0
+      : texts.filter((text) => /@(?:\.[a-z]+)?:[\w(]/.test(text)).length);
+  const argued = texts.filter(
+    (text) =>
+      SINGLE_BRACE_RE.test(text) ||
+      (ICU_ARGUMENT_RE.test(text) && !text.includes("{}")),
+  ).length;
   if (
-    !texts.some((text) => DOUBLE_BRACE_RE.test(text)) &&
-    texts.some((text) => /\{\}|@(?:\.[a-z]+)?:[\w(]/.test(text))
+    easy >= 2 &&
+    easy > argued &&
+    !texts.some((text) => DOUBLE_BRACE_RE.test(text))
   )
     return { library: { value: "easy_localization", detected: file } };
   // Shapes are counted, not spotted: {{ }} names i18next when it

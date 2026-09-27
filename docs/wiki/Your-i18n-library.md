@@ -159,9 +159,9 @@ Two things to know. **A moved verb needs its index.** Unindexed verbs are read i
 
 ## easy_localization: Flutter
 
-`library: "easy_localization"` is the Flutter package's syntax. `{}` is a positional placeholder, the first `{}` of a string the first argument, and `{name}` a named one; `@:key` links to another key's text, and `@.upper:key` (or `.lower`, `.capitalize`) links with a modifier. A translation keeps each placeholder and each link as written: a draft that drops `@:appName` is refused, and one that writes `@:appName-Konto`, which the package reads as a link to a key named `appName-Konto`, is told the link it lost and the one it made. Braces around anything else, `#` and angle brackets are text. Plurals are JSON objects, `{ "one": "{} file", "other": "{} files" }`, read as one plural whose `{}` is the count.
+`library: "easy_localization"` is the Flutter package's syntax. `{}` is a positional placeholder, the first `{}` of a string the first argument, so a translation keeps their order, and `{name}` a named one; `@:key` links to another key's text, and `@.upper:key` (or `.lower`, `.capitalize`) links with a modifier. A translation keeps each placeholder and each link as written: a draft that drops `@:appName` is refused, and one that writes `@:appName-Konto`, which the package reads as a link to a key named `appName-Konto`, is told the link it lost and the one it made. Braces around anything else, `#` and angle brackets are text. Plurals are JSON objects, `{ "one": "{} file", "other": "{} files" }`, read as one plural whose `{}` is the count.
 
-`corpus init` writes it when a string holds `{}` or a link, and a `{}` refused under another library says to declare it.
+`corpus init` writes it when strings with `{}` or links outnumber those with single-brace or ICU arguments (vue-i18n writes `@:key` links too, so a link counts only where nothing else says vue), and a `{}` refused under another library says to declare it.
 
 ## Chrome i18n: browser extensions
 

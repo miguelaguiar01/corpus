@@ -108,10 +108,12 @@ const PRINTF_VERB_RE =
 const COUNTERPART_PLACEHOLDER_RE = /^%\(([^()\s]+)\)[sd]/;
 
 // easy_localization (#664): `{}` positional or `{name}`, and a link to
-// another key, `@:key` or `@.upper:key`, whose key is word characters
-// and hyphens as the package's own pattern reads it, or parenthesised.
+// another key, `@:key` or `@.upper:key`, whose key is word characters,
+// hyphens, `|` and dots as the package's own pattern reads it, a nested
+// `@:chat.changeFormat.bullet` included, or parenthesised; a dot that
+// ends the sentence is not the key's.
 const EASY_PLACEHOLDER_RE = /^\{([\p{L}_][\p{L}\p{M}\p{N}_]*)?\}/u;
-const EASY_LINK_RE = /^@(?:\.[a-z]+)?:(?:[\w-]+|\([\w.-]+\))/;
+const EASY_LINK_RE = /^@(?:\.[a-z]+)?:(?:\([\w|.-]+\)|[\w|.-]*[\w|-])/;
 
 // Chrome i18n's `$NAME$` (#595): letters, digits and `_`, matched
 // case-insensitively against the `placeholders` map, so the name is

@@ -865,3 +865,34 @@ test("init names easy_localization where {} or @:key appear, as AppFlowy's catal
     library: "easy_localization",
   });
 });
+
+test("a vue catalogue's links and an ICU catalogue's stray {} do not make easy_localization (#664)", async () => {
+  const vue = project();
+  stubCli(vue.dir);
+  mkdirSync(path.join(vue.dir, "src", "i18n"), { recursive: true });
+  writeFileSync(
+    path.join(vue.dir, "src", "i18n", "pt-PT.json"),
+    JSON.stringify({
+      a: "Welcome to @:brand",
+      b: "Write {'@'} to mention",
+      c: "no apples | one apple | {count} apples",
+    }),
+  );
+  expect(await run(FLAGS, vue.ctx)).toBe(0);
+  expect((await loadConfig(vue.dir)).sources[0]).toMatchObject({
+    library: "vue",
+  });
+  const icu = project();
+  stubCli(icu.dir);
+  mkdirSync(path.join(icu.dir, "src", "i18n"), { recursive: true });
+  writeFileSync(
+    path.join(icu.dir, "src", "i18n", "pt-PT.json"),
+    JSON.stringify({
+      a: "{n, plural, one {# item} other {# items}}",
+      b: "Use {} as a wildcard",
+      c: "Hello {name}",
+    }),
+  );
+  expect(await run(FLAGS, icu.ctx)).toBe(0);
+  expect((await loadConfig(icu.dir)).sources[0]?.library).toBeUndefined();
+});
