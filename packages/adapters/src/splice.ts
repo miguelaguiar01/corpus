@@ -131,12 +131,15 @@ function removeProperty(text: string, path: string[]): string {
 // way, the rest of the path as nested objects in that object's style;
 // where a string sits on the way, a flat key at the root instead, set
 // rather than duplicated when it exists. A value already at the full
-// path is replaced; an object there is a collision.
+// path is replaced; an object there is a collision. `order` gives the
+// source file's keys in an object, so a new key lands beside its
+// neighbours there rather than last (#654).
 export function addLeaf(
   text: string,
   path: string[],
   value: string,
   unit: string,
+  order?: (objectPath: string[]) => string[] | undefined,
 ): string {
   checkPath(path);
   const tree = root(text);
@@ -146,7 +149,7 @@ export function addLeaf(
     const next = findNodeAtLocation(parent, [path[depth]!]);
     if (!next) break;
     if (next.type !== "object") {
-      return addLeaf(text, [path.join(".")], value, unit);
+      return addLeaf(text, [path.join(".")], value, unit, order);
     }
     parent = next;
   }
@@ -170,7 +173,15 @@ export function addLeaf(
     unit,
     eol,
   );
-  return insert(text, parent, path[depth]!, rendered, unit, eol);
+  return insert(
+    text,
+    parent,
+    path[depth]!,
+    rendered,
+    unit,
+    eol,
+    order?.(path.slice(0, depth)),
+  );
 }
 
 function insert(
@@ -180,6 +191,7 @@ function insert(
   rendered: string,
   unit: string,
   eol: string,
+  order?: string[],
 ): string {
   const entry = `${JSON.stringify(key)}: ${rendered}`;
   const properties = object.children ?? [];
@@ -193,10 +205,44 @@ function insert(
       : `${eol}${indentOf(text, object)}${unit}${entry}${eol}${indentOf(text, object)}`;
     return text.slice(0, open) + body + text.slice(close);
   }
-  const last = properties[properties.length - 1]!;
-  const at = last.offset + last.length;
-  const separator = isInline(text, object)
-    ? ", "
-    : `,${eol}${indentOf(text, last)}`;
-  return text.slice(0, at) + separator + entry + text.slice(at);
+  const inline = isInline(text, object);
+  const separatorBefore = (property: Node) =>
+    inline ? ", " : `,${eol}${indentOf(text, property)}`;
+  const neighbour = order && neighbourOf(properties, key, order);
+  if (neighbour?.before) {
+    const at = neighbour.before.offset;
+    return (
+      text.slice(0, at) +
+      entry +
+      separatorBefore(neighbour.before) +
+      text.slice(at)
+    );
+  }
+  const after = neighbour?.after ?? properties[properties.length - 1]!;
+  const at = after.offset + after.length;
+  return text.slice(0, at) + separatorBefore(after) + entry + text.slice(at);
+}
+
+// Where a key goes among an object's properties by the source's order:
+// after the nearest key before it there that the object has, else
+// before the nearest after it; undefined when the source has neither.
+function neighbourOf(
+  properties: Node[],
+  key: string,
+  order: string[],
+): { after?: Node; before?: Node } | undefined {
+  const index = order.indexOf(key);
+  if (index < 0) return undefined;
+  const byKey = new Map(
+    properties.map((property) => [property.children?.[0]?.value, property]),
+  );
+  for (let i = index - 1; i >= 0; i--) {
+    const property = byKey.get(order[i]);
+    if (property) return { after: property };
+  }
+  for (let i = index + 1; i < order.length; i++) {
+    const property = byKey.get(order[i]);
+    if (property) return { before: property };
+  }
+  return undefined;
 }

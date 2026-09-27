@@ -686,3 +686,93 @@ describe("a key segment with a dot in it (#642)", () => {
     });
   });
 });
+
+describe("a key new to a target file lands in the source file's order (#654)", () => {
+  const source = `{
+  "app": {
+    "title": "Title",
+    "save": "Save",
+    "cancel": "Cancel"
+  },
+  "script": {
+    "run": "Run",
+    "stop": "Stop"
+  },
+  "zeta": "Z"
+}
+`;
+
+  test("after its nearest preceding sibling the target has", () => {
+    const target = `{
+  "app": {
+    "title": "Titel",
+    "cancel": "Abbrechen"
+  },
+  "zeta": "Z"
+}
+`;
+    expect(entriesToMessages(source, { "app.save": "Speichern" }, target))
+      .toBe(`{
+  "app": {
+    "title": "Titel",
+    "save": "Speichern",
+    "cancel": "Abbrechen"
+  },
+  "zeta": "Z"
+}
+`);
+  });
+
+  test("before its nearest following sibling when none precedes", () => {
+    const target = `{
+  "app": {
+    "save": "Speichern"
+  }
+}
+`;
+    expect(entriesToMessages(source, { "app.title": "Titel" }, target)).toBe(`{
+  "app": {
+    "title": "Titel",
+    "save": "Speichern"
+  }
+}
+`);
+  });
+
+  test("a whole missing object at its source position, its keys in order", () => {
+    const target = `{
+  "app": {
+    "title": "Titel"
+  },
+  "zeta": "Z"
+}
+`;
+    expect(
+      entriesToMessages(
+        source,
+        { "script.stop": "Stopp", "script.run": "Ausführen" },
+        target,
+      ),
+    ).toBe(`{
+  "app": {
+    "title": "Titel"
+  },
+  "script": {
+    "run": "Ausführen",
+    "stop": "Stopp"
+  },
+  "zeta": "Z"
+}
+`);
+  });
+
+  test("on one line, too", () => {
+    expect(
+      entriesToMessages(
+        `{ "a": "A", "b": "B", "c": "C" }`,
+        { b: "b" },
+        `{ "a": "a", "c": "c" }`,
+      ),
+    ).toBe(`{ "a": "a", "b": "b", "c": "c" }`);
+  });
+});

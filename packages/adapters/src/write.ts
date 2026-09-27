@@ -119,7 +119,17 @@ export function entriesToMessages(
   const baseTree = parseTree(base);
   const style = styleOf(base);
   const nested = isNested(baseTree);
-  const sourcePaths = pathsOf(parseTree(template));
+  const sourceTree = parseTree(template);
+  const sourcePaths = pathsOf(sourceTree);
+  const order = (objectPath: string[]) => {
+    let node: Tree | string | undefined = sourceTree;
+    for (const key of objectPath)
+      node =
+        typeof node === "object" && Object.hasOwn(node, key)
+          ? node[key]
+          : undefined;
+    return typeof node === "object" ? Object.keys(node) : undefined;
+  };
   let text = base;
   const seen = new Set<string>();
   for (const [path, value] of leaves(baseTree)) {
@@ -139,6 +149,7 @@ export function entriesToMessages(
       sourcePaths.get(id) ?? (nested ? id.split(".") : [id]),
       translations[id]!,
       style.indent,
+      order,
     );
   }
   return text;
