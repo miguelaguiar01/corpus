@@ -81,7 +81,7 @@ function skipTo(xml: string, at: number, element: string): number {
 // decoded, an ICU plural inside a unit kept as ICU. `parts` records the
 // XML each token stands for, so a translation can be written back with
 // the unit's own elements (#711).
-export function inlineText(xml: string, parts?: Map<string, string>): string {
+export function inlineText(xml: string, parts?: Map<string, string[]>): string {
   let out = "";
   let at = 0;
   const open: string[] = [];
@@ -108,7 +108,11 @@ export function inlineText(xml: string, parts?: Map<string, string>): string {
       INLINE_RE.lastIndex = to;
     });
     if (token === undefined) continue;
-    parts?.set(token, xml.slice(m.index, at));
+    if (parts) {
+      const list = parts.get(token) ?? [];
+      list.push(xml.slice(m.index, at));
+      parts.set(token, list);
+    }
     out += token;
   }
   return out + decode(xml.slice(at));
@@ -321,15 +325,21 @@ function escape(text: string): string {
 const TOKEN_RE = /\{[A-Za-z][A-Za-z0-9_]*\}|<\/?[A-Za-z][A-Za-z0-9_-]*\/?>/g;
 
 // The editor's text as a unit's inline XML: each placeholder and tag the
-// unit's source knows as the element it came from, the rest escaped.
-export function inlineXml(text: string, parts: Map<string, string>): string {
+// unit knows as the element it came from, a token that repeats taking
+// its elements in order (2.0 numbers each `<ph>` apart), the rest
+// escaped.
+export function inlineXml(text: string, parts: Map<string, string[]>): string {
   let out = "";
   let at = 0;
+  const used = new Map<string, number>();
   TOKEN_RE.lastIndex = 0;
   for (let m = TOKEN_RE.exec(text); m; m = TOKEN_RE.exec(text)) {
-    const xml = parts.get(m[0]);
-    if (xml === undefined) continue;
-    out += escape(text.slice(at, m.index)) + xml;
+    const list = parts.get(m[0]);
+    if (!list || list.length === 0) continue;
+    const n = used.get(m[0]) ?? 0;
+    used.set(m[0], n + 1);
+    out +=
+      escape(text.slice(at, m.index)) + list[Math.min(n, list.length - 1)]!;
     at = TOKEN_RE.lastIndex;
   }
   return out + escape(text.slice(at));
@@ -339,22 +349,27 @@ type Span = { start: number; end: number };
 type UnitSpan = Span & {
   id: string;
   version: "1.2" | "2.0";
-  // The `<source>` element's content, and where it ends.
+  // The `<source>` element's content, and the end of the element.
   source: Span;
-  // The `<target>` element's content, absent when there is none.
+  sourceEnd: number;
+  // The `<target>` element's content, absent when there is none or it
+  // is `<target/>`, which `emptyTarget` names whole.
   target?: Span;
+  emptyTarget?: Span;
   // Where a state lives: 1.2's `<target>` open tag, 2.0's `<segment>`.
   stateTag?: Span;
 };
 
 function unitSpans(xml: string): UnitSpan[] {
+  // Found in the text with comments, fuzzy matches and ignorables blanked,
+  // so none of theirs is taken for the unit's own.
   const text = masked(xml)
     .replace(/<alt-trans\b[\s\S]*?<\/alt-trans>/g, (c) => " ".repeat(c.length))
     .replace(/<ignorable\b[\s\S]*?<\/ignorable>/g, (c) => " ".repeat(c.length));
   const out: UnitSpan[] = [];
   const find = (from: number, to: number, element: string) => {
     const re = new RegExp(
-      `<${element}\\b${ATTRS}(?:/>|>([\\s\\S]*?)</${element}>)`,
+      `<${element}\\b${ATTRS}(/>|>([\\s\\S]*?)</${element}>)`,
       "y",
     );
     const at = text.slice(from, to).search(new RegExp(`<${element}\\b`));
@@ -363,11 +378,11 @@ function unitSpans(xml: string): UnitSpan[] {
     const m = re.exec(text);
     if (!m || re.lastIndex > to) return undefined;
     const openEnd =
-      text.indexOf(
-        ">",
-        m.index + m[0].indexOf(m[1] ?? "") + (m[1] ?? "").length,
-      ) + 1;
-    const self = m[2] === undefined;
+      m.index +
+      `<${element}`.length +
+      (m[1] ?? "").length +
+      (m[2] === "/>" ? 2 : 1);
+    const self = m[2] === "/>";
     return {
       tag: { start: m.index, end: openEnd },
       content: self
@@ -399,14 +414,12 @@ function unitSpans(xml: string): UnitSpan[] {
         start: m.index,
         end: re.lastIndex,
         source: source.content,
-        ...(target && {
-          target: target.self ? undefined : target.content,
-        }),
+        sourceEnd: source.whole.end,
+        ...(target && !target.self && { target: target.content }),
+        ...(target?.self && { emptyTarget: target.whole }),
         ...(version === "1.2" && target && { stateTag: target.tag }),
         ...(segment && { stateTag: segment.tag }),
       });
-      // A self-closing `<target/>` is a target to fill: its whole element.
-      if (target?.self) out[out.length - 1]!.target = undefined;
     }
   }
   return out;
@@ -419,6 +432,10 @@ function applyPatches(xml: string, patches: Patch[]): string {
   for (const p of [...patches].sort((a, b) => b.start - a.start))
     out = out.slice(0, p.start) + p.text + out.slice(p.end);
   return out;
+}
+
+function eolOf(xml: string): string {
+  return xml.includes("\r\n") ? "\r\n" : "\n";
 }
 
 function lineIndent(xml: string, at: number): string {
@@ -439,9 +456,9 @@ function statePatch(xml: string, tag: Span | undefined): Patch | undefined {
 // The target file a missing one starts as: the source file, its
 // language named (1.2's `target-language`, 2.0's `trgLang`).
 function targetFrom(template: string, language: string): string {
-  const named = (tag: string, name: string, xml: string) =>
+  const named = (tag: string, name: string, xml: string, all: boolean) =>
     xml.replace(
-      new RegExp(`<${tag}\\b${ATTRS}>`),
+      new RegExp(`<${tag}\\b${ATTRS}>`, all ? "g" : ""),
       (open: string, attrs: string) =>
         new RegExp(`\\s${name}\\s*=`).test(attrs)
           ? open.replace(
@@ -454,24 +471,30 @@ function targetFrom(template: string, language: string): string {
             ),
     );
   return /<xliff\b[^>]*version\s*=\s*["']2/.test(template)
-    ? named("xliff", "trgLang", template)
-    : template.replace(
-        new RegExp(`<file\\b${ATTRS}>`, "g"),
-        (open, attrs: string) =>
-          /\starget-language\s*=/.test(attrs)
-            ? open.replace(
-                /(\starget-language\s*=\s*)(["']).*?\2/,
-                `$1$2${language}$2`,
-              )
-            : open.replace(/^<file/, `<file target-language="${language}"`),
-      );
+    ? named("xliff", "trgLang", template, false)
+    : named("file", "target-language", template, true);
+}
+
+// The elements a unit's placeholders and tags stand for: the target's
+// own first, as the file wrote them, then the source's for the rest.
+function partsOf(sources: string[]): Map<string, string[]> {
+  const parts = new Map<string, string[]>();
+  for (const xml of sources) {
+    const found = new Map<string, string[]>();
+    inlineText(xml, found);
+    for (const [token, list] of found)
+      if (!parts.has(token)) parts.set(token, list);
+  }
+  return parts;
 }
 
 // A pull into a target file (§8, #711): each translation into its unit's
-// `<target>`, written only where its text changed, with the unit's own
-// inline elements, the state turned to `translated` where it said work;
-// a unit with no `<target>` gets one after its `<source>`, and a unit
-// the file lacks is the source file's, appended. Every other byte stays.
+// `<target>`, written only where its text changed, a text the file holds
+// already left as it is, its state too; the unit's own inline elements
+// restored and a state that said work turned to `translated`; a unit with
+// no `<target>` gets one after its `<source>`, and a unit the file lacks
+// is the source file's, appended. Every other byte stays, line endings
+// as the file writes them.
 export function entriesToXliff(
   template: string,
   translations: Record<string, string>,
@@ -482,59 +505,39 @@ export function entriesToXliff(
     existing === undefined || existing.trim() === ""
       ? targetFrom(template, language)
       : existing;
-  const sources = new Map(
-    unitSpans(template).map((u) => [u.id, { unit: u, xml: template }]),
-  );
+  const eol = eolOf(base);
+  const sources = new Map(unitSpans(template).map((u) => [u.id, u]));
   const patches: Patch[] = [];
   const seen = new Set<string>();
-  const units = unitSpans(base);
-  for (const u of units) {
+  for (const u of unitSpans(base)) {
     seen.add(u.id);
     const text = translations[u.id];
     if (text === undefined) continue;
-    const parts = new Map<string, string>();
     const from = sources.get(u.id);
-    inlineText(
-      (from?.xml ?? base).slice(
-        (from?.unit ?? u).source.start,
-        (from?.unit ?? u).source.end,
-      ),
-      parts,
-    );
-    // The target's own elements stand too, where the source lacks them.
+    const sourceXml = from
+      ? template.slice(from.source.start, from.source.end)
+      : base.slice(u.source.start, u.source.end);
     if (u.target) {
-      const own = new Map<string, string>();
-      const current = inlineText(base.slice(u.target.start, u.target.end), own);
-      for (const [token, xml] of own)
-        if (!parts.has(token)) parts.set(token, xml);
-      if (current === text) continue;
+      const current = base.slice(u.target.start, u.target.end);
+      if (inlineText(current) === text) continue;
+      const parts = partsOf([current, sourceXml]);
       patches.push({ ...u.target, text: inlineXml(text, parts) });
       const state = statePatch(base, u.stateTag);
       if (state) patches.push(state);
       continue;
     }
-    const indent = lineIndent(base, u.source.start);
-    const closeSource =
-      base.indexOf("</source>", u.source.end) + "</source>".length;
-    const selfTarget = /<target\b[^>]*\/>/.exec(base.slice(u.start, u.end));
+    const parts = partsOf([sourceXml]);
     const element =
       u.version === "1.2"
         ? `<target state="translated">${inlineXml(text, parts)}</target>`
         : `<target>${inlineXml(text, parts)}</target>`;
-    if (selfTarget) {
-      const at = u.start + selfTarget.index;
+    if (u.emptyTarget) patches.push({ ...u.emptyTarget, text: element });
+    else
       patches.push({
-        start: at,
-        end: at + selfTarget[0].length,
-        text: element,
+        start: u.sourceEnd,
+        end: u.sourceEnd,
+        text: `${eol}${lineIndent(base, u.source.start)}${element}`,
       });
-    } else {
-      patches.push({
-        start: closeSource,
-        end: closeSource,
-        text: `\n${indent}${element}`,
-      });
-    }
     if (u.version === "2.0") {
       const state = statePatch(base, u.stateTag);
       if (state) patches.push(state);
@@ -551,17 +554,18 @@ export function entriesToXliff(
     if (at >= 0) {
       const indent = last ? lineIndent(out, last.start) : "";
       const blocks = missing.map((id) => {
-        const { unit: u, xml } = sources.get(id)!;
+        const u = sources.get(id)!;
+        const block = template.slice(u.start, u.end);
         return entriesToXliff(
-          xml.slice(u.start, u.end),
+          block,
           { [id]: translations[id]! },
-          xml.slice(u.start, u.end),
+          block,
           language,
         );
       });
       out =
         out.slice(0, at) +
-        blocks.map((b) => `\n${indent}${b}`).join("") +
+        blocks.map((b) => `${eol}${indent}${b}`).join("") +
         out.slice(at);
     }
   }
@@ -574,27 +578,30 @@ export type XliffOp =
 
 // A proposal into the source file (§11): an edit rewrites the unit's
 // `<source>` with its own elements, a removal drops the unit's lines, an
-// addition appends a unit after the last.
+// addition appends a unit after the last; an edit of a unit the file no
+// longer has is nothing to do.
 export function applyXliffOps(xml: string, ops: XliffOp[]): string {
   let out = xml;
+  const eol = eolOf(xml);
   for (const op of ops) {
     const units = unitSpans(out);
     const u = units.find((unit) => unit.id === op.id);
     if (op.kind === "delete") {
       if (!u) continue;
-      const start = out.lastIndexOf("\n", u.start - 1);
+      let start = out.lastIndexOf("\n", u.start - 1);
+      if (start > 0 && out[start - 1] === "\r") start -= 1;
       out = out.slice(0, start < 0 ? u.start : start) + out.slice(u.end);
       continue;
     }
     if (u) {
-      const parts = new Map<string, string>();
-      inlineText(out.slice(u.source.start, u.source.end), parts);
+      const parts = partsOf([out.slice(u.source.start, u.source.end)]);
       out =
         out.slice(0, u.source.start) +
         inlineXml(op.text, parts) +
         out.slice(u.source.end);
       continue;
     }
+    if (op.kind === "edit") continue;
     const last = units.at(-1);
     const version =
       last?.version ?? (/version\s*=\s*["']2/.test(out) ? "2.0" : "1.2");
@@ -602,12 +609,12 @@ export function applyXliffOps(xml: string, ops: XliffOp[]): string {
     const inner = `${indent}  `;
     const block =
       version === "1.2"
-        ? `<trans-unit id="${escape(op.id)}" datatype="html">\n${inner}<source>${escape(op.text)}</source>\n${indent}</trans-unit>`
-        : `<unit id="${escape(op.id)}">\n${inner}<segment>\n${inner}  <source>${escape(op.text)}</source>\n${inner}</segment>\n${indent}</unit>`;
+        ? `<trans-unit id="${escape(op.id)}" datatype="html">${eol}${inner}<source>${escape(op.text)}</source>${eol}${indent}</trans-unit>`
+        : `<unit id="${escape(op.id)}">${eol}${inner}<segment>${eol}${inner}  <source>${escape(op.text)}</source>${eol}${inner}</segment>${eol}${indent}</unit>`;
     const at = last ? last.end : out.search(/<\/(?:body|file)>/);
     if (at < 0)
       throw new Error("xliff: no unit, body or file to add a unit to");
-    out = out.slice(0, at) + `\n${indent}${block}` + out.slice(at);
+    out = out.slice(0, at) + `${eol}${indent}${block}` + out.slice(at);
   }
   return out;
 }

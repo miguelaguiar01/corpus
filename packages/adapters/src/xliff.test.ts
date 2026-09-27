@@ -261,3 +261,78 @@ describe("writing targets back (#711)", () => {
     ]);
   });
 });
+
+describe("writing, the review's cases (#711)", () => {
+  test("a <source/> unit takes its own target, not the next unit's", () => {
+    const xml = `<xliff version="1.2"><file><body>
+      <trans-unit id="e"><source/></trans-unit>
+      <trans-unit id="k"><source>K</source></trans-unit>
+    </body></file></xliff>`;
+    const out = entriesToXliff(xml, { e: "E" }, xml, "de");
+    expect(xliffUnits(out)).toEqual([
+      { id: "e", source: "", target: "E", translated: true },
+      { id: "k", source: "K", translated: false },
+    ]);
+  });
+
+  test("a <target/> in <alt-trans> or a comment is not the unit's", () => {
+    const xml = `<xliff version="1.2"><file><body>
+      <trans-unit id="a"><source>A</source>
+        <!-- <target/> -->
+        <alt-trans><target/></alt-trans>
+      </trans-unit>
+    </body></file></xliff>`;
+    const out = entriesToXliff(xml, { a: "Ä" }, xml, "de");
+    expect(out).toContain(
+      `<source>A</source>\n      <target state="translated">Ä</target>`,
+    );
+    expect(out).toContain("<alt-trans><target/></alt-trans>");
+  });
+
+  test("a CRLF file stays CRLF", () => {
+    const xml = [
+      `<xliff version="1.2"><file><body>`,
+      `      <trans-unit id="a"><source>A</source></trans-unit>`,
+      `      <trans-unit id="b"><source>B</source></trans-unit>`,
+      `</body></file></xliff>`,
+      "",
+    ].join("\r\n");
+    const out = entriesToXliff(xml, { a: "Ä" }, xml, "de");
+    expect(out.replace(/\r\n/g, "")).not.toContain("\n");
+    const removed = applyXliffOps(xml, [{ kind: "delete", id: "b" }]);
+    expect(removed).not.toContain("\r\r");
+    expect(removed.replace(/\r\n/g, "")).not.toContain("\n");
+  });
+
+  test("2.0: a repeated placeholder keeps each element's id; trgLang, segment state and a new unit", () => {
+    const source = `<?xml version="1.0" encoding="UTF-8" ?>
+<xliff version="2.0" xmlns="urn:oasis:names:tc:xliff:document:2.0" srcLang="en">
+  <file id="ngi18n" original="ng.template">
+    <unit id="pair">
+      <segment state="initial">
+        <source><ph id="0" equiv="INTERPOLATION" disp="{{ a }}"/> and <ph id="1" equiv="INTERPOLATION" disp="{{ b }}"/></source>
+      </segment>
+    </unit>
+  </file>
+</xliff>
+`;
+    const out = entriesToXliff(
+      source,
+      { pair: "{INTERPOLATION} und {INTERPOLATION}" },
+      undefined,
+      "de",
+    );
+    expect(out).toContain('trgLang="de"');
+    expect(out).toContain('<segment state="translated">');
+    expect(out).toContain(
+      `<target><ph id="0" equiv="INTERPOLATION" disp="{{ a }}"/> und <ph id="1" equiv="INTERPOLATION" disp="{{ b }}"/></target>`,
+    );
+    const added = applyXliffOps(source, [
+      { kind: "add", id: "fresh", text: "Fresh" },
+    ]);
+    expect(xliffToEntries(added, { type: "ui" }).map((e) => e.id)).toEqual([
+      "pair",
+      "fresh",
+    ]);
+  });
+});
