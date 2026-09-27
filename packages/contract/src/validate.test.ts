@@ -947,3 +947,45 @@ test("under i18next a text that is one plural, as a plural object reads, has its
     validateTranslation("Hi {{name}} {x}", "Olá {{name}} {x}", "pt", "i18next"),
   ).toEqual({ ok: true });
 });
+
+test("under counterpart %(name)s is a placeholder and a bare <tag> a substitution (#663)", () => {
+  const lib = "counterpart" as const;
+  // Element's export_chat: a draft that drops %(count)s is refused.
+  expect(
+    validateTranslation(
+      "Fetched %(count)s events out of %(total)s",
+      "Pobrano zdarzenia z %(total)s",
+      "pl",
+      lib,
+    ),
+  ).toEqual({
+    ok: false,
+    errors: [
+      { code: "missing-placeholder", name: "count", written: "%(count)s" },
+    ],
+  });
+  // A bare <pill> needs no close; a pair is a pair; braces are text.
+  expect(
+    validateTranslation(
+      "Invite <pill> to {room} as <b>admin</b>, %(count)d times",
+      "Zaproś <pill> do {pokój} jako <b>admin</b>, %(count)d razy",
+      "pl",
+      lib,
+    ),
+  ).toEqual({ ok: true });
+  expect(
+    validateTranslation("Invite <pill>", "Zaproś", "pl", lib),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-tag", name: "pill" }],
+  });
+  // A plural object read as one string, its forms counterpart's.
+  expect(
+    validateTranslation(
+      "{count, plural, one {%(count)s room} other {%(count)s rooms}}",
+      "{count, plural, one {%(count)s pokój} few {%(count)s pokoje} many {%(count)s pokoi} other {%(count)s pokoju}}",
+      "pl",
+      lib,
+    ),
+  ).toEqual({ ok: true });
+});

@@ -6,7 +6,7 @@ A source declares the library its catalogue was written for:
 
 One value decides how placeholders are spelled, how plurals are written, and what is escaped. `icu` is the default and what an absent field means.
 
-`corpus init` looks at your source file and writes the library it finds, saying so as it does: `i18next` when more values use `{{name}}` than use a single-brace `{name}` or a printf verb, and none holds an ICU plural or select, `vue` when they use a top-level pipe or a `{'…'}` literal and neither of those, `chrome` when every value is a Chrome i18n entry with a `message`. It writes nothing for a plain ICU catalogue, since that is the default.
+`corpus init` looks at your source file and writes the library it finds, saying so as it does: `i18next` when more values use `{{name}}` than use a single-brace `{name}` or a printf verb, and none holds an ICU plural or select, `vue` when they use a top-level pipe or a `{'…'}` literal and neither of those, `chrome` when every value is a Chrome i18n entry with a `message`, `counterpart` when `%(name)s` placeholders outnumber every other shape. It writes nothing for a plain ICU catalogue, since that is the default.
 
 (`syntax` is the old name for this field. A config that still uses it works, and `build`, `push` and `validate` each say once that the field has been renamed. It goes at 1.0.)
 
@@ -146,6 +146,16 @@ Two things to know. **A moved verb needs its index.** Unindexed verbs are read i
 **C's length modifiers and iOS's `%@`.** `%ld`, `%lu`, `%zu`, `%lld` and `%hhd` are one verb each, modifier and letter together, so `%lu` where the source has `%ld` is a changed verb and the chip inserts `%ld` whole; `%@`, the object verb of an iOS `.strings` file through an exec source, is checked like any other. A letter right after Go's `%t` or `%q` reads as a modifier and a verb (`%td`), so keep the space Go's own strings keep. Two things stay as they are: Java's `%,d` grouping flag is not read, so that verb is text, and Go's `%[2]*d`, a width taken from an argument, reads as one verb at position 2.
 
 `init` names the library when most placeholder-bearing strings carry verbs.
+
+## counterpart: Element and matrix-web-i18n
+
+`library: "counterpart"` is the substitution Element Web's `_t()` uses. `%(name)s`, or `%(name)d`, is a placeholder named `name`, which a translation must keep; a tag is a substitution the code fills, `<b>…</b>` a pair and a bare `<pill>` with no close one on its own, and a translation keeps both; braces are text. Plurals are JSON objects, `{ "one": "%(count)s room", "other": "%(count)s rooms" }`, which read as one plural (see [Sources and adapters](Sources-and-adapters#messages)), so a Polish translation gains `few` and `many`.
+
+```json
+{ "invite": "Invite <pill> to %(roomName)s" }
+```
+
+`corpus init` writes it when `%(name)s` placeholders outnumber every other shape. Element's own substitution leaves a tag the code does not pass as text, `<empty string>`, which Corpus cannot know, so it asks a translation to keep such a tag as written too.
 
 ## Chrome i18n: browser extensions
 
