@@ -10,7 +10,87 @@ export type MessagesOptions = {
   arb?: boolean;
   chrome?: boolean;
   keyIsText?: boolean;
+  // An object of plural categories is one plural string (#662), under a
+  // library whose text can hold one: not vue, whose plurals are pipes.
+  plurals?: boolean;
 };
+
+export const PLURAL_OBJECT_CATEGORIES = [
+  "zero",
+  "one",
+  "two",
+  "few",
+  "many",
+  "other",
+] as const;
+
+// `{ one, other }`, as counterpart, easy_localization and Rails write a
+// plural: every key a category and `other` among them, every value a
+// string, matrix-web-i18n's own test (#662).
+export function isPluralObject(node: unknown): node is Record<string, string> {
+  if (node === null || typeof node !== "object" || Array.isArray(node))
+    return false;
+  const entries = Object.entries(node);
+  if (
+    !Object.hasOwn(node, "other") ||
+    !entries.every(
+      ([key, value]) =>
+        (PLURAL_OBJECT_CATEGORIES as readonly string[]).includes(key) &&
+        typeof value === "string",
+    )
+  )
+    return false;
+  // Only forms that come back as they went: a form with a stray brace
+  // could not be split out of the plural again, so its keys stay keys.
+  const back = pluralBranches(pluralObjectText(node as Record<string, string>));
+  return (
+    back !== undefined &&
+    entries.every(([key, value]) => back[key] === value) &&
+    Object.keys(back).length === entries.length
+  );
+}
+
+// A plural string's forms by category, as a plural object writes them:
+// the branches of `{count, plural, …}` with their text as written,
+// braces balanced; undefined for any other text.
+export function pluralBranches(
+  text: string,
+): Record<string, string> | undefined {
+  const head = /^\s*\{\s*count\s*,\s*plural\s*,/.exec(text);
+  if (!head) return undefined;
+  const forms: Record<string, string> = {};
+  let at = head[0].length;
+  for (;;) {
+    while (/\s/.test(text[at] ?? "")) at++;
+    if (text[at] === "}") {
+      return text.slice(at + 1).trim() === "" && Object.hasOwn(forms, "other")
+        ? forms
+        : undefined;
+    }
+    const open = text.indexOf("{", at);
+    if (open < 0) return undefined;
+    const key = text.slice(at, open).trim();
+    if (!/^(?:zero|one|two|few|many|other)$/.test(key)) return undefined;
+    let depth = 0;
+    let end = open;
+    for (; end < text.length; end++) {
+      if (text[end] === "{") depth++;
+      else if (text[end] === "}" && --depth === 0) break;
+    }
+    if (end >= text.length) return undefined;
+    forms[key] = text.slice(open + 1, end);
+    at = end + 1;
+  }
+}
+
+// The plural string a plural object reads as: an ICU plural on `count`,
+// each branch the form as written.
+export function pluralObjectText(forms: Record<string, string>): string {
+  const branches = Object.entries(forms).map(
+    ([key, text]) => `${key} {${text}}`,
+  );
+  return `{count, plural, ${branches.join(" ")}}`;
+}
 
 // A key that is a sentence rather than a path: whitespace, or anything
 // outside a dotted identifier. One such key with an empty value means
@@ -73,7 +153,7 @@ export function messagesToEntries(
     const strings = Object.fromEntries(
       Object.entries(record).filter(([key]) => !key.startsWith("@")),
     );
-    walk(strings, [], options.type, entries);
+    walk(strings, [], options, entries);
     // @key.description is the string's note (#567).
     return takeKeys(entries, options).map((entry) => {
       const meta = record[`@${entry.id}`];
@@ -86,7 +166,7 @@ export function messagesToEntries(
       return { ...entry, note: description };
     });
   }
-  walk(data, [], options.type, entries);
+  walk(data, [], options, entries);
   return takeKeys(entries, options);
 }
 
@@ -166,10 +246,13 @@ function renderChrome(message: string, values: Record<string, string>): string {
 function walk(
   node: unknown,
   path: string[],
-  type: string,
+  options: MessagesOptions,
   out: StringEntry[],
   paths = new Map<string, string[]>(),
 ): void {
+  const type = options.type;
+  if (options.plurals && path.length > 0 && isPluralObject(node))
+    node = pluralObjectText(node);
   if (typeof node === "string") {
     const id = path.join(".");
     const first = paths.get(id);
@@ -189,7 +272,7 @@ function walk(
     );
   }
   for (const [key, child] of Object.entries(node)) {
-    walk(child, [...path, key], type, out, paths);
+    walk(child, [...path, key], options, out, paths);
   }
 }
 

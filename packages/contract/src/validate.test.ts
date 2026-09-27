@@ -901,3 +901,49 @@ test("a placeholder named in any script is a placeholder, so a translated name i
     ],
   });
 });
+
+test("under i18next a text that is one plural, as a plural object reads, has its placeholders checked per form (#662)", () => {
+  const source =
+    "{count, plural, one {{{count}} room} other {{{count}} rooms}}";
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, one {{{count}} pokój} few {{{count}} pokoje} many {{{count}} pokoi} other {{{count}} pokoju}}",
+      "pl",
+      "i18next",
+    ),
+  ).toEqual({ ok: true });
+  // A form that leaves out the number is fine: the plural is the count.
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, one {Ein Raum} other {{{count}} Räume}}",
+      "de",
+      "i18next",
+    ),
+  ).toEqual({ ok: true });
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, one {{{count}} Raum} other {{{n}} Räume}}",
+      "de",
+      "i18next",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "unexpected-placeholder", name: "n" }],
+  });
+  // # is text under i18next, as the forms were written.
+  expect(
+    validateTranslation(
+      "{count, plural, one {#1 pick} other {#{{count}} picks}}",
+      "{count, plural, one {#1 Wahl} other {#{{count}} Wahlen}}",
+      "de",
+      "i18next",
+    ),
+  ).toEqual({ ok: true });
+  // Plain i18next text with braces is as before.
+  expect(
+    validateTranslation("Hi {{name}} {x}", "Olá {{name}} {x}", "pt", "i18next"),
+  ).toEqual({ ok: true });
+});

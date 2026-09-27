@@ -796,3 +796,127 @@ describe("a key new to a target file lands in the source file's order (#654)", (
     ).toBe(`{ "a": "a", "b": "b", "c": "c" }`);
   });
 });
+
+describe("a plural object reads as one plural and writes back as the object (#662)", () => {
+  const source = `{
+  "rooms": {
+    "one": "%(count)s room",
+    "other": "%(count)s rooms"
+  },
+  "title": "Rooms"
+}
+`;
+
+  test("a target's forms are written in CLDR's order, a form it gains added in place", () => {
+    const target = `{
+  "rooms": {
+    "one": "%(count)s pokój",
+    "other": "%(count)s pokoi"
+  },
+  "title": "Pokoje"
+}
+`;
+    const pl =
+      "{count, plural, one {%(count)s pokój} few {%(count)s pokoje} many {%(count)s pokoi} other {%(count)s pokoju}}";
+    expect(entriesToMessages(source, { rooms: pl }, target, { plurals: true }))
+      .toBe(`{
+  "rooms": {
+    "one": "%(count)s pokój",
+    "few": "%(count)s pokoje",
+    "many": "%(count)s pokoi",
+    "other": "%(count)s pokoju"
+  },
+  "title": "Pokoje"
+}
+`);
+  });
+
+  test("what the file holds writes back byte for byte", () => {
+    const target = `{
+  "rooms": { "one": "a", "other": "b" },
+  "title": "T"
+}
+`;
+    const read = messagesToEntries(JSON.parse(target), {
+      type: "ui",
+      plurals: true,
+    });
+    const translations = Object.fromEntries(read.map((e) => [e.id, e.source]));
+    expect(
+      entriesToMessages(source, translations, target, { plurals: true }),
+    ).toBe(target);
+  });
+
+  test("a new file writes the plural as an object; a plain text is the other form", () => {
+    expect(
+      JSON.parse(
+        entriesToMessages(
+          source,
+          { rooms: "{count, plural, one {x} other {y}}", title: "T" },
+          "",
+          { plurals: true },
+        ),
+      ),
+    ).toEqual({ rooms: { one: "x", other: "y" }, title: "T" });
+    expect(
+      JSON.parse(
+        entriesToMessages(source, { rooms: "{count} 个房间" }, "{}\n", {
+          plurals: true,
+        }),
+      ),
+    ).toEqual({ rooms: { other: "{count} 个房间" } });
+  });
+});
+
+describe("a plural the object cannot hold is refused, not flattened into other (#662)", () => {
+  const source = `{\n  "rooms": { "one": "{{count}} room", "other": "{{count}} rooms" }\n}\n`;
+  test("an =0 branch, or a brace a form leaves open", () => {
+    const refused: string[] = [];
+    const target = `{\n  "rooms": { "one": "a", "other": "b" }\n}\n`;
+    for (const text of [
+      "{count, plural, =0 {none} one {one} other {many}}",
+      "{count, plural, one {a { b} other {c}}",
+    ]) {
+      expect(
+        entriesToMessages(source, { rooms: text }, target, {
+          plurals: true,
+          onRefused: (id) => refused.push(id),
+        }),
+      ).toBe(target);
+    }
+    expect(refused).toEqual(["rooms", "rooms"]);
+  });
+
+  test("an object whose form would not come back through the plural keeps its keys", () => {
+    expect(
+      messagesToEntries(
+        { k: { one: "a } b", other: "c" } },
+        { type: "ui", plurals: true },
+      ).map((e) => e.id),
+    ).toEqual(["k.one", "k.other"]);
+  });
+});
+
+test("a proposal a plural object cannot hold fails, naming the key (#662)", () => {
+  const source = `{\n  "k": { "one": "a", "other": "b" }\n}\n`;
+  expect(() =>
+    applyMessagesOps(
+      source,
+      [
+        {
+          kind: "edit",
+          id: "k",
+          text: "{count, plural, =0 {none} one {a} other {b}}",
+        },
+      ],
+      { plurals: true },
+    ),
+  ).toThrow(/k is a plural its object cannot hold/);
+  expect(
+    applyMessagesOps(
+      source,
+      [{ kind: "edit", id: "k", text: "{count, plural, one {x} other {y}}" }],
+      { plurals: true },
+    ),
+  ).toBe(`{\n  "k": { "one": "x", "other": "y" }\n}\n`);
+});

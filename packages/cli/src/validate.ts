@@ -75,7 +75,7 @@ export async function validate(
     for (const f of invalid) ctx.err(line(f));
     for (const { first, targets } of byKey.values()) {
       ctx.err(
-        `${first.sourceFile}:${printable(first.key)}: ${first.message}; ${targets} target file(s) carry it`,
+        `${orphanLine(first)}${targets > 1 ? `; ${targets - 1} more ${first.file.startsWith("exec:") ? "language(s)" : "target file(s)"} carry it` : ""}`,
       );
     }
     for (const f of incomplete) ctx.err(line(f));
@@ -107,6 +107,13 @@ export async function validate(
     );
   }
   return 0;
+}
+
+// An orphan is named where it is, the target file that keeps it (#662),
+// with the source that no longer has it.
+function orphanLine(f: Finding): string {
+  if (f.file.startsWith("exec:")) return line(f);
+  return `${f.file}:${printable(f.key)}: ${f.message} (${f.sourceFile})`;
 }
 
 // One line per orphan key of a source: two sources' target files may

@@ -356,6 +356,34 @@ test("a plural chip inserts the target language's categories with # in each bran
   expect(exact.value).toBe("{n, plural, =0 {#} =1 {#} one {#} other {#}}");
 });
 
+test("under i18next a plural chip fills each branch with the count's placeholder, under printf with nothing (#662, #689)", () => {
+  for (const [syntax, fill] of [
+    ["i18next", "{{count}}"],
+    ["printf", ""],
+  ] as const) {
+    render(
+      <TargetPane
+        action={vi.fn()}
+        source={`{count, plural, one {${syntax === "i18next" ? "{{count}}" : "%d"} room} other {${syntax === "i18next" ? "{{count}}" : "%d"} rooms}}`}
+        syntax={syntax}
+        slots={[]}
+        language="en"
+        initialText=""
+        slug="mm"
+        stringKey="k"
+        openedVersion={1}
+        examples={[]}
+        sourceLanguage="pt-PT"
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /\{count, plural\}/ }));
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe(
+      `{count, plural, one {${fill}} other {${fill}}}`,
+    );
+    cleanup();
+  }
+});
+
 test("a plural draft previews each example through its count's branch, and a missing category is named without blocking the save (#556)", () => {
   pluralPane("en", "{n, plural, one {# mark left.} other {# marks left.}}");
   expect(previewText()).toContain("1 mark left.");

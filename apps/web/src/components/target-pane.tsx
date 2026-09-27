@@ -71,9 +71,18 @@ function branchingOf(
   return [...byArg.values()];
 }
 
-// A plural's branches open with # so the count is there to keep.
-function skeleton({ kind, arg, keys }: Branching) {
-  const fill = kind === "plural" ? "#" : "";
+// A plural's branches open with the count so it is there to keep: `#`
+// where ICU reads it, the placeholder under i18next, and nothing under
+// printf and android, whose verb the source names (#662, #689).
+function skeleton({ kind, arg, keys }: Branching, syntax: Library) {
+  const fill =
+    kind !== "plural"
+      ? ""
+      : syntax === "i18next"
+        ? `{{${arg}}}`
+        : syntax === "printf" || syntax === "android"
+          ? ""
+          : "#";
   const head = `{${arg}, ${kind}, ${keys[0]} {${fill}`;
   const rest = keys
     .slice(1)
@@ -214,7 +223,7 @@ export function TargetPane({
           aria-label={t("editor.selects")}
         >
           {selects.map((select) => {
-            const token = skeleton(select);
+            const token = skeleton(select, syntax);
             return (
               <button
                 key={select.arg}
