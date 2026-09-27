@@ -259,21 +259,24 @@ describe("printf", () => {
         name: "1",
         expected: "%d",
         actual: "%s",
-        indexed: "%[n]s",
+        indexed: "%n$s or %[n]s",
+        moved: true,
       },
       {
         code: "changed-verb",
         name: "2",
         expected: "%s",
         actual: "%d",
-        indexed: "%[n]d",
+        indexed: "%n$d or %[n]d",
+        moved: true,
       },
       {
         code: "changed-verb",
         name: "3",
         expected: "%f",
         actual: "%x",
-        indexed: "%[n]x",
+        indexed: "%n$x or %[n]x",
+        moved: true,
       },
     ]);
     expect(
@@ -291,14 +294,16 @@ describe("printf", () => {
         name: "2",
         expected: "%d",
         actual: "%s",
-        indexed: "%[n]s",
+        indexed: "%n$s or %[n]s",
+        moved: true,
       },
       {
         code: "changed-verb",
         name: "3",
         expected: "%s",
         actual: "%d",
-        indexed: "%[n]d",
+        indexed: "%n$d or %[n]d",
+        moved: true,
       },
     ]);
     expect(
@@ -317,6 +322,7 @@ describe("printf", () => {
         expected: "%[1]s",
         actual: "%v",
         indexed: "%[n]v",
+        moved: true,
       },
     ]);
     expect(
@@ -330,6 +336,7 @@ describe("printf", () => {
         expected: "%1$s",
         actual: "%d",
         indexed: "%n$d",
+        moved: true,
       },
       {
         code: "changed-verb",
@@ -337,6 +344,7 @@ describe("printf", () => {
         expected: "%2$d",
         actual: "%s",
         indexed: "%n$s",
+        moved: true,
       },
     ]);
     // A length modifier is part of the verb: %ld against %lu is a
@@ -350,7 +358,8 @@ describe("printf", () => {
         name: "1",
         expected: "%ld",
         actual: "%lu",
-        indexed: "%[n]lu",
+        indexed: "%n$lu or %[n]lu",
+        moved: true,
       },
     ]);
     expect(errorsOf("%ld items", "%d items", "pt-PT", "printf")).toEqual([
@@ -359,7 +368,23 @@ describe("printf", () => {
         name: "1",
         expected: "%ld",
         actual: "%d",
-        indexed: "%[n]d",
+        indexed: "%n$d or %[n]d",
+        moved: false,
+      },
+    ]);
+    // A verb whose type changed where it stands moved nowhere: no index
+    // form helps (#645). A source written with neither index form gets
+    // both, since the catalogue's language decides which one works.
+    expect(
+      errorsOf("Could not verify: %s", "Nie vdalosia: %i", "uk", "printf"),
+    ).toEqual([
+      {
+        code: "changed-verb",
+        name: "1",
+        expected: "%s",
+        actual: "%i",
+        indexed: "%n$i or %[n]i",
+        moved: false,
       },
     ]);
     // iOS: %@ is checked like any verb, and dropped it is named as written.
