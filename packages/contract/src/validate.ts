@@ -220,7 +220,7 @@ export function validateTranslation(
   // A translation of a printf plural that opens as one but is not one
   // is a broken plural, not text (#652).
   const brokenPlural =
-    (syntax === "printf" || syntax === "i18next") &&
+    (syntax === "printf" || syntax === "i18next" || syntax === "counterpart") &&
     parsedSource.nodes.some((node) => node.kind === "plural")
       ? printfPluralError(target, html, syntax)
       : undefined;
@@ -264,6 +264,18 @@ export function validateTranslation(
         name,
         ...writtenAs(actual, name),
       });
+  }
+  // counterpart substitutes `%(name)s` only as written: `%(n)d` for the
+  // source's `%(n)s` is text in the app (#663).
+  if (syntax === "counterpart") {
+    for (const [name, written] of expected.written) {
+      const got = actual.written.get(name);
+      if (got !== undefined && got !== written)
+        errors.push(
+          { code: "missing-placeholder", name, written },
+          { code: "unexpected-placeholder", name, written: got },
+        );
+    }
   }
   if (syntax === "printf" || syntax === "android") {
     // The index form follows the source: `%n$` where it writes one (C,

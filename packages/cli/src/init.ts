@@ -23,7 +23,7 @@ import {
 import { ignoreCorpusDir } from "./corpus-dir";
 
 export const INIT_USAGE =
-  "corpus init --project <slug> --source <lang> --messages <path with {lang}> [--languages <a,b>] [--server <url>] [--type <name>] [--library <icu|i18next|vue|printf|chrome>]";
+  "corpus init --project <slug> --source <lang> --messages <path with {lang}> [--languages <a,b>] [--server <url>] [--type <name>] [--library <icu|i18next|vue|printf|chrome|counterpart>]";
 
 // `corpus init` writes the config from flags alone, so it scripts;
 // it validates the config before writing and never overwrites one.
@@ -167,7 +167,9 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
           ? "printf verbs"
           : library.value === "chrome"
             ? "the Chrome i18n shape"
-            : "a pipe or a quoted literal";
+            : library.value === "counterpart"
+              ? "%(name)s placeholders"
+              : "a pipe or a quoted literal";
     ctx.out(
       `library: ${library.value}${library.detected ? `, from ${why} in ${library.detected}` : ""}`,
     );
@@ -356,6 +358,7 @@ const ICU_ARGUMENT_RE = /\{\s*[^{},]+\s*,\s*(?:select|plural)\s*,/;
 // The placeholder shapes a catalogue's strings are counted by (#591):
 // i18next's {{ name }}, a single-brace {name}, and a printf verb.
 const DOUBLE_BRACE_RE = /\{\{\s*[^{}]+\}\}/;
+const COUNTERPART_RE = /%\([^()\s]+\)[sd]/;
 const SINGLE_BRACE_RE = /(?<!\{)\{\s*[\p{L}_][\p{L}\p{M}\p{N}_.-]*\s*\}(?!\})/u;
 // C's length modifiers and Objective-C's %@ count as verbs too (#614).
 const PRINTF_RE =
@@ -461,6 +464,11 @@ async function libraryFor(
       ),
     };
   }
+  // Element's matrix-web-i18n (#663): `%(name)s` names counterpart when
+  // it outnumbers every other shape.
+  const counterpart = texts.filter((text) => COUNTERPART_RE.test(text)).length;
+  if (counterpart > doubles + singles && counterpart > printf)
+    return { library: { value: "counterpart", detected: file } };
   if (printf > doubles + singles)
     return { library: { value: "printf", detected: file } };
   if (

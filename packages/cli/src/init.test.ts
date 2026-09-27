@@ -829,3 +829,25 @@ test("a real language without plural data draws no warning; a pseudo-locale and 
   expect(err).toMatch(/qq is not a language tag the runtime knows/);
   expect(err).toMatch(/cr is not a language tag the runtime knows/);
 });
+
+test("init names counterpart where %(name)s placeholders dominate, as Element's catalogue does (#663)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "src", "i18n"), { recursive: true });
+  writeFileSync(
+    path.join(p.dir, "src", "i18n", "pt-PT.json"),
+    JSON.stringify({
+      a: "%(user)s joined",
+      b: "Invite <pill> to %(room)s",
+      c: { one: "%(count)s room", other: "%(count)s rooms" },
+      d: "Plain",
+    }),
+  );
+  expect(await run(FLAGS, p.ctx)).toBe(0);
+  expect((await loadConfig(p.dir)).sources[0]).toMatchObject({
+    library: "counterpart",
+  });
+  expect(p.out.join("\n")).toMatch(
+    /library: counterpart, from %\(name\)s placeholders/,
+  );
+});

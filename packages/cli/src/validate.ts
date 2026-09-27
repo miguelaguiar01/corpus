@@ -268,7 +268,10 @@ export function describe(
       if (syntax === "android" && error.written === undefined)
         return `a <string> where the source is a <plurals> on ${error.name}`;
       // Under printf a value that is not a verb is a plural's count (#652).
-      if (syntax === "printf" && error.written === undefined)
+      if (
+        (syntax === "printf" || syntax === "counterpart") &&
+        error.written === undefined
+      )
         return `the source is a plural on ${error.name}: write the translation as one`;
       return `missing ${error.written ?? written(error.name)}`;
     case "unexpected-placeholder":

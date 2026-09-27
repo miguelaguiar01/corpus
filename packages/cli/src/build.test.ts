@@ -959,3 +959,39 @@ test("an id in two files of one source is one string when its text is the same; 
   );
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("an Element-shaped catalogue builds under counterpart with nothing refused (#663)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-counterpart-"));
+  mkdirSync(path.join(dir, "i18n"));
+  writeFileSync(
+    path.join(dir, "i18n", "en.json"),
+    JSON.stringify({
+      invite: "Invite <pill> to %(roomName)s",
+      bold: "You are <b>admin</b>",
+      empty: "Replace <empty string> with {text}",
+      rooms: { one: "%(count)s room", other: "%(count)s rooms" },
+    }),
+  );
+  const report = await buildSnapshotReport(
+    config({
+      languages: ["en"],
+      sources: [
+        {
+          adapter: "messages",
+          type: "ui",
+          library: "counterpart",
+          path: "i18n/{lang}.json",
+        },
+      ],
+    }),
+    dir,
+  );
+  expect(report.refused).toEqual([]);
+  expect(report.snapshot.strings.map((s) => s.id).sort()).toEqual([
+    "bold",
+    "empty",
+    "invite",
+    "rooms",
+  ]);
+  rmSync(dir, { recursive: true, force: true });
+});

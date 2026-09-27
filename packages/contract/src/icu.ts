@@ -103,6 +103,10 @@ class ParseFailure extends Error {
 const PRINTF_VERB_RE =
   /^%(?:\[(\d+)\]|(\d+)\$)?([-+0#]*(?:\d+|\*)?(?:\.(?:\d+|\*))?)((?:hh|h|ll|l|z|j|t|L|q)?[a-zA-Z@])/;
 
+// counterpart's `%(name)s` (#663), as Element's matrix-web-i18n writes
+// it: the name in parentheses, then `s` or `d`.
+const COUNTERPART_PLACEHOLDER_RE = /^%\(([^()\s]+)\)[sd]/;
+
 // Chrome i18n's `$NAME$` (#595): letters, digits and `_`, matched
 // case-insensitively against the `placeholders` map, so the name is
 // lowercased and the written form kept.
@@ -223,6 +227,31 @@ class Parser {
         }
         flush();
         return nodes;
+      }
+      // counterpart (#663): `%(name)s` is a placeholder, braces and `#`
+      // are text but for a plural read whole, and tags are substitutions.
+      if (this.syntax === "counterpart") {
+        if (ch === "%") {
+          const match = COUNTERPART_PLACEHOLDER_RE.exec(
+            this.source.slice(this.pos),
+          );
+          if (match) {
+            flush();
+            nodes.push({
+              kind: "placeholder",
+              name: match[1]!,
+              written: match[0],
+            });
+            this.pos += match[0].length;
+            literalStart = this.pos;
+            continue;
+          }
+        }
+        if (ch === "#" || (ch === "{" && !(this.printfPlural && !inBranch))) {
+          literal += ch;
+          this.pos += 1;
+          continue;
+        }
       }
       if (this.syntax === "chrome") {
         if (ch === "$") {
@@ -430,8 +459,18 @@ class Parser {
     this.pos += match[0].length;
     const name = match[2]!;
     const voided = this.html && match[4] !== "/" && isVoidTag(name);
+    // counterpart substitutes a bare `<pill>` with no close (#663).
+    const bare =
+      this.syntax === "counterpart" &&
+      match[1] !== "/" &&
+      match[4] !== "/" &&
+      !this.source.slice(this.pos).includes(`</${name}>`);
     const kind =
-      match[1] === "/" ? "close" : match[4] === "/" || voided ? "self" : "open";
+      match[1] === "/"
+        ? "close"
+        : match[4] === "/" || voided || bare
+          ? "self"
+          : "open";
     // `<br></br>` is one tag here: react-i18next reads it so, and a
     // browser renders the `</br>` as a second break, which is still no
     // unclosed tag.
@@ -636,7 +675,9 @@ function parseWith(
       };
     }
     if (
-      (syntax === "printf" || syntax === "i18next") &&
+      (syntax === "printf" ||
+        syntax === "i18next" ||
+        syntax === "counterpart") &&
       PRINTF_PLURAL_RE.test(source)
     ) {
       const plural = printfPlural(source, html, syntax);

@@ -600,5 +600,6 @@ test("each library has a name for messages (#644)", () => {
     "printf",
     "Chrome i18n",
     "Android",
+    "counterpart",
   ]);
 });
