@@ -96,7 +96,7 @@ server: process.env.CORPUS_SERVER ?? "http://localhost:3000",
 
 ## Where the token comes from
 
-The config holds no secrets. Commands that talk to the instance read `CORPUS_TOKEN`, and fall back to `.corpus/token`. `init` adds `.corpus/` to your `.gitignore` for exactly this reason.
+The config holds no secrets. Commands that talk to the instance read `CORPUS_TOKEN`, and fall back to `.corpus/token`. `init` adds `.corpus/` to your `.gitignore` for exactly this reason, unless git already ignores it.
 
 `corpus workbench` writes that file when it creates the project. Against an instance someone else runs, the instance secret creates the project and prints the token once, alone on the last line so a script can capture it:
 

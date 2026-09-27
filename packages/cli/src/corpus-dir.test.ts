@@ -9,11 +9,19 @@ import {
 } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { ignoreCorpusDir } from "./corpus-dir";
+
+// The host's global excludes file must not decide what these repositories
+// ignore.
+beforeEach(() => {
+  vi.stubEnv("GIT_CONFIG_GLOBAL", "/dev/null");
+  vi.stubEnv("GIT_CONFIG_NOSYSTEM", "1");
+});
 
 const dirs: string[] = [];
 afterEach(() => {
+  vi.unstubAllEnvs();
   for (const dir of dirs.splice(0))
     rmSync(dir, { recursive: true, force: true });
 });

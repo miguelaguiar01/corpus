@@ -32,7 +32,7 @@ Write the temporary password down when it is shown. There is no second chance to
 
 The CLI authenticates with a per-project bearer token, from `CORPUS_TOKEN` or `.corpus/token`, which is read second. `corpus workbench` writes it; `corpus project create` prints it once, alone on the last line.
 
-The file Corpus writes is owner-only. What keeps it out of git is `.corpus/`, which `corpus init` and `corpus workbench` both add to `.gitignore`, creating the file when there is none — so a token you paste in by hand after `project create` is ignored too, though its permissions are then yours to set.
+The file Corpus writes is owner-only. What keeps it out of git is `.corpus/`, which `corpus init` and `corpus workbench` both add to `.gitignore`, creating the file when there is none — so a token you paste in by hand after `project create` is ignored too, though its permissions are then yours to set. Where git already ignored `.corpus/` they add nothing; if that was your clone's `.git/info/exclude` or your global excludes file, a teammate's fresh clone does not ignore it, so put `.corpus/` in the tracked `.gitignore` when others will paste a token.
 
 A token pushes, pulls, reads queues and strings, saves drafts and makes proposals. It cannot verify, cannot change settings, cannot touch users, and cannot sign in anywhere.
 
