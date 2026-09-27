@@ -113,6 +113,10 @@ export function printfVerbOf(written: string): string | undefined {
   return PRINTF_VERB_RE.exec(written)?.[4];
 }
 
+// A printf text that is one ICU plural from end to end (#652).
+const PRINTF_PLURAL_RE =
+  /^\s*\{\s*[\p{L}_][\p{L}\p{N}_.-]*\s*,\s*plural\s*,[\s\S]*\}\s*$/u;
+
 class Parser {
   private pos = 0;
   // The next verb's position when none is written (#594).
@@ -122,6 +126,10 @@ class Parser {
     private readonly source: string,
     private readonly syntax: Library,
     private readonly html: boolean,
+    // printf text that is wholly one ICU plural, as a gettext or String
+    // Catalog converter writes it (#652): its braces are the plural's,
+    // its branches printf.
+    private readonly printfPlural = false,
   ) {}
 
   // Inside a plural's branch, `#` is the number; anywhere else it is text.
@@ -144,7 +152,12 @@ class Parser {
 
     while (this.pos < this.source.length) {
       const ch = this.source[this.pos];
-      if (ch === "}" && (this.syntax === "icu" || this.syntax === "android")) {
+      if (
+        ch === "}" &&
+        (this.syntax === "icu" ||
+          this.syntax === "android" ||
+          (this.printfPlural && inBranch))
+      ) {
         if (!inBranch) {
           throw new ParseFailure("unmatched '}'", this.pos);
         }
@@ -203,7 +216,12 @@ class Parser {
             continue;
           }
         }
-        if (this.syntax === "printf" || ch === "%" || ch === "#") {
+        const opensPlural = this.printfPlural && !inBranch && ch === "{";
+        if (
+          (this.syntax === "printf" && !opensPlural) ||
+          ch === "%" ||
+          ch === "#"
+        ) {
           literal += ch;
           this.pos += 1;
           continue;
@@ -470,7 +488,7 @@ class Parser {
       this.pos += 1; // consume '{'
       // Each Android plural item is a string of its own: its verbs count
       // from 1.
-      if (this.syntax === "android") this.printfNext = 1;
+      if (this.syntax === "android" || this.printfPlural) this.printfNext = 1;
       branches[key] = this.parseSequence(
         true,
         type === "plural" ? name : undefined,
@@ -561,7 +579,12 @@ function parseWith(
     }
     return {
       ok: true,
-      nodes: new Parser(source, syntax, html).parseSequence(false),
+      nodes: new Parser(
+        source,
+        syntax,
+        html,
+        syntax === "printf" && PRINTF_PLURAL_RE.test(source),
+      ).parseSequence(false),
     };
   } catch (error) {
     if (error instanceof ParseFailure) {

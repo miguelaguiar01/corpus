@@ -765,3 +765,49 @@ test("an other-only language may write a plural as the plain text of its other b
     ),
   ).toMatchObject({ ok: false });
 });
+
+test("under printf a text that is one ICU plural has its verbs checked per branch (#652)", () => {
+  const source = "{count, plural, one {%d card} other {%d cards}}";
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, one {%d Karte} other {%d Karten}}",
+      "de",
+      "printf",
+    ),
+  ).toEqual({ ok: true });
+  // Joplin's draft: stray verbs in a branch are refused.
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, one {Karte} other {Karten %s %x}}",
+      "de",
+      "printf",
+    ),
+  ).toMatchObject({ ok: false });
+  // The plural is checked too: a category German does not use is a warning.
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, one {%d Karte} few {%d Karten} other {%d Karten}}",
+      "de",
+      "printf",
+    ),
+  ).toEqual({
+    ok: true,
+    incomplete: [{ code: "unexpected-category", arg: "count", key: "few" }],
+  });
+  // Tags and # stay text under printf.
+  expect(
+    validateTranslation(
+      "{n, plural, one {<b>#</b> %lld post} other {<b>#</b> %lld posts}}",
+      "{n, plural, one {<i>#</i> %lld Beitrag} other {<i>#</i> %lld Beiträge}}",
+      "de",
+      "printf",
+    ),
+  ).toEqual({ ok: true });
+  // A printf text that is not wholly a plural keeps its braces as text.
+  expect(
+    validateTranslation("Hello {name} %s", "Olá {nome} %s", "pt", "printf"),
+  ).toEqual({ ok: true });
+});
