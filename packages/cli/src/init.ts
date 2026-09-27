@@ -298,7 +298,7 @@ const ICU_ARGUMENT_RE = /\{\s*[^{},]+\s*,\s*(?:select|plural)\s*,/;
 // The placeholder shapes a catalogue's strings are counted by (#591):
 // i18next's {{ name }}, a single-brace {name}, and a printf verb.
 const DOUBLE_BRACE_RE = /\{\{\s*[^{}]+\}\}/;
-const SINGLE_BRACE_RE = /(?<!\{)\{\s*[A-Za-z_][\w.-]*\s*\}(?!\})/;
+const SINGLE_BRACE_RE = /(?<!\{)\{\s*[\p{L}_][\p{L}\p{M}\p{N}_.-]*\s*\}(?!\})/u;
 // C's length modifiers and Objective-C's %@ count as verbs too (#614).
 const PRINTF_RE =
   /%(?:\[\d+\]|\d+\$)?[-+0#]*\d*(?:\.\d+)?(?:hh|h|ll|l|z|j|t|L|q)?[sdvfxXqcbeEgGtTpu@]/;
