@@ -117,7 +117,7 @@ export function printfVerbOf(written: string): string | undefined {
 
 // A printf text that is one ICU plural from end to end (#652).
 const PRINTF_PLURAL_OPENS_RE =
-  /^\s*\{\s*[\p{L}_][\p{L}\p{N}_.-]*\s*,\s*plural\s*,/u;
+  /^\s*\{\s*[\p{L}_][\p{L}\p{M}\p{N}_.-]*\s*,\s*plural\s*,/u;
 const PRINTF_PLURAL_RE = new RegExp(
   `${PRINTF_PLURAL_OPENS_RE.source}[\\s\\S]*\\}\\s*$`,
   "u",
