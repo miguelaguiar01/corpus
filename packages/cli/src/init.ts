@@ -57,12 +57,22 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     ctx.cwd,
     messages.replaceAll("{lang}", sourceLanguage),
   );
-  const unreadable = unreadableCatalogue(
-    sourceFile,
-    /\.ts$/i.test(sourceFile) && existsSync(sourceFile)
-      ? headOf(sourceFile)
-      : undefined,
-  );
+  // XLIFF has its own adapter (#712); Angular names the source-language
+  // file with no language in it, `messages.xlf` beside `messages.de.xlf`.
+  const xliff = /\.(?:xlf|xliff)$/i.test(messages);
+  const bare = messages.replace(/[._-]?\{lang\}/, "");
+  const sourcePath =
+    xliff && !existsSync(sourceFile) && existsSync(path.join(ctx.cwd, bare))
+      ? bare
+      : undefined;
+  const unreadable = xliff
+    ? undefined
+    : unreadableCatalogue(
+        sourceFile,
+        /\.ts$/i.test(sourceFile) && existsSync(sourceFile)
+          ? headOf(sourceFile)
+          : undefined,
+      );
   if (unreadable) throw new CliError(`--messages ${messages}: ${unreadable}`);
   // The flag given without a value is an error, as for every option
   // (args.ts); only its absence means "read the files".
@@ -80,7 +90,14 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   }
   const languages = present
     ? listed
-    : languagesFromFiles(ctx.cwd, messages, sourceLanguage);
+    : sourcePath
+      ? [
+          sourceLanguage,
+          ...[...new Set(matchPattern(ctx.cwd, messages).map((m) => m.lang))]
+            .filter((code) => code !== sourceLanguage)
+            .sort(),
+        ]
+      : languagesFromFiles(ctx.cwd, messages, sourceLanguage);
   if (languages.length === 0) {
     throw new CliError(
       `no ${messages} file to take the languages from; pass --languages`,
@@ -93,32 +110,33 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       );
     }
   }
-  const detected = await libraryFor(
-    args,
-    ctx.cwd,
-    messages,
-    sourceLanguage,
-    type,
-    ctx,
-  );
+  const detected = xliff
+    ? {}
+    : await libraryFor(args, ctx.cwd, messages, sourceLanguage, type, ctx);
   const library = detected.library;
   const components = checkIncludeFor(ctx.cwd, messages);
   const include = components.include;
-  const parsed = corpusConfigSchema.safeParse({
-    project,
-    server,
-    sourceLanguage,
-    languages,
-    sources: [
-      {
-        adapter: "messages",
+  const source = xliff
+    ? {
+        adapter: "xliff" as const,
+        type,
+        path: messages,
+        ...(sourcePath && { sourcePath }),
+      }
+    : {
+        adapter: "messages" as const,
         type,
         path: messages,
         ...(library && library.value !== "icu"
           ? { library: library.value }
           : {}),
-      },
-    ],
+      };
+  const parsed = corpusConfigSchema.safeParse({
+    project,
+    server,
+    sourceLanguage,
+    languages,
+    sources: [source],
     ...(include ? { check: { include } } : {}),
   });
   if (!parsed.success) {
@@ -141,16 +159,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       server,
       sourceLanguage,
       languages,
-      sources: [
-        {
-          adapter: "messages",
-          type,
-          path: messages,
-          ...(library && library.value !== "icu"
-            ? { library: library.value }
-            : {}),
-        },
-      ],
+      sources: [source],
       ...(include ? { check: { include } } : {}),
     }),
   );
@@ -188,7 +197,9 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       `check.include: init found no components where it looks; corpus check scans src, so set check.include in ${filename} to where they are`,
     );
   }
-  const siblings = siblingCatalogues(ctx.cwd, messages, sourceLanguage);
+  const siblings = xliff
+    ? []
+    : siblingCatalogues(ctx.cwd, messages, sourceLanguage);
   if (siblings.length > 0) {
     ctx.out(
       `corpus: ${messages.replace("{lang}", sourceLanguage)} has ${siblings.length} sibling catalogue(s) the pattern does not name (${siblings.slice(0, 3).join(", ")}${siblings.length > 3 ? ", …" : ""}); a {ns} pattern or an array of paths names them all`,
@@ -240,6 +251,7 @@ function render(
       type?: string;
       path?: string;
       library?: Library;
+      sourcePath?: string;
     }[];
     check?: { include?: string[] };
   },
@@ -255,7 +267,7 @@ function render(
   sourceLanguage: ${q(config.sourceLanguage)},
   languages: [${config.languages.map(q).join(", ")}],
   sources: [
-    { adapter: "messages", type: ${q(source.type ?? "chrome")}, path: ${q(source.path ?? "")}${library} },
+    { adapter: ${q(source.adapter)}, type: ${q(source.type ?? "chrome")}, path: ${q(source.path ?? "")}${source.sourcePath ? `, sourcePath: ${q(source.sourcePath)}` : ""}${library} },
   ],
 ${check}`;
   return plain

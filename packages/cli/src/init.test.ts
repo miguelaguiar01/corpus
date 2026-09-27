@@ -934,3 +934,35 @@ test("init names rails where %{name} placeholders dominate (#665)", async () => 
     /library: rails, from %\{name\} placeholders/,
   );
 });
+
+test("init writes an xliff source for Angular's catalogues, the source file apart (#712)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "src", "locale"), { recursive: true });
+  const unit = `<xliff version="1.2"><file source-language="en"><body><trans-unit id="a"><source>Hello</source></trans-unit></body></file></xliff>\n`;
+  writeFileSync(path.join(p.dir, "src", "locale", "messages.xlf"), unit);
+  for (const lang of ["de", "fr"])
+    writeFileSync(
+      path.join(p.dir, "src", "locale", `messages.${lang}.xlf`),
+      unit,
+    );
+  const flags = [
+    "init",
+    "--project",
+    "ghostfolio",
+    "--source",
+    "en",
+    "--messages",
+    "src/locale/messages.{lang}.xlf",
+  ];
+  const code = await run(flags, p.ctx);
+  expect(p.err.join("\n")).toBe("");
+  expect(code).toBe(0);
+  const config = await loadConfig(p.dir);
+  expect(config.languages).toEqual(["en", "de", "fr"]);
+  expect(config.sources[0]).toMatchObject({
+    adapter: "xliff",
+    path: "src/locale/messages.{lang}.xlf",
+    sourcePath: "src/locale/messages.xlf",
+  });
+});
