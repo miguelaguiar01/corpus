@@ -570,3 +570,33 @@ test("the old name validates the same way, and says it is the old name", async (
   expect(await run(["validate"], c)).toBe(0);
   expect(c.stderr.join("\n")).toMatch(/syntax is the old name for library/);
 });
+
+test("a catalogue no adapter reads is named by its format, not passed as valid (#647)", async () => {
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  const original = readFileSync(path.join(repo, configFile), "utf8");
+  const using = (source: string) =>
+    writeFileSync(
+      path.join(repo, configFile),
+      original.replace(/sources: \[[\s\S]*?\n {2}\],/, `sources: [${source}],`),
+    );
+  mkdirSync(path.join(repo, "po"), { recursive: true });
+  writeFileSync(path.join(repo, "po", "en.po"), 'msgid "a"\nmsgstr "A"\n');
+  writeFileSync(
+    path.join(repo, "po", "app_en.ts"),
+    '<!DOCTYPE TS>\n<TS version="2.1"></TS>\n',
+  );
+  using('{ adapter: "messages", type: "ui", path: "po/{lang}.po" }');
+  let c = ctx();
+  expect(await run(["validate"], c)).toBe(1);
+  expect(c.stderr.join("\n")).toContain(
+    "po/en.po: a gettext catalogue, which no adapter reads",
+  );
+  using('{ adapter: "messages", type: "ui", path: "po/app_{lang}.ts" }');
+  c = ctx();
+  expect(await run(["validate"], c)).toBe(1);
+  expect(c.stderr.join("\n")).toContain(
+    "po/app_en.ts: a Qt Linguist catalogue",
+  );
+});

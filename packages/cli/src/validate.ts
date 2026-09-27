@@ -24,6 +24,7 @@ import {
   sourceLibrary,
   sourceWritesBack,
 } from "./build";
+import { headOf, unreadableCatalogue } from "./catalogue-format";
 import { CliError, loadConfig } from "./config";
 
 export const VALIDATE_USAGE = "corpus validate [--json]";
@@ -142,13 +143,22 @@ export async function validateRepo(
       if (!exec.validated) unvalidated.push(source.command);
       continue;
     }
-    if (!hasLanguages(source) || !sourceWritesBack(source)) continue;
-    const library = sourceLibrary(source);
+    if (!hasLanguages(source)) continue;
     const sourceFile = fileOf(
       source,
       config.sourceLanguage,
       config.sourceLanguage,
     );
+    if (source.adapter === "messages" || source.adapter === "table") {
+      const abs = path.join(cwd, sourceFile);
+      const unreadable = unreadableCatalogue(
+        abs,
+        /\.ts$/i.test(abs) && existsSync(abs) ? headOf(abs) : undefined,
+      );
+      if (unreadable) throw new CliError(`${sourceFile}: ${unreadable}`);
+    }
+    if (!sourceWritesBack(source)) continue;
+    const library = sourceLibrary(source);
     const sources = await texts(jiti, cwd, sourceFile, source, true);
     if (sources === undefined) {
       throw new CliError(`source file ${sourceFile} does not exist`);

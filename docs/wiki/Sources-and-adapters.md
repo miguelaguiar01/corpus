@@ -10,6 +10,8 @@ One key-value catalogue per language.
 { adapter: "messages", type: "ui", path: "src/i18n/{lang}.json" }
 ```
 
+The files are JSON (`.json`, Flutter's `.arb`) or a JavaScript or TypeScript module that default-exports the object. Any other catalogue, gettext `.po`, YAML, XLIFF, a String Catalog, Qt Linguist's XML `.ts`, is refused by name, and an [exec](#exec) source converts it.
+
 `{lang}` is required and is filled with each language in turn, so the source language's file is what push reads, and every other file is a translation it already has when the path is `.json`. Nested objects flatten to dotted keys, so `{ "editor": { "save": "Save" } }` is the string `editor.save`.
 
 The path may put the language anywhere, including in a directory:
