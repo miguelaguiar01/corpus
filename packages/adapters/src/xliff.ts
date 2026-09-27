@@ -22,8 +22,11 @@ function masked(xml: string): string {
 }
 
 function attr(attrs: string, name: string): string | undefined {
-  return new RegExp(`(?:^|\\s)${name}=(["'])(.*?)\\1`).exec(attrs)?.[2];
+  return new RegExp(`(?:^|\\s)${name}\\s*=\\s*(["'])(.*?)\\1`).exec(attrs)?.[2];
 }
+
+// An element's attributes, a `>` inside quotes included.
+const ATTRS = `((?:[^>"']|"[^"]*"|'[^']*')*?)`;
 
 function decode(text: string): string {
   const named: Record<string, string> = {
@@ -52,8 +55,24 @@ function nameOf(raw: string, prefix: string): string {
   return /^[A-Za-z]/.test(name) ? name : `${prefix}${name}`;
 }
 
-const INLINE_RE =
-  /<(\/?)(x|g|bx|ex|ph|pc|sc|ec|it|mrk)\b([^>]*?)(\/?)>|<!\[CDATA\[([\s\S]*?)\]\]>/g;
+const INLINE_RE = new RegExp(
+  `<(\\/?)(x|g|bx|ex|bpt|ept|ph|pc|sc|ec|it|mrk|sm|em)\\b${ATTRS}(\\/?)>|<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>`,
+  "g",
+);
+
+// A tag's name without Angular's `_1`: `START_LINK_1` closes with
+// `CLOSE_LINK`.
+function baseOf(name: string): string {
+  return name.replace(/_\d+$/, "");
+}
+
+// The native code an element holds, skipped: `<bpt>`, `<ept>`, `<it>`
+// and a 1.2 `<ph>` stand for markup the editor shows as a tag or a
+// placeholder.
+function skipTo(xml: string, at: number, element: string): number {
+  const end = xml.indexOf(`</${element}>`, at);
+  return end < 0 ? at : end + element.length + 3;
+}
 
 // A unit's inline content as the editor's text: `<x id="INTERPOLATION"/>`
 // and `<ph>` are placeholders, `START_*`/`CLOSE_*` pairs, `<g>`, `<pc>`,
@@ -64,8 +83,14 @@ export function inlineText(xml: string): string {
   let out = "";
   let at = 0;
   const open: string[] = [];
-  const close = (fallback: string) => {
-    const name = open.pop() ?? fallback;
+  // A close pops its open tag only when their names match, so a crossed
+  // pair or a close of another tag does not parse.
+  const close = (name: string) => {
+    const top = open[open.length - 1];
+    if (top !== undefined && baseOf(top) === baseOf(name)) {
+      open.pop();
+      return `</${top}>`;
+    }
     return `</${name}>`;
   };
   INLINE_RE.lastIndex = 0;
@@ -91,17 +116,16 @@ export function inlineText(xml: string): string {
       }
       // A 1.2 `<ph>` holds its native code; the placeholder stands for it.
       if (element === "ph" && !self && !slash) {
-        const end = xml.indexOf("</ph>", at);
-        if (end >= 0) {
-          at = end + "</ph>".length;
-          INLINE_RE.lastIndex = at;
-        }
+        at = skipTo(xml, at, "ph");
+        INLINE_RE.lastIndex = at;
       }
       continue;
     }
     if (element === "g" || element === "pc") {
+      // `</g>` and `</pc>` close the element XML nests them in.
       if (slash) {
-        out += close(`${element}${id}`);
+        const top = open.pop();
+        out += top === undefined ? `</${element}>` : `</${top}>`;
         continue;
       }
       const start = attr(attrs, "equivStart");
@@ -116,31 +140,57 @@ export function inlineText(xml: string): string {
       }
       continue;
     }
-    if (element === "bx" || element === "sc") {
-      const name = nameOf(`${element}${id}`, "t");
+    // `<bx>`/`<ex>`, `<bpt>`/`<ept>` and 2.0's `<sc>`/`<ec>` open and
+    // close a pair by id (`startRef` in 2.0).
+    if (element === "bx" || element === "sc" || element === "bpt") {
+      if (slash) continue;
+      const name = nameOf(`p${id}`, "t");
       open.push(name);
       out += `<${name}>`;
+      if (element === "bpt" && !self) {
+        at = skipTo(xml, at, "bpt");
+        INLINE_RE.lastIndex = at;
+      }
       continue;
     }
-    if (element === "ex" || element === "ec") {
-      out += close(nameOf(`${element}${attr(attrs, "startRef") ?? id}`, "t"));
+    if (element === "ex" || element === "ec" || element === "ept") {
+      if (slash) continue;
+      out += close(nameOf(`p${attr(attrs, "startRef") ?? id}`, "t"));
+      if (element === "ept" && !self) {
+        at = skipTo(xml, at, "ept");
+        INLINE_RE.lastIndex = at;
+      }
       continue;
     }
-    // <it>, <mrk>: their text stands, the markup does not.
+    // An isolated `<it>` is native code with no pair: skipped.
+    if (element === "it" && !slash && !self) {
+      at = skipTo(xml, at, "it");
+      INLINE_RE.lastIndex = at;
+    }
+    // <mrk>, <sm>/<em>: annotations; their text stands.
   }
   return out + decode(xml.slice(at));
 }
 
 function inner(block: string, element: string): string | undefined {
   const m = new RegExp(
-    `<${element}\\b[^>]*?(?:/>|>([\\s\\S]*?)</${element}>)`,
+    `<${element}\\b${ATTRS}(?:/>|>([\\s\\S]*?)</${element}>)`,
   ).exec(block);
   if (!m) return undefined;
-  return m[1] ?? "";
+  return m[2] ?? "";
 }
 
 function openTag(block: string, element: string): string | undefined {
-  return new RegExp(`<${element}\\b([^>]*?)/?>`).exec(block)?.[1];
+  return new RegExp(`<${element}\\b${ATTRS}/?>`).exec(block)?.[1];
+}
+
+// A unit's own content: comments, fuzzy matches (`<alt-trans>`) and
+// 2.0's `<ignorable>` are not its source, its target nor its notes.
+function own(body: string): string {
+  return body
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<alt-trans\b[\s\S]*?<\/alt-trans>/g, "")
+    .replace(/<ignorable\b[\s\S]*?<\/ignorable>/g, "");
 }
 
 function notes(block: string, key: "from" | "category"): string | undefined {
@@ -180,12 +230,20 @@ function unit(
 // document order.
 export function xliffUnits(xml: string): XliffUnit[] {
   const text = masked(xml);
+  // A namespace prefix (`<xlf:trans-unit>`) would read as no unit at all.
+  if (/<[\w.-]+:(?:trans-unit|unit)\b/.test(text))
+    throw new Error(
+      "xliff: a file whose elements carry a namespace prefix is not read; write them unprefixed",
+    );
   const out: XliffUnit[] = [];
-  const legacy = /<trans-unit\b([^>]*)>([\s\S]*?)<\/trans-unit>/g;
+  const legacy = new RegExp(
+    `<trans-unit\\b${ATTRS}>([\\s\\S]*?)</trans-unit>`,
+    "g",
+  );
   for (let m = legacy.exec(text); m; m = legacy.exec(text)) {
     const id = attr(m[1] ?? "", "id");
     if (id === undefined) continue;
-    const body = xml.slice(m.index, legacy.lastIndex);
+    const body = own(xml.slice(m.index, legacy.lastIndex));
     const source = inner(body, "source");
     if (source === undefined) continue;
     const targetAttrs = openTag(body, "target");
@@ -199,11 +257,11 @@ export function xliffUnits(xml: string): XliffUnit[] {
       ),
     );
   }
-  const modern = /<unit\b([^>]*)>([\s\S]*?)<\/unit>/g;
+  const modern = new RegExp(`<unit\\b${ATTRS}>([\\s\\S]*?)</unit>`, "g");
   for (let m = modern.exec(text); m; m = modern.exec(text)) {
     const id = attr(m[1] ?? "", "id");
     if (id === undefined) continue;
-    const body = xml.slice(m.index, modern.lastIndex);
+    const body = own(xml.slice(m.index, modern.lastIndex));
     const segments = body.match(/<segment\b/g)?.length ?? 0;
     if (segments > 1) {
       throw new Error(

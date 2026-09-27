@@ -112,3 +112,37 @@ test("XLIFF 2.0 units read the same, <ph> and <pc> as placeholder and tag (#710)
     },
   ]);
 });
+
+test("a crossed or mismatched START/CLOSE pair does not read as nested (#710)", () => {
+  const unit = (target: string) =>
+    `<xliff version="1.2"><file><body><trans-unit id="a"><source>x</source><target state="translated">${target}</target></trans-unit></body></file></xliff>`;
+  expect(
+    xliffUnits(
+      unit(
+        '<x id="START_LINK"/>a<x id="START_BOLD_TEXT"/>b<x id="CLOSE_LINK"/>c<x id="CLOSE_BOLD_TEXT"/>',
+      ),
+    )[0]?.target,
+  ).toBe("<LINK>a<BOLD_TEXT>b</LINK>c</BOLD_TEXT>");
+  expect(
+    xliffUnits(unit('<x id="START_LINK_1"/>a<x id="CLOSE_LINK"/>'))[0]?.target,
+  ).toBe("<LINK_1>a</LINK_1>");
+});
+
+test("comments, fuzzy matches, ignorables and native code are not the unit's text (#710)", () => {
+  const xml = `<xliff version="1.2"><file><body>
+    <trans-unit id = "q">
+      <!-- <source>old</source> -->
+      <source>New <!-- note --><bpt id="1">&lt;b&gt;</bpt>bold<ept id="1">&lt;/b&gt;</ept><it pos="open">&lt;i&gt;</it></source>
+      <alt-trans><target>Fuzzy</target><note from="description">not ours</note></alt-trans>
+      <x id="PH" equiv-text="{{ a > b }}"/>
+    </trans-unit>
+  </body></file></xliff>`;
+  expect(xliffUnits(xml)).toEqual([
+    { id: "q", source: "New <p1>bold</p1>", translated: false },
+  ]);
+  expect(() =>
+    xliffUnits(
+      '<xlf:xliff><xlf:file><xlf:body><xlf:trans-unit id="a"><xlf:source>x</xlf:source></xlf:trans-unit></xlf:body></xlf:file></xlf:xliff>',
+    ),
+  ).toThrow(/namespace prefix/);
+});
