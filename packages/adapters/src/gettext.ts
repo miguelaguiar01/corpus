@@ -667,20 +667,41 @@ function entryPatches(
     entry.msgidPlural === undefined ? "msgstr" : `msgstr[${i}]`;
   const lines = (i: number, value: string) =>
     poLines(keyword(i), value, !entry.flags.includes("no-wrap")).join(eol);
-  let added = "";
+  const spans = entry.at.msgstr;
   forms.forEach((value, i) => {
     if (value === undefined) return;
-    const span = entry.at.msgstr[i];
+    const span = spans[i];
     if (span) {
       if (entry.msgstr[i] !== value)
         patches.push({ ...span, text: lines(i, value) });
-    } else added += eol + lines(i, value);
+      return;
+    }
+    // A form the entry lacks goes in its place: after the one before it,
+    // else before the one after it, else after the entry's msgid (#833).
+    const before = spans
+      .slice(0, i)
+      .reverse()
+      .find((s) => s !== undefined);
+    const after = spans.slice(i + 1).find((s) => s !== undefined);
+    if (before)
+      patches.push({
+        start: before.end,
+        end: before.end,
+        text: eol + lines(i, value),
+      });
+    else if (after)
+      patches.push({
+        start: after.start,
+        end: after.start,
+        text: lines(i, value) + eol,
+      });
+    else
+      patches.push({
+        start: entry.at.end,
+        end: entry.at.end,
+        text: eol + lines(i, value),
+      });
   });
-  const last = entry.at.msgstr.reduce(
-    (end, s) => Math.max(end, s?.end ?? 0),
-    0,
-  );
-  if (added) patches.push({ start: last, end: last, text: added });
   const fuzzy = entry.flags.includes("fuzzy");
   if (patches.length === 0 && !fuzzy) return [];
   if (fuzzy && entry.at.flags) {
