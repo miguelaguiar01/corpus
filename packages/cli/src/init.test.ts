@@ -1371,10 +1371,18 @@ test("init's qt-ts: lupdate's template is the sourcePath, {lang} as a directory 
   mkdirSync(path.join(r.dir, "src"));
   writeFileSync(path.join(r.dir, "src", "other.ts"), ts(""));
   writeFileSync(path.join(r.dir, "src", "main_de.ts"), "export default {};\n");
-  await run([...base, "src/main_{lang}.ts"], r.ctx);
-  expect(
-    existsSync(path.join(r.dir, "corpus.config.ts"))
-      ? (await loadConfig(r.dir)).sources[0]?.adapter
-      : undefined,
-  ).not.toBe("qt-ts");
+  expect(await run([...base, "src/main_{lang}.ts"], r.ctx)).toBe(0);
+  expect((await loadConfig(r.dir)).sources[0]?.adapter).toBe("messages");
+
+  // Another component's catalogue, which names its language, is no
+  // template: sourcePath is asked for instead.
+  const s = project();
+  stubCli(s.dir);
+  mkdirSync(path.join(s.dir, "lang"));
+  for (const code of ["de", "fr"])
+    writeFileSync(path.join(s.dir, "lang", `app_${code}.ts`), ts(code));
+  writeFileSync(path.join(s.dir, "lang", "qt_de.ts"), ts("de"));
+  expect(await run([...base, "lang/app_{lang}.ts"], s.ctx)).toBe(0);
+  expect((await loadConfig(s.dir)).sources[0]).not.toHaveProperty("sourcePath");
+  expect(s.err.join("\n")).toContain("set the qt-ts source's sourcePath");
 });

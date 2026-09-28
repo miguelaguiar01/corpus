@@ -915,8 +915,18 @@ function patternFiles(cwd: string, pattern: string): string[] {
   }
 }
 
+// Whether a Qt file's `<TS>` names its language, in the file's first
+// kilobyte, past the declaration and doctype.
+function namesLanguage(file: string): boolean {
+  const head = readFileSync(file, "utf8").slice(0, 1024);
+  const open = /<TS\b[^>]*>/.exec(head)?.[0] ?? "";
+  return /\slanguage\s*=\s*(["'])[^"']+\1/.test(open);
+}
+
 // lupdate's template beside a file-name pattern's catalogues: the one Qt
-// file in their directory the pattern does not name.
+// file in their directory the pattern does not name whose `<TS>` names
+// no language, as lupdate writes a template; another component's
+// `qt_de.ts` names one.
 function qtTemplateOf(cwd: string, pattern: string): string | undefined {
   const dir = path.posix.dirname(pattern);
   if (dir.includes("{lang}")) return undefined;
@@ -933,7 +943,8 @@ function qtTemplateOf(cwd: string, pattern: string): string | undefined {
       (file) =>
         /\.ts$/i.test(file) &&
         !named.has(file) &&
-        isQtLinguist(headOf(path.join(cwd, file))),
+        isQtLinguist(headOf(path.join(cwd, file))) &&
+        !namesLanguage(path.join(cwd, file)),
     );
   return templates.length === 1 ? templates[0] : undefined;
 }
