@@ -98,6 +98,14 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   // Any other YAML (Symfony's, Hugo's) is refused here, by what it holds,
   // rather than written into a config that cannot build.
   const yaml = /\.ya?ml$/i.test(messages);
+  const catalogueFormat = xliff
+    ? "xliff"
+    : gettext
+      ? "gettext"
+      : yaml
+        ? "yaml"
+        : undefined;
+  if (catalogueFormat) refuseNamespace(messages, catalogueFormat);
   if (yaml) {
     if (!existsSync(sourceFile))
       throw new CliError(
@@ -121,9 +129,11 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     /\.ts$/i.test(messages) &&
     (existsSync(sourceFile)
       ? isQtLinguist(headOf(sourceFile))
-      : patternFiles(ctx.cwd, messages).some((file) =>
-          isQtLinguist(headOf(path.join(ctx.cwd, file))),
-        ));
+      : (messages.includes("{ns}")
+          ? matchPattern(ctx.cwd, messages).map((m) => m.file)
+          : patternFiles(ctx.cwd, messages)
+        ).some((file) => isQtLinguist(headOf(path.join(ctx.cwd, file)))));
+  if (qt) refuseNamespace(messages, "qt-ts");
   // lupdate's template, `app.ts` beside `app_de.ts`, is the source where
   // the source language has no file of its own (#749).
   const qtTemplate =
@@ -159,12 +169,15 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       ? undefined
       : unreadableFile(sourceFile);
   if (unreadable) throw new CliError(`--messages ${messages}: ${unreadable}`);
-  const qtFiles = qt
-    ? qtLanguages(ctx.cwd, messages, sourceLanguage)
-    : { languages: [], languageFiles: {}, skipped: [] };
-  if (qtFiles.skipped.length > 0)
+  const files =
+    catalog || messages.includes("{ns}")
+      ? { languages: [], languageFiles: {}, skipped: [] }
+      : catalogueLanguages(ctx.cwd, messages, sourceLanguage);
+  // Beside a JSON catalogue a file that names no language is a glossary
+  // or a fixture, not a catalogue left out.
+  if (files.skipped.length > 0 && (catalogueFormat || qt))
     ctx.err(
-      `corpus: ${qtFiles.skipped.join(", ")} ${qtFiles.skipped.length === 1 ? "names" : "name"} no language tag and no script; left out, or map ${qtFiles.skipped.length === 1 ? "it" : "each"} with languageFiles`,
+      `corpus: ${files.skipped.join(", ")} ${files.skipped.length === 1 ? "names" : "name"} no language tag and no script; left out, or map ${files.skipped.length === 1 ? "it" : "each"} with languageFiles`,
     );
   // The flag given without a value is an error, as for every option
   // (args.ts); only its absence means "read the files".
@@ -184,9 +197,9 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     ? listed
     : catalog
       ? catalog.languages
-      : qt
-        ? qtFiles.languages
-        : languagesFromFiles(ctx.cwd, messages, sourceLanguage);
+      : messages.includes("{ns}")
+        ? namespacedLanguages(ctx.cwd, messages, sourceLanguage)
+        : files.languages;
   if (languages.length === 0) {
     throw new CliError(
       `no ${messages} file to take the languages from; pass --languages`,
@@ -211,16 +224,19 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   const components = checkIncludeFor(ctx.cwd, messages);
   const include = components.include;
   const kept = Object.fromEntries(
-    Object.entries(qtFiles.languageFiles).filter(([tag]) =>
+    Object.entries(files.languageFiles).filter(([tag]) =>
       languages.includes(tag),
     ),
   );
+  // The mappings of the languages the config lists, given or read.
+  const mapped = Object.keys(kept).length > 0 ? { languageFiles: kept } : {};
   const source = yaml
     ? {
         adapter: "yaml" as const,
         type,
         path: messages,
         ...(library && { library: library.value }),
+        ...mapped,
       }
     : qt
       ? {
@@ -229,8 +245,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
           path: messages,
           ...(qtTemplate && { sourcePath: qtTemplate }),
           ...(library && { library: library.value }),
-          // The mappings of the languages the config lists, given or read.
-          ...(Object.keys(kept).length > 0 && { languageFiles: kept }),
+          ...mapped,
         }
       : xcstrings
         ? {
@@ -246,6 +261,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
               path: messages,
               ...(sourcePath && { sourcePath }),
               ...(library && { library: library.value }),
+              ...mapped,
             }
           : {
               adapter: "messages" as const,
@@ -254,6 +270,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
               ...(library && library.value !== "icu"
                 ? { library: library.value }
                 : {}),
+              ...mapped,
             };
   const parsed = corpusConfigSchema.safeParse({
     project,
@@ -691,45 +708,26 @@ async function libraryFor(
 // The languages a messages path names (§3): every file or directory
 // that fills its {lang}, the source first, so a repository that already
 // carries its catalogues is not asked to list them by hand.
-function languagesFromFiles(
+// Only messages, table and fluent read `{ns}` (#854).
+function refuseNamespace(messages: string, adapter: string): void {
+  if (messages.includes("{ns}"))
+    throw new CliError(
+      `--messages ${messages}: ${adapter} does not read {ns}: only messages, table and fluent do`,
+    );
+}
+
+function namespacedLanguages(
   cwd: string,
   pattern: string,
   sourceLanguage: string,
 ): string[] {
-  // A `{ns}` pattern, in either order, is read by matching the tree.
-  if (pattern.includes("{ns}")) {
-    const found = new Set(
-      matchPattern(cwd, pattern)
-        .map((m) => m.lang)
-        .filter((code) => LANGUAGE_RE.test(code)),
-    );
-    const rest = [...found].filter((c) => c !== sourceLanguage).sort();
-    return found.has(sourceLanguage) ? [sourceLanguage, ...rest] : [];
-  }
-  const at = pattern.indexOf("{lang}");
-  const before = pattern.slice(0, at);
-  const after = pattern.slice(at + "{lang}".length);
-  const dir = path.join(cwd, path.dirname(`${before}x`));
-  const prefix = path.basename(`${before}x`).slice(0, -1);
-  const afterFirst = after.split("/")[0] ?? "";
-  const found = new Set<string>();
-  let names: string[];
-  try {
-    names = readdirSync(dir);
-  } catch {
-    return [];
-  }
-  for (const name of names) {
-    if (!name.startsWith(prefix) || !name.endsWith(afterFirst)) continue;
-    const code = name.slice(prefix.length, name.length - afterFirst.length);
-    // A glossary or a fixture beside the catalogues is not a language.
-    if (!LANGUAGE_RE.test(code)) continue;
-    const rest =
-      pattern.slice(0, at + "{lang}".length).replace("{lang}", code) + after;
-    if (existsSync(path.join(cwd, rest))) found.add(code);
-  }
+  const found = new Set(
+    matchPattern(cwd, pattern)
+      .map((m) => m.lang)
+      .filter((code) => LANGUAGE_RE.test(code)),
+  );
   const rest = [...found].filter((c) => c !== sourceLanguage).sort();
-  return found.size > 0 ? [sourceLanguage, ...rest] : [];
+  return found.has(sourceLanguage) ? [sourceLanguage, ...rest] : [];
 }
 
 // Whether a tag names a language: one the runtime has plural rules for,
@@ -837,12 +835,11 @@ function readCatalog(
   }
 }
 
-// The languages a Qt catalogue's files name, the source first: a POSIX
+// The languages a catalogue's files name, the source first: a POSIX
 // script modifier, `sr@latin`, is its tag `sr-Latn`, mapped back to the
-// file's code through languageFiles (#657); any other code that is no
-// tag is skipped and named. `{lang}` may be a file name's part or a
-// directory.
-function qtLanguages(
+// file's code through languageFiles (#657, #855); any other code that is
+// no tag is skipped and named.
+function catalogueLanguages(
   cwd: string,
   pattern: string,
   sourceLanguage: string,
@@ -851,31 +848,16 @@ function qtLanguages(
   languageFiles: Record<string, string>;
   skipped: string[];
 } {
-  const at = pattern.indexOf("{lang}");
-  const before = pattern.slice(0, at);
-  const after = pattern.slice(at + "{lang}".length);
-  const dir = path.join(cwd, path.dirname(`${before}x`));
-  const prefix = path.basename(`${before}x`).slice(0, -1);
-  const afterFirst = after.split("/")[0] ?? "";
   const languageFiles: Record<string, string> = {};
   const found = new Set<string>();
   const skipped: string[] = [];
-  let names: string[];
-  try {
-    names = readdirSync(dir);
-  } catch {
-    return { languages: [], languageFiles, skipped };
-  }
-  for (const name of names) {
-    if (!name.startsWith(prefix) || !name.endsWith(afterFirst)) continue;
-    const code = name.slice(prefix.length, name.length - afterFirst.length);
-    if (!existsSync(path.join(cwd, pattern.replace("{lang}", code)))) continue;
+  for (const { code, file } of filesFilling(cwd, pattern)) {
     const tag = posixTag(code);
     if (tag) {
       languageFiles[tag] = code;
       found.add(tag);
     } else if (LANGUAGE_RE.test(code)) found.add(code);
-    else skipped.push(pattern.replace("{lang}", code));
+    else skipped.push(file);
   }
   if (found.size === 0) return { languages: [], languageFiles, skipped };
   found.delete(sourceLanguage);
@@ -886,28 +868,34 @@ function qtLanguages(
   };
 }
 
-// The files a pattern names, as repository paths: `{lang}` a part of a
-// file's name or a directory, each file one a code fills in.
-function patternFiles(cwd: string, pattern: string): string[] {
+// The files a pattern names, with the code each fills `{lang}` with:
+// `{lang}` a part of a file's name or a directory.
+function filesFilling(
+  cwd: string,
+  pattern: string,
+): { code: string; file: string }[] {
   const at = pattern.indexOf("{lang}");
   const before = pattern.slice(0, at);
   const after = pattern.slice(at + "{lang}".length);
-  const dir = path.join(cwd, path.dirname(`${before}x`));
   const prefix = path.basename(`${before}x`).slice(0, -1);
   const afterFirst = after.split("/")[0] ?? "";
+  let names: string[];
   try {
-    return readdirSync(dir)
-      .filter((name) => name.startsWith(prefix) && name.endsWith(afterFirst))
-      .map((name) =>
-        pattern.replace(
-          "{lang}",
-          name.slice(prefix.length, name.length - afterFirst.length),
-        ),
-      )
-      .filter((file) => existsSync(path.join(cwd, file)));
+    names = readdirSync(path.join(cwd, path.dirname(`${before}x`)));
   } catch {
     return [];
   }
+  return names
+    .filter((name) => name.startsWith(prefix) && name.endsWith(afterFirst))
+    .map((name) => {
+      const code = name.slice(prefix.length, name.length - afterFirst.length);
+      return { code, file: pattern.replace("{lang}", code) };
+    })
+    .filter(({ file }) => existsSync(path.join(cwd, file)));
+}
+
+function patternFiles(cwd: string, pattern: string): string[] {
+  return filesFilling(cwd, pattern).map(({ file }) => file);
 }
 
 // Whether a Qt file's `<TS>` names its language, in the file's first
