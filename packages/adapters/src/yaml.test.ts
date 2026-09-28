@@ -328,3 +328,14 @@ test("a key under a flow hash that holds keys is refused, the file left as it is
   ).toBe(flow);
   expect(refused).toEqual(["g.h"]);
 });
+
+test("a root written as a flow hash with keys takes no write, its keys kept (#753)", () => {
+  const en = 'en:\n  a: "A"\n  b: "B"\n  c: "C"\n';
+  const flow = "fr: {a: A, b: B}\n";
+  const refused: string[] = [];
+  const L = { source: "en", code: "fr" };
+  expect(
+    entriesToYaml(en, { c: "C", a: "AA" }, flow, L, (id) => refused.push(id)),
+  ).toBe(flow);
+  expect(refused.sort()).toEqual(["a", "c"]);
+});

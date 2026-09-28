@@ -427,8 +427,16 @@ export function entriesToYaml(
         containers.set(id, pair);
     }
   };
-  if (isMap(rootPair.value) && !rootPair.value.flow) walk(rootPair.value, []);
-  else containers.set("", rootPair);
+  const rootValue = rootPair.value as Node | null;
+  if (isMap(rootValue) && !rootValue.flow) walk(rootValue, []);
+  // A null or `{}` root takes its keys as a block; a root written as a
+  // flow hash with keys takes nothing, every write refused.
+  else if (
+    !rootValue ||
+    (isScalar(rootValue) && rootValue.value === null) ||
+    (isMap(rootValue) && rootValue.items.length === 0)
+  )
+    containers.set("", rootPair);
 
   const missing: string[] = [];
   for (const id of order) {
