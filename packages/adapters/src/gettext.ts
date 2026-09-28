@@ -224,7 +224,12 @@ export function pluralCategoryIndexes(
     counts.set(category, byIndex);
   }
   for (const [category, byIndex] of counts)
-    out.set(category, [...byIndex].sort((a, b) => b[1] - a[1])[0]![0]);
+    // A tie goes to the lower index: French's one is 0 and 1, which
+    // `(n != 1)` sends to two indexes, and msgstr[0] is the singular.
+    out.set(
+      category,
+      [...byIndex].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]![0],
+    );
   for (const category of categories)
     if (!out.has(category)) out.set(category, out.get("other") ?? nplurals - 1);
   return out;

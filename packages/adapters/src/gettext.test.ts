@@ -178,3 +178,11 @@ test("a byte-order mark, entries with no blank line between them, octal and hex 
     { id: "b", type: "", source: "B" },
   ]);
 });
+
+test("a tie goes to the lower index: pt with (n != 1) reads one from msgstr[0] (#718)", () => {
+  const pt = `msgid ""\nmsgstr ""\n"Plural-Forms: nplurals=2; plural=(n != 1);\\n"\n\nmsgid "%d file"\nmsgid_plural "%d files"\nmsgstr[0] "%d ficheiro"\nmsgstr[1] "%d ficheiros"\n`;
+  for (const language of ["pt", "fr"])
+    expect(gettextTranslations(pt, language)[0]?.source).toMatch(
+      /^\{count, plural, one \{%d ficheiro\}/,
+    );
+});
