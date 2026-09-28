@@ -223,11 +223,12 @@ function notes(block: string, key: "from" | "category"): string | undefined {
     if (kind === "description" || kind === "meaning") out.push(text);
     else if (key === "category" && kind === "location") used.push(text);
   }
-  const groups = /<context-group(?=[\s>])([^>]*)>([\s\S]*?)<\/context-group>/g;
+  const groups =
+    /<context-group(?=[\s>])([^>]*?)(?<!\/)>([\s\S]*?)<\/context-group>/g;
   for (let m = groups.exec(block); m; m = groups.exec(block)) {
     if (attr(m[1] ?? "", "purpose") !== "location") continue;
     const context: Record<string, string> = {};
-    const contexts = /<context(?=[\s>])([^>]*)>([\s\S]*?)<\/context>/g;
+    const contexts = /<context(?=[\s>])([^>]*?)(?<!\/)>([\s\S]*?)<\/context>/g;
     for (let c = contexts.exec(m[2]!); c; c = contexts.exec(m[2]!)) {
       const type = attr(c[1] ?? "", "context-type");
       if (type !== undefined) context[type] ??= decode(c[2]!.trim());
