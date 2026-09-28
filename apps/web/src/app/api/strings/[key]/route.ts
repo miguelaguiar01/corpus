@@ -52,6 +52,7 @@ export async function GET(
               language,
               detail.string.syntax,
               detail.string.richText,
+              detail.string.arguments,
             )
           : null,
     };

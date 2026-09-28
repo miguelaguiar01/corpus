@@ -168,6 +168,11 @@ export const stringEntrySchema = z.looseObject({
   // sentence key (§3, #589): it lives in the code that calls t(), so a
   // proposal on it is refused by that name (#611). Additive.
   keyIsText: z.boolean().optional(),
+  // The printf verbs the code passes, by position, where the key carries
+  // them and the text need not print them all (a String Catalog's
+  // `notifications.favorite %lld` reading "starred", #731): values a
+  // translation may pluralise on or print, of their type. Additive.
+  arguments: z.array(z.string()).optional(),
   // What the repository says about this one string, for a translator:
   // an ARB's @key.description (§4, #567). Never written back.
   note: z.string().min(1).optional(),

@@ -108,6 +108,7 @@ export function TargetPane({
   source,
   syntax = "icu",
   richText = null,
+  passed,
   slots,
   language,
   initialText,
@@ -122,6 +123,8 @@ export function TargetPane({
   source: string;
   syntax?: Library;
   richText?: RichText | null;
+  // The verbs the code passes where the key carries them (#731).
+  passed?: string[] | null;
   slots: Slot[];
   language: string;
   initialText: string;
@@ -152,6 +155,7 @@ export function TargetPane({
     ? { ok: true as const }
     : validateTranslation(source, text, language, syntax, {
         richText: richText ?? undefined,
+        ...(passed && { arguments: passed }),
       });
   const errors = validation.ok ? [] : validation.errors;
   // A plural missing a category its language uses saves with a warning

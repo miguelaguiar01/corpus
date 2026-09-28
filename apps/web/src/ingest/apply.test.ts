@@ -908,3 +908,50 @@ test("a first push seeds a variant's identical rows translated (#658)", () => {
   });
   expect(translationOf(db, "ui.continue", "pt-BR")?.state).toBe("translated");
 });
+
+test("a pushed entry's arguments are kept on the row, and a seed pluralising one of them is valid (#731)", () => {
+  const { db, project } = seed();
+  const snapshot: Snapshot = {
+    ...structuredClone(FIXTURE),
+    strings: [
+      {
+        id: "notifications.favorite %lld",
+        type: FIXTURE.strings[0]!.type,
+        source: "favoritou",
+        library: "printf",
+        arguments: ["%lld"],
+      },
+    ],
+    seedTranslations: {
+      en: {
+        "notifications.favorite %lld":
+          "{arg1, plural, one {starred} other {starred it}}",
+      },
+    },
+  };
+  applySnapshot(db, project.id, snapshot);
+  const row = stringRow(db, "notifications.favorite %lld")!;
+  expect(row.arguments).toEqual(["%lld"]);
+  const en = db
+    .select()
+    .from(stringTranslations)
+    .where(
+      and(
+        eq(stringTranslations.stringId, row.id),
+        eq(stringTranslations.language, "en"),
+      ),
+    )
+    .get();
+  expect(en?.text).toBe("{arg1, plural, one {starred} other {starred it}}");
+  expect(en?.invalid).toBe(false);
+  // The next push reads the seed against the row it already holds.
+  applySnapshot(db, project.id, snapshot);
+  expect(translationOf(db, "notifications.favorite %lld", "en")?.invalid).toBe(
+    false,
+  );
+  // A push without the field clears it, as for keyIsText.
+  const bare = structuredClone(snapshot);
+  delete bare.strings[0]!.arguments;
+  applySnapshot(db, project.id, bare);
+  expect(stringRow(db, "notifications.favorite %lld")?.arguments).toBeNull();
+});

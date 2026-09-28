@@ -37,6 +37,8 @@ export type StringDetail = {
     keyIsText: boolean;
     // The message syntax the text is written in (§5).
     syntax: Library;
+    // The verbs the code passes where the key carries them (#731).
+    arguments: string[] | null;
     richText: RichText | null;
     metadata: Record<string, MetadataValue> | null;
     examples: Example[] | null;
@@ -150,6 +152,7 @@ export function stringDetail(
       file: string.file,
       keyIsText: string.keyIsText,
       syntax: string.syntax ?? "icu",
+      arguments: string.arguments ?? null,
       richText: project.richText?.[string.type] ?? null,
       metadata,
       examples: string.examples ?? null,

@@ -64,9 +64,13 @@ function seedInvalid(
   language: string,
   library: Library,
   richText?: RichText,
+  passed?: string[],
 ): boolean {
   if (PLAIN.test(source) && PLAIN.test(text)) return false;
-  return !validateTranslation(source, text, language, library, { richText }).ok;
+  return !validateTranslation(source, text, language, library, {
+    richText,
+    ...(passed && { arguments: passed }),
+  }).ok;
 }
 
 // The per-string writes of a push, each prepared once: a statement
@@ -87,6 +91,7 @@ function stringWrites(
     examples: p("examples"),
     file: p("file"),
     keyIsText: p("keyIsText"),
+    arguments: p("arguments"),
     note: p("note"),
     syntax: p("syntax"),
   };
@@ -106,6 +111,8 @@ function stringWrites(
       entry.examples === undefined ? null : JSON.stringify(entry.examples),
     file: entry.file ?? null,
     keyIsText: entry.keyIsText ? 1 : 0,
+    // What the push says, as keyIsText: a push without it clears it.
+    arguments: entry.arguments ? JSON.stringify(entry.arguments) : null,
     note: entry.note ?? null,
     syntax: entryLibrary(entry),
   });
@@ -200,6 +207,7 @@ function stringWrites(
           language,
           libraryOf(entry),
           richText[entry.type],
+          entry.arguments,
         )
       );
     });
@@ -566,6 +574,7 @@ function applySeeds(
         source: strings.source,
         type: strings.type,
         syntax: strings.syntax,
+        arguments: strings.arguments,
       })
       .from(strings)
       .where(eq(strings.projectId, projectId))
@@ -668,6 +677,7 @@ function applySeeds(
           language,
           string.syntax ?? "icu",
           richText[string.type],
+          string.arguments ?? undefined,
         );
       // A seed the row already holds is nothing: no write, no count, and
       // the editor's "changed since you opened it" stays quiet. Its mark

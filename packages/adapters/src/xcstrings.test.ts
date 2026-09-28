@@ -111,6 +111,7 @@ test("a catalogue's source strings: units, plurals, substitutions by argument, d
       id: "timeline.new-posts %lld",
       type: "ui",
       source: "{count, plural, one {%lld new post} other {%lld new posts}}",
+      arguments: ["%lld"],
       note: "The banner over new posts",
     },
     {
@@ -118,6 +119,7 @@ test("a catalogue's source strings: units, plurals, substitutions by argument, d
       type: "ui",
       source:
         "{arg1, plural, one {%arg recent post} other {%arg recent posts}} from {arg2, plural, one {%arg participant} other {%arg participants}}",
+      arguments: ["%lld", "%lld"],
     },
     { id: "settings.platform [device:ipad]", type: "ui", source: "iPad" },
     { id: "settings.platform [device:iphone]", type: "ui", source: "iPhone" },
@@ -406,4 +408,34 @@ test("a plural on count with text beside it, or one argument pluralised twice, i
     xcstringsWritable("{count, plural, one {%lld P} other {%lld Ps}}"),
   ).toBe(true);
   expect(xcstringsWritable("Use {name} here")).toBe(true);
+});
+
+test("a key's verbs are the arguments the code passes, by position (#731)", () => {
+  const catalog = JSON.stringify({
+    sourceLanguage: "en",
+    strings: {
+      "notifications.label.favorite %lld": {
+        localizations: { en: u("starred") },
+      },
+      "%2$@ follows %1$lld": {
+        localizations: { en: u("%2$@ follows %1$lld") },
+      },
+      "Error: %@": {},
+      "plain.key": { localizations: { en: u("Plain") } },
+      "%#@posts@ from %@": {
+        localizations: { en: u("%#@posts@ from %@") },
+      },
+    },
+  });
+  expect(
+    xcstringsToEntries(catalog, { type: "ui" }).map((e) => [e.id, e.arguments]),
+  ).toEqual([
+    ["notifications.label.favorite %lld", ["%lld"]],
+    ["%2$@ follows %1$lld", ["%lld", "%@"]],
+    // A key that is its own text prints its verbs already.
+    ["Error: %@", undefined],
+    ["plain.key", undefined],
+    // A substitution in the key takes the first position.
+    ["%#@posts@ from %@", ["", "%@"]],
+  ]);
 });
