@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
 import {
   libraryOf,
   validateTranslation,
@@ -617,80 +617,6 @@ function applySuggestions(
 // Unknown ids, unknown
 // languages, and the source language are skipped and counted, never
 // errors. Runs after the string writes so the rows exist.
-// A seed's mark follows the source it is read against: a push that
-// changes a source leaves the unchanged seeds out (#601), so the
-// translations the repository gave are checked again here, a source
-// change fixing or breaking them (#857). A row a translator edited is
-// theirs; saving it clears the mark.
-function remarkSeeds(
-  db: Db,
-  targetLanguages: string[],
-  rowIds: number[],
-  richText: NonNullable<Snapshot["richText"]>,
-): void {
-  const mark = db
-    .update(stringTranslations)
-    .set({ invalid: sql`${sql.placeholder("invalid")}` })
-    .where(
-      and(
-        eq(stringTranslations.stringId, sql.placeholder("rowId")),
-        eq(stringTranslations.language, sql.placeholder("language")),
-      ),
-    )
-    .prepare();
-  for (let at = 0; at < rowIds.length; at += 500) {
-    const ids = rowIds.slice(at, at + 500);
-    const edited = new Set(
-      db
-        .select({ stringId: edits.stringId, language: edits.language })
-        .from(edits)
-        .where(inArray(edits.stringId, ids))
-        .all()
-        .map((e) => `${e.stringId}\u0000${e.language}`),
-    );
-    const rows = db
-      .select({
-        rowId: stringTranslations.stringId,
-        language: stringTranslations.language,
-        text: stringTranslations.text,
-        state: stringTranslations.state,
-        invalid: stringTranslations.invalid,
-        source: strings.source,
-        type: strings.type,
-        syntax: strings.syntax,
-        arguments: strings.arguments,
-      })
-      .from(stringTranslations)
-      .innerJoin(strings, eq(strings.id, stringTranslations.stringId))
-      .where(
-        and(
-          inArray(stringTranslations.stringId, ids),
-          inArray(stringTranslations.language, targetLanguages),
-          isNotNull(stringTranslations.text),
-        ),
-      )
-      .all();
-    for (const row of rows) {
-      if (row.state === "untranslated") continue;
-      if (edited.has(`${row.rowId}\u0000${row.language}`)) continue;
-      const invalid = seedInvalid(
-        row.source,
-        row.text!,
-        row.language,
-        row.syntax ?? "icu",
-        richText[row.type],
-        row.arguments ?? undefined,
-      );
-      if (invalid !== row.invalid)
-        mark.run({
-          rowId: row.rowId,
-          language: row.language,
-          invalid: invalid ? 1 : 0,
-        });
-    }
-  }
-}
-
 function applySeeds(
   db: Db,
   projectId: number,
@@ -837,4 +763,79 @@ function applySeeds(
     }
   }
   return { seeded, seedsIgnored, seedsIdentical };
+}
+
+// A push that changes a source leaves the unchanged seeds out (#601),
+// so the repository's translations of it are checked here (#857). A row
+// a translator saved is theirs, and a save clears the mark; a verify
+// changes no text and does not make it theirs.
+function remarkSeeds(
+  db: Db,
+  targetLanguages: string[],
+  rowIds: number[],
+  richText: NonNullable<Snapshot["richText"]>,
+): void {
+  const mark = db
+    .update(stringTranslations)
+    .set({ invalid: sql`${sql.placeholder("invalid")}` })
+    .where(
+      and(
+        eq(stringTranslations.stringId, sql.placeholder("rowId")),
+        eq(stringTranslations.language, sql.placeholder("language")),
+      ),
+    )
+    .prepare();
+  for (let at = 0; at < rowIds.length; at += 500) {
+    const ids = rowIds.slice(at, at + 500);
+    const edited = new Set(
+      db
+        .select({ stringId: edits.stringId, language: edits.language })
+        .from(edits)
+        .where(
+          and(inArray(edits.stringId, ids), ne(edits.newState, "verified")),
+        )
+        .all()
+        .map((e) => `${e.stringId}\u0000${e.language}`),
+    );
+    const rows = db
+      .select({
+        rowId: stringTranslations.stringId,
+        language: stringTranslations.language,
+        text: stringTranslations.text,
+        state: stringTranslations.state,
+        invalid: stringTranslations.invalid,
+        source: strings.source,
+        type: strings.type,
+        syntax: strings.syntax,
+        arguments: strings.arguments,
+      })
+      .from(stringTranslations)
+      .innerJoin(strings, eq(strings.id, stringTranslations.stringId))
+      .where(
+        and(
+          inArray(stringTranslations.stringId, ids),
+          inArray(stringTranslations.language, targetLanguages),
+          isNotNull(stringTranslations.text),
+        ),
+      )
+      .all();
+    for (const row of rows) {
+      if (row.state === "untranslated") continue;
+      if (edited.has(`${row.rowId}\u0000${row.language}`)) continue;
+      const invalid = seedInvalid(
+        row.source,
+        row.text!,
+        row.language,
+        row.syntax ?? "icu",
+        richText[row.type],
+        row.arguments ?? undefined,
+      );
+      if (invalid !== row.invalid)
+        mark.run({
+          rowId: row.rowId,
+          language: row.language,
+          invalid: invalid ? 1 : 0,
+        });
+    }
+  }
 }

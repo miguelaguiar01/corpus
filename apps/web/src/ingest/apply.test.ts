@@ -1046,3 +1046,31 @@ test("a source change re-checks the marks of the seeds the push leaves out, neve
   applySnapshot(db, project.id, withSeeds({}, withSource("Continuar!")));
   expect(translationOf(db, "ui.continue", "en")?.invalid).toBe(false);
 });
+
+test("a verified seed is still the repository's: a source change re-checks its mark (#857)", () => {
+  const { db, project } = seed();
+  const withSource = (source: string) =>
+    FIXTURE.strings.map((s) => (s.id === "ui.continue" ? { ...s, source } : s));
+  applySnapshot(
+    db,
+    project.id,
+    withSeeds({ en: { "ui.continue": "Continue {name}" } }),
+  );
+  const [ana] = db
+    .insert(users)
+    .values({ name: "ana", maintainer: true })
+    .returning()
+    .all();
+  applyTransition(db, {
+    stringId: stringRow(db, "ui.continue")!.id,
+    language: "en",
+    action: { type: "verify" },
+    actor: ana!,
+  });
+  expect(translationOf(db, "ui.continue", "en")).toMatchObject({
+    state: "verified",
+    invalid: true,
+  });
+  applySnapshot(db, project.id, withSeeds({}, withSource("Continuar {name}")));
+  expect(translationOf(db, "ui.continue", "en")?.invalid).toBe(false);
+});
