@@ -49,8 +49,8 @@ export function SourceView({
   );
 }
 
-// An argument and its keys; a branch that holds another argument reads
-// whole, then lists that one's keys beside it, one level in (#765).
+// An argument and its keys; a branch that holds another argument names
+// it, then lists that one's keys beside it, one level in (#765, #769).
 function Branches({
   node,
   slots,
@@ -69,7 +69,7 @@ function Branches({
           <dd key={key} className="flex items-baseline gap-1">
             <span className="font-mono">{key}</span>
             <span className="text-foreground">
-              {renderNodes(branch, slots, syntax)}
+              {renderNodes(branch, slots, syntax, false, true)}
             </span>
             {nested.length > 0 && (
               <dl className="flex flex-wrap gap-x-3 border-l border-input pl-2">
@@ -114,11 +114,14 @@ const PLACEHOLDER = cn(
 // Word, slash, word stay together; a long branch still wraps.
 const SLASH = "\u00a0/\u00a0";
 
+// `named`: a select or plural reads as its argument, where the strip
+// lists its keys beside it (#769).
 function renderNodes(
   nodes: IcuNode[],
   slots: Map<string, string>,
   syntax: Library,
   nested = false,
+  named = false,
 ) {
   return nodes.map((node, index) => {
     if (node.kind === "literal") return node.text;
@@ -131,7 +134,7 @@ function renderNodes(
           data-tag={node.name}
         >
           {node.children.length > 0 ? (
-            renderNodes(node.children, slots, syntax, nested)
+            renderNodes(node.children, slots, syntax, nested, named)
           ) : (
             <span className="font-mono text-[0.6em] text-muted-foreground">
               {`<${node.name}>`}
@@ -158,6 +161,12 @@ function renderNodes(
     // vue-i18n's forms have no argument: the count is passed at render
     // time rather than named in the string.
     const label = node.kind === "forms" ? undefined : node.arg;
+    if (named && node.kind !== "forms")
+      return (
+        <span key={index} className={PLACEHOLDER}>
+          {chipText(node.arg, syntax)}
+        </span>
+      );
     const branches =
       node.kind === "forms" ? node.branches : Object.values(node.branches);
     // A nested argument's branches are bracketed, so they read apart

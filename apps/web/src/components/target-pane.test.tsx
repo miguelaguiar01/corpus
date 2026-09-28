@@ -696,8 +696,15 @@ test("a select and a plural on one argument name each get their own chip and ske
   const plural = pluralPane("en", "", siblings);
   fireEvent.click(screen.getByRole("button", { name: "{n, plural}" }));
   expect(plural.value).toBe("{n, plural, one {#} other {#}}");
+  cleanup();
+  const sibling = pluralPane("en", "", siblings);
   fireEvent.click(screen.getByRole("button", { name: "{n, select}" }));
-  expect(validateTranslation(siblings, filled(plural.value), "en")).toEqual({
-    ok: true,
-  });
+  expect(sibling.value).toBe("{n, select, a {} other {}}");
+  expect(
+    validateTranslation(
+      siblings,
+      `${filled(plural.value)} ${filled(sibling.value)}`,
+      "en",
+    ),
+  ).toEqual({ ok: true });
 });
