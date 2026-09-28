@@ -201,6 +201,11 @@ export const stringTranslations = sqliteTable(
     index("translations_invalid")
       .on(t.language, t.stringId)
       .where(sql`${t.invalid} = 1`),
+    // The rows holding a suggestion only, few or none: every push clears
+    // them without walking the project's rows (#810).
+    index("translations_suggestion")
+      .on(t.stringId)
+      .where(sql`${t.suggestion} is not null`),
     // Covers the progress counts, read in (language, state) order (#603).
     index("translations_language_state").on(
       t.language,

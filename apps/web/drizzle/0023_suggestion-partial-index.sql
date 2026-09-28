@@ -1,0 +1,1 @@
+CREATE INDEX `translations_suggestion` ON `string_translations` (`string_id`) WHERE "string_translations"."suggestion" is not null;
