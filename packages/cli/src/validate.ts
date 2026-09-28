@@ -21,7 +21,7 @@ import {
   type FileSource,
   hasLanguages,
   readEntries,
-  sourceWritesBack,
+  readsTargets,
   runExporter,
   sourceLibrary,
 } from "./build";
@@ -50,9 +50,10 @@ export type Finding = {
 // files of every JSON source with {lang}, offline. A missing key is not
 // a finding (states cover it); a key the source no longer has is.
 // A file source's line names the language in its path; an exec source's
-// names it after the key, since the command stands for every language.
+// names it after the key, since the command stands for every language,
+// and so does a String Catalog's, one file holding them all (#727).
 function line(f: Finding): string {
-  return f.file.startsWith("exec:")
+  return f.file.startsWith("exec:") || /\.xcstrings$/i.test(f.file)
     ? `${f.file} [${printable(f.key)}] ${f.language}: ${f.message}`
     : `${f.file}:${printable(f.key)}: ${f.message}`;
 }
@@ -112,7 +113,8 @@ export async function validate(
 // An orphan is named where it is, the target file that keeps it (#662),
 // with the source that no longer has it.
 function orphanLine(f: Finding): string {
-  if (f.file.startsWith("exec:")) return line(f);
+  if (f.file.startsWith("exec:") || /\.xcstrings$/i.test(f.file))
+    return line(f);
   return `${f.file}:${printable(f.key)}: ${f.message} (${f.sourceFile})`;
 }
 
@@ -166,7 +168,7 @@ export async function validateRepo(
       );
       if (unreadable) throw new CliError(`${sourceFile}: ${unreadable}`);
     }
-    if (!sourceWritesBack(source)) continue;
+    if (!readsTargets(source)) continue;
     const library = sourceLibrary(source);
     const sources = await texts(jiti, cwd, sourceFile, source, true);
     if (sources === undefined) {
@@ -176,7 +178,14 @@ export async function validateRepo(
     const brokenSources = new Set<string>();
     for (const language of targets) {
       const file = fileOf(source, language, config.sourceLanguage);
-      const translations = await texts(jiti, cwd, file, source);
+      const translations = await texts(
+        jiti,
+        cwd,
+        file,
+        source,
+        false,
+        language,
+      );
       if (translations === undefined) continue;
       for (const [key, target] of translations) {
         // An empty value is a key the target lacks: what an extraction
@@ -243,10 +252,18 @@ async function texts(
   rel: string,
   source: FileSource,
   sourceFile = false,
+  language?: string,
 ): Promise<Map<string, string> | undefined> {
   if (!existsSync(path.join(cwd, rel))) return undefined;
   try {
-    const entries = await readEntries(jiti, cwd, rel, source, sourceFile);
+    const entries = await readEntries(
+      jiti,
+      cwd,
+      rel,
+      source,
+      sourceFile,
+      language,
+    );
     return new Map(entries.map((e) => [e.id, e.source]));
   } catch (error) {
     throw new CliError(`${rel}: ${(error as Error).message}`);

@@ -105,6 +105,16 @@ const gettextSchema = z.looseObject({
   languageFiles,
 });
 
+// Apple's String Catalog (#727): one `.xcstrings` holding every
+// language, so its path has no {lang}; printf unless the library says
+// else.
+const xcstringsSchema = z.looseObject({
+  adapter: z.literal("xcstrings"),
+  type: identifier(),
+  path: z.string().min(1),
+  library: librarySchema.optional(),
+});
+
 // What a config file declares.
 export const sourceInputSchema = z.discriminatedUnion("adapter", [
   z.looseObject({ ...messagesFields, path: patterns(langPattern) }),
@@ -113,6 +123,7 @@ export const sourceInputSchema = z.discriminatedUnion("adapter", [
   androidSchema,
   xliffSchema,
   gettextSchema,
+  xcstringsSchema,
   execSchema,
 ]);
 
@@ -143,6 +154,7 @@ export const sourceSchema = z.discriminatedUnion("adapter", [
   androidSchema,
   xliffSchema,
   gettextSchema,
+  xcstringsSchema,
   execSchema,
 ]);
 

@@ -1115,3 +1115,79 @@ test("a gettext source reads a .pot and its .po files: msgids, fuzzy rows, plura
   expect(report.snapshot.seedTranslated).toEqual({ ru: ["Joplin"] });
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("an xcstrings source reads one String Catalog for every language; only translated units seed (#727)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-xcstrings-"));
+  const unit = (value: string, state = "translated") => ({
+    stringUnit: { state, value },
+  });
+  writeFileSync(
+    path.join(dir, "Localizable.xcstrings"),
+    JSON.stringify({
+      sourceLanguage: "en",
+      strings: {
+        OK: { localizations: { de: unit("OK"), fr: unit("D'accord") } },
+        "timeline.new-posts %lld": {
+          localizations: {
+            en: {
+              variations: {
+                plural: {
+                  one: unit("%lld new post"),
+                  other: unit("%lld new posts"),
+                },
+              },
+            },
+            de: {
+              variations: {
+                plural: {
+                  one: unit("%lld neuer Beitrag"),
+                  other: unit("%lld neue Beiträge"),
+                },
+              },
+            },
+            fr: unit("%lld nouveaux", "needs_review"),
+          },
+        },
+      },
+      version: "1.0",
+    }),
+  );
+  const report = await buildSnapshotReport(
+    config({
+      sourceLanguage: "en",
+      languages: ["en", "de", "fr"],
+      sources: [
+        { adapter: "xcstrings", type: "ui", path: "Localizable.xcstrings" },
+      ],
+    }),
+    dir,
+  );
+  expect(report.refused).toEqual([]);
+  expect(report.notes.join("\n")).not.toMatch(/empty value/);
+  expect(
+    report.snapshot.strings.map((s) => [
+      s.id,
+      s.source,
+      s.library,
+      s.keyIsText,
+    ]),
+  ).toEqual([
+    ["OK", "OK", "printf", true],
+    [
+      "timeline.new-posts %lld",
+      "{count, plural, one {%lld new post} other {%lld new posts}}",
+      "printf",
+      undefined,
+    ],
+  ]);
+  expect(report.snapshot.seedTranslations).toEqual({
+    de: {
+      OK: "OK",
+      "timeline.new-posts %lld":
+        "{count, plural, one {%lld neuer Beitrag} other {%lld neue Beiträge}}",
+    },
+    fr: { OK: "D'accord" },
+  });
+  expect(report.snapshot.seedTranslated).toEqual({ de: ["OK"] });
+  rmSync(dir, { recursive: true, force: true });
+});

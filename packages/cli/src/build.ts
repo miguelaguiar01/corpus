@@ -8,6 +8,8 @@ import {
   androidToEntries,
   fluentToEntries,
   gettextToEntries,
+  xcstringsToEntries,
+  xcstringsTranslations,
   gettextTranslations,
   xliffToEntries,
   xliffTranslations,
@@ -222,9 +224,10 @@ export async function buildSnapshotReport(
     // it, and only where pull can write it: a .ts catalogue carries none,
     // so a proposal on its strings is refused up front, not left pending.
     const writable = sourceWritesBack(source);
-    // A msgid is its key by nature, not an empty value (#718).
+    // A msgid is its key by nature, not an empty value (#718), and so is
+    // a String Catalog key with no source-language unit (#727).
     const keyed =
-      source.adapter === "gettext"
+      source.adapter === "gettext" || source.adapter === "xcstrings"
         ? 0
         : entries.filter((entry) => entry.keyIsText).length;
     if (keyed > 0) {
@@ -319,7 +322,12 @@ export async function buildSnapshotReport(
   // nor fuzzy, whose text is the source's is a translation, not work
   // (#658, #710, #718): only such targets are seeds.
   for (const source of config.sources) {
-    if (source.adapter !== "xliff" && source.adapter !== "gettext") continue;
+    if (
+      source.adapter !== "xliff" &&
+      source.adapter !== "gettext" &&
+      source.adapter !== "xcstrings"
+    )
+      continue;
     const file = fileOf(source, config.sourceLanguage, config.sourceLanguage);
     for (const { entry } of sourced.filter((s) => s.file === file))
       for (const [lang, texts] of Object.entries(seedTranslations))
@@ -542,7 +550,8 @@ export type FileSource = Exclude<Source, { adapter: "exec" }>;
 export function sourceLibrary(source: FileSource): Library {
   if (source.adapter === "android") return "android";
   // gettext's msgids are C's format strings unless the source says else.
-  if (source.adapter === "gettext") return source.library ?? "printf";
+  if (source.adapter === "gettext" || source.adapter === "xcstrings")
+    return source.library ?? "printf";
   return source.adapter === "fluent" || source.adapter === "xliff"
     ? "icu"
     : libraryOf(source);
@@ -561,6 +570,8 @@ export function fileOf(
     language === sourceLanguage
   )
     return source.sourcePath;
+  // A String Catalog holds every language in its one file (#727).
+  if (source.adapter === "xcstrings") return source.path;
   if (source.adapter !== "android")
     return source.path.replace("{lang}", fileCodeOf(source, language));
   const dir = language === sourceLanguage ? "values" : androidDirOf(language);
@@ -607,7 +618,17 @@ function languageOfFile(
 // Whether a source keeps a file per language, and so takes
 // translations back.
 export function hasLanguages(source: FileSource): boolean {
-  return source.adapter === "android" || source.path.includes("{lang}");
+  return (
+    source.adapter === "android" ||
+    source.adapter === "xcstrings" ||
+    source.path.includes("{lang}")
+  );
+}
+
+// Whether a source's target files are read for their translations: a
+// source pull writes back, and xcstrings, whose write-back is #728.
+export function readsTargets(source: FileSource): boolean {
+  return source.adapter === "xcstrings" || sourceWritesBack(source);
 }
 
 export function sourceWritesBack(source: FileSource): boolean {
@@ -632,7 +653,19 @@ export async function readEntries(
   file: string,
   source: FileSource,
   sourceFile = false,
+  // The language a target file is read for, where one file holds them
+  // all (xcstrings).
+  language?: string,
 ): Promise<StringEntry[]> {
+  if (source.adapter === "xcstrings") {
+    const text = readFileSync(path.join(cwd, file), "utf8");
+    return sourceFile
+      ? xcstringsToEntries(text, { type: source.type })
+      : xcstringsTranslations(text, language ?? "").map((e) => ({
+          ...e,
+          type: source.type,
+        }));
+  }
   if (source.adapter === "android") {
     return androidToEntries(readFileSync(path.join(cwd, file), "utf8"), {
       type: source.type,
@@ -722,6 +755,7 @@ export function writableSources(config: CorpusConfig): WritableSource[] {
   return config.sources.flatMap((source) =>
     source.adapter !== "exec" &&
     source.adapter !== "gettext" &&
+    source.adapter !== "xcstrings" &&
     sourceWritesBack(source)
       ? [
           {
@@ -776,6 +810,10 @@ export function pushOnlyNotes(config: CorpusConfig): string[] {
       continue;
     } else if (source.adapter === "xliff" || source.adapter === "gettext") {
       continue;
+    } else if (source.adapter === "xcstrings") {
+      notes.push(
+        `${source.path}: pull does not write a String Catalog yet; its translations are read and pushed`,
+      );
     } else if (!source.path.includes("{lang}")) {
       notes.push(
         `${source.path} has no {lang}: its translations cannot be written back`,
@@ -901,13 +939,20 @@ async function readSeeds(
   const seededFrom: Record<string, Record<string, string>> = {};
   for (const source of config.sources) {
     if (source.adapter === "exec" || !hasLanguages(source)) continue;
-    if (!sourceWritesBack(source)) continue;
+    if (!readsTargets(source)) continue;
     for (const lang of config.languages) {
       if (lang === config.sourceLanguage) continue;
       const file = fileOf(source, lang, config.sourceLanguage);
       if (!existsSync(path.join(cwd, file))) continue;
       try {
-        for (const entry of await readEntries(jiti, cwd, file, source)) {
+        for (const entry of await readEntries(
+          jiti,
+          cwd,
+          file,
+          source,
+          false,
+          lang,
+        )) {
           // A key the source no longer has, or an empty value an
           // extraction tool left, is not a translation.
           if (!ids.has(entry.id) || entry.source.trim() === "") continue;
