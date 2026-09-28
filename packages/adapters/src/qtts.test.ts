@@ -368,3 +368,62 @@ test("Qt's own counts: Macedonian by n%10, one form where Qt has no rule, older 
   );
   expect(changed).toContain("<numerusform>%n pliki!</numerusform>");
 });
+
+test("a qsTrId message is keyed by its id, which a changed source keeps, and pull writes it back by that id (#745)", () => {
+  const template = (source: string) => `<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE TS>
+<TS version="2.1">
+<context>
+    <name></name>
+    <message id="msg.hello">
+        <source>${source}</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>Main</name>
+    <message>
+        <source>Quit</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+</TS>
+`;
+  expect(
+    qtTsToEntries(template("Hello"), { type: "ui" }).map((e) => e.id),
+  ).toEqual(["msg.hello", "Main | Quit"]);
+  expect(qtTsToEntries(template("Hi there"), { type: "ui" })[0]!.id).toBe(
+    "msg.hello",
+  );
+  const de = template("Hello")
+    .replace(
+      '<source>Hello</source>\n        <translation type="unfinished"></translation>',
+      "<source>Hello</source>\n        <translation>Hallo</translation>",
+    )
+    .replace(
+      '<source>Quit</source>\n        <translation type="unfinished"></translation>',
+      "<source>Quit</source>\n        <translation>Beenden</translation>",
+    );
+  expect(qtTsTranslations(de, "de")).toEqual([
+    { id: "msg.hello", type: "", source: "Hallo" },
+    { id: "Main | Quit", type: "", source: "Beenden" },
+  ]);
+  const language = { tag: "de", code: "de" };
+  // A no-op pull writes the same bytes; a changed one lands in its message.
+  expect(
+    entriesToQtTs(
+      template("Hello"),
+      { "msg.hello": "Hallo", "Main | Quit": "Beenden" },
+      de,
+      language,
+    ),
+  ).toBe(de);
+  expect(
+    entriesToQtTs(template("Hello"), { "msg.hello": "Servus" }, de, language),
+  ).toBe(
+    de.replace(
+      "<translation>Hallo</translation>",
+      "<translation>Servus</translation>",
+    ),
+  );
+});

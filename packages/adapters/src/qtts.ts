@@ -117,8 +117,11 @@ export function qtMessages(xml: string): QtMessage[] {
       const variants = t?.[2]?.match(
         /<lengthvariant(?:\s[^>]*)?>([\s\S]*?)<\/lengthvariant>/,
       );
+      // A qsTrId message is looked up by its own id, which stays when its
+      // source text changes (#745).
+      const own = attr(m[1] ?? "", "id");
       out.push({
-        id: qtId(context, source, comment),
+        id: own ? qtDecode(own) : qtId(context, source, comment),
         context,
         source,
         ...(comment !== undefined && { comment }),
