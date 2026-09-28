@@ -1461,3 +1461,64 @@ test("reading prose tags is one pass: a thousand unclosed tags, verbs counted on
     renderPreview("Insert <head> {name}", { name: "x" }, "en"),
   ).toMatchObject({ ok: true, text: "Insert <head> x" });
 });
+
+test("a nested message is validated at both levels (#764)", () => {
+  const source =
+    "{g, select, female {{n, plural, one {She has # file} other {She has # files}}} other {{n, plural, one {They have # file} other {They have # files}}}}";
+  const inner = (one: string, few: string, other: string) =>
+    `{n, plural, one {${one}} few {${few}} many {${other}} other {${other}}}`;
+  expect(
+    validateTranslation(
+      source,
+      `{g, select, female {${inner("Ona ma # plik", "Ona ma # pliki", "Ona ma # plików")}} other {${inner("Mają # plik", "Mają # pliki", "Mają # plików")}}}`,
+      "pl",
+    ),
+  ).toEqual({ ok: true });
+  // The inner plural's categories are the target language's.
+  expect(
+    validateTranslation(
+      source,
+      "{g, select, female {{n, plural, one {Ona ma # plik} other {Ona ma # plików}}} other {{n, plural, one {Mają # plik} other {Mają # plików}}}}",
+      "pl",
+    ),
+  ).toMatchObject({
+    ok: true,
+    incomplete: [
+      { code: "missing-category", arg: "n", key: "few" },
+      { code: "missing-category", arg: "n", key: "many" },
+    ],
+  });
+  // The outer select's branches are the source's; the count is kept.
+  expect(
+    validateTranslation(
+      source,
+      "{g, select, other {{n, plural, one {Tem ficheiro} other {Tem ficheiros}}}}",
+      "pt-PT",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-branch", arg: "g", key: "female" }],
+  });
+  // A select in a plural's branch, the inner select's keys checked.
+  expect(
+    validateTranslation(
+      "{n, plural, one {{g, select, female {her file} other {their file}}} other {# files}}",
+      "{n, plural, one {{g, select, male {o ficheiro dele} other {o ficheiro}}} other {# ficheiros}}",
+      "pt-PT",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [
+      { code: "missing-branch", arg: "g", key: "female" },
+      { code: "unexpected-branch", arg: "g", key: "male" },
+    ],
+  });
+  // The nesting may turn inside out: the same values, the same keys.
+  expect(
+    validateTranslation(
+      source,
+      "{n, plural, one {{g, select, female {Ela tem # ficheiro} other {Têm # ficheiro}}} other {{g, select, female {Ela tem # ficheiros} other {Têm # ficheiros}}}}",
+      "en",
+    ),
+  ).toEqual({ ok: true });
+});
