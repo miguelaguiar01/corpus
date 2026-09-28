@@ -74,7 +74,7 @@ function escapedBytes(run: string): string {
   );
   if (codes.every((b) => b <= 0xff))
     try {
-      return new TextDecoder("utf-8", { fatal: true }).decode(
+      return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
         new Uint8Array(codes),
       );
     } catch {
@@ -176,7 +176,9 @@ export function parsePo(text: string): PoEntry[] {
         entry.references.push(line.slice(2).trim());
     } else {
       const keyword =
-        /^(msgctxt|msgid_plural|msgid|msgstr(?:\[\d+\])?)(?=[\s"])/.exec(line);
+        /^(msgctxt|msgid_plural|msgid|msgstr(?:\[\d+\])?)(?=[\s"]|$)/.exec(
+          line,
+        );
       if (keyword) {
         flush();
         if (
