@@ -94,6 +94,17 @@ const xliffSchema = z.looseObject({
   languageFiles,
 });
 
+// gettext `.po` (#668): a file per language, the `.pot` or the source
+// language's `.po` as the source; printf unless the library says else.
+const gettextSchema = z.looseObject({
+  adapter: z.literal("gettext"),
+  type: identifier(),
+  path: langPattern,
+  sourcePath: z.string().min(1).optional(),
+  library: librarySchema.optional(),
+  languageFiles,
+});
+
 // What a config file declares.
 export const sourceInputSchema = z.discriminatedUnion("adapter", [
   z.looseObject({ ...messagesFields, path: patterns(langPattern) }),
@@ -101,6 +112,7 @@ export const sourceInputSchema = z.discriminatedUnion("adapter", [
   z.looseObject({ ...fluentFields, path: patterns(langPattern) }),
   androidSchema,
   xliffSchema,
+  gettextSchema,
   execSchema,
 ]);
 
@@ -130,6 +142,7 @@ export const sourceSchema = z.discriminatedUnion("adapter", [
   }),
   androidSchema,
   xliffSchema,
+  gettextSchema,
   execSchema,
 ]);
 
@@ -218,9 +231,12 @@ export const corpusConfigSchema = z
       if (
         source.adapter !== "messages" &&
         source.adapter !== "fluent" &&
-        source.adapter !== "xliff"
+        source.adapter !== "xliff" &&
+        source.adapter !== "gettext"
       ) {
-        issue(`languageFiles is for messages, fluent and xliff sources`);
+        issue(
+          `languageFiles is for messages, fluent, xliff and gettext sources`,
+        );
         return;
       }
       // The server fills a writable source's pattern with the source

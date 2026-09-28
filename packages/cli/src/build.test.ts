@@ -845,7 +845,7 @@ test("a catalogue no adapter reads is refused by its format, a Qt .ts told from 
       sources: [{ adapter: "messages", type: "ui", path: `i18n/${file}` }],
     });
   await expect(buildSnapshot(at("{lang}.po"), dir)).rejects.toThrow(
-    /i18n\/en\.po: a gettext catalogue, which no adapter reads: an exec source/,
+    /i18n\/en\.po: a gettext catalogue: declare it \{ adapter: "gettext"/,
   );
   await expect(buildSnapshot(at("app_{lang}.ts"), dir)).rejects.toThrow(
     /i18n\/app_en\.ts: a Qt Linguist catalogue/,
@@ -1067,5 +1067,51 @@ ${units.join("\n")}
   // Status in German is a loanword the file marks final: translated.
   expect(report.snapshot.seedTranslated).toEqual({ de: ["status"] });
   expect(pushOnlyNotes(cfg)).toEqual([]);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("a gettext source reads a .pot and its .po files: msgids, fuzzy rows, plural forms (#718)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-gettext-"));
+  mkdirSync(path.join(dir, "locales"));
+  writeFileSync(
+    path.join(dir, "locales", "app.pot"),
+    `msgid ""\nmsgstr ""\n\nmsgid "Joplin"\nmsgstr ""\n\nmsgid "Delete %s?"\nmsgstr ""\n\nmsgid "%d note"\nmsgid_plural "%d notes"\nmsgstr[0] ""\nmsgstr[1] ""\n`,
+  );
+  writeFileSync(
+    path.join(dir, "locales", "ru.po"),
+    `msgid ""\nmsgstr ""\n"Language: ru\\n"\n"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\\n"\n\nmsgid "Joplin"\nmsgstr "Joplin"\n\n#, fuzzy\nmsgid "Delete %s?"\nmsgstr "Удалить?"\n\nmsgid "%d note"\nmsgid_plural "%d notes"\nmsgstr[0] "%d заметка"\nmsgstr[1] "%d заметки"\nmsgstr[2] "%d заметок"\n`,
+  );
+  const report = await buildSnapshotReport(
+    config({
+      sourceLanguage: "en",
+      languages: ["en", "ru"],
+      sources: [
+        {
+          adapter: "gettext",
+          type: "ui",
+          path: "locales/{lang}.po",
+          sourcePath: "locales/app.pot",
+        },
+      ],
+    }),
+    dir,
+  );
+  expect(report.refused).toEqual([]);
+  expect(
+    report.snapshot.strings.map((s) => [s.id, s.source, s.library]),
+  ).toEqual([
+    ["Joplin", "Joplin", "printf"],
+    ["Delete %s?", "Delete %s?", "printf"],
+    ["%d note", "{count, plural, one {%d note} other {%d notes}}", "printf"],
+  ]);
+  // The fuzzy row is not seeded; the identical translation is marked.
+  expect(report.snapshot.seedTranslations).toEqual({
+    ru: {
+      Joplin: "Joplin",
+      "%d note":
+        "{count, plural, one {%d заметка} few {%d заметки} many {%d заметок} other {%d заметок}}",
+    },
+  });
+  expect(report.snapshot.seedTranslated).toEqual({ ru: ["Joplin"] });
   rmSync(dir, { recursive: true, force: true });
 });

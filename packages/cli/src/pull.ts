@@ -182,7 +182,9 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     }
     if (!sourceWritesBack(source)) {
       ctx.err(
-        `corpus: ${source.path} is not JSON: pull writes JSON only, so its translations cannot be written back`,
+        source.adapter === "gettext"
+          ? `corpus: ${source.path}: pull does not write gettext yet; its translations are read and pushed`
+          : `corpus: ${source.path} is not JSON: pull writes JSON only, so its translations cannot be written back`,
       );
       continue;
     }

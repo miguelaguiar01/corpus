@@ -597,7 +597,7 @@ test("a catalogue no adapter reads is named by its format, not passed as valid (
   let c = ctx();
   expect(await run(["validate"], c)).toBe(1);
   expect(c.stderr.join("\n")).toContain(
-    "po/en.po: a gettext catalogue, which no adapter reads",
+    'po/en.po: a gettext catalogue: declare it { adapter: "gettext"',
   );
   using('{ adapter: "messages", type: "ui", path: "po/app_{lang}.ts" }');
   c = ctx();
@@ -665,4 +665,31 @@ test("validate refuses an xliff target whose START_LINK and CLOSE_LINK are rever
   expect(c.stderr.join("\n")).toMatch(
     /locale\/messages\.pt\.xlf:signIn: invalid ICU in the target/,
   );
+});
+
+test("validate reads a gettext target: a dropped %s is a finding, a fuzzy row is not read (#718)", async () => {
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8").replace(
+      /sources: \[[\s\S]*?\n {2}\],/,
+      'sources: [{ adapter: "gettext", type: "ui", path: "po/{lang}.po", sourcePath: "po/app.pot" }],',
+    ),
+  );
+  mkdirSync(path.join(repo, "po"), { recursive: true });
+  writeFileSync(
+    path.join(repo, "po", "app.pot"),
+    `msgid "Delete %s?"\nmsgstr ""\n\nmsgid "Keep %s"\nmsgstr ""\n`,
+  );
+  writeFileSync(
+    path.join(repo, "po", "pt.po"),
+    `msgid "Delete %s?"\nmsgstr "Apagar?"\n\n#, fuzzy\nmsgid "Keep %s"\nmsgstr "Manter"\n`,
+  );
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(1);
+  const err = c.stderr.join("\n");
+  expect(err).toMatch(/po\/pt\.po:Delete %s\?: missing %s/);
+  expect(err).not.toMatch(/Keep %s/);
 });
