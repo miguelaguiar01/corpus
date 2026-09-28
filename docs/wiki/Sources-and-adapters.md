@@ -148,7 +148,7 @@ One JSON object on stdout, `{ strings, entities?, translations? }`, up to 256 Mi
 | Field | | |
 |---|---|---|
 | `id` | required | Unique across every source of the config. Any text without control characters but tab and line breaks, up to 1,000 characters: `tip.save`, or the sentence itself. |
-| `type` | required | The string type, as `stringTypes` and `typeNotes` name it: letters, digits, dot, underscore and hyphen. A type that a file source pull writes back also uses (one with `{lang}` in its path, in a format pull writes) is that source's: a pull sends its rows to the file, never to the import command, so give an exec source's strings types of their own. |
+| `type` | required | The string type, as `stringTypes` and `typeNotes` name it: letters, digits, dot, underscore and hyphen. A type that a file source pull writes back also uses (one pull writes: an Android or String Catalog source, or one with `{lang}` in its path in a format pull writes) is that source's: a pull sends its rows to the file, never to the import command, so give an exec source's strings types of their own. |
 | `source` | required | The text in the source language, written for `library`. A text that does not parse under it is refused by name, as a catalogue's is. |
 | `library` | optional | `icu` when absent; any library [Your i18n library](Your-i18n-library) lists. An exec source has no `library` of its own, so each entry says it. |
 | `note` | optional | What the repository says about this one string, for a translator. Never written back. |
@@ -173,7 +173,7 @@ A `file` field is dropped: an exec source is not written back by pull, so nothin
 | `project`, `sourceLanguage` | As the config names them. |
 | `minState` | The state the pull asked for: `untranslated`, `translated` or `verified`. |
 | `translations` | Language to id to text: the rows the pull selected, for the target languages it asked for, of every type no file source that pull writes back uses. The source language is not among them. |
-| `types` | Id to type, for every string the project holds; `types[id]` tells one exec source's rows from another's. |
+| `types` | Id to type, for every string the project holds but archived ones; `types[id]` tells one exec source's rows from another's. |
 | `sourceChanges` | Pending proposals for the file sources, absent when none is pending; pull writes them itself, and an import command ignores them, since an exec string has no file. |
 
 A field it does not know it ignores, as every reader of the contract does.
