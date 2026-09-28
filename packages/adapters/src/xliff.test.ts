@@ -63,6 +63,12 @@ test("an XLIFF 1.2 source's units are strings, inline elements placeholders and 
       type: "ui",
       source:
         "{VAR_PLURAL, plural, =1 {1 holding} other {{INTERPOLATION} holdings}}",
+      examples: [
+        {
+          values: { INTERPOLATION: "{{ count }}" },
+          rendered: "{{ count }} holdings",
+        },
+      ],
     },
     { id: "amp", type: "ui", source: "Fees & taxes" },
   ]);
@@ -109,6 +115,12 @@ test("XLIFF 2.0 units read the same, <ph> and <pc> as placeholder and tag (#710)
     type: "ui",
     source: "Hello {INTERPOLATION}, see <BOLD_TEXT>this</BOLD_TEXT>",
     note: "Greeting\nhome",
+    examples: [
+      {
+        values: { INTERPOLATION: "{{ name }}" },
+        rendered: "Hello {{ name }}, see this",
+      },
+    ],
   });
   expect(xliffTranslations(xml)).toEqual([
     {
@@ -335,4 +347,47 @@ describe("writing, the review's cases (#711)", () => {
       "fresh",
     ]);
   });
+});
+
+test("a placeholder's equiv-text, 2.0's disp, is the unit's example, so a chip and a preview show what the app substitutes (#714)", () => {
+  const v12 = `<?xml version="1.0" encoding="UTF-8" ?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file source-language="en" datatype="plaintext" original="ng2.template">
+    <body>
+      <trans-unit id="hello" datatype="html">
+        <source>Hello <x id="INTERPOLATION" equiv-text="{{ user.name }}"/>, see <x id="START_LINK" ctype="x-a" equiv-text="&lt;a href=&quot;/x&quot;&gt;"/>docs<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/></source>
+      </trans-unit>
+      <trans-unit id="plain" datatype="html">
+        <source>No placeholders</source>
+      </trans-unit>
+      <trans-unit id="bare" datatype="html">
+        <source>Hi <x id="INTERPOLATION"/></source>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>
+`;
+  const [hello, plain, bare] = xliffToEntries(v12, { type: "ui" });
+  expect(hello!.examples).toEqual([
+    {
+      values: { INTERPOLATION: "{{ user.name }}" },
+      rendered: "Hello {{ user.name }}, see docs",
+    },
+  ]);
+  expect(plain!.examples).toBeUndefined();
+  expect(bare!.examples).toBeUndefined();
+  const v20 = `<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="2.0" xmlns="urn:oasis:names:tc:xliff:document:2.0" srcLang="en">
+  <file id="ngi18n" original="ng.template">
+    <unit id="hello">
+      <segment>
+        <source>Hello <ph id="0" equiv="INTERPOLATION" disp="{{ name }}"/></source>
+      </segment>
+    </unit>
+  </file>
+</xliff>
+`;
+  expect(xliffToEntries(v20, { type: "ui" })[0]!.examples).toEqual([
+    { values: { INTERPOLATION: "{{ name }}" }, rendered: "Hello {{ name }}" },
+  ]);
 });

@@ -1,7 +1,7 @@
 // XLIFF 1.2 and 2.0 (#667), as Angular's i18n and most translation
 // tools export it: a unit's `<source>` is the text, its `<target>` the
 // translation, its inline elements the text's placeholders and tags.
-import type { StringEntry } from "@corpus/contract";
+import { renderPreview, type StringEntry } from "@corpus/contract";
 
 // A unit as read: its id, its source and target as the editor shows
 // them, whether the target counts as translated, and its notes.
@@ -11,6 +11,9 @@ export type XliffUnit = {
   target?: string;
   translated: boolean;
   note?: string;
+  // What the app substitutes for each source placeholder, by name: an
+  // `<x>`'s `equiv-text`, 2.0's `disp` (#714).
+  shown?: Record<string, string>;
 };
 
 // States a target is work in: XLIFF 1.2's `new` and `needs-translation`,
@@ -80,8 +83,13 @@ function skipTo(xml: string, at: number, element: string): number {
 // translation that reverses a pair does not parse. Other text is
 // decoded, an ICU plural inside a unit kept as ICU. `parts` records the
 // XML each token stands for, so a translation can be written back with
-// the unit's own elements (#711).
-export function inlineText(xml: string, parts?: Map<string, string[]>): string {
+// the unit's own elements (#711); `shown`, what each placeholder
+// displays as (#714).
+export function inlineText(
+  xml: string,
+  parts?: Map<string, string[]>,
+  shown?: Record<string, string>,
+): string {
   let out = "";
   let at = 0;
   const open: string[] = [];
@@ -108,6 +116,9 @@ export function inlineText(xml: string, parts?: Map<string, string[]>): string {
       INLINE_RE.lastIndex = to;
     });
     if (token === undefined) continue;
+    const display = attr(m[3] ?? "", "equiv-text") ?? attr(m[3] ?? "", "disp");
+    if (shown && display !== undefined && /^\{.*\}$/.test(token))
+      shown[token.slice(1, -1)] = decode(display);
     if (parts) {
       const list = parts.get(token) ?? [];
       list.push(xml.slice(m.index, at));
@@ -220,9 +231,12 @@ function unit(
   note: string | undefined,
 ): XliffUnit {
   const text = target === undefined ? undefined : inlineText(target);
+  const shown: Record<string, string> = {};
+  const read = inlineText(source, undefined, shown);
   return {
     id,
-    source: inlineText(source),
+    source: read,
+    ...(Object.keys(shown).length > 0 && { shown }),
     ...(text !== undefined && { target: text }),
     translated:
       text !== undefined &&
@@ -301,7 +315,15 @@ export function xliffToEntries(
     type: options.type,
     source: u.source,
     ...(u.note && { note: u.note }),
+    ...(u.shown && { examples: [exampleOf(u.source, u.shown)] }),
   }));
+}
+
+// The unit read with each placeholder as the app displays it: the
+// example a chip's tooltip and a blank draft's preview show (#714).
+function exampleOf(source: string, values: Record<string, string>) {
+  const read = renderPreview(source, values, undefined, { capitalise: false });
+  return { values, rendered: read.ok ? read.text : source };
 }
 
 // A target file's translations: the units whose target someone wrote,
