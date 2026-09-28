@@ -14,7 +14,7 @@ import { qtPluralForms } from "./qtnumerus";
 
 type Span = { start: number; end: number };
 
-export type QtMessage = {
+type QtMessage = {
   id: string;
   context: string;
   source: string;
@@ -45,7 +45,7 @@ const ENTITIES: Record<string, string> = {
 // An XML text's value: entities decoded, a reference to no character
 // kept as written, and line ends read as XML reads them, so a Windows
 // checkout gives the same ids.
-export function qtDecode(text: string): string {
+function qtDecode(text: string): string {
   return (
     text
       .replace(/\r\n?/g, "\n")
@@ -71,7 +71,7 @@ function attr(attrs: string, name: string): string | undefined {
 
 // A message's id: its context, its source, and the comment Qt tells two
 // otherwise equal messages apart by.
-export function qtId(context: string, source: string, comment?: string) {
+function qtId(context: string, source: string, comment?: string) {
   return comment === undefined || comment === ""
     ? `${context} | ${source}`
     : `${context} | ${source} | ${comment}`;

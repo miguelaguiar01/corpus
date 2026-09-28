@@ -11,7 +11,7 @@ export const CONTEXT_SEPARATOR = "␄";
 
 type Span = { start: number; end: number };
 
-export type PoEntry = {
+type PoEntry = {
   msgctxt?: string;
   msgid: string;
   msgidPlural?: string;
@@ -172,7 +172,7 @@ export function parsePo(text: string): PoEntry[] {
 }
 
 // A header's fields: `Language`, `Plural-Forms` and the rest.
-export function poHeader(entries: PoEntry[]): Record<string, string> {
+function poHeader(entries: PoEntry[]): Record<string, string> {
   const header = entries.find((e) => e.msgid === "" && !e.msgctxt);
   const out: Record<string, string> = {};
   for (const line of (header?.msgstr[0] ?? "").split("\n")) {
@@ -501,11 +501,7 @@ function breaks(before2: string, before: string, after: string): boolean {
 // fits, else an empty first string and a line per `\n`, each broken
 // where it may to stay within 79 columns, the quotes counted; an entry
 // flagged `no-wrap` breaks at `\n` alone.
-export function poLines(
-  keyword: string,
-  value: string,
-  wraps = true,
-): string[] {
+function poLines(keyword: string, value: string, wraps = true): string[] {
   const portions = value.split(/(?<=\n)/);
   const wrap = (portion: string, start: number): string[] => {
     const chars = [...portion];

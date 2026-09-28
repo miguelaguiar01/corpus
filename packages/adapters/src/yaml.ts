@@ -16,7 +16,7 @@ import {
 
 const PLURAL = ["zero", "one", "two", "few", "many", "other"] as const;
 
-export type YamlString = {
+type YamlString = {
   id: string;
   // The string's text, or its forms for a plural hash.
   text: string;
@@ -255,7 +255,7 @@ function isBlock(rendered: string): boolean {
 // double-quoted, or a `|`/`>` block at its own indentation with its
 // header's indentation indicator; where that style cannot hold the text,
 // double-quoted. A block's lines end as the file's do.
-export function styled(
+function styled(
   source: string,
   node: { type?: string | null; range?: readonly number[] | null },
   text: string,
