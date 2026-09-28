@@ -1128,3 +1128,58 @@ test("init says so when a gettext source has no template and no source-language 
     "no .pot beside the catalogues and no po/en.po; set the gettext source's sourcePath",
   );
 });
+
+test("init writes an xcstrings source for a String Catalog, its languages and source read from the file (#729)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "App"), { recursive: true });
+  const unit = (value: string) => ({
+    stringUnit: { state: "translated", value },
+  });
+  writeFileSync(
+    path.join(p.dir, "App", "Localizable.xcstrings"),
+    JSON.stringify({
+      sourceLanguage: "en",
+      strings: {
+        "Hello %@": {
+          localizations: {
+            en: unit("Hello %@"),
+            "zh-Hans": unit("你好 %@"),
+            de: unit("Hallo %@"),
+          },
+        },
+      },
+    }),
+  );
+  const flags = [
+    "init",
+    "--project",
+    "app",
+    "--messages",
+    "App/Localizable.xcstrings",
+  ];
+  expect(await run(flags, p.ctx)).toBe(0);
+  expect(p.err.join("\n")).toBe("");
+  const config = await loadConfig(p.dir);
+  expect(config.sourceLanguage).toBe("en");
+  expect(config.languages).toEqual(["en", "de", "zh-Hans"]);
+  expect(config.sources[0]).toEqual({
+    adapter: "xcstrings",
+    type: "chrome",
+    path: "App/Localizable.xcstrings",
+  });
+  expect(await run(["build"], p.ctx)).toBe(0);
+
+  // A --source the catalogue does not name is refused.
+  const q = project();
+  stubCli(q.dir);
+  mkdirSync(path.join(q.dir, "App"), { recursive: true });
+  writeFileSync(
+    path.join(q.dir, "App", "Localizable.xcstrings"),
+    JSON.stringify({ sourceLanguage: "en", strings: {} }),
+  );
+  expect(await run([...flags, "--source", "pt"], q.ctx)).toBe(1);
+  expect(q.err.join("\n")).toContain(
+    "--source pt: App/Localizable.xcstrings names en as its source language",
+  );
+});

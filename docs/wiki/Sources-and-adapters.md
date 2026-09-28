@@ -10,7 +10,7 @@ One key-value catalogue per language.
 { adapter: "messages", type: "ui", path: "src/i18n/{lang}.json" }
 ```
 
-The files are JSON (`.json`, Flutter's `.arb`) or a JavaScript or TypeScript module that default-exports the object. Any other catalogue is refused by name: gettext `.po` and XLIFF have adapters of their own, [gettext](#gettext) and [xliff](#xliff), and an [exec](#exec) source converts YAML, a String Catalog or Qt Linguist's XML `.ts`.
+The files are JSON (`.json`, Flutter's `.arb`) or a JavaScript or TypeScript module that default-exports the object. Any other catalogue is refused by name: gettext `.po` and XLIFF have adapters of their own, [gettext](#gettext) and [xliff](#xliff), Apple's String Catalog has [xcstrings](#xcstrings), and an [exec](#exec) source converts YAML or Qt Linguist's XML `.ts`.
 
 An object whose keys are all plural categories, `other` among them, is one string, not one per key: `"rooms": { "one": "{{count}} room", "other": "{{count}} rooms" }` reads as `{count, plural, one {{{count}} room} other {{{count}} rooms}}`, so the editor shows one plural and a Polish translation gains `few` and `many`, which a pull writes back into the object in CLDR's order. This holds under `icu`, `i18next`, `printf`, `counterpart`, `easy_localization`, `rails` and `qt`; under `vue` the forms stay keys of their own.
 
@@ -90,6 +90,18 @@ gettext's `.po` files, one per language, beside the `.pot` template xgettext wri
 `sourcePath` names the template, whose msgids are the strings; without it the source language's own `.po` is read. `corpus init --messages locales/{lang}.po` writes it when it finds the template in the directory above the language, `locales/` for `locales/{lang}.po` and for GNU's `locales/{lang}/LC_MESSAGES/app.po` alike, preferring `app.pot` when the catalogues are `app.po`; it says so when it finds neither a template nor the source language's `.po`. A msgid is its string's key and its text, so the code that calls `gettext()` holds it and no proposal edits it; a `msgctxt` is joined before it with `␄`. A `msgid_plural` and its `msgstr[n]` are one ICU plural, each of the language's CLDR categories reading the form the file's `Plural-Forms` gives its integers, so the editor asks a Russian translator for `one`, `few` and `many`, and `other`, which only decimals reach, reads the last form. A `#, fuzzy` row is a guess, not a translation; `#.` comments and `#:` references are the string's note. The library is `printf`, so a translation that drops a `%s` is refused.
 
 A pull writes a changed translation into its entry's `msgstr` and nothing else: the rewritten msgstr is wrapped as msgmerge wraps it, so msgmerge does not rewrap it, and the entry's `fuzzy` flag goes. An entry the `.po` lacks is appended from the template before the obsolete entries, where the next msgmerge moves it into the template's order, and a language with no `.po` yet gets one made from the template with its `Language:` set. A `.po` made that way keeps the template's placeholder `Plural-Forms`, which msginit would fill in; set it before shipping the language.
+
+## xcstrings
+
+Apple's String Catalog, the `.xcstrings` file Xcode keeps every language in:
+
+```ts
+{ adapter: "xcstrings", type: "ui", path: "App/Localizable.xcstrings" }
+```
+
+One file holds every language, so the path has no `{lang}`; its `sourceLanguage` must be the config's. `corpus init --messages App/Localizable.xcstrings` writes the source, taking the languages and the source language from the file. A key is the string, and a key with no unit in the source language is its own text, as SwiftUI's `Text("Bookmarks")` reads it, so no proposal edits it. A plural's variations are one ICU plural of printf branches; a substitution, `%#@count_posts@`, is a plural on the argument it formats, `{arg1, plural, one {%arg post} other {%arg posts}}`, whatever each language names it; a unit that varies by device is one string per device, `settings.platform [device:iphone]`. A stale key and one marked not to translate are left out, and `comment` is the string's note. Only a unit translated in every form is a translation already made; one still `new` or `needs_review` is work.
+
+A pull writes a changed translation into its unit, marked translated, in Xcode's own layout, and leaves every other byte as it was: a language keeps its own substitution names and device variants, and a key the file lacks is never added. A catalogue saved by another tool in another layout is refused rather than reformatted; open and save it in Xcode once.
 
 ## exec
 

@@ -1,7 +1,12 @@
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { createJiti } from "jiti";
-import { isChromeMessages, stripBom } from "@corpus/adapters";
+import {
+  isChromeMessages,
+  parseXcstrings,
+  stripBom,
+  xcstringsLanguages,
+} from "@corpus/adapters";
 import {
   corpusConfigSchema,
   LANGUAGE_RE,
@@ -23,7 +28,7 @@ import {
 import { ignoreCorpusDir } from "./corpus-dir";
 
 export const INIT_USAGE =
-  "corpus init --project <slug> --source <lang> --messages <path with {lang}> [--languages <a,b>] [--server <url>] [--type <name>] [--library <icu|i18next|vue|printf|chrome|counterpart|easy_localization|rails|qt>]";
+  "corpus init --project <slug> --source <lang> --messages <path with {lang}, or a .xcstrings> [--languages <a,b>] [--server <url>] [--type <name>] [--library <icu|i18next|vue|printf|chrome|counterpart|easy_localization|rails|qt>]";
 
 // `corpus init` writes the config from flags alone, so it scripts;
 // it validates the config before writing and never overwrites one.
@@ -44,11 +49,24 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     return value;
   };
   const project = required("--project");
-  const sourceLanguage = required("--source");
+  // A String Catalog holds every language in one file (#729): its path
+  // has no {lang}, and it names its own source language, so --source
+  // is optional for it alone.
+  const named = option(args, "--messages");
+  const catalogued = named !== undefined && /\.xcstrings$/i.test(named);
+  const sourceFlag = catalogued
+    ? option(args, "--source")
+    : required("--source");
   const messages = required("--messages");
+  const catalog = catalogued ? readCatalog(ctx.cwd, messages) : undefined;
+  const sourceLanguage = sourceFlag ?? catalog!.sourceLanguage;
+  if (catalog && sourceLanguage !== catalog.sourceLanguage)
+    throw new CliError(
+      `--source ${sourceLanguage}: ${messages} names ${catalog.sourceLanguage} as its source language`,
+    );
   const server = option(args, "--server") ?? "http://localhost:3000";
   const type = option(args, "--type") ?? "chrome";
-  if (!messages.includes("{lang}")) {
+  if (!catalog && !messages.includes("{lang}")) {
     throw new CliError(
       `--messages must contain {lang}, such as src/i18n/{lang}.json`,
     );
@@ -64,6 +82,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   // gettext too (#720): xgettext's `.pot` beside the `.po` files is the
   // source, when there is one.
   const gettext = /\.po$/i.test(messages);
+  const xcstrings = catalog !== undefined;
   const templates = gettext ? potsBeside(ctx.cwd, messages) : [];
   const sourcePath = xliff
     ? !existsSync(sourceFile) && existsSync(path.join(ctx.cwd, bare))
@@ -87,7 +106,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       `--library does not apply to an xliff source: its text is ICU\nusage: ${INIT_USAGE}`,
     );
   const unreadable =
-    xliff || gettext
+    xliff || gettext || xcstrings
       ? undefined
       : unreadableCatalogue(
           sourceFile,
@@ -112,7 +131,9 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   }
   const languages = present
     ? listed
-    : languagesFromFiles(ctx.cwd, messages, sourceLanguage);
+    : catalog
+      ? catalog.languages
+      : languagesFromFiles(ctx.cwd, messages, sourceLanguage);
   if (languages.length === 0) {
     throw new CliError(
       `no ${messages} file to take the languages from; pass --languages`,
@@ -128,14 +149,22 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   // gettext's library is printf unless the flag names another.
   const detected =
     xliff ||
-    (gettext && !args.includes("--library") && !args.includes("--syntax"))
+    ((gettext || xcstrings) &&
+      !args.includes("--library") &&
+      !args.includes("--syntax"))
       ? {}
       : await libraryFor(args, ctx.cwd, messages, sourceLanguage, type, ctx);
   const library = detected.library;
   const components = checkIncludeFor(ctx.cwd, messages);
   const include = components.include;
-  const source =
-    xliff || gettext
+  const source = xcstrings
+    ? {
+        adapter: "xcstrings" as const,
+        type,
+        path: messages,
+        ...(library && { library: library.value }),
+      }
+    : xliff || gettext
       ? {
           adapter: xliff ? ("xliff" as const) : ("gettext" as const),
           type,
@@ -188,7 +217,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       ? `wrote ${filename} (a plain object: @corpus-tool/cli is not installed in this repository)`
       : `wrote ${filename}`,
   );
-  if (library && (library.value !== "icu" || gettext)) {
+  if (library && (library.value !== "icu" || gettext || xcstrings)) {
     const why =
       library.value === "i18next"
         ? "{{ }}"
@@ -218,7 +247,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     );
   }
   const siblings =
-    xliff || gettext
+    xliff || gettext || xcstrings
       ? []
       : siblingCatalogues(ctx.cwd, messages, sourceLanguage);
   if (siblings.length > 0) {
@@ -698,4 +727,26 @@ function potsBeside(cwd: string, pattern: string): string[] {
   const named = `${path.posix.basename(pattern, ".po")}.pot`;
   if (pots.includes(named)) pots = [named];
   return pots.map((name) => path.posix.normalize(path.posix.join(dir, name)));
+}
+
+// A String Catalog's source language and every language it holds, the
+// source first.
+function readCatalog(
+  cwd: string,
+  file: string,
+): { sourceLanguage: string; languages: string[] } {
+  let text: string;
+  try {
+    text = readFileSync(path.join(cwd, file), "utf8");
+  } catch {
+    throw new CliError(`--messages ${file}: no such file`);
+  }
+  try {
+    return {
+      sourceLanguage: parseXcstrings(text).sourceLanguage,
+      languages: xcstringsLanguages(text),
+    };
+  } catch (error) {
+    throw new CliError(`--messages ${file}: ${(error as Error).message}`);
+  }
 }
