@@ -8,6 +8,7 @@
 // opens the sentence is capitalised. Everything else is verbatim —
 // previews are for meaning, not grammar (§7).
 import {
+  argPositions,
   parseIcu,
   pluralBranch,
   type IcuError,
@@ -115,7 +116,10 @@ export function renderPreviewSegments(
   const parsed = parseIcu(message, options.syntax ?? "icu");
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
   const segments: PreviewSegment[] = [];
-  render(parsed.nodes, values, segments, language);
+  // A printf plural on `argN` takes the Nth argument's value (#735).
+  const nodes =
+    options.syntax === "printf" ? argPositions(parsed.nodes) : parsed.nodes;
+  render(nodes, values, segments, language);
   // Capitalise the first character of the whole render, wherever it
   // falls: an empty leading value must not stop it.
   const first = segments.find((segment) => segment.text.length > 0);
