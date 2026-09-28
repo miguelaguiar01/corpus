@@ -19,22 +19,26 @@ export type PoEntry = {
 };
 
 function unescape(text: string): string {
-  return text.replace(/\\(.)/g, (_, c: string) =>
-    c === "n"
-      ? "\n"
-      : c === "t"
-        ? "\t"
-        : c === "r"
-          ? "\r"
-          : c === "a"
-            ? "\u0007"
-            : c === "b"
-              ? "\b"
-              : c === "f"
-                ? "\f"
-                : c === "v"
-                  ? "\v"
-                  : c,
+  return text.replace(/\\(x[0-9a-fA-F]{1,2}|[0-7]{1,3}|.)/g, (_, c: string) =>
+    /^x/.test(c)
+      ? String.fromCharCode(parseInt(c.slice(1), 16))
+      : /^[0-7]/.test(c)
+        ? String.fromCharCode(parseInt(c, 8))
+        : c === "n"
+          ? "\n"
+          : c === "t"
+            ? "\t"
+            : c === "r"
+              ? "\r"
+              : c === "a"
+                ? "\u0007"
+                : c === "b"
+                  ? "\b"
+                  : c === "f"
+                    ? "\f"
+                    : c === "v"
+                      ? "\v"
+                      : c,
   );
 }
 
@@ -47,69 +51,86 @@ function quoted(lines: string[]): string {
 }
 
 // Every entry of a file, the header's included (its msgid empty), the
-// obsolete `#~` ones not: they are kept in the file, never read.
+// obsolete `#~` ones not: they are kept in the file, never read. An
+// entry ends at a blank line, or where the next one's comments or
+// msgctxt/msgid follow its msgstr with none.
 export function parsePo(text: string): PoEntry[] {
   const out: PoEntry[] = [];
-  const blocks = text.replace(/\r\n/g, "\n").split(/\n\s*\n/);
-  for (const block of blocks) {
-    const lines = block.split("\n").filter((l) => l.trim() !== "");
-    if (lines.length === 0 || lines.every((l) => l.startsWith("#~"))) continue;
-    const entry: PoEntry = {
-      msgid: "",
-      msgstr: [],
-      flags: [],
-      extracted: [],
-      references: [],
-    };
-    let key: string | undefined;
-    let acc: string[] = [];
-    let seenId = false;
-    const flush = () => {
-      if (key === undefined) return;
-      const value = quoted(acc);
-      if (key === "msgctxt") entry.msgctxt = value;
-      else if (key === "msgid") {
-        entry.msgid = value;
-        seenId = true;
-      } else if (key === "msgid_plural") entry.msgidPlural = value;
-      else if (key === "msgstr") entry.msgstr[0] = value;
-      else {
-        const index = /^msgstr\[(\d+)\]$/.exec(key)?.[1];
-        if (index !== undefined) entry.msgstr[Number(index)] = value;
-      }
-      key = undefined;
-      acc = [];
-    };
-    for (const line of lines) {
-      if (line.startsWith("#~")) continue;
-      if (line.startsWith("#")) {
-        flush();
-        if (line.startsWith("#,"))
-          entry.flags.push(
-            ...line
-              .slice(2)
-              .split(",")
-              .map((f) => f.trim())
-              .filter(Boolean),
-          );
-        else if (line.startsWith("#."))
-          entry.extracted.push(line.slice(2).trim());
-        else if (line.startsWith("#:"))
-          entry.references.push(line.slice(2).trim());
-        continue;
-      }
-      const keyword = /^(msgctxt|msgid_plural|msgid|msgstr(?:\[\d+\])?)\s/.exec(
-        line,
-      );
-      if (keyword) {
-        flush();
-        key = keyword[1];
-        acc = [line.slice(keyword[1]!.length)];
-      } else if (line.trimStart().startsWith('"')) acc.push(line);
+  const fresh = (): PoEntry => ({
+    msgid: "",
+    msgstr: [],
+    flags: [],
+    extracted: [],
+    references: [],
+  });
+  let entry = fresh();
+  let seenId = false;
+  let seenStr = false;
+  let key: string | undefined;
+  let acc: string[] = [];
+  const flush = () => {
+    if (key === undefined) return;
+    const value = quoted(acc);
+    if (key === "msgctxt") entry.msgctxt = value;
+    else if (key === "msgid") {
+      entry.msgid = value;
+      seenId = true;
+    } else if (key === "msgid_plural") entry.msgidPlural = value;
+    else if (key === "msgstr") entry.msgstr[0] = value;
+    else {
+      const index = /^msgstr\[(\d+)\]$/.exec(key)?.[1];
+      if (index !== undefined) entry.msgstr[Number(index)] = value;
     }
+    key = undefined;
+    acc = [];
+  };
+  const end = () => {
     flush();
     if (seenId) out.push(entry);
+    entry = fresh();
+    seenId = false;
+    seenStr = false;
+  };
+  const lines = text
+    .replace(/^\uFEFF/, "")
+    .replace(/\r\n/g, "\n")
+    .split("\n");
+  for (const line of lines) {
+    if (line.trim() === "") {
+      end();
+      continue;
+    }
+    if (line.startsWith("#~")) continue;
+    if (line.startsWith("#")) {
+      if (seenStr) end();
+      flush();
+      if (line.startsWith("#,"))
+        entry.flags.push(
+          ...line
+            .slice(2)
+            .split(",")
+            .map((f) => f.trim())
+            .filter(Boolean),
+        );
+      else if (line.startsWith("#."))
+        entry.extracted.push(line.slice(2).trim());
+      else if (line.startsWith("#:"))
+        entry.references.push(line.slice(2).trim());
+      continue;
+    }
+    const keyword = /^(msgctxt|msgid_plural|msgid|msgstr(?:\[\d+\])?)\s/.exec(
+      line,
+    );
+    if (keyword) {
+      if (seenStr && (keyword[1] === "msgctxt" || keyword[1] === "msgid"))
+        end();
+      flush();
+      key = keyword[1];
+      if (key!.startsWith("msgstr")) seenStr = true;
+      acc = [line.slice(keyword[1]!.length)];
+    } else if (line.trimStart().startsWith('"')) acc.push(line);
   }
+  end();
   return out;
 }
 
@@ -132,66 +153,93 @@ export function poId(entry: Pick<PoEntry, "msgctxt" | "msgid">): string {
 
 const CATEGORIES = ["zero", "one", "two", "few", "many", "other"] as const;
 
-// `Plural-Forms`' expression as a function of n: C's integer
-// arithmetic, comparisons, logic and the conditional, and nothing else
-// (anything outside that is refused, not run).
-function pluralFunction(forms: string): ((n: number) => number) | undefined {
+// The numbers a category is tried on: the integers to a thousand and
+// the millions, which gettext's expression can take; a category only
+// decimals reach (Russian's other, Czech's many) has none.
+const INTEGERS = [
+  ...Array.from({ length: 1001 }, (_, i) => i),
+  1_000_000,
+  2_000_000,
+  10_000_000,
+];
+
+// `Plural-Forms`' expression as a function of n: C's integer arithmetic
+// less division, comparisons, logic and the conditional, and nothing
+// else; anything outside that, or an expression that throws or leaves
+// the index range on any integer tried, is refused, not run twice.
+function pluralFunction(
+  forms: string,
+  nplurals: number,
+): ((n: number) => number) | undefined {
   const expr = /plural\s*=\s*([^;]+);?/.exec(forms)?.[1]?.trim();
-  if (!expr || !/^[n0-9\s()?:!=<>&|%+\-*/]+$/.test(expr)) return undefined;
+  if (!expr || !/^[n0-9\s()?:!=<>&|%+\-*]+$/.test(expr)) return undefined;
   try {
     const f = new Function("n", `return Number(${expr});`) as (
       n: number,
     ) => number;
-    f(1);
+    for (const n of INTEGERS) {
+      const index = f(n);
+      if (!Number.isInteger(index) || index < 0 || index >= nplurals)
+        return undefined;
+    }
     return f;
   } catch {
     return undefined;
   }
 }
 
-// Which CLDR category each `msgstr[n]` holds for a language: the index
-// the expression gives every integer to a thousand, named by the
-// category CLDR puts that integer in. An index no integer names keeps
-// its place by order.
-export function pluralIndexCategories(
-  language: string,
-  forms: string | undefined,
-): string[] {
-  const plural = forms ? pluralFunction(forms) : undefined;
-  const nplurals = Number(/nplurals\s*=\s*(\d+)/.exec(forms ?? "")?.[1] ?? 2);
-  let rules: Intl.PluralRules;
+function rulesOf(language: string): Intl.PluralRules {
   try {
-    rules = new Intl.PluralRules(language.replace(/_/g, "-"));
+    return new Intl.PluralRules(language.replace(/_/g, "-"));
   } catch {
-    rules = new Intl.PluralRules("en");
+    return new Intl.PluralRules("en");
   }
-  const byIndex: string[] = [];
-  if (plural) {
-    for (let n = 0; n <= 1000; n++) {
-      const index = plural(n);
-      if (index >= 0 && index < nplurals && byIndex[index] === undefined)
-        byIndex[index] = rules.select(n);
-    }
-  }
-  const fallback = nplurals === 1 ? ["other"] : ["one", "other"];
-  for (let i = 0; i < nplurals; i++)
-    byIndex[i] ??= fallback[i] ?? CATEGORIES[Math.min(i, 5)]!;
-  return byIndex;
 }
 
-// A plural entry's forms as one ICU plural on `count`, each branch the
-// form as written; `other`, which ICU needs, is the last form where no
-// index names it (Russian's `other` is only decimals').
-export function poPluralText(forms: string[], categories: string[]): string {
-  const branches = new Map<string, string>();
-  forms.forEach((text, i) => {
-    const category = categories[i];
-    if (category && !branches.has(category)) branches.set(category, text);
-  });
-  if (!branches.has("other") && forms.length > 0)
-    branches.set("other", forms[forms.length - 1]!);
-  const ordered = CATEGORIES.filter((c) => branches.has(c));
-  return `{count, plural, ${ordered.map((c) => `${c} {${branches.get(c)}}`).join(" ")}}`;
+// Which `msgstr[n]` each CLDR category of a language reads: the index
+// the most integers of the category are given; a category no integer
+// reaches reads `other`'s. With no expression to go by, the language's
+// categories in CLDR's order are the indexes.
+export function pluralCategoryIndexes(
+  language: string,
+  forms: string | undefined,
+): Map<string, number> {
+  const rules = rulesOf(language);
+  const categories = rules.resolvedOptions().pluralCategories;
+  const nplurals = Number(/nplurals\s*=\s*(\d+)/.exec(forms ?? "")?.[1] ?? 0);
+  const plural =
+    forms && nplurals > 0 ? pluralFunction(forms, nplurals) : undefined;
+  const out = new Map<string, number>();
+  if (!plural) {
+    const ordered = CATEGORIES.filter((c) => categories.includes(c));
+    ordered.forEach((c, i) => out.set(c, i));
+    return out;
+  }
+  const counts = new Map<string, Map<number, number>>();
+  for (const n of INTEGERS) {
+    const category = rules.select(n);
+    const byIndex = counts.get(category) ?? new Map<number, number>();
+    const index = plural(n);
+    byIndex.set(index, (byIndex.get(index) ?? 0) + 1);
+    counts.set(category, byIndex);
+  }
+  for (const [category, byIndex] of counts)
+    out.set(category, [...byIndex].sort((a, b) => b[1] - a[1])[0]![0]);
+  for (const category of categories)
+    if (!out.has(category)) out.set(category, out.get("other") ?? nplurals - 1);
+  return out;
+}
+
+// A plural entry's forms as one ICU plural on `count`, a branch for
+// every category the language has, each the form its index names.
+export function poPluralText(
+  forms: string[],
+  indexes: Map<string, number>,
+): string {
+  const ordered = CATEGORIES.filter((c) => indexes.has(c));
+  const branch = (c: string) =>
+    forms[indexes.get(c)!] ?? forms[forms.length - 1] ?? "";
+  return `{count, plural, ${ordered.map((c) => `${c} {${branch(c)}}`).join(" ")}}`;
 }
 
 function noteOf(entry: PoEntry): string | undefined {
@@ -221,7 +269,13 @@ export function gettextToEntries(
         source:
           e.msgidPlural === undefined
             ? e.msgid
-            : poPluralText([e.msgid, e.msgidPlural], ["one", "other"]),
+            : poPluralText(
+                [e.msgid, e.msgidPlural],
+                new Map([
+                  ["one", 0],
+                  ["other", 1],
+                ]),
+              ),
         keyIsText: true,
         ...(note && { note }),
       };
@@ -236,8 +290,10 @@ export function gettextTranslations(
   language: string,
 ): StringEntry[] {
   const entries = parsePo(text);
-  const categories = pluralIndexCategories(
-    poHeader(entries).Language || language,
+  // The config's tag says the language; the header's code may be one
+  // the runtime cannot read (`sr@latin`).
+  const indexes = pluralCategoryIndexes(
+    language,
     poHeader(entries)["Plural-Forms"],
   );
   return entries
@@ -254,7 +310,7 @@ export function gettextTranslations(
           type: "",
           source: poPluralText(
             e.msgstr.map((t) => t ?? ""),
-            categories,
+            indexes,
           ),
         },
       ];

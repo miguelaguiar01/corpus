@@ -222,7 +222,11 @@ export async function buildSnapshotReport(
     // it, and only where pull can write it: a .ts catalogue carries none,
     // so a proposal on its strings is refused up front, not left pending.
     const writable = sourceWritesBack(source);
-    const keyed = entries.filter((entry) => entry.keyIsText).length;
+    // A msgid is its key by nature, not an empty value (#718).
+    const keyed =
+      source.adapter === "gettext"
+        ? 0
+        : entries.filter((entry) => entry.keyIsText).length;
     if (keyed > 0) {
       notes.push(
         `${file}: ${keyed} string(s) have an empty value and take the key as the text; a proposal on them is refused, since the text is the key`,
@@ -545,7 +549,7 @@ export function sourceLibrary(source: FileSource): Library {
 }
 
 // Whether a source's target files are read for their translations: a
-// file source pull writes back, and XLIFF, whose write-back is #711.
+// file source pull writes back, and gettext, whose write-back is #719.
 export function readsTargets(source: FileSource): boolean {
   return source.adapter === "gettext" || sourceWritesBack(source);
 }
@@ -587,11 +591,23 @@ export function readsPluralObjects(source: FileSource): boolean {
   );
 }
 
-// The language a gettext target file is for: its {lang} filled, read
-// back from the path, for the plural forms when its header names none.
-function languageOfFile(file: string, source: { path: string }): string {
+// The language a gettext target file is for, as the config names it:
+// its {lang} read back from the path, a `languageFiles` code (#657)
+// turned back into its tag, for the plural rules (`sr@latin` is sr-Latn).
+function languageOfFile(
+  file: string,
+  source: { path: string; languageFiles?: Record<string, string> },
+): string {
   const [before, after] = source.path.split("{lang}");
-  return file.slice((before ?? "").length, file.length - (after ?? "").length);
+  const code = file.slice(
+    (before ?? "").length,
+    file.length - (after ?? "").length,
+  );
+  return (
+    Object.entries(source.languageFiles ?? {}).find(
+      ([, c]) => c === code,
+    )?.[0] ?? code
+  );
 }
 
 // Whether a source keeps a file per language, and so takes

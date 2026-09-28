@@ -4,7 +4,7 @@ import {
   gettextToEntries,
   gettextTranslations,
   parsePo,
-  pluralIndexCategories,
+  pluralCategoryIndexes,
 } from "./gettext";
 
 // Joplin's shape: a .pot beside a .po per language.
@@ -116,12 +116,17 @@ test("a .po's translations skip fuzzy rows; plural forms map through Plural-Form
   ]);
   // Russian's three forms are one, few and many; other, only decimals'
   // in CLDR, is the last form.
-  expect(
-    pluralIndexCategories(
+  expect([
+    ...pluralCategoryIndexes(
       "ru",
       "nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);",
     ),
-  ).toEqual(["one", "few", "many"]);
+  ]).toEqual([
+    ["many", 2],
+    ["one", 0],
+    ["few", 1],
+    ["other", 2],
+  ]);
   expect(gettextTranslations(RU, "ru")).toEqual([
     {
       id: "%d note",
@@ -132,8 +137,44 @@ test("a .po's translations skip fuzzy rows; plural forms map through Plural-Form
   ]);
 });
 
-test("an expression that is not arithmetic is not run (#718)", () => {
-  expect(
-    pluralIndexCategories("de", "nplurals=2; plural=process.exit(1);"),
-  ).toEqual(["one", "other"]);
+test("an expression that is not arithmetic, or leaves the range, is not run; CLDR stands in (#718)", () => {
+  expect([
+    ...pluralCategoryIndexes("de", "nplurals=2; plural=process.exit(1);"),
+  ]).toEqual([
+    ["one", 0],
+    ["other", 1],
+  ]);
+  expect([...pluralCategoryIndexes("de", "nplurals=2; plural=n+5;")]).toEqual([
+    ["one", 0],
+    ["other", 1],
+  ]);
+});
+
+test("a category gettext cannot name reads the form its integers take, or other's (#718)", () => {
+  // French many is a million: the expression gives it index 1.
+  const fr = `msgid ""\nmsgstr ""\n"Plural-Forms: nplurals=2; plural=(n > 1);\\n"\n\nmsgid "%d note"\nmsgid_plural "%d notes"\nmsgstr[0] "%d note"\nmsgstr[1] "%d notes"\n`;
+  expect(gettextTranslations(fr, "fr")[0]?.source).toBe(
+    "{count, plural, one {%d note} many {%d notes} other {%d notes}}",
+  );
+  // A tag the config maps from `sr@latin` reads Serbian's rules.
+  const sr = fr
+    .replace(
+      "nplurals=2; plural=(n > 1);",
+      "nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);",
+    )
+    .replace(
+      'msgstr[1] "%d notes"',
+      'msgstr[1] "%d beleške"\nmsgstr[2] "%d beležaka"',
+    );
+  expect(gettextTranslations(sr, "sr-Latn")[0]?.source).toBe(
+    "{count, plural, one {%d note} few {%d beleške} other {%d beležaka}}",
+  );
+});
+
+test("a byte-order mark, entries with no blank line between them, octal and hex escapes (#718)", () => {
+  const text = `\uFEFFmsgid ""\nmsgstr ""\n"Language: ru\\n"\n"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\\n"\n\nmsgid "a"\nmsgstr "A\\101\\x42"\nmsgid "b"\nmsgstr "B"\n#, fuzzy\nmsgid "c"\nmsgstr "C"\n`;
+  expect(gettextTranslations(text, "ru")).toEqual([
+    { id: "a", type: "", source: "AAB" },
+    { id: "b", type: "", source: "B" },
+  ]);
 });
