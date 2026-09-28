@@ -261,6 +261,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
                         ctx.err(
                           `corpus: ${file}: ${printable(id)} is a plural and its translation is not one gettext can hold (a plain text, or an =N branch); not written`,
                         ),
+                      (note) => ctx.err(`corpus: ${file}: ${note}`),
                     )
                   : source.adapter === "qt-ts"
                     ? entriesToQtTs(
