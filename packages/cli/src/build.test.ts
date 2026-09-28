@@ -1113,6 +1113,13 @@ test("a gettext source reads a .pot and its .po files: msgids, fuzzy rows, plura
     },
   });
   expect(report.snapshot.seedTranslated).toEqual({ ru: ["Joplin"] });
+  // The fuzzy row travels as a suggestion, and the build says so (#721).
+  expect(report.snapshot.seedSuggestions).toEqual({
+    ru: { "Delete %s?": "Удалить?" },
+  });
+  expect(report.notes).toContain(
+    "ru 1 fuzzy row(s) sent as suggestions, not translations",
+  );
   rmSync(dir, { recursive: true, force: true });
 });
 

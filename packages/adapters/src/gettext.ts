@@ -398,6 +398,23 @@ export function gettextTranslations(
   text: string,
   language: string,
 ): StringEntry[] {
+  return poTexts(text, language, false);
+}
+
+// A target file's fuzzy entries, msgmerge's guesses: not translations,
+// but what a translator may start from (#721).
+export function gettextSuggestions(
+  text: string,
+  language: string,
+): StringEntry[] {
+  return poTexts(text, language, true);
+}
+
+function poTexts(
+  text: string,
+  language: string,
+  fuzzy: boolean,
+): StringEntry[] {
   const entries = parsePo(text);
   // The config's tag says the language; the header's code may be one
   // the runtime cannot read (`sr@latin`).
@@ -406,7 +423,7 @@ export function gettextTranslations(
     poHeader(entries)["Plural-Forms"],
   );
   return entries
-    .filter((e) => e.msgid !== "" && !e.flags.includes("fuzzy"))
+    .filter((e) => e.msgid !== "" && e.flags.includes("fuzzy") === fuzzy)
     .flatMap((e) => {
       if (e.msgidPlural === undefined) {
         const t = e.msgstr[0] ?? "";

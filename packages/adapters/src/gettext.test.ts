@@ -3,6 +3,7 @@ import {
   CONTEXT_SEPARATOR,
   entriesToGettext,
   gettextToEntries,
+  gettextSuggestions,
   gettextTranslations,
   parsePo,
   pluralCategoryIndexes,
@@ -424,4 +425,38 @@ test("a missing target started from a source .po drops its obsolete entries, and
   expect(
     entriesToGettext(headerless, {}, undefined, { tag: "fr", code: "fr" }),
   ).toBe('msgid "Joplin"\nmsgstr ""\n');
+});
+
+test("a fuzzy entry is a suggestion, never a translation; an empty fuzzy one is none (#721)", () => {
+  const po = `msgid ""
+msgstr ""
+"Language: de\\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\\n"
+
+msgid "Joplin"
+msgstr "Joplin"
+
+#, fuzzy
+msgid "Open"
+msgstr "Öffnen?"
+
+#, fuzzy
+msgid "Close"
+msgstr ""
+
+#, fuzzy
+msgid "%d note"
+msgid_plural "%d notes"
+msgstr[0] "%d Notiz"
+msgstr[1] "%d Notizen"
+`;
+  expect(gettextTranslations(po, "de").map((e) => e.id)).toEqual(["Joplin"]);
+  expect(gettextSuggestions(po, "de")).toEqual([
+    { id: "Open", type: "", source: "Öffnen?" },
+    {
+      id: "%d note",
+      type: "",
+      source: "{count, plural, one {%d Notiz} other {%d Notizen}}",
+    },
+  ]);
 });

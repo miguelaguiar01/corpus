@@ -14,6 +14,7 @@ import {
   qtTsTranslations,
   yamlToEntries,
   yamlTranslations,
+  gettextSuggestions,
   gettextTranslations,
   xliffToEntries,
   xliffTranslations,
@@ -359,6 +360,13 @@ export async function buildSnapshotReport(
         if (texts[entry.id] === entry.source)
           (seedTranslated[lang] ??= []).push(entry.id);
   }
+  const seedSuggestions = readSuggestions(
+    config,
+    cwd,
+    new Set(sourced.map((s) => s.entry.id)),
+    seedTranslations,
+    notes,
+  );
   const snapshot = {
     contract: "corpus/1" as const,
     project: config.project,
@@ -372,6 +380,7 @@ export async function buildSnapshotReport(
     glossary,
     ...(Object.keys(seedTranslations).length > 0 && { seedTranslations }),
     ...(Object.keys(seedTranslated).length > 0 && { seedTranslated }),
+    ...(Object.keys(seedSuggestions).length > 0 && { seedSuggestions }),
     // Always sent, so a config that drops a variant drops it on the
     // server too (#658).
     sourceVariants: config.sourceVariants ?? [],
@@ -948,6 +957,39 @@ function readGlossary(
     glossary[lang] = parsed.data;
   }
   return glossary;
+}
+
+// Per target language, the gettext fuzzy rows: what a translator may
+// start from, never a translation (#721). Only a string the source has
+// and the language did not seed.
+function readSuggestions(
+  config: CorpusConfig,
+  cwd: string,
+  ids: Set<string>,
+  seeds: Record<string, Record<string, string>>,
+  notes: string[],
+): Record<string, Record<string, string>> {
+  const suggestions: Record<string, Record<string, string>> = {};
+  for (const source of config.sources) {
+    if (source.adapter !== "gettext") continue;
+    for (const lang of config.languages) {
+      if (lang === config.sourceLanguage) continue;
+      const file = fileOf(source, lang, config.sourceLanguage);
+      if (!existsSync(path.join(cwd, file))) continue;
+      const text = readFileSync(path.join(cwd, file), "utf8");
+      for (const entry of gettextSuggestions(text, lang))
+        if (ids.has(entry.id) && seeds[lang]?.[entry.id] === undefined)
+          (suggestions[lang] ??= {})[entry.id] = entry.source;
+    }
+  }
+  const counts = Object.entries(suggestions).map(
+    ([lang, texts]) => `${lang} ${Object.keys(texts).length}`,
+  );
+  if (counts.length > 0)
+    notes.push(
+      `${counts.join(", ")} fuzzy row(s) sent as suggestions, not translations`,
+    );
+  return suggestions;
 }
 
 // The repository's existing target-language catalogues (§8): every

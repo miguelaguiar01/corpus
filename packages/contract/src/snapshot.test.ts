@@ -176,3 +176,22 @@ test("seedDigest is order-free over the pairs and moves with any text (#601)", (
   // boundary is a different catalogue.
   expect(seedDigest({ "ui.a": "bx" })).not.toBe(seedDigest({ "ui.ab": "x" }));
 });
+
+test("seedSuggestions is optional, per language id to text (#721)", () => {
+  const base = {
+    contract: "corpus/1",
+    project: "p",
+    sourceLanguage: "en",
+    strings: [],
+  };
+  expect(snapshotSchema.safeParse(base).success).toBe(true);
+  const parsed = snapshotSchema.parse({
+    ...base,
+    seedSuggestions: { de: { Open: "Öffnen?" } },
+  });
+  expect(parsed.seedSuggestions).toEqual({ de: { Open: "Öffnen?" } });
+  expect(
+    snapshotSchema.safeParse({ ...base, seedSuggestions: { de: ["x"] } })
+      .success,
+  ).toBe(false);
+});
