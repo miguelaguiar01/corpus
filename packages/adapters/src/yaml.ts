@@ -168,8 +168,6 @@ export function yamlTranslations(text: string, root: string): StringEntry[] {
   );
 }
 
-// A text as a double-quoted scalar: JSON's escapes, which YAML reads,
-// on one line; everything else as it is.
 // YAML's own escapes for the line breaks libyaml reads in a quoted
 // scalar: written raw, NEL reads back as a space (#851).
 const NAMED_ESCAPES: Record<number, string> = {
@@ -178,22 +176,27 @@ const NAMED_ESCAPES: Record<number, string> = {
   0x2029: "\\P",
 };
 
-// Whether a text holds what libyaml refuses outside a double-quoted
-// scalar: a C0 control but tab and line feed, DEL, or one of the line
-// breaks it reads only as an escape (#851).
+// What libyaml refuses raw anywhere in a file, a quoted scalar too: a C0
+// control but tab and line feed, DEL, a C1 control, U+FFFE and U+FFFF;
+// NEL and the Unicode separators it reads raw only as a break (#851).
+function refusedRaw(code: number): boolean {
+  return (
+    (code < 0x20 && code !== 0x09 && code !== 0x0a) ||
+    (code >= 0x7f && code <= 0x9f) ||
+    code === 0x2028 ||
+    code === 0x2029 ||
+    code === 0xfffe ||
+    code === 0xffff
+  );
+}
+
 function unplain(text: string): boolean {
-  for (const c of text) {
-    const code = c.codePointAt(0)!;
-    if (
-      (code < 0x20 && code !== 0x09 && code !== 0x0a) ||
-      code === 0x7f ||
-      Object.hasOwn(NAMED_ESCAPES, code)
-    )
-      return true;
-  }
+  for (const c of text) if (refusedRaw(c.codePointAt(0)!)) return true;
   return false;
 }
 
+// A text as a double-quoted scalar: JSON's escapes, which YAML reads,
+// on one line; everything else as it is.
 function doubleQuoted(text: string): string {
   let out = "";
   for (const c of text) {
@@ -208,7 +211,7 @@ function doubleQuoted(text: string): string {
             : c === "\t"
               ? "\\t"
               : (NAMED_ESCAPES[code] ??
-                (code < 0x20 || code === 0x7f
+                (refusedRaw(code)
                   ? `\\u${code.toString(16).padStart(4, "0")}`
                   : c));
   }
