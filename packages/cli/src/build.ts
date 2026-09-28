@@ -644,11 +644,13 @@ function languageOfFile(
   file: string,
   source: { path: string; languageFiles?: Record<string, string> },
 ): string {
-  const [before, after] = source.path.split("{lang}");
-  const code = file.slice(
-    (before ?? "").length,
-    file.length - (after ?? "").length,
-  );
+  // A `{lang}` written twice holds one code (#856).
+  const [first = "", ...rest] = source.path
+    .split("{lang}")
+    .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const code =
+    new RegExp(`^${first}(?<lang>.+?)${rest.join("\\k<lang>")}$`).exec(file)
+      ?.groups?.lang ?? file;
   return (
     Object.entries(source.languageFiles ?? {}).find(
       ([, c]) => c === code,

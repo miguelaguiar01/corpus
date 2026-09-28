@@ -165,7 +165,9 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     );
   else if (
     !(xliff || gettext || xcstrings || qt || yaml) &&
-    !existsSync(sourceFile)
+    (messages.includes("{ns}")
+      ? matchPattern(ctx.cwd, messages, sourceLanguage).length === 0
+      : !existsSync(sourceFile))
   )
     ctx.err(
       `corpus: no ${path.relative(ctx.cwd, sourceFile)}: build reads the source language's strings from it`,
@@ -595,7 +597,7 @@ async function libraryFor(
   // one namespace's plain strings do not hide another's interpolation.
   const concretes = pattern.includes("{ns}")
     ? namespacesOf(cwd, pattern, sourceLanguage).map((ns) =>
-        pattern.replace("{ns}", ns),
+        pattern.replaceAll("{ns}", ns),
       )
     : [pattern];
   const file = concretes[0]?.replaceAll("{lang}", sourceLanguage) ?? pattern;

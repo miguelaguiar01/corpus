@@ -142,7 +142,7 @@ export function expandSources(input: CorpusInput, cwd: string): CorpusConfig {
       }
       return names.map((ns) => ({
         ...source,
-        path: pattern.replace("{ns}", ns),
+        path: pattern.replaceAll("{ns}", ns),
         namespace: ns,
         ...group,
       }));
@@ -152,7 +152,7 @@ export function expandSources(input: CorpusInput, cwd: string): CorpusConfig {
   const seen = new Map<string, string>();
   for (const source of sources) {
     if (source.adapter === "exec") continue;
-    const file = source.path.replace(
+    const file = source.path.replaceAll(
       "{lang}",
       fileCodeOf(source, input.sourceLanguage),
     );
@@ -196,7 +196,7 @@ function arbUnderscoreCodes(
     const pairs = wrong
       .map((code) => `${code} as ${code.replaceAll("-", "_")}`)
       .join(" and ");
-    const example = source.path.replace(
+    const example = source.path.replaceAll(
       "{lang}",
       wrong[0]!.replaceAll("-", "_"),
     );

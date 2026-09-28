@@ -1518,3 +1518,56 @@ test("init warns of a missing source file for every format, and build names it p
   );
   expect(p.err.join("\n")).not.toMatch(/ENOENT/);
 });
+
+test("init warns of a missing JSON source file, and is silent where a {ns} pattern's files exist (#856)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "i18n"), { recursive: true });
+  writeFileSync(path.join(p.dir, "i18n", "de.json"), '{"a":"A"}');
+  const flags = (messages: string) => [
+    "init",
+    "--project",
+    "x",
+    "--source",
+    "en",
+    "--messages",
+    messages,
+    "--languages",
+    "en,de",
+  ];
+  expect(await run(flags("i18n/{lang}.json"), p.ctx)).toBe(0);
+  expect(p.err.join("\n")).toMatch(
+    /no i18n\/en\.json: build reads the source language's strings from it/,
+  );
+  const q = project();
+  stubCli(q.dir);
+  mkdirSync(path.join(q.dir, "locales", "en"), { recursive: true });
+  writeFileSync(path.join(q.dir, "locales", "en", "common.json"), '{"a":"A"}');
+  expect(await run(flags("locales/{lang}/{ns}.json"), q.ctx)).toBe(0);
+  expect(q.err.join("\n")).not.toMatch(/build reads the source language/);
+});
+
+test("a yaml pattern with {lang} twice reads each file's own language (#856)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  for (const lang of ["en", "de"]) {
+    mkdirSync(path.join(p.dir, "cfg", lang), { recursive: true });
+    writeFileSync(
+      path.join(p.dir, "cfg", lang, `${lang}.yml`),
+      `${lang}:\n  a: ${lang === "en" ? "A" : "B"}\n`,
+    );
+  }
+  const init = [
+    "init",
+    "--project",
+    "x",
+    "--source",
+    "en",
+    "--messages",
+    "cfg/{lang}/{lang}.yml",
+  ];
+  expect(await run(init, p.ctx)).toBe(0);
+  expect(await run(["build", "--out", "snap.json"], p.ctx)).toBe(0);
+  const snap = JSON.parse(readFileSync(path.join(p.dir, "snap.json"), "utf8"));
+  expect(snap.seedTranslations).toEqual({ de: { a: "B" } });
+});

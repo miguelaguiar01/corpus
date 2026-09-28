@@ -205,7 +205,7 @@ export function proposeAdd(
         stringRowId: null,
         key,
         type: source.type,
-        file: source.path.replace("{lang}", project.sourceLanguage),
+        file: source.path.replaceAll("{lang}", project.sourceLanguage),
         text: input.text,
         authorId: input.actor.id,
       })
