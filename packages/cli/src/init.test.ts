@@ -1386,3 +1386,82 @@ test("init's qt-ts: lupdate's template is the sourcePath, {lang} as a directory 
   expect((await loadConfig(s.dir)).sources[0]).not.toHaveProperty("sourcePath");
   expect(s.err.join("\n")).toContain("set the qt-ts source's sourcePath");
 });
+
+test("a GNU @modifier catalogue is kept for every format: a script maps through languageFiles, another modifier is named (#855)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "po"), { recursive: true });
+  const po = (lang: string) =>
+    `msgid ""\nmsgstr ""\n"Language: ${lang}\\n"\n"Content-Type: text/plain; charset=UTF-8\\n"\n\nmsgid "Quit"\nmsgstr "${lang === "en" ? "" : "Q"}"\n`;
+  writeFileSync(path.join(p.dir, "po", "app.pot"), po("en"));
+  for (const lang of ["en", "de", "sr@latin", "ca@valencia", "pt_BR"])
+    writeFileSync(path.join(p.dir, "po", `${lang}.po`), po(lang));
+  const code = await run(
+    ["init", "--project", "x", "--source", "en", "--messages", "po/{lang}.po"],
+    p.ctx,
+  );
+  expect(code).toBe(0);
+  expect(p.err.join("\n")).toMatch(/po\/ca@valencia\.po names no language tag/);
+  const config = await loadConfig(p.dir);
+  expect(config.languages).toEqual(["en", "de", "pt_BR", "sr-Latn"]);
+  expect(config.sources[0]).toMatchObject({
+    adapter: "gettext",
+    languageFiles: { "sr-Latn": "sr@latin" },
+  });
+});
+
+test("a JSON catalogue's @script files are languages, never siblings (#855)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "messages"), { recursive: true });
+  for (const lang of ["en", "de", "sr@latin", "uz@Latn"])
+    writeFileSync(
+      path.join(p.dir, "messages", `${lang}.json`),
+      JSON.stringify({ hello: lang === "en" ? "Hello" : "Hallo" }),
+    );
+  const code = await run(
+    [
+      "init",
+      "--project",
+      "x",
+      "--source",
+      "en",
+      "--messages",
+      "messages/{lang}.json",
+    ],
+    p.ctx,
+  );
+  expect(code).toBe(0);
+  expect([...p.out, ...p.err].join("\n")).not.toMatch(/sibling/);
+  const config = await loadConfig(p.dir);
+  expect(config.languages).toEqual(["en", "de", "sr-Latn", "uz-Latn"]);
+  expect(config.sources[0]).toMatchObject({
+    languageFiles: { "sr-Latn": "sr@latin", "uz-Latn": "uz@Latn" },
+  });
+});
+
+test("init refuses {ns} for a format whose adapter does not read it, Qt's .ts too (#855)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "lang"), { recursive: true });
+  const ts = (lang: string) =>
+    `<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE TS>\n<TS version="2.1" language="${lang}">\n<context>\n    <name>A</name>\n    <message>\n        <source>Quit</source>\n        <translation>Q</translation>\n    </message>\n</context>\n</TS>\n`;
+  for (const lang of ["en", "de"])
+    writeFileSync(path.join(p.dir, "lang", `app_${lang}.ts`), ts(lang));
+  const code = await run(
+    [
+      "init",
+      "--project",
+      "x",
+      "--source",
+      "en",
+      "--messages",
+      "lang/{ns}_{lang}.ts",
+    ],
+    p.ctx,
+  );
+  expect(code).not.toBe(0);
+  expect(p.err.join("\n")).toMatch(
+    /qt-ts does not read \{ns\}: only messages, table and fluent do/,
+  );
+});
