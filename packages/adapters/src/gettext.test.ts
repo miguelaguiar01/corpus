@@ -699,7 +699,8 @@ test("a keyword with its string right after it, and escaped UTF-8 bytes, read as
   expect(entriesToGettext(po, read, po, RU_LANG)).toBe(po);
   expect(entriesToGettext(po, { a: "Bee" }, po, RU_LANG)).toBe(
     po.replace('msgstr"B"', 'msgstr "Bee"'),
-  ); // An escaped BOM is a character like any other.
+  );
+  // An escaped BOM is a character like any other.
   const bom = `${RU_HEADER}\nmsgid "c"\nmsgstr "\\357\\273\\277x"\n`;
   expect(gettextTranslations(bom, "ru")[0]?.source).toBe("\uFEFFx");
   // A keyword alone on its line takes the string on the next.
