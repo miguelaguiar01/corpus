@@ -586,7 +586,8 @@ type XliffOp =
   | { kind: "delete"; id: string };
 
 // A proposal into the source file (§11): an edit rewrites the unit's
-// `<source>` with its own elements, a removal drops the unit's lines, an
+// `<source>` with its own elements, a removal drops the unit (its lines
+// too where nothing else is on them), an
 // addition appends a unit after the last; an edit of a unit the file no
 // longer has is nothing to do.
 export function applyXliffOps(xml: string, ops: XliffOp[]): string {
@@ -597,7 +598,6 @@ export function applyXliffOps(xml: string, ops: XliffOp[]): string {
     const u = units.find((unit) => unit.id === op.id);
     if (op.kind === "delete") {
       if (!u) continue;
-      // The unit's line goes with it only where nothing else is on it.
       const lineBreak = out.lastIndexOf("\n", u.start - 1);
       let start =
         lineBreak >= 0 && /^[ \t]*$/.test(out.slice(lineBreak + 1, u.start))
