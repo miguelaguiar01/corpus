@@ -5,6 +5,7 @@ import {
   xcstringsLanguages,
   xcstringsToEntries,
   xcstringsTranslations,
+  xcstringsWritable,
 } from "./xcstrings";
 
 const u = (value: string, state = "translated") => ({
@@ -390,4 +391,19 @@ test("a plural a String Catalog cannot hold is refused by name, and an empty tex
     ),
   ).toBe(file);
   expect(refused).toHaveLength(2);
+});
+
+test("a plural on count with text beside it, or one argument pluralised twice, is refused (#728)", () => {
+  expect(
+    xcstringsWritable("Total: {count, plural, one {%lld P} other {%lld Ps}}"),
+  ).toBe(false);
+  expect(
+    xcstringsWritable(
+      "{arg1, plural, one {a} other {b}} {arg1, plural, one {c} other {d}}",
+    ),
+  ).toBe(false);
+  expect(
+    xcstringsWritable("{count, plural, one {%lld P} other {%lld Ps}}"),
+  ).toBe(true);
+  expect(xcstringsWritable("Use {name} here")).toBe(true);
 });

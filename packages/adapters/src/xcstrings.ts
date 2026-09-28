@@ -312,12 +312,10 @@ function namesOf(unit: XcUnit | undefined): Map<string, string> {
   return out;
 }
 
-// A text as a unit, shaped as the unit it replaces or the source's: a
-// plural on count is `variations.plural`, plurals on arguments are
-// substitutions under the unit's own names, its `argNum` and
-// `formatSpecifier` kept.
 // Whether a text can be a unit: a plural Xcode has no key for (`=0`),
-// or one that opens but does not parse, cannot.
+// one that opens but does not parse, a plural on count with text beside
+// it (a substitution needs its argument), or one argument pluralised
+// twice, cannot.
 export function xcstringsWritable(text: string): boolean {
   const parts = partsOf(text);
   if (
@@ -326,13 +324,19 @@ export function xcstringsWritable(text: string): boolean {
     /\{\s*(?:count|arg\d+)\s*,\s*plural\s*,/.test(text)
   )
     return false;
-  return parts.every(
-    (p) =>
-      typeof p === "string" ||
-      Object.keys(p.branches).every((k) => !k.startsWith("=")),
+  const plurals = parts.filter((p) => typeof p !== "string");
+  const args = plurals.map((p) => p.arg);
+  if (parts.length > 1 && args.includes("count")) return false;
+  if (new Set(args).size !== args.length) return false;
+  return plurals.every((p) =>
+    Object.keys(p.branches).every((k) => !k.startsWith("=")),
   );
 }
 
+// A text as a unit, shaped as the unit it replaces or the source's: a
+// plural on count is `variations.plural`, plurals on arguments are
+// substitutions under the unit's own names, its `argNum` and
+// `formatSpecifier` kept.
 function unitOf(
   text: string,
   like: XcUnit | undefined,
