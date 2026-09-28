@@ -182,3 +182,42 @@ test("a message the file lacks is inserted after its neighbour; a missing file s
     '<translation type="vanished">Alter Text</translation>',
   );
 });
+
+test("a fresh target empties the template's numerus forms; a vanished message comes back in place; lupdate's references and bytes (#741)", () => {
+  const withPlural = EN.replace(
+    "</context>\n</TS>",
+    `    <message numerus="yes">\n        <source>%n file(s)</source>\n        <translation><numerusform>%n file</numerusform><numerusform>%n files</numerusform></translation>\n    </message>\n</context>\n</TS>`,
+  );
+  const fresh = entriesToQtTs(withPlural, {}, undefined, "de");
+  expect(fresh).toContain(
+    '<translation type="unfinished"><numerusform></numerusform><numerusform></numerusform></translation>',
+  );
+  // German has the message only as vanished; the source has it again.
+  const vanished = DE.replace(
+    "<translation>Über qBittorrent</translation>",
+    '<translation type="vanished">Über qBittorrent</translation>',
+  );
+  expect(
+    entriesToQtTs(
+      EN,
+      { "AboutDialog | About qBittorrent": "Über qBittorrent" },
+      vanished,
+      "de",
+    ),
+  ).toBe(DE);
+  // An ideographic space as a reference, a control character as <byte>.
+  const out = entriesToQtTs(
+    EN,
+    { "AboutDialog | About qBittorrent": "Über\u3000qBittorrent\u0001" },
+    DE,
+    "de",
+  );
+  expect(out).toContain(
+    '<translation>Über&#x3000;qBittorrent<byte value="x1"/></translation>',
+  );
+  expect(
+    qtTsTranslations(out).find(
+      (e) => e.id === "AboutDialog | About qBittorrent",
+    )?.source,
+  ).toBe("Über\u3000qBittorrent\u0001");
+});

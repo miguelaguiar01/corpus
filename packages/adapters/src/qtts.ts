@@ -33,15 +33,22 @@ const ENTITIES: Record<string, string> = {
 // kept as written, and line ends read as XML reads them, so a Windows
 // checkout gives the same ids.
 export function qtDecode(text: string): string {
-  return text
-    .replace(/\r\n?/g, "\n")
-    .replace(/&(#x[0-9a-fA-F]+|#\d+|[a-z]+);/g, (whole, e: string) => {
-      if (!e.startsWith("#")) return ENTITIES[e] ?? whole;
-      const code = e.startsWith("#x")
-        ? parseInt(e.slice(2), 16)
-        : Number(e.slice(1));
-      return code <= 0x10ffff ? String.fromCodePoint(code) : whole;
-    });
+  return (
+    text
+      .replace(/\r\n?/g, "\n")
+      // lupdate's element for a control character XML cannot hold.
+      .replace(
+        /<byte\s+value\s*=\s*["']x([0-9a-fA-F]+)["']\s*\/>/g,
+        (_, hex: string) => String.fromCodePoint(parseInt(hex, 16)),
+      )
+      .replace(/&(#x[0-9a-fA-F]+|#\d+|[a-z]+);/g, (whole, e: string) => {
+        if (!e.startsWith("#")) return ENTITIES[e] ?? whole;
+        const code = e.startsWith("#x")
+          ? parseInt(e.slice(2), 16)
+          : Number(e.slice(1));
+        return code <= 0x10ffff ? String.fromCodePoint(code) : whole;
+      })
+  );
 }
 
 // An attribute's value, in either quote.
@@ -194,9 +201,6 @@ function applied(text: string, patches: Patch[]): string {
   return parts.join("");
 }
 
-// The spaces Transifex writes as references: no-break, thin, narrow.
-const REFERENCED = new Set([0xa0, 0x2009, 0x202f]);
-
 // How a file escapes its text: lupdate and Transifex write `&quot;`,
 // `&apos;` and the special spaces as references; a hand-kept file, as
 // qBittorrent's WebUI, writes them as they are.
@@ -216,11 +220,13 @@ function escaperOf(xml: string): (text: string) => string {
       out = out
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&apos;")
-        .replace(/[^\n\t\r -~]/gu, (c) =>
-          REFERENCED.has(c.codePointAt(0)!) || c.codePointAt(0)! < 0x20
-            ? `&#x${c.codePointAt(0)!.toString(16)};`
-            : c,
-        );
+        // Every space but the plain one as a reference, as lupdate
+        // writes them; a control character as its `<byte>` element.
+        .replace(/[\p{Zs}\p{Cc}]/gu, (c) => {
+          const code = c.codePointAt(0)!.toString(16);
+          if (c === " " || c === "\n" || c === "\t" || c === "\r") return c;
+          return /\p{Cc}/u.test(c) ? `<byte value="x${code}"/>` : `&#x${code};`;
+        });
     return out;
   };
 }
@@ -239,25 +245,34 @@ function targetFrom(template: string, code: string): string {
       : `<TS${attrs} language="${code}">`,
   );
   const patches: Patch[] = [];
-  for (const m of qtMessages(out))
-    if (
-      m.translationAt &&
-      !m.numerus &&
-      m.state !== "vanished" &&
-      m.state !== "obsolete"
-    )
-      patches.push({
-        ...m.translationAt,
-        text: '<translation type="unfinished"></translation>',
-      });
+  for (const m of qtMessages(out)) {
+    if (!m.translationAt || m.state === "vanished" || m.state === "obsolete")
+      continue;
+    // A numerus message keeps its forms' places, emptied.
+    const forms = m.numerus
+      ? out
+          .slice(m.translationAt.start, m.translationAt.end)
+          .replace(
+            /<numerusform(\s[^>]*)?>[\s\S]*?<\/numerusform>/g,
+            "<numerusform$1></numerusform>",
+          )
+          .replace(/^<translation(\s[^>]*?)?>/, "")
+          .replace(/<\/translation>$/, "")
+      : "";
+    patches.push({
+      ...m.translationAt,
+      text: `<translation type="unfinished">${forms}</translation>`,
+    });
+  }
   return applied(out, patches);
 }
 
 // Pull's write into a target `.ts` (§8): a changed message's
 // `<translation>` alone, its `unfinished` mark gone, escaped as the file
 // escapes; a message the file lacks inserted from the source file after
-// the one before it there, a context it lacks after the context before
-// it; a missing file started from the source file. Every other byte
+// the one before it there, a context it lacks at the end; a message
+// the file holds only as vanished brought back in its place; a missing
+// file started from the source file. Every other byte
 // stays. A numerus message's forms are #743's.
 export function entriesToQtTs(
   template: string,
@@ -274,8 +289,12 @@ export function entriesToQtTs(
     `<translation>${escape(text)}</translation>`;
   const patches: Patch[] = [];
   const held = new Map<string, QtMessage>();
+  const gone = new Map<string, QtMessage>();
   for (const m of qtMessages(base)) {
-    if (m.state === "vanished" || m.state === "obsolete") continue;
+    if (m.state === "vanished" || m.state === "obsolete") {
+      gone.set(m.id, m);
+      continue;
+    }
     held.set(m.id, m);
     const text = translations[m.id];
     if (text === undefined || m.numerus || !m.translationAt) continue;
@@ -299,7 +318,13 @@ export function entriesToQtTs(
   source.forEach((m, i) => {
     const text = translations[m.id];
     if (held.has(m.id) || text === undefined || m.numerus) return;
-    const block = blockOf(template, m, element(text));
+    // A message lupdate marked vanished and the source has again.
+    const back = gone.get(m.id);
+    if (back?.translationAt) {
+      patches.push({ ...back.translationAt, text: element(text) });
+      return;
+    }
+    const block = blockOf(template, m, element(text)).replace(/\r?\n/g, eol);
     const before = source
       .slice(0, i)
       .reverse()
@@ -336,7 +361,7 @@ export function entriesToQtTs(
           `${nameIndent}    <name>${escape(name)}</name>`,
           ...messages.map(
             (m) =>
-              `${indent}${blockOf(template, m, element(translations[m.id]!))}`,
+              `${indent}${blockOf(template, m, element(translations[m.id]!)).replace(/\r?\n/g, eol)}`,
           ),
           "</context>",
         ].join(eol);

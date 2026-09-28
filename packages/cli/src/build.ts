@@ -233,7 +233,12 @@ export async function buildSnapshotReport(
     // it, and only where pull can write it: a .ts catalogue carries none,
     // so a proposal on its strings is refused up front, not left pending.
     // A String Catalog's keys are the code's (`Text("…")`, #728).
-    const writable = sourceWritesBack(source) && source.adapter !== "xcstrings";
+    // A String Catalog's keys and Qt's `tr()` literals are the code's
+    // (#728, #741): no proposal is taken on them.
+    const writable =
+      sourceWritesBack(source) &&
+      source.adapter !== "xcstrings" &&
+      source.adapter !== "qt-ts";
     // A msgid is its key by nature, not an empty value (#718), and so is
     // a String Catalog key with no source-language unit (#727).
     const keyed =

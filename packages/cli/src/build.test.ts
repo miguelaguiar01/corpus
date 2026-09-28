@@ -1244,5 +1244,7 @@ test("a qt-ts source reads the template and each language's finished translation
   expect(report.snapshot.seedTranslated).toEqual({
     "sr-Latn": ["MainWindow | OK"],
   });
+  // Qt's source text is the code's tr() literal: no proposal on it.
+  expect(report.snapshot.strings.every((s) => s.file === undefined)).toBe(true);
   rmSync(dir, { recursive: true, force: true });
 });
