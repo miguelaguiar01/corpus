@@ -359,21 +359,26 @@ export function entriesToQtTs(
       onRefused?.(m.id, text);
       return undefined;
     }
-    // A form no category reads keeps its text, or takes the branch of
-    // the category most of its integers are, so no form ships empty.
+    // A form no category reads keeps its text. Unchanged is decided on
+    // the file's own forms; a message written anyway fills such a form,
+    // empty, from the category most of its integers are, so no form of
+    // a finished message ships empty.
     const pick = (c: string | undefined) =>
       c === undefined ? undefined : (branches[c] ?? branches.other);
-    const forms = categories.map((c, i) =>
-      c === undefined
-        ? m.forms[i] || (pick(majority[i]) ?? branches.other ?? "")
-        : (pick(c) ?? ""),
+    const read = categories.map((c, i) =>
+      c === undefined ? (m.forms[i] ?? "") : (pick(c) ?? ""),
     );
     if (
       m.state === undefined &&
-      forms.length === m.forms.length &&
-      forms.every((f, i) => f === m.forms[i])
+      read.length === m.forms.length &&
+      read.every((f, i) => f === m.forms[i])
     )
       return undefined;
+    const forms = read.map((f, i) =>
+      categories[i] === undefined && f === ""
+        ? (pick(majority[i]) ?? branches.other ?? "")
+        : f,
+    );
     // lupdate's layout: a form a line, the file's own where it has one.
     const old = m.translationAt
       ? from.slice(m.translationAt.start, m.translationAt.end)

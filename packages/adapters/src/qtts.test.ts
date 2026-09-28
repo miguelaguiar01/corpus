@@ -338,6 +338,17 @@ test("Qt's own counts: Macedonian by n%10, one form where Qt has no rule, older 
     { tag: "lv", code: "lv" },
   );
   expect(lv).not.toContain("<numerusform></numerusform>");
+  // A file that leaves that form empty is left as it is on a pull of
+  // its own translations.
+  const lvFile = numerus("lv", ["%n fails", "%n faili", ""]);
+  expect(
+    entriesToQtTs(
+      template,
+      { [id]: qtTsTranslations(lvFile, "lv")[0]!.source },
+      lvFile,
+      { tag: "lv", code: "lv" },
+    ),
+  ).toBe(lvFile);
   // A form with length variants, left as it was, keeps them.
   const pl = numerus("pl", [
     "<lengthvariant>%n plik</lengthvariant><lengthvariant>%n p.</lengthvariant>",
