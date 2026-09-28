@@ -195,5 +195,17 @@ test("a string's key arguments are in its response, and absent where it has none
     unknown
   >;
   expect("arguments" in without).toBe(false);
+  // An empty list, as an exporter may send, is none.
+  applySnapshot(db, project.id, {
+    ...FIXTURE,
+    strings: FIXTURE.strings.map((s) =>
+      s.id === CONTINUE ? { ...s, arguments: [] } : s,
+    ),
+  });
+  const empty = (await (await string(token, CONTINUE)).json()) as Record<
+    string,
+    unknown
+  >;
+  expect("arguments" in empty).toBe(false);
   applySnapshot(db, project.id, FIXTURE);
 });
