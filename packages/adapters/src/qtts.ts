@@ -401,12 +401,14 @@ export function entriesToQtTs(
       c === undefined ? (m.forms[i] ?? "") : (pick(c) ?? ""),
     );
     // Forms beyond the rule's, an older rule's or lupdate's own mapping,
-    // stay while the rule's are unchanged (#798); a change writes the
-    // rule's alone.
+    // stay while the rule's are unchanged (#798); so does a file short
+    // of a form no category reads, Latvian's zero (#800). A change
+    // writes the rule's forms.
     if (
       m.state === undefined &&
-      read.length <= m.forms.length &&
-      read.every((f, i) => f === m.forms[i])
+      read.every((f, i) =>
+        i < m.forms.length ? f === m.forms[i] : categories[i] === undefined,
+      )
     )
       return undefined;
     const forms = read.map((f, i) =>
