@@ -111,6 +111,13 @@ test("a target stub reads no translations; a source with nothing under its root 
   ).toThrow(
     "no root key en: the file's root keys are en_US; the source language's file must be rooted at its code",
   );
+  // A hash of null forms alone is nothing to translate.
+  expect(
+    yamlToEntries("en:\n  p:\n    one: ~\n    other: ~\n  q: Q\n", {
+      type: "ui",
+      root: "en",
+    }).map((e) => e.id),
+  ).toEqual(["q"]);
   // A plural whose other is null is still one plural.
   expect(
     yamlToEntries('en:\n  p:\n    one: "a"\n    other: ~\n', {

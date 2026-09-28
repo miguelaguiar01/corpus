@@ -53,7 +53,8 @@ function pluralOf(map: YAMLMap): Record<string, string> | undefined {
       return undefined;
     forms[key] = pair.value.value;
   }
-  return other ? forms : undefined;
+  // A hash of nulls alone is no plural yet: its nulls are skipped.
+  return other && Object.keys(forms).length > 0 ? forms : undefined;
 }
 
 // The strings under a language's root key, in the file's order; a key
