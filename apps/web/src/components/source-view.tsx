@@ -1,6 +1,6 @@
 import {
   branchingNodes,
-  parseIcu,
+  readIcu,
   type FieldDeclaration,
   type IcuNode,
   type Library,
@@ -27,7 +27,7 @@ export function SourceView({
   declarations: Record<string, FieldDeclaration>;
   className?: string;
 }) {
-  const parsed = parseIcu(source, syntax);
+  const parsed = readIcu(source, syntax);
   if (!parsed.ok) return <p className={className}>{source}</p>;
   const slots = slotDescriptions(declarations);
   const selects = branchingNodes(parsed.nodes);

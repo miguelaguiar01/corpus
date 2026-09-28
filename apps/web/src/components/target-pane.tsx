@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import {
   branchingNodes,
   exampleValues,
-  parseIcu,
+  readIcu,
   pluralCategoriesOf,
   renderPreviewSegments,
   hasVoidTags,
@@ -46,7 +46,7 @@ function branchingOf(
   language: string,
   syntax: Library,
 ): Branching[] {
-  const parsed = parseIcu(source, syntax);
+  const parsed = readIcu(source, syntax);
   if (!parsed.ok) return [];
   const byArg = new Map<string, Branching>();
   for (const node of branchingNodes(parsed.nodes)) {

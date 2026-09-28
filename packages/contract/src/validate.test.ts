@@ -1,7 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { moonlightManor } from "./fixtures/moonlight-manor";
 import type { Library } from "./strings";
-import { parseIcu, placeholderWrittenOf } from "./icu";
+import { parseIcu, placeholdersOf, placeholderWrittenOf } from "./icu";
+import { renderPreview } from "./preview";
 import { validateTranslation, type ValidationError } from "./validate";
 
 const SIGHTING = moonlightManor.strings[0]!.source;
@@ -1427,4 +1428,25 @@ test("in a type read as HTML a tag that never closes, or a stray closing tag, is
   expect(
     validateTranslation("a <b>bold</b>", "a <b>bold", "pt", "icu").ok,
   ).toBe(false);
+});
+
+test("reading prose tags is one pass: a thousand unclosed tags, verbs counted once, slots read from such a text (#755)", () => {
+  const started = Date.now();
+  expect(parseIcu("<a>".repeat(1000), "icu", { html: "markup" }).ok).toBe(true);
+  expect(Date.now() - started).toBeLessThan(1000);
+  expect(
+    validateTranslation(
+      "Hello %s, you have %d",
+      "<b>Olá %s, tens %d",
+      "pt",
+      "android",
+      { richText: "html" },
+    ),
+  ).toEqual({ ok: true });
+  expect(
+    placeholdersOf("<p><span>%{username}</span> %{description}", "rails"),
+  ).toEqual(new Set(["username", "description"]));
+  expect(
+    renderPreview("Insert <head> {name}", { name: "x" }, "en"),
+  ).toMatchObject({ ok: true, text: "Insert <head> x" });
 });
