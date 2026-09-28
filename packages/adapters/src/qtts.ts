@@ -495,7 +495,7 @@ function translationElement(
   const old = m.translationAt
     ? from.slice(m.translationAt.start, m.translationAt.end)
     : "";
-  const indent = m.translationAt ? lineIndent(from, m.translationAt.start) : "";
+  const indent = lineIndent(from, m.translationAt?.start ?? sourceAt(from, m));
   const open = /^<translation(?:\s[^>]*?)?>(\s*)<numerusform/.exec(old)?.[1];
   const close = /(\s*)<\/translation>$/.exec(old)?.[1];
   const between = open ?? `${eol}${indent}    `;
@@ -535,10 +535,19 @@ function translationPatch(
   const close = m.at.start + inside.lastIndexOf("</message>");
   const at =
     m.at.start + masked(text.slice(m.at.start, close)).trimEnd().length;
-  const source = m.at.start + Math.max(0, inside.indexOf("<source"));
+  // `</message>` on the last element's line goes to a line of its own.
+  const after = text.slice(at, close).includes("\n")
+    ? ""
+    : `${eol}${lineIndent(text, m.at.start)}`;
   return {
     start: at,
     end: at,
-    text: `${eol}${lineIndent(text, source)}${translation}`,
+    text: `${eol}${lineIndent(text, sourceAt(text, m))}${translation}${after}`,
   };
+}
+
+// Where a message's `<source>` starts.
+function sourceAt(text: string, m: QtMessage): number {
+  const inside = masked(text.slice(m.at.start, m.at.end));
+  return m.at.start + Math.max(0, inside.indexOf("<source"));
 }

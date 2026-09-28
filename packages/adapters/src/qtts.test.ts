@@ -668,6 +668,28 @@ test("a message with no <translation> element takes one, held or copied from the
     "        <source>Hi</source>\n        <translation>Salut</translation>\n    </message>",
   );
   expect(readFr(held)).toEqual({ "A | Hi": "Salut" });
+  const numerus = ts(
+    '<context>\n    <name>A</name>\n    <message numerus="yes">\n        <source>%n file(s)</source>\n    </message>\n</context>\n',
+  );
+  expect(
+    entriesToQtTs(
+      numerus,
+      {
+        "A | %n file(s)":
+          "{count, plural, one {%n fichier} other {%n fichiers}}",
+      },
+      numerus,
+      FR,
+    ),
+  ).toContain(
+    "        <source>%n file(s)</source>\n        <translation>\n            <numerusform>%n fichier</numerusform>\n            <numerusform>%n fichiers</numerusform>\n        </translation>\n    </message>",
+  );
+  const oneLine = ts(
+    "<context>\n    <name>A</name>\n    <message><source>Hi</source></message>\n</context>\n",
+  );
+  expect(entriesToQtTs(oneLine, { "A | Hi": "Salut" }, oneLine, FR)).toContain(
+    "    <message><source>Hi</source>\n    <translation>Salut</translation>\n    </message>",
+  );
   const empty = ts("<context>\n    <name>A</name>\n</context>\n");
   expect(readFr(entriesToQtTs(bare, { "A | Hi": "Salut" }, empty, FR))).toEqual(
     { "A | Hi": "Salut" },
