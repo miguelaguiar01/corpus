@@ -56,14 +56,31 @@ const UNESCAPES: Record<string, string> = Object.fromEntries(
   Object.entries(ESCAPES).map(([c, e]) => [e.slice(1), c]),
 );
 
+const BYTE_ESCAPE = /\\(x[0-9a-fA-F]{1,2}|[0-7]{1,3})/g;
+
 function unescape(text: string): string {
-  return text.replace(/\\(x[0-9a-fA-F]{1,2}|[0-7]{1,3}|.)/g, (_, c: string) =>
-    /^x/.test(c)
-      ? String.fromCharCode(parseInt(c.slice(1), 16))
-      : /^[0-7]/.test(c)
-        ? String.fromCharCode(parseInt(c, 8))
-        : (UNESCAPES[c] ?? c),
+  return text.replace(
+    /(?:\\(?:x[0-9a-fA-F]{1,2}|[0-7]{1,3}))+|\\(.)/g,
+    (run: string, c: string | undefined) =>
+      c === undefined ? escapedBytes(run) : (UNESCAPES[c] ?? c),
   );
+}
+
+// A run of numeric escapes is bytes, UTF-8 as msgfmt reads them (#849);
+// a run that is not UTF-8 reads a character per escape.
+function escapedBytes(run: string): string {
+  const codes = [...run.matchAll(BYTE_ESCAPE)].map(([, c]) =>
+    c!.startsWith("x") ? parseInt(c!.slice(1), 16) : parseInt(c!, 8),
+  );
+  if (codes.every((b) => b <= 0xff))
+    try {
+      return new TextDecoder("utf-8", { fatal: true }).decode(
+        new Uint8Array(codes),
+      );
+    } catch {
+      // Not UTF-8.
+    }
+  return String.fromCharCode(...codes);
 }
 
 // The quoted strings of a keyword and its continuation lines, joined.
@@ -158,9 +175,8 @@ export function parsePo(text: string): PoEntry[] {
       else if (line.startsWith("#:"))
         entry.references.push(line.slice(2).trim());
     } else {
-      const keyword = /^(msgctxt|msgid_plural|msgid|msgstr(?:\[\d+\])?)\s/.exec(
-        line,
-      );
+      const keyword =
+        /^(msgctxt|msgid_plural|msgid|msgstr(?:\[\d+\])?)(?=[\s"])/.exec(line);
       if (keyword) {
         flush();
         if (
