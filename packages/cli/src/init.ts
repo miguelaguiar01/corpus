@@ -76,7 +76,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       `--source ${sourceLanguage}: ${messages} names ${catalog.sourceLanguage} as its source language`,
     );
   const server = option(args, "--server") ?? "http://localhost:3000";
-  const type = option(args, "--type") ?? "chrome";
+  const type = option(args, "--type") ?? "ui";
   if (!catalog && !messages.includes("{lang}")) {
     throw new CliError(
       `--messages must contain {lang}, such as src/i18n/{lang}.json`,
@@ -393,7 +393,7 @@ function render(
   sourceLanguage: ${q(config.sourceLanguage)},
   languages: [${config.languages.map(q).join(", ")}],
   sources: [
-    { adapter: ${q(source.adapter)}, type: ${q(source.type ?? "chrome")}, path: ${q(source.path ?? "")}${source.sourcePath ? `, sourcePath: ${q(source.sourcePath)}` : ""}${library}${
+    { adapter: ${q(source.adapter)}, type: ${q(source.type ?? "ui")}, path: ${q(source.path ?? "")}${source.sourcePath ? `, sourcePath: ${q(source.sourcePath)}` : ""}${library}${
       source.languageFiles
         ? `, languageFiles: { ${Object.entries(source.languageFiles)
             .map(([tag, code]) => `${q(tag)}: ${q(code)}`)

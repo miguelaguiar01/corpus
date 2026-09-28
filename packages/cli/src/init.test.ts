@@ -87,7 +87,7 @@ test("writes a config that the loader accepts, and says what to do next", async 
   expect(config.languages).toEqual(["pt-PT", "en"]);
   expect(config.sources[0]).toMatchObject({
     adapter: "messages",
-    type: "chrome",
+    type: "ui",
     path: "src/i18n/{lang}.json",
   });
   expect(p.out.join("\n")).toMatch(/wrote corpus\.config\.ts/);
@@ -798,7 +798,7 @@ test("init writes a yaml source for Rails catalogues, the languages from the fil
   expect(config.languages).toEqual(["en", "pt_BR"]);
   expect(config.sources[0]).toEqual({
     adapter: "yaml",
-    type: "chrome",
+    type: "ui",
     path: "config/locales/client.{lang}.yml",
   });
   expect(await run(["build"], p.ctx)).toBe(0);
@@ -840,7 +840,7 @@ test("init writes a qt-ts source for Qt Linguist .ts files, a POSIX code mapped 
   expect(config.languages).toEqual(["en", "de", "sr-Latn"]);
   expect(config.sources[0]).toEqual({
     adapter: "qt-ts",
-    type: "chrome",
+    type: "ui",
     path: "lang/app_{lang}.ts",
     languageFiles: { "sr-Latn": "sr@latin" },
   });
@@ -1029,7 +1029,7 @@ test("init writes a gettext source for .po catalogues, the .pot beside them its 
   expect(config.languages).toEqual(["en", "de_DE", "ru_RU"]);
   expect(config.sources[0]).toEqual({
     adapter: "gettext",
-    type: "chrome",
+    type: "ui",
     path: "locales/{lang}.po",
     sourcePath: "locales/joplin.pot",
   });
@@ -1060,7 +1060,7 @@ test("init names the .pot files when there are several, and sets none (#720)", a
   expect(p.err.join("\n")).toContain("po/a.pot, po/b.pot sit beside");
   expect((await loadConfig(p.dir)).sources[0]).toEqual({
     adapter: "gettext",
-    type: "chrome",
+    type: "ui",
     path: "po/{lang}.po",
   });
 });
@@ -1103,7 +1103,7 @@ test("init finds GNU's layout's .pot above the language directories, writes --li
   expect(code).toBe(0);
   expect((await loadConfig(p.dir)).sources[0]).toEqual({
     adapter: "gettext",
-    type: "chrome",
+    type: "ui",
     path: "locales/{lang}/LC_MESSAGES/app.po",
     sourcePath: "locales/app.pot",
     library: "counterpart",
@@ -1196,7 +1196,7 @@ test("init writes an xcstrings source for a String Catalog, its languages and so
   expect(config.languages).toEqual(["en", "de", "zh-Hans"]);
   expect(config.sources[0]).toEqual({
     adapter: "xcstrings",
-    type: "chrome",
+    type: "ui",
     path: "App/Localizable.xcstrings",
   });
   expect(await run(["build"], p.ctx)).toBe(0);
