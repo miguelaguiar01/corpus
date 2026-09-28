@@ -59,6 +59,21 @@ Project Fluent's `.ftl` catalogues.
 
 One file per language, `{lang}` in the path. See [Your i18n library](Your-i18n-library#fluent) for the subset it reads.
 
+## xliff
+
+XLIFF 1.2 and 2.0, as Angular's `ng extract-i18n` and most translation tools write it, one file per language:
+
+```ts
+{
+  adapter: "xliff",
+  type: "ui",
+  path: "src/locale/messages.{lang}.xlf",
+  sourcePath: "src/locale/messages.xlf",
+}
+```
+
+`sourcePath` names the source-language file when its name holds no language, as Angular's does; `corpus init --messages src/locale/messages.{lang}.xlf` writes it when it finds that file. A unit's `<source>` is the string, its description and meaning its note; a target file's `<target>` is a translation already made, unless its state is `new`, `needs-translation` or `initial`, and one marked done whose text is the source's (German `Status`) is translated, not work. Inline elements are what the editor shows as chips: `<x id="INTERPOLATION"/>` a placeholder `{INTERPOLATION}`, `START_LINK`/`CLOSE_LINK` a tag pair `<LINK>…</LINK>`, `<g>` and `<pc>` tags too, so a translation keeps each one and cannot reverse a pair. A pull writes a changed translation into its unit's `<target>` with the unit's own elements put back, turns a `new` state to `translated`, adds a missing target after its `<source>` and a missing unit at the end, and leaves every other byte as it was; a proposal edits the source file's units. A file whose elements carry a namespace prefix (`<xlf:trans-unit>`) is refused by name.
+
 ## exec
 
 A command that prints the entries as JSON, for text that lives somewhere no adapter reads: a database, a spreadsheet, a game engine's own format.
