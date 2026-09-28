@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
+import { pluralCategoryIndexes } from "./gettext";
 import { GETTEXT_PLURALS } from "./gettextplurals";
 
 const INTEGERS = [
@@ -12,6 +13,7 @@ const INTEGERS = [
 
 test("every compiled expression picks, for each integer, the form of the category Intl gives it (#812)", () => {
   const disagree: string[] = [];
+  const skipped: string[] = [];
   for (const [locale, { nplurals, plural, forms }] of Object.entries(
     GETTEXT_PLURALS,
   )) {
@@ -25,9 +27,18 @@ test("every compiled expression picks, for each integer, the form of the categor
     } catch {
       continue;
     }
-    // A locale the runtime has no data for falls back to another's
-    // rules; only its own are compared.
-    if (rules.resolvedOptions().locale !== locale) continue;
+    // An alias or the root the runtime resolves to another locale's
+    // rules is named, not compared.
+    if (rules.resolvedOptions().locale !== locale) {
+      skipped.push(locale);
+      continue;
+    }
+    // The adapter's own reading of the header gives each form its index.
+    const header = `nplurals=${nplurals}; plural=${plural};`;
+    const indexes = pluralCategoryIndexes(locale, header);
+    forms.forEach((c, i) => {
+      if (indexes.get(c) !== i) disagree.push(`${locale} ${c}`);
+    });
     for (const n of INTEGERS)
       if (f(n) !== forms.indexOf(rules.select(n))) {
         disagree.push(`${locale} ${n}`);
@@ -35,6 +46,7 @@ test("every compiled expression picks, for each integer, the form of the categor
       }
   }
   expect(disagree).toEqual([]);
+  expect(skipped).toEqual(["jw", "mo", "sh", "tl", "und"]);
 });
 
 test("the known languages have gettext's forms (#812)", () => {
