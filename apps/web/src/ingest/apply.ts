@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import {
   libraryOf,
   validateTranslation,
@@ -420,6 +420,7 @@ export function applySnapshot(
         counts,
         new Set(plan.insert),
       );
+      applySuggestions(tx, projectId, targetLanguages, snapshot);
 
       // Proposals that this push lands or overtakes (§8, §11).
       const proposals = reconcileProposals(
@@ -544,6 +545,56 @@ function applyEntities(
     entitiesUpserted: snapshot.entities.length,
     entitiesRemoved: removed.length,
   };
+}
+
+// seedSuggestions (§8, #773): what the repository offers a translator to
+// start from, a gettext fuzzy row. Each push replaces them whole, a push
+// without them clearing them; they never touch a row's text or state.
+// An id or a language the project lacks is skipped.
+function applySuggestions(
+  db: Db,
+  projectId: number,
+  targetLanguages: string[],
+  snapshot: Snapshot,
+): void {
+  const projectStrings = db
+    .select({ id: strings.id })
+    .from(strings)
+    .where(eq(strings.projectId, projectId));
+  db.update(stringTranslations)
+    .set({ suggestion: null })
+    .where(
+      and(
+        isNotNull(stringTranslations.suggestion),
+        inArray(stringTranslations.stringId, projectStrings),
+      ),
+    )
+    .run();
+  const suggestions = snapshot.seedSuggestions ?? {};
+  if (Object.keys(suggestions).length === 0) return;
+  const rowOf = new Map(
+    db
+      .select({ id: strings.id, stringId: strings.stringId })
+      .from(strings)
+      .where(eq(strings.projectId, projectId))
+      .all()
+      .map((row) => [row.stringId, row.id]),
+  );
+  const set = db
+    .update(stringTranslations)
+    .set({ suggestion: sql`${sql.placeholder("text")}` })
+    .where(
+      and(
+        eq(stringTranslations.stringId, sql.placeholder("row")),
+        eq(stringTranslations.language, sql.placeholder("language")),
+      ),
+    )
+    .prepare();
+  for (const language of targetLanguages)
+    for (const [id, text] of Object.entries(suggestions[language] ?? {})) {
+      const row = rowOf.get(id);
+      if (row !== undefined) set.run({ text, row, language });
+    }
 }
 
 // seedTranslations (§8): a repo's existing target catalogs import as

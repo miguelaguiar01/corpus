@@ -55,6 +55,7 @@ export async function GET(
               detail.string.arguments,
             )
           : null,
+      ...(row.suggestion !== null && { suggestion: row.suggestion }),
     };
   }
   const body: StringResponse = {

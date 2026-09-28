@@ -13,6 +13,7 @@ const translations = {
     text: "Olá",
     version: 1,
     agentDraft: false,
+    suggestion: null,
   },
   en: {
     state: "translated" as const,
@@ -21,6 +22,7 @@ const translations = {
     text: "Hello",
     version: 2,
     agentDraft: false,
+    suggestion: null,
   },
   fr: {
     state: "untranslated" as const,
@@ -29,6 +31,7 @@ const translations = {
     text: null,
     version: 0,
     agentDraft: false,
+    suggestion: null,
   },
 };
 
@@ -96,6 +99,7 @@ test("past five, the rest fold behind their count and open on demand", () => {
         text: `text ${l}`,
         version: 1,
         agentDraft: false,
+        suggestion: null,
       },
     ]),
   );

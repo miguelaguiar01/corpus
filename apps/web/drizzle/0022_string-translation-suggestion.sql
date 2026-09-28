@@ -1,0 +1,1 @@
+ALTER TABLE `string_translations` ADD `suggestion` text;

@@ -209,3 +209,24 @@ test("a string's key arguments are in its response, and absent where it has none
   expect("arguments" in empty).toBe(false);
   applySnapshot(db, project.id, FIXTURE);
 });
+
+test("get_string carries a language's suggestion, the row's state unchanged; a language without one has none (#773)", async () => {
+  const { db, project, token } = seeded;
+  const read = async () =>
+    (await (await string(token, CONTINUE)).json()) as StringResponse;
+  const before = (await read()).translations.en!;
+  applySnapshot(db, project.id, {
+    ...FIXTURE,
+    seedSuggestions: { en: { [CONTINUE]: "Carry on?" } },
+  });
+  const body = await read();
+  expect(body.translations.en).toMatchObject({
+    suggestion: "Carry on?",
+    state: before.state,
+    text: before.text,
+  });
+  for (const [language, row] of Object.entries(body.translations))
+    if (language !== "en") expect("suggestion" in row).toBe(false);
+  applySnapshot(db, project.id, FIXTURE);
+  expect("suggestion" in (await read()).translations.en!).toBe(false);
+});
