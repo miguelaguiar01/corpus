@@ -400,9 +400,12 @@ export function entriesToQtTs(
     const read = categories.map((c, i) =>
       c === undefined ? (m.forms[i] ?? "") : (pick(c) ?? ""),
     );
+    // Forms beyond the rule's, an older rule's or lupdate's own mapping,
+    // stay while the rule's are unchanged (#798); a change writes the
+    // rule's alone.
     if (
       m.state === undefined &&
-      read.length === m.forms.length &&
+      read.length <= m.forms.length &&
       read.every((f, i) => f === m.forms[i])
     )
       return undefined;
