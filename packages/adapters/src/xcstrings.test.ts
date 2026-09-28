@@ -472,4 +472,12 @@ test("a catalogue with integer-like keys keeps Xcode's order: a no-op pull is by
   expect(entriesToXcstrings(file, own, "de")).toBe(file);
   const edited = entriesToXcstrings(file, { ...own, "10": "Zehn" }, "de");
   expect(edited).toBe(file.replace('"zehn"', '"Zehn"'));
+  // An integer-like key inside a unit would move on a write: refused.
+  const nested = file.replace(
+    '"About" : {',
+    '"About" : {\n      "z" : {\n        "b" : 1,\n        "1" : 2\n      },',
+  );
+  expect(() =>
+    entriesToXcstrings(nested, { ...own, "10": "Zehn" }, "de"),
+  ).toThrow("not in Xcode's layout");
 });

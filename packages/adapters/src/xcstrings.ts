@@ -4,7 +4,7 @@
 // device or width, or a `stringUnit` whose `%#@name@` substitutions are
 // plurals of their own.
 import type { StringEntry } from "@corpus/contract";
-import { parseTree, type Node } from "jsonc-parser";
+import { parseTree } from "jsonc-parser";
 import { ownRecord } from "./text";
 
 type StringUnit = { state?: string; value?: string };
@@ -54,7 +54,8 @@ export function parseXcstrings(text: string): XcCatalog {
   const keys = !Object.keys(strings).some(isIndex)
     ? undefined
     : parseTree(text.replace(/^\uFEFF/, ""))
-        ?.children?.find((p) => p.children?.[0]?.value === "strings")
+        ?.children?.filter((p) => p.children?.[0]?.value === "strings")
+        .at(-1)
         ?.children?.[1]?.children?.map((p) => p.children![0]!.value as string);
   return {
     ...(data as XcCatalog),
@@ -296,18 +297,6 @@ function substitutionNamed<T>(
 
 // A key an object puts ahead of the rest, whatever order it came in.
 const isIndex = (key: string) => /^(?:0|[1-9]\d*)$/.test(key);
-
-// A JSON value with every object a Map in the text's order.
-function inOrder(node: Node): unknown {
-  if (node.type === "array") return (node.children ?? []).map(inOrder);
-  if (node.type !== "object") return node.value;
-  return new Map(
-    (node.children ?? []).map((p) => [
-      p.children![0]!.value as string,
-      inOrder(p.children![1]!),
-    ]),
-  );
-}
 
 const sorted = <T>(record: Record<string, T>): Record<string, T> =>
   Object.fromEntries(
@@ -552,10 +541,7 @@ export function entriesToXcstrings(
   const bom = text.startsWith("\uFEFF") ? "\uFEFF" : "";
   const newline = text.endsWith("\n") ? "\n" : "";
   const body = text.slice(bom.length);
-  if (
-    serializeXcstrings(JSON.parse(body)) + newline !== body &&
-    serializeXcstrings(inOrder(parseTree(body)!)) + newline !== body
-  )
+  if (serializeXcstrings(parseXcstrings(body)) + newline !== body)
     throw new Error(
       "the catalogue is not in Xcode's layout, so a write would move bytes it does not change; save it from Xcode first",
     );
