@@ -377,3 +377,45 @@ test("sourceVariants names target languages only (#658)", () => {
     "sourceVariants names en-AU, which is not a target language of languages",
   ]);
 });
+
+test("{ns} is refused by name on an adapter that does not read it (#854)", () => {
+  const config = (source: Record<string, unknown>) =>
+    corpusConfigSchema.safeParse({
+      project: "demo",
+      server: "http://localhost:3000",
+      sourceLanguage: "en",
+      languages: ["en", "de"],
+      sources: [source],
+    });
+  for (const source of [
+    { adapter: "messages", type: "ui", path: "locales/{lang}/{ns}.json" },
+    {
+      adapter: "table",
+      type: "ui",
+      path: "data/{ns}.{lang}.json",
+      map: { id: "id", text: "text" },
+    },
+    { adapter: "fluent", type: "ui", path: "i18n/{lang}/{ns}.ftl" },
+  ])
+    expect(config(source).success).toBe(true);
+  for (const source of [
+    { adapter: "yaml", type: "ui", path: "config/locales/{ns}.{lang}.yml" },
+    { adapter: "gettext", type: "ui", path: "po/{ns}.{lang}.po" },
+    { adapter: "xliff", type: "ui", path: "locale/{ns}.{lang}.xlf" },
+    { adapter: "qt-ts", type: "ui", path: "lang/{ns}_{lang}.ts" },
+    { adapter: "xcstrings", type: "ui", path: "{ns}/Localizable.xcstrings" },
+    { adapter: "android", type: "ui", path: "{ns}/src/main/res" },
+    {
+      adapter: "gettext",
+      type: "ui",
+      path: "po/{lang}.po",
+      sourcePath: "po/{ns}.pot",
+    },
+  ]) {
+    const result = config(source);
+    expect(result.success).toBe(false);
+    expect(JSON.stringify(result.error?.issues)).toContain(
+      `${source.adapter} does not read {ns}: only messages, table and fluent do`,
+    );
+  }
+});
