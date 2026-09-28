@@ -363,6 +363,7 @@ export default async function StringPage({
                 action={saveString}
                 source={string.source}
                 syntax={string.syntax}
+                passed={string.arguments}
                 richText={string.richText}
                 slots={slots}
                 language={target}

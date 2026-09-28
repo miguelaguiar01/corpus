@@ -209,7 +209,11 @@ export function validateTranslation(
   target: string,
   language?: string,
   syntax: Library = "icu",
-  options: { richText?: RichText } = {},
+  // `arguments`: the verbs the code passes, by position, where a key
+  // carries them (a String Catalog's `%lld`, #731): values a translation
+  // may pluralise on or print, of their type, though the source text
+  // prints none of them.
+  options: { richText?: RichText; arguments?: string[] } = {},
 ): ValidationResult {
   const html = hasVoidTags(syntax, options.richText);
   const parsedSource = parseIcu(source, syntax, { html });
@@ -278,8 +282,13 @@ export function validateTranslation(
         ...writtenAs(expected, name),
       });
   }
+  const passed = new Map<string, string>();
+  if (syntax === "printf")
+    (options.arguments ?? []).forEach((written, i) => {
+      if (written) passed.set(String(i + 1), written);
+    });
   for (const name of actual.placeholders) {
-    if (!expectedValues.has(name))
+    if (!expectedValues.has(name) && !passed.has(name))
       errors.push({
         code: "unexpected-placeholder",
         name,
@@ -326,13 +335,20 @@ export function validateTranslation(
           name,
           (allowed.get(name) ?? new Set()).add(verbOf(written)),
         );
+    for (const [name, written] of passed)
+      allowed.set(name, (allowed.get(name) ?? new Set()).add(verbOf(written)));
     const said = new Set<string>();
     // A String Catalog's `%arg` is its argument whatever the verb (#726).
+    // Unless the key says what type it is.
     const any = new Set(
-      expected.verbs.filter(([, w]) => w === "%arg").map(([name]) => name),
+      expected.verbs
+        .filter(([name, w]) => w === "%arg" && !passed.has(name))
+        .map(([name]) => name),
     );
     for (const [name, got] of verbs) {
-      const written = expected.written.get(name);
+      const own = expected.written.get(name);
+      const written =
+        own === undefined || own === "%arg" ? (passed.get(name) ?? own) : own;
       if (
         written === undefined ||
         got === "%arg" ||
@@ -388,7 +404,7 @@ export function validateTranslation(
     }
   }
   for (const [arg, keys] of actual.plurals) {
-    if (!expectedValues.has(arg)) {
+    if (!expectedValues.has(arg) && !passed.has(arg)) {
       errors.push({ code: "unknown-plural", arg });
       continue;
     }

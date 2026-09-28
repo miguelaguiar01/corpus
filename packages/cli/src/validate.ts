@@ -194,13 +194,13 @@ export async function validateRepo(
         language,
       );
       if (translations === undefined) continue;
-      for (const [key, target] of translations) {
+      for (const [key, { source: target }] of translations) {
         // An empty value is a key the target lacks: what an extraction
         // tool leaves for an untranslated row, and what push seeds as
         // untranslated (§8), never a dropped placeholder.
         if (target.trim() === "") continue;
-        const original = sources.get(key);
-        if (original === undefined) {
+        const entry = sources.get(key);
+        if (entry === undefined) {
           findings.push({
             file,
             key,
@@ -213,11 +213,14 @@ export async function validateRepo(
           continue;
         }
         const result = validateTranslation(
-          original,
+          entry.source,
           target,
           language,
           library,
-          { richText: config.richText?.[source.type] },
+          {
+            richText: config.richText?.[source.type],
+            ...(entry.arguments && { arguments: entry.arguments }),
+          },
         );
         for (const error of result.incomplete ?? []) {
           findings.push({
@@ -260,7 +263,7 @@ async function texts(
   source: FileSource,
   sourceFile = false,
   language?: string,
-): Promise<Map<string, string> | undefined> {
+): Promise<Map<string, StringEntry> | undefined> {
   if (!existsSync(path.join(cwd, rel))) return undefined;
   try {
     const entries = await readEntries(
@@ -271,7 +274,7 @@ async function texts(
       sourceFile,
       language,
     );
-    return new Map(entries.map((e) => [e.id, e.source]));
+    return new Map(entries.map((e) => [e.id, e]));
   } catch (error) {
     throw new CliError(`${rel}: ${(error as Error).message}`);
   }
@@ -384,7 +387,10 @@ function validateExec(
         target,
         language,
         library,
-        { richText: richText[entry.type] },
+        {
+          richText: richText[entry.type],
+          ...(entry.arguments && { arguments: entry.arguments }),
+        },
       );
       for (const error of result.incomplete ?? []) {
         findings.push({

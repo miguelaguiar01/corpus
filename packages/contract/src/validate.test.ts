@@ -1327,3 +1327,57 @@ test("in a substitution's branch only the first unindexed verb is the argument; 
     ).get("1"),
   ).toBe("%lld");
 });
+
+test("the arguments a key passes are values a translation may pluralise or print, of the key's type (#731)", () => {
+  const favourite = { arguments: ["%lld"] };
+  // English prints none of it; German pluralises on it.
+  expect(
+    validateTranslation(
+      "starred",
+      "{arg1, plural, one {hat favorisiert} other {haben favorisiert}}",
+      "de",
+      "printf",
+      favourite,
+    ),
+  ).toEqual({ ok: true });
+  expect(
+    validateTranslation("starred", "%lld Sterne", "de", "printf", favourite),
+  ).toEqual({ ok: true });
+  // Of the key's type: %@ is not an lld count.
+  expect(
+    validateTranslation("starred", "%@ Sterne", "de", "printf", favourite),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "changed-verb", name: "1", expected: "%lld" }],
+  });
+  // Beyond the key's arguments is still unknown.
+  expect(
+    validateTranslation(
+      "starred",
+      "{arg2, plural, one {a} other {b}}",
+      "de",
+      "printf",
+      favourite,
+    ),
+  ).toMatchObject({ ok: false, errors: [{ code: "unknown-plural" }] });
+  // A plain verb where the source's substitution has only %arg takes the
+  // key's type.
+  expect(
+    validateTranslation(
+      "{arg1, plural, one {%arg post} other {%arg posts}}",
+      "%@ Beiträge",
+      "de",
+      "printf",
+      favourite,
+    ),
+  ).toMatchObject({ ok: false, errors: [{ code: "changed-verb", name: "1" }] });
+  expect(
+    validateTranslation(
+      "{arg1, plural, one {%arg post} other {%arg posts}}",
+      "%lld Beiträge",
+      "de",
+      "printf",
+      favourite,
+    ),
+  ).toEqual({ ok: true });
+});

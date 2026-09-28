@@ -85,9 +85,11 @@ export function problemOf(
   language: string,
   syntax: Library,
   richText: RichText | null,
+  passed?: string[] | null,
 ): string | null {
   const check = validateTranslation(source, text, language, syntax, {
     richText: richText ?? undefined,
+    ...(passed && { arguments: passed }),
   });
   return check.ok
     ? null

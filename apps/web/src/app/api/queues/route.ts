@@ -50,13 +50,17 @@ export async function GET(request: Request): Promise<Response> {
       listed.length === 0
         ? []
         : db
-            .select({ id: strings.id, syntax: strings.syntax })
+            .select({
+              id: strings.id,
+              syntax: strings.syntax,
+              arguments: strings.arguments,
+            })
             .from(strings)
             .where(
               inArray(strings.id, [...new Set(listed.map((i) => i.stringId))]),
             )
             .all()
-            .map((row) => [row.id, row.syntax ?? "icu"] as const),
+            .map((row) => [row.id, row] as const),
     );
     return (
       stringId: number,
@@ -71,8 +75,9 @@ export async function GET(request: Request): Promise<Response> {
             source,
             text,
             language,
-            syntaxOf.get(stringId) ?? "icu",
+            syntaxOf.get(stringId)?.syntax ?? "icu",
             project.richText?.[type] ?? null,
+            syntaxOf.get(stringId)?.arguments,
           );
   }
   const body: QueuesResponse = {

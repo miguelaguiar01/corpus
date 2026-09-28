@@ -139,6 +139,20 @@ function live(catalog: XcCatalog) {
   );
 }
 
+// The verbs a key carries, by position: SwiftUI's `Text("… \(n)")`
+// writes each interpolation into the key as the verb the code passes.
+function keyArguments(key: string): string[] | undefined {
+  const out: string[] = [];
+  let next = 1;
+  for (const m of key.matchAll(VERB)) {
+    if (m[0] === "%%" || m[2]) continue;
+    const position = m[1] ? Number(m[1]) : next;
+    next = position + 1;
+    out[position - 1] ??= m[0].replace(/^%\d+\$/, "%");
+  }
+  return out.length > 0 ? Array.from(out, (w) => w ?? "") : undefined;
+}
+
 // A key's source texts. A key with no unit in the source language, or
 // an empty one, is its own text, as Xcode reads it (`Text("Bookmarks")`).
 function sourceReads(
@@ -168,11 +182,13 @@ export function xcstringsToEntries(
     );
   return live(catalog).flatMap(([key, entry]) => {
     const note = entry.comment ? { note: entry.comment } : {};
+    const passed = keyArguments(key);
     return sourceReads(catalog, key).map((read) => ({
       id: key + read.suffix,
       type: options.type,
       source: read.text,
       ...(read.keyIsText && { keyIsText: true }),
+      ...(passed && !read.keyIsText && { arguments: passed }),
       ...note,
     }));
   });

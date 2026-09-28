@@ -57,7 +57,10 @@ export function agentDraft(
     text,
     language,
     detail.string.syntax,
-    { richText: detail.string.richText ?? undefined },
+    {
+      richText: detail.string.richText ?? undefined,
+      ...(detail.string.arguments && { arguments: detail.string.arguments }),
+    },
   );
   if (!validation.ok) {
     return {

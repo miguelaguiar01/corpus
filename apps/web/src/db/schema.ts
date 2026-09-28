@@ -122,6 +122,9 @@ export const strings = sqliteTable(
     keyIsText: integer("key_is_text", { mode: "boolean" })
       .notNull()
       .default(false),
+    // The printf verbs the code passes, by position, where the key
+    // carries them (a String Catalog's, #731); null elsewhere.
+    arguments: text("arguments", { mode: "json" }).$type<string[]>(),
     // What the repository says about this string (§4, #567).
     note: text("note"),
     // The message syntax the text is written in (§5); null is ICU.
