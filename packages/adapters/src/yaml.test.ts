@@ -65,7 +65,35 @@ test("a target's translations are its strings under its own root key; a lone spa
     { id: "js.user_api_key.deny", type: "", source: "Cancelar" },
     { id: "js.number.delimiter", type: "", source: " " },
   ]);
-  // Another root is not this language's.
-  expect(yamlTranslations(ptBR, "pt")).toEqual([]);
+  // A file with no root for its language is refused, naming its roots.
+  expect(() => yamlTranslations(ptBR, "pt")).toThrow(
+    "no root key pt: the file's root keys are pt_BR",
+  );
   expect(() => yamlTranslations("en: [unclosed", "en")).toThrow();
+});
+
+test("a map's first key keeps its comment; a null form leaves a plural one; an empty plural is no translation; a number key as written (#752)", () => {
+  const text = `en:
+  datetime_formats:
+    formats:
+      # Format directives: strftime
+      short: "%m-%d-%Y"
+  plur:
+    one: ~
+    other: "%{count} things"
+  blank:
+    one: ""
+    other: ""
+  sizes:
+    01: "One"
+`;
+  const entries = yamlToEntries(text, { type: "ui", root: "en" });
+  expect(
+    entries.find((e) => e.id === "datetime_formats.formats.short")?.note,
+  ).toBe("Format directives: strftime");
+  expect(entries.find((e) => e.id === "plur")?.source).toBe(
+    "{count, plural, other {%{count} things}}",
+  );
+  expect(entries.map((e) => e.id)).toContain("sizes.01");
+  expect(yamlTranslations(text, "en").map((e) => e.id)).not.toContain("blank");
 });

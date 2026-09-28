@@ -229,7 +229,7 @@ export async function validateRepo(
             language,
             code: error.code,
             severity: "incomplete",
-            message: describe(error, library),
+            message: describe(error, entry.library ?? library),
           });
         }
         if (result.ok) continue;
@@ -244,7 +244,7 @@ export async function validateRepo(
             language: inSource ? config.sourceLanguage : language,
             code: error.code,
             severity: "invalid",
-            message: describe(error, library),
+            message: describe(error, entry.library ?? library),
           });
         }
       }

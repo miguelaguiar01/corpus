@@ -25,13 +25,16 @@ export type YamlString = {
   note?: string;
 };
 
-function keyOf(pair: Pair): string | undefined {
+// A key's text: a string key as it reads, a number as the file writes
+// it (`01`, not 1), so a pull finds it again.
+function keyOf(pair: Pair, text?: string): string | undefined {
   const key = pair.key;
-  if (
-    isScalar(key) &&
-    (typeof key.value === "string" || typeof key.value === "number")
-  )
-    return String(key.value);
+  if (!isScalar(key)) return undefined;
+  if (typeof key.value === "string") return key.value;
+  if (typeof key.value === "number")
+    return text !== undefined && key.range
+      ? text.slice(key.range[0], key.range[1])
+      : String(key.value);
   return undefined;
 }
 
@@ -42,6 +45,8 @@ function pluralOf(map: YAMLMap): Record<string, string> | undefined {
   for (const pair of map.items) {
     const key = keyOf(pair);
     if (!key || !(PLURAL as readonly string[]).includes(key)) return undefined;
+    // A form left null is one not yet written.
+    if (isScalar(pair.value) && pair.value.value === null) continue;
     if (!isScalar(pair.value) || typeof pair.value.value !== "string")
       return undefined;
     forms[key] = pair.value.value;
@@ -53,24 +58,35 @@ function pluralOf(map: YAMLMap): Record<string, string> | undefined {
 // with no root is none. Nulls, numbers, booleans, lists and whatever an
 // alias or a merge brings are not strings of their own.
 export function yamlStrings(text: string, root: string): YamlString[] {
-  const document = parseDocument(text.replace(/^\uFEFF/, ""), {
-    uniqueKeys: false,
-  });
+  const body = text.replace(/^\uFEFF/, "");
+  const document = parseDocument(body, { uniqueKeys: false });
   if (document.errors.length > 0)
     throw new Error(document.errors[0]!.message.split("\n")[0]);
   const top = document.contents;
-  if (!isMap(top)) return [];
-  const rootPair = top.items.find((pair) => keyOf(pair) === root);
-  if (!rootPair || !isMap(rootPair.value)) return [];
+  // A file with no root for its language would build nothing and a
+  // push archive every string: it is refused, naming what it holds.
+  const roots = isMap(top) ? top.items.map((pair) => keyOf(pair, body)) : [];
+  // Rails' parser keeps the last of a repeated root key.
+  const rootPair = isMap(top)
+    ? [...top.items].reverse().find((pair) => keyOf(pair, body) === root)
+    : undefined;
+  if (!rootPair || !isMap(rootPair.value))
+    throw new Error(
+      `no root key ${root}:${roots.length ? ` the file's root keys are ${roots.filter(Boolean).join(", ")}` : " the file has no root key"}; name its language's code in languageFiles`,
+    );
   const out: YamlString[] = [];
   const walk = (map: YAMLMap, path: string[]) => {
-    for (const pair of map.items) {
-      const key = keyOf(pair);
-      if (key === undefined || key === "<<") continue;
+    map.items.forEach((pair, index) => {
+      const key = keyOf(pair, body);
+      if (key === undefined || key === "<<") return;
       const value = pair.value as Node | null;
-      if (!value || isAlias(value)) continue;
+      if (!value || isAlias(value)) return;
       const id = [...path, key];
-      const comment = (pair.key as Node).commentBefore?.trim();
+      // The parser gives a map's first key's comment to the map.
+      const comment = (
+        (pair.key as Node).commentBefore ??
+        (index === 0 ? map.commentBefore : undefined)
+      )?.trim();
       const note = comment ? { note: comment } : {};
       if (isScalar(value)) {
         if (typeof value.value === "string")
@@ -86,7 +102,7 @@ export function yamlStrings(text: string, root: string): YamlString[] {
           });
         else walk(value, id);
       }
-    }
+    });
   };
   walk(rootPair.value, []);
   return out;
@@ -123,6 +139,9 @@ export function yamlToEntries(
 // a number's delimiter, is one (build decides what seeds).
 export function yamlTranslations(text: string, root: string): StringEntry[] {
   return yamlStrings(text, root).flatMap((s) =>
-    s.text === "" ? [] : [{ id: s.id, type: "", source: s.text }],
+    s.text === "" ||
+    (s.plural && Object.values(s.plural).every((f) => f === ""))
+      ? []
+      : [{ id: s.id, type: "", source: s.text }],
   );
 }
