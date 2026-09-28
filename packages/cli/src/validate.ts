@@ -4,6 +4,7 @@ import { createJiti } from "jiti";
 import {
   libraryOf,
   messageKind,
+  nestedCountsOf,
   validateTranslation,
   type CorpusConfig,
   type ValidationError,
@@ -20,6 +21,7 @@ import {
   fileOf,
   type FileSource,
   hasLanguages,
+  nestedCountMessage,
   readEntries,
   sourceWritesBack,
   runExporter,
@@ -40,8 +42,8 @@ export type Finding = {
   code: ValidationError["code"] | "orphan";
   // A plural missing a category its language uses, or with one it never
   // selects, is incomplete, not invalid (#556, #651): printed apart, and
-  // never the reason for exit 1.
-  severity: "invalid" | "incomplete";
+  // never the reason for exit 1. A source's warning (#767) is the same.
+  severity: "invalid" | "incomplete" | "warning";
   message: string;
   sourceFile?: string;
 };
@@ -69,6 +71,7 @@ export async function validate(
     (f) => f.code !== "orphan" && f.severity === "invalid",
   );
   const incomplete = findings.filter((f) => f.severity === "incomplete");
+  const warnings = findings.filter((f) => f.severity === "warning");
   const orphans = findings.filter((f) => f.code === "orphan");
   const byKey = orphansByKey(orphans);
   if (json) ctx.out(JSON.stringify(findings, null, 2));
@@ -80,6 +83,7 @@ export async function validate(
       );
     }
     for (const f of incomplete) ctx.err(line(f));
+    for (const f of warnings) ctx.err(line(f));
   }
   for (const note of deprecations(config)) ctx.err(`corpus: ${note}`);
   for (const command of unvalidated) {
@@ -96,6 +100,7 @@ export async function validate(
       incomplete.length
         ? `${incomplete.length} incomplete plural(s), a category the language uses and the translation lacks or one it never selects`
         : "",
+      warnings.length ? `${warnings.length} source warning(s)` : "",
     ].filter(Boolean);
     ctx.err(`corpus: ${parts.join(", ")}`);
     if (invalid.length > 0 || orphans.length > 0) return 1;
@@ -181,6 +186,16 @@ export async function validateRepo(
     if (sources === undefined) {
       throw new CliError(`source file ${sourceFile} does not exist`);
     }
+    for (const [key, entry] of sources)
+      for (const arg of nestedCountsOf(entry.source, entry.library ?? library))
+        findings.push({
+          file: sourceFile,
+          key,
+          language: config.sourceLanguage,
+          code: "nested-count",
+          severity: "warning",
+          message: nestedCountMessage(arg),
+        });
     // A source that does not parse is the source file's finding, once.
     const brokenSources = new Set<string>();
     for (const language of targets) {
@@ -322,7 +337,7 @@ export function describe(
     case "changed-nesting":
       return `{${error.inner}} sits inside {${error.outer}}'s branch, where the source does not put it`;
     case "nested-count":
-      return `# in a select within the plural on {${error.arg}} is text to some runtimes; write {${error.arg}}`;
+      return nestedCountMessage(error.arg);
     case "missing-category":
       return `plural on {${error.arg}} lacks the ${error.key} branch its language uses`;
     case "unexpected-category":

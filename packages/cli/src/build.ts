@@ -26,6 +26,7 @@ import {
   libraryOf,
   tagMode,
   messageKind,
+  nestedCountsOf,
   parseIcu,
   snapshotSchema,
   stringEntrySchema,
@@ -270,6 +271,7 @@ export async function buildSnapshotReport(
         sourced,
         refused,
         config.richText,
+        notes,
       );
     }
   }
@@ -409,19 +411,29 @@ export async function buildSnapshotReport(
   return { snapshot: parsed.data as Snapshot, refused, notes };
 }
 
+// A `#` in a select within a plural, said of a source by build and
+// validate and of a translation by validate (#767).
+export function nestedCountMessage(arg: string): string {
+  return `# in a select within the plural on {${arg}} is text to some runtimes; write {${arg}}`;
+}
+
 function validateEntry(
   entry: StringEntry,
   file: string,
   sourced: Sourced[],
   refused: Refused[],
   richText: CorpusConfig["richText"],
+  notes: string[],
 ): void {
   const syntax = libraryOf(entry);
   const icu = parseIcu(entry.source, syntax, {
     html: tagMode(syntax, richText?.[entry.type]),
   });
-  if (icu.ok) sourced.push({ entry, file });
-  else {
+  if (icu.ok) {
+    sourced.push({ entry, file });
+    for (const arg of nestedCountsOf(entry.source, syntax))
+      notes.push(`${file}:${printable(entry.id)}: ${nestedCountMessage(arg)}`);
+  } else {
     const message = icu.errors[0]?.message ?? "";
     const advice = refusalAdvice(entry.source, syntax, message);
     const cause = refusalCause(entry.source, syntax, message);
@@ -534,7 +546,7 @@ function collectExec(
     // pick what it rewrites, and an exec source is not rewritable.
     const entry = { ...parsedEntry.data };
     delete entry.file;
-    validateEntry(entry, `exec:${command}`, sourced, refused, richText);
+    validateEntry(entry, `exec:${command}`, sourced, refused, richText, notes);
   }
   for (const raw of out.entities ?? []) {
     const entity = entitySchema.safeParse(raw);
