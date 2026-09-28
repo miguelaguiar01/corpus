@@ -139,9 +139,46 @@ A command that prints the entries as JSON, for text that lives somewhere no adap
 }
 ```
 
-The export command prints `{ strings, entities?, translations? }`, up to 256 MiB, which no catalogue reaches. `strings` are the entries themselves; `entities` describe the people and places they refer to; `translations` is what the repository already holds, as language to id to text, which push imports as translated exactly as it does a catalogue file's. A text equal to the source seeds as untranslated, as a catalogue's does; where the repository means it, a loanword such as German `Status`, write it `{ "text": "Status", "state": "translated" }` and it seeds as translated. A language the config does not declare, or the source language, is an error rather than a silent skip. `build` and `push` print what the export command writes to stderr, under an `exec "<command>":` line, and say how many translations it handed over were not seeded and why (an id it did not emit, an empty text).
+### What the export command prints
 
-The import command receives, on stdin, only the rows a pull selected, for the languages that pull asked for. That last point is where these go wrong: an import command that rewrites its file from what it receives deletes everything the payload does not carry, which is every string nobody has translated yet. It must merge.
+One JSON object on stdout, `{ strings, entities?, translations? }`, up to 256 MiB, which no catalogue reaches. Anything it writes to stderr, `build` and `push` print under an `exec "<command>":` line, so a converter can say what it skipped. A non-zero exit fails the build.
+
+`strings` is the entries, each an object with:
+
+| Field | | |
+|---|---|---|
+| `id` | required | Unique across every source of the config. Any text without control characters, up to 1,000 characters: `tip.save`, or the sentence itself. |
+| `type` | required | The string type, as `stringTypes` and `typeNotes` name it. A type that a file source pull writes back also uses is that source's: a pull sends its rows to the file, never to the import command, so give an exec source's strings types of their own. |
+| `source` | required | The text in the source language, written for `library`. A text that does not parse under it is refused by name, as a catalogue's is. |
+| `library` | optional | `icu` when absent; any library [Your i18n library](Your-i18n-library) lists. An exec source has no `library` of its own, so each entry says it. |
+| `note` | optional | What the repository says about this one string, for a translator. Never written back. |
+| `keyIsText` | optional | `true` when the text is the key in the code that calls it, as a sentence key is; a proposed edit to it is refused, since only the code can change it. |
+| `arguments` | optional | Under `printf`, the verbs the code passes by position (`["%lld"]`), where the text need not print them all. |
+| `examples` | optional | `[{ values, rendered, valuesByLanguage? }]`: slot values in the source language, the sentence they render, and per target language the same slots resolved for it. The editor previews a translation through each. |
+| `metadata` | optional | Field to value (text, `true`/`false`, or a list of text), the fields the type's `stringTypes` entry describes. |
+
+A `file` field is dropped: an exec source is not written back by pull, so nothing may point a proposal at a file.
+
+`entities` describe the people and places the strings refer to: `{ id, type, name, attributes? }`, the type one `entityTypes` labels.
+
+`translations` is what the repository already holds, as language to id to text, which push imports as translated exactly as it does a catalogue file's. A text equal to the source seeds as untranslated, as a catalogue's does; where the repository means it, a loanword such as German `Status`, write it `{ "text": "Status", "state": "translated" }` and it seeds as translated. A language the config does not declare, or the source language, is an error rather than a silent skip. `build` and `push` say how many translations it handed over were not seeded and why (an id it did not emit, an empty text).
+
+### What the import command reads
+
+`pull` runs the import command once, with one JSON object on stdin:
+
+| Field | |
+|---|---|
+| `contract` | `"corpus/1"`. |
+| `project`, `sourceLanguage` | As the config names them. |
+| `minState` | The state the pull asked for: `untranslated`, `translated` or `verified`. |
+| `translations` | Language to id to text: the rows the pull selected, for the target languages it asked for, of every type no file source declares. The source language is not among them. |
+| `types` | Id to type, for the ids it carries; `types[id]` tells one exec source's rows from another's. |
+| `sourceChanges` | Pending proposals, which pull has already written into the file sources; an import command ignores them, since an exec string has no file. |
+
+A field it does not know it ignores, as every reader of the contract does.
+
+That `translations` carries only the rows a pull selected is where import commands go wrong: one that rewrites its file from what it receives deletes everything the payload does not carry, which is every string nobody has translated yet. It must merge.
 
 `pull` prints `ran <import command>` and, under it, whatever the command wrote to stderr. To have its files counted, the import command prints, as the last line of its stdout, the files it changed:
 
@@ -154,6 +191,109 @@ Paths are relative to the repository; one outside it fails the pull.
 `pull --check` does not run an import command unless the source says it may, `importCheck: true`: the check promises to write nothing, and an import command that writes regardless would break that. Declare it once your command, when the environment has `CORPUS_PULL_CHECK=1`, writes nothing and prints the same `{"changed": […]}` line for the files it would change; those count toward the check's exit code. The variable reaches the command through `npm run` and a chained command, where a flag would not. An import command without `importCheck` is named as not checked, and one that runs but prints no line is named the same way.
 
 Without `importCommand` the source is push-only, and every command that reads it says so. `corpus validate` runs the export command and validates the `translations` it hands over as it does a target file's, the command standing for the file; an exporter that emits none is named as not validated.
+
+### A worked example
+
+An app keeps its onboarding tips in `content/tips.json`, one record per tip holding every language, a shape no adapter reads:
+
+<!-- from: examples/tips.json -->
+```json
+[
+  {
+    "id": "save",
+    "note": "Shown once, the first time a document is edited.",
+    "text": {
+      "en": "Changes save as you type.",
+      "de": "Änderungen werden beim Tippen gespeichert."
+    }
+  },
+  {
+    "id": "share",
+    "text": {
+      "en": "Share {name} with a link."
+    }
+  }
+]
+```
+
+The export command prints each tip's English as a string, and the languages a tip already holds as translations:
+
+<!-- from: examples/tips-export.mjs -->
+```js
+// corpus exec export: each tip's English text is a string, and the
+// languages a tip already holds are its translations.
+import { readFileSync } from "node:fs";
+
+const tips = JSON.parse(readFileSync("content/tips.json", "utf8"));
+const strings = [];
+const translations = {};
+for (const tip of tips) {
+  const id = `tip.${tip.id}`;
+  strings.push({
+    id,
+    type: "tip",
+    source: tip.text.en,
+    ...(tip.note && { note: tip.note }),
+  });
+  for (const [language, text] of Object.entries(tip.text)) {
+    if (language === "en") continue;
+    translations[language] ??= {};
+    translations[language][id] = text;
+  }
+}
+process.stdout.write(JSON.stringify({ strings, translations }));
+```
+
+The import command writes what a pull sent into each tip and keeps every other text, so a German tip the pull did not carry stays; under `CORPUS_PULL_CHECK=1` it writes nothing and names the file all the same:
+
+<!-- from: examples/tips-import.mjs -->
+```js
+// corpus exec import: writes each translation the pull sent into its
+// tip, and keeps every other text the file holds.
+import { readFileSync, writeFileSync } from "node:fs";
+
+const FILE = "content/tips.json";
+const payload = JSON.parse(readFileSync(0, "utf8"));
+const tips = JSON.parse(readFileSync(FILE, "utf8"));
+let changed = false;
+for (const tip of tips) {
+  for (const [language, texts] of Object.entries(payload.translations)) {
+    const text = texts[`tip.${tip.id}`];
+    if (text === undefined || tip.text[language] === text) continue;
+    tip.text[language] = text;
+    changed = true;
+  }
+}
+// Under `pull --check` it says what it would change and writes nothing.
+if (changed && process.env.CORPUS_PULL_CHECK !== "1")
+  writeFileSync(FILE, `${JSON.stringify(tips, null, 2)}\n`);
+console.log(JSON.stringify({ changed: changed ? [FILE] : [] }));
+```
+
+The tips get a type of their own, `tip`, beside the app's `ui` catalogue, so a pull sends their rows to the import command:
+
+<!-- from: examples/exec.config.ts -->
+```ts
+import { defineCorpus } from "@corpus-tool/cli";
+
+export default defineCorpus({
+  project: "acme-app",
+  server: "http://localhost:3000",
+  sourceLanguage: "en",
+  languages: ["en", "de", "pt-PT"],
+  sources: [
+    { adapter: "messages", type: "ui", path: "src/i18n/{lang}.json" },
+    {
+      adapter: "exec",
+      command: "node scripts/tips-export.mjs",
+      importCommand: "node scripts/tips-import.mjs",
+      importCheck: true,
+    },
+  ],
+});
+```
+
+The repository's test suite runs these files as they are shown here: `build` reads both tips and `validate` the German one, and a pull that sends a German and a Portuguese text leaves the file with all three, `pull --check` naming the file and writing nothing.
 
 ## What comes back
 

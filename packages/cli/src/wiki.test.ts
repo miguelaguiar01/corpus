@@ -20,6 +20,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { createServer } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -661,5 +662,108 @@ test("a marker cannot reach outside the repository through a symlink", () => {
   } finally {
     rmSync(root, { force: true, recursive: true });
     rmSync(outside, { force: true, recursive: true });
+  }
+});
+
+test("the exec example's exporter hands over its strings and translations, and its importer merges what a pull sends (#672)", async () => {
+  const project = repo();
+  const at = (rel: string) => path.join(project.dir, rel);
+  mkdirSync(at("src/i18n"), { recursive: true });
+  mkdirSync(at("content"));
+  mkdirSync(at("scripts"));
+  writeFileSync(at("src/i18n/en.json"), '{ "app.title": "Acme" }\n');
+  copyFileSync(path.join(examples, "tips.json"), at("content/tips.json"));
+  for (const script of ["tips-export.mjs", "tips-import.mjs"])
+    copyFileSync(path.join(examples, script), at(`scripts/${script}`));
+  const pulled = {
+    contract: "corpus/1",
+    project: "acme-app",
+    sourceLanguage: "en",
+    minState: "verified",
+    types: { "app.title": "ui", "tip.save": "tip", "tip.share": "tip" },
+    translations: {
+      en: { "app.title": "Acme" },
+      de: { "tip.share": "Teile {name} per Link." },
+      "pt-PT": {
+        "tip.save": "As alterações são guardadas enquanto escreve.",
+      },
+    },
+  };
+  const server = createServer((_req, res) => {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify(pulled));
+  });
+  await new Promise<void>((resolve) =>
+    server.listen(0, "127.0.0.1", () => resolve()),
+  );
+  const address = server.address();
+  const port = typeof address === "object" && address ? address.port : 0;
+  try {
+    writeFileSync(
+      at("corpus.config.ts"),
+      readFileSync(path.join(examples, "exec.config.ts"), "utf8").replace(
+        "http://localhost:3000",
+        `http://127.0.0.1:${port}`,
+      ),
+    );
+    expect(await run(["build", "--out", "snapshot.json"], project.ctx)).toBe(0);
+    const snapshot = JSON.parse(readFileSync(at("snapshot.json"), "utf8"));
+    expect(
+      snapshot.strings.filter((s: { type: string }) => s.type === "tip"),
+    ).toEqual([
+      {
+        id: "tip.save",
+        type: "tip",
+        source: "Changes save as you type.",
+        note: "Shown once, the first time a document is edited.",
+      },
+      { id: "tip.share", type: "tip", source: "Share {name} with a link." },
+    ]);
+    // validate reads the translations the exporter hands over.
+    const validating: string[] = [];
+    expect(
+      await run(["validate"], {
+        ...project.ctx,
+        out: (line) => validating.push(line),
+      }),
+    ).toBe(0);
+    expect(validating.join("\n")).toMatch(/every translation is valid/);
+
+    const env = { CORPUS_TOKEN: "t" };
+    const before = readFileSync(at("content/tips.json"), "utf8");
+    const checking: string[] = [];
+    expect(
+      await run(["pull", "--check"], {
+        ...project.ctx,
+        env,
+        out: (line) => checking.push(line),
+      }),
+    ).toBe(1);
+    expect(checking).toContain("content/tips.json");
+    expect(readFileSync(at("content/tips.json"), "utf8")).toBe(before);
+
+    expect(await run(["pull"], { ...project.ctx, env })).toBe(0);
+    const tips = JSON.parse(readFileSync(at("content/tips.json"), "utf8"));
+    // The German text the file held stays; what the pull sent is added.
+    expect(tips).toEqual([
+      {
+        id: "save",
+        note: "Shown once, the first time a document is edited.",
+        text: {
+          en: "Changes save as you type.",
+          de: "Änderungen werden beim Tippen gespeichert.",
+          "pt-PT": "As alterações são guardadas enquanto escreve.",
+        },
+      },
+      {
+        id: "share",
+        text: {
+          en: "Share {name} with a link.",
+          de: "Teile {name} per Link.",
+        },
+      },
+    ]);
+  } finally {
+    server.close();
   }
 });
