@@ -1,4 +1,4 @@
-import { closeSync, openSync, readSync } from "node:fs";
+import { closeSync, existsSync, openSync, readSync } from "node:fs";
 import path from "node:path";
 
 const READ = new Set([
@@ -55,6 +55,15 @@ export function unreadableCatalogue(
   const named = NAMED[ext];
   if (named) return `${named}, which no adapter reads: ${EXEC}`;
   return `${ext || "a file without an extension"} is not a format any adapter reads: ${EXEC}`;
+}
+
+// Why a file on disk a messages or table source cannot read, or null:
+// a .ts one is read far enough to tell Qt's XML from TypeScript.
+export function unreadableFile(abs: string): string | null {
+  return unreadableCatalogue(
+    abs,
+    /\.ts$/i.test(abs) && existsSync(abs) ? headOf(abs) : undefined,
+  );
 }
 
 // The first bytes of a file, enough for unreadableCatalogue's `head`.

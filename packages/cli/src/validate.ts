@@ -27,7 +27,7 @@ import {
   runExporter,
   sourceLibrary,
 } from "./build";
-import { headOf, unreadableCatalogue } from "./catalogue-format";
+import { unreadableFile } from "./catalogue-format";
 import { CliError, loadConfig } from "./config";
 
 export const VALIDATE_USAGE = "corpus validate [--json]";
@@ -49,7 +49,8 @@ export type Finding = {
 };
 
 // `corpus validate` (§3): the editor's checks (§5, §7) over the target
-// files of every JSON source with {lang}, offline. A missing key is not
+// files of every source with {lang} that pull writes back, and every
+// exec source's exporter, offline. A missing key is not
 // a finding (states cover it); a key the source no longer has is.
 // A file source's line names the language in its path; an exec source's
 // names it after the key, since the command stands for every language,
@@ -167,10 +168,7 @@ export async function validateRepo(
     );
     if (source.adapter === "messages" || source.adapter === "table") {
       const abs = path.join(cwd, sourceFile);
-      const unreadable = unreadableCatalogue(
-        abs,
-        /\.ts$/i.test(abs) && existsSync(abs) ? headOf(abs) : undefined,
-      );
+      const unreadable = unreadableFile(abs);
       if (unreadable) throw new CliError(`${sourceFile}: ${unreadable}`);
     }
     if (!sourceWritesBack(source)) continue;

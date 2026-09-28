@@ -49,6 +49,7 @@ import {
   isArb,
   readsPluralObjects,
   sourceWritesBack,
+  takesProposals,
 } from "./build";
 import { CliError, fileCodeOf, loadConfig, requireToken } from "./config";
 import { request, serverMessage, UNAUTHORIZED } from "./server";
@@ -361,13 +362,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
         s.adapter !== "exec" &&
         fileOf(s, config.sourceLanguage, config.sourceLanguage) === file,
     );
-    if (
-      !source ||
-      !sourceWritesBack(source) ||
-      source.adapter === "gettext" ||
-      source.adapter === "xcstrings" ||
-      source.adapter === "qt-ts"
-    ) {
+    if (!source || !takesProposals(source)) {
       ctx.err(
         `corpus: proposal(s) for ${ops.map((o) => printable(o.id)).join(", ")}: ${file} matches no writable source; not written`,
       );
