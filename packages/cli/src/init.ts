@@ -141,7 +141,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     : { languages: [], languageFiles: {}, skipped: [] };
   if (qtFiles.skipped.length > 0)
     ctx.err(
-      `corpus: ${qtFiles.skipped.join(", ")} name no language tag and no script; left out, or map each with languageFiles`,
+      `corpus: ${qtFiles.skipped.join(", ")} ${qtFiles.skipped.length === 1 ? "names" : "name"} no language tag and no script; left out, or map ${qtFiles.skipped.length === 1 ? "it" : "each"} with languageFiles`,
     );
   // The flag given without a value is an error, as for every option
   // (args.ts); only its absence means "read the files".

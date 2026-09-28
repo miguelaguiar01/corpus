@@ -1246,7 +1246,7 @@ test("init's qt-ts: --languages keeps its mappings, an unmapped POSIX file is na
     languageFiles: { "sr-Latn": "sr@latin" },
   });
   expect(p.err.join("\n")).toContain(
-    "lang/app_ca@valencia.ts name no language tag and no script",
+    "lang/app_ca@valencia.ts names no language tag and no script",
   );
 
   // {lang} as a directory.
