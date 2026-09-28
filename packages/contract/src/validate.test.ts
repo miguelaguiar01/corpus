@@ -1568,3 +1568,15 @@ test("nestedCountsOf names the plurals whose # sits in a select within them (#76
   ).toEqual([]);
   expect(nestedCountsOf("{n, plural, one {# {")).toEqual([]);
 });
+
+test("a branch named __proto__ is a branch a translation must keep (#846)", () => {
+  const source = "{g, select, __proto__ {P} other {O}}";
+  expect(validateTranslation(source, source).ok).toBe(true);
+  const result = validateTranslation(source, "{g, select, other {O}}");
+  expect(result.ok).toBe(false);
+  expect(!result.ok && result.errors).toContainEqual({
+    code: "missing-branch",
+    arg: "g",
+    key: "__proto__",
+  });
+});

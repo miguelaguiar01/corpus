@@ -46,6 +46,12 @@ export function exampleValues(
     : { values: example.values, language: sourceLanguage };
 }
 
+// A key read from an example or a message is data: `constructor` is one
+// the record holds or lacks like any other (#846).
+function own<T>(record: Record<string, T>, key: string): T | undefined {
+  return Object.hasOwn(record, key) ? record[key] : undefined;
+}
+
 function render(
   nodes: IcuNode[],
   values: Record<string, string>,
@@ -56,7 +62,7 @@ function render(
     if (node.kind === "literal") out.push({ text: node.text, value: false });
     else if (node.kind === "placeholder" || node.kind === "count") {
       const name = node.kind === "placeholder" ? node.name : node.arg;
-      const value = values[name];
+      const value = own(values, name);
       out.push(
         value === undefined
           ? {
@@ -85,16 +91,16 @@ function render(
         language,
       );
     } else if (node.kind === "plural") {
-      const value = values[node.arg];
+      const value = own(values, node.arg);
       const key =
         value === undefined
           ? "other"
           : pluralBranch(node.branches, value, language);
-      render(node.branches[key] ?? [], values, out, language);
+      render(own(node.branches, key) ?? [], values, out, language);
     } else {
-      const value = values[node.arg];
+      const value = own(values, node.arg);
       const branch =
-        (value !== undefined ? node.branches[value] : undefined) ??
+        (value !== undefined ? own(node.branches, value) : undefined) ??
         node.branches.other ??
         Object.values(node.branches)[0] ??
         [];

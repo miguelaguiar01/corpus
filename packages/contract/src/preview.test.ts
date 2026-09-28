@@ -301,3 +301,20 @@ test("a printf plural on count with no count value previews from slot 1, as nget
     ),
   ).toMatchObject({ ok: true, text: "# cards" });
 });
+
+test("a value, branch or placeholder named like an Object.prototype member is one like any other (#846)", () => {
+  const select = "{role, select, admin {Admin} other {User}}";
+  for (const role of ["constructor", "toString", "__proto__"])
+    expect(renderPreview(select, { role })).toEqual({ ok: true, text: "User" });
+  expect(
+    renderPreview("{g, select, __proto__ {P} other {O}}", { g: "__proto__" }),
+  ).toEqual({ ok: true, text: "P" });
+  expect(renderPreview("Hi {constructor}", {})).toEqual({
+    ok: true,
+    text: "Hi {constructor}",
+  });
+  expect(renderPreview("Hi {toString}", { toString: "you" })).toEqual({
+    ok: true,
+    text: "Hi you",
+  });
+});

@@ -826,7 +826,8 @@ class Parser {
     name: string,
     start: number,
   ): IcuNode {
-    const branches: Record<string, IcuNode[]> = {};
+    // A branch key is data: `__proto__` is a key like any other (#846).
+    const branches = Object.create(null) as Record<string, IcuNode[]>;
     const own = this.argPlurals ? /^arg(\d+)$/.exec(name)?.[1] : undefined;
     for (;;) {
       this.skipWhitespace();
@@ -1283,13 +1284,13 @@ export function pluralBranch(
   language?: string,
 ): string {
   const exact = `=${value.trim()}`;
-  if (exact in branches) return exact;
+  if (Object.hasOwn(branches, exact)) return exact;
   const n = Number(value);
   if (Number.isFinite(n) && (language === undefined || known(language))) {
     const category = new Intl.PluralRules(
       language === undefined ? undefined : localeOf(language),
     ).select(n);
-    if (category in branches) return category;
+    if (Object.hasOwn(branches, category)) return category;
   }
   return "other";
 }
