@@ -597,9 +597,14 @@ export function applyXliffOps(xml: string, ops: XliffOp[]): string {
     const u = units.find((unit) => unit.id === op.id);
     if (op.kind === "delete") {
       if (!u) continue;
-      let start = out.lastIndexOf("\n", u.start - 1);
-      if (start > 0 && out[start - 1] === "\r") start -= 1;
-      out = out.slice(0, start < 0 ? u.start : start) + out.slice(u.end);
+      // The unit's line goes with it only where nothing else is on it.
+      const lineBreak = out.lastIndexOf("\n", u.start - 1);
+      let start =
+        lineBreak >= 0 && /^[ \t]*$/.test(out.slice(lineBreak + 1, u.start))
+          ? lineBreak
+          : u.start;
+      if (start < u.start && start > 0 && out[start - 1] === "\r") start -= 1;
+      out = out.slice(0, start) + out.slice(u.end);
       continue;
     }
     if (u) {
