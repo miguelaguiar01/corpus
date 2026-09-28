@@ -584,3 +584,22 @@ test("a numerus translation no plural holds is work, named once, and a pull leav
     }),
   ).toBe(de);
 });
+
+test("a numerus form that reads as a branch of its own is work too, so a pull never rewrites it (#751)", () => {
+  const de = numerus("de", ["%n Datei} other {%n x", "%n Dateien"]);
+  const unread: string[] = [];
+  expect(qtTsTranslations(de, "de", (id) => unread.push(id))).toEqual([]);
+  expect(unread).toEqual(["Main | %n file(s)"]);
+  // Readable forms still read, and pull their own text back unchanged.
+  const ok = numerus("de", ["%n Datei", "%n Dateien"]);
+  const read = qtTsTranslations(ok, "de");
+  expect(read).toHaveLength(1);
+  expect(
+    entriesToQtTs(
+      numerus("", ["", ""], ' type="unfinished"'),
+      { "Main | %n file(s)": read[0]!.source },
+      ok,
+      { tag: "de", code: "de" },
+    ),
+  ).toBe(ok);
+});

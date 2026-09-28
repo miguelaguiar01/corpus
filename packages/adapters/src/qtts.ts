@@ -228,12 +228,23 @@ export function qtTsTranslations(
   onUnread?: (id: string) => void,
 ): StringEntry[] {
   const indexes = pluralCategoryIndexes(language, qtPluralForms(language));
+  const categories = pluralIndexCategories(language, qtPluralForms(language));
   return live(xml).flatMap((m) => {
     if (m.state !== undefined) return [];
     if (m.numerus) {
       if (!m.forms.some((f) => f !== "")) return [];
       const text = poPluralText(m.forms, indexes);
-      if (pluralBranches(text)) return [{ id: m.id, type: "", source: text }];
+      // Read only where the plural gives each form back, as a pull would
+      // write it: a form that reads as a brace or a branch of its own
+      // (`} other {`) would be rewritten on every pull.
+      const branches = pluralBranches(text);
+      const back =
+        branches &&
+        categories.every(
+          (c, i) =>
+            c === undefined || (branches[c] ?? branches.other) === m.forms[i],
+        );
+      if (back) return [{ id: m.id, type: "", source: text }];
       onUnread?.(m.id);
       return [];
     }
