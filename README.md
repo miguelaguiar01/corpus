@@ -80,7 +80,7 @@ export default defineCorpus({
   sourceLanguage: "en",
   languages: ["en", "pt-PT"],
   sources: [
-    { adapter: "messages", type: "chrome", path: "src/i18n/{lang}.json" },
+    { adapter: "messages", type: "ui", path: "src/i18n/{lang}.json" },
   ],
 });
 ```

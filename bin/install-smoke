@@ -78,7 +78,7 @@ configure() {
     node -e '
       const fs = require("node:fs");
       const src = fs.readFileSync("corpus.config.ts", "utf8");
-      const decl = `  stringTypes: { chrome: { tone: { type: "enum", description: "How the line reads.", values: ["plain", "urgent"] } } },\n  entityTypes: { room: { label: "Room" } },\n  sources:`;
+      const decl = `  stringTypes: { ui: { tone: { type: "enum", description: "How the line reads.", values: ["plain", "urgent"] } } },\n  entityTypes: { room: { label: "Room" } },\n  sources:`;
       if (!src.includes("  sources:")) throw new Error("no sources in the generated config");
       fs.writeFileSync("corpus.config.ts", src.replace("  sources:", decl));
     '
