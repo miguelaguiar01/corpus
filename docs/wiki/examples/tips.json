@@ -1,0 +1,16 @@
+[
+  {
+    "id": "save",
+    "note": "Shown once, the first time a document is edited.",
+    "text": {
+      "en": "Changes save as you type.",
+      "de": "Änderungen werden beim Tippen gespeichert."
+    }
+  },
+  {
+    "id": "share",
+    "text": {
+      "en": "Share {name} with a link."
+    }
+  }
+]
