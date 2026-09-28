@@ -220,6 +220,24 @@ function notes(block: string, key: "from" | "category"): string | undefined {
       if (text) out.push(text);
     }
   }
+  // 1.2's locations, where Angular found the text, as the gettext and
+  // qt-ts sources say theirs (#772).
+  const used: string[] = [];
+  const groups = /<context-group\b([^>]*)>([\s\S]*?)<\/context-group>/g;
+  for (let m = groups.exec(block); m; m = groups.exec(block)) {
+    if (attr(m[1] ?? "", "purpose") !== "location") continue;
+    const context = (type: string) =>
+      new RegExp(
+        `<context\\b[^>]*context-type=["']${type}["'][^>]*>([\\s\\S]*?)</context>`,
+      )
+        .exec(m![2]!)?.[1]
+        ?.trim();
+    const file = context("sourcefile");
+    if (!file) continue;
+    const line = context("linenumber");
+    used.push(decode(line ? `${file}:${line}` : file));
+  }
+  if (used.length) out.push(`Used in ${used.join(" ")}`);
   return out.length ? out.join("\n") : undefined;
 }
 
