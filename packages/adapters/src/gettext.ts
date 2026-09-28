@@ -70,8 +70,8 @@ function quoted(lines: string[]): string {
 // Every entry of a file, the header's included (its msgid empty), the
 // obsolete `#~` ones not: they are kept in the file, never read. An
 // entry ends at a blank line, or where the next one's comments or
-// msgctxt/msgid follow its msgstr with none. Offsets are the text's own,
-// a BOM and CRLF included.
+// msgctxt/msgid follow its msgid or msgstr with none, as msgfmt reads
+// it (#842). Offsets are the text's own, a BOM and CRLF included.
 export function parsePo(text: string): PoEntry[] {
   const out: PoEntry[] = [];
   const fresh = (): PoEntry => ({
@@ -131,8 +131,6 @@ export function parsePo(text: string): PoEntry[] {
     } else if (line.startsWith("#~")) {
       // An obsolete entry's line: kept, never read.
     } else if (line.startsWith("#")) {
-      // A msgid with no msgstr ends at the next comment or msgid, as
-      // msgfmt reads it (#842).
       flush();
       if (seenStr || seenId) end();
       begin(at);
