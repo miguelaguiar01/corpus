@@ -235,6 +235,13 @@ test("a plural may sit in a select's branch and a select in a plural's, one leve
     ok: false,
     errors: [{ message: "a select cannot nest in a select's branch" }],
   });
+  // An Android plural item is a string, with no select in it.
+  expect(
+    parseIcu(
+      "{quantity, plural, one {{g, select, m {%d} other {%d}}} other {%d}}",
+      "android",
+    ),
+  ).toMatchObject({ ok: false, errors: [{ message: "selects cannot nest" }] });
   expect(
     parseIcu(
       "{g, select, m {{n, plural, other {{h, select, a {x} other {y}}}}} other {z}}",

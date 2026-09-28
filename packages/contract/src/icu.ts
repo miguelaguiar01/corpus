@@ -810,10 +810,16 @@ class Parser {
       );
     }
     // One level of nesting, a plural in a select's branch or a select in
-    // a plural's (#674); a printf plural's braces are the plural's own.
+    // a plural's (#674); a printf plural's braces are the plural's own,
+    // and an Android item is a string with no select.
     if (inBranch) {
       const outer = this.within.at(-1);
-      if (this.printfPlural || this.argPlurals || outer === undefined)
+      if (
+        this.printfPlural ||
+        this.argPlurals ||
+        this.syntax === "android" ||
+        outer === undefined
+      )
         throw new ParseFailure(`${type}s cannot nest`, start);
       if (outer === type)
         throw new ParseFailure(

@@ -1513,11 +1513,34 @@ test("a nested message is validated at both levels (#764)", () => {
       { code: "unexpected-branch", arg: "g", key: "male" },
     ],
   });
-  // The nesting may turn inside out: the same values, the same keys.
+  // A translation nests as its source does: a plural's forms written
+  // back as Android items or a plural object would lose one turned
+  // inside out.
   expect(
     validateTranslation(
       source,
-      "{n, plural, one {{g, select, female {Ela tem # ficheiro} other {Têm # ficheiro}}} other {{g, select, female {Ela tem # ficheiros} other {Têm # ficheiros}}}}",
+      "{n, plural, one {{g, select, female {Ela tem {n} ficheiro} other {Têm {n} ficheiro}}} other {{g, select, female {Ela tem {n} ficheiros} other {Têm {n} ficheiros}}}}",
+      "en",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "changed-nesting", outer: "n", inner: "g" }],
+  });
+  // `#` in a select within a plural: text to FormatJS, the count to
+  // messageformat.js.
+  const inPlural =
+    "{n, plural, one {{g, select, female {her file} other {their file}}} other {{n} files}}";
+  expect(
+    validateTranslation(
+      inPlural,
+      "{n, plural, one {{g, select, female {# ficheiro dela} other {# ficheiro}}} other {{n} ficheiros}}",
+      "en",
+    ),
+  ).toMatchObject({ ok: false, errors: [{ code: "nested-count", arg: "n" }] });
+  expect(
+    validateTranslation(
+      inPlural,
+      "{n, plural, one {{g, select, female {{n} ficheiro dela} other {{n} ficheiro}}} other {{n} ficheiros}}",
       "en",
     ),
   ).toEqual({ ok: true });

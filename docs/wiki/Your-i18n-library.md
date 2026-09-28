@@ -33,7 +33,7 @@ These write plain ICU MessageFormat, which is `library: "icu"`, which is the def
 {gender, select, female {her file} male {his file} other {their file}}
 ```
 
-One may sit in the other's branch, one level deep: `{gender, select, female {{count, plural, one {her # file} other {her # files}}} other {…}}`. `#` is the count of the plural it is in; a plural in a plural, a select in a select, or a third level is refused.
+One may sit in the other's branch, one level deep: `{gender, select, female {{count, plural, one {her # file} other {her # files}}} other {…}}`. `#` is the count of the plural it is in; inside a select within a plural write `{count}`, since FormatJS prints a `#` there as it stands. A translation nests as its source does; a plural in a plural, a select in a select, or a third level is refused.
 
 A translation needs the branches its language uses; one it lacks is **incomplete**, listed apart by `corpus validate` and never the reason it fails, since the runtime falls back to `other`. A branch the language never selects, `one` in Japanese, is incomplete the same way: dead text, and the plural rules your runtime ships may be older or newer than Node's, as Discourse's Hebrew `many` is. A language whose only category is `other` may write the plural plainly: `{count}件の投稿` for `{count, plural, one {# post} other {# posts}}`, keeping every value the `other` branch uses.
 
