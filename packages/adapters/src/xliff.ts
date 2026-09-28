@@ -320,7 +320,8 @@ export function xliffToEntries(
 }
 
 // The unit read with each placeholder as the app displays it: the
-// example a chip's tooltip and a blank draft's preview show (#714).
+// example the string page, a blank draft's preview and get_string's slots
+// show (#714).
 function exampleOf(source: string, values: Record<string, string>) {
   const read = renderPreview(source, values, undefined, { capitalise: false });
   return { values, rendered: read.ok ? read.text : source };

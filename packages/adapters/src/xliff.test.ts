@@ -349,7 +349,7 @@ describe("writing, the review's cases (#711)", () => {
   });
 });
 
-test("a placeholder's equiv-text, 2.0's disp, is the unit's example, so a chip and a preview show what the app substitutes (#714)", () => {
+test("a placeholder's equiv-text, 2.0's disp, is the unit's example, so the preview and the slots show what the app substitutes (#714)", () => {
   const v12 = `<?xml version="1.0" encoding="UTF-8" ?>
 <xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
   <file source-language="en" datatype="plaintext" original="ng2.template">
