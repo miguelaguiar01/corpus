@@ -263,11 +263,12 @@ function escaperOf(xml: string): (text: string) => string {
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
-    // As lupdate's protect() writes them (#747): a character below 0x20
-    // but tab and newline as its `<byte>` element, which XML cannot hold
-    // raw in either style; a `\r` before `\n` is a line ending, which
-    // Qt's reader never passes on. Where the file writes references, a
-    // space above 0x7f as one, U+0085 among them; U+007F stays raw.
+    // As lupdate's tsProtect() writes them (#747): a character below
+    // 0x20 but tab and newline as its `<byte>` element, which XML cannot
+    // hold raw in either style, a carriage return among them, so a text
+    // with `\r\n` reads back as written. Where the file writes
+    // references, a space above 0x7f as one, U+0085 among them; U+007F
+    // stays raw.
     if (entities)
       out = out
         .replace(/"/g, "&quot;")
@@ -279,11 +280,7 @@ function escaperOf(xml: string): (text: string) => string {
     for (let i = 0; i < out.length; i++) {
       const c = out[i]!;
       const code = out.charCodeAt(i);
-      const kept =
-        code >= 0x20 ||
-        c === "\n" ||
-        c === "\t" ||
-        (c === "\r" && out[i + 1] === "\n");
+      const kept = code >= 0x20 || c === "\n" || c === "\t";
       bytes += kept ? c : `<byte value="x${code.toString(16)}"/>`;
     }
     return bytes;

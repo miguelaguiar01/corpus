@@ -428,8 +428,8 @@ test("a qsTrId message is keyed by its id, which a changed source keeps, and pul
   );
 });
 
-test("pull escapes as lupdate's protect() does, character by character, in either file style (#747)", () => {
-  // Qt's linguist/shared/ts.cpp protect(): the five XML entities; below
+test("pull escapes as lupdate's tsProtect() does, character by character, in either file style (#747)", () => {
+  // Qt's linguist/shared/ts.cpp tsProtect(): the five XML entities; below
   // 0x20 but tab and newline, <byte>; a space above 0x7f, a reference;
   // anything else, U+007F included, as it is. A raw-quote file keeps
   // quotes and spaces raw but may not hold a control character.
@@ -471,6 +471,7 @@ test("pull escapes as lupdate's protect() does, character by character, in eithe
     ["　", "&#x3000;", "　"],
     ['"', "&quot;", '"'],
     ["a\tb\nc", "a\tb\nc", "a\tb\nc"],
+    ["a\r\nb", 'a<byte value="xd"/>\nb', 'a<byte value="xd"/>\nb'],
   ];
   for (const [character, entities, raw] of table) {
     expect(written("&quot;x&quot;", character)).toBe(entities);
@@ -479,11 +480,11 @@ test("pull escapes as lupdate's protect() does, character by character, in eithe
   // What is written reads back as the text.
   const back = entriesToQtTs(
     file("&quot;x&quot;"),
-    { "W | Text": "\u0085 \u0001" },
+    { "W | Text": "\u0085\u2028\u0001a\r\nb" },
     file("&quot;x&quot;"),
     { tag: "de", code: "de" },
   );
   expect(qtTsTranslations(back).find((e) => e.id === "W | Text")?.source).toBe(
-    "\u0085 \u0001",
+    "\u0085\u2028\u0001a\r\nb",
   );
 });
