@@ -45,7 +45,7 @@ import {
   type RefusalCause,
 } from "@corpus/contract";
 import { printable } from "./printable";
-import { headOf, unreadableCatalogue } from "./catalogue-format";
+import { unreadableFile } from "./catalogue-format";
 import { CliError, fileCodeOf } from "./config";
 
 type Sourced = { entry: StringEntry; file: string };
@@ -236,12 +236,7 @@ export async function buildSnapshotReport(
     // The file rides with the entry (§4) so a proposal can come back to
     // it, and only where pull can write it: a .ts catalogue carries none,
     // so a proposal on its strings is refused up front, not left pending.
-    // A String Catalog's keys and Qt's `tr()` literals are the code's
-    // (#728, #741): no proposal is taken on them.
-    const writable =
-      sourceWritesBack(source) &&
-      source.adapter !== "xcstrings" &&
-      source.adapter !== "qt-ts";
+    const writable = takesProposals(source);
     // A msgid is its key by nature, not an empty value (#718), and so is
     // a String Catalog key with no source-language unit (#727).
     const keyed =
@@ -347,12 +342,7 @@ export async function buildSnapshotReport(
   // nor fuzzy, whose text is the source's is a translation, not work
   // (#658, #710, #718): only such targets are seeds.
   for (const source of config.sources) {
-    if (
-      source.adapter !== "xliff" &&
-      source.adapter !== "gettext" &&
-      source.adapter !== "xcstrings" &&
-      source.adapter !== "qt-ts"
-    )
+    if (source.adapter === "exec" || !STATED_TARGETS.has(source.adapter))
       continue;
     const file = fileOf(source, config.sourceLanguage, config.sourceLanguage);
     for (const { entry } of sourced.filter((s) => s.file === file))
@@ -678,18 +668,47 @@ export function hasLanguages(source: FileSource): boolean {
   );
 }
 
+// The adapters that write their own format back; messages and table
+// write back only a JSON catalogue (§8).
+const OWN_FORMAT = new Set<FileSource["adapter"]>([
+  "android",
+  "fluent",
+  "xliff",
+  "gettext",
+  "xcstrings",
+  "qt-ts",
+  "yaml",
+]);
+
+// The adapters whose keys are the code's own (a msgid, a String Catalog
+// key, a `tr()` literal): no proposal is taken on their strings (#719,
+// #728, #741).
+const CODE_KEYED = new Set<FileSource["adapter"]>([
+  "gettext",
+  "xcstrings",
+  "qt-ts",
+]);
+
+// The adapters whose target file says which translations are done, so
+// one identical to its source is a translation, not filler (#658, #710,
+// #718, #727, #740).
+const STATED_TARGETS = new Set<FileSource["adapter"]>([
+  "xliff",
+  "gettext",
+  "xcstrings",
+  "qt-ts",
+]);
+
 export function sourceWritesBack(source: FileSource): boolean {
-  if (
-    source.adapter === "android" ||
-    source.adapter === "fluent" ||
-    source.adapter === "xliff" ||
-    source.adapter === "gettext" ||
-    source.adapter === "xcstrings" ||
-    source.adapter === "qt-ts" ||
-    source.adapter === "yaml"
-  )
-    return true;
-  return writesBack(source.path);
+  return OWN_FORMAT.has(source.adapter) || writesBack(source.path);
+}
+
+// A source a proposal can be written into (§11): one pull writes back,
+// whose keys are not the code's.
+export function takesProposals(
+  source: FileSource,
+): source is Extract<FileSource, { adapter: WritableSource["adapter"] }> {
+  return sourceWritesBack(source) && !CODE_KEYED.has(source.adapter);
 }
 
 // A catalogue file through its source's adapter: the entries push would
@@ -799,10 +818,7 @@ async function readModule(
   abs: string,
   exportName?: string,
 ): Promise<unknown> {
-  const unreadable = unreadableCatalogue(
-    abs,
-    /\.ts$/i.test(abs) && existsSync(abs) ? headOf(abs) : undefined,
-  );
+  const unreadable = unreadableFile(abs);
   if (unreadable) throw new Error(unreadable);
   if (abs.endsWith(".json") || isArb(abs)) {
     if (exportName !== undefined) {
@@ -822,17 +838,12 @@ async function readModule(
   return mod[exportName];
 }
 
-// The sources pull can rewrite in place (§4): not exec, a .json path;
-// {lang} is not required, so a table without it takes proposals though
-// it takes no translations.
-// gettext is not one: its msgids are the code's, extracted, never proposed.
+// The sources a proposal can be written into (§4, §11): not exec, and
+// `takesProposals`; {lang} is not required, so a table without it takes
+// proposals though it takes no translations.
 export function writableSources(config: CorpusConfig): WritableSource[] {
   return config.sources.flatMap((source) =>
-    source.adapter !== "exec" &&
-    source.adapter !== "gettext" &&
-    source.adapter !== "xcstrings" &&
-    source.adapter !== "qt-ts" &&
-    sourceWritesBack(source)
+    source.adapter !== "exec" && takesProposals(source)
       ? [
           {
             // Android's source file itself: the server fills {lang} in
@@ -882,15 +893,7 @@ export function pushOnlyNotes(config: CorpusConfig): string[] {
           `exec "${source.command}" is push-only: add importCommand to write translations back`,
         );
       }
-    } else if (source.adapter === "android" || source.adapter === "fluent") {
-      continue;
-    } else if (
-      source.adapter === "xliff" ||
-      source.adapter === "gettext" ||
-      source.adapter === "xcstrings" ||
-      source.adapter === "qt-ts" ||
-      source.adapter === "yaml"
-    ) {
+    } else if (OWN_FORMAT.has(source.adapter)) {
       continue;
     } else if (!source.path.includes("{lang}")) {
       notes.push(

@@ -16,7 +16,7 @@ import {
   posixTag,
   type Library,
 } from "@corpus/contract";
-import { headOf, isQtLinguist, unreadableCatalogue } from "./catalogue-format";
+import { headOf, isQtLinguist, unreadableFile } from "./catalogue-format";
 import { option } from "./args";
 import { readEntries } from "./build";
 import { DEFAULT_INCLUDE, EXTENSIONS, SKIP_DIRS } from "./check";
@@ -157,12 +157,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   const unreadable =
     xliff || gettext || xcstrings || qt || yaml
       ? undefined
-      : unreadableCatalogue(
-          sourceFile,
-          /\.ts$/i.test(sourceFile) && existsSync(sourceFile)
-            ? headOf(sourceFile)
-            : undefined,
-        );
+      : unreadableFile(sourceFile);
   if (unreadable) throw new CliError(`--messages ${messages}: ${unreadable}`);
   const qtFiles = qt
     ? qtLanguages(ctx.cwd, messages, sourceLanguage)
