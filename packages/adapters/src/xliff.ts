@@ -3,13 +3,13 @@
 // translation, its inline elements the text's placeholders and tags.
 import { renderPreview, type StringEntry } from "@corpus/contract";
 import {
-  ownRecord,
   applied,
   attr,
   decodeEntities,
   eolOf,
   lineIndent,
   masked,
+  ownRecord,
   type Patch,
   type Span,
   usedIn,

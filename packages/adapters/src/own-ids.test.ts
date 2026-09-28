@@ -48,6 +48,24 @@ test("messages and table writers", () => {
   );
 });
 
+test("a new JSON file's nesting never walks into a built-in", () => {
+  const template = JSON.stringify(
+    { a: { toString: { call: "Call" }, valueOf: "V" }, c: "C" },
+    null,
+    2,
+  );
+  const out = entriesToMessages(
+    template,
+    { "a.toString.call": "Appel", "a.valueOf": "Valeur", c: "CC" },
+    "",
+  );
+  expect(JSON.parse(out)).toEqual({
+    a: { toString: { call: "Appel" }, valueOf: "Valeur" },
+    c: "CC",
+  });
+  expect(Object.prototype.toString.call([])).toBe("[object Array]");
+});
+
 test("gettext writer", () => {
   const po = (name: string) =>
     `msgid ""\nmsgstr ""\n"Language: fr\\n"\n\nmsgid "${name}"\nmsgstr ""\n\nmsgid "other"\nmsgstr ""\n`;

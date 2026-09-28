@@ -585,7 +585,7 @@ function forType(
   language: string,
   type: string,
 ): Record<string, string> {
-  const out: Record<string, string> = {};
+  const out = Object.create(null) as Record<string, string>;
   for (const [id, text] of Object.entries(
     payload.translations[language] ?? {},
   )) {
@@ -709,7 +709,7 @@ function unprefixed(
   own: Set<string> | undefined,
 ): Record<string, string> {
   const prefix = source.namespace ? `${source.namespace}:` : "";
-  const out: Record<string, string> = {};
+  const out = Object.create(null) as Record<string, string>;
   for (const [id, text] of Object.entries(translations)) {
     if (own && !own.has(id)) continue;
     if (prefix && !id.startsWith(prefix)) continue;

@@ -146,21 +146,23 @@ function isNested(tree: Tree): boolean {
 
 function setPath(tree: Tree, path: string[], value: string): void {
   checkPath(path);
+  const own = (at: Tree, key: string) =>
+    Object.hasOwn(at, key) ? at[key] : undefined;
   let node = tree;
   for (const key of path.slice(0, -1)) {
-    const next = node[key];
+    const next = own(node, key);
     if (typeof next === "string") {
       // A literal sits where nesting would go: a flat key at the root, as
       // the splice writes it, so the id reads back as itself.
       const flat = path.join(".");
-      if (typeof tree[flat] === "object") collision(flat);
+      if (typeof own(tree, flat) === "object") collision(flat);
       tree[flat] = value;
       return;
     }
-    node = next ?? (node[key] = {});
+    node = next ?? (node[key] = Object.create(null) as Tree);
   }
   const last = path[path.length - 1]!;
-  if (typeof node[last] === "object") collision(path.join("."));
+  if (typeof own(node, last) === "object") collision(path.join("."));
   node[last] = value;
 }
 

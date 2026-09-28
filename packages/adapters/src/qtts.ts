@@ -12,13 +12,13 @@ import {
 import { formOf, pluralBranches } from "./messages";
 import { qtPluralForms } from "./qtnumerus";
 import {
-  ownRecord,
   applied,
   attr,
   decodeEntities,
   eolOf,
   lineIndent,
   masked,
+  ownRecord,
   usedIn,
   type Patch,
   type Span,
