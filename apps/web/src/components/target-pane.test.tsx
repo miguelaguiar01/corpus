@@ -683,12 +683,21 @@ test("a select and a plural on one argument name each get their own chip and ske
   const select = pluralPane("en", "", source);
   fireEvent.click(screen.getByRole("button", { name: "{n, select}" }));
   expect(select.value).toBe("{n, select, a {} other {}}");
-  // Filled, the plural's skeleton validates against the source.
-  expect(
-    validateTranslation(
-      source,
-      "{n, plural, one {{n, select, a {x} other {y}}} other {# z}}",
-      "en",
-    ),
-  ).toEqual({ ok: true });
+  // Filled as inserted, the plural's skeleton validates against the source.
+  const filled = (skeleton: string) => skeleton.replaceAll("{}", "{x}");
+  expect(validateTranslation(source, filled(textarea.value), "en")).toEqual({
+    ok: true,
+  });
+  // Side by side, as released versions offered one chip that inserted
+  // the select's keys into the plural.
+  cleanup();
+  const siblings =
+    "{n, plural, one {# a} other {# b}} {n, select, a {x} other {y}}";
+  const plural = pluralPane("en", "", siblings);
+  fireEvent.click(screen.getByRole("button", { name: "{n, plural}" }));
+  expect(plural.value).toBe("{n, plural, one {#} other {#}}");
+  fireEvent.click(screen.getByRole("button", { name: "{n, select}" }));
+  expect(validateTranslation(siblings, filled(plural.value), "en")).toEqual({
+    ok: true,
+  });
 });
