@@ -274,3 +274,30 @@ test("a preview renders a plural nested in a select's branch (#764)", () => {
     text: "1 file",
   });
 });
+
+test("a printf plural on count with no count value previews from slot 1, as ngettext passes one n to both (#775)", () => {
+  const cards = "{count, plural, one {%d card} other {%d cards}}";
+  expect(renderPreview(cards, { 1: "1" }, "en", { syntax: "printf" })).toEqual({
+    ok: true,
+    text: "1 card",
+  });
+  expect(renderPreview(cards, { 1: "3" }, "en", { syntax: "printf" })).toEqual({
+    ok: true,
+    text: "3 cards",
+  });
+  expect(
+    renderPreview(cards, { count: "1", 1: "1" }, "en", { syntax: "printf" }),
+  ).toEqual({ ok: true, text: "1 card" });
+  // An example's own count wins.
+  expect(
+    renderPreview(cards, { count: "1", 1: "5" }, "en", { syntax: "printf" }),
+  ).toEqual({ ok: true, text: "5 card" });
+  // ICU has no positions: a plural with no value reads other, as before.
+  expect(
+    renderPreview(
+      "{n, plural, one {# card} other {# cards}}",
+      { 1: "1" },
+      "en",
+    ),
+  ).toMatchObject({ ok: true, text: "# cards" });
+});

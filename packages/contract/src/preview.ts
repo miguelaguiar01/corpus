@@ -12,6 +12,7 @@ import {
   readIcu,
   pluralBranch,
   type IcuError,
+  branchingNodes,
   type IcuNode,
   type PlaceholderFormat,
 } from "./icu";
@@ -107,6 +108,23 @@ function render(
 // engine keeps its values as given.
 export type RenderOptions = { capitalise?: boolean; syntax?: Library };
 
+// A printf plural on a named count, as a gettext plural reads whole,
+// is `printf(ngettext(…, n), n)`: with no value for the count, it takes
+// the first argument's, which the same call passes (#775).
+function withCount(
+  nodes: IcuNode[],
+  values: Record<string, string>,
+  syntax: Library | undefined,
+): Record<string, string> {
+  const first = values["1"];
+  if (syntax !== "printf" || first === undefined) return values;
+  const counted = { ...values };
+  for (const node of branchingNodes(nodes))
+    if (node.kind === "plural" && !/^\d+$/.test(node.arg))
+      counted[node.arg] ??= first;
+  return counted;
+}
+
 export function renderPreviewSegments(
   message: string,
   values: Record<string, string>,
@@ -119,7 +137,7 @@ export function renderPreviewSegments(
   // A printf plural on `argN` takes the Nth argument's value (#735).
   const nodes =
     options.syntax === "printf" ? argPositions(parsed.nodes) : parsed.nodes;
-  render(nodes, values, segments, language);
+  render(nodes, withCount(nodes, values, options.syntax), segments, language);
   // Capitalise the first character of the whole render, wherever it
   // falls: an empty leading value must not stop it.
   const first = segments.find((segment) => segment.text.length > 0);
