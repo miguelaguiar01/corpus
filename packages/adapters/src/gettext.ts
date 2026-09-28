@@ -599,15 +599,10 @@ function targetFrom(
     // template's are its language's, or a .pot's placeholder.
     if (rule) {
       const line = `"Plural-Forms: nplurals=${rule.nplurals}; plural=${rule.plural};\\n"`;
-      block = /"Plural-Forms:[^"\\]*(?:\\.[^"\\]*)*"/.test(block)
-        ? block.replace(/"Plural-Forms:[^"\\]*(?:\\.[^"\\]*)*"/, line)
-        : block.replace(
-            /("Language:[^"\\]*(?:\\.[^"\\]*)*")/,
-            `$1${eol}${line}`,
-          );
+      block = withHeaderField(block, "Plural-Forms", line, eol);
     } else
       onNote?.(
-        `no CLDR plural rule for ${language.tag}; the new file keeps the template's Plural-Forms`,
+        `no CLDR plural rule for ${language.tag}; the new file's Plural-Forms is the template's, or none`,
       );
     patches.push({ ...span, text: block });
   }
@@ -619,11 +614,38 @@ function targetFrom(
   return translated ? withoutObsolete(started) : started;
 }
 
+// A header block with its `field` replaced by `line`: the field's quoted
+// strings through the one that ends it with `\n`, as msgmerge wraps a
+// long one over several (#786); a field it lacks goes after Language.
+function withHeaderField(
+  block: string,
+  field: string,
+  line: string,
+  eol: string,
+): string {
+  const lines = block.split(/\r?\n/);
+  const at = lines.findIndex((l) => l.startsWith(`"${field}:`));
+  if (at < 0) {
+    const language = lines.findIndex((l) => l.startsWith('"Language:'));
+    lines.splice(language < 0 ? lines.length : language + 1, 0, line);
+    return lines.join(eol);
+  }
+  let end = at;
+  while (end < lines.length - 1 && !/\\n"$/.test(lines[end]!)) end++;
+  lines.splice(at, end - at + 1, line);
+  return lines.join(eol);
+}
+
 // A language's gettext forms from the CLDR table (#812): its tag, else
 // its language alone (`ru-RU`, `pt_BR`'s `pt`).
+const RULE_KEYS = new Map(
+  Object.keys(GETTEXT_PLURALS).map((key) => [key.toLowerCase(), key]),
+);
+
 function pluralRuleOf(tag: string) {
-  const bcp = tag.replace(/_/g, "-");
-  return GETTEXT_PLURALS[bcp] ?? GETTEXT_PLURALS[bcp.split("-")[0]!];
+  const bcp = tag.replace(/_/g, "-").toLowerCase();
+  const key = RULE_KEYS.get(bcp) ?? RULE_KEYS.get(bcp.split("-")[0]!);
+  return key === undefined ? undefined : GETTEXT_PLURALS[key];
 }
 
 // A file with its obsolete `#~` entries, and the comments above them,

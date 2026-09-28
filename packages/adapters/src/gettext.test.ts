@@ -1,4 +1,5 @@
 import { expect, test } from "vitest";
+import { GETTEXT_PLURALS } from "./gettextplurals";
 import {
   CONTEXT_SEPARATOR,
   entriesToGettext,
@@ -525,7 +526,7 @@ msgstr[1] "%d files"
   );
   expect(xx).toContain('"Plural-Forms: nplurals=2; plural=(n != 1);\\n"');
   expect(notes).toEqual([
-    "no CLDR plural rule for tlh; the new file keeps the template's Plural-Forms",
+    "no CLDR plural rule for tlh; the new file's Plural-Forms is the template's, or none",
   ]);
 });
 
@@ -547,4 +548,27 @@ msgstr[1] "%d files"
   const ja = entriesToGettext(en, {}, undefined, { tag: "ja", code: "ja" });
   expect(ja).toContain('msgid_plural "%d files"\nmsgstr[0] ""\n');
   expect(ja).not.toContain("msgstr[1]");
+});
+
+test("a Plural-Forms msgmerge wrapped over two lines is replaced whole; a tag's case does not matter (#786)", () => {
+  const ru = `msgid ""
+msgstr ""
+"Language: ru\\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
+"n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\\n"
+"Content-Type: text/plain; charset=UTF-8\\n"
+
+msgid "File"
+msgstr "Файл"
+`;
+  const de = entriesToGettext(ru, {}, undefined, { tag: "de", code: "de" });
+  expect(de).toContain(
+    '"Language: de\\n"\n"Plural-Forms: nplurals=2; plural=(n==1) ? 0 : 1;\\n"\n"Content-Type: text/plain; charset=UTF-8\\n"\n',
+  );
+  expect(de).not.toContain("n%10<=4");
+  expect(
+    entriesToGettext(ru, {}, undefined, { tag: "pt-pt", code: "pt_PT" }),
+  ).toContain(
+    `"Plural-Forms: nplurals=3; plural=${GETTEXT_PLURALS["pt-PT"]!.plural};\\n"`,
+  );
 });
