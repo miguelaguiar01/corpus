@@ -97,3 +97,25 @@ test("a map's first key keeps its comment; a null form leaves a plural one; an e
   expect(entries.map((e) => e.id)).toContain("sizes.01");
   expect(yamlTranslations(text, "en").map((e) => e.id)).not.toContain("blank");
 });
+
+test("a target stub reads no translations; a source with nothing under its root is refused (#752)", () => {
+  expect(yamlTranslations("fr:\n", "fr")).toEqual([]);
+  expect(yamlTranslations("# nothing yet\n", "fr")).toEqual([]);
+  expect(yamlTranslations("", "fr")).toEqual([]);
+  expect(yamlTranslations("fr: {}\n", "fr")).toEqual([]);
+  expect(() => yamlToEntries("en:\n", { type: "ui", root: "en" })).toThrow(
+    "no strings under en: the source language's file must hold them",
+  );
+  expect(() =>
+    yamlToEntries('en_US:\n  a: "A"\n', { type: "ui", root: "en" }),
+  ).toThrow(
+    "no root key en: the file's root keys are en_US; the source language's file must be rooted at its code",
+  );
+  // A plural whose other is null is still one plural.
+  expect(
+    yamlToEntries('en:\n  p:\n    one: "a"\n    other: ~\n', {
+      type: "ui",
+      root: "en",
+    }).map((e) => e.id),
+  ).toEqual(["p"]);
+});
