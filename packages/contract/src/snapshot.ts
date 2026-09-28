@@ -65,6 +65,12 @@ export const snapshotSchema = z.looseObject({
   // though their text is the source's (#658): a loanword, `Status` in
   // German, an exporter says is done.
   seedTranslated: z.record(z.string(), z.array(z.string())).optional(),
+  // Per target language, what the repository offers a translator to
+  // start from and does not count as translated: a gettext fuzzy row,
+  // msgmerge's guess (#721). Never a translation, never pulled back.
+  seedSuggestions: z
+    .record(z.string(), z.record(z.string(), z.string()))
+    .optional(),
   // The target languages that are variants of the source, en-GB of en
   // (#658): a seed identical to the source is translated there, and an
   // untranslated row is not queued as work, the runtime falling back to
