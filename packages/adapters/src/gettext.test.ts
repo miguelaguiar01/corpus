@@ -597,6 +597,10 @@ test("an entry with no msgstr takes its translation after its msgid, never at th
   expect(entriesToGettext(po, { Open: "Открыть" }, po, RU_LANG)).toBe(
     `${RU_HEADER}\nmsgid "Open"\nmsgstr "Открыть"\n\nmsgid "Close"\nmsgstr ""\n`,
   );
+  const noted = `${RU_HEADER}\nmsgid "Open"\n# a translator's note\n`;
+  expect(entriesToGettext(noted, { Open: "Открыть" }, noted, RU_LANG)).toBe(
+    `${RU_HEADER}\nmsgid "Open"\nmsgstr "Открыть"\n# a translator's note\n`,
+  );
   const plural = `${RU_HEADER}\nmsgid "%d file"\nmsgid_plural "%d files"\n`;
   const out = entriesToGettext(
     plural,

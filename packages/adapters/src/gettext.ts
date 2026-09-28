@@ -20,10 +20,12 @@ type PoEntry = {
   extracted: string[];
   references: string[];
   // Where the entry sits in the text read: its lines, its `#,` and `#|`
-  // lines, and each msgstr's keyword line through its last continuation.
+  // lines, where its msgid (or msgid_plural) ends, and each msgstr's
+  // keyword line through its last continuation.
   at: {
     start: number;
     end: number;
+    idEnd: number;
     flags?: Span;
     previous: Span[];
     msgstr: (Span | undefined)[];
@@ -78,7 +80,7 @@ export function parsePo(text: string): PoEntry[] {
     flags: [],
     extracted: [],
     references: [],
-    at: { start: -1, end: -1, previous: [], msgstr: [] },
+    at: { start: -1, end: -1, idEnd: -1, previous: [], msgstr: [] },
   });
   let entry = fresh();
   let seenId = false;
@@ -93,9 +95,12 @@ export function parsePo(text: string): PoEntry[] {
     if (key === "msgctxt") entry.msgctxt = value;
     else if (key === "msgid") {
       entry.msgid = value;
+      entry.at.idEnd = lastEnd;
       seenId = true;
-    } else if (key === "msgid_plural") entry.msgidPlural = value;
-    else {
+    } else if (key === "msgid_plural") {
+      entry.msgidPlural = value;
+      entry.at.idEnd = lastEnd;
+    } else {
       const index = key === "msgstr" ? "0" : /^msgstr\[(\d+)\]$/.exec(key)?.[1];
       if (index !== undefined) {
         entry.msgstr[Number(index)] = value;
@@ -654,8 +659,10 @@ function wantedForms(
 }
 
 // An entry's patches: each msgstr whose text differs rewritten in
-// msgmerge's layout, a missing `msgstr[n]` added after the last, and the
-// fuzzy flag and its `#|` previous msgid dropped from a row now written.
+// msgmerge's layout, a missing `msgstr[n]` added in its place (after the
+// form before it, else before the form after it, else after the msgid,
+// #833), and the fuzzy flag and its `#|` previous msgid dropped from a
+// row now written.
 function entryPatches(
   text: string,
   entry: PoEntry,
@@ -676,8 +683,6 @@ function entryPatches(
         patches.push({ ...span, text: lines(i, value) });
       return;
     }
-    // A form the entry lacks goes in its place: after the one before it,
-    // else before the one after it, else after the entry's msgid (#833).
     const before = spans
       .slice(0, i)
       .reverse()
@@ -697,8 +702,8 @@ function entryPatches(
       });
     else
       patches.push({
-        start: entry.at.end,
-        end: entry.at.end,
+        start: entry.at.idEnd,
+        end: entry.at.idEnd,
         text: eol + lines(i, value),
       });
   });
