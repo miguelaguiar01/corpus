@@ -16,6 +16,7 @@
 import {
   argPositions,
   parseIcu,
+  readIcu,
   printfPluralError,
   WHOLE_PLURAL_LIBRARIES,
   pluralCategoriesOf,
@@ -187,6 +188,16 @@ function countsInSelects(
     if (node.kind === "tag") countsInSelects(node.children, within, out);
   }
   return out;
+}
+
+// The plurals whose `#` a source writes in a select within them, which
+// runtimes read two ways (#767): said to the author, never refused.
+export function nestedCountsOf(
+  source: string,
+  syntax: Library = "icu",
+): string[] {
+  const parsed = readIcu(source, syntax);
+  return parsed.ok ? [...countsInSelects(parsed.nodes)] : [];
 }
 
 // The values a message uses: its placeholders and the counts it

@@ -3,7 +3,11 @@ import { moonlightManor } from "./fixtures/moonlight-manor";
 import type { Library } from "./strings";
 import { parseIcu, placeholdersOf, placeholderWrittenOf } from "./icu";
 import { renderPreview } from "./preview";
-import { validateTranslation, type ValidationError } from "./validate";
+import {
+  nestedCountsOf,
+  validateTranslation,
+  type ValidationError,
+} from "./validate";
 
 const SIGHTING = moonlightManor.strings[0]!.source;
 
@@ -1544,4 +1548,23 @@ test("a nested message is validated at both levels (#764)", () => {
       "en",
     ),
   ).toEqual({ ok: true });
+});
+
+test("nestedCountsOf names the plurals whose # sits in a select within them (#767)", () => {
+  expect(
+    nestedCountsOf(
+      "{n, plural, one {{g, select, f {# x} other {y}}} other {z}}",
+    ),
+  ).toEqual(["n"]);
+  expect(
+    nestedCountsOf(
+      "{n, plural, one {{g, select, f {{n} x} other {y}}} other {z}}",
+    ),
+  ).toEqual([]);
+  expect(
+    nestedCountsOf(
+      "{g, select, f {{n, plural, one {# x} other {# y}}} other {z}}",
+    ),
+  ).toEqual([]);
+  expect(nestedCountsOf("{n, plural, one {# {")).toEqual([]);
 });

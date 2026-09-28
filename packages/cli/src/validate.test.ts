@@ -730,3 +730,58 @@ test("validate reads a String Catalog, naming the language after the key; pull s
   expect(err).toContain("Localizable.xcstrings [%@ posts] pt: missing %@");
   expect(err).not.toMatch(/Done/);
 });
+
+test("a source with # in a select within a plural is warned by validate and build, and neither fails (#767)", async () => {
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8").replace(
+      /sources: \[[\s\S]*?\n {2}\],/,
+      'sources: [{ adapter: "messages", type: "ui", path: "nested/{lang}.json" }],',
+    ),
+  );
+  mkdirSync(path.join(repo, "nested"), { recursive: true });
+  write("nested/en.json", {
+    files:
+      "{n, plural, one {{g, select, f {# file of hers} other {# file}}} other {{n} files}}",
+    plain: "{n, plural, one {# file} other {# files}}",
+  });
+  write("nested/pt.json", {
+    files:
+      "{n, plural, one {{g, select, f {{n} ficheiro dela} other {{n} ficheiro}}} other {{n} ficheiros}}",
+  });
+  const warning =
+    "nested/en.json:files: # in a select within the plural on {n} is text to some runtimes; write {n}";
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(0);
+  expect(c.stderr.filter((line) => line === warning)).toHaveLength(1);
+  expect(c.stderr.join("\n")).toContain("1 source warning(s)");
+  const b = ctx();
+  expect(await run(["build", "--out", "snapshot.json"], b)).toBe(0);
+  expect(b.stderr).toContain(`corpus: ${warning}`);
+  expect(b.stderr.join("\n")).not.toContain("plain");
+});
+
+test("an exporter's source with # in a select within a plural is warned by validate and build too (#767)", async () => {
+  writeFileSync(
+    path.join(repo, "scripts", "export.mjs"),
+    `console.log(JSON.stringify({
+      strings: [{ id: "exec.n", type: "computed", source: "{n, plural, one {{g, select, f {# x} other {y}}} other {z}}" }],
+      translations: { pt: { "exec.n": "{n, plural, one {{g, select, f {{n} x} other {y}}} many {z} other {z}}" } },
+    }))`,
+  );
+  const message =
+    "# in a select within the plural on {n} is text to some runtimes; write {n}";
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(0);
+  expect(c.stderr).toContain(
+    `exec:node scripts/export.mjs [exec.n] en: ${message}`,
+  );
+  const b = ctx();
+  expect(await run(["build", "--out", "snapshot.json"], b)).toBe(0);
+  expect(b.stderr).toContain(
+    `corpus: exec "node scripts/export.mjs" [exec.n]: ${message}`,
+  );
+});
