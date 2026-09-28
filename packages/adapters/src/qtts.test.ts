@@ -626,3 +626,29 @@ test("a no-op pull keeps a numerus form beyond the language's rule; a change wri
   expect(changed.match(/<numerusform>/g)).toHaveLength(2);
   expect(changed).toContain("<numerusform>%n doc</numerusform>");
 });
+
+test("a Latvian numerus short of the form no category reads pulls back as it is; a change writes the rule's forms (#800)", () => {
+  const lv = numerus("lv", ["%n fails", "%n faili"]);
+  const template = numerus("", ["", ""], ' type="unfinished"');
+  const language = { tag: "lv", code: "lv" };
+  const [seed] = qtTsTranslations(lv, "lv");
+  expect(seed).toBeDefined();
+  expect(
+    entriesToQtTs(
+      template,
+      { "Main | %n file(s)": seed!.source },
+      lv,
+      language,
+    ),
+  ).toBe(lv);
+  const changed = entriesToQtTs(
+    template,
+    {
+      "Main | %n file(s)":
+        "{count, plural, zero {%n failu} one {%n fails} other {%n faili!}}",
+    },
+    lv,
+    language,
+  );
+  expect(changed.match(/<numerusform>/g)).toHaveLength(3);
+});
