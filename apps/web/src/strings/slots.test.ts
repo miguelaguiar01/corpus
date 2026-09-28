@@ -89,3 +89,20 @@ test("inPositionOrder sorts printf positions, a named value after them, and leav
   ]);
   expect(inPositionOrder(["2", "1"], "icu")).toEqual(["2", "1"]);
 });
+
+test("a slot named like an Object.prototype member has only its own values (#846)", () => {
+  const [slot] = slotsOf(
+    "Hi {constructor}",
+    {},
+    [{ values: {}, rendered: "Hi", valuesByLanguage: { de: {} } }],
+    "en",
+  );
+  expect(slot).toEqual({
+    name: "constructor",
+    description: null,
+    role: null,
+    format: null,
+    written: null,
+    values: {},
+  });
+});
