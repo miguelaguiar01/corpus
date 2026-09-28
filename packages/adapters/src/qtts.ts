@@ -349,17 +349,19 @@ export function entriesToQtTs(
     }
     held.set(m.id, m);
     const text = translations[m.id];
-    if (text === undefined || !m.translationAt) continue;
+    if (text === undefined) continue;
     const written = translationElement(m, text, base, ctx);
     if (written !== undefined)
-      patches.push({ ...m.translationAt, text: written });
+      patches.push(translationPatch(base, m, written, eol));
   }
   // Messages the file lacks, with a translation to give: each after the
   // source file's message before it that the file holds, or at the
   // start of its context; a context the file lacks, whole.
   const source = live(template);
   const contexts = [
-    ...base.matchAll(/<context(?:\s[^>]*)?>\s*<name>([\s\S]*?)<\/name>/g),
+    ...masked(base).matchAll(
+      /<context(?:\s[^>]*)?>\s*<name>([\s\S]*?)<\/name>/g,
+    ),
   ].map((c) => ({
     name: qtDecode(c[1]!),
     after: c.index + c[0].length,
@@ -421,7 +423,7 @@ export function entriesToQtTs(
   });
   let out = applied(base, patches);
   if (missingContexts.size > 0) {
-    const at = out.lastIndexOf("</TS>");
+    const at = masked(out).lastIndexOf("</TS>");
     const added = [...missingContexts]
       .map(([name, messages]) => {
         const indent = lineIndent(template, messages[0]!.m.at.start);
@@ -493,7 +495,7 @@ function translationElement(
   const old = m.translationAt
     ? from.slice(m.translationAt.start, m.translationAt.end)
     : "";
-  const indent = m.translationAt ? lineIndent(from, m.translationAt.start) : "";
+  const indent = lineIndent(from, m.translationAt?.start ?? sourceAt(from, m));
   const open = /^<translation(?:\s[^>]*?)?>(\s*)<numerusform/.exec(old)?.[1];
   const close = /(\s*)<\/translation>$/.exec(old)?.[1];
   const between = open ?? `${eol}${indent}    `;
@@ -513,9 +515,39 @@ function translationElement(
 
 // A source-file message with its translation given.
 function blockOf(template: string, m: QtMessage, translation: string): string {
-  const block = template.slice(m.at.start, m.at.end);
-  if (!m.translationAt) return block;
-  const start = m.translationAt.start - m.at.start;
-  const end = m.translationAt.end - m.at.start;
-  return block.slice(0, start) + translation + block.slice(end);
+  const { start, end, text } = translationPatch(template, m, translation, "\n");
+  return (
+    template.slice(m.at.start, start) + text + template.slice(end, m.at.end)
+  );
+}
+
+// A message's `<translation>` written: in place of its own, or, for a
+// message with none (the DTD's `translation?`), after its last element
+// on a line of its own, indented as its `<source>` (#852).
+function translationPatch(
+  text: string,
+  m: QtMessage,
+  translation: string,
+  eol: string,
+): Patch {
+  if (m.translationAt) return { ...m.translationAt, text: translation };
+  const inside = masked(text.slice(m.at.start, m.at.end));
+  const close = m.at.start + inside.lastIndexOf("</message>");
+  const at =
+    m.at.start + masked(text.slice(m.at.start, close)).trimEnd().length;
+  // `</message>` on the last element's line goes to a line of its own.
+  const after = text.slice(at, close).includes("\n")
+    ? ""
+    : `${eol}${lineIndent(text, m.at.start)}`;
+  return {
+    start: at,
+    end: at,
+    text: `${eol}${lineIndent(text, sourceAt(text, m))}${translation}${after}`,
+  };
+}
+
+// Where a message's `<source>` starts.
+function sourceAt(text: string, m: QtMessage): number {
+  const inside = masked(text.slice(m.at.start, m.at.end));
+  return m.at.start + Math.max(0, inside.indexOf("<source"));
 }

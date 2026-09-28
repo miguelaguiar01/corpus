@@ -652,3 +652,60 @@ test("a Latvian numerus short of the form no category reads pulls back as it is;
   );
   expect(changed.match(/<numerusform>/g)).toHaveLength(3);
 });
+
+const ts = (contexts: string) =>
+  `<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE TS>\n<TS version="2.1" language="fr">\n${contexts}</TS>\n`;
+const FR = { tag: "fr", code: "fr" };
+const readFr = (xml: string) =>
+  Object.fromEntries(qtTsTranslations(xml, "fr").map((e) => [e.id, e.source]));
+
+test("a message with no <translation> element takes one, held or copied from the template (#852)", () => {
+  const bare = ts(
+    "<context>\n    <name>A</name>\n    <message>\n        <source>Hi</source>\n    </message>\n</context>\n",
+  );
+  const held = entriesToQtTs(bare, { "A | Hi": "Salut" }, bare, FR);
+  expect(held).toContain(
+    "        <source>Hi</source>\n        <translation>Salut</translation>\n    </message>",
+  );
+  expect(readFr(held)).toEqual({ "A | Hi": "Salut" });
+  const numerus = ts(
+    '<context>\n    <name>A</name>\n    <message numerus="yes">\n        <source>%n file(s)</source>\n    </message>\n</context>\n',
+  );
+  expect(
+    entriesToQtTs(
+      numerus,
+      {
+        "A | %n file(s)":
+          "{count, plural, one {%n fichier} other {%n fichiers}}",
+      },
+      numerus,
+      FR,
+    ),
+  ).toContain(
+    "        <source>%n file(s)</source>\n        <translation>\n            <numerusform>%n fichier</numerusform>\n            <numerusform>%n fichiers</numerusform>\n        </translation>\n    </message>",
+  );
+  const oneLine = ts(
+    "<context>\n    <name>A</name>\n    <message><source>Hi</source></message>\n</context>\n",
+  );
+  expect(entriesToQtTs(oneLine, { "A | Hi": "Salut" }, oneLine, FR)).toContain(
+    "    <message><source>Hi</source>\n    <translation>Salut</translation>\n    </message>",
+  );
+  const empty = ts("<context>\n    <name>A</name>\n</context>\n");
+  expect(readFr(entriesToQtTs(bare, { "A | Hi": "Salut" }, empty, FR))).toEqual(
+    { "A | Hi": "Salut" },
+  );
+});
+
+test("a commented-out context or </TS> is never written into (#852)", () => {
+  const template = ts(
+    '<context>\n    <name>B</name>\n    <message>\n        <source>Yo</source>\n        <translation type="unfinished"></translation>\n    </message>\n</context>\n',
+  );
+  const commented = ts(
+    "<!--<context><name>B</name><message><source>Old</source></message></context>-->\n<!-- old </TS> -->\n",
+  );
+  const out = entriesToQtTs(template, { "B | Yo": "Wesh" }, commented, FR);
+  expect(readFr(out)).toEqual({ "B | Yo": "Wesh" });
+  expect(out).toContain(
+    "<!--<context><name>B</name><message><source>Old</source></message></context>-->\n<!-- old </TS> -->\n",
+  );
+});
