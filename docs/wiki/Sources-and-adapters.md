@@ -141,18 +141,18 @@ A command that prints the entries as JSON, for text that lives somewhere no adap
 
 ### What the export command prints
 
-One JSON object on stdout, `{ strings, entities?, translations? }`, up to 256 MiB, which no catalogue reaches. Anything it writes to stderr, `build` and `push` print under an `exec "<command>":` line, so a converter can say what it skipped. A non-zero exit fails the build.
+One JSON object on stdout, `{ strings, entities?, translations? }`, up to 256 MiB, which no catalogue reaches. The first 20 lines it writes to stderr, `build` and `push` print under an `exec "<command>":` line, so a converter can say what it skipped. A non-zero exit, output that is not JSON, or an entry that does not match the table below fails the build; the last is said as `exec "<command>" emitted an invalid string entry` without naming the entry, so check the fields there first.
 
 `strings` is the entries, each an object with:
 
 | Field | | |
 |---|---|---|
-| `id` | required | Unique across every source of the config. Any text without control characters, up to 1,000 characters: `tip.save`, or the sentence itself. |
-| `type` | required | The string type, as `stringTypes` and `typeNotes` name it. A type that a file source pull writes back also uses is that source's: a pull sends its rows to the file, never to the import command, so give an exec source's strings types of their own. |
+| `id` | required | Unique across every source of the config. Any text without control characters but tab and line breaks, up to 1,000 characters: `tip.save`, or the sentence itself. |
+| `type` | required | The string type, as `stringTypes` and `typeNotes` name it: letters, digits, dot, underscore and hyphen. A type that a file source pull writes back also uses (one with `{lang}` in its path, in a format pull writes) is that source's: a pull sends its rows to the file, never to the import command, so give an exec source's strings types of their own. |
 | `source` | required | The text in the source language, written for `library`. A text that does not parse under it is refused by name, as a catalogue's is. |
 | `library` | optional | `icu` when absent; any library [Your i18n library](Your-i18n-library) lists. An exec source has no `library` of its own, so each entry says it. |
 | `note` | optional | What the repository says about this one string, for a translator. Never written back. |
-| `keyIsText` | optional | `true` when the text is the key in the code that calls it, as a sentence key is; a proposed edit to it is refused, since only the code can change it. |
+| `keyIsText` | optional | `true` when the text is the key in the code that calls it, as a sentence key is. A proposal on an exec string is refused anyway, since pull writes none back; this makes the refusal say why. |
 | `arguments` | optional | Under `printf`, the verbs the code passes by position (`["%lld"]`), where the text need not print them all. |
 | `examples` | optional | `[{ values, rendered, valuesByLanguage? }]`: slot values in the source language, the sentence they render, and per target language the same slots resolved for it. The editor previews a translation through each. |
 | `metadata` | optional | Field to value (text, `true`/`false`, or a list of text), the fields the type's `stringTypes` entry describes. |
@@ -172,9 +172,9 @@ A `file` field is dropped: an exec source is not written back by pull, so nothin
 | `contract` | `"corpus/1"`. |
 | `project`, `sourceLanguage` | As the config names them. |
 | `minState` | The state the pull asked for: `untranslated`, `translated` or `verified`. |
-| `translations` | Language to id to text: the rows the pull selected, for the target languages it asked for, of every type no file source declares. The source language is not among them. |
-| `types` | Id to type, for the ids it carries; `types[id]` tells one exec source's rows from another's. |
-| `sourceChanges` | Pending proposals, which pull has already written into the file sources; an import command ignores them, since an exec string has no file. |
+| `translations` | Language to id to text: the rows the pull selected, for the target languages it asked for, of every type no file source that pull writes back uses. The source language is not among them. |
+| `types` | Id to type, for every string the project holds; `types[id]` tells one exec source's rows from another's. |
+| `sourceChanges` | Pending proposals for the file sources, absent when none is pending; pull writes them itself, and an import command ignores them, since an exec string has no file. |
 
 A field it does not know it ignores, as every reader of the contract does.
 
