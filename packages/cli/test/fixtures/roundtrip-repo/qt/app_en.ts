@@ -22,6 +22,14 @@
             <numerusform>%n files</numerusform>
         </translation>
     </message>
+    <message numerus="yes">
+        <location filename="../janela.cpp" line="40"/>
+        <source>%n chave(s)</source>
+        <translation>
+            <numerusform>%n key {x</numerusform>
+            <numerusform>%n keys</numerusform>
+        </translation>
+    </message>
     <message>
         <source>Velho</source>
         <translation type="vanished">Old</translation>

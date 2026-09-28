@@ -219,15 +219,35 @@ export function qtTsToEntries(
 // A target file's translations: the finished ones. An unfinished one,
 // with text or without, is work. A numerus message's forms are one
 // plural on `count`, each of the language's CLDR categories reading
-// the form Qt's rule gives its integers (#743).
-export function qtTsTranslations(xml: string, language = "en"): StringEntry[] {
+// the form Qt's rule gives its integers (#743). Forms Corpus cannot
+// read as one plural, a stray brace in one, are work too, named through
+// `onUnread`: a pull could never write them back (#751).
+export function qtTsTranslations(
+  xml: string,
+  language = "en",
+  onUnread?: (id: string) => void,
+): StringEntry[] {
   const indexes = pluralCategoryIndexes(language, qtPluralForms(language));
+  const categories = pluralIndexCategories(language, qtPluralForms(language));
   return live(xml).flatMap((m) => {
     if (m.state !== undefined) return [];
-    if (m.numerus)
-      return m.forms.some((f) => f !== "")
-        ? [{ id: m.id, type: "", source: poPluralText(m.forms, indexes) }]
-        : [];
+    if (m.numerus) {
+      if (!m.forms.some((f) => f !== "")) return [];
+      const text = poPluralText(m.forms, indexes);
+      // Read only where the plural gives each form back, as a pull would
+      // write it: a form that reads as a brace or a branch of its own
+      // (`} other {`) would be rewritten on every pull.
+      const branches = pluralBranches(text);
+      const back =
+        branches &&
+        categories.every(
+          (c, i) =>
+            c === undefined || (branches[c] ?? branches.other) === m.forms[i],
+        );
+      if (back) return [{ id: m.id, type: "", source: text }];
+      onUnread?.(m.id);
+      return [];
+    }
     return m.translation !== ""
       ? [{ id: m.id, type: "", source: m.translation }]
       : [];

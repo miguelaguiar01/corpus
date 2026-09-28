@@ -757,7 +757,7 @@ test("a source with # in a select within a plural is warned by validate and buil
   const c = ctx();
   expect(await run(["validate"], c)).toBe(0);
   expect(c.stderr.filter((line) => line === warning)).toHaveLength(1);
-  expect(c.stderr.join("\n")).toContain("1 source warning(s)");
+  expect(c.stderr.join("\n")).toContain("1 warning(s)");
   const b = ctx();
   expect(await run(["build", "--out", "snapshot.json"], b)).toBe(0);
   expect(b.stderr).toContain(`corpus: ${warning}`);
@@ -783,5 +783,42 @@ test("an exporter's source with # in a select within a plural is warned by valid
   expect(await run(["build", "--out", "snapshot.json"], b)).toBe(0);
   expect(b.stderr).toContain(
     `corpus: exec "node scripts/export.mjs" [exec.n]: ${message}`,
+  );
+});
+
+test("a Qt numerus translation no plural holds is a warning in validate and a note in build, once each (#751)", async () => {
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8").replace(
+      /sources: \[[\s\S]*?\n {2}\],/,
+      'sources: [{ adapter: "qt-ts", type: "ui", path: "lang/app_{lang}.ts" }],',
+    ),
+  );
+  const ts = (language: string, forms: string[], state = "") =>
+    `<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE TS>\n<TS version="2.1"${language ? ` language="${language}"` : ""}>\n<context>\n    <name>Main</name>\n    <message numerus="yes">\n        <source>%n file(s)</source>\n        <translation${state}>\n${forms.map((f) => `            <numerusform>${f}</numerusform>`).join("\n")}\n        </translation>\n    </message>\n</context>\n</TS>\n`;
+  mkdirSync(path.join(repo, "lang"), { recursive: true });
+  writeFileSync(
+    path.join(repo, "lang", "app_en.ts"),
+    ts("", ["", ""], ' type="unfinished"'),
+  );
+  writeFileSync(
+    path.join(repo, "lang", "app_pt.ts"),
+    ts("pt", ["%n ficheiro", "%n {x"]),
+  );
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(0);
+  expect(
+    c.stderr.filter((line) =>
+      line.startsWith("lang/app_pt.ts:Main | %n file(s): a numerus form"),
+    ),
+  ).toHaveLength(1);
+  expect(c.stderr.join("\n")).toContain("1 warning(s)");
+  const b = ctx();
+  expect(await run(["build", "--out", "snapshot.json"], b)).toBe(0);
+  expect(b.stderr.join("\n")).toContain(
+    "lang/app_pt.ts: 1 translation(s) not seeded: a numerus form Corpus cannot read as one plural",
   );
 });

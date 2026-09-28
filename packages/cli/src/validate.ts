@@ -39,7 +39,7 @@ export type Finding = {
   // the source language. A file source's path names it, an exec
   // source's command does not (#592).
   language: string;
-  code: ValidationError["code"] | "orphan";
+  code: ValidationError["code"] | "orphan" | "unread-plural";
   // A plural missing a category its language uses, or with one it never
   // selects, is incomplete, not invalid (#556, #651): printed apart, and
   // never the reason for exit 1. A source's warning (#767) is the same.
@@ -100,7 +100,7 @@ export async function validate(
       incomplete.length
         ? `${incomplete.length} incomplete plural(s), a category the language uses and the translation lacks or one it never selects`
         : "",
-      warnings.length ? `${warnings.length} source warning(s)` : "",
+      warnings.length ? `${warnings.length} warning(s)` : "",
     ].filter(Boolean);
     ctx.err(`corpus: ${parts.join(", ")}`);
     if (invalid.length > 0 || orphans.length > 0) return 1;
@@ -207,6 +207,17 @@ export async function validateRepo(
         source,
         false,
         language,
+        // Qt reads such forms; Corpus cannot, so it says so, once (#751).
+        (key) =>
+          findings.push({
+            file,
+            key,
+            language,
+            code: "unread-plural",
+            severity: "warning",
+            message:
+              "a numerus form Corpus cannot read as one plural; it is not seeded, and pull leaves it as the file has it",
+          }),
       );
       if (translations === undefined) continue;
       for (const [key, { source: target }] of translations) {
@@ -278,6 +289,7 @@ async function texts(
   source: FileSource,
   sourceFile = false,
   language?: string,
+  onUnread?: (id: string) => void,
 ): Promise<Map<string, StringEntry> | undefined> {
   if (!existsSync(path.join(cwd, rel))) return undefined;
   try {
@@ -288,6 +300,7 @@ async function texts(
       source,
       sourceFile,
       language,
+      onUnread,
     );
     return new Map(entries.map((e) => [e.id, e]));
   } catch (error) {

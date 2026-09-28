@@ -570,3 +570,36 @@ test("a vanished id message in another context is no anchor for a missing messag
     out.indexOf("<name>New</name>"),
   );
 });
+
+test("a numerus translation no plural holds is work, named once, and a pull leaves it as the file has it (#751)", () => {
+  const de = numerus("de", ["%n Datei", "%n {x"]);
+  const unread: string[] = [];
+  expect(qtTsTranslations(de, "de", (id) => unread.push(id))).toEqual([]);
+  expect(unread).toEqual(["Main | %n file(s)"]);
+  // Corpus holds nothing for it, so a pull writes nothing there.
+  expect(
+    entriesToQtTs(numerus("", ["", ""], ' type="unfinished"'), {}, de, {
+      tag: "de",
+      code: "de",
+    }),
+  ).toBe(de);
+});
+
+test("a numerus form that reads as a branch of its own is work too, so a pull never rewrites it (#751)", () => {
+  const de = numerus("de", ["%n Datei} other {%n x", "%n Dateien"]);
+  const unread: string[] = [];
+  expect(qtTsTranslations(de, "de", (id) => unread.push(id))).toEqual([]);
+  expect(unread).toEqual(["Main | %n file(s)"]);
+  // Readable forms still read, and pull their own text back unchanged.
+  const ok = numerus("de", ["%n Datei", "%n Dateien"]);
+  const read = qtTsTranslations(ok, "de");
+  expect(read).toHaveLength(1);
+  expect(
+    entriesToQtTs(
+      numerus("", ["", ""], ' type="unfinished"'),
+      { "Main | %n file(s)": read[0]!.source },
+      ok,
+      { tag: "de", code: "de" },
+    ),
+  ).toBe(ok);
+});
