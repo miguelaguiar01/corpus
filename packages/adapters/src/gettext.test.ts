@@ -410,3 +410,18 @@ msgstr[1] ""
   );
   expect(plural).toContain('msgid "Joplin"\nmsgstr ""\n');
 });
+
+test("a missing target started from a source .po drops its obsolete entries, and a headerless one is emptied too (#725)", () => {
+  const withObsolete = `${DE}\n# old note\n#~ msgid "Gone"\n#~ msgstr "Weg"\n`;
+  const out = entriesToGettext(withObsolete, {}, undefined, {
+    tag: "fr",
+    code: "fr",
+  });
+  expect(out).not.toContain("#~");
+  expect(out).not.toContain("old note");
+  expect(out.endsWith('msgstr[1] ""\n')).toBe(true);
+  const headerless = 'msgid "Joplin"\nmsgstr "Joplin"\n';
+  expect(
+    entriesToGettext(headerless, {}, undefined, { tag: "fr", code: "fr" }),
+  ).toBe('msgid "Joplin"\nmsgstr ""\n');
+});
