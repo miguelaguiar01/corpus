@@ -9,7 +9,10 @@ import {
   entriesToFluent,
   fluentToEntries,
   applyXliffOps,
+  entriesToGettext,
   entriesToXliff,
+  parsePo,
+  poId,
   xliffUnits,
   applyMessagesOps,
   applyTableOps,
@@ -40,7 +43,7 @@ import {
   readsPluralObjects,
   sourceWritesBack,
 } from "./build";
-import { CliError, loadConfig, requireToken } from "./config";
+import { CliError, fileCodeOf, loadConfig, requireToken } from "./config";
 import { request, serverMessage, UNAUTHORIZED } from "./server";
 
 // `corpus pull` (§8): download translations at or above --min-state and
@@ -182,9 +185,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     }
     if (!sourceWritesBack(source)) {
       ctx.err(
-        source.adapter === "gettext"
-          ? `corpus: ${source.path}: pull does not write gettext yet; its translations are read and pushed`
-          : `corpus: ${source.path} is not JSON: pull writes JSON only, so its translations cannot be written back`,
+        `corpus: ${source.path} is not JSON: pull writes JSON only, so its translations cannot be written back`,
       );
       continue;
     }
@@ -236,9 +237,25 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
                 })
               : source.adapter === "xliff"
                 ? entriesToXliff(template, translations, existing, language)
-                : source.adapter === "table"
-                  ? entriesToTable(template, translations, source.map, existing)
-                  : existing;
+                : source.adapter === "gettext"
+                  ? entriesToGettext(
+                      template,
+                      translations,
+                      existing,
+                      { tag: language, code: fileCodeOf(source, language) },
+                      (id) =>
+                        ctx.err(
+                          `corpus: ${file}: ${printable(id)} is a plural whose translation is not one; not written`,
+                        ),
+                    )
+                  : source.adapter === "table"
+                    ? entriesToTable(
+                        template,
+                        translations,
+                        source.map,
+                        existing,
+                      )
+                    : existing;
       if (next !== undefined && next !== existing) {
         if (!check) {
           // A language new to the repository may need its directory.
@@ -539,6 +556,10 @@ function ownIds(template: string, source: FileSource): Set<string> | undefined {
       return undefined;
     }
   }
+  if (source.adapter === "gettext")
+    return new Set(
+      parsePo(template).flatMap((e) => (e.msgid === "" ? [] : [poId(e)])),
+    );
   if (source.adapter !== "messages") return undefined;
   try {
     const entries = messagesToEntries(JSON.parse(stripBom(template)), {

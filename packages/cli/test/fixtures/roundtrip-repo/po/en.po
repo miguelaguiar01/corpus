@@ -1,0 +1,23 @@
+msgid ""
+msgstr ""
+"Language: en\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: src/menu.c:10
+msgid "Abrir o menu"
+msgstr "Open the menu"
+
+#, fuzzy
+#| msgid "Fecha"
+msgctxt "porta"
+msgid "Fechar"
+msgstr "Close"
+
+msgid "%d ficheiro"
+msgid_plural "%d ficheiros"
+msgstr[0] "%d file"
+msgstr[1] "%d files"
+
+#~ msgid "Velho"
+#~ msgstr "Old"

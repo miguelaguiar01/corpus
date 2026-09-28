@@ -2,10 +2,13 @@
 // `msgid_plural` with its `msgstr[n]` one plural, mapped to CLDR's
 // categories through the file's `Plural-Forms`.
 import type { StringEntry } from "@corpus/contract";
+import { pluralBranches } from "./messages";
 
 // gettext joins a context to its msgid with EOT, a control character an
 // id cannot hold; its visible symbol stands in (#668).
 export const CONTEXT_SEPARATOR = "␄";
+
+type Span = { start: number; end: number };
 
 export type PoEntry = {
   msgctxt?: string;
@@ -16,6 +19,15 @@ export type PoEntry = {
   flags: string[];
   extracted: string[];
   references: string[];
+  // Where the entry sits in the text read: its lines, its `#,` and `#|`
+  // lines, and each msgstr's keyword line through its last continuation.
+  at: {
+    start: number;
+    end: number;
+    flags?: Span;
+    previous: Span[];
+    msgstr: (Span | undefined)[];
+  };
 };
 
 function unescape(text: string): string {
@@ -53,7 +65,8 @@ function quoted(lines: string[]): string {
 // Every entry of a file, the header's included (its msgid empty), the
 // obsolete `#~` ones not: they are kept in the file, never read. An
 // entry ends at a blank line, or where the next one's comments or
-// msgctxt/msgid follow its msgstr with none.
+// msgctxt/msgid follow its msgstr with none. Offsets are the text's own,
+// a BOM and CRLF included.
 export function parsePo(text: string): PoEntry[] {
   const out: PoEntry[] = [];
   const fresh = (): PoEntry => ({
@@ -62,11 +75,14 @@ export function parsePo(text: string): PoEntry[] {
     flags: [],
     extracted: [],
     references: [],
+    at: { start: -1, end: -1, previous: [], msgstr: [] },
   });
   let entry = fresh();
   let seenId = false;
   let seenStr = false;
   let key: string | undefined;
+  let keyStart = 0;
+  let lastEnd = 0;
   let acc: string[] = [];
   const flush = () => {
     if (key === undefined) return;
@@ -76,10 +92,12 @@ export function parsePo(text: string): PoEntry[] {
       entry.msgid = value;
       seenId = true;
     } else if (key === "msgid_plural") entry.msgidPlural = value;
-    else if (key === "msgstr") entry.msgstr[0] = value;
     else {
-      const index = /^msgstr\[(\d+)\]$/.exec(key)?.[1];
-      if (index !== undefined) entry.msgstr[Number(index)] = value;
+      const index = key === "msgstr" ? "0" : /^msgstr\[(\d+)\]$/.exec(key)?.[1];
+      if (index !== undefined) {
+        entry.msgstr[Number(index)] = value;
+        entry.at.msgstr[Number(index)] = { start: keyStart, end: lastEnd };
+      }
     }
     key = undefined;
     acc = [];
@@ -91,20 +109,25 @@ export function parsePo(text: string): PoEntry[] {
     seenId = false;
     seenStr = false;
   };
-  const lines = text
-    .replace(/^\uFEFF/, "")
-    .replace(/\r\n/g, "\n")
-    .split("\n");
-  for (const line of lines) {
+  const begin = (at: number) => {
+    if (entry.at.start < 0) entry.at.start = at;
+  };
+  let at = text.startsWith("\uFEFF") ? 1 : 0;
+  while (at <= text.length) {
+    const next = text.indexOf("\n", at);
+    const stop = next < 0 ? text.length : next;
+    const line = text.slice(at, stop).replace(/\r$/, "");
+    const lineEnd = at + line.length;
     if (line.trim() === "") {
       end();
-      continue;
-    }
-    if (line.startsWith("#~")) continue;
-    if (line.startsWith("#")) {
+    } else if (line.startsWith("#~")) {
+      // An obsolete entry's line: kept, never read.
+    } else if (line.startsWith("#")) {
       if (seenStr) end();
       flush();
-      if (line.startsWith("#,"))
+      begin(at);
+      entry.at.end = lineEnd;
+      if (line.startsWith("#,")) {
         entry.flags.push(
           ...line
             .slice(2)
@@ -112,23 +135,36 @@ export function parsePo(text: string): PoEntry[] {
             .map((f) => f.trim())
             .filter(Boolean),
         );
+        entry.at.flags = { start: at, end: lineEnd };
+      } else if (line.startsWith("#|"))
+        entry.at.previous.push({ start: at, end: lineEnd });
       else if (line.startsWith("#."))
         entry.extracted.push(line.slice(2).trim());
       else if (line.startsWith("#:"))
         entry.references.push(line.slice(2).trim());
-      continue;
+    } else {
+      const keyword = /^(msgctxt|msgid_plural|msgid|msgstr(?:\[\d+\])?)\s/.exec(
+        line,
+      );
+      if (keyword) {
+        if (seenStr && (keyword[1] === "msgctxt" || keyword[1] === "msgid"))
+          end();
+        flush();
+        begin(at);
+        key = keyword[1];
+        keyStart = at;
+        if (key!.startsWith("msgstr")) seenStr = true;
+        acc = [line.slice(keyword[1]!.length)];
+        lastEnd = lineEnd;
+        entry.at.end = lineEnd;
+      } else if (line.trimStart().startsWith('"')) {
+        acc.push(line);
+        lastEnd = lineEnd;
+        entry.at.end = lineEnd;
+      }
     }
-    const keyword = /^(msgctxt|msgid_plural|msgid|msgstr(?:\[\d+\])?)\s/.exec(
-      line,
-    );
-    if (keyword) {
-      if (seenStr && (keyword[1] === "msgctxt" || keyword[1] === "msgid"))
-        end();
-      flush();
-      key = keyword[1];
-      if (key!.startsWith("msgstr")) seenStr = true;
-      acc = [line.slice(keyword[1]!.length)];
-    } else if (line.trimStart().startsWith('"')) acc.push(line);
+    if (next < 0) break;
+    at = next + 1;
   }
   end();
   return out;
@@ -196,6 +232,32 @@ function rulesOf(language: string): Intl.PluralRules {
   }
 }
 
+// How many integers of each CLDR category the file's expression sends
+// to each index; undefined with no expression to go by.
+function tally(
+  rules: Intl.PluralRules,
+  forms: string | undefined,
+): { nplurals: number; counts: Map<string, Map<number, number>> } | undefined {
+  const nplurals = Number(/nplurals\s*=\s*(\d+)/.exec(forms ?? "")?.[1] ?? 0);
+  const plural =
+    forms && nplurals > 0 ? pluralFunction(forms, nplurals) : undefined;
+  if (!plural) return undefined;
+  const counts = new Map<string, Map<number, number>>();
+  for (const n of INTEGERS) {
+    const category = rules.select(n);
+    const byIndex = counts.get(category) ?? new Map<number, number>();
+    const index = plural(n);
+    byIndex.set(index, (byIndex.get(index) ?? 0) + 1);
+    counts.set(category, byIndex);
+  }
+  return { nplurals, counts };
+}
+
+function cldrOrder(rules: Intl.PluralRules): string[] {
+  const categories = rules.resolvedOptions().pluralCategories;
+  return CATEGORIES.filter((c) => categories.includes(c));
+}
+
 // Which `msgstr[n]` each CLDR category of a language reads: the index
 // the most integers of the category are given; a category no integer
 // reaches reads `other`'s. With no expression to go by, the language's
@@ -205,34 +267,50 @@ export function pluralCategoryIndexes(
   forms: string | undefined,
 ): Map<string, number> {
   const rules = rulesOf(language);
-  const categories = rules.resolvedOptions().pluralCategories;
-  const nplurals = Number(/nplurals\s*=\s*(\d+)/.exec(forms ?? "")?.[1] ?? 0);
-  const plural =
-    forms && nplurals > 0 ? pluralFunction(forms, nplurals) : undefined;
+  const found = tally(rules, forms);
   const out = new Map<string, number>();
-  if (!plural) {
-    const ordered = CATEGORIES.filter((c) => categories.includes(c));
-    ordered.forEach((c, i) => out.set(c, i));
+  if (!found) {
+    cldrOrder(rules).forEach((c, i) => out.set(c, i));
     return out;
   }
-  const counts = new Map<string, Map<number, number>>();
-  for (const n of INTEGERS) {
-    const category = rules.select(n);
-    const byIndex = counts.get(category) ?? new Map<number, number>();
-    const index = plural(n);
-    byIndex.set(index, (byIndex.get(index) ?? 0) + 1);
-    counts.set(category, byIndex);
-  }
-  for (const [category, byIndex] of counts)
+  for (const [category, byIndex] of found.counts)
     // A tie goes to the lower index: French's one is 0 and 1, which
     // `(n != 1)` sends to two indexes, and msgstr[0] is the singular.
     out.set(
       category,
       [...byIndex].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]![0],
     );
-  for (const category of categories)
-    if (!out.has(category)) out.set(category, out.get("other") ?? nplurals - 1);
+  for (const category of rules.resolvedOptions().pluralCategories)
+    if (!out.has(category))
+      out.set(category, out.get("other") ?? found.nplurals - 1);
   return out;
+}
+
+// The category each `msgstr[n]` is written from: of those the reader
+// takes from index n, the one the most of its integers are, a tie to
+// CLDR's order; an index no category reads (Latvian's form for zero
+// alone) is none, and keeps what the file holds.
+export function pluralIndexCategories(
+  language: string,
+  forms: string | undefined,
+): (string | undefined)[] {
+  const rules = rulesOf(language);
+  const found = tally(rules, forms);
+  const indexes = pluralCategoryIndexes(language, forms);
+  const order = cldrOrder(rules);
+  return Array.from({ length: found?.nplurals ?? order.length }, (_, i) => {
+    let best: string | undefined;
+    let most = -1;
+    for (const category of order) {
+      if (indexes.get(category) !== i) continue;
+      const count = found?.counts.get(category)?.get(i) ?? 0;
+      if (count > most) {
+        best = category;
+        most = count;
+      }
+    }
+    return best;
+  });
 }
 
 // A plural entry's forms as one ICU plural on `count`, a branch for
@@ -320,4 +398,265 @@ export function gettextTranslations(
         },
       ];
     });
+}
+
+const ESCAPES: Record<string, string> = {
+  "\\": "\\\\",
+  '"': '\\"',
+  "\n": "\\n",
+  "\t": "\\t",
+  "\r": "\\r",
+  "\u0007": "\\a",
+  "\b": "\\b",
+  "\f": "\\f",
+  "\v": "\\v",
+};
+
+function escape(text: string): string {
+  return [...text].map((c) => ESCAPES[c] ?? c).join("");
+}
+
+const WIDE =
+  /[ᄀ-ᅟ⺀-〾ぁ-꓏가-힣豈-﫿︰-﹏＀-｠￠-￦\u{1F300}-\u{1F64F}\u{1F900}-\u{1F9FF}\u{20000}-\u{3FFFD}]/u;
+
+// Columns as a terminal counts them: an East Asian wide character two,
+// a combining mark none.
+function columns(text: string): number {
+  let n = 0;
+  for (const c of text) n += /\p{M}/u.test(c) ? 0 : WIDE.test(c) ? 2 : 1;
+  return n;
+}
+
+const WIDTH = 79;
+
+const CLOSES =
+  /[)\]}。、，．：；！？」』）】〕〉》ー々〻・ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮヵヶ！？：；，．]/u;
+const OPENS = /[([{「『（【〔〈《]/u;
+
+// Whether a line may break between two characters, as Unicode's line
+// breaking (UAX #14) allows it in text msgmerge wraps: after spaces,
+// after a word's hyphen or a slash before a letter, between a closing
+// and an opening bracket, and around East Asian wide characters, except
+// before closing punctuation or after opening; at a quote only beside
+// a wide character.
+function breaks(before2: string, before: string, after: string): boolean {
+  if (after === " " || after === "\n") return false;
+  if (before === " ") return true;
+  if (/["']/.test(after)) return WIDE.test(before) || CLOSES.test(before);
+  if (/["']/.test(before)) return WIDE.test(after);
+  const letter = /\p{L}/u.test(after);
+  if (before === "-") return letter && before2 !== "" && before2 !== " ";
+  if (before === "/") return letter;
+  if (/[)\]}]/.test(before) && /[([{]/.test(after)) return true;
+  if (WIDE.test(before) || WIDE.test(after))
+    return !CLOSES.test(after) && !OPENS.test(before);
+  return false;
+}
+
+// A keyword and its string as msgmerge writes them: one line when it
+// fits, else an empty first string and a line per `\n`, each broken
+// where it may to stay within 79 columns, the quotes counted.
+export function poLines(keyword: string, value: string): string[] {
+  const portions = value.split(/(?<=\n)/);
+  const wrap = (portion: string, start: number): string[] => {
+    const chars = [...portion];
+    const words: string[] = [];
+    chars.forEach((c, i) => {
+      if (i > 0 && breaks(chars[i - 2] ?? "", chars[i - 1]!, c)) words.push("");
+      if (words.length === 0) words.push("");
+      words[words.length - 1] += escape(c);
+    });
+    const lines: string[] = [];
+    let line = "";
+    let at = start;
+    for (const word of words) {
+      if (line !== "" && at + columns(line + word) + 2 > WIDTH) {
+        lines.push(line);
+        line = "";
+        at = 0;
+      }
+      line += word;
+    }
+    lines.push(line);
+    return lines;
+  };
+  const first = wrap(portions[0] ?? "", keyword.length + 1);
+  if (portions.length <= 1 && first.length === 1)
+    return [`${keyword} "${first[0]}"`];
+  return [
+    `${keyword} ""`,
+    ...portions.flatMap((p) => wrap(p, 0)).map((line) => `"${line}"`),
+  ];
+}
+
+type Patch = Span & { text: string };
+
+function applyPatches(text: string, patches: Patch[]): string {
+  let out = text;
+  for (const p of [...patches].sort((a, b) => b.start - a.start))
+    out = out.slice(0, p.start) + p.text + out.slice(p.end);
+  return out;
+}
+
+function eolOf(text: string): string {
+  return /\r\n/.test(text) ? "\r\n" : "\n";
+}
+
+// The target file a missing one starts as: the template, its header's
+// `Language:` the file's code and its charset UTF-8, as msginit does.
+function targetFrom(template: string, code: string): string {
+  const header = parsePo(template).find((e) => e.msgid === "" && !e.msgctxt);
+  const span = header?.at.msgstr[0];
+  if (!header || !span) return template;
+  const eol = eolOf(template);
+  let block = template.slice(span.start, span.end);
+  block = block.replace(/charset=CHARSET/, "charset=UTF-8");
+  block = /"Language:[^"\\]*(?:\\.[^"\\]*)*"/.test(block)
+    ? block.replace(/("Language:)[^"\\]*(\\n")/, `$1 ${code}$2`)
+    : `${block}${eol}"Language: ${code}\\n"`;
+  return template.slice(0, span.start) + block + template.slice(span.end);
+}
+
+// What an entry's msgstrs become: `msgstr` the text, or each `msgstr[n]`
+// its category's branch; undefined where the file's own is kept.
+function wantedForms(
+  entry: PoEntry,
+  text: string,
+  categories: (string | undefined)[],
+): (string | undefined)[] | undefined {
+  if (entry.msgidPlural === undefined) return [text];
+  const branches = pluralBranches(text);
+  if (!branches) return undefined;
+  return categories.map((c) =>
+    c === undefined ? undefined : (branches[c] ?? branches.other),
+  );
+}
+
+// An entry's patches: each msgstr whose text differs rewritten in
+// msgmerge's layout, a missing `msgstr[n]` added after the last, and the
+// fuzzy flag and its `#|` previous msgid dropped from a row now written.
+function entryPatches(
+  text: string,
+  entry: PoEntry,
+  forms: (string | undefined)[],
+  eol: string,
+): Patch[] {
+  const patches: Patch[] = [];
+  const keyword = (i: number) =>
+    entry.msgidPlural === undefined ? "msgstr" : `msgstr[${i}]`;
+  const lines = (i: number, value: string) =>
+    poLines(keyword(i), value).join(eol);
+  let added = "";
+  forms.forEach((value, i) => {
+    if (value === undefined) return;
+    const span = entry.at.msgstr[i];
+    if (span) {
+      if (entry.msgstr[i] !== value)
+        patches.push({ ...span, text: lines(i, value) });
+    } else added += eol + lines(i, value);
+  });
+  const last = entry.at.msgstr.reduce(
+    (end, s) => Math.max(end, s?.end ?? 0),
+    0,
+  );
+  if (added) patches.push({ start: last, end: last, text: added });
+  const fuzzy = entry.flags.includes("fuzzy");
+  if (patches.length === 0 && !fuzzy) return [];
+  if (fuzzy && entry.at.flags) {
+    const flags = entry.flags.filter((f) => f !== "fuzzy");
+    patches.push(
+      flags.length > 0
+        ? { ...entry.at.flags, text: `#, ${flags.join(", ")}` }
+        : lineRemoval(text, entry.at.flags),
+    );
+    for (const previous of entry.at.previous)
+      patches.push(lineRemoval(text, previous));
+  }
+  return patches;
+}
+
+function lineRemoval(text: string, span: Span): Patch {
+  const end = text.startsWith("\r\n", span.end)
+    ? span.end + 2
+    : text.startsWith("\n", span.end)
+      ? span.end + 1
+      : span.end;
+  return { start: span.start, end, text: "" };
+}
+
+// Pull's write into a target `.po` (§8): a changed entry's msgstr, found
+// by msgctxt and msgid, rewritten as msgmerge wraps it, its plural forms
+// in the order the file's `Plural-Forms` gives; an entry the file lacks
+// appended from the template, before any obsolete entries; a missing
+// file started from the template. Every other byte stays.
+export function entriesToGettext(
+  template: string,
+  translations: Record<string, string>,
+  existing: string | undefined,
+  language: { tag: string; code: string },
+  onRefused?: (id: string, text: string) => void,
+): string {
+  const base =
+    existing === undefined || existing.trim() === ""
+      ? targetFrom(template, language.code)
+      : existing;
+  const eol = eolOf(base);
+  const entries = parsePo(base);
+  const categories = pluralIndexCategories(
+    language.tag,
+    poHeader(entries)["Plural-Forms"],
+  );
+  const forms = (entry: PoEntry, text: string) => {
+    const wanted = wantedForms(entry, text, categories);
+    if (!wanted) onRefused?.(poId(entry), text);
+    return wanted;
+  };
+  const patches: Patch[] = [];
+  const seen = new Set<string>();
+  for (const entry of entries) {
+    if (entry.msgid === "") continue;
+    const id = poId(entry);
+    seen.add(id);
+    const text = translations[id];
+    if (text === undefined) continue;
+    const wanted = forms(entry, text);
+    if (wanted) patches.push(...entryPatches(base, entry, wanted, eol));
+  }
+  let out = applyPatches(base, patches);
+  const blocks: string[] = [];
+  for (const entry of parsePo(template)) {
+    const id = poId(entry);
+    const text = translations[id];
+    if (entry.msgid === "" || seen.has(id) || text === undefined) continue;
+    const block = template.slice(entry.at.start, entry.at.end);
+    const moved = parsePo(block)[0]!;
+    const wanted = forms(moved, text);
+    if (!wanted) continue;
+    // A plural takes the forms the language has; the template's lines
+    // beyond them go.
+    const extra = moved.at.msgstr
+      .slice(wanted.length)
+      .flatMap((s) =>
+        s ? [{ start: s.start - eol.length, end: s.end, text: "" }] : [],
+      );
+    const filled = wanted.map((w) => w ?? "");
+    blocks.push(
+      applyPatches(block, [
+        ...entryPatches(block, moved, filled, eol),
+        ...extra,
+      ]),
+    );
+  }
+  if (blocks.length > 0) {
+    // Before the obsolete entries msgmerge keeps last, a blank line apart.
+    const obsolete = /^#~/m.exec(out)?.index ?? out.length;
+    const head = out.slice(0, obsolete).replace(/(?:\r?\n)*$/, "");
+    const rest = out.slice(obsolete);
+    const added = blocks.map((b) => `${eol}${eol}${b}`).join("");
+    out =
+      rest === ""
+        ? head + added + (out.slice(head.length) || eol)
+        : head + added + eol + eol + rest;
+  }
+  return out;
 }

@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import {
   CONTEXT_SEPARATOR,
+  entriesToGettext,
   gettextToEntries,
   gettextTranslations,
   parsePo,
@@ -185,4 +186,146 @@ test("a tie goes to the lower index: pt with (n != 1) reads one from msgstr[0] (
     expect(gettextTranslations(pt, language)[0]?.source).toMatch(
       /^\{count, plural, one \{%d ficheiro\}/,
     );
+});
+
+const read = (text: string, language: string) =>
+  Object.fromEntries(
+    gettextTranslations(text, language).map((e) => [e.id, e.source]),
+  );
+const DE_LANG = { tag: "de", code: "de" };
+const RU_LANG = { tag: "ru", code: "ru" };
+
+test("pulling a .po's own translations back writes the same bytes, CRLF and fuzzy rows kept (#719)", () => {
+  expect(entriesToGettext(POT, read(DE, "de"), DE, DE_LANG)).toBe(DE);
+  expect(entriesToGettext(POT, read(RU, "ru"), RU, RU_LANG)).toBe(RU);
+  const crlf = DE.replace(/\n/g, "\r\n");
+  expect(entriesToGettext(POT, read(crlf, "de"), crlf, DE_LANG)).toBe(crlf);
+});
+
+test("a changed msgstr is rewritten alone, wrapped as msgmerge wraps it (#719)", () => {
+  const long =
+    "- Standort: Erlaubt das Anhängen von geografischen Standortinformationen an eine Notiz.";
+  const out = entriesToGettext(
+    POT,
+    { ...read(DE, "de"), [`menu${CONTEXT_SEPARATOR}Open`]: long },
+    DE,
+    DE_LANG,
+  );
+  expect(out).toBe(
+    DE.replace(
+      'msgstr "Öffnen"',
+      'msgstr ""\n"- Standort: Erlaubt das Anhängen von geografischen Standortinformationen an "\n"eine Notiz."',
+    ),
+  );
+  // Newlines split lines, quotes and backslashes are escaped, a word
+  // longer than a line stays whole, a wide character counts two.
+  expect(
+    entriesToGettext(
+      POT,
+      { Joplin: 'Zeile "eins"\\\nZeile zwei' },
+      DE,
+      DE_LANG,
+    ),
+  ).toContain(
+    'msgid "Joplin"\nmsgstr ""\n"Zeile \\"eins\\"\\\\\\n"\n"Zeile zwei"\n',
+  );
+  const ja =
+    "ノートにファイルを添付するのとファイルシステムの同期に必要です。".repeat(
+      2,
+    );
+  expect(entriesToGettext(POT, { Joplin: ja }, DE, DE_LANG)).toContain(
+    'msgstr ""\n"ノートにファイルを添付するのとファイルシステムの同期に必要です。ノートにファ"\n"イルを添付するのとファイルシステムの同期に必要です。"\n',
+  );
+});
+
+test("writing a fuzzy row clears its fuzzy flag and previous msgid, keeping other flags (#719)", () => {
+  const fuzzy = DE.replace(
+    '#, fuzzy\nmsgid "Synchronise',
+    '#, fuzzy, c-format\n#| msgid "Synchronise %s"\nmsgid "Synchronise',
+  );
+  const id = 'Synchronise %s with "%s"';
+  expect(
+    entriesToGettext(POT, { [id]: "Synchronisiere %s" }, fuzzy, DE_LANG),
+  ).toBe(
+    DE.replace(
+      '#, fuzzy\nmsgid "Synchronise',
+      '#, c-format\nmsgid "Synchronise',
+    ),
+  );
+  expect(
+    entriesToGettext(POT, { [id]: "Synchronisiere %s mit „%s“" }, DE, DE_LANG),
+  ).toBe(
+    DE.replace(
+      '#, fuzzy\nmsgid "Synchronise %s with \\"%s\\""\nmsgstr "Synchronisiere %s"',
+      'msgid "Synchronise %s with \\"%s\\""\nmsgstr "Synchronisiere %s mit „%s“"',
+    ),
+  );
+});
+
+test("a new ru plural lands as msgstr[0..2], appended from the template before obsolete entries (#719)", () => {
+  const ru = RU.replace(
+    /\nmsgid "%d note"[^]*$/,
+    '\n#~ msgid "Old"\n#~ msgstr "Старое"\n',
+  );
+  const out = entriesToGettext(
+    POT,
+    {
+      "%d note":
+        "{count, plural, one {%d заметка} few {%d заметки} many {%d заметок} other {%d заметки}}",
+    },
+    ru,
+    RU_LANG,
+  );
+  expect(out).toBe(
+    ru.replace(
+      "\n#~",
+      '\nmsgid "%d note"\nmsgid_plural "%d notes"\nmsgstr[0] "%d заметка"\nmsgstr[1] "%d заметки"\nmsgstr[2] "%d заметок"\n\n#~',
+    ),
+  );
+  expect(read(out, "ru")["%d note"]).toBe(
+    "{count, plural, one {%d заметка} few {%d заметки} many {%d заметок} other {%d заметок}}",
+  );
+  // A plural that is not a plural is refused, not written.
+  const refused: string[] = [];
+  expect(
+    entriesToGettext(POT, { "%d note": "заметки" }, RU, RU_LANG, (id) =>
+      refused.push(id),
+    ),
+  ).toBe(RU);
+  expect(refused).toEqual(["%d note"]);
+});
+
+test("a form no category reads, Latvian's for zero alone, keeps the file's text (#719)", () => {
+  const lv = `msgid ""\nmsgstr ""\n"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n != 0 ? 1 : 2);\\n"\n\nmsgid "%d note"\nmsgid_plural "%d notes"\nmsgstr[0] "%d piezīme"\nmsgstr[1] "%d piezīmes"\nmsgstr[2] "Nav piezīmju"\n`;
+  const out = entriesToGettext(
+    POT,
+    {
+      "%d note":
+        "{count, plural, zero {%d piezīmju} one {%d piezīme} other {%d piezīmes!}}",
+    },
+    lv,
+    { tag: "lv", code: "lv" },
+  );
+  expect(out).toBe(lv.replace('"%d piezīmes"', '"%d piezīmes!"'));
+});
+
+test("a missing target starts from the template, its Language and charset set (#719)", () => {
+  const pot = POT.replace(
+    '"Content-Type: text/plain; charset=UTF-8\\n"',
+    '"Language: \\n"\n"Content-Type: text/plain; charset=CHARSET\\n"',
+  );
+  const out = entriesToGettext(pot, { Joplin: "Joplin" }, undefined, {
+    tag: "sr-Latn",
+    code: "sr@latin",
+  });
+  expect(out).toBe(
+    pot
+      .replace('"Language: \\n"', '"Language: sr@latin\\n"')
+      .replace("charset=CHARSET", "charset=UTF-8")
+      .replace('msgid "Joplin"\nmsgstr ""', 'msgid "Joplin"\nmsgstr "Joplin"'),
+  );
+  // A template with no Language line gets one.
+  expect(entriesToGettext(POT, {}, undefined, DE_LANG)).toContain(
+    '"Content-Type: text/plain; charset=UTF-8\\n"\n"Language: de\\n"\n',
+  );
 });

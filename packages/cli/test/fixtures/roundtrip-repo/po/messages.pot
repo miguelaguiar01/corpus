@@ -1,0 +1,17 @@
+# Roundtrip fixture.
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+
+#: src/menu.c:10
+msgid "Abrir o menu"
+msgstr ""
+
+msgctxt "porta"
+msgid "Fechar"
+msgstr ""
+
+msgid "%d ficheiro"
+msgid_plural "%d ficheiros"
+msgstr[0] ""
+msgstr[1] ""
