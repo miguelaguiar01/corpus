@@ -91,6 +91,7 @@ export function qtMessages(xml: string): QtMessage[] {
       const source = inner(inside, "source") ?? "";
       const said = inner(inside, "comment");
       const comment = said === "" ? undefined : said;
+      const extracomment = inner(inside, "extracomment");
       const t =
         /<translation(\s[^>]*?)?(?:\/>|>([\s\S]*?)<\/translation>)/.exec(
           inside,
@@ -109,9 +110,7 @@ export function qtMessages(xml: string): QtMessage[] {
         context,
         source,
         ...(comment !== undefined && { comment }),
-        ...(inner(inside, "extracomment") !== undefined && {
-          extracomment: inner(inside, "extracomment"),
-        }),
+        ...(extracomment !== undefined && { extracomment }),
         // lupdate's relative locations (`line="+5"`) name no line.
         locations: [...inside.matchAll(/<location(\s[^>]*?)\/?>/g)].flatMap(
           (l) => {
@@ -285,9 +284,8 @@ function targetFrom(template: string, code: string): string {
       : `<TS${attrs} language="${code}">`,
   );
   const patches: Patch[] = [];
-  for (const m of qtMessages(out)) {
-    if (!m.translationAt || m.state === "vanished" || m.state === "obsolete")
-      continue;
+  for (const m of live(out)) {
+    if (!m.translationAt) continue;
     // A numerus message keeps its forms' places, emptied.
     const whole = out.slice(m.translationAt.start, m.translationAt.end);
     const forms =
@@ -331,77 +329,13 @@ export function entriesToQtTs(
       : existing;
   const escape = escaperOf(base);
   const eol = eolOf(base);
-  const categories = pluralIndexCategories(
-    language.tag,
-    qtPluralForms(language.tag),
-  );
-  const majority = pluralIndexMajority(
-    language.tag,
-    qtPluralForms(language.tag),
-  );
-  // A message's new `<translation>`, or undefined where it is unchanged
-  // or cannot be written.
-  const element = (
-    m: QtMessage,
-    text: string,
-    from: string,
-  ): string | undefined => {
-    if (!m.numerus) {
-      if (m.state === undefined && m.translation === text) return undefined;
-      return `<translation>${escape(text)}</translation>`;
-    }
-    const branches = pluralBranches(text);
-    if (!branches) {
-      onRefused?.(m.id, text);
-      return undefined;
-    }
-    // A form no category reads keeps its text. Unchanged is decided on
-    // the file's own forms; a message written anyway fills such a form,
-    // empty, from the category most of its integers are, so no form of
-    // a finished message ships empty.
-    const pick = (c: string | undefined) =>
-      c === undefined ? undefined : formOf(branches, c);
-    const read = categories.map((c, i) =>
-      c === undefined ? (m.forms[i] ?? "") : (pick(c) ?? ""),
-    );
-    // Forms beyond the rule's, an older rule's or lupdate's own mapping,
-    // stay while the rule's are unchanged (#798); so does a file short
-    // of a form no category reads, Latvian's zero (#800). A change
-    // writes the rule's forms.
-    if (
-      m.state === undefined &&
-      read.every((f, i) =>
-        i < m.forms.length ? f === m.forms[i] : categories[i] === undefined,
-      )
-    )
-      return undefined;
-    const forms = read.map((f, i) =>
-      categories[i] === undefined && f === ""
-        ? (pick(majority[i]) ?? branches.other ?? "")
-        : f,
-    );
-    // lupdate's layout: a form a line, the file's own where it has one.
-    const old = m.translationAt
-      ? from.slice(m.translationAt.start, m.translationAt.end)
-      : "";
-    const indent = m.translationAt
-      ? lineIndent(from, m.translationAt.start)
-      : "";
-    const open = /^<translation(?:\s[^>]*?)?>(\s*)<numerusform/.exec(old)?.[1];
-    const close = /(\s*)<\/translation>$/.exec(old)?.[1];
-    const between = open ?? `${eol}${indent}    `;
-    const end =
-      open !== undefined && close !== undefined ? close : `${eol}${indent}`;
-    // A form left as it was keeps its length variants as written.
-    const kept = forms.map(
-      (f, i) => f === m.forms[i] && /<lengthvariant/.test(m.formsRaw[i] ?? ""),
-    );
-    return `<translation>${forms
-      .map(
-        (f, i) =>
-          `${between}<numerusform${kept[i] ? ' variants="yes"' : ""}>${kept[i] ? m.formsRaw[i] : escape(f)}</numerusform>`,
-      )
-      .join("")}${end}</translation>`;
+  const forms = qtPluralForms(language.tag);
+  const ctx: WriteContext = {
+    escape,
+    eol,
+    categories: pluralIndexCategories(language.tag, forms),
+    majority: pluralIndexMajority(language.tag, forms),
+    ...(onRefused && { onRefused }),
   };
   const patches: Patch[] = [];
   const held = new Map<string, QtMessage>();
@@ -414,16 +348,14 @@ export function entriesToQtTs(
     held.set(m.id, m);
     const text = translations[m.id];
     if (text === undefined || !m.translationAt) continue;
-    const written = element(m, text, base);
+    const written = translationElement(m, text, base, ctx);
     if (written !== undefined)
       patches.push({ ...m.translationAt, text: written });
   }
   // Messages the file lacks, with a translation to give: each after the
   // source file's message before it that the file holds, or at the
   // start of its context; a context the file lacks, whole.
-  const source = qtMessages(template).filter(
-    (m) => m.state !== "vanished" && m.state !== "obsolete",
-  );
+  const source = live(template);
   const contexts = [
     ...base.matchAll(/<context(?:\s[^>]*)?>\s*<name>([\s\S]*?)<\/name>/g),
   ].map((c) => ({
@@ -434,22 +366,28 @@ export function entriesToQtTs(
   // (#776): either stands where the source has it. An id message's id
   // names no context, so an anchor must be in the message's own.
   const inFile = (id: string) => held.get(id) ?? gone.get(id);
-  const missingContexts = new Map<string, QtMessage[]>();
+  const missingContexts = new Map<string, { m: QtMessage; block: string }[]>();
   source.forEach((m, i) => {
     const text = translations[m.id];
     if (held.has(m.id) || text === undefined) return;
     // A message lupdate marked vanished and the source has again.
     const back = gone.get(m.id);
     if (back?.translationAt) {
-      const written = element({ ...back, state: "unfinished" }, text, base);
+      const written = translationElement(
+        { ...back, state: "unfinished" },
+        text,
+        base,
+        ctx,
+      );
       if (written !== undefined)
         patches.push({ ...back.translationAt, text: written });
       return;
     }
-    const written = element(
+    const written = translationElement(
       { ...m, state: "unfinished", forms: [] },
       text,
       template,
+      ctx,
     );
     if (written === undefined) return;
     const block = blockOf(template, m, written).replace(/\r?\n/g, eol);
@@ -475,7 +413,7 @@ export function entriesToQtTs(
       });
     } else {
       const list = missingContexts.get(m.context) ?? [];
-      list.push(m);
+      list.push({ m, block });
       missingContexts.set(m.context, list);
     }
   });
@@ -484,15 +422,12 @@ export function entriesToQtTs(
     const at = out.lastIndexOf("</TS>");
     const added = [...missingContexts]
       .map(([name, messages]) => {
-        const indent = lineIndent(template, messages[0]!.at.start);
+        const indent = lineIndent(template, messages[0]!.m.at.start);
         const nameIndent = indent.slice(0, Math.max(0, indent.length - 4));
         return [
           "<context>",
           `${nameIndent}    <name>${escape(name)}</name>`,
-          ...messages.map(
-            (m) =>
-              `${indent}${blockOf(template, m, element({ ...m, state: "unfinished", forms: [] }, translations[m.id]!, template)!).replace(/\r?\n/g, eol)}`,
-          ),
+          ...messages.map(({ block }) => `${indent}${block}`),
           "</context>",
         ].join(eol);
       })
@@ -500,6 +435,78 @@ export function entriesToQtTs(
     out = `${out.slice(0, at)}${added}${eol}${out.slice(at)}`;
   }
   return out;
+}
+
+type WriteContext = {
+  escape: (text: string) => string;
+  eol: string;
+  categories: (string | undefined)[];
+  majority: (string | undefined)[];
+  onRefused?: (id: string, text: string) => void;
+};
+
+// A message's new `<translation>`, or undefined where it is unchanged
+// or cannot be written.
+function translationElement(
+  m: QtMessage,
+  text: string,
+  from: string,
+  { escape, eol, categories, majority, onRefused }: WriteContext,
+): string | undefined {
+  if (!m.numerus) {
+    if (m.state === undefined && m.translation === text) return undefined;
+    return `<translation>${escape(text)}</translation>`;
+  }
+  const branches = pluralBranches(text);
+  if (!branches) {
+    onRefused?.(m.id, text);
+    return undefined;
+  }
+  // A form no category reads keeps its text. Unchanged is decided on
+  // the file's own forms; a message written anyway fills such a form,
+  // empty, from the category most of its integers are, so no form of
+  // a finished message ships empty.
+  const pick = (c: string | undefined) =>
+    c === undefined ? undefined : formOf(branches, c);
+  const read = categories.map((c, i) =>
+    c === undefined ? (m.forms[i] ?? "") : (pick(c) ?? ""),
+  );
+  // Forms beyond the rule's, an older rule's or lupdate's own mapping,
+  // stay while the rule's are unchanged (#798); so does a file short
+  // of a form no category reads, Latvian's zero (#800). A change
+  // writes the rule's forms.
+  if (
+    m.state === undefined &&
+    read.every((f, i) =>
+      i < m.forms.length ? f === m.forms[i] : categories[i] === undefined,
+    )
+  )
+    return undefined;
+  const forms = read.map((f, i) =>
+    categories[i] === undefined && f === ""
+      ? (pick(majority[i]) ?? branches.other ?? "")
+      : f,
+  );
+  // lupdate's layout: a form a line, the file's own where it has one.
+  const old = m.translationAt
+    ? from.slice(m.translationAt.start, m.translationAt.end)
+    : "";
+  const indent = m.translationAt ? lineIndent(from, m.translationAt.start) : "";
+  const open = /^<translation(?:\s[^>]*?)?>(\s*)<numerusform/.exec(old)?.[1];
+  const close = /(\s*)<\/translation>$/.exec(old)?.[1];
+  const between = open ?? `${eol}${indent}    `;
+  const end =
+    open !== undefined && close !== undefined ? close : `${eol}${indent}`;
+  // A form left as it was keeps its length variants as written.
+  const kept = forms.map(
+    (f, i) => f === m.forms[i] && /<lengthvariant/.test(m.formsRaw[i] ?? ""),
+  );
+  return `<translation>${forms
+    .map(
+      (f, i) =>
+        `${between}<numerusform${kept[i] ? ' variants="yes"' : ""}>${kept[i] ? m.formsRaw[i] : escape(f)}</numerusform>`,
+    )
+    .join("")}${end}</translation>`;
 }
 
 // A source-file message with its translation given.
