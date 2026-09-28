@@ -3,13 +3,12 @@
 // categories through the file's `Plural-Forms`.
 import { PLURAL_CATEGORIES, type StringEntry } from "@corpus/contract";
 import { GETTEXT_PLURALS } from "./gettextplurals";
-import { pluralBranches } from "./messages";
+import { formOf, pluralBranches } from "./messages";
+import { applied, eolOf, usedIn, type Patch, type Span } from "./text";
 
 // gettext joins a context to its msgid with EOT, a control character an
 // id cannot hold; its visible symbol stands in (#668).
 export const CONTEXT_SEPARATOR = "␄";
-
-type Span = { start: number; end: number };
 
 type PoEntry = {
   msgctxt?: string;
@@ -31,27 +30,30 @@ type PoEntry = {
   };
 };
 
+const ESCAPES: Record<string, string> = {
+  "\\": "\\\\",
+  '"': '\\"',
+  "\n": "\\n",
+  "\t": "\\t",
+  "\r": "\\r",
+  "\u0007": "\\a",
+  "\b": "\\b",
+  "\f": "\\f",
+  "\v": "\\v",
+};
+
+// A C escape read: the inverse of `ESCAPES`, and octal and hex codes.
+const UNESCAPES: Record<string, string> = Object.fromEntries(
+  Object.entries(ESCAPES).map(([c, e]) => [e.slice(1), c]),
+);
+
 function unescape(text: string): string {
   return text.replace(/\\(x[0-9a-fA-F]{1,2}|[0-7]{1,3}|.)/g, (_, c: string) =>
     /^x/.test(c)
       ? String.fromCharCode(parseInt(c.slice(1), 16))
       : /^[0-7]/.test(c)
         ? String.fromCharCode(parseInt(c, 8))
-        : c === "n"
-          ? "\n"
-          : c === "t"
-            ? "\t"
-            : c === "r"
-              ? "\r"
-              : c === "a"
-                ? "\u0007"
-                : c === "b"
-                  ? "\b"
-                  : c === "f"
-                    ? "\f"
-                    : c === "v"
-                      ? "\v"
-                      : c,
+        : (UNESCAPES[c] ?? c),
   );
 }
 
@@ -285,15 +287,6 @@ export function pluralCategoryIndexes(
   return out;
 }
 
-// A plural's form for a category: its own branch, or `other`'s, which
-// every runtime falls back to.
-export function formOf(
-  branches: Record<string, string>,
-  category: string,
-): string | undefined {
-  return branches[category] ?? branches.other;
-}
-
 // The category each `msgstr[n]` is written from: of those the reader
 // takes from index n, the one the most of its integers are, a tie to
 // CLDR's order; an index no category reads (Latvian's form for zero
@@ -360,12 +353,7 @@ export function poPluralText(
 }
 
 function noteOf(entry: PoEntry): string | undefined {
-  const lines = [
-    ...entry.extracted,
-    ...(entry.references.length
-      ? [`Used in ${entry.references.join(" ")}`]
-      : []),
-  ];
+  const lines = [...entry.extracted, ...usedIn(entry.references)];
   return lines.length ? lines.join("\n") : undefined;
 }
 
@@ -451,18 +439,6 @@ function poTexts(
     });
 }
 
-const ESCAPES: Record<string, string> = {
-  "\\": "\\\\",
-  '"': '\\"',
-  "\n": "\\n",
-  "\t": "\\t",
-  "\r": "\\r",
-  "\u0007": "\\a",
-  "\b": "\\b",
-  "\f": "\\f",
-  "\v": "\\v",
-};
-
 function escape(text: string): string {
   return [...text].map((c) => ESCAPES[c] ?? c).join("");
 }
@@ -541,19 +517,6 @@ function poLines(keyword: string, value: string, wraps = true): string[] {
   ];
 }
 
-type Patch = Span & { text: string };
-
-function applyPatches(text: string, patches: Patch[]): string {
-  let out = text;
-  for (const p of [...patches].sort((a, b) => b.start - a.start))
-    out = out.slice(0, p.start) + p.text + out.slice(p.end);
-  return out;
-}
-
-function eolOf(text: string): string {
-  return /\r\n/.test(text) ? "\r\n" : "\n";
-}
-
 // The target file a missing one starts as: the template, its header's
 // `Language:` the file's code, its charset UTF-8 and its fuzzy flag
 // gone, as msginit does. A template that is the source language's own
@@ -613,7 +576,7 @@ function targetFrom(
   const translated = entries.some(
     (e) => e !== header && e.msgstr.some((m) => m !== ""),
   );
-  const started = applyPatches(template, patches);
+  const started = applied(template, patches);
   return translated ? withoutObsolete(started) : started;
 }
 
@@ -634,7 +597,7 @@ function withHeaderField(
     return lines.join(eol);
   }
   let end = at;
-  while (end < lines.length - 1 && !/\\n"$/.test(lines[end]!)) end++;
+  while (end < lines.length - 1 && !/\\n"\s*$/.test(lines[end]!)) end++;
   lines.splice(at, end - at + 1, line);
   return lines.join(eol);
 }
@@ -784,7 +747,7 @@ export function entriesToGettext(
     const wanted = forms(entry, text);
     if (wanted) patches.push(...entryPatches(base, entry, wanted, eol));
   }
-  let out = applyPatches(base, patches);
+  let out = applied(base, patches);
   const blocks: string[] = [];
   for (const entry of parsePo(template)) {
     const id = poId(entry);
@@ -805,7 +768,7 @@ export function entriesToGettext(
       );
     const filled = wanted.map((w) => w ?? "");
     blocks.push(
-      applyPatches(block, [
+      applied(block, [
         ...entryPatches(block, moved, filled, own),
         ...extra,
       ]).replace(/\r?\n/g, eol),

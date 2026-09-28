@@ -4,16 +4,24 @@
 // `unfinished`, `vanished` or `obsolete`.
 import type { StringEntry } from "@corpus/contract";
 import {
-  formOf,
   pluralCategoryIndexes,
   pluralIndexCategories,
   pluralIndexMajority,
   poPluralText,
 } from "./gettext";
-import { pluralBranches } from "./messages";
+import { formOf, pluralBranches } from "./messages";
 import { qtPluralForms } from "./qtnumerus";
-
-type Span = { start: number; end: number };
+import {
+  applied,
+  attr,
+  decodeEntities,
+  eolOf,
+  lineIndent,
+  masked,
+  usedIn,
+  type Patch,
+  type Span,
+} from "./text";
 
 type QtMessage = {
   id: string;
@@ -35,39 +43,19 @@ type QtMessage = {
   translationAt?: Span;
 };
 
-const ENTITIES: Record<string, string> = {
-  amp: "&",
-  lt: "<",
-  gt: ">",
-  quot: '"',
-  apos: "'",
-};
-
 // An XML text's value: entities decoded, a reference to no character
 // kept as written, and line ends read as XML reads them, so a Windows
 // checkout gives the same ids.
 function qtDecode(text: string): string {
-  return (
+  return decodeEntities(
     text
       .replace(/\r\n?/g, "\n")
       // lupdate's element for a control character XML cannot hold.
       .replace(
         /<byte\s+value\s*=\s*["']x([0-9a-fA-F]+)["']\s*\/>/g,
         (_, hex: string) => String.fromCodePoint(parseInt(hex, 16)),
-      )
-      .replace(/&(#x[0-9a-fA-F]+|#\d+|[a-z]+);/g, (whole, e: string) => {
-        if (!e.startsWith("#")) return ENTITIES[e] ?? whole;
-        const code = e.startsWith("#x")
-          ? parseInt(e.slice(2), 16)
-          : Number(e.slice(1));
-        return code <= 0x10ffff ? String.fromCodePoint(code) : whole;
-      })
+      ),
   );
-}
-
-// An attribute's value, in either quote.
-function attr(attrs: string, name: string): string | undefined {
-  return new RegExp(`\\s${name}\\s*=\\s*(["'])(.*?)\\1`).exec(attrs)?.[2];
 }
 
 // A message's id: its context, its source, and the comment Qt tells two
@@ -76,11 +64,6 @@ function qtId(context: string, source: string, comment?: string) {
   return comment === undefined || comment === ""
     ? `${context} | ${source}`
     : `${context} | ${source} | ${comment}`;
-}
-
-// XML comments masked, so nothing inside one is read as an element.
-function masked(xml: string): string {
-  return xml.replace(/<!--[\s\S]*?-->/g, (c) => " ".repeat(c.length));
 }
 
 function inner(body: string, element: string): string | undefined {
@@ -187,7 +170,7 @@ function noteOf(m: QtMessage): string | undefined {
   const lines = [
     ...(m.extracomment ? [m.extracomment] : []),
     ...(m.comment ? [m.comment] : []),
-    ...(m.locations.length ? [`Used in ${m.locations.join(" ")}`] : []),
+    ...usedIn(m.locations),
   ];
   return lines.length ? lines.join("\n") : undefined;
 }
@@ -254,20 +237,6 @@ export function qtTsTranslations(
   });
 }
 
-type Patch = Span & { text: string };
-
-// Patches applied in one pass: a fresh file takes one per message.
-function applied(text: string, patches: Patch[]): string {
-  const parts: string[] = [];
-  let at = 0;
-  for (const p of [...patches].sort((a, b) => a.start - b.start)) {
-    parts.push(text.slice(at, p.start), p.text);
-    at = p.end;
-  }
-  parts.push(text.slice(at));
-  return parts.join("");
-}
-
 // How a file escapes its text: lupdate and Transifex write `&quot;`,
 // `&apos;` and the special spaces as references; a hand-kept file, as
 // qBittorrent's WebUI, writes them as they are.
@@ -305,11 +274,6 @@ function escaperOf(xml: string): (text: string) => string {
     }
     return bytes;
   };
-}
-
-function lineIndent(xml: string, at: number): string {
-  const start = xml.lastIndexOf("\n", at - 1) + 1;
-  return /^[ \t]*/.exec(xml.slice(start))![0];
 }
 
 // The target file a missing one starts as: the source file with its
@@ -366,7 +330,7 @@ export function entriesToQtTs(
       ? targetFrom(template, language.code)
       : existing;
   const escape = escaperOf(base);
-  const eol = /\r\n/.test(base) ? "\r\n" : "\n";
+  const eol = eolOf(base);
   const categories = pluralIndexCategories(
     language.tag,
     qtPluralForms(language.tag),

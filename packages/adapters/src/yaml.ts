@@ -14,6 +14,7 @@ import {
   type YAMLMap,
 } from "yaml";
 import { pluralBranches } from "./messages";
+import { applied, eolOf, lineIndent, type Patch } from "./text";
 
 type YamlString = {
   id: string;
@@ -169,24 +170,6 @@ export function yamlTranslations(text: string, root: string): StringEntry[] {
       ? []
       : [{ id: s.id, type: "", source: s.text }],
   );
-}
-
-type Patch = { start: number; end: number; text: string };
-
-function applied(text: string, patches: Patch[]): string {
-  const parts: string[] = [];
-  let at = 0;
-  for (const p of [...patches].sort((a, b) => a.start - b.start)) {
-    parts.push(text.slice(at, p.start), p.text);
-    at = p.end;
-  }
-  parts.push(text.slice(at));
-  return parts.join("");
-}
-
-function lineIndent(text: string, at: number): string {
-  const start = text.lastIndexOf("\n", at - 1) + 1;
-  return /^[ \t]*/.exec(text.slice(start))![0];
 }
 
 // A text as a double-quoted scalar: JSON's escapes, which YAML reads,
@@ -371,7 +354,7 @@ function writeYaml(
   onRefused?: (id: string, text: string, why: YamlRefusal) => void,
 ): string {
   const language = { code };
-  const eol = /\r\n/.test(base) ? "\r\n" : "\n";
+  const eol = eolOf(base);
   const document = parseDocument(base, { uniqueKeys: false });
   if (document.errors.length > 0)
     throw new Error(document.errors[0]!.message.split("\n")[0]);
