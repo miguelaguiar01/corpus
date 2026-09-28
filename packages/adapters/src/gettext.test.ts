@@ -689,3 +689,23 @@ test("a Plural-Forms index no CLDR category reads is filled from the category mo
   );
   expect(appended.every((f) => f !== "")).toBe(true);
 });
+
+test("a keyword with its string right after it, and escaped UTF-8 bytes, read as msgfmt reads them (#849)", () => {
+  const po = `${RU_HEADER}\nmsgid "a"\nmsgstr"B"\n\nmsgid "b"\nmsgstr "caf\\303\\251 \\xe2\\x82\\xac \\351"\n`;
+  const read = Object.fromEntries(
+    gettextTranslations(po, "ru").map((e) => [e.id, e.source]),
+  );
+  expect(read).toEqual({ a: "B", b: "café € é" });
+  expect(entriesToGettext(po, read, po, RU_LANG)).toBe(po);
+  expect(entriesToGettext(po, { a: "Bee" }, po, RU_LANG)).toBe(
+    po.replace('msgstr"B"', 'msgstr "Bee"'),
+  );
+  // An escaped BOM is a character like any other.
+  const bom = `${RU_HEADER}\nmsgid "c"\nmsgstr "\\357\\273\\277x"\n`;
+  expect(gettextTranslations(bom, "ru")[0]?.source).toBe("\uFEFFx");
+  // A keyword alone on its line takes the string on the next.
+  const split = `${RU_HEADER}\nmsgid "d"\nmsgstr\n"D"\n`;
+  expect(gettextTranslations(split, "ru")).toEqual([
+    { id: "d", type: "", source: "D" },
+  ]);
+});
