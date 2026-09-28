@@ -269,7 +269,7 @@ Angular's i18n extracts to XLIFF, which the `xliff` source reads with no convert
 
 ## gettext
 
-The `gettext` source reads `.po` and `.pot` files with no converter and writes translations back in place (see [Sources and adapters](Sources-and-adapters#gettext)). Its library is `printf`: `%s`, `%d` and `%1$s` are placeholders a translation keeps, and a plural is checked branch by branch, each branch's verbs on their own. A project whose msgids carry another syntax names it with `library` on the source: `counterpart` for Python's `%(name)s`, `icu` for `{name}`.
+The `gettext` source reads `.po` and `.pot` files with no converter and writes translations back in place (see [Sources and adapters](Sources-and-adapters#gettext)). Its library is `printf`: `%s`, `%d` and `%1$s` are placeholders a translation keeps, and a plural is checked branch by branch, each branch's verbs on their own. A project whose msgids carry another syntax names it with `library` on the source, or `corpus init --library`: `counterpart` for Python's `%(name)s` and `%(name)d`, though a bare `%s` beside them is then text, unchecked, and `%(n).1f` is not a placeholder; `icu` for `{name}`, where `#` in a plural branch is the number and an apostrophe before a brace quotes it.
 
 ## iOS
 

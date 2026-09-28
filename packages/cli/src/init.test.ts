@@ -1033,3 +1033,98 @@ test("init names the .pot files when there are several, and sets none (#720)", a
     path: "po/{lang}.po",
   });
 });
+
+test("init finds GNU's layout's .pot above the language directories, writes --library on a gettext source, and refuses it on xliff (#720)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  for (const lang of ["de", "fr"]) {
+    mkdirSync(path.join(p.dir, "locales", lang, "LC_MESSAGES"), {
+      recursive: true,
+    });
+    writeFileSync(
+      path.join(p.dir, "locales", lang, "LC_MESSAGES", "app.po"),
+      'msgid "Hello %(name)s"\nmsgstr ""\n',
+    );
+  }
+  writeFileSync(
+    path.join(p.dir, "locales", "app.pot"),
+    'msgid "Hello %(name)s"\nmsgstr ""\n',
+  );
+  writeFileSync(
+    path.join(p.dir, "locales", "other.pot"),
+    'msgid "x"\nmsgstr ""\n',
+  );
+  const code = await run(
+    [
+      "init",
+      "--project",
+      "app",
+      "--source",
+      "en",
+      "--messages",
+      "locales/{lang}/LC_MESSAGES/app.po",
+      "--library",
+      "counterpart",
+    ],
+    p.ctx,
+  );
+  expect(p.err.join("\n")).toBe("");
+  expect(code).toBe(0);
+  expect((await loadConfig(p.dir)).sources[0]).toEqual({
+    adapter: "gettext",
+    type: "chrome",
+    path: "locales/{lang}/LC_MESSAGES/app.po",
+    sourcePath: "locales/app.pot",
+    library: "counterpart",
+  });
+  expect(p.out.join("\n")).toContain("library: counterpart");
+  expect(await run(["build"], p.ctx)).toBe(0);
+
+  const x = project();
+  stubCli(x.dir);
+  mkdirSync(path.join(x.dir, "locale"), { recursive: true });
+  writeFileSync(path.join(x.dir, "locale", "messages.en.xlf"), "<xliff/>");
+  expect(
+    await run(
+      [
+        "init",
+        "--project",
+        "x",
+        "--source",
+        "en",
+        "--messages",
+        "locale/messages.{lang}.xlf",
+        "--library",
+        "icu",
+      ],
+      x.ctx,
+    ),
+  ).toBe(1);
+  expect(x.err.join("\n")).toContain(
+    "--library does not apply to an xliff source",
+  );
+});
+
+test("init says so when a gettext source has no template and no source-language file (#720)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "po"), { recursive: true });
+  writeFileSync(path.join(p.dir, "po", "de.po"), 'msgid "x"\nmsgstr ""\n');
+  expect(
+    await run(
+      [
+        "init",
+        "--project",
+        "x",
+        "--source",
+        "en",
+        "--messages",
+        "po/{lang}.po",
+      ],
+      p.ctx,
+    ),
+  ).toBe(0);
+  expect(p.err.join("\n")).toContain(
+    "no .pot beside the catalogues and no po/en.po; set the gettext source's sourcePath",
+  );
+});

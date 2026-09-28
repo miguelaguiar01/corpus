@@ -76,6 +76,16 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     ctx.err(
       `corpus: ${templates.join(", ")} sit beside the catalogues; set the gettext source's sourcePath to the one xgettext writes`,
     );
+  else if (gettext && templates.length === 0 && !existsSync(sourceFile))
+    ctx.err(
+      `corpus: no .pot beside the catalogues and no ${path.relative(ctx.cwd, sourceFile)}; set the gettext source's sourcePath to the template xgettext writes`,
+    );
+  // An XLIFF unit's text is ICU, and a flag that cannot apply is refused
+  // rather than dropped.
+  if (xliff && (args.includes("--library") || args.includes("--syntax")))
+    throw new CliError(
+      `--library does not apply to an xliff source: its text is ICU\nusage: ${INIT_USAGE}`,
+    );
   const unreadable =
     xliff || gettext
       ? undefined
@@ -115,8 +125,10 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       );
     }
   }
+  // gettext's library is printf unless the flag names another.
   const detected =
-    xliff || gettext
+    xliff ||
+    (gettext && !args.includes("--library") && !args.includes("--syntax"))
       ? {}
       : await libraryFor(args, ctx.cwd, messages, sourceLanguage, type, ctx);
   const library = detected.library;
@@ -129,6 +141,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
           type,
           path: messages,
           ...(sourcePath && { sourcePath }),
+          ...(library && { library: library.value }),
         }
       : {
           adapter: "messages" as const,
@@ -175,7 +188,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       ? `wrote ${filename} (a plain object: @corpus-tool/cli is not installed in this repository)`
       : `wrote ${filename}`,
   );
-  if (library && library.value !== "icu") {
+  if (library && (library.value !== "icu" || gettext)) {
     const why =
       library.value === "i18next"
         ? "{{ }}"
@@ -666,17 +679,23 @@ function siblingCatalogues(
     .sort();
 }
 
-// The `.pot` files in the directory a `.po` pattern names, when that
-// directory holds no language.
+// The `.pot` files in the directory above a `.po` pattern's language,
+// `locales/` for `locales/{lang}.po` and GNU's
+// `locales/{lang}/LC_MESSAGES/app.po` alike; the one named as the
+// catalogues are (`app.pot`) alone when it is there.
 function potsBeside(cwd: string, pattern: string): string[] {
-  const dir = path.posix.dirname(pattern);
-  if (dir.includes("{lang}")) return [];
+  const dir = path.posix.dirname(
+    `${pattern.slice(0, pattern.indexOf("{lang}"))}x`,
+  );
+  let pots: string[];
   try {
-    return readdirSync(path.join(cwd, dir))
+    pots = readdirSync(path.join(cwd, dir))
       .filter((name) => /\.pot$/i.test(name))
-      .sort()
-      .map((name) => path.posix.normalize(path.posix.join(dir, name)));
+      .sort();
   } catch {
     return [];
   }
+  const named = `${path.posix.basename(pattern, ".po")}.pot`;
+  if (pots.includes(named)) pots = [named];
+  return pots.map((name) => path.posix.normalize(path.posix.join(dir, name)));
 }
