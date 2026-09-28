@@ -1306,3 +1306,30 @@ test("init refuses a catalogue no adapter reads, by its format (#647)", async ()
   );
   expect(existsSync(path.join(p.dir, "corpus.config.mjs"))).toBe(false);
 });
+
+test("init refuses a YAML catalogue that is not Rails', naming what it holds (#754)", async () => {
+  const p = project();
+  mkdirSync(path.join(p.dir, "translations"), { recursive: true });
+  writeFileSync(
+    path.join(p.dir, "translations", "messages.en.yaml"),
+    'hello: "Hello"\nbye: "Bye"\n',
+  );
+  const code = await run(
+    [
+      "init",
+      "--project",
+      "x",
+      "--source",
+      "en",
+      "--messages",
+      "translations/messages.{lang}.yaml",
+    ],
+    p.ctx,
+  );
+  expect(code).toBe(1);
+  expect(p.err.join("\n")).toContain(
+    "a YAML catalogue the yaml source cannot read (no root key en: the file's root keys are hello, bye",
+  );
+  expect(p.err.join("\n")).toContain("an exec source converts any other");
+  expect(existsSync(path.join(p.dir, "corpus.config.mjs"))).toBe(false);
+});

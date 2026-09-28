@@ -4,6 +4,7 @@ import { createJiti } from "jiti";
 import {
   isChromeMessages,
   parseXcstrings,
+  yamlStrings,
   stripBom,
   xcstringsLanguages,
 } from "@corpus/adapters";
@@ -94,7 +95,24 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   const gettext = /\.po$/i.test(messages);
   const xcstrings = catalog !== undefined;
   // Rails I18n's YAML (#754): one file per language, rooted at its code.
+  // Any other YAML (Symfony's, Hugo's) is refused here, by what it holds,
+  // rather than written into a config that cannot build.
   const yaml = /\.ya?ml$/i.test(messages);
+  if (yaml) {
+    if (!existsSync(sourceFile))
+      throw new CliError(
+        `--messages ${messages}: no ${path.relative(ctx.cwd, sourceFile)} to read the source language's strings from`,
+      );
+    try {
+      yamlStrings(readFileSync(sourceFile, "utf8"), sourceLanguage, {
+        source: true,
+      });
+    } catch (error) {
+      throw new CliError(
+        `--messages ${messages}: a YAML catalogue the yaml source cannot read (${(error as Error).message}); it reads Rails I18n's layout, rooted at the language, and an exec source converts any other`,
+      );
+    }
+  }
   // Qt Linguist's XML under a `.ts` name (#742), told from TypeScript by
   // its first bytes.
   const qt =
@@ -293,6 +311,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     );
   }
   if (detected.note) ctx.out(detected.note);
+  if (yaml && !library) ctx.out("library: rails (the yaml source's default)");
   if (include) {
     ctx.out(
       `check.include: ${include.join(", ")} (the directories holding components, which corpus check scans)`,
