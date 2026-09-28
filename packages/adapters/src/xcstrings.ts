@@ -4,6 +4,7 @@
 // device or width, or a `stringUnit` whose `%#@name@` substitutions are
 // plurals of their own.
 import type { StringEntry } from "@corpus/contract";
+import { ownRecord } from "./text";
 
 type StringUnit = { state?: string; value?: string };
 
@@ -436,6 +437,7 @@ export function entriesToXcstrings(
   language: string,
   onRefused?: (id: string, text: string) => void,
 ): string {
+  translations = ownRecord(translations);
   const catalog = parseXcstrings(text);
   const current = new Map(
     xcstringsTranslations(text, language).map((e) => [e.id, e.source]),

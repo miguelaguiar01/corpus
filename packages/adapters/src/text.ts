@@ -60,6 +60,12 @@ export function decodeEntities(text: string): string {
   });
 }
 
+// A copy no lookup reaches Object.prototype through: an id named
+// `toString` is one the map holds or lacks like any other (#845).
+export function ownRecord<T>(record: Record<string, T>): Record<string, T> {
+  return Object.assign(Object.create(null) as Record<string, T>, record);
+}
+
 // Where the text is used, as a note's last line: gettext's `#:`, Qt's
 // `<location>`s, XLIFF's context groups.
 export function usedIn(locations: string[]): string[] {

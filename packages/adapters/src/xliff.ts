@@ -3,6 +3,7 @@
 // translation, its inline elements the text's placeholders and tags.
 import { renderPreview, type StringEntry } from "@corpus/contract";
 import {
+  ownRecord,
   applied,
   attr,
   decodeEntities,
@@ -508,6 +509,7 @@ export function entriesToXliff(
   existing: string | undefined,
   language: string,
 ): string {
+  translations = ownRecord(translations);
   const base =
     existing === undefined || existing.trim() === ""
       ? targetFrom(template, language)

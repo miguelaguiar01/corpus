@@ -15,7 +15,7 @@ import {
   type YAMLMap,
 } from "yaml";
 import { pluralBranches } from "./messages";
-import { applied, eolOf, lineIndent, type Patch } from "./text";
+import { applied, eolOf, lineIndent, ownRecord, type Patch } from "./text";
 
 type YamlString = {
   id: string;
@@ -319,6 +319,7 @@ export function entriesToYaml(
   language: { source: string; code: string },
   onRefused?: (id: string, text: string, why: YamlRefusal) => void,
 ): string {
+  translations = ownRecord(translations);
   const base =
     existing === undefined || existing.trim() === ""
       ? `${language.code}:\n`
@@ -869,7 +870,7 @@ export function applyYamlOps(
   const held = new Set(strings.map((s) => s.id));
   const order = strings.map((s) => s.id);
   const plural = new Set(strings.flatMap((s) => (s.plural ? [s.id] : [])));
-  const writes: Record<string, string> = {};
+  const writes = ownRecord<string>({});
   for (const op of ops) {
     if (op.kind === "delete") continue;
     if (op.kind === "edit" && !held.has(op.id)) continue;

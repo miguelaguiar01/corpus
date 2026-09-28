@@ -23,6 +23,7 @@ import {
   editLeaf,
   keyOrder,
 } from "./splice";
+import { ownRecord } from "./text";
 
 type Tree = { [key: string]: string | Tree };
 type Style = { indent: string; trailingNewline: boolean };
@@ -192,6 +193,7 @@ export function entriesToMessages(
     onRefused?: Refusal;
   } = {},
 ): string {
+  translations = ownRecord(translations);
   if (options.chrome) return chromeMessages(template, translations, existing);
   const plurals = options.plurals ?? false;
   const onRefused = options.onRefused;
@@ -359,6 +361,7 @@ export function entriesToTable(
   map: { id: string; text: string },
   existing?: string,
 ): string {
+  translations = ownRecord(translations);
   const base = existing !== undefined ? existing : template;
   const style = styleOf(base);
   const baseRecords = parseRecords(base);

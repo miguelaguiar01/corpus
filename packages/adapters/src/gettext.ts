@@ -4,7 +4,14 @@
 import { PLURAL_CATEGORIES, type StringEntry } from "@corpus/contract";
 import { GETTEXT_PLURALS } from "./gettextplurals";
 import { formOf, pluralBranches } from "./messages";
-import { applied, eolOf, usedIn, type Patch, type Span } from "./text";
+import {
+  applied,
+  eolOf,
+  ownRecord,
+  usedIn,
+  type Patch,
+  type Span,
+} from "./text";
 
 // gettext joins a context to its msgid with EOT, a control character an
 // id cannot hold; its visible symbol stands in (#668).
@@ -750,6 +757,7 @@ export function entriesToGettext(
   // Said of a new file whose language the CLDR table lacks (#786).
   onNote?: (message: string) => void,
 ): string {
+  translations = ownRecord(translations);
   const base =
     existing === undefined || existing.trim() === ""
       ? targetFrom(template, language, onNote)

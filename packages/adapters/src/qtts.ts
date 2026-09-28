@@ -12,6 +12,7 @@ import {
 import { formOf, pluralBranches } from "./messages";
 import { qtPluralForms } from "./qtnumerus";
 import {
+  ownRecord,
   applied,
   attr,
   decodeEntities,
@@ -323,6 +324,7 @@ export function entriesToQtTs(
   language: { tag: string; code: string },
   onRefused?: (id: string, text: string) => void,
 ): string {
+  translations = ownRecord(translations);
   const base =
     existing === undefined || existing.trim() === ""
       ? targetFrom(template, language.code)
