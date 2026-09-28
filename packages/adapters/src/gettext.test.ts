@@ -587,3 +587,53 @@ msgstr "File"
   expect(de).toContain('"X-Generator: Poedit\\n"');
   expect(de).toContain('"Plural-Forms: nplurals=2; plural=(n==1) ? 0 : 1;\\n"');
 });
+
+const RU_HEADER = `msgid ""\nmsgstr ""\n"Language: ru\\n"\n"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\\n"\n`;
+const RU_PLURAL =
+  "{count, plural, one {%d файл} few {%d файла} many {%d файлов} other {%d файла}}";
+
+test("an entry with no msgstr takes its translation after its msgid, never at the start of the file (#833)", () => {
+  const po = `${RU_HEADER}\nmsgid "Open"\n\nmsgid "Close"\nmsgstr ""\n`;
+  expect(entriesToGettext(po, { Open: "Открыть" }, po, RU_LANG)).toBe(
+    `${RU_HEADER}\nmsgid "Open"\nmsgstr "Открыть"\n\nmsgid "Close"\nmsgstr ""\n`,
+  );
+  const noted = `${RU_HEADER}\nmsgid "Open"\n# a translator's note\n`;
+  expect(entriesToGettext(noted, { Open: "Открыть" }, noted, RU_LANG)).toBe(
+    `${RU_HEADER}\nmsgid "Open"\nmsgstr "Открыть"\n# a translator's note\n`,
+  );
+  const plural = `${RU_HEADER}\nmsgid "%d file"\nmsgid_plural "%d files"\n`;
+  const out = entriesToGettext(
+    plural,
+    { "%d file": RU_PLURAL },
+    plural,
+    RU_LANG,
+  );
+  expect(out).toBe(
+    `${plural}msgstr[0] "%d файл"\nmsgstr[1] "%d файла"\nmsgstr[2] "%d файлов"\n`,
+  );
+});
+
+test("a gapped plural takes each missing msgstr[n] in its place (#833)", () => {
+  const entry = `msgid "%d file"\nmsgid_plural "%d files"\n`;
+  const gapped = `${RU_HEADER}\n${entry}msgstr[0] "a"\nmsgstr[2] "c"\n`;
+  const want = `${RU_HEADER}\n${entry}msgstr[0] "%d файл"\nmsgstr[1] "%d файла"\nmsgstr[2] "%d файлов"\n`;
+  expect(
+    entriesToGettext(gapped, { "%d file": RU_PLURAL }, gapped, RU_LANG),
+  ).toBe(want);
+  const headless = `${RU_HEADER}\n${entry}msgstr[2] "c"\n`;
+  expect(
+    entriesToGettext(headless, { "%d file": RU_PLURAL }, headless, RU_LANG),
+  ).toBe(want);
+  // A new file started from a gapped template: one entry, no blank line in it.
+  const pot = `msgid ""\nmsgstr ""\n"Content-Type: text/plain; charset=UTF-8\\n"\n\n${entry}msgstr[0] ""\nmsgstr[2] ""\n`;
+  const fresh = entriesToGettext(
+    pot,
+    { "%d file": RU_PLURAL },
+    undefined,
+    RU_LANG,
+  );
+  expect(fresh).toContain(
+    `${entry}msgstr[0] "%d файл"\nmsgstr[1] "%d файла"\nmsgstr[2] "%d файлов"\n`,
+  );
+  expect(parsePo(fresh)).toHaveLength(2);
+});

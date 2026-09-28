@@ -20,10 +20,12 @@ type PoEntry = {
   extracted: string[];
   references: string[];
   // Where the entry sits in the text read: its lines, its `#,` and `#|`
-  // lines, and each msgstr's keyword line through its last continuation.
+  // lines, where its msgid (or msgid_plural) ends, and each msgstr's
+  // keyword line through its last continuation.
   at: {
     start: number;
     end: number;
+    idEnd: number;
     flags?: Span;
     previous: Span[];
     msgstr: (Span | undefined)[];
@@ -78,7 +80,7 @@ export function parsePo(text: string): PoEntry[] {
     flags: [],
     extracted: [],
     references: [],
-    at: { start: -1, end: -1, previous: [], msgstr: [] },
+    at: { start: -1, end: -1, idEnd: -1, previous: [], msgstr: [] },
   });
   let entry = fresh();
   let seenId = false;
@@ -93,9 +95,12 @@ export function parsePo(text: string): PoEntry[] {
     if (key === "msgctxt") entry.msgctxt = value;
     else if (key === "msgid") {
       entry.msgid = value;
+      entry.at.idEnd = lastEnd;
       seenId = true;
-    } else if (key === "msgid_plural") entry.msgidPlural = value;
-    else {
+    } else if (key === "msgid_plural") {
+      entry.msgidPlural = value;
+      entry.at.idEnd = lastEnd;
+    } else {
       const index = key === "msgstr" ? "0" : /^msgstr\[(\d+)\]$/.exec(key)?.[1];
       if (index !== undefined) {
         entry.msgstr[Number(index)] = value;
@@ -654,8 +659,10 @@ function wantedForms(
 }
 
 // An entry's patches: each msgstr whose text differs rewritten in
-// msgmerge's layout, a missing `msgstr[n]` added after the last, and the
-// fuzzy flag and its `#|` previous msgid dropped from a row now written.
+// msgmerge's layout, a missing `msgstr[n]` added in its place (after the
+// form before it, else before the form after it, else after the msgid,
+// #833), and the fuzzy flag and its `#|` previous msgid dropped from a
+// row now written.
 function entryPatches(
   text: string,
   entry: PoEntry,
@@ -667,20 +674,39 @@ function entryPatches(
     entry.msgidPlural === undefined ? "msgstr" : `msgstr[${i}]`;
   const lines = (i: number, value: string) =>
     poLines(keyword(i), value, !entry.flags.includes("no-wrap")).join(eol);
-  let added = "";
+  const spans = entry.at.msgstr;
   forms.forEach((value, i) => {
     if (value === undefined) return;
-    const span = entry.at.msgstr[i];
+    const span = spans[i];
     if (span) {
       if (entry.msgstr[i] !== value)
         patches.push({ ...span, text: lines(i, value) });
-    } else added += eol + lines(i, value);
+      return;
+    }
+    const before = spans
+      .slice(0, i)
+      .reverse()
+      .find((s) => s !== undefined);
+    const after = spans.slice(i + 1).find((s) => s !== undefined);
+    if (before)
+      patches.push({
+        start: before.end,
+        end: before.end,
+        text: eol + lines(i, value),
+      });
+    else if (after)
+      patches.push({
+        start: after.start,
+        end: after.start,
+        text: lines(i, value) + eol,
+      });
+    else
+      patches.push({
+        start: entry.at.idEnd,
+        end: entry.at.idEnd,
+        text: eol + lines(i, value),
+      });
   });
-  const last = entry.at.msgstr.reduce(
-    (end, s) => Math.max(end, s?.end ?? 0),
-    0,
-  );
-  if (added) patches.push({ start: last, end: last, text: added });
   const fuzzy = entry.flags.includes("fuzzy");
   if (patches.length === 0 && !fuzzy) return [];
   if (fuzzy && entry.at.flags) {
