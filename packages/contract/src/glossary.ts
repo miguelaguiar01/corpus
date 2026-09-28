@@ -2,7 +2,7 @@
 // same across a project, read from a file the repository owns. Pure:
 // the schema and the matcher, shared by the server and the CLI.
 import { z } from "zod";
-import { parseIcu, type IcuNode } from "./icu";
+import { readIcu, type IcuNode } from "./icu";
 import type { Library } from "./strings";
 
 const glossaryEntrySchema = z.object({
@@ -46,7 +46,7 @@ const UNSPACED =
 // placeholder name, a select argument or a branch key; a source that
 // does not parse is read as plain text.
 function literalText(source: string, syntax: Library): string {
-  const parsed = parseIcu(source, syntax);
+  const parsed = readIcu(source, syntax);
   if (!parsed.ok) return source;
   const parts: string[] = [];
   const walk = (nodes: IcuNode[]) => {

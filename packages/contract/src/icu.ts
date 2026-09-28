@@ -163,7 +163,7 @@ const ARG_PLURAL_RE = /\{\s*arg\d+\s*,\s*plural\s*,/;
 
 function argPlurals(
   source: string,
-  html: boolean,
+  html: boolean | "markup",
   syntax: Library,
 ): IcuNode[] | undefined {
   if (syntax !== "printf" || !ARG_PLURAL_RE.test(source)) return undefined;
@@ -180,7 +180,7 @@ function argPlurals(
 // before (#652).
 function printfPlural(
   source: string,
-  html: boolean,
+  html: boolean | "markup",
   syntax: Library,
 ): IcuNode[] | undefined {
   const read = readPrintfPlural(source, html, syntax);
@@ -191,7 +191,7 @@ function printfPlural(
 // translation of a plural, where falling back to text would hide it.
 export function printfPluralError(
   text: string,
-  html = false,
+  html: boolean | "markup" = false,
   syntax: Library = "printf",
 ): IcuError | undefined {
   if (!PRINTF_PLURAL_OPENS_RE.test(text)) return undefined;
@@ -202,7 +202,7 @@ export function printfPluralError(
 
 function readPrintfPlural(
   source: string,
-  html: boolean,
+  html: boolean | "markup",
   syntax: Library,
 ): { nodes: IcuNode[] } | { error: IcuError } {
   try {
@@ -233,11 +233,21 @@ class Parser {
   private ownFree = false;
   // The next `{}`'s position under easy_localization (#664).
   private positional = 0;
+  // Under "markup", the tags a browser would read as text: an open tag
+  // no closing tag matches and a closing tag with no open tag, found in
+  // one pass over the text (#755).
+  private proseTags?: Set<number>;
+  // Open tags already found not to close, where the one pass could not
+  // tell (a close in another branch): tried once, so never exponential.
+  private readonly unclosed = new Set<number>();
 
   constructor(
     private readonly source: string,
     private readonly syntax: Library,
-    private readonly html: boolean,
+    // True reads HTML's void tags; "markup", a type read as HTML (#755),
+    // also reads a tag that never closes, or a stray closing tag, as text,
+    // as a browser does.
+    private readonly html: boolean | "markup",
     // printf text that is wholly one ICU plural, as a gettext or String
     // Catalog converter writes it (#652): its braces are the plural's,
     // its branches printf.
@@ -502,7 +512,49 @@ class Parser {
           this.pos += 1;
           continue;
         }
+        const after = this.pos;
+        const raw = this.source.slice(tag.start, after);
+        if (
+          this.html === "markup" &&
+          (this.prose().has(tag.start) ||
+            this.unclosed.has(tag.start) ||
+            (tag.kind === "close" &&
+              (closing === undefined || tag.name !== closing)))
+        ) {
+          literal += raw;
+          continue;
+        }
         flush();
+        if (tag.kind === "open" && this.html === "markup") {
+          // A tag whose close sits in another branch, which the one pass
+          // cannot tell, is text too; what it read is undone.
+          const counters = [
+            this.printfNext,
+            this.ownFree,
+            this.positional,
+          ] as const;
+          try {
+            const children = this.parseSequence(inBranch, pluralArg, tag.name);
+            nodes.push({
+              kind: "tag",
+              name: tag.name,
+              ...(tag.attrs ? { attrs: tag.attrs } : {}),
+              children,
+            });
+          } catch (error) {
+            if (
+              !(error instanceof ParseFailure) ||
+              error.message !== `unclosed <${tag.name}>`
+            )
+              throw error;
+            this.pos = after;
+            [this.printfNext, this.ownFree, this.positional] = counters;
+            this.unclosed.add(tag.start);
+            literal += raw;
+          }
+          literalStart = this.pos;
+          continue;
+        }
         if (tag.kind === "close") {
           if (closing === undefined || tag.name !== closing) {
             throw new ParseFailure(
@@ -620,6 +672,41 @@ class Parser {
       );
     }
     return { kind: "placeholder", name: inner };
+  }
+
+  private prose(): Set<number> {
+    if (this.proseTags) return this.proseTags;
+    const prose = new Set<number>();
+    const open: { name: string; at: number }[] = [];
+    for (
+      let at = this.source.indexOf("<");
+      at >= 0;
+      at = this.source.indexOf("<", at + 1)
+    ) {
+      const match = TAG_RE.exec(this.source.slice(at));
+      if (!match) continue;
+      const name = match[2]!;
+      // Void elements and self-closed tags open nothing, and a closing
+      // tag with attributes is text, as readTag reads it.
+      if (isVoidTag(name) || match[4] === "/") continue;
+      if (match[1] === "/" && match[3]!.trim() !== "") continue;
+      if (match[1] !== "/") {
+        open.push({ name, at });
+        continue;
+      }
+      const index = open.map((o) => o.name).lastIndexOf(name);
+      if (index < 0) {
+        prose.add(at);
+        continue;
+      }
+      // It closes the one at `index`; those opened inside it and never
+      // closed are text.
+      for (const unclosed of open.splice(index).slice(1))
+        prose.add(unclosed.at);
+    }
+    for (const unclosed of open) prose.add(unclosed.at);
+    this.proseTags = prose;
+    return prose;
   }
 
   // A tag at the cursor, consumed, or nothing when the < is text.
@@ -801,10 +888,24 @@ class Parser {
 // a pair like any other and a lone `<br>` is unclosed. Validation passes
 // it for the text in hand; reading a source for its parts leaves it
 // unset, which takes whatever either reading takes.
+// A text read for what it holds (its slots, its tags, a preview), not
+// for whether it is valid: the reading parseIcu gives, or, where that
+// fails, a type read as HTML's, whose unclosed tags are text (#755).
+// Validation, which knows the type, is what refuses a text.
+export function readIcu(
+  source: string,
+  syntax: Library = "icu",
+): IcuParseResult {
+  const read = parseIcu(source, syntax);
+  if (read.ok) return read;
+  const markup = parseIcu(source, syntax, { html: "markup" });
+  return markup.ok ? markup : read;
+}
+
 export function parseIcu(
   source: string,
   syntax: Library = "icu",
-  options: { html?: boolean } = {},
+  options: { html?: boolean | "markup" } = {},
 ): IcuParseResult {
   if (options.html === undefined) {
     const lenient = parseWith(source, syntax, true);
@@ -818,7 +919,7 @@ export function parseIcu(
 function parseWith(
   source: string,
   syntax: Library,
-  html: boolean,
+  html: boolean | "markup",
 ): IcuParseResult {
   try {
     if (syntax === "vue") {
@@ -973,7 +1074,7 @@ export function branchingNodes(
 }
 
 export function tagsOf(source: string, syntax: Library = "icu"): Set<string> {
-  const result = parseIcu(source, syntax);
+  const result = readIcu(source, syntax);
   const tags = new Set<string>();
   if (result.ok) collect(result.nodes, new Set(), new Set(), new Set(), tags);
   return tags;
@@ -986,7 +1087,7 @@ export function placeholderFormatsOf(
   syntax: Library = "icu",
 ): Map<string, string> {
   const formats = new Map<string, string>();
-  const result = parseIcu(source, syntax);
+  const result = readIcu(source, syntax);
   if (result.ok) collectFormats(result.nodes, formats);
   return formats;
 }
@@ -998,7 +1099,7 @@ export function placeholderWrittenOf(
   syntax: Library = "icu",
 ): Map<string, string> {
   const written = new Map<string, string>();
-  const result = parseIcu(source, syntax);
+  const result = readIcu(source, syntax);
   if (result.ok) collectWritten(result.nodes, written);
   return written;
 }
@@ -1049,7 +1150,7 @@ export function placeholdersOf(
   source: string,
   syntax: Library = "icu",
 ): Set<string> {
-  const result = parseIcu(source, syntax);
+  const result = readIcu(source, syntax);
   const placeholders = new Set<string>();
   if (result.ok) collect(result.nodes, placeholders, new Set());
   return placeholders;
@@ -1059,7 +1160,7 @@ export function selectArgsOf(
   source: string,
   syntax: Library = "icu",
 ): Set<string> {
-  const result = parseIcu(source, syntax);
+  const result = readIcu(source, syntax);
   const selectArgs = new Set<string>();
   if (result.ok) collect(result.nodes, new Set(), selectArgs);
   return selectArgs;
@@ -1068,7 +1169,7 @@ export function selectArgsOf(
 // How many vue-i18n pipe forms a source has (#660): `no posts | one post
 // | {n} posts` is 3, anything else 0.
 export function formsOf(source: string, syntax: Library = "icu"): number {
-  const result = parseIcu(source, syntax);
+  const result = readIcu(source, syntax);
   const only =
     result.ok && result.nodes.length === 1 ? result.nodes[0] : undefined;
   return only?.kind === "forms" ? only.branches.length : 0;
@@ -1078,7 +1179,7 @@ export function pluralArgsOf(
   source: string,
   syntax: Library = "icu",
 ): Set<string> {
-  const result = parseIcu(source, syntax);
+  const result = readIcu(source, syntax);
   const pluralArgs = new Set<string>();
   if (result.ok) collect(result.nodes, new Set(), new Set(), pluralArgs);
   return pluralArgs;

@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import {
   branchingNodes,
   exampleValues,
-  parseIcu,
+  readIcu,
   pluralCategoriesOf,
   renderPreviewSegments,
   hasVoidTags,
@@ -46,7 +46,7 @@ function branchingOf(
   language: string,
   syntax: Library,
 ): Branching[] {
-  const parsed = parseIcu(source, syntax);
+  const parsed = readIcu(source, syntax);
   if (!parsed.ok) return [];
   const byArg = new Map<string, Branching>();
   for (const node of branchingNodes(parsed.nodes)) {
@@ -356,8 +356,10 @@ export function TargetPane({
 // Live preview (§7): each example's values substituted into the draft,
 // so both select branches show as the translator types, the values in
 // the quiet tone so the translator's own words stand out. With no draft
-// yet, the examples' own source-language renders stand in. A draft the
-// parser rejects previews nothing; the validation list explains why.
+// yet, the examples' own source-language renders stand in. A draft is
+// read as a preview reads any text (#755), an unclosed tag as text; one
+// no reading parses previews nothing, and the validation list explains
+// what is wrong either way.
 function previews(
   text: string,
   blank: boolean,

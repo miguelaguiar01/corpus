@@ -24,7 +24,7 @@ import {
 import {
   entitySchema,
   libraryOf,
-  hasVoidTags,
+  tagMode,
   messageKind,
   parseIcu,
   snapshotSchema,
@@ -421,7 +421,7 @@ function validateEntry(
 ): void {
   const syntax = libraryOf(entry);
   const icu = parseIcu(entry.source, syntax, {
-    html: hasVoidTags(syntax, richText?.[entry.type]),
+    html: tagMode(syntax, richText?.[entry.type]),
   });
   if (icu.ok) sourced.push({ entry, file });
   else {

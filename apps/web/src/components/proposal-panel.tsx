@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import {
-  hasVoidTags,
+  tagMode,
   parseIcu,
   refusalAdvice,
   type Library,
@@ -87,7 +87,7 @@ export function ProposalPanel({
   const [text, setText] = useState(source);
   const ref = useRef<HTMLTextAreaElement>(null);
   const parsed = parseIcu(text, syntax, {
-    html: hasVoidTags(syntax, richText ?? undefined),
+    html: tagMode(syntax, richText ?? undefined),
   });
   const valid = text.trim() !== "" && parsed.ok && text !== source;
   const insert = (token: string) => {

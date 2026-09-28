@@ -102,10 +102,14 @@ test("a string type read as HTML validates without comparing tags, in a file or 
   writeFileSync(path.join(repo, configFile), withHtml(original));
   const html = ctx();
   expect(await run(["validate"], html)).toBe(0);
+  // A tag that never closes is text in HTML (#755); a dropped
+  // placeholder is still a finding.
   write("i18n/pt.json", { greeting: "<b>Olá {name}" });
-  const unclosed = ctx();
-  expect(await run(["validate"], unclosed)).toBe(1);
-  expect(unclosed.stderr.join("\n")).toContain("i18n/pt.json:greeting:");
+  expect(await run(["validate"], ctx())).toBe(0);
+  write("i18n/pt.json", { greeting: "<b>Olá" });
+  const dropped = ctx();
+  expect(await run(["validate"], dropped)).toBe(1);
+  expect(dropped.stderr.join("\n")).toContain("i18n/pt.json:greeting:");
 });
 
 test("a clean repository is valid, exec sources are named as not validated, missing keys are not findings", async () => {

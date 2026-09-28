@@ -9,7 +9,7 @@
 // previews are for meaning, not grammar (§7).
 import {
   argPositions,
-  parseIcu,
+  readIcu,
   pluralBranch,
   type IcuError,
   type IcuNode,
@@ -113,7 +113,7 @@ export function renderPreviewSegments(
   language?: string,
   options: RenderOptions = {},
 ): PreviewSegmentsResult {
-  const parsed = parseIcu(message, options.syntax ?? "icu");
+  const parsed = readIcu(message, options.syntax ?? "icu");
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
   const segments: PreviewSegment[] = [];
   // A printf plural on `argN` takes the Nth argument's value (#735).
