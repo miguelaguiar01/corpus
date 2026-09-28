@@ -448,6 +448,23 @@ function writeYaml(
     }
   };
   const rootValue = rootPair.value as Node | null;
+  // The file's own indentation step, from its first nested block map,
+  // for the blocks a write makes (#759).
+  const step = ((): string => {
+    const queue: Pair[] = [rootPair];
+    for (let pair = queue.shift(); pair; pair = queue.shift()) {
+      const value = pair.value as Node | null;
+      if (!isMap(value) || value.flow || value.items.length === 0) continue;
+      const own = lineIndent(base, (pair.key as Node).range![0]).length;
+      const child = lineIndent(
+        base,
+        (value.items[0]!.key as Node).range![0],
+      ).length;
+      if (child > own) return " ".repeat(child - own);
+      queue.push(...(value.items as Pair[]));
+    }
+    return "  ";
+  })();
   if (isMap(rootValue) && !rootValue.flow) walk(rootValue, []);
   // A null or `{}` root takes its keys as a block; a root written as a
   // flow hash with keys takes nothing, every write refused.
@@ -513,7 +530,10 @@ function writeYaml(
           continue;
         }
         const line = `${inner}${c}: ${doubleQuoted(forms[c]!)}${eol}`;
+        // Before the next form the text keeps: one it drops goes, its
+        // comment with it, and cannot be an anchor (#759).
         const next = PLURAL.slice(PLURAL.indexOf(c) + 1)
+          .filter((k) => Object.hasOwn(forms, k))
           .map((k) => held.get(k))
           .find((q) => q !== undefined);
         const at = next
@@ -526,12 +546,20 @@ function writeYaml(
             at === base.length && !base.endsWith("\n") ? `${eol}${line}` : line,
         });
       }
+      // A form the text no longer has goes, with its comment, so the
+      // hash holds the text's forms (#759).
+      for (const [c, p] of held)
+        if (
+          (PLURAL as readonly string[]).includes(c) &&
+          !Object.hasOwn(forms, c)
+        )
+          patches.push(pairRemoval(base, value, p));
       continue;
     }
     // A scalar, a null or a flow hash become the plural's hash.
     replaceValue(
       pair,
-      `:${eol}${formLines(forms, `${indent}  `).replace(new RegExp(`${eol}$`), "")}`,
+      `:${eol}${formLines(forms, `${indent}${step}`).replace(new RegExp(`${eol}$`), "")}`,
     );
   }
 
@@ -563,7 +591,7 @@ function writeYaml(
     const prefix = parent === "" ? "" : `${parent}.`;
     const pairIndent = isMap(container)
       ? lineIndent(base, (container.items[0]!.key as Node).range![0])
-      : `${lineIndent(base, (container.key as Node).range![0])}  `;
+      : `${lineIndent(base, (container.key as Node).range![0])}${step}`;
     // The subtree each missing child of the container holds.
     const render = (under: string, indent: string): string => {
       const children: string[] = [];
@@ -581,10 +609,10 @@ function writeYaml(
             const text = translations[id]!;
             const forms = plural.has(id) ? formsOf(text) : undefined;
             return forms
-              ? `${indent}${key}:${eol}${formLines(forms, `${indent}  `)}`
+              ? `${indent}${key}:${eol}${formLines(forms, `${indent}${step}`)}`
               : `${indent}${key}: ${styled("", {}, text, indent)}${eol}`;
           }
-          return `${indent}${key}:${eol}${render(id, `${indent}  `)}`;
+          return `${indent}${key}:${eol}${render(id, `${indent}${step}`)}`;
         })
         .join("");
     };
@@ -595,10 +623,10 @@ function writeYaml(
         const text = translations[id]!;
         const forms = plural.has(id) ? formsOf(text) : undefined;
         return forms
-          ? `${pairIndent}${key}:${eol}${formLines(forms, `${pairIndent}  `)}`
+          ? `${pairIndent}${key}:${eol}${formLines(forms, `${pairIndent}${step}`)}`
           : `${pairIndent}${key}: ${styled("", {}, text, pairIndent)}${eol}`;
       }
-      return `${pairIndent}${key}:${eol}${render(id, `${pairIndent}  `)}`;
+      return `${pairIndent}${key}:${eol}${render(id, `${pairIndent}${step}`)}`;
     };
     // The container's children in the source's order: a held one moves
     // the anchor, a missing one is written after it.
@@ -628,11 +656,18 @@ function writeYaml(
     }
     for (const [at, text] of buckets) {
       if (!isMap(container)) {
-        // A null, `{}` or empty value becomes the block of its keys.
-        replaceValue(
-          container,
-          `:${eol}${text.replace(new RegExp(`${eol}$`), "")}`,
-        );
+        const block = text.replace(new RegExp(`${eol}$`), "");
+        // An empty value takes the block after its line, a comment on it
+        // kept on it (`g: # later`, #759); a null, `~` or `{}` written
+        // there becomes the block.
+        const range = (container.value as Node | null)?.range;
+        if (!range || range[1] <= range[0]) {
+          const keyEnd = (container.key as Node).range![1];
+          let end = base.indexOf("\n", keyEnd);
+          if (end < 0) end = base.length;
+          else if (base[end - 1] === "\r") end--;
+          patches.push({ start: end, end, text: `${eol}${block}` });
+        } else replaceValue(container, `:${eol}${block}`);
         continue;
       }
       let pos = at;
@@ -667,6 +702,30 @@ export type YamlRefusal = "plural" | "parent";
 export type YamlOp =
   | { kind: "edit" | "add"; id: string; text: string }
   | { kind: "delete"; id: string };
+
+// A pair's lines, removed: from its key's line, or the comment lines
+// just above it, through the line its value ends on.
+function pairRemoval(text: string, map: YAMLMap, pair: Pair): Patch {
+  const keyStart = (pair.key as Node).range![0];
+  let start = text.lastIndexOf("\n", keyStart - 1) + 1;
+  // Comment lines above go with it, never a line of the value before
+  // it: a block scalar's `# Heading` is text.
+  const index = map.items.indexOf(pair);
+  const before = index > 0 ? map.items[index - 1] : undefined;
+  const floor = before
+    ? ((before.value as Node | null)?.range?.[1] ??
+      (before.key as Node).range![1])
+    : 0;
+  while (start > floor) {
+    const prev = text.lastIndexOf("\n", start - 2) + 1;
+    if (prev < floor || !text.slice(prev, start).trim().startsWith("#")) break;
+    start = prev;
+  }
+  const value = pair.value as Node | null;
+  const end = value?.range?.[1] ?? (pair.key as Node).range![1];
+  const nl = text[end - 1] === "\n" ? end : text.indexOf("\n", end) + 1;
+  return { start, end: nl <= 0 ? text.length : nl, text: "" };
+}
 
 // A proposal into a Rails catalogue (§11), the source file or, for a
 // removal, a target: an edit rewrites the key's scalar in its own style,
@@ -722,8 +781,6 @@ export function applyYamlOps(
         );
   const removals = ops.filter((o) => o.kind === "delete").map((o) => o.id);
   if (removals.length === 0) return out;
-  // Each removal's lines: from its key's line, or the comment lines just
-  // above it, through the line its value ends on.
   const document = parseDocument(out, { uniqueKeys: false });
   const top = document.contents;
   const root = isMap(top)
@@ -736,26 +793,7 @@ export function applyYamlOps(
       if (key === undefined) continue;
       const id = [...path, key].join(".");
       if (removals.includes(id)) {
-        const keyStart = (pair.key as Node).range![0];
-        let start = out.lastIndexOf("\n", keyStart - 1) + 1;
-        // Comment lines above go with it, never a line of the value
-        // before it: a block scalar's `# Heading` is text.
-        const index = map.items.indexOf(pair);
-        const before = index > 0 ? map.items[index - 1] : undefined;
-        const floor = before
-          ? ((before.value as Node | null)?.range?.[1] ??
-            (before.key as Node).range![1])
-          : 0;
-        while (start > floor) {
-          const prev = out.lastIndexOf("\n", start - 2) + 1;
-          if (prev < floor || !out.slice(prev, start).trim().startsWith("#"))
-            break;
-          start = prev;
-        }
-        const value = pair.value as Node | null;
-        const end = value?.range?.[1] ?? (pair.key as Node).range![1];
-        const nl = out[end - 1] === "\n" ? end : out.indexOf("\n", end) + 1;
-        spans.push({ start, end: nl <= 0 ? out.length : nl, text: "" });
+        spans.push(pairRemoval(out, map, pair));
       } else if (isMap(pair.value) && pair.value.flow) {
         const inside = removals.find((r) => r.startsWith(`${id}.`));
         if (inside)

@@ -454,3 +454,44 @@ test("proposal edges: an added _MF plural stays a scalar, a removal keeps the bl
     ),
   ).toThrow("js.a: its parent in the file is a hash written inline");
 });
+
+test("a null parent keeps its comment, a new block takes the file's indentation, and a plural form the text lacks goes (#759)", () => {
+  const lang = { source: "en", code: "de" };
+  const en = `en:\n    g:\n        a: "A"\n        b: "B"\n    files:\n        one: "%{count} file"\n        few: "%{count} files"\n        other: "%{count} files"\n`;
+  // A null parent with a comment, in a file indented by four.
+  const de = `de:\n    g: # later\n    files:\n        one: "%{count} Datei"\n        # rare\n        few: "%{count} Dateien"\n        other: "%{count} Dateien"\n`;
+  const out = entriesToYaml(
+    en,
+    {
+      "g.a": "Ah",
+      files: "{count, plural, one {%{count} Datei} other {%{count} Dateien}}",
+    },
+    de,
+    lang,
+  );
+  expect(out).toBe(
+    `de:\n    g: # later\n        a: "Ah"\n    files:\n        one: "%{count} Datei"\n        other: "%{count} Dateien"\n`,
+  );
+});
+
+test("a form added before one the text drops goes in its place, the dropped form and its comment gone (#759)", () => {
+  const en = `en:\n  files:\n    one: "a"\n    few: "b"\n    other: "c"\n`;
+  const de = `de:\n  files:\n    one: "a"\n    # rare\n    few: "b"\n    other: "c"\n`;
+  const out = entriesToYaml(
+    en,
+    { files: "{count, plural, one {a} two {t} other {c}}" },
+    de,
+    { source: "en", code: "de" },
+  );
+  expect(out).toBe(
+    `de:\n  files:\n    one: "a"\n    two: "t"\n    other: "c"\n`,
+  );
+  expect(out.replace(/\n/g, "\r\n")).toBe(
+    entriesToYaml(
+      en,
+      { files: "{count, plural, one {a} two {t} other {c}}" },
+      de.replace(/\n/g, "\r\n"),
+      { source: "en", code: "de" },
+    ),
+  );
+});
