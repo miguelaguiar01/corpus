@@ -19,9 +19,10 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/node": "22.20.3",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@playwright/test": "^1.63.0",
+    "@types/node": "22.20.3",
+    "cldr-core": "48.0.0",
     "eslint": "^10.11.0",
     "eslint-config-prettier": "^10.0.0",
     "prettier": "^3.9.8",
