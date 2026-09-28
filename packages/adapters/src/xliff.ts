@@ -587,9 +587,8 @@ type XliffOp =
 
 // A proposal into the source file (§11): an edit rewrites the unit's
 // `<source>` with its own elements, a removal drops the unit (its lines
-// too where nothing else is on them), an
-// addition appends a unit after the last; an edit of a unit the file no
-// longer has is nothing to do.
+// too where nothing else is on them), an addition appends a unit after
+// the last; an edit of a unit the file no longer has is nothing to do.
 export function applyXliffOps(xml: string, ops: XliffOp[]): string {
   let out = xml;
   const eol = eolOf(xml);
