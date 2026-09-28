@@ -1465,3 +1465,109 @@ test("init refuses {ns} for a format whose adapter does not read it, Qt's .ts to
     /qt-ts does not read \{ns\}: only messages, table and fluent do/,
   );
 });
+
+test("a pattern with {lang} twice inits and builds (#856)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  for (const lang of ["en", "de"]) {
+    mkdirSync(path.join(p.dir, "i18n", lang), { recursive: true });
+    writeFileSync(
+      path.join(p.dir, "i18n", lang, `${lang}.json`),
+      JSON.stringify({ hello: lang === "en" ? "Hello" : "Hallo" }),
+    );
+  }
+  const init = [
+    "init",
+    "--project",
+    "x",
+    "--source",
+    "en",
+    "--messages",
+    "i18n/{lang}/{lang}.json",
+  ];
+  expect(await run(init, p.ctx)).toBe(0);
+  expect((await loadConfig(p.dir)).languages).toEqual(["en", "de"]);
+  expect(await run(["build"], p.ctx)).toBe(0);
+});
+
+test("init warns of a missing source file for every format, and build names it plainly (#856)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "loc"), { recursive: true });
+  writeFileSync(
+    path.join(p.dir, "loc", "messages.de.xlf"),
+    `<?xml version="1.0" encoding="UTF-8" ?>\n<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">\n  <file source-language="en" target-language="de" datatype="plaintext" original="a">\n    <body>\n      <trans-unit id="a">\n        <source>A</source>\n        <target>Aa</target>\n      </trans-unit>\n    </body>\n  </file>\n</xliff>\n`,
+  );
+  const init = [
+    "init",
+    "--project",
+    "x",
+    "--source",
+    "en",
+    "--messages",
+    "loc/messages.{lang}.xlf",
+    "--languages",
+    "en,de",
+  ];
+  expect(await run(init, p.ctx)).toBe(0);
+  expect(p.err.join("\n")).toMatch(/no loc\/messages\.en\.xlf/);
+  p.err.length = 0;
+  expect(await run(["build"], p.ctx)).toBe(1);
+  expect(p.err.join("\n")).toMatch(
+    /source file loc\/messages\.en\.xlf does not exist/,
+  );
+  expect(p.err.join("\n")).not.toMatch(/ENOENT/);
+});
+
+test("init warns of a missing JSON source file, and is silent where a {ns} pattern's files exist (#856)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "i18n"), { recursive: true });
+  writeFileSync(path.join(p.dir, "i18n", "de.json"), '{"a":"A"}');
+  const flags = (messages: string) => [
+    "init",
+    "--project",
+    "x",
+    "--source",
+    "en",
+    "--messages",
+    messages,
+    "--languages",
+    "en,de",
+  ];
+  expect(await run(flags("i18n/{lang}.json"), p.ctx)).toBe(0);
+  expect(p.err.join("\n")).toMatch(
+    /no i18n\/en\.json: build reads the source language's strings from it/,
+  );
+  const q = project();
+  stubCli(q.dir);
+  mkdirSync(path.join(q.dir, "locales", "en"), { recursive: true });
+  writeFileSync(path.join(q.dir, "locales", "en", "common.json"), '{"a":"A"}');
+  expect(await run(flags("locales/{lang}/{ns}.json"), q.ctx)).toBe(0);
+  expect(q.err.join("\n")).not.toMatch(/build reads the source language/);
+});
+
+test("a yaml pattern with {lang} twice reads each file's own language (#856)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  for (const lang of ["en", "de"]) {
+    mkdirSync(path.join(p.dir, "cfg", lang), { recursive: true });
+    writeFileSync(
+      path.join(p.dir, "cfg", lang, `${lang}.yml`),
+      `${lang}:\n  a: ${lang === "en" ? "A" : "B"}\n`,
+    );
+  }
+  const init = [
+    "init",
+    "--project",
+    "x",
+    "--source",
+    "en",
+    "--messages",
+    "cfg/{lang}/{lang}.yml",
+  ];
+  expect(await run(init, p.ctx)).toBe(0);
+  expect(await run(["build", "--out", "snap.json"], p.ctx)).toBe(0);
+  const snap = JSON.parse(readFileSync(path.join(p.dir, "snap.json"), "utf8"));
+  expect(snap.seedTranslations).toEqual({ de: { a: "B" } });
+});

@@ -192,6 +192,8 @@ export function describeRefused({ file, id, message }: Refused): string {
 export async function buildSnapshotReport(
   config: CorpusConfig,
   cwd: string,
+  // Whether the snapshot is for a push, which the refusal names.
+  pushing = false,
 ): Promise<BuildReport> {
   const jiti = createJiti(import.meta.url);
   const sourced: Sourced[] = [];
@@ -219,6 +221,10 @@ export async function buildSnapshotReport(
     // Push reads the source-language file; a table path may carry {lang}
     // too when its translations are pulled back per language (§8).
     const file = fileOf(source, config.sourceLanguage, config.sourceLanguage);
+    if (!existsSync(path.join(cwd, file))) {
+      errors.push(`source file ${file} does not exist`);
+      continue;
+    }
     let entries: StringEntry[];
     try {
       entries = await readEntries(
@@ -404,7 +410,7 @@ export async function buildSnapshotReport(
         "snapshot build failed:",
         ...refused.map((entry) => `  ${describeRefused(entry)}`),
         ...ruined.map((reason) => `  ${reason}`),
-        "  nothing was pushed: pushing the rest would archive every refused string",
+        `  ${pushing ? "nothing was pushed" : "no snapshot was built"}: pushing the rest would archive every refused string`,
       ].join("\n"),
     );
   }
@@ -617,7 +623,7 @@ export function fileOf(
   // A String Catalog holds every language in its one file (#727).
   if (source.adapter === "xcstrings") return source.path;
   if (source.adapter !== "android")
-    return source.path.replace("{lang}", fileCodeOf(source, language));
+    return source.path.replaceAll("{lang}", fileCodeOf(source, language));
   const dir = language === sourceLanguage ? "values" : androidDirOf(language);
   return path.posix.join(source.path, dir, "strings.xml");
 }
@@ -638,11 +644,13 @@ function languageOfFile(
   file: string,
   source: { path: string; languageFiles?: Record<string, string> },
 ): string {
-  const [before, after] = source.path.split("{lang}");
-  const code = file.slice(
-    (before ?? "").length,
-    file.length - (after ?? "").length,
-  );
+  // A `{lang}` written twice holds one code (#856).
+  const [first = "", ...rest] = source.path
+    .split("{lang}")
+    .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const code =
+    new RegExp(`^${first}(?<lang>.+?)${rest.join("\\k<lang>")}$`).exec(file)
+      ?.groups?.lang ?? file;
   return (
     Object.entries(source.languageFiles ?? {}).find(
       ([, c]) => c === code,
@@ -907,7 +915,7 @@ function readGlossary(
   if (!config.glossary) return glossary;
   for (const lang of config.languages) {
     if (lang === config.sourceLanguage) continue;
-    const file = config.glossary.path.replace("{lang}", lang);
+    const file = config.glossary.path.replaceAll("{lang}", lang);
     let raw: string;
     try {
       raw = readFileSync(path.resolve(cwd, file), "utf8");

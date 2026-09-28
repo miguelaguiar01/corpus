@@ -142,7 +142,7 @@ export function expandSources(input: CorpusInput, cwd: string): CorpusConfig {
       }
       return names.map((ns) => ({
         ...source,
-        path: pattern.replace("{ns}", ns),
+        path: pattern.replaceAll("{ns}", ns),
         namespace: ns,
         ...group,
       }));
@@ -152,7 +152,7 @@ export function expandSources(input: CorpusInput, cwd: string): CorpusConfig {
   const seen = new Map<string, string>();
   for (const source of sources) {
     if (source.adapter === "exec") continue;
-    const file = source.path.replace(
+    const file = source.path.replaceAll(
       "{lang}",
       fileCodeOf(source, input.sourceLanguage),
     );
@@ -188,15 +188,15 @@ function arbUnderscoreCodes(
         return false;
       const underscore = code.replaceAll("-", "_");
       return (
-        !existsSync(path.join(cwd, source.path.replace("{lang}", code))) &&
-        existsSync(path.join(cwd, source.path.replace("{lang}", underscore)))
+        !existsSync(path.join(cwd, source.path.replaceAll("{lang}", code))) &&
+        existsSync(path.join(cwd, source.path.replaceAll("{lang}", underscore)))
       );
     });
     if (wrong.length === 0) continue;
     const pairs = wrong
       .map((code) => `${code} as ${code.replaceAll("-", "_")}`)
       .join(" and ");
-    const example = source.path.replace(
+    const example = source.path.replaceAll(
       "{lang}",
       wrong[0]!.replaceAll("-", "_"),
     );
@@ -218,20 +218,19 @@ export function matchPattern(
   const langRe = language
     ? escape(language)
     : "[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8})*";
+  // A placeholder written twice is the same value both times (#856).
+  const seen = new Set<string>();
   const source = pattern
     .split(/(\{ns\}|\{lang\})/)
-    .map((part) =>
-      part === "{ns}"
-        ? "(.+)"
-        : part === "{lang}"
-          ? `(${langRe})`
-          : escape(part),
-    )
+    .map((part) => {
+      if (part !== "{ns}" && part !== "{lang}") return escape(part);
+      const name = part.slice(1, -1);
+      if (seen.has(name)) return `\\k<${name}>`;
+      seen.add(name);
+      return name === "ns" ? "(?<ns>.+)" : `(?<lang>${langRe})`;
+    })
     .join("");
   const re = new RegExp(`^${source}$`);
-  const nsFirst =
-    pattern.indexOf("{ns}") >= 0 &&
-    pattern.indexOf("{ns}") < pattern.indexOf("{lang}");
   const root = pattern.slice(
     0,
     Math.min(
@@ -256,8 +255,8 @@ export function matchPattern(
       else {
         const m = re.exec(file);
         if (!m) continue;
-        const ns = pattern.includes("{ns}") ? m[nsFirst ? 1 : 2] : undefined;
-        const lang = pattern.includes("{ns}") ? m[nsFirst ? 2 : 1]! : m[1]!;
+        const ns = m.groups!.ns;
+        const lang = m.groups!.lang!;
         out.push(ns === undefined ? { file, lang } : { file, ns, lang });
       }
     }

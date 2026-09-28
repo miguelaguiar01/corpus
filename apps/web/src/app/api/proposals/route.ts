@@ -66,7 +66,7 @@ export async function POST(request: Request): Promise<Response> {
   const source = (auth.project.sources ?? []).find(
     (s) =>
       s.path === file ||
-      s.path.replace("{lang}", auth.project.sourceLanguage) === file,
+      s.path.replaceAll("{lang}", auth.project.sourceLanguage) === file,
   );
   const actor = ensureAgentActor(db, auth.project);
   const result = proposeAdd(db, {
