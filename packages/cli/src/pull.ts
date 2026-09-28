@@ -13,6 +13,7 @@ import {
   entriesToXcstrings,
   entriesToQtTs,
   entriesToYaml,
+  applyYamlOps,
   yamlToEntries,
   qtMessages,
   xcstringsToEntries,
@@ -362,8 +363,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
       !sourceWritesBack(source) ||
       source.adapter === "gettext" ||
       source.adapter === "xcstrings" ||
-      source.adapter === "qt-ts" ||
-      source.adapter === "yaml"
+      source.adapter === "qt-ts"
     ) {
       ctx.err(
         `corpus: proposal(s) for ${ops.map((o) => printable(o.id)).join(", ")}: ${file} matches no writable source; not written`,
@@ -379,14 +379,21 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     const kept = stripped.ops;
     if (kept.length === 0) continue;
     for (const op of kept) written.add(`${op.kind}\u0000${op.id}`);
-    const files: [string, SourceOp[]][] = [[file, kept]];
+    // Each file with the language code its root key is, for yaml.
+    const files: [string, SourceOp[], string][] = [
+      [file, kept, config.sourceLanguage],
+    ];
     const removals = kept.filter((o) => o.kind === "delete");
     if (removals.length > 0 && hasLanguages(source)) {
       for (const language of allTargets) {
-        files.push([fileOf(source, language, config.sourceLanguage), removals]);
+        files.push([
+          fileOf(source, language, config.sourceLanguage),
+          removals,
+          fileCodeOf(source, language),
+        ]);
       }
     }
-    for (const [target, targetOps] of files) {
+    for (const [target, targetOps, code] of files) {
       const existing = readRepoFile(ctx.cwd, target);
       if (existing === undefined) {
         if (target === file)
@@ -407,9 +414,11 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
                   })
                 : source.adapter === "xliff"
                   ? applyXliffOps(existing, targetOps)
-                  : source.adapter === "table"
-                    ? applyTableOps(existing, targetOps, source.map)
-                    : existing;
+                  : source.adapter === "yaml"
+                    ? applyYamlOps(existing, targetOps, code)
+                    : source.adapter === "table"
+                      ? applyTableOps(existing, targetOps, source.map)
+                      : existing;
       } catch (error) {
         throw new CliError(
           `${target}: proposal(s) for ${targetOps.map((o) => printable(o.id)).join(", ")}: ${(error as Error).message}`,

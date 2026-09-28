@@ -330,3 +330,48 @@ test("a pending proposal comes back in exactly its source's files, at its key; n
   expect(await run(["push"], ctx())).toBe(0);
   expect(await run(["pull", "--check"], ctx())).toBe(0);
 });
+
+test("a proposal on a Rails catalogue lands in its source file and, for a removal, its targets; nothing else moves (#757)", async () => {
+  expect(await run(["push"], ctx())).toBe(0);
+  const before = tree(repo);
+  const [ana] = db.select().from(users).all();
+  const close = stringDetail(db, projectId, "rails.close")!;
+  expect(
+    proposeEdit(db, {
+      stringRowId: close.string.id,
+      text: "Fechar já",
+      actor: ana!,
+    }).ok,
+  ).toBe(true);
+  expect(
+    proposeAdd(db, {
+      projectId,
+      key: "rails.open",
+      sourcePath: "config/app.{lang}.yml",
+      text: "Abrir",
+      actor: ana!,
+    }).ok,
+  ).toBe(true);
+  const greeting = stringDetail(db, projectId, "rails.greeting")!;
+  expect(
+    proposeDelete(db, { stringRowId: greeting.string.id, actor: ana! }).ok,
+  ).toBe(true);
+  expect(await run(["pull"], ctx())).toBe(0);
+  const after = tree(repo);
+  expect(after["config/app.pt-PT.yml"]).toBe(
+    before["config/app.pt-PT.yml"]!.replace(
+      'close: "Fechar"',
+      'close: "Fechar já"',
+    )
+      .replace("    greeting: 'Olá %{name}'\n", "")
+      .replace(
+        "      Tem {n, plural, one {# aviso} other {# avisos}}.\n",
+        '      Tem {n, plural, one {# aviso} other {# avisos}}.\n    open: "Abrir"\n',
+      ),
+  );
+  expect(after["config/app.en.yml"]).toBe(
+    before["config/app.en.yml"]!.replace("    greeting: 'Hello %{name}'\n", ""),
+  );
+  expect(await run(["pull"], ctx())).toBe(0);
+  expect(tree(repo)).toEqual(after);
+});

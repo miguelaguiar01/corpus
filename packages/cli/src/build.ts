@@ -240,9 +240,7 @@ export async function buildSnapshotReport(
     const writable =
       sourceWritesBack(source) &&
       source.adapter !== "xcstrings" &&
-      source.adapter !== "qt-ts" &&
-      // Rails catalogue proposals are #757's.
-      source.adapter !== "yaml";
+      source.adapter !== "qt-ts";
     // A msgid is its key by nature, not an empty value (#718), and so is
     // a String Catalog key with no source-language unit (#727).
     const keyed =
@@ -807,7 +805,6 @@ export function writableSources(config: CorpusConfig): WritableSource[] {
     source.adapter !== "gettext" &&
     source.adapter !== "xcstrings" &&
     source.adapter !== "qt-ts" &&
-    source.adapter !== "yaml" &&
     sourceWritesBack(source)
       ? [
           {

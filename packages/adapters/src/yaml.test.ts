@@ -1,5 +1,10 @@
 import { expect, test } from "vitest";
-import { entriesToYaml, yamlToEntries, yamlTranslations } from "./yaml";
+import {
+  applyYamlOps,
+  entriesToYaml,
+  yamlToEntries,
+  yamlTranslations,
+} from "./yaml";
 
 // Discourse's shapes, cut down.
 const EN = `en:
@@ -338,4 +343,65 @@ test("a root written as a flow hash with keys takes no write, its keys kept (#75
     entriesToYaml(en, { c: "C", a: "AA" }, flow, L, (id) => refused.push(id)),
   ).toBe(flow);
   expect(refused.sort()).toEqual(["a", "c"]);
+});
+
+test("a proposal edits a key in its own style, adds one after its parent's last, removes one with its comment (#757)", () => {
+  const src = `en:
+  js:
+    # The deny button
+    deny: Cancel
+    title: 'Authorize "%{app}"'
+    topic_count:
+      one: "%{count} topic"
+      other: "%{count} topics"
+  time:
+    am: "am"
+`;
+  expect(
+    applyYamlOps(src, [{ kind: "edit", id: "js.deny", text: "Refuse" }], "en"),
+  ).toBe(src.replace("deny: Cancel", "deny: Refuse"));
+  expect(
+    applyYamlOps(
+      src,
+      [
+        { kind: "add", id: "js.accept", text: "Accept" },
+        { kind: "add", id: "wizard.intro", text: "Hello" },
+        {
+          kind: "add",
+          id: "js.post_count",
+          text: "{count, plural, one {%{count} post} other {%{count} posts}}",
+        },
+      ],
+      "en",
+    ),
+  ).toBe(
+    src
+      .replace(
+        '      other: "%{count} topics"\n',
+        '      other: "%{count} topics"\n    accept: "Accept"\n    post_count:\n      one: "%{count} post"\n      other: "%{count} posts"\n',
+      )
+      .concat('  wizard:\n    intro: "Hello"\n'),
+  );
+  expect(applyYamlOps(src, [{ kind: "delete", id: "js.deny" }], "en")).toBe(
+    src.replace("    # The deny button\n    deny: Cancel\n", ""),
+  );
+  expect(
+    applyYamlOps(src, [{ kind: "delete", id: "js.topic_count" }], "en"),
+  ).toBe(
+    src.replace(
+      '    topic_count:\n      one: "%{count} topic"\n      other: "%{count} topics"\n',
+      "",
+    ),
+  );
+  // An edit of a key the file lacks, or a removal of one, does nothing.
+  expect(
+    applyYamlOps(
+      src,
+      [
+        { kind: "edit", id: "js.gone", text: "x" },
+        { kind: "delete", id: "js.gone" },
+      ],
+      "en",
+    ),
+  ).toBe(src);
 });
