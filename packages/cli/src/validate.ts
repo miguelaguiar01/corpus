@@ -382,6 +382,16 @@ function validateExec(
   }
   const findings: Finding[] = [];
   const file = `exec:${command}`;
+  for (const [key, entry] of sources)
+    for (const arg of nestedCountsOf(entry.source, libraryOf(entry)))
+      findings.push({
+        file,
+        key,
+        language: sourceLanguage,
+        code: "nested-count",
+        severity: "warning",
+        message: nestedCountMessage(arg),
+      });
   const brokenSources = new Set<string>();
   for (const [language, texts] of Object.entries(parsed.data)) {
     if (!targets.includes(language)) continue;

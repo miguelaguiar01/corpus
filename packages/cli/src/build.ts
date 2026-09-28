@@ -431,8 +431,13 @@ function validateEntry(
   });
   if (icu.ok) {
     sourced.push({ entry, file });
+    // An exec entry's file is its command, said as the command's own
+    // lines say it.
+    const where = file.startsWith("exec:")
+      ? `exec "${file.slice("exec:".length)}" [${printable(entry.id)}]`
+      : `${file}:${printable(entry.id)}`;
     for (const arg of nestedCountsOf(entry.source, syntax))
-      notes.push(`${file}:${printable(entry.id)}: ${nestedCountMessage(arg)}`);
+      notes.push(`${where}: ${nestedCountMessage(arg)}`);
   } else {
     const message = icu.errors[0]?.message ?? "";
     const advice = refusalAdvice(entry.source, syntax, message);

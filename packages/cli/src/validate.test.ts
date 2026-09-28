@@ -763,3 +763,25 @@ test("a source with # in a select within a plural is warned by validate and buil
   expect(b.stderr).toContain(`corpus: ${warning}`);
   expect(b.stderr.join("\n")).not.toContain("plain");
 });
+
+test("an exporter's source with # in a select within a plural is warned by validate and build too (#767)", async () => {
+  writeFileSync(
+    path.join(repo, "scripts", "export.mjs"),
+    `console.log(JSON.stringify({
+      strings: [{ id: "exec.n", type: "computed", source: "{n, plural, one {{g, select, f {# x} other {y}}} other {z}}" }],
+      translations: { pt: { "exec.n": "{n, plural, one {{g, select, f {{n} x} other {y}}} many {z} other {z}}" } },
+    }))`,
+  );
+  const message =
+    "# in a select within the plural on {n} is text to some runtimes; write {n}";
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(0);
+  expect(c.stderr).toContain(
+    `exec:node scripts/export.mjs [exec.n] en: ${message}`,
+  );
+  const b = ctx();
+  expect(await run(["build", "--out", "snapshot.json"], b)).toBe(0);
+  expect(b.stderr).toContain(
+    `corpus: exec "node scripts/export.mjs" [exec.n]: ${message}`,
+  );
+});
