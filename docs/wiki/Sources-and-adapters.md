@@ -10,7 +10,7 @@ One key-value catalogue per language.
 { adapter: "messages", type: "ui", path: "src/i18n/{lang}.json" }
 ```
 
-The files are JSON (`.json`, Flutter's `.arb`) or a JavaScript or TypeScript module that default-exports the object. Any other catalogue, gettext `.po`, YAML, XLIFF, a String Catalog, Qt Linguist's XML `.ts`, is refused by name, and an [exec](#exec) source converts it.
+The files are JSON (`.json`, Flutter's `.arb`) or a JavaScript or TypeScript module that default-exports the object. Any other catalogue is refused by name: gettext `.po` and XLIFF have adapters of their own, [gettext](#gettext) and [xliff](#xliff), and an [exec](#exec) source converts YAML, a String Catalog or Qt Linguist's XML `.ts`.
 
 An object whose keys are all plural categories, `other` among them, is one string, not one per key: `"rooms": { "one": "{{count}} room", "other": "{{count}} rooms" }` reads as `{count, plural, one {{{count}} room} other {{{count}} rooms}}`, so the editor shows one plural and a Polish translation gains `few` and `many`, which a pull writes back into the object in CLDR's order. This holds under `icu`, `i18next`, `printf`, `counterpart`, `easy_localization`, `rails` and `qt`; under `vue` the forms stay keys of their own.
 
@@ -73,6 +73,23 @@ XLIFF 1.2 and 2.0, as Angular's `ng extract-i18n` and most translation tools wri
 ```
 
 `sourcePath` names the source-language file when its name holds no language, as Angular's does; `corpus init --messages src/locale/messages.{lang}.xlf` writes it when it finds that file. A unit's `<source>` is the string, its description and meaning its note; a target file's `<target>` is a translation already made, unless its state is `new`, `needs-translation` or `initial`, and one marked done whose text is the source's (German `Status`) is translated, not work. Inline elements are what the editor shows as chips: `<x id="INTERPOLATION"/>` a placeholder `{INTERPOLATION}`, `START_LINK`/`CLOSE_LINK` a tag pair `<LINK>…</LINK>`, `<g>` and `<pc>` tags too, so a translation keeps each one and cannot reverse a pair. A pull writes a changed translation into its unit's `<target>` with the unit's own elements put back, turns a `new` state to `translated`, adds a missing target after its `<source>` and a missing unit at the end, and leaves every other byte as it was; a proposal edits the source file's units. A file whose elements carry a namespace prefix (`<xlf:trans-unit>`) is refused by name.
+
+## gettext
+
+gettext's `.po` files, one per language, beside the `.pot` template xgettext writes:
+
+```ts
+{
+  adapter: "gettext",
+  type: "ui",
+  path: "locales/{lang}.po",
+  sourcePath: "locales/app.pot",
+}
+```
+
+`sourcePath` names the template, whose msgids are the strings; without it the source language's own `.po` is read. `corpus init --messages locales/{lang}.po` writes it when it finds the template in the directory above the language, `locales/` for `locales/{lang}.po` and for GNU's `locales/{lang}/LC_MESSAGES/app.po` alike, preferring `app.pot` when the catalogues are `app.po`; it says so when it finds neither a template nor the source language's `.po`. A msgid is its string's key and its text, so the code that calls `gettext()` holds it and no proposal edits it; a `msgctxt` is joined before it with `␄`. A `msgid_plural` and its `msgstr[n]` are one ICU plural, each of the language's CLDR categories reading the form the file's `Plural-Forms` gives its integers, so the editor asks a Russian translator for `one`, `few` and `many`, and `other`, which only decimals reach, reads the last form. A `#, fuzzy` row is a guess, not a translation; `#.` comments and `#:` references are the string's note. The library is `printf`, so a translation that drops a `%s` is refused.
+
+A pull writes a changed translation into its entry's `msgstr` and nothing else: the rewritten msgstr is wrapped as msgmerge wraps it, so msgmerge does not rewrap it, and the entry's `fuzzy` flag goes. An entry the `.po` lacks is appended from the template before the obsolete entries, where the next msgmerge moves it into the template's order, and a language with no `.po` yet gets one made from the template with its `Language:` set. A `.po` made that way keeps the template's placeholder `Plural-Forms`, which msginit would fill in; set it before shipping the language.
 
 ## exec
 

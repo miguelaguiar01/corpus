@@ -61,18 +61,40 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   // file with no language in it, `messages.xlf` beside `messages.de.xlf`.
   const xliff = /\.(?:xlf|xliff)$/i.test(messages);
   const bare = path.posix.normalize(messages.replace(/[._-]?\{lang\}/, ""));
-  const sourcePath =
-    xliff && !existsSync(sourceFile) && existsSync(path.join(ctx.cwd, bare))
+  // gettext too (#720): xgettext's `.pot` beside the `.po` files is the
+  // source, when there is one.
+  const gettext = /\.po$/i.test(messages);
+  const templates = gettext ? potsBeside(ctx.cwd, messages) : [];
+  const sourcePath = xliff
+    ? !existsSync(sourceFile) && existsSync(path.join(ctx.cwd, bare))
       ? bare
+      : undefined
+    : templates.length === 1
+      ? templates[0]
       : undefined;
-  const unreadable = xliff
-    ? undefined
-    : unreadableCatalogue(
-        sourceFile,
-        /\.ts$/i.test(sourceFile) && existsSync(sourceFile)
-          ? headOf(sourceFile)
-          : undefined,
-      );
+  if (templates.length > 1)
+    ctx.err(
+      `corpus: ${templates.join(", ")} sit beside the catalogues; set the gettext source's sourcePath to the one xgettext writes`,
+    );
+  else if (gettext && templates.length === 0 && !existsSync(sourceFile))
+    ctx.err(
+      `corpus: no .pot beside the catalogues and no ${path.relative(ctx.cwd, sourceFile)}; set the gettext source's sourcePath to the template xgettext writes`,
+    );
+  // An XLIFF unit's text is ICU, and a flag that cannot apply is refused
+  // rather than dropped.
+  if (xliff && (args.includes("--library") || args.includes("--syntax")))
+    throw new CliError(
+      `--library does not apply to an xliff source: its text is ICU\nusage: ${INIT_USAGE}`,
+    );
+  const unreadable =
+    xliff || gettext
+      ? undefined
+      : unreadableCatalogue(
+          sourceFile,
+          /\.ts$/i.test(sourceFile) && existsSync(sourceFile)
+            ? headOf(sourceFile)
+            : undefined,
+        );
   if (unreadable) throw new CliError(`--messages ${messages}: ${unreadable}`);
   // The flag given without a value is an error, as for every option
   // (args.ts); only its absence means "read the files".
@@ -103,27 +125,32 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       );
     }
   }
-  const detected = xliff
-    ? {}
-    : await libraryFor(args, ctx.cwd, messages, sourceLanguage, type, ctx);
+  // gettext's library is printf unless the flag names another.
+  const detected =
+    xliff ||
+    (gettext && !args.includes("--library") && !args.includes("--syntax"))
+      ? {}
+      : await libraryFor(args, ctx.cwd, messages, sourceLanguage, type, ctx);
   const library = detected.library;
   const components = checkIncludeFor(ctx.cwd, messages);
   const include = components.include;
-  const source = xliff
-    ? {
-        adapter: "xliff" as const,
-        type,
-        path: messages,
-        ...(sourcePath && { sourcePath }),
-      }
-    : {
-        adapter: "messages" as const,
-        type,
-        path: messages,
-        ...(library && library.value !== "icu"
-          ? { library: library.value }
-          : {}),
-      };
+  const source =
+    xliff || gettext
+      ? {
+          adapter: xliff ? ("xliff" as const) : ("gettext" as const),
+          type,
+          path: messages,
+          ...(sourcePath && { sourcePath }),
+          ...(library && { library: library.value }),
+        }
+      : {
+          adapter: "messages" as const,
+          type,
+          path: messages,
+          ...(library && library.value !== "icu"
+            ? { library: library.value }
+            : {}),
+        };
   const parsed = corpusConfigSchema.safeParse({
     project,
     server,
@@ -161,7 +188,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       ? `wrote ${filename} (a plain object: @corpus-tool/cli is not installed in this repository)`
       : `wrote ${filename}`,
   );
-  if (library && library.value !== "icu") {
+  if (library && (library.value !== "icu" || gettext)) {
     const why =
       library.value === "i18next"
         ? "{{ }}"
@@ -190,9 +217,10 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       `check.include: init found no components where it looks; corpus check scans src, so set check.include in ${filename} to where they are`,
     );
   }
-  const siblings = xliff
-    ? []
-    : siblingCatalogues(ctx.cwd, messages, sourceLanguage);
+  const siblings =
+    xliff || gettext
+      ? []
+      : siblingCatalogues(ctx.cwd, messages, sourceLanguage);
   if (siblings.length > 0) {
     ctx.out(
       `corpus: ${messages.replace("{lang}", sourceLanguage)} has ${siblings.length} sibling catalogue(s) the pattern does not name (${siblings.slice(0, 3).join(", ")}${siblings.length > 3 ? ", …" : ""}); a {ns} pattern or an array of paths names them all`,
@@ -649,4 +677,25 @@ function siblingCatalogues(
     })
     .map((name) => path.join(dir, name))
     .sort();
+}
+
+// The `.pot` files in the directory above a `.po` pattern's language,
+// `locales/` for `locales/{lang}.po` and GNU's
+// `locales/{lang}/LC_MESSAGES/app.po` alike; the one named as the
+// catalogues are (`app.pot`) alone when it is there.
+function potsBeside(cwd: string, pattern: string): string[] {
+  const dir = path.posix.dirname(
+    `${pattern.slice(0, pattern.indexOf("{lang}"))}x`,
+  );
+  let pots: string[];
+  try {
+    pots = readdirSync(path.join(cwd, dir))
+      .filter((name) => /\.pot$/i.test(name))
+      .sort();
+  } catch {
+    return [];
+  }
+  const named = `${path.posix.basename(pattern, ".po")}.pot`;
+  if (pots.includes(named)) pots = [named];
+  return pots.map((name) => path.posix.normalize(path.posix.join(dir, name)));
 }

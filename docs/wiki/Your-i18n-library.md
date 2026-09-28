@@ -267,9 +267,13 @@ Attributes (`.title =`), terms (`-brand`), function calls (`NUMBER($n)`) and str
 
 Angular's i18n extracts to XLIFF, which the `xliff` source reads with no converter (see [Sources and adapters](Sources-and-adapters#xliff)). The text inside a unit is ICU: `{VAR_PLURAL, plural, …}` and `{VAR_SELECT, select, …}` are checked as plurals and selects, and Angular's inline elements are placeholders and tags, `{INTERPOLATION}` and `<LINK>…</LINK>`, so the library stays `icu`.
 
-## gettext and iOS
+## gettext
 
-No adapter reads `.po` or `.strings`. An `exec` source can, by converting in both directions; see [Sources and adapters](Sources-and-adapters). A converter that leaves the verbs as they are can declare `library: "printf"` on the exec source's strings, so the verbs are checked. A gettext `msgid_plural` or a String Catalog's plural variations become one string by writing the whole text as an ICU plural with the verbs inside each branch, `{count, plural, one {%d card} other {%d cards}}`: under `printf` that text is read as a plural, each branch's verbs are checked on their own, as an Android `<item>`'s are, and the branches the language needs are checked too. Only a text that parses as one plural from start to end is read this way; anything else, text after the plural, a brace inside a branch, a plural without `other`, is printf text as before, and `#` and angle brackets are text even inside a plural.
+The `gettext` source reads `.po` and `.pot` files with no converter and writes translations back in place (see [Sources and adapters](Sources-and-adapters#gettext)). Its library is `printf`: `%s`, `%d` and `%1$s` are placeholders a translation keeps, and a plural is checked branch by branch, each branch's verbs on their own. A project whose msgids carry another syntax names it with `library` on the source, or `corpus init --library`: `counterpart` for Python's `%(name)s` and `%(name)d`, though a bare `%s` beside them is then text, unchecked, and `%(n).1f` is not a placeholder; `icu` for `{name}`, where `#` in a plural branch is the number and an apostrophe before a brace quotes it.
+
+## iOS
+
+No adapter reads `.strings` or a String Catalog. An `exec` source can, by converting in both directions; see [Sources and adapters](Sources-and-adapters). A converter that leaves the verbs as they are can declare `library: "printf"` on the exec source's strings, so the verbs are checked. A String Catalog's plural variations become one string by writing the whole text as an ICU plural with the verbs inside each branch, `{count, plural, one {%d card} other {%d cards}}`: under `printf` that text is read as a plural, each branch's verbs are checked on their own, as an Android `<item>`'s are, and the branches the language needs are checked too. Only a text that parses as one plural from start to end is read this way; anything else, text after the plural, a brace inside a branch, a plural without `other`, is printf text as before, and `#` and angle brackets are text even inside a plural.
 
 ## When the library is wrong
 
