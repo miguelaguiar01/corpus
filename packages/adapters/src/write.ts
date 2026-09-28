@@ -23,7 +23,7 @@ import {
   editLeaf,
   keyOrder,
 } from "./splice";
-import { ownRecord } from "./text";
+import { eolOf, ownRecord } from "./text";
 
 type Tree = { [key: string]: string | Tree };
 type Style = { indent: string; trailingNewline: boolean };
@@ -327,10 +327,13 @@ function fromTemplate(
     if (seen.has(id)) continue;
     setPath(out, nested ? id.split(".") : [id], translations[id]!);
   }
-  return (
+  // The template's line endings and BOM (#850); JSON escapes a line
+  // break inside a string, so every one here is the layout's.
+  const json =
     JSON.stringify(out, null, style.indent) +
-    (style.trailingNewline ? "\n" : "")
-  );
+    (style.trailingNewline ? "\n" : "");
+  const bom = template.startsWith("\uFEFF") ? "\uFEFF" : "";
+  return bom + json.replace(/\n/g, eolOf(template));
 }
 
 type Record_ = Record<string, unknown>;

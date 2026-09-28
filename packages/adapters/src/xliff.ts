@@ -526,31 +526,7 @@ export function entriesToXliff(
     const sourceXml = from
       ? template.slice(from.source.start, from.source.end)
       : base.slice(u.source.start, u.source.end);
-    if (u.target) {
-      const current = base.slice(u.target.start, u.target.end);
-      if (inlineText(current) === text) continue;
-      const parts = partsOf([current, sourceXml]);
-      patches.push({ ...u.target, text: inlineXml(text, parts) });
-      const state = statePatch(base, u.stateTag);
-      if (state) patches.push(state);
-      continue;
-    }
-    const parts = partsOf([sourceXml]);
-    const element =
-      u.version === "1.2"
-        ? `<target state="translated">${inlineXml(text, parts)}</target>`
-        : `<target>${inlineXml(text, parts)}</target>`;
-    if (u.emptyTarget) patches.push({ ...u.emptyTarget, text: element });
-    else
-      patches.push({
-        start: u.sourceEnd,
-        end: u.sourceEnd,
-        text: `${eol}${lineIndent(base, u.source.start)}${element}`,
-      });
-    if (u.version === "2.0") {
-      const state = statePatch(base, u.stateTag);
-      if (state) patches.push(state);
-    }
+    patches.push(...targetPatches(base, u, text, sourceXml, eol));
   }
   let out = applied(base, patches);
   // Units the target file lacks, copied from the source with their target.
@@ -563,13 +539,15 @@ export function entriesToXliff(
     if (at >= 0) {
       const indent = last ? lineIndent(out, last.start) : "";
       const blocks = missing.map((id) => {
-        const u = sources.get(id)!;
-        const block = template.slice(u.start, u.end);
-        return entriesToXliff(
+        const from = sources.get(id)!;
+        const block = template
+          .slice(from.start, from.end)
+          .replace(/\r?\n/g, eol);
+        const u = unitSpans(block)[0]!;
+        const sourceXml = block.slice(u.source.start, u.source.end);
+        return applied(
           block,
-          { [id]: translations[id]! },
-          block,
-          language,
+          targetPatches(block, u, translations[id]!, sourceXml, eol),
         );
       });
       out =
@@ -579,6 +557,46 @@ export function entriesToXliff(
     }
   }
   return out;
+}
+
+// A unit's `<target>` written: rewritten where it differs, inserted after
+// the source where it has none; `eol` is the file's the unit is in.
+function targetPatches(
+  base: string,
+  u: UnitSpan,
+  text: string,
+  sourceXml: string,
+  eol: string,
+): Patch[] {
+  if (u.target) {
+    const current = base.slice(u.target.start, u.target.end);
+    if (inlineText(current) === text) return [];
+    const parts = partsOf([current, sourceXml]);
+    const state = statePatch(base, u.stateTag);
+    return [
+      { ...u.target, text: inlineXml(text, parts) },
+      ...(state ? [state] : []),
+    ];
+  }
+  const parts = partsOf([sourceXml]);
+  const element =
+    u.version === "1.2"
+      ? `<target state="translated">${inlineXml(text, parts)}</target>`
+      : `<target>${inlineXml(text, parts)}</target>`;
+  const patches: Patch[] = [
+    u.emptyTarget
+      ? { ...u.emptyTarget, text: element }
+      : {
+          start: u.sourceEnd,
+          end: u.sourceEnd,
+          text: `${eol}${lineIndent(base, u.source.start)}${element}`,
+        },
+  ];
+  if (u.version === "2.0") {
+    const state = statePatch(base, u.stateTag);
+    if (state) patches.push(state);
+  }
+  return patches;
 }
 
 type XliffOp =
