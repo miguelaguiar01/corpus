@@ -167,6 +167,26 @@ function nestingOf(
   return out;
 }
 
+// Text as ICU prints it, for what it holds: `''` is an apostrophe, and
+// one before a special character quotes up to the next, so `'#'` is a
+// literal hash (#778).
+function unquoted(text: string): string {
+  let out = "";
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]!;
+    if (ch !== "'") out += ch;
+    else if (text[i + 1] === "'") {
+      out += "'";
+      i += 1;
+    } else if ("{}#|".includes(text[i + 1] ?? "")) {
+      const end = text.indexOf("'", i + 1);
+      if (end < 0) break;
+      i = end;
+    } else out += ch;
+  }
+  return out;
+}
+
 // The plurals whose count a `#` in a select within them was meant for.
 function countsInSelects(
   nodes: IcuNode[],
@@ -175,7 +195,7 @@ function countsInSelects(
 ): Set<string> {
   for (const node of nodes) {
     if (node.kind === "literal" && within.select && within.plural)
-      if (node.text.includes("#")) out.add(within.plural);
+      if (unquoted(node.text).includes("#")) out.add(within.plural);
     if (node.kind === "select" || node.kind === "plural")
       for (const branch of Object.values(node.branches))
         countsInSelects(

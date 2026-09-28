@@ -1568,3 +1568,34 @@ test("nestedCountsOf names the plurals whose # sits in a select within them (#76
   ).toEqual([]);
   expect(nestedCountsOf("{n, plural, one {# {")).toEqual([]);
 });
+
+test("a # that ICU quoting makes literal is not a count in a select within a plural (#778)", () => {
+  const quoted =
+    "{n, plural, one {{g, select, f {'#' x} other {y}}} other {z}}";
+  expect(nestedCountsOf(quoted)).toEqual([]);
+  expect(validateTranslation(quoted, quoted, "en")).toEqual({ ok: true });
+  // A quoted run from a special character to the next quote.
+  expect(
+    nestedCountsOf(
+      "{n, plural, one {{g, select, f {'# x' y} other {y}}} other {z}}",
+    ),
+  ).toEqual([]);
+  // An unquoted #, and one after an escaped apostrophe, still count.
+  expect(
+    nestedCountsOf(
+      "{n, plural, one {{g, select, f {# x} other {y}}} other {z}}",
+    ),
+  ).toEqual(["n"]);
+  expect(
+    nestedCountsOf(
+      "{n, plural, one {{g, select, f {it''s #} other {y}}} other {z}}",
+    ),
+  ).toEqual(["n"]);
+  // An apostrophe before an ordinary character quotes nothing; before a
+  // special one it quotes, wherever it stands, as ICU reads it.
+  expect(
+    nestedCountsOf(
+      "{n, plural, one {{g, select, f {l'x #} other {y}}} other {z}}",
+    ),
+  ).toEqual(["n"]);
+});
