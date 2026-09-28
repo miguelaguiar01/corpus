@@ -335,3 +335,59 @@ test("a catalogue not in Xcode's layout is refused rather than moved; one with n
   ).toThrow("not in Xcode's layout");
   expect(entriesToXcstrings(minified, {}, "de")).toBe(minified);
 });
+
+test("a plural moved off its argument's position is written with argNum, so it reads back as written (#728)", () => {
+  const file = xcode(JSON.parse(CATALOG));
+  const key = "timeline.n-recent-from-n-participants %lld %lld";
+  // Polish wrote no argNum; Basque's order swaps the two.
+  const swapped =
+    "{arg2, plural, one {od %arg uczestnika} other {od %arg uczestników}} {arg1, plural, one {%arg post} other {%arg postów}}";
+  const out = entriesToXcstrings(file, { [key]: swapped }, "pl");
+  const pl = JSON.parse(out).strings[key].localizations.pl;
+  expect(pl.stringUnit.value).toBe("%#@count_participants@ %#@count_posts@");
+  expect(pl.substitutions.count_participants.argNum).toBe(2);
+  expect(pl.substitutions.count_posts.argNum).toBe(1);
+  const back = (text: string, language: string) =>
+    xcstringsTranslations(text, language).find((e) => e.id === key)?.source;
+  expect(back(out, "pl")).toBe(swapped);
+  // A language new to a key, pluralising the second of two verbs.
+  const plain = xcode({
+    sourceLanguage: "en",
+    strings: {
+      "%lld from %lld": { localizations: { en: u("%lld from %lld") } },
+    },
+  });
+  const de = "{arg2, plural, one {%arg Person} other {%arg Leute}} von %lld";
+  const written = entriesToXcstrings(plain, { "%lld from %lld": de }, "de");
+  expect(
+    JSON.parse(written).strings["%lld from %lld"].localizations.de.substitutions
+      .arg2.argNum,
+  ).toBe(2);
+  expect(xcstringsTranslations(written, "de")[0]?.source).toBe(de);
+});
+
+test("a plural a String Catalog cannot hold is refused by name, and an empty text is not written (#728)", () => {
+  const file = xcode(JSON.parse(CATALOG));
+  const refused: string[] = [];
+  const out = entriesToXcstrings(
+    file,
+    {
+      "timeline.new-posts %lld":
+        "{count, plural, =0 {keine} one {%lld Beitrag} other {%lld Beiträge}}",
+      Bookmarks: "",
+    },
+    "de",
+    (id) => refused.push(id),
+  );
+  expect(out).toBe(file);
+  expect(refused).toEqual(["timeline.new-posts %lld"]);
+  expect(
+    entriesToXcstrings(
+      file,
+      { "timeline.new-posts %lld": "{count, plural, one {%lld {x} Beitrag}" },
+      "de",
+      (id) => refused.push(id),
+    ),
+  ).toBe(file);
+  expect(refused).toHaveLength(2);
+});

@@ -316,6 +316,23 @@ function namesOf(unit: XcUnit | undefined): Map<string, string> {
 // plural on count is `variations.plural`, plurals on arguments are
 // substitutions under the unit's own names, its `argNum` and
 // `formatSpecifier` kept.
+// Whether a text can be a unit: a plural Xcode has no key for (`=0`),
+// or one that opens but does not parse, cannot.
+export function xcstringsWritable(text: string): boolean {
+  const parts = partsOf(text);
+  if (
+    parts.length === 1 &&
+    typeof parts[0] === "string" &&
+    /\{\s*(?:count|arg\d+)\s*,\s*plural\s*,/.test(text)
+  )
+    return false;
+  return parts.every(
+    (p) =>
+      typeof p === "string" ||
+      Object.keys(p.branches).every((k) => !k.startsWith("=")),
+  );
+}
+
 function unitOf(
   text: string,
   like: XcUnit | undefined,
@@ -337,14 +354,35 @@ function unitOf(
   const own = namesOf(like);
   const theirs = namesOf(source);
   const nameOf = (arg: string) => own.get(arg) ?? theirs.get(arg) ?? arg;
+  // Where each plural's token sits among the verbs: a token away from
+  // its argument's position names it with `argNum`, or Xcode would bind
+  // it to the position and swap the numbers.
+  const positionOf = new Map<string, number>();
+  let next = 1;
+  for (const part of parts) {
+    if (typeof part !== "string") {
+      if (!positionOf.has(part.arg)) positionOf.set(part.arg, next);
+      next += 1;
+      continue;
+    }
+    for (const m of part.matchAll(VERB)) {
+      if (m[0] === "%%") continue;
+      const position = m[1] ? Number(m[1]) : next;
+      next = position + 1;
+    }
+  }
   const substitutions: NonNullable<XcUnit["substitutions"]> = {};
   for (const plural of plurals) {
     const name = nameOf(plural.arg);
     const before =
       like?.substitutions?.[name] ??
       source?.substitutions?.[theirs.get(plural.arg) ?? name];
+    const n = Number(plural.arg.slice(3));
     substitutions[name] = {
-      ...(before?.argNum !== undefined && { argNum: before.argNum }),
+      ...((before?.argNum !== undefined ||
+        positionOf.get(plural.arg) !== n) && {
+        argNum: n,
+      }),
       formatSpecifier: before?.formatSpecifier ?? "lld",
       variations: { plural: forms(plural.branches) },
     };
@@ -371,6 +409,7 @@ export function entriesToXcstrings(
   text: string,
   translations: Record<string, string>,
   language: string,
+  onRefused?: (id: string, text: string) => void,
 ): string {
   const catalog = parseXcstrings(text);
   const current = new Map(
@@ -382,8 +421,10 @@ export function entriesToXcstrings(
     const texts = new Map<string, string>();
     for (const read of wanted) {
       const t = translations[key + read.suffix];
-      if (t !== undefined && current.get(key + read.suffix) !== t)
-        texts.set(read.suffix, t);
+      if (t === undefined || t === "" || current.get(key + read.suffix) === t)
+        continue;
+      if (!xcstringsWritable(t)) onRefused?.(key + read.suffix, t);
+      else texts.set(read.suffix, t);
     }
     if (texts.size === 0) continue;
     changed = true;

@@ -254,7 +254,16 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
                         ),
                     )
                   : source.adapter === "xcstrings"
-                    ? xcstringsInto(file, existing, translations, language)
+                    ? xcstringsInto(
+                        file,
+                        existing,
+                        translations,
+                        language,
+                        (id) =>
+                          ctx.err(
+                            `corpus: ${file}: ${printable(id)} is a plural a String Catalog cannot hold (an =N branch, or one that does not parse); not written`,
+                          ),
+                      )
                     : source.adapter === "table"
                       ? entriesToTable(
                           template,
@@ -667,10 +676,11 @@ function xcstringsInto(
   existing: string | undefined,
   translations: Record<string, string>,
   language: string,
+  onRefused: (id: string) => void,
 ): string | undefined {
   if (existing === undefined) return undefined;
   try {
-    return entriesToXcstrings(existing, translations, language);
+    return entriesToXcstrings(existing, translations, language, onRefused);
   } catch (error) {
     throw new CliError(`${file}: ${(error as Error).message}`);
   }
