@@ -18,6 +18,7 @@ import { SourceView } from "@/components/source-view";
 import { OtherLanguages } from "@/components/other-languages";
 import { GlossaryTerms } from "@/components/glossary-terms";
 import { Siblings } from "@/components/siblings";
+import { NoteText } from "@/components/note-text";
 import { siblingsOf } from "@/strings/siblings";
 import { inPositionOrder } from "@/strings/slots";
 import { ProposalPanel } from "@/components/proposal-panel";
@@ -242,7 +243,7 @@ export default async function StringPage({
             />
             {string.stringNote && (
               <Section heading={t("string.stringNoteLabel")} level={3}>
-                <p className="text-sm">{string.stringNote}</p>
+                <NoteText text={string.stringNote} />
               </Section>
             )}
             {string.note && (
@@ -250,7 +251,7 @@ export default async function StringPage({
                 heading={t("string.noteLabel", { type: string.type })}
                 level={3}
               >
-                <p className="text-sm">{string.note}</p>
+                <NoteText text={string.note} />
               </Section>
             )}
             {string.richText === "html" && (
