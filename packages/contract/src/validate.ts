@@ -335,8 +335,9 @@ export function validateTranslation(
           name,
           (allowed.get(name) ?? new Set()).add(verbOf(written)),
         );
+    // The key's type where the text writes no verb of its own there.
     for (const [name, written] of passed)
-      allowed.set(name, (allowed.get(name) ?? new Set()).add(verbOf(written)));
+      if (!allowed.has(name)) allowed.set(name, new Set([verbOf(written)]));
     const said = new Set<string>();
     // A String Catalog's `%arg` is its argument whatever the verb (#726).
     // Unless the key says what type it is.

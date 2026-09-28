@@ -145,9 +145,11 @@ function keyArguments(key: string): string[] | undefined {
   const out: string[] = [];
   let next = 1;
   for (const m of key.matchAll(VERB)) {
-    if (m[0] === "%%" || m[2]) continue;
+    if (m[0] === "%%") continue;
     const position = m[1] ? Number(m[1]) : next;
     next = position + 1;
+    // A substitution in the key takes its position, its type the value's.
+    if (m[2]) continue;
     out[position - 1] ??= m[0].replace(/^%\d+\$/, "%");
   }
   return out.length > 0 ? Array.from(out, (w) => w ?? "") : undefined;

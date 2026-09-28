@@ -1381,3 +1381,12 @@ test("the arguments a key passes are values a translation may pluralise or print
     ),
   ).toEqual({ ok: true });
 });
+
+test("the key's type applies where the text writes no verb of its own (#731)", () => {
+  // The text's own %lld decides; the key's %@ does not loosen it.
+  expect(
+    validateTranslation("%lld stars", "%@ Sterne", "de", "printf", {
+      arguments: ["%@"],
+    }).ok,
+  ).toBe(false);
+});

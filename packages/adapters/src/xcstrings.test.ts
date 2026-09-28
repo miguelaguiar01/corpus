@@ -422,6 +422,9 @@ test("a key's verbs are the arguments the code passes, by position (#731)", () =
       },
       "Error: %@": {},
       "plain.key": { localizations: { en: u("Plain") } },
+      "%#@posts@ from %@": {
+        localizations: { en: u("%#@posts@ from %@") },
+      },
     },
   });
   expect(
@@ -432,5 +435,7 @@ test("a key's verbs are the arguments the code passes, by position (#731)", () =
     // A key that is its own text prints its verbs already.
     ["Error: %@", undefined],
     ["plain.key", undefined],
+    // A substitution in the key takes the first position.
+    ["%#@posts@ from %@", ["", "%@"]],
   ]);
 });

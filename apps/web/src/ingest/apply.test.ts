@@ -944,6 +944,11 @@ test("a pushed entry's arguments are kept on the row, and a seed pluralising one
     .get();
   expect(en?.text).toBe("{arg1, plural, one {starred} other {starred it}}");
   expect(en?.invalid).toBe(false);
+  // The next push reads the seed against the row it already holds.
+  applySnapshot(db, project.id, snapshot);
+  expect(translationOf(db, "notifications.favorite %lld", "en")?.invalid).toBe(
+    false,
+  );
   // A push without the field clears it, as for keyIsText.
   const bare = structuredClone(snapshot);
   delete bare.strings[0]!.arguments;

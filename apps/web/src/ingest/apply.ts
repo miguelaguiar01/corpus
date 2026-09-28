@@ -574,6 +574,7 @@ function applySeeds(
         source: strings.source,
         type: strings.type,
         syntax: strings.syntax,
+        arguments: strings.arguments,
       })
       .from(strings)
       .where(eq(strings.projectId, projectId))
@@ -676,6 +677,7 @@ function applySeeds(
           language,
           string.syntax ?? "icu",
           richText[string.type],
+          string.arguments ?? undefined,
         );
       // A seed the row already holds is nothing: no write, no count, and
       // the editor's "changed since you opened it" stays quiet. Its mark
