@@ -11,6 +11,8 @@ import {
   applyXliffOps,
   entriesToGettext,
   entriesToXcstrings,
+  entriesToQtTs,
+  qtMessages,
   xcstringsToEntries,
   entriesToXliff,
   parsePo,
@@ -188,9 +190,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     }
     if (!sourceWritesBack(source)) {
       ctx.err(
-        source.adapter === "qt-ts"
-          ? `corpus: ${source.path}: pull does not write qt-ts yet; its translations are read and pushed`
-          : `corpus: ${source.path} is not JSON: pull writes JSON only, so its translations cannot be written back`,
+        `corpus: ${source.path} is not JSON: pull writes JSON only, so its translations cannot be written back`,
       );
       continue;
     }
@@ -255,25 +255,32 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
                           `corpus: ${file}: ${printable(id)} is a plural and its translation is not one gettext can hold (a plain text, or an =N branch); not written`,
                         ),
                     )
-                  : source.adapter === "xcstrings"
-                    ? xcstringsInto(
-                        file,
-                        existing,
+                  : source.adapter === "qt-ts"
+                    ? entriesToQtTs(
+                        template,
                         translations,
-                        language,
-                        (id) =>
-                          ctx.err(
-                            `corpus: ${file}: ${printable(id)} is a plural a String Catalog cannot hold (an =N branch, or one that does not parse); not written`,
-                          ),
+                        existing,
+                        fileCodeOf(source, language),
                       )
-                    : source.adapter === "table"
-                      ? entriesToTable(
-                          template,
-                          translations,
-                          source.map,
+                    : source.adapter === "xcstrings"
+                      ? xcstringsInto(
+                          file,
                           existing,
+                          translations,
+                          language,
+                          (id) =>
+                            ctx.err(
+                              `corpus: ${file}: ${printable(id)} is a plural a String Catalog cannot hold (an =N branch, or one that does not parse); not written`,
+                            ),
                         )
-                      : existing;
+                      : source.adapter === "table"
+                        ? entriesToTable(
+                            template,
+                            translations,
+                            source.map,
+                            existing,
+                          )
+                        : existing;
       if (next !== undefined) pending.set(file, next);
       if (next !== undefined && next !== existing) {
         if (!check) {
@@ -330,7 +337,8 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
       !source ||
       !sourceWritesBack(source) ||
       source.adapter === "gettext" ||
-      source.adapter === "xcstrings"
+      source.adapter === "xcstrings" ||
+      source.adapter === "qt-ts"
     ) {
       ctx.err(
         `corpus: proposal(s) for ${ops.map((o) => printable(o.id)).join(", ")}: ${file} matches no writable source; not written`,
@@ -580,6 +588,12 @@ function ownIds(template: string, source: FileSource): Set<string> | undefined {
       return undefined;
     }
   }
+  if (source.adapter === "qt-ts")
+    return new Set(
+      qtMessages(template).flatMap((m) =>
+        m.state === "vanished" || m.state === "obsolete" ? [] : [m.id],
+      ),
+    );
   if (source.adapter === "xcstrings")
     try {
       return new Set(

@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { qtTsToEntries, qtTsTranslations } from "./qtts";
+import { entriesToQtTs, qtTsToEntries, qtTsTranslations } from "./qtts";
 
 // qBittorrent's shapes: lupdate's template as the source.
 const EN = `<?xml version="1.0" encoding="utf-8"?>
@@ -113,4 +113,72 @@ test("length variants seed the first; single quotes, CRLF, relative locations, e
   expect(qtTsTranslations(xml)).toEqual([
     { id: "W | Long\nline", type: "", source: "Lang" },
   ]);
+});
+
+test("pulling a .ts file's own translations back writes the same bytes (#741)", () => {
+  const own = Object.fromEntries(
+    qtTsTranslations(DE).map((e) => [e.id, e.source]),
+  );
+  expect(entriesToQtTs(EN, own, DE, "de")).toBe(DE);
+});
+
+test("a changed translation is spliced alone, unfinished dropped, escaped as the file escapes (#741)", () => {
+  const out = entriesToQtTs(
+    EN,
+    { "AboutDialog | N/A | This date is unavailable": 'Datum „n/a"  ' },
+    DE,
+    "de",
+  );
+  expect(out).toBe(
+    DE.replace(
+      '<translation type="unfinished">k. A.</translation>',
+      "<translation>Datum „n/a&quot; &#xa0;</translation>",
+    ),
+  );
+  // A file that writes its quotes raw keeps them raw.
+  const raw = DE.replace(
+    "<source>About qBittorrent</source>",
+    '<source>About "qBittorrent"</source>',
+  ).replace("&quot;%1&quot;", '"%1"');
+  const rawOut = entriesToQtTs(
+    EN,
+    { 'AboutDialog | About "qBittorrent"': 'Über "qBittorrent"' },
+    raw,
+    "de",
+  );
+  expect(rawOut).toContain('<translation>Über "qBittorrent"</translation>');
+});
+
+test("a message the file lacks is inserted after its neighbour; a missing file starts from the template (#741)", () => {
+  const without = DE.replace(
+    /\n {4}<message>\n {8}<location filename="\.\.\/gui\/aboutdialog\.ui" line="15"\/>[\s\S]*?<\/message>/,
+    "",
+  );
+  expect(without).not.toContain("About qBittorrent");
+  expect(
+    entriesToQtTs(
+      EN,
+      { "AboutDialog | About qBittorrent": "Über qBittorrent" },
+      without,
+      "de",
+    ),
+  ).toBe(DE);
+  const fresh = entriesToQtTs(
+    EN,
+    { "AboutDialog | About qBittorrent": "Über qBittorrent" },
+    undefined,
+    "sr@latin",
+  );
+  expect(fresh).toContain('<TS version="2.1" language="sr@latin">');
+  expect(qtTsTranslations(fresh)).toEqual([
+    {
+      id: "AboutDialog | About qBittorrent",
+      type: "",
+      source: "Über qBittorrent",
+    },
+  ]);
+  // The template's vanished row stays vanished.
+  expect(fresh).toContain(
+    '<translation type="vanished">Alter Text</translation>',
+  );
 });

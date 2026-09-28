@@ -21,7 +21,7 @@ import {
   type FileSource,
   hasLanguages,
   readEntries,
-  readsTargets,
+  sourceWritesBack,
   runExporter,
   sourceLibrary,
 } from "./build";
@@ -168,7 +168,7 @@ export async function validateRepo(
       );
       if (unreadable) throw new CliError(`${sourceFile}: ${unreadable}`);
     }
-    if (!readsTargets(source)) continue;
+    if (!sourceWritesBack(source)) continue;
     const library = sourceLibrary(source);
     const sources = await texts(
       jiti,

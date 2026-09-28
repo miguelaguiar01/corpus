@@ -10,3 +10,5 @@ docs/wiki/recorded/
 
 # Written by bin/vendor-fonts from what Google serves.
 apps/web/src/app/fonts/fonts.css
+# Qt Linguist catalogues: XML under a .ts name.
+packages/cli/test/fixtures/roundtrip-repo/qt/
