@@ -637,3 +637,18 @@ test("a gapped plural takes each missing msgstr[n] in its place (#833)", () => {
   );
   expect(parsePo(fresh)).toHaveLength(2);
 });
+
+test("an entry with no msgstr ends at the next msgid or comment, as msgfmt reads it (#842)", () => {
+  const po = `${RU_HEADER}\nmsgid "Open"\n#: src/b.ts:2\nmsgid "Close"\nmsgstr ""\n`;
+  const entries = parsePo(po);
+  expect(entries.map((e) => e.msgid)).toEqual(["", "Open", "Close"]);
+  expect(entries[2]?.references).toEqual(["src/b.ts:2"]);
+  expect(entries[1]?.references).toEqual([]);
+  const bare = `${RU_HEADER}\nmsgid "Open"\nmsgid "Close"\nmsgstr ""\n`;
+  expect(parsePo(bare).map((e) => e.msgid)).toEqual(["", "Open", "Close"]);
+  expect(
+    entriesToGettext(po, { Open: "Открыть", Close: "Закрыть" }, po, RU_LANG),
+  ).toBe(
+    `${RU_HEADER}\nmsgid "Open"\nmsgstr "Открыть"\n#: src/b.ts:2\nmsgid "Close"\nmsgstr "Закрыть"\n`,
+  );
+});
