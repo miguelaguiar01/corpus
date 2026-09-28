@@ -158,6 +158,18 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     ctx.err(
       `corpus: no .pot beside the catalogues and no ${path.relative(ctx.cwd, sourceFile)}; set the gettext source's sourcePath to the template xgettext writes`,
     );
+  // Every format's build reads the source language's file (#856).
+  if (xliff && !sourcePath && !existsSync(sourceFile))
+    ctx.err(
+      `corpus: no ${path.relative(ctx.cwd, sourceFile)} and no ${bare}; set the xliff source's sourcePath to the file Angular extracts`,
+    );
+  else if (
+    !(xliff || gettext || xcstrings || qt || yaml) &&
+    !existsSync(sourceFile)
+  )
+    ctx.err(
+      `corpus: no ${path.relative(ctx.cwd, sourceFile)}: build reads the source language's strings from it`,
+    );
   // An XLIFF unit's text is ICU, and a flag that cannot apply is refused
   // rather than dropped.
   if (xliff && (args.includes("--library") || args.includes("--syntax")))
@@ -348,7 +360,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       : siblingCatalogues(ctx.cwd, messages, sourceLanguage);
   if (siblings.length > 0) {
     ctx.out(
-      `corpus: ${messages.replace("{lang}", sourceLanguage)} has ${siblings.length} sibling catalogue(s) the pattern does not name (${siblings.slice(0, 3).join(", ")}${siblings.length > 3 ? ", …" : ""}); a {ns} pattern or an array of paths names them all`,
+      `corpus: ${messages.replaceAll("{lang}", sourceLanguage)} has ${siblings.length} sibling catalogue(s) the pattern does not name (${siblings.slice(0, 3).join(", ")}${siblings.length > 3 ? ", …" : ""}); a {ns} pattern or an array of paths names them all`,
     );
   }
   const ignored = ignoreCorpusDir(ctx.cwd);
@@ -586,7 +598,7 @@ async function libraryFor(
         pattern.replace("{ns}", ns),
       )
     : [pattern];
-  const file = concretes[0]?.replace("{lang}", sourceLanguage) ?? pattern;
+  const file = concretes[0]?.replaceAll("{lang}", sourceLanguage) ?? pattern;
   let texts: string[];
   let ids: string[];
   let keyed = 0;
@@ -598,7 +610,7 @@ async function libraryFor(
       const entries = await readEntries(
         jiti,
         cwd,
-        concrete.replace("{lang}", sourceLanguage),
+        concrete.replaceAll("{lang}", sourceLanguage),
         { adapter: "messages", type, path: concrete },
         true,
       );
@@ -611,7 +623,7 @@ async function libraryFor(
   }
   if (concretes.length === 0) return {};
   const chrome = concretes.every((concrete) =>
-    chromeShaped(path.join(cwd, concrete.replace("{lang}", sourceLanguage))),
+    chromeShaped(path.join(cwd, concrete.replaceAll("{lang}", sourceLanguage))),
   );
   if (chrome) return { library: { value: "chrome", detected: file } };
   // Flutter's easy_localization (#664), counted like every shape: `{}`
@@ -760,7 +772,7 @@ function siblingCatalogues(
   sourceLanguage: string,
 ): string[] {
   if (pattern.includes("{ns}")) return [];
-  const file = pattern.replace("{lang}", sourceLanguage);
+  const file = pattern.replaceAll("{lang}", sourceLanguage);
   const dir = path.dirname(file);
   const ext = path.extname(file);
   const glossary = /glossary/i;
@@ -887,7 +899,7 @@ function filesFilling(
     .filter((name) => name.startsWith(prefix) && name.endsWith(afterFirst))
     .map((name) => {
       const code = name.slice(prefix.length, name.length - afterFirst.length);
-      return { code, file: pattern.replace("{lang}", code) };
+      return { code, file: pattern.replaceAll("{lang}", code) };
     })
     .filter(({ file }) => existsSync(path.join(cwd, file)));
 }

@@ -102,6 +102,7 @@ async function push(args: string[], ctx: RunContext): Promise<number> {
   const { snapshot, refused, notes } = await buildSnapshotReport(
     config,
     ctx.cwd,
+    true,
   );
   for (const entry of refused) ctx.err(`corpus: ${describeRefused(entry)}`);
   for (const note of notes) ctx.err(`corpus: ${note}`);
