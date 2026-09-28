@@ -13,8 +13,6 @@ const READ = new Set([
 ]);
 
 const NAMED: Record<string, string> = {
-  ".po": "a gettext catalogue",
-  ".pot": "a gettext template",
   ".yml": "a YAML catalogue",
   ".yaml": "a YAML catalogue",
   ".xcstrings": "a String Catalog",
@@ -43,6 +41,8 @@ export function unreadableCatalogue(
   )
     return `a Qt Linguist catalogue, which no adapter reads: ${EXEC}`;
   if (READ.has(ext)) return null;
+  if (ext === ".po" || ext === ".pot")
+    return `a gettext catalogue: declare it { adapter: "gettext", type, path, sourcePath? }`;
   if (ext === ".xlf" || ext === ".xliff")
     return `an XLIFF catalogue: declare it { adapter: "xliff", type, path, sourcePath? }`;
   if (ext === ".ftl")

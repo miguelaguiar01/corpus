@@ -3,7 +3,7 @@ import { unreadableCatalogue } from "./catalogue-format";
 
 test("a catalogue no adapter reads is named by its format, pointing at exec (#647)", () => {
   expect(unreadableCatalogue("po/fr.po")).toMatch(
-    /^a gettext catalogue, which no adapter reads: .*exec/,
+    /^a gettext catalogue: declare it \{ adapter: "gettext"/,
   );
   expect(unreadableCatalogue("config/locales/client.fr.yml")).toMatch(
     /^a YAML catalogue/,

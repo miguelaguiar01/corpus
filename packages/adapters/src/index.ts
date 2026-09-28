@@ -7,3 +7,4 @@ export * from "./write";
 export * from "./android";
 export * from "./fluent";
 export * from "./xliff";
+export * from "./gettext";

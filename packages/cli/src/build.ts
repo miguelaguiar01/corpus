@@ -7,6 +7,8 @@ import {
   androidDirOf,
   androidToEntries,
   fluentToEntries,
+  gettextToEntries,
+  gettextTranslations,
   xliffToEntries,
   xliffTranslations,
   messagesToEntries,
@@ -220,7 +222,11 @@ export async function buildSnapshotReport(
     // it, and only where pull can write it: a .ts catalogue carries none,
     // so a proposal on its strings is refused up front, not left pending.
     const writable = sourceWritesBack(source);
-    const keyed = entries.filter((entry) => entry.keyIsText).length;
+    // A msgid is its key by nature, not an empty value (#718).
+    const keyed =
+      source.adapter === "gettext"
+        ? 0
+        : entries.filter((entry) => entry.keyIsText).length;
     if (keyed > 0) {
       notes.push(
         `${file}: ${keyed} string(s) have an empty value and take the key as the text; a proposal on them is refused, since the text is the key`,
@@ -309,10 +315,11 @@ export async function buildSnapshotReport(
       );
       if (kept.length > 0) (seedTranslated[lang] ??= []).push(...kept);
     }
-  // An XLIFF target marked translated whose text is the source's is a
-  // translation, not work (#658, #710): only such targets are seeds.
+  // An XLIFF target marked translated, or a gettext msgstr neither empty
+  // nor fuzzy, whose text is the source's is a translation, not work
+  // (#658, #710, #718): only such targets are seeds.
   for (const source of config.sources) {
-    if (source.adapter !== "xliff") continue;
+    if (source.adapter !== "xliff" && source.adapter !== "gettext") continue;
     const file = fileOf(source, config.sourceLanguage, config.sourceLanguage);
     for (const { entry } of sourced.filter((s) => s.file === file))
       for (const [lang, texts] of Object.entries(seedTranslations))
@@ -534,15 +541,17 @@ export type FileSource = Exclude<Source, { adapter: "exec" }>;
 
 export function sourceLibrary(source: FileSource): Library {
   if (source.adapter === "android") return "android";
+  // gettext's msgids are C's format strings unless the source says else.
+  if (source.adapter === "gettext") return source.library ?? "printf";
   return source.adapter === "fluent" || source.adapter === "xliff"
     ? "icu"
     : libraryOf(source);
 }
 
 // Whether a source's target files are read for their translations: a
-// file source pull writes back, and XLIFF, whose write-back is #711.
+// file source pull writes back, and gettext, whose write-back is #719.
 export function readsTargets(source: FileSource): boolean {
-  return source.adapter === "xliff" || sourceWritesBack(source);
+  return source.adapter === "gettext" || sourceWritesBack(source);
 }
 
 // The file a source keeps a language in: its pattern with {lang}
@@ -553,7 +562,7 @@ export function fileOf(
   sourceLanguage: string,
 ): string {
   if (
-    source.adapter === "xliff" &&
+    (source.adapter === "xliff" || source.adapter === "gettext") &&
     source.sourcePath &&
     language === sourceLanguage
   )
@@ -579,6 +588,25 @@ export function readsPluralObjects(source: FileSource): boolean {
       "rails",
       "qt",
     ].includes(libraryOf(source))
+  );
+}
+
+// The language a gettext target file is for, as the config names it:
+// its {lang} read back from the path, a `languageFiles` code (#657)
+// turned back into its tag, for the plural rules (`sr@latin` is sr-Latn).
+function languageOfFile(
+  file: string,
+  source: { path: string; languageFiles?: Record<string, string> },
+): string {
+  const [before, after] = source.path.split("{lang}");
+  const code = file.slice(
+    (before ?? "").length,
+    file.length - (after ?? "").length,
+  );
+  return (
+    Object.entries(source.languageFiles ?? {}).find(
+      ([, c]) => c === code,
+    )?.[0] ?? code
   );
 }
 
@@ -614,6 +642,15 @@ export async function readEntries(
     return androidToEntries(readFileSync(path.join(cwd, file), "utf8"), {
       type: source.type,
     });
+  }
+  if (source.adapter === "gettext") {
+    const text = readFileSync(path.join(cwd, file), "utf8");
+    return sourceFile
+      ? gettextToEntries(text, { type: source.type })
+      : gettextTranslations(text, languageOfFile(file, source)).map((e) => ({
+          ...e,
+          type: source.type,
+        }));
   }
   if (source.adapter === "xliff") {
     const xml = readFileSync(path.join(cwd, file), "utf8");
@@ -687,7 +724,9 @@ async function readModule(
 // it takes no translations.
 export function writableSources(config: CorpusConfig): WritableSource[] {
   return config.sources.flatMap((source) =>
-    source.adapter !== "exec" && sourceWritesBack(source)
+    source.adapter !== "exec" &&
+    source.adapter !== "gettext" &&
+    sourceWritesBack(source)
       ? [
           {
             // Android's source file itself: the server fills {lang} in
@@ -741,6 +780,10 @@ export function pushOnlyNotes(config: CorpusConfig): string[] {
       continue;
     } else if (source.adapter === "xliff") {
       continue;
+    } else if (source.adapter === "gettext") {
+      notes.push(
+        `${source.path}: pull does not write gettext yet; its translations are read and pushed`,
+      );
     } else if (!source.path.includes("{lang}")) {
       notes.push(
         `${source.path} has no {lang}: its translations cannot be written back`,
