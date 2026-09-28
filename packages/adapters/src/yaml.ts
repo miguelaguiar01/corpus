@@ -9,6 +9,7 @@ import {
   isMap,
   isScalar,
   parseDocument,
+  type Document,
   type Node,
   type Pair,
   type YAMLMap,
@@ -69,17 +70,12 @@ export function yamlStrings(
   options: { source?: boolean } = {},
 ): YamlString[] {
   const body = text.replace(/^\uFEFF/, "");
-  const document = parseDocument(body, { uniqueKeys: false });
-  if (document.errors.length > 0)
-    throw new Error(document.errors[0]!.message.split("\n")[0]);
+  const document = parseYaml(body);
   const top = document.contents;
   const roots = isMap(top)
     ? top.items.flatMap((pair) => keyOf(pair, body) ?? [])
     : [];
-  // Rails' parser keeps the last of a repeated root key.
-  const rootPair = isMap(top)
-    ? [...top.items].reverse().find((pair) => keyOf(pair, body) === root)
-    : undefined;
+  const rootPair = rootPairOf(document, body, root);
   const empty =
     !isMap(top) ||
     (rootPair !== undefined &&
@@ -353,57 +349,70 @@ function writeYaml(
   translations: Record<string, string>,
   onRefused?: (id: string, text: string, why: YamlRefusal) => void,
 ): string {
-  const language = { code };
-  const eol = eolOf(base);
-  const document = parseDocument(base, { uniqueKeys: false });
-  if (document.errors.length > 0)
-    throw new Error(document.errors[0]!.message.split("\n")[0]);
-  const top = document.contents;
-  const rootPair = isMap(top)
-    ? [...top.items].reverse().find((p) => keyOf(p, base) === language.code)
-    : undefined;
-  if (!rootPair)
-    throw new Error(
-      `no root key ${language.code}: a target file is rooted at its language's code`,
-    );
-  const current = new Map(
-    yamlStrings(base, language.code).map((s) => [s.id, s]),
-  );
-  const patches: Patch[] = [];
-  // The position after the line break that ends what reaches `at`.
-  const afterLine = (at: number): number => {
-    if (base[at - 1] === "\n") return at;
-    const nl = base.indexOf("\n", at);
-    return nl < 0 ? base.length : nl + 1;
+  const file = indexYaml(base, code, plural);
+  const current = new Map(yamlStrings(base, code).map((s) => [s.id, s]));
+  const write: Write = {
+    file,
+    plural,
+    translations,
+    patches: [],
+    ...(onRefused && { onRefused }),
   };
-  // A pair's value, from just after its key: where it ends, a trailing
-  // line break it holds included.
-  const valueEnd = (pair: Pair): number => {
-    const keyEnd = (pair.key as Node).range![1];
-    const colon = base.indexOf(":", keyEnd) + 1;
-    const value = pair.value as Node | null;
-    const range = value?.range;
-    if (!range || range[1] <= range[0]) return colon;
-    return nodeEnd(base, range);
-  };
-  // A pair's value replaced by `tail`, which starts after the key.
-  const replaceValue = (pair: Pair, tail: string) => {
-    const start = (pair.key as Node).range![1];
-    const end = valueEnd(pair);
-    const held = base[end - 1] === "\n" && !tail.endsWith("\n") ? eol : "";
-    patches.push({ start, end, text: `${tail}${held}` });
-  };
-  const formLines = (forms: Record<string, string>, indent: string) =>
-    PLURAL_CATEGORIES.filter((c) => Object.hasOwn(forms, c))
-      .map((c) => `${indent}${c}: ${doubleQuoted(forms[c]!)}${eol}`)
-      .join("");
+  const missing = patchHeld(write, order, current);
+  placeMissing(write, missing, order, keysAsWritten);
+  return applied(base, write.patches);
+}
 
-  // Where each held id's pair is, and each container a key can go in:
-  // a block map, or a key whose value is null, `{}` or empty.
-  const pairs = new Map<string, Pair>();
-  const containers = new Map<string, Pair | YAMLMap>();
+// A target file, indexed for a write: where each held id's pair is, and
+// each container a key can go in: a block map, or a key whose value is
+// null, `{}` or empty.
+type YamlFile = {
+  text: string;
+  eol: string;
+  // The file's own indentation step, for the blocks a write makes.
+  step: string;
+  pairs: Map<string, Pair>;
+  containers: Map<string, Pair | YAMLMap>;
   // Pairs inside a flow hash: a scalar there is edited in place, but no
   // key goes in and no plural is written line by line (#806).
+  inFlow: Set<string>;
+};
+
+type Write = {
+  file: YamlFile;
+  plural: Set<string>;
+  translations: Record<string, string>;
+  patches: Patch[];
+  onRefused?: (id: string, text: string, why: YamlRefusal) => void;
+};
+
+function parseYaml(text: string): Document {
+  const document = parseDocument(text, { uniqueKeys: false });
+  if (document.errors.length > 0)
+    throw new Error(document.errors[0]!.message.split("\n")[0]);
+  return document;
+}
+
+// Rails' parser keeps the last of a repeated root key.
+function rootPairOf(
+  document: Document,
+  text: string,
+  root: string,
+): Pair | undefined {
+  const top = document.contents;
+  return isMap(top)
+    ? [...top.items].reverse().find((pair) => keyOf(pair, text) === root)
+    : undefined;
+}
+
+function indexYaml(base: string, code: string, plural: Set<string>): YamlFile {
+  const rootPair = rootPairOf(parseYaml(base), base, code);
+  if (!rootPair)
+    throw new Error(
+      `no root key ${code}: a target file is rooted at its language's code`,
+    );
+  const pairs = new Map<string, Pair>();
+  const containers = new Map<string, Pair | YAMLMap>();
   const inFlow = new Set<string>();
   const walk = (map: YAMLMap, path: string[], flow = false) => {
     if (!flow) containers.set(path.join("."), map);
@@ -428,23 +437,6 @@ function writeYaml(
     }
   };
   const rootValue = rootPair.value as Node | null;
-  // The file's own indentation step, from its first nested block map,
-  // for the blocks a write makes (#759).
-  const step = ((): string => {
-    const queue: Pair[] = [rootPair];
-    for (let pair = queue.shift(); pair; pair = queue.shift()) {
-      const value = pair.value as Node | null;
-      if (!isMap(value) || value.flow || value.items.length === 0) continue;
-      const own = lineIndent(base, (pair.key as Node).range![0]).length;
-      const child = lineIndent(
-        base,
-        (value.items[0]!.key as Node).range![0],
-      ).length;
-      if (child > own) return " ".repeat(child - own);
-      queue.push(...(value.items as Pair[]));
-    }
-    return "  ";
-  })();
   if (isMap(rootValue) && !rootValue.flow) walk(rootValue, []);
   // A null or `{}` root takes its keys as a block; a root written as a
   // flow hash with keys takes nothing, every write refused.
@@ -454,7 +446,81 @@ function writeYaml(
     (isMap(rootValue) && rootValue.items.length === 0)
   )
     containers.set("", rootPair);
+  return {
+    text: base,
+    eol: eolOf(base),
+    step: stepOf(base, rootPair),
+    pairs,
+    containers,
+    inFlow,
+  };
+}
 
+// The indentation step of the first nested block map (#759).
+function stepOf(text: string, rootPair: Pair): string {
+  const queue: Pair[] = [rootPair];
+  for (let pair = queue.shift(); pair; pair = queue.shift()) {
+    const value = pair.value as Node | null;
+    if (!isMap(value) || value.flow || value.items.length === 0) continue;
+    const own = lineIndent(text, (pair.key as Node).range![0]).length;
+    const child = lineIndent(
+      text,
+      (value.items[0]!.key as Node).range![0],
+    ).length;
+    if (child > own) return " ".repeat(child - own);
+    queue.push(...(value.items as Pair[]));
+  }
+  return "  ";
+}
+
+// The position after the line break that ends what reaches `at`.
+function afterLine(text: string, at: number): number {
+  if (text[at - 1] === "\n") return at;
+  const nl = text.indexOf("\n", at);
+  return nl < 0 ? text.length : nl + 1;
+}
+
+// A pair's value, from just after its key: where it ends, a trailing
+// line break it holds included.
+function valueEnd(text: string, pair: Pair): number {
+  const keyEnd = (pair.key as Node).range![1];
+  const colon = text.indexOf(":", keyEnd) + 1;
+  const range = (pair.value as Node | null)?.range;
+  if (!range || range[1] <= range[0]) return colon;
+  return nodeEnd(text, range);
+}
+
+// A pair's value replaced by `tail`, which starts after the key.
+function valueReplaced(
+  { text, eol }: YamlFile,
+  pair: Pair,
+  tail: string,
+): Patch {
+  const start = (pair.key as Node).range![1];
+  const end = valueEnd(text, pair);
+  const held = text[end - 1] === "\n" && !tail.endsWith("\n") ? eol : "";
+  return { start, end, text: `${tail}${held}` };
+}
+
+function formLines(
+  forms: Record<string, string>,
+  indent: string,
+  eol: string,
+): string {
+  return PLURAL_CATEGORIES.filter((c) => Object.hasOwn(forms, c))
+    .map((c) => `${indent}${c}: ${doubleQuoted(forms[c]!)}${eol}`)
+    .join("");
+}
+
+// Each changed id the file holds, patched in place; the ids it lacks,
+// returned in order.
+function patchHeld(
+  write: Write,
+  order: string[],
+  current: Map<string, YamlString>,
+): string[] {
+  const { file, plural, translations, patches, onRefused } = write;
+  const { text: base, eol } = file;
   const missing: string[] = [];
   for (const id of order) {
     const text = translations[id];
@@ -466,14 +532,14 @@ function writeYaml(
       onRefused?.(id, text, "plural");
       continue;
     }
-    const pair = pairs.get(id);
+    const pair = file.pairs.get(id);
     if (!pair) {
       missing.push(id);
       continue;
     }
     const value = pair.value as Node | null;
     const indent = lineIndent(base, (pair.key as Node).range![0]);
-    if (inFlow.has(id)) {
+    if (file.inFlow.has(id)) {
       // Inside a flow hash a plural's forms cannot go line by line, a
       // null has no text to replace in place, and a scalar keeps its
       // style only where flow reads it back.
@@ -496,75 +562,99 @@ function writeYaml(
     if (!forms) {
       if (isScalar(value) && value.value !== null && value.range) {
         const out = styled(base, value, text, indent, eol);
-        const wasBlock = /^[|>]/.test(base.slice(value.range[0]));
+        const wasBlock = isBlock(base.slice(value.range[0]));
         patches.push({
           start: value.range[0],
           end: value.range[1],
           text: wasBlock && !isBlock(out) ? `${out}${eol}` : out,
         });
-      } else replaceValue(pair, `: ${styled(base, {}, text, indent)}`);
+      } else
+        patches.push(
+          valueReplaced(file, pair, `: ${styled(base, {}, text, indent)}`),
+        );
       continue;
     }
     if (isMap(value) && !value.flow && value.items.length > 0) {
-      // Each form in its own scalar; a form the hash lacks goes before
-      // the held form CLDR puts after it, or after the last.
-      const held = new Map<string, Pair>();
-      for (const p of value.items) {
-        const k = keyOf(p, base);
-        if (k) held.set(k, p);
-      }
-      const inner = lineIndent(base, (value.items[0]!.key as Node).range![0]);
-      for (const c of PLURAL_CATEGORIES) {
-        if (!Object.hasOwn(forms, c)) continue;
-        const p = held.get(c);
-        if (p) {
-          const v = p.value as Node | null;
-          if (isScalar(v) && v.value === forms[c]) continue;
-          if (isScalar(v) && v.value !== null && v.range)
-            patches.push({
-              start: v.range[0],
-              end: v.range[1],
-              text: styled(base, v, forms[c]!, inner, eol),
-            });
-          else replaceValue(p, `: ${doubleQuoted(forms[c]!)}`);
-          continue;
-        }
-        const line = `${inner}${c}: ${doubleQuoted(forms[c]!)}${eol}`;
-        // Before the next form the text keeps: one it drops goes, its
-        // comment with it, and cannot be an anchor (#759).
-        const next = PLURAL_CATEGORIES.slice(PLURAL_CATEGORIES.indexOf(c) + 1)
-          .filter((k) => Object.hasOwn(forms, k))
-          .map((k) => held.get(k))
-          .find((q) => q !== undefined);
-        const at = next
-          ? base.lastIndexOf("\n", (next.key as Node).range![0] - 1) + 1
-          : afterLine(nodeEnd(base, value.range!));
-        patches.push({
-          start: at,
-          end: at,
-          text:
-            at === base.length && !base.endsWith("\n") ? `${eol}${line}` : line,
-        });
-      }
-      // A form the text no longer has goes, with its comment, so the
-      // hash holds the text's forms (#759).
-      for (const [c, p] of held)
-        if (
-          (PLURAL_CATEGORIES as readonly string[]).includes(c) &&
-          !Object.hasOwn(forms, c)
-        )
-          patches.push(pairRemoval(base, value, p));
+      patchPluralHash(write, value, forms);
       continue;
     }
     // A scalar, a null or a flow hash become the plural's hash.
-    replaceValue(
-      pair,
-      `:${eol}${formLines(forms, `${indent}${step}`).replace(new RegExp(`${eol}$`), "")}`,
+    patches.push(
+      valueReplaced(
+        file,
+        pair,
+        `:${eol}${formLines(forms, `${indent}${file.step}`, eol).replace(new RegExp(`${eol}$`), "")}`,
+      ),
     );
   }
+  return missing;
+}
 
-  // Keys the file lacks, each under the deepest container it has, in
-  // the source's order after the sibling the source puts before it.
+// Each form in its own scalar; a form the hash lacks goes before the
+// held form CLDR puts after it, or after the last.
+function patchPluralHash(
+  { file, patches }: Write,
+  value: YAMLMap,
+  forms: Record<string, string>,
+): void {
+  const { text: base, eol } = file;
+  const held = new Map<string, Pair>();
+  for (const p of value.items) {
+    const k = keyOf(p, base);
+    if (k) held.set(k, p);
+  }
+  const inner = lineIndent(base, (value.items[0]!.key as Node).range![0]);
+  for (const c of PLURAL_CATEGORIES) {
+    if (!Object.hasOwn(forms, c)) continue;
+    const p = held.get(c);
+    if (p) {
+      const v = p.value as Node | null;
+      if (isScalar(v) && v.value === forms[c]) continue;
+      if (isScalar(v) && v.value !== null && v.range)
+        patches.push({
+          start: v.range[0],
+          end: v.range[1],
+          text: styled(base, v, forms[c]!, inner, eol),
+        });
+      else patches.push(valueReplaced(file, p, `: ${doubleQuoted(forms[c]!)}`));
+      continue;
+    }
+    const line = `${inner}${c}: ${doubleQuoted(forms[c]!)}${eol}`;
+    // Before the next form the text keeps: one it drops goes, its
+    // comment with it, and cannot be an anchor (#759).
+    const next = PLURAL_CATEGORIES.slice(PLURAL_CATEGORIES.indexOf(c) + 1)
+      .filter((k) => Object.hasOwn(forms, k))
+      .map((k) => held.get(k))
+      .find((q) => q !== undefined);
+    const at = next
+      ? base.lastIndexOf("\n", (next.key as Node).range![0] - 1) + 1
+      : afterLine(base, nodeEnd(base, value.range!));
+    patches.push({
+      start: at,
+      end: at,
+      text: at === base.length && !base.endsWith("\n") ? `${eol}${line}` : line,
+    });
+  }
+  // A form the text no longer has goes, with its comment, so the hash
+  // holds the text's forms (#759).
+  for (const [c, p] of held)
+    if (
+      (PLURAL_CATEGORIES as readonly string[]).includes(c) &&
+      !Object.hasOwn(forms, c)
+    )
+      patches.push(pairRemoval(base, value, p));
+}
+
+// Keys the file lacks, each under the deepest container it has, in the
+// source's order after the sibling the source puts before it.
+function placeMissing(
+  write: Write,
+  missing: string[],
+  order: string[],
+  keysAsWritten: Map<string, string>,
+): void {
+  const { file, plural, translations, patches, onRefused } = write;
+  const { text: base, eol, step, pairs, containers } = file;
   const byContainer = new Map<string, string[]>();
   for (const id of missing) {
     const path = id.split(".");
@@ -601,41 +691,28 @@ function writeYaml(
     const pairIndent = isMap(container)
       ? lineIndent(base, (container.items[0]!.key as Node).range![0])
       : `${lineIndent(base, (container.key as Node).range![0])}${step}`;
-    // The subtree each missing child of the container holds.
-    const render = (under: string, indent: string): string => {
-      const children: string[] = [];
-      for (const id of ids)
-        if (id.startsWith(`${under}.`) || id === under) {
-          const next = id.split(".")[under.split(".").length];
-          if (next !== undefined && !children.includes(next))
-            children.push(next);
-        }
-      return children
-        .map((child) => {
-          const id = `${under}.${child}`;
-          const key = keysAsWritten.get(id) ?? keyText(child);
-          if (ids.includes(id)) {
-            const text = translations[id]!;
-            const forms = plural.has(id) ? pluralBranches(text) : undefined;
-            return forms
-              ? `${indent}${key}:${eol}${formLines(forms, `${indent}${step}`)}`
-              : `${indent}${key}: ${styled("", {}, text, indent)}${eol}`;
-          }
-          return `${indent}${key}:${eol}${render(id, `${indent}${step}`)}`;
-        })
-        .join("");
-    };
-    const subtree = (child: string) => {
-      const id = `${prefix}${child}`;
+    // A missing key's lines: its text, or the subtree of missing keys
+    // under it.
+    const node = (id: string, child: string, indent: string): string => {
       const key = keysAsWritten.get(id) ?? keyText(child);
       if (ids.includes(id)) {
         const text = translations[id]!;
         const forms = plural.has(id) ? pluralBranches(text) : undefined;
         return forms
-          ? `${pairIndent}${key}:${eol}${formLines(forms, `${pairIndent}${step}`)}`
-          : `${pairIndent}${key}: ${styled("", {}, text, pairIndent)}${eol}`;
+          ? `${indent}${key}:${eol}${formLines(forms, `${indent}${step}`, eol)}`
+          : `${indent}${key}: ${styled("", {}, text, indent)}${eol}`;
       }
-      return `${pairIndent}${key}:${eol}${render(id, `${pairIndent}${step}`)}`;
+      const under = `${indent}${step}`;
+      const children: string[] = [];
+      for (const i of ids)
+        if (i.startsWith(`${id}.`) || i === id) {
+          const next = i.split(".")[id.split(".").length];
+          if (next !== undefined && !children.includes(next))
+            children.push(next);
+        }
+      return `${indent}${key}:${eol}${children
+        .map((c) => node(`${id}.${c}`, c, under))
+        .join("")}`;
     };
     // The container's children in the source's order: a held one moves
     // the anchor, a missing one is written after it.
@@ -651,7 +728,7 @@ function writeYaml(
     for (const child of children) {
       const held = pairs.get(`${prefix}${child}`);
       if (held) {
-        anchor = afterLine(valueEnd(held));
+        anchor = afterLine(base, valueEnd(base, held));
         continue;
       }
       if (
@@ -661,47 +738,57 @@ function writeYaml(
         )
       )
         continue;
-      buckets.set(anchor, (buckets.get(anchor) ?? "") + subtree(child));
+      buckets.set(
+        anchor,
+        (buckets.get(anchor) ?? "") +
+          node(`${prefix}${child}`, child, pairIndent),
+      );
     }
-    for (const [at, text] of buckets) {
-      if (!isMap(container)) {
-        const block = text.replace(new RegExp(`${eol}$`), "");
-        // An empty value takes the block after its line, a comment on it
-        // kept on it (`g: # later`, #759); a null, `~` or `{}` written
-        // there becomes the block.
-        const range = (container.value as Node | null)?.range;
-        if (!range || range[1] <= range[0]) {
-          const keyEnd = (container.key as Node).range![1];
-          let end = base.indexOf("\n", keyEnd);
-          if (end < 0) end = base.length;
-          else if (base[end - 1] === "\r") end--;
-          patches.push({ start: end, end, text: `${eol}${block}` });
-        } else replaceValue(container, `:${eol}${block}`);
-        continue;
-      }
-      let pos = at;
-      if (pos < 0) {
-        // Before the first key, above the comment that goes with it.
-        pos =
-          base.lastIndexOf(
-            "\n",
-            (container.items[0]!.key as Node).range![0] - 1,
-          ) + 1;
-        while (pos > 0) {
-          const prev = base.lastIndexOf("\n", pos - 2) + 1;
-          if (!base.slice(prev, pos).trim().startsWith("#")) break;
-          pos = prev;
-        }
-      }
-      patches.push({
-        start: pos,
-        end: pos,
-        text:
-          pos === base.length && !base.endsWith("\n") ? `${eol}${text}` : text,
-      });
+    for (const [at, text] of buckets)
+      patches.push(insertion(file, container, at, text));
+  }
+}
+
+// Where a container's missing keys go in: at `at`, after a held
+// sibling, or before its first key where `at` is -1.
+function insertion(
+  file: YamlFile,
+  container: Pair | YAMLMap,
+  at: number,
+  text: string,
+): Patch {
+  const { text: base, eol } = file;
+  if (!isMap(container)) {
+    const block = text.replace(new RegExp(`${eol}$`), "");
+    // An empty value takes the block after its line, a comment on it
+    // kept on it (`g: # later`, #759); a null, `~` or `{}` written
+    // there becomes the block.
+    const range = (container.value as Node | null)?.range;
+    if (range && range[1] > range[0])
+      return valueReplaced(file, container, `:${eol}${block}`);
+    const keyEnd = (container.key as Node).range![1];
+    let end = base.indexOf("\n", keyEnd);
+    if (end < 0) end = base.length;
+    else if (base[end - 1] === "\r") end--;
+    return { start: end, end, text: `${eol}${block}` };
+  }
+  let pos = at;
+  if (pos < 0) {
+    // Before the first key, above the comment that goes with it.
+    pos =
+      base.lastIndexOf("\n", (container.items[0]!.key as Node).range![0] - 1) +
+      1;
+    while (pos > 0) {
+      const prev = base.lastIndexOf("\n", pos - 2) + 1;
+      if (!base.slice(prev, pos).trim().startsWith("#")) break;
+      pos = prev;
     }
   }
-  return applied(base, patches);
+  return {
+    start: pos,
+    end: pos,
+    text: pos === base.length && !base.endsWith("\n") ? `${eol}${text}` : text,
+  };
 }
 
 // Why a write was refused: a plural a Rails hash cannot hold, or a key
@@ -788,7 +875,7 @@ export function applyYamlOps(
     // A `*_MF` key is ICU the app compiles: a scalar whatever its text.
     if (!/_MF$/.test(op.id) && pluralBranches(op.text)) plural.add(op.id);
   }
-  let out =
+  const out =
     Object.keys(writes).length === 0
       ? text
       : writeYaml(
@@ -808,11 +895,7 @@ export function applyYamlOps(
         );
   const removals = ops.filter((o) => o.kind === "delete").map((o) => o.id);
   if (removals.length === 0) return out;
-  const document = parseDocument(out, { uniqueKeys: false });
-  const top = document.contents;
-  const root = isMap(top)
-    ? [...top.items].reverse().find((p) => keyOf(p, out) === code)
-    : undefined;
+  const root = rootPairOf(parseDocument(out, { uniqueKeys: false }), out, code);
   const spans: Patch[] = [];
   const walk = (map: YAMLMap, path: string[]) => {
     for (const pair of map.items) {
@@ -831,6 +914,5 @@ export function applyYamlOps(
     }
   };
   if (root && isMap(root.value)) walk(root.value, []);
-  out = applied(out, spans);
-  return out;
+  return applied(out, spans);
 }
