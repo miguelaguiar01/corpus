@@ -49,8 +49,8 @@ export function SourceView({
   );
 }
 
-// An argument and its keys; a branch that holds another argument lists
-// that one's keys beneath it, one level in (#765).
+// An argument and its keys; a branch that holds another argument reads
+// whole, then lists that one's keys beside it, one level in (#765).
 function Branches({
   node,
   slots,
@@ -68,11 +68,10 @@ function Branches({
         return (
           <dd key={key} className="flex items-baseline gap-1">
             <span className="font-mono">{key}</span>
-            {nested.length === 0 ? (
-              <span className="text-foreground">
-                {renderNodes(branch, slots, syntax)}
-              </span>
-            ) : (
+            <span className="text-foreground">
+              {renderNodes(branch, slots, syntax)}
+            </span>
+            {nested.length > 0 && (
               <dl className="flex flex-wrap gap-x-3 border-l border-input pl-2">
                 {nested.map((inner, index) => (
                   <Branches

@@ -57,7 +57,11 @@ function branchingOf(
   const parsed = readIcu(source, syntax);
   if (!parsed.ok) return [];
   const byArg = new Map<string, Branching>();
+  const sourced = new Map<string, Set<string>>();
   for (const node of branchingNodes(parsed.nodes)) {
+    const keys = sourced.get(node.arg) ?? new Set<string>();
+    for (const key of Object.keys(node.branches)) keys.add(key);
+    sourced.set(node.arg, keys);
     const entry = byArg.get(node.arg) ?? {
       kind: node.kind,
       arg: node.arg,
@@ -82,13 +86,14 @@ function branchingOf(
       entry.keys.push("other");
     byArg.set(node.arg, entry);
   }
-  // A plural's categories are the target language's: a branch the
+  // A plural's categories are the target language's: a category the
   // source lacks holds what the source's `other` does.
   for (const entry of byArg.values()) {
     const other = entry.inner.get("other");
-    if (other)
-      for (const key of entry.keys)
-        if (!entry.inner.has(key)) entry.inner.set(key, other);
+    if (entry.kind !== "plural" || !other) continue;
+    for (const key of entry.keys)
+      if (!key.startsWith("=") && !sourced.get(entry.arg)?.has(key))
+        entry.inner.set(key, other);
   }
   return [...byArg.values()];
 }
@@ -97,11 +102,13 @@ function branchingOf(
 // where ICU reads it, the placeholder under i18next, and nothing under
 // printf and android, whose verb the source names (#662, #689).
 // A branch holding a nested argument holds its skeleton in place of
-// the count, which that argument's own branches carry (#765).
+// the count, which that argument's own branches carry (#765). Nesting
+// is one level deep, so an inner skeleton is never expanded further:
+// arguments nested in each other in different places would not end.
 function skeleton(
   { kind, arg, keys, inner }: Branching,
   syntax: Library,
-  byArg: Map<string, Branching>,
+  byArg?: Map<string, Branching>,
 ): { token: string; caret: number } {
   const own =
     kind !== "plural"
@@ -120,9 +127,9 @@ function skeleton(
                   ? ""
                   : "#";
   const fill = (key: string) => {
-    const nested = (inner.get(key) ?? []).flatMap((name) => {
-      const entry = byArg.get(name);
-      return entry ? [skeleton(entry, syntax, byArg)] : [];
+    const nested = (byArg ? (inner.get(key) ?? []) : []).flatMap((name) => {
+      const entry = byArg?.get(name);
+      return entry ? [skeleton(entry, syntax)] : [];
     });
     if (nested.length === 0) return { text: own, caret: own.length };
     return {

@@ -626,3 +626,48 @@ test("a nested argument's skeleton sits in each branch of its outer one's, the p
   );
   expect(screen.getByRole("button", { name: "{g, select}" })).toBeTruthy();
 });
+
+test("a nested skeleton goes one level deep, fills only the categories the source lacks, and keeps two inner arguments and exact keys (#765)", () => {
+  // Each argument nested in the other, in different places.
+  const crossed = pluralPane(
+    "en",
+    "",
+    "{n, plural, one {{g, select, female {a} other {b}}} other {c}} {g, select, female {{n, plural, one {# x} other {# y}}} other {d}}",
+  );
+  fireEvent.click(screen.getByRole("button", { name: "{n, plural}" }));
+  expect(crossed.value).toBe(
+    "{n, plural, one {{g, select, female {} other {}}} other {#}}",
+  );
+  cleanup();
+  // A select key with no nesting stays empty; the plural's `few` and
+  // `many`, which the source lacks, hold what its `other` does.
+  const sparse = pluralPane(
+    "ru",
+    "",
+    "{g, select, female {her} other {{m, plural, one {#} other {#}}}} {n, plural, one {# x} other {{k, select, a {y} other {z}}}}",
+  );
+  fireEvent.click(screen.getByRole("button", { name: "{n, plural}" }));
+  const select = "{k, select, a {} other {}}";
+  expect(sparse.value).toBe(
+    `{n, plural, one {#} few {${select}} many {${select}} other {${select}}}`,
+  );
+  cleanup();
+  const plain = pluralPane(
+    "ru",
+    "",
+    "{g, select, female {her} other {{m, plural, one {#} other {#}}}}",
+  );
+  fireEvent.click(screen.getByRole("button", { name: "{g, select}" }));
+  expect(plain.value).toBe(
+    "{g, select, female {} other {{m, plural, one {#} few {#} many {#} other {#}}}}",
+  );
+  cleanup();
+  const two = pluralPane(
+    "en",
+    "",
+    "{c, plural, =0 {none} other {{g, select, a {x} other {y}} {h, select, b {x} other {y}}}}",
+  );
+  fireEvent.click(screen.getByRole("button", { name: "{c, plural}" }));
+  const inner = "{g, select, a {} other {}} {h, select, b {} other {}}";
+  expect(two.value).toBe(`{c, plural, =0 {#} one {${inner}} other {${inner}}}`);
+});
