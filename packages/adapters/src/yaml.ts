@@ -211,6 +211,25 @@ function doubleQuoted(text: string): string {
   return `"${out}"`;
 }
 
+// Whether a scalar written `rendered` reads back as `text` inside a flow
+// hash, where a comma or a bracket ends a plain one (#806).
+function readsInFlow(rendered: string, text: string): boolean {
+  if (/[\n\r]/.test(rendered)) return false;
+  return (["1.1", "1.2"] as const).every((version) => {
+    try {
+      const document = parseDocument(`k: {v: ${rendered}, w: x}`, { version });
+      const map = document.contents;
+      if (document.errors.length > 0 || !isMap(map)) return false;
+      const flow = map.items[0]?.value;
+      if (!isMap(flow) || flow.items.length !== 2) return false;
+      const value = flow.items[0]?.value;
+      return isScalar(value) && value.value === text;
+    } catch {
+      return false;
+    }
+  });
+}
+
 // Whether a scalar written `rendered` at `indent` reads back as `text`,
 // both as YAML 1.2 reads it and as Rails' YAML 1.1 does, where `yes`,
 // `on` or `1_000` are no strings.
@@ -429,15 +448,22 @@ function writeYaml(
   // a block map, or a key whose value is null, `{}` or empty.
   const pairs = new Map<string, Pair>();
   const containers = new Map<string, Pair | YAMLMap>();
-  const walk = (map: YAMLMap, path: string[]) => {
-    containers.set(path.join("."), map);
+  // Pairs inside a flow hash: a scalar there is edited in place, but no
+  // key goes in and no plural is written line by line (#806).
+  const inFlow = new Set<string>();
+  const walk = (map: YAMLMap, path: string[], flow = false) => {
+    if (!flow) containers.set(path.join("."), map);
     for (const pair of map.items) {
       const key = keyOf(pair, base);
       if (key === undefined || key === "<<") continue;
       const id = [...path, key].join(".");
       pairs.set(id, pair);
+      if (flow) inFlow.add(id);
       const value = pair.value as Node | null;
-      if (isMap(value) && !value.flow && !plural.has(id))
+      if (isMap(value) && value.flow && value.items.length > 0)
+        walk(value, [...path, key], true);
+      else if (flow) continue;
+      else if (isMap(value) && !value.flow && !plural.has(id))
         walk(value, [...path, key]);
       else if (
         !value ||
@@ -493,6 +519,26 @@ function writeYaml(
     }
     const value = pair.value as Node | null;
     const indent = lineIndent(base, (pair.key as Node).range![0]);
+    if (inFlow.has(id)) {
+      // Inside a flow hash a plural's forms cannot go line by line, a
+      // null has no text to replace in place, and a scalar keeps its
+      // style only where flow reads it back.
+      if (
+        forms ||
+        !isScalar(value) ||
+        value.value === null ||
+        !value.range ||
+        value.range[1] <= value.range[0]
+      ) {
+        onRefused?.(id, text, "parent");
+        continue;
+      }
+      const own = styled(base, value, text, indent, eol);
+      const out =
+        !isBlock(own) && readsInFlow(own, text) ? own : doubleQuoted(text);
+      patches.push({ start: value.range[0], end: value.range[1], text: out });
+      continue;
+    }
     if (!forms) {
       if (isScalar(value) && value.value !== null && value.range) {
         const out = styled(base, value, text, indent, eol);
