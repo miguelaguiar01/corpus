@@ -12,6 +12,7 @@ import {
   LANGUAGE_RE,
   LIBRARIES,
   localeOf,
+  posixTag,
   type Library,
 } from "@corpus/contract";
 import { headOf, isQtLinguist, unreadableCatalogue } from "./catalogue-format";
@@ -96,8 +97,13 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   // its first bytes.
   const qt =
     /\.ts$/i.test(messages) &&
-    existsSync(sourceFile) &&
-    isQtLinguist(headOf(sourceFile));
+    (existsSync(sourceFile)
+      ? isQtLinguist(headOf(sourceFile))
+      : qtTemplates(ctx.cwd, messages).length > 0);
+  if (qt && !existsSync(sourceFile))
+    ctx.err(
+      `corpus: no ${path.relative(ctx.cwd, sourceFile)}; set the qt-ts source's sourcePath to the template lupdate writes`,
+    );
   const templates = gettext ? potsBeside(ctx.cwd, messages) : [];
   const sourcePath = xliff
     ? !existsSync(sourceFile) && existsSync(path.join(ctx.cwd, bare))
@@ -132,7 +138,11 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   if (unreadable) throw new CliError(`--messages ${messages}: ${unreadable}`);
   const qtFiles = qt
     ? qtLanguages(ctx.cwd, messages, sourceLanguage)
-    : { languages: [], languageFiles: {} };
+    : { languages: [], languageFiles: {}, skipped: [] };
+  if (qtFiles.skipped.length > 0)
+    ctx.err(
+      `corpus: ${qtFiles.skipped.join(", ")} name no language tag and no script; left out, or map each with languageFiles`,
+    );
   // The flag given without a value is an error, as for every option
   // (args.ts); only its absence means "read the files".
   const present = args.includes("--languages");
@@ -177,16 +187,19 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   const library = detected.library;
   const components = checkIncludeFor(ctx.cwd, messages);
   const include = components.include;
+  const kept = Object.fromEntries(
+    Object.entries(qtFiles.languageFiles).filter(([tag]) =>
+      languages.includes(tag),
+    ),
+  );
   const source = qt
     ? {
         adapter: "qt-ts" as const,
         type,
         path: messages,
         ...(library && { library: library.value }),
-        ...(Object.keys(qtFiles.languageFiles).length > 0 &&
-          !args.includes("--languages") && {
-            languageFiles: qtFiles.languageFiles,
-          }),
+        // The mappings of the languages the config lists, given or read.
+        ...(Object.keys(kept).length > 0 && { languageFiles: kept }),
       }
     : xcstrings
       ? {
@@ -791,46 +804,63 @@ function readCatalog(
 
 // The languages a Qt catalogue's files name, the source first: a POSIX
 // script modifier, `sr@latin`, is its tag `sr-Latn`, mapped back to the
-// file's code through languageFiles (#657).
+// file's code through languageFiles (#657); any other code that is no
+// tag is skipped and named. `{lang}` may be a file name's part or a
+// directory.
 function qtLanguages(
   cwd: string,
   pattern: string,
   sourceLanguage: string,
-): { languages: string[]; languageFiles: Record<string, string> } {
+): {
+  languages: string[];
+  languageFiles: Record<string, string>;
+  skipped: string[];
+} {
   const at = pattern.indexOf("{lang}");
   const before = pattern.slice(0, at);
   const after = pattern.slice(at + "{lang}".length);
   const dir = path.join(cwd, path.dirname(`${before}x`));
   const prefix = path.basename(`${before}x`).slice(0, -1);
-  const scripts: Record<string, string> = {
-    latin: "Latn",
-    latn: "Latn",
-    cyrillic: "Cyrl",
-    cyrl: "Cyrl",
-  };
+  const afterFirst = after.split("/")[0] ?? "";
   const languageFiles: Record<string, string> = {};
   const found = new Set<string>();
+  const skipped: string[] = [];
   let names: string[];
   try {
     names = readdirSync(dir);
   } catch {
-    return { languages: [], languageFiles };
+    return { languages: [], languageFiles, skipped };
   }
   for (const name of names) {
-    if (!name.startsWith(prefix) || !name.endsWith(after)) continue;
-    const code = name.slice(prefix.length, name.length - after.length);
-    const posix = /^([a-z]{2,3})@([a-z]+)$/i.exec(code);
-    const script = posix && scripts[posix[2]!.toLowerCase()];
-    if (script) {
-      const tag = `${posix![1]}-${script}`;
+    if (!name.startsWith(prefix) || !name.endsWith(afterFirst)) continue;
+    const code = name.slice(prefix.length, name.length - afterFirst.length);
+    if (!existsSync(path.join(cwd, pattern.replace("{lang}", code)))) continue;
+    const tag = posixTag(code);
+    if (tag) {
       languageFiles[tag] = code;
       found.add(tag);
     } else if (LANGUAGE_RE.test(code)) found.add(code);
+    else skipped.push(pattern.replace("{lang}", code));
   }
-  if (found.size === 0) return { languages: [], languageFiles };
+  if (found.size === 0) return { languages: [], languageFiles, skipped };
   found.delete(sourceLanguage);
   return {
     languages: [sourceLanguage, ...[...found].sort()],
     languageFiles,
+    skipped,
   };
+}
+
+// Any Qt Linguist file the pattern names, for a repository whose source
+// language has no file of its own.
+function qtTemplates(cwd: string, pattern: string): string[] {
+  const at = pattern.indexOf("{lang}");
+  const dir = path.join(cwd, path.dirname(`${pattern.slice(0, at)}x`));
+  try {
+    return readdirSync(dir)
+      .map((name) => path.join(dir, name))
+      .filter((file) => /\.ts$/i.test(file) && isQtLinguist(headOf(file)));
+  } catch {
+    return [];
+  }
 }

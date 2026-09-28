@@ -24,16 +24,16 @@ const NAMED: Record<string, string> = {
 const EXEC =
   "an exec source converts it (the wiki's Sources and adapters, exec)";
 
-// Why a messages or table source cannot read a file, or null when it
-// can (#647): Node's loader would otherwise fail on it with an error
-// that names neither the format nor exec. `head` is the file's start,
-// which tells Qt Linguist's XML `.ts` from TypeScript.
 // Whether a `.ts` file's first bytes are Qt Linguist's XML, not
 // TypeScript.
 export function isQtLinguist(head: string): boolean {
   return /^\uFEFF?\s*<(\?xml|!DOCTYPE TS\b|TS\b)/.test(head);
 }
 
+// Why a messages or table source cannot read a file, or null when it
+// can (#647): Node's loader would otherwise fail on it with an error
+// that names neither the format nor exec. `head` is the file's start,
+// which tells Qt Linguist's XML `.ts` from TypeScript.
 export function unreadableCatalogue(
   file: string,
   head?: string,

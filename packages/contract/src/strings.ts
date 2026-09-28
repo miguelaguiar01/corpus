@@ -50,22 +50,33 @@ export const languageCode = () =>
 // BCP 47 writes it as a subtag.
 const POSIX_SCRIPTS: Record<string, string> = {
   latin: "Latn",
+  latn: "Latn",
   cyrillic: "Cyrl",
+  cyrl: "Cyrl",
   arabic: "Arab",
   devanagari: "Deva",
 };
 
-// Why a code is not a tag, naming it (#657), and for a POSIX code the
-// tag to write and the mapping that keeps its files' names.
-export function notALanguageTag(code: string): string {
+// The tag a POSIX code with a script modifier names (`sr@latin` is
+// sr-Latn, `sr_RS@latin` sr-Latn-RS), or undefined for any other code,
+// a modifier that is no script (`ca@valencia`) among them.
+export function posixTag(code: string): string | undefined {
   const posix = /^([A-Za-z]{2,3})(?:[-_]([A-Za-z]{2}))?@([A-Za-z]+)$/.exec(
     code,
   );
   const script = posix && POSIX_SCRIPTS[posix[3]!.toLowerCase()];
-  if (posix && script) {
-    const tag = [posix[1]!.toLowerCase(), script, posix[2]?.toUpperCase()]
-      .filter(Boolean)
-      .join("-");
+  return posix && script
+    ? [posix[1]!.toLowerCase(), script, posix[2]?.toUpperCase()]
+        .filter(Boolean)
+        .join("-")
+    : undefined;
+}
+
+// Why a code is not a tag, naming it (#657), and for a POSIX code the
+// tag to write and the mapping that keeps its files' names.
+export function notALanguageTag(code: string): string {
+  const tag = posixTag(code);
+  if (tag) {
     return `${JSON.stringify(code)} is not a language tag; write ${tag}, and map its files with languageFiles: { ${JSON.stringify(tag)}: ${JSON.stringify(code)} } on the source`;
   }
   return `${JSON.stringify(code)} is not a language tag such as en, pt-PT or en_US`;

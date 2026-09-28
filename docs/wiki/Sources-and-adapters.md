@@ -113,7 +113,7 @@ Qt Linguist's `.ts` files, one per language:
 
 The source is the source language's file, often `lupdate`'s template with every translation empty; `sourcePath` names another. `corpus init --messages src/lang/app_{lang}.ts` writes the source when the file is Qt's XML, and a POSIX code among the files, `sr@latin`, goes into `languageFiles` as its tag, `sr-Latn`. A message is a string named by Qt's own identity, `Context | source`, or `Context | source | comment` where a disambiguating comment tells two apart; its `<extracomment>`, comment and locations are the note. Only a finished translation is one already made: an `unfinished` one is work, and a vanished one is not read. The library is [qt](Your-i18n-library#qt). Qt's source text is the code's `tr()` literal, so no proposal reaches it.
 
-A pull writes a changed translation into its `<translation>` and nothing else, drops its `unfinished` mark, and escapes as the file does: `&quot;` and `&#xa0;` where lupdate and Transifex wrote the file, raw quotes where it keeps them raw. A message the file lacks goes in where the source file has it, and a language with no file yet gets one made from the source file. Plural (`numerus`) messages are read as their source for now.
+A pull writes a changed translation into its `<translation>` and nothing else, drops its `unfinished` mark, and escapes as the file does: `&quot;` and `&#xa0;` where lupdate and Transifex wrote the file, raw quotes where it keeps them raw. A message the file lacks goes in where the source file has it, and a language with no file yet gets one made from the source file. Plural (`numerus`) messages are read as their source for now, and a pull leaves their forms as they are.
 
 ## exec
 
