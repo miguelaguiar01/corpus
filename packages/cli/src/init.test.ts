@@ -1183,3 +1183,22 @@ test("init writes an xcstrings source for a String Catalog, its languages and so
     "--source pt: App/Localizable.xcstrings names en as its source language",
   );
 });
+
+test("init names what is wrong with a String Catalog path: missing, broken, {lang}, or --source without a value (#729)", async () => {
+  const p = project();
+  const base = ["init", "--project", "app", "--messages"];
+  expect(await run([...base, "App/Localizable.xcstrings"], p.ctx)).toBe(1);
+  expect(p.err.join("\n")).toContain("App/Localizable.xcstrings: no such file");
+  mkdirSync(path.join(p.dir, "App"), { recursive: true });
+  writeFileSync(path.join(p.dir, "App", "Localizable.xcstrings"), "{ nope");
+  expect(await run([...base, "App/Localizable.xcstrings"], p.ctx)).toBe(1);
+  writeFileSync(path.join(p.dir, "App", "Localizable.xcstrings"), "{}");
+  expect(await run([...base, "App/Localizable.xcstrings"], p.ctx)).toBe(1);
+  expect(p.err.join("\n")).toContain("not a String Catalog");
+  expect(await run([...base, "App/{lang}.xcstrings"], p.ctx)).toBe(1);
+  expect(p.err.join("\n")).toContain("its path has no {lang}");
+  expect(
+    await run([...base, "App/Localizable.xcstrings", "--source"], p.ctx),
+  ).toBe(1);
+  expect(p.err.join("\n")).toContain("--source needs a value");
+});

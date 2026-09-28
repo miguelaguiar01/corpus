@@ -54,9 +54,18 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   // is optional for it alone.
   const named = option(args, "--messages");
   const catalogued = named !== undefined && /\.xcstrings$/i.test(named);
+  if (catalogued && named.includes("{lang}"))
+    throw new CliError(
+      `--messages ${named}: a String Catalog holds every language in one file, so its path has no {lang}`,
+    );
   const sourceFlag = catalogued
     ? option(args, "--source")
     : required("--source");
+  if (
+    sourceFlag?.startsWith("--") ||
+    (catalogued && sourceFlag === undefined && args.includes("--source"))
+  )
+    throw new CliError(`--source needs a value\nusage: ${INIT_USAGE}`);
   const messages = required("--messages");
   const catalog = catalogued ? readCatalog(ctx.cwd, messages) : undefined;
   const sourceLanguage = sourceFlag ?? catalog!.sourceLanguage;
