@@ -38,6 +38,8 @@
   "editor.selects": "Insert a select or a plural",
   "editor.staleBanner": "The source text changed after this translation was saved. Check it against the source above, then save again.",
   "editor.tags": "Insert a tag",
+  "editor.suggestionLabel": "The repository's fuzzy guess, not yet a translation",
+  "editor.useSuggestion": "Use as draft",
   "editor.targetLabel": "Translation ({language})",
   "editor.unexpectedBranch": "Select {arg} has an extra {key} branch",
   "editor.unexpectedCategory": "Plural {arg} has a {key} branch this language does not use",

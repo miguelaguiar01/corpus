@@ -167,7 +167,12 @@ async function main(): Promise<void> {
   const changed = structuredClone(chrome);
   const heading = changed.strings.find((s) => s.id === "entities.heading");
   if (heading) heading.source = `${heading.source} & relations`;
-  await pushChrome(changed);
+  // A fuzzy guess on the string the editor shot opens (#774); every push
+  // replaces suggestions, so this one carries it.
+  await pushChrome({
+    ...changed,
+    seedSuggestions: { "pt-PT": { "verify.button": "Marcar como verificado" } },
+  });
 
   await page.goto(corpus, { waitUntil: "networkidle" });
   await shot("dashboard");

@@ -174,6 +174,7 @@ export function TargetPane({
   queue,
   examples = [],
   sourceLanguage,
+  suggestion = null,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   source: string;
@@ -192,6 +193,9 @@ export function TargetPane({
   // The examples' slot values are in the source language unless they
   // carry the target's (§7); the preview says which.
   sourceLanguage: string;
+  // The repository's guess to start from (#774): shown, never saved
+  // until the translator saves.
+  suggestion?: string | null;
 }) {
   const [text, setText] = useState(initialText);
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -245,6 +249,29 @@ export function TargetPane({
       <input type="hidden" name="openedVersion" value={openedVersion} />
       <input type="hidden" name="openedSource" value={sourceStamp(source)} />
       {queue && <input type="hidden" name="queue" value={queue} />}
+      {suggestion && (
+        <div
+          role="region"
+          aria-labelledby="suggestion-label"
+          className="space-y-2 rounded-md border border-dashed border-input p-3"
+        >
+          <p id="suggestion-label" className="text-sm text-muted-foreground">
+            {t("editor.suggestionLabel")}
+          </p>
+          <p className="text-base whitespace-pre-wrap">{suggestion}</p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setText(suggestion);
+              ref.current?.focus();
+            }}
+          >
+            {t("editor.useSuggestion")}
+          </Button>
+        </div>
+      )}
       <Field label={t("editor.targetLabel", { language })}>
         <textarea
           ref={ref}

@@ -708,3 +708,45 @@ test("a select and a plural on one argument name each get their own chip and ske
     ),
   ).toEqual({ ok: true });
 });
+
+test("a suggestion shows above the draft, and its button fills the draft, validated as typed text; none, nothing shown (#774)", () => {
+  render(
+    <TargetPane
+      action={vi.fn()}
+      source={SOURCE}
+      slots={slots}
+      language="en"
+      initialText=""
+      slug="mm"
+      stringKey="k"
+      openedVersion={1}
+      sourceLanguage="pt-PT"
+      suggestion="{witness} saw {suspect}"
+    />,
+  );
+  const region = screen.getByRole("region", {
+    name: "The repository's fuzzy guess, not yet a translation",
+  });
+  expect(region.textContent).toContain("{witness} saw {suspect}");
+  const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
+  expect(textarea.value).toBe("");
+  fireEvent.click(screen.getByRole("button", { name: "Use as draft" }));
+  expect(textarea.value).toBe("{witness} saw {suspect}");
+  expect(document.activeElement).toBe(textarea);
+  // The guess drops {hour}: validation says so, as for typed text.
+  expect(screen.getByText("Missing {hour}")).toBeTruthy();
+  expect(
+    (
+      screen.getByRole("button", {
+        name: "Save translation",
+      }) as HTMLButtonElement
+    ).disabled,
+  ).toBe(true);
+  cleanup();
+  pane();
+  expect(
+    screen.queryByRole("region", {
+      name: "The repository's fuzzy guess, not yet a translation",
+    }),
+  ).toBeNull();
+});
