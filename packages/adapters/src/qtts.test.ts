@@ -427,3 +427,63 @@ test("a qsTrId message is keyed by its id, which a changed source keeps, and pul
     ),
   );
 });
+
+test("pull escapes as lupdate's protect() does, character by character, in either file style (#747)", () => {
+  // Qt's linguist/shared/ts.cpp protect(): the five XML entities; below
+  // 0x20 but tab and newline, <byte>; a space above 0x7f, a reference;
+  // anything else, U+007F included, as it is. A raw-quote file keeps
+  // quotes and spaces raw but may not hold a control character.
+  const file = (sample: string) => `<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE TS>
+<TS version="2.1" language="de">
+<context>
+    <name>W</name>
+    <message>
+        <source>Sample</source>
+        <translation>${sample}</translation>
+    </message>
+    <message>
+        <source>Text</source>
+        <translation>Alt</translation>
+    </message>
+</context>
+</TS>
+`;
+  const written = (style: string, text: string) => {
+    const out = entriesToQtTs(file(style), { "W | Text": text }, file(style), {
+      tag: "de",
+      code: "de",
+    });
+    return /<source>Text<\/source>\s*<translation>([\s\S]*?)<\/translation>/.exec(
+      out,
+    )![1]!;
+  };
+  const table: [string, string, string][] = [
+    // [character, as lupdate writes it, in a raw-quote file]
+    ["\u0001", '<byte value="x1"/>', '<byte value="x1"/>'],
+    ["\u001b", '<byte value="x1b"/>', '<byte value="x1b"/>'],
+    ["a\rb", 'a<byte value="xd"/>b', 'a<byte value="xd"/>b'],
+    ["\u007f", "\u007f", "\u007f"],
+    ["\u0085", "&#x85;", "\u0085"],
+    [" ", "&#xa0;", " "],
+    [" ", "&#x2028;", " "],
+    [" ", "&#x2029;", " "],
+    ["　", "&#x3000;", "　"],
+    ['"', "&quot;", '"'],
+    ["a\tb\nc", "a\tb\nc", "a\tb\nc"],
+  ];
+  for (const [character, entities, raw] of table) {
+    expect(written("&quot;x&quot;", character)).toBe(entities);
+    expect(written('"x"', character)).toBe(raw);
+  }
+  // What is written reads back as the text.
+  const back = entriesToQtTs(
+    file("&quot;x&quot;"),
+    { "W | Text": "\u0085 \u0001" },
+    file("&quot;x&quot;"),
+    { tag: "de", code: "de" },
+  );
+  expect(qtTsTranslations(back).find((e) => e.id === "W | Text")?.source).toBe(
+    "\u0085 \u0001",
+  );
+});
