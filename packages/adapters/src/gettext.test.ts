@@ -329,3 +329,41 @@ test("a missing target starts from the template, its Language and charset set (#
     '"Content-Type: text/plain; charset=UTF-8\\n"\n"Language: de\\n"\n',
   );
 });
+
+test("an appended entry goes above the comments and flags of the first obsolete entry, in the file's line endings (#719)", () => {
+  const de = DE.replace(
+    /\nmsgid "%d note"[^]*$/,
+    '\n# translator note\n#, fuzzy\n#~ msgid "Old"\n#~ msgstr "Alt"\n',
+  );
+  const plural = "{count, plural, one {%d Notiz} other {%d Notizen}}";
+  const note =
+    'msgid "%d note"\nmsgid_plural "%d notes"\nmsgstr[0] "%d Notiz"\nmsgstr[1] "%d Notizen"\n\n';
+  expect(entriesToGettext(POT, { "%d note": plural }, de, DE_LANG)).toBe(
+    de.replace("# translator note", `${note}# translator note`),
+  );
+  const crlfPot = POT.replace(/\n/g, "\r\n");
+  const appended = entriesToGettext(
+    crlfPot,
+    { "%d note": plural },
+    de,
+    DE_LANG,
+  );
+  expect(appended).not.toContain("\r");
+});
+
+test("a no-wrap entry breaks at newlines alone; a new file drops the template header's fuzzy flag (#719)", () => {
+  const long = "word ".repeat(30).trim();
+  const noWrap = DE.replace('msgid "Joplin"', '#, no-wrap\nmsgid "Joplin"');
+  expect(entriesToGettext(POT, { Joplin: long }, noWrap, DE_LANG)).toContain(
+    `#, no-wrap\nmsgid "Joplin"\nmsgstr "${long}"\n`,
+  );
+  const pot = POT.replace(
+    'msgid ""\nmsgstr ""',
+    '#, fuzzy\nmsgid ""\nmsgstr ""',
+  );
+  const out = entriesToGettext(pot, {}, undefined, DE_LANG);
+  expect(out).not.toContain("#, fuzzy");
+  expect(out.startsWith('# Joplin translation template\nmsgid ""\n')).toBe(
+    true,
+  );
+});

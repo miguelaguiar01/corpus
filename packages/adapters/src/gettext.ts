@@ -455,8 +455,13 @@ function breaks(before2: string, before: string, after: string): boolean {
 
 // A keyword and its string as msgmerge writes them: one line when it
 // fits, else an empty first string and a line per `\n`, each broken
-// where it may to stay within 79 columns, the quotes counted.
-export function poLines(keyword: string, value: string): string[] {
+// where it may to stay within 79 columns, the quotes counted; an entry
+// flagged `no-wrap` breaks at `\n` alone.
+export function poLines(
+  keyword: string,
+  value: string,
+  wraps = true,
+): string[] {
   const portions = value.split(/(?<=\n)/);
   const wrap = (portion: string, start: number): string[] => {
     const chars = [...portion];
@@ -470,7 +475,7 @@ export function poLines(keyword: string, value: string): string[] {
     let line = "";
     let at = start;
     for (const word of words) {
-      if (line !== "" && at + columns(line + word) + 2 > WIDTH) {
+      if (line !== "" && wraps && at + columns(line + word) + 2 > WIDTH) {
         lines.push(line);
         line = "";
         at = 0;
@@ -503,18 +508,22 @@ function eolOf(text: string): string {
 }
 
 // The target file a missing one starts as: the template, its header's
-// `Language:` the file's code and its charset UTF-8, as msginit does.
+// `Language:` the file's code, its charset UTF-8 and its fuzzy flag
+// gone, as msginit does.
 function targetFrom(template: string, code: string): string {
   const header = parsePo(template).find((e) => e.msgid === "" && !e.msgctxt);
   const span = header?.at.msgstr[0];
   if (!header || !span) return template;
   const eol = eolOf(template);
+  const unflagged = header.at.flags
+    ? [fuzzyRemoval(template, header, header.at.flags)]
+    : [];
   let block = template.slice(span.start, span.end);
   block = block.replace(/charset=CHARSET/, "charset=UTF-8");
   block = /"Language:[^"\\]*(?:\\.[^"\\]*)*"/.test(block)
     ? block.replace(/("Language:)[^"\\]*(\\n")/, `$1 ${code}$2`)
     : `${block}${eol}"Language: ${code}\\n"`;
-  return template.slice(0, span.start) + block + template.slice(span.end);
+  return applyPatches(template, [{ ...span, text: block }, ...unflagged]);
 }
 
 // What an entry's msgstrs become: `msgstr` the text, or each `msgstr[n]`
@@ -545,7 +554,7 @@ function entryPatches(
   const keyword = (i: number) =>
     entry.msgidPlural === undefined ? "msgstr" : `msgstr[${i}]`;
   const lines = (i: number, value: string) =>
-    poLines(keyword(i), value).join(eol);
+    poLines(keyword(i), value, !entry.flags.includes("no-wrap")).join(eol);
   let added = "";
   forms.forEach((value, i) => {
     if (value === undefined) return;
@@ -563,16 +572,18 @@ function entryPatches(
   const fuzzy = entry.flags.includes("fuzzy");
   if (patches.length === 0 && !fuzzy) return [];
   if (fuzzy && entry.at.flags) {
-    const flags = entry.flags.filter((f) => f !== "fuzzy");
-    patches.push(
-      flags.length > 0
-        ? { ...entry.at.flags, text: `#, ${flags.join(", ")}` }
-        : lineRemoval(text, entry.at.flags),
-    );
+    patches.push(fuzzyRemoval(text, entry, entry.at.flags));
     for (const previous of entry.at.previous)
       patches.push(lineRemoval(text, previous));
   }
   return patches;
+}
+
+function fuzzyRemoval(text: string, entry: PoEntry, span: Span): Patch {
+  const flags = entry.flags.filter((f) => f !== "fuzzy");
+  return flags.length > 0
+    ? { ...span, text: `#, ${flags.join(", ")}` }
+    : lineRemoval(text, span);
 }
 
 function lineRemoval(text: string, span: Span): Patch {
@@ -628,7 +639,9 @@ export function entriesToGettext(
     const id = poId(entry);
     const text = translations[id];
     if (entry.msgid === "" || seen.has(id) || text === undefined) continue;
+    // The template's own line endings, turned to the file's at the end.
     const block = template.slice(entry.at.start, entry.at.end);
+    const own = eolOf(template);
     const moved = parsePo(block)[0]!;
     const wanted = forms(moved, text);
     if (!wanted) continue;
@@ -637,19 +650,25 @@ export function entriesToGettext(
     const extra = moved.at.msgstr
       .slice(wanted.length)
       .flatMap((s) =>
-        s ? [{ start: s.start - eol.length, end: s.end, text: "" }] : [],
+        s ? [{ start: s.start - own.length, end: s.end, text: "" }] : [],
       );
     const filled = wanted.map((w) => w ?? "");
     blocks.push(
       applyPatches(block, [
-        ...entryPatches(block, moved, filled, eol),
+        ...entryPatches(block, moved, filled, own),
         ...extra,
-      ]),
+      ]).replace(/\r?\n/g, eol),
     );
   }
   if (blocks.length > 0) {
-    // Before the obsolete entries msgmerge keeps last, a blank line apart.
-    const obsolete = /^#~/m.exec(out)?.index ?? out.length;
+    // Before the obsolete entries msgmerge keeps last, a blank line
+    // apart, and before the comments and flags written above the first.
+    let obsolete = /^#~/m.exec(out)?.index ?? out.length;
+    for (;;) {
+      const above = out.lastIndexOf("\n", obsolete - 2) + 1;
+      if (obsolete === 0 || !/^#(?!~)/.test(out.slice(above, obsolete))) break;
+      obsolete = above;
+    }
     const head = out.slice(0, obsolete).replace(/(?:\r?\n)*$/, "");
     const rest = out.slice(obsolete);
     const added = blocks.map((b) => `${eol}${eol}${b}`).join("");

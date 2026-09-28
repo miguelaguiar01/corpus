@@ -245,7 +245,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
                       { tag: language, code: fileCodeOf(source, language) },
                       (id) =>
                         ctx.err(
-                          `corpus: ${file}: ${printable(id)} is a plural whose translation is not one; not written`,
+                          `corpus: ${file}: ${printable(id)} is a plural and its translation is not one gettext can hold (a plain text, or an =N branch); not written`,
                         ),
                     )
                   : source.adapter === "table"
@@ -307,7 +307,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
         s.adapter !== "exec" &&
         fileOf(s, config.sourceLanguage, config.sourceLanguage) === file,
     );
-    if (!source || !sourceWritesBack(source)) {
+    if (!source || !sourceWritesBack(source) || source.adapter === "gettext") {
       ctx.err(
         `corpus: proposal(s) for ${ops.map((o) => printable(o.id)).join(", ")}: ${file} matches no writable source; not written`,
       );
