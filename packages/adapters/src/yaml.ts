@@ -373,9 +373,9 @@ function onLinesOfTheirOwn(
 ): Patch[] {
   const end = base.length;
   const through = patches.find((p) => p.start < end && p.end === end);
-  let broken = through
-    ? through.text.endsWith("\n")
-    : base === "" || base.endsWith("\n");
+  // A removal's empty text leaves what came before it last.
+  const before = through ? through.text || base.slice(0, through.start) : base;
+  let broken = before === "" || before.endsWith("\n");
   return patches.map((p) => {
     if (p.start !== end || p.text === "") return p;
     const text = broken || p.text.startsWith(eol) ? p.text : `${eol}${p.text}`;

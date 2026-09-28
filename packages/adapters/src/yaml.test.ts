@@ -625,4 +625,15 @@ test("keys going in at the end of a file with no final line break start one line
       lang,
     ),
   ).toBe(`fr:\n  n:\n    one: "un"\n    other: "des"\n  m: "MM"\n`);
+  // A form dropped at the file's end leaves the line before it last.
+  const dropped = `fr:\n  n:\n    one: "un"\n    other: "des"\n    zero: "z"`;
+  for (const tail of ["", "\n"])
+    expect(
+      entriesToYaml(
+        `en:\n  n:\n    one: "one"\n    other: "many"\n  m: "M"\n`,
+        { n: "{count, plural, one {un} other {des}}", m: "MM" },
+        dropped + tail,
+        lang,
+      ),
+    ).toBe(`fr:\n  n:\n    one: "un"\n    other: "des"\n  m: "MM"\n`);
 });
