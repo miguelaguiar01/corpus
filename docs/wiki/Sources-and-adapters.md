@@ -1,6 +1,6 @@
 A source says where text lives and how to read it. A config usually has more than one: catalogues are one source, a table of records another.
 
-Three adapters cover what repositories actually hold.
+Ten adapters cover what repositories actually hold: `messages` for key-value catalogues, `table` for records, one each for Android's string resources, Fluent, XLIFF, gettext, Apple's String Catalog, Qt Linguist and Rails' YAML, and `exec` for anything else.
 
 ## messages
 
@@ -297,7 +297,7 @@ The repository's test suite runs these files as they are shown here: `build` rea
 
 ## What comes back
 
-`corpus pull` rewrites files in place, and it writes JSON only. So:
+`corpus pull` rewrites files in place. Each format adapter writes its own format back; `messages` and `table` write JSON only. So:
 
 | Source | Pushes | Takes translations back |
 |---|---|---|
@@ -305,10 +305,12 @@ The repository's test suite runs these files as they are shown here: `build` rea
 | `table` with `{lang}`, `.json` | yes | yes |
 | `.ts` or `.js` catalogue | yes | no |
 | path without `{lang}` | yes | no |
+| `android`, or `xcstrings` (one file for every language) | yes | yes |
+| `fluent`, `xliff`, `gettext`, `qt-ts` or `yaml` with `{lang}` | yes | yes |
 | `exec` with `importCommand` | yes | yes |
 | `exec` without it | yes | no |
 
-A proposal is a separate matter: any writable `.json` source takes proposals back, `{lang}` or not, because a proposal is written into the source-language file.
+A proposal is a separate matter: any writable `.json` source takes proposals back, `{lang}` or not, because a proposal is written into the source-language file, and so do `android`, `fluent`, `xliff` and `yaml` sources. `gettext`, `xcstrings` and `qt-ts` take none, since their keys are the code's own.
 
 A `.arb` target that does not exist yet is written on the first pull with `"@@locale"` first, set to its language in the underscore form `gen-l10n` checks it against (`pt_PT` for a config's `pt-PT`, whatever form the file name carries), then the strings; the `@key` metadata stays in the source ARB, where `gen-l10n` reads it. gen-l10n names the files themselves with underscores, `strings_pt_PT.arb`, so write the config's languages the same way, `pt_PT`: a config that says `pt-PT` over such a file is refused with the code to write, since pull would otherwise create `strings_pt-PT.arb` beside it.
 
@@ -316,7 +318,7 @@ A `.arb` target that does not exist yet is written on the first pull with `"@@lo
 
 ## Types
 
-Every `messages` and `table` source names a `type`. A type groups strings in the catalogue, carries a note on how they should read, and decides what metadata a string may have.
+Every source but `exec`, whose export command gives each string its type, names a `type`. A type groups strings in the catalogue, carries a note on how they should read, and decides what metadata a string may have.
 
 Pick types by how the text behaves rather than by where it lives: `ui` for buttons and labels, `email` for text that must survive a mail client, `tour-step` for a sequence a translator should read in order. A single `ui` is a fine start.
 
