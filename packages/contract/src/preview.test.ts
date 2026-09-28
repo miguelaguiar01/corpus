@@ -250,3 +250,14 @@ test("an i18next message previews with its values substituted", () => {
     ),
   ).toEqual({ ok: true, text: "3 documents starred by Ana" });
 });
+
+test("a printf plural on argN takes the Nth argument's value (#735)", () => {
+  expect(
+    renderPreview(
+      "{arg1, plural, one {%arg recent post} other {%arg recent posts}} from {arg2, plural, one {%arg participant} other {%arg participants}}",
+      { "1": "1", "2": "3" },
+      "en",
+      { syntax: "printf" },
+    ),
+  ).toEqual({ ok: true, text: "1 recent post from 3 participants" });
+});

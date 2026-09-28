@@ -1298,3 +1298,20 @@ export function refusalCause(
 ): RefusalCause | undefined {
   return refusal(source, library, message)?.cause;
 }
+
+// A String Catalog's `argN` plural is the Nth printf argument, named as
+// the verb it replaces is, so the two meet by position (#726).
+export function argPositions(nodes: IcuNode[]): IcuNode[] {
+  return nodes.map((node): IcuNode => {
+    if (node.kind === "tag")
+      return { ...node, children: argPositions(node.children) };
+    if (node.kind !== "plural" && node.kind !== "select") return node;
+    const branches = Object.fromEntries(
+      Object.entries(node.branches).map(([k, b]) => [k, argPositions(b)]),
+    );
+    const n = /^arg(\d+)$/.exec(node.arg)?.[1];
+    return node.kind === "plural" && n !== undefined
+      ? { ...node, arg: n, branches }
+      : { ...node, branches };
+  });
+}

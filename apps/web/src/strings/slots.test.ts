@@ -58,3 +58,15 @@ test("an undeclared slot, a count, and a string with no examples still list ever
     },
   ]);
 });
+
+test("a printf plural on argN is its argument's one slot (#735)", () => {
+  expect(
+    slotsOf(
+      "{arg1, plural, one {%arg recent post} other {%arg recent posts}} from {arg2, plural, one {%arg participant} other {%arg participants}}",
+      {},
+      null,
+      "en",
+      "printf",
+    ).map((s) => s.name),
+  ).toEqual(["1", "2"]);
+});

@@ -14,6 +14,7 @@
 // Errors are data (code + params); callers render them through their
 // own message catalog.
 import {
+  argPositions,
   parseIcu,
   printfPluralError,
   WHOLE_PLURAL_LIBRARIES,
@@ -144,23 +145,6 @@ function shapeOf(
   return shape;
 }
 
-// A String Catalog's `argN` plural is the Nth printf argument, named as
-// the verb it replaces is, so the two meet by position (#726).
-function byPosition(nodes: IcuNode[]): IcuNode[] {
-  return nodes.map((node): IcuNode => {
-    if (node.kind === "tag")
-      return { ...node, children: byPosition(node.children) };
-    if (node.kind !== "plural" && node.kind !== "select") return node;
-    const branches = Object.fromEntries(
-      Object.entries(node.branches).map(([k, b]) => [k, byPosition(b)]),
-    );
-    const n = /^arg(\d+)$/.exec(node.arg)?.[1];
-    return node.kind === "plural" && n !== undefined
-      ? { ...node, arg: n, branches }
-      : { ...node, branches };
-  });
-}
-
 // The values a message uses: its placeholders and the counts it
 // pluralises on. A select's argument is not one; it picks a branch.
 function valuesOf(shape: Shape): Set<string> {
@@ -252,7 +236,7 @@ export function validateTranslation(
       errors: [{ code: "invalid-icu", where: "target", ...brokenPlural }],
     };
   const positioned = (nodes: IcuNode[]) =>
-    syntax === "printf" ? byPosition(nodes) : nodes;
+    syntax === "printf" ? argPositions(nodes) : nodes;
   const sourceNodes = positioned(parsedSource.nodes);
   const actual = shapeOf(positioned(parsedTarget.nodes));
   let expected = shapeOf(sourceNodes);

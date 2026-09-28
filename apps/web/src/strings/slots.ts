@@ -29,7 +29,10 @@ export function slotsOf(
   const names = [...placeholdersOf(source, syntax)];
   const formats = placeholderFormatsOf(source, syntax);
   const written = placeholderWrittenOf(source, syntax);
-  for (const arg of pluralArgsOf(source, syntax)) {
+  // A printf plural on `argN` is the Nth argument, one slot (#735).
+  for (const plural of pluralArgsOf(source, syntax)) {
+    const arg =
+      syntax === "printf" ? (/^arg(\d+)$/.exec(plural)?.[1] ?? plural) : plural;
     if (!names.includes(arg)) names.push(arg);
   }
   return names.map((name) => {
