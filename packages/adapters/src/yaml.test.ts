@@ -601,3 +601,28 @@ test("an edit inside a flow map is written in place, quoted where flow syntax ne
     ["g.a", "parent"],
   ]);
 });
+
+test("keys going in at the end of a file with no final line break start one line each, no blank line between (#837)", () => {
+  const en = `en:\n  k1:\n    k2:\n      k3:\n        k4: "S"\n    k5:\n      k6: "S"\n    k7:\n      k14: "S"\n  k15: "S"\n`;
+  const fr = `fr:\n  k1:\n    k2:\n    k5:\n      k6: "T"`;
+  const lang = { source: "en", code: "fr" };
+  const tr = { "k1.k2.k3.k4": "A", "k1.k7.k14": "B", k15: "C" };
+  for (const eol of ["\n", "\r\n"]) {
+    const out = entriesToYaml(en, tr, fr.replace(/\n/g, eol), lang);
+    expect(out).toBe(
+      `fr:\n  k1:\n    k2:\n      k3:\n        k4: "A"\n    k5:\n      k6: "T"\n    k7:\n      k14: "B"\n  k15: "C"\n`.replace(
+        /\n/g,
+        eol,
+      ),
+    );
+  }
+  const plural = `fr:\n  n:\n    one: "un"`;
+  expect(
+    entriesToYaml(
+      `en:\n  n:\n    one: "one"\n    other: "many"\n  m: "M"\n`,
+      { n: "{count, plural, one {un} other {des}}", m: "MM" },
+      plural,
+      lang,
+    ),
+  ).toBe(`fr:\n  n:\n    one: "un"\n    other: "des"\n  m: "MM"\n`);
+});
