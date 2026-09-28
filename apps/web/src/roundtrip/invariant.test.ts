@@ -180,6 +180,7 @@ test("translations that match the repository's target catalogues write the same 
   translate("page.signIn", "Sign in with <LINK>Google</LINK>");
   translate("Abrir o menu", "Open the menu");
   translate("Cancelar", "Cancel");
+  translate("Janela | Transferências (%1)", "Transfers (%1)");
   translate(
     "ios.photos %lld",
     "{count, plural, one {%lld photo} other {%lld photos}}",
@@ -200,6 +201,7 @@ test("a translation saved in Corpus comes back in exactly the expected file and 
   translate("page.later", "Later");
   translate("porta\u2404Fechar", "Close the door");
   translate("ios.welcome", "Welcome");
+  translate("Janela | Sair | menu", "Exit");
   expect(await run(["pull", "--min-state", "translated"], ctx())).toBe(0);
   const after = tree(repo);
   // XLIFF: the one target changed, its state with it; the source file stays.
@@ -223,6 +225,14 @@ test("a translation saved in Corpus comes back in exactly the expected file and 
     before["ios/Localizable.xcstrings"]!.replace(
       '"state" : "needs_review",\n            "value" : "Welcom"',
       '"state" : "translated",\n            "value" : "Welcome"',
+    ),
+  );
+  // Qt: the unfinished row spliced, its mark gone; the source untouched.
+  expect(after["qt/app_pt-PT.ts"]).toBe(before["qt/app_pt-PT.ts"]);
+  expect(after["qt/app_en.ts"]).toBe(
+    before["qt/app_en.ts"]!.replace(
+      '<translation type="unfinished">Exti</translation>',
+      "<translation>Exit</translation>",
     ),
   );
   expect(Object.keys(after).sort()).toEqual(Object.keys(before).sort());

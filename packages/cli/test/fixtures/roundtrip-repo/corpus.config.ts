@@ -37,6 +37,7 @@ export default defineCorpus({
       sourcePath: "po/messages.pot",
     },
     { adapter: "xcstrings", type: "screen", path: "ios/Localizable.xcstrings" },
+    { adapter: "qt-ts", type: "menu", path: "qt/app_{lang}.ts" },
   ],
   richText: { screen: "html" },
 });
