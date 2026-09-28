@@ -30,7 +30,7 @@ export function SourceView({
   const parsed = readIcu(source, syntax);
   if (!parsed.ok) return <p className={className}>{source}</p>;
   const slots = slotDescriptions(declarations);
-  const selects = branchingNodes(parsed.nodes);
+  const selects = branchingNodes(parsed.nodes, false);
   return (
     <div className="space-y-3">
       <p className={className}>{renderNodes(parsed.nodes, slots, syntax)}</p>
@@ -41,20 +41,52 @@ export function SourceView({
           className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground"
         >
           {selects.map((node, index) => (
-            <div key={index} className="flex flex-wrap items-baseline gap-x-2">
-              <dt className="font-mono">{node.arg}</dt>
-              {Object.entries(node.branches).map(([key, branch]) => (
-                <dd key={key} className="flex items-baseline gap-1">
-                  <span className="font-mono">{key}</span>
-                  <span className="text-foreground">
-                    {renderNodes(branch, slots, syntax)}
-                  </span>
-                </dd>
-              ))}
-            </div>
+            <Branches key={index} node={node} slots={slots} syntax={syntax} />
           ))}
         </dl>
       )}
+    </div>
+  );
+}
+
+// An argument and its keys; a branch that holds another argument lists
+// that one's keys beneath it, one level in (#765).
+function Branches({
+  node,
+  slots,
+  syntax,
+}: {
+  node: Extract<IcuNode, { kind: "select" | "plural" }>;
+  slots: Map<string, string>;
+  syntax: Library;
+}) {
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-2">
+      <dt className="font-mono">{node.arg}</dt>
+      {Object.entries(node.branches).map(([key, branch]) => {
+        const nested = branchingNodes(branch, false);
+        return (
+          <dd key={key} className="flex items-baseline gap-1">
+            <span className="font-mono">{key}</span>
+            {nested.length === 0 ? (
+              <span className="text-foreground">
+                {renderNodes(branch, slots, syntax)}
+              </span>
+            ) : (
+              <dl className="flex flex-wrap gap-x-3 border-l border-input pl-2">
+                {nested.map((inner, index) => (
+                  <Branches
+                    key={index}
+                    node={inner}
+                    slots={slots}
+                    syntax={syntax}
+                  />
+                ))}
+              </dl>
+            )}
+          </dd>
+        );
+      })}
     </div>
   );
 }
@@ -87,6 +119,7 @@ function renderNodes(
   nodes: IcuNode[],
   slots: Map<string, string>,
   syntax: Library,
+  nested = false,
 ) {
   return nodes.map((node, index) => {
     if (node.kind === "literal") return node.text;
@@ -99,7 +132,7 @@ function renderNodes(
           data-tag={node.name}
         >
           {node.children.length > 0 ? (
-            renderNodes(node.children, slots, syntax)
+            renderNodes(node.children, slots, syntax, nested)
           ) : (
             <span className="font-mono text-[0.6em] text-muted-foreground">
               {`<${node.name}>`}
@@ -128,14 +161,19 @@ function renderNodes(
     const label = node.kind === "forms" ? undefined : node.arg;
     const branches =
       node.kind === "forms" ? node.branches : Object.values(node.branches);
+    // A nested argument's branches are bracketed, so they read apart
+    // from its outer one's.
+    const inner = node.kind !== "forms";
     return (
       <span key={index} role="group" aria-label={label} title={label}>
+        {nested && <span className="text-muted-foreground">(</span>}
         {branches.map((branch, i) => (
           <span key={i}>
             {i > 0 && <span className="text-muted-foreground">{SLASH}</span>}
-            {renderNodes(branch, slots, syntax)}
+            {renderNodes(branch, slots, syntax, inner)}
           </span>
         ))}
+        {nested && <span className="text-muted-foreground">)</span>}
       </span>
     );
   });

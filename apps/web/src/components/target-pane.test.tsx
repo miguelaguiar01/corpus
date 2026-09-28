@@ -592,3 +592,37 @@ test("a draft carried back from a refused save names its fault (#529)", () => {
   expect(screen.getByText("Missing {suspect}")).toBeTruthy();
   expect(save.disabled).toBe(true);
 });
+
+test("a nested argument's skeleton sits in each branch of its outer one's, the plural's in the target language's categories (#765)", () => {
+  const textarea = pluralPane(
+    "ru",
+    "",
+    "{g, select, female {{n, plural, one {Ela tem # ficheiro} other {Ela tem # ficheiros}}} other {{n, plural, one {# ficheiro} other {# ficheiros}}}}",
+  );
+  const frames: FrameRequestCallback[] = [];
+  vi.stubGlobal("requestAnimationFrame", (run: FrameRequestCallback) =>
+    frames.push(run),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "{g, select}" }));
+  vi.unstubAllGlobals();
+  for (const run of frames) run(0);
+  const inner = "{n, plural, one {#} few {#} many {#} other {#}}";
+  expect(textarea.value).toBe(
+    `{g, select, female {${inner}} other {${inner}}}`,
+  );
+  expect(textarea.selectionStart).toBe(
+    "{g, select, female {{n, plural, one {#".length,
+  );
+  // The inner argument keeps a chip of its own.
+  cleanup();
+  const plain = pluralPane(
+    "en",
+    "",
+    "{n, plural, one {{g, select, female {her file} other {their file}}} other {{n} files}}",
+  );
+  fireEvent.click(screen.getByRole("button", { name: "{n, plural}" }));
+  expect(plain.value).toBe(
+    "{n, plural, one {{g, select, female {} other {}}} other {#}}",
+  );
+  expect(screen.getByRole("button", { name: "{g, select}" })).toBeTruthy();
+});

@@ -684,3 +684,19 @@ test("a {} refused under another library advises easy_localization, and counts t
   );
   expect(refusalCause("{} files", "vue", message)).toBe("library");
 });
+
+test("a nested argument is listed once, and branchingNodes reaches it unless told to stay at the top (#765)", () => {
+  const source =
+    "{g, select, female {{n, plural, one {# {what}} other {# {what}s}}} other {{n, plural, other {# {what}s}}}}";
+  expect([...selectArgsOf(source)]).toEqual(["g"]);
+  expect([...pluralArgsOf(source)]).toEqual(["n"]);
+  expect([...placeholdersOf(source)]).toEqual(["what"]);
+  const parsed = parseIcu(source);
+  if (!parsed.ok) throw new Error("parse failed");
+  expect(branchingNodes(parsed.nodes).map((n) => n.arg)).toEqual([
+    "g",
+    "n",
+    "n",
+  ]);
+  expect(branchingNodes(parsed.nodes, false).map((n) => n.arg)).toEqual(["g"]);
+});

@@ -133,3 +133,21 @@ test("a formatted placeholder's chip carries its format (#555)", () => {
   expect(screen.getByText("{p, number, ::percent}")).toBeTruthy();
   expect(screen.getByText("{n, number}")).toBeTruthy();
 });
+
+test("a nested argument's keys are listed within each branch of its outer one's, and its branches read bracketed (#765)", () => {
+  const { container } = render(
+    <SourceView
+      source="{g, select, female {{n, plural, one {# dela} other {# delas}}} other {{n, plural, one {# um} other {# uns}}}}"
+      declarations={{}}
+    />,
+  );
+  const strip = screen.getByRole("group", { name: "Branches" });
+  const outer = strip.querySelectorAll(":scope > div");
+  expect(outer).toHaveLength(1);
+  const female = outer[0]!.querySelectorAll(":scope > dd")[0]!;
+  expect(female.textContent).toBe("femalenone# delaother# delas");
+  const sentence = container.querySelector("p")!;
+  expect(sentence.textContent?.replaceAll("\u00a0", " ")).toBe(
+    "(# dela / # delas) / (# um / # uns)",
+  );
+});
