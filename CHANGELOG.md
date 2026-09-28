@@ -38,6 +38,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- Under `printf`, a string's slots and the editor's placeholder chips read in argument order: `{arg1, plural, one {one post} other {posts}} by %@` listed its slots as 2 then 1, and `%2$s wrote %1$d` its chips as 2 then 1.
 - A string with a plural and a select on one argument, `{n, plural, …} {n, select, …}`, offered one chip that inserted the select's keys into the plural (`{n, plural, one {#} other {#} a {#}}`), which validation refuses; each now has its own chip.
 - In a type declared `richText: "html"`, a tag that never closes, or a stray closing tag, is text, as a browser reads it: Discourse's "HTML to insert at the end of the `<head>`" and an unclosed `<p>` no longer stop a build, and its client catalogues build (7,985 strings; the 3 `_MF` strings that nest a plural in a select wait for #674). A component-rendered type still refuses an unclosed tag.
 - `validate` names an orphan key where it is, the target file that keeps it, with the source that no longer has it in brackets and how many other target files carry it, where it named the source file.

@@ -9,6 +9,16 @@ import {
   type Library,
 } from "@corpus/contract";
 
+// A printf slot is a position: its chips and slots read in argument
+// order, a plural that prints none of its argument among them (#739).
+// Other libraries keep the source's order. Sorts in place.
+export function inPositionOrder(names: string[], syntax: Library): string[] {
+  if (syntax !== "printf") return names;
+  const position = (name: string) =>
+    /^\d+$/.test(name) ? Number(name) : Number.POSITIVE_INFINITY;
+  return names.sort((a, b) => position(a) - position(b));
+}
+
 // Every value a source takes, placeholders then counts, in source order,
 // with what the type declares for the slot (§5) and the first example's
 // value per language (§7): what a translator reads off the chips, for
@@ -35,6 +45,7 @@ export function slotsOf(
       syntax === "printf" ? (/^arg(\d+)$/.exec(plural)?.[1] ?? plural) : plural;
     if (!names.includes(arg)) names.push(arg);
   }
+  inPositionOrder(names, syntax);
   return names.map((name) => {
     const values: Record<string, string> = {};
     const own = example?.values[name];

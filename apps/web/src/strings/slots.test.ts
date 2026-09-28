@@ -1,6 +1,6 @@
 import { moonlightManor } from "@corpus/contract";
 import { expect, test } from "vitest";
-import { slotsOf } from "./slots";
+import { inPositionOrder, slotsOf } from "./slots";
 
 const greenhouse = moonlightManor.strings[0]!;
 const declarations = moonlightManor.stringTypes!["clue-skin"]!;
@@ -69,4 +69,23 @@ test("a printf plural on argN is its argument's one slot (#735)", () => {
       "printf",
     ).map((s) => s.name),
   ).toEqual(["1", "2"]);
+});
+
+test("printf slots read in position order, a plural's argument among them; other libraries keep source order (#739)", () => {
+  const names = (source: string, syntax: "printf" | "icu") =>
+    slotsOf(source, {}, undefined, "en", syntax).map((s) => s.name);
+  expect(
+    names("{arg1, plural, one {one post} other {posts}} by %@", "printf"),
+  ).toEqual(["1", "2"]);
+  expect(names("%2$s wrote %1$d", "printf")).toEqual(["1", "2"]);
+  expect(names("{b} and {a}", "icu")).toEqual(["b", "a"]);
+});
+
+test("inPositionOrder sorts printf positions, a named value after them, and leaves other libraries alone (#739)", () => {
+  expect(inPositionOrder(["2", "count", "1"], "printf")).toEqual([
+    "1",
+    "2",
+    "count",
+  ]);
+  expect(inPositionOrder(["2", "1"], "icu")).toEqual(["2", "1"]);
 });

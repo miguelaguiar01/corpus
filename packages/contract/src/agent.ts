@@ -75,7 +75,7 @@ export type StringResponse = {
   // where the string has them; additive (#737).
   arguments?: string[];
   // Every value the source takes, placeholders then counts, in source
-  // order, with the type's declaration for the slot and the first
+  // order (under printf, in position order, #739), with the type's declaration for the slot and the first
   // example's value per language (§5, §7); additive.
   slots: {
     name: string;

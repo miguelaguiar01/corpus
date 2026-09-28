@@ -19,6 +19,7 @@ import { OtherLanguages } from "@/components/other-languages";
 import { GlossaryTerms } from "@/components/glossary-terms";
 import { Siblings } from "@/components/siblings";
 import { siblingsOf } from "@/strings/siblings";
+import { inPositionOrder } from "@/strings/slots";
 import { ProposalPanel } from "@/components/proposal-panel";
 import { LanguageBar } from "@/components/language-bar";
 import { StateChips } from "@/components/state-chips";
@@ -137,14 +138,15 @@ export default async function StringPage({
   // printf's verb as the source writes it, so a chip inserts `%[2]s`
   // and not `{2}` (#594).
   const written = placeholderWrittenOf(string.source, string.syntax);
-  const slots: Slot[] = [...placeholdersOf(string.source, string.syntax)].map(
-    (name) => ({
-      name,
-      description: described.get(name),
-      format: formats.get(name),
-      written: written.get(name) ?? null,
-    }),
-  );
+  const slots: Slot[] = inPositionOrder(
+    [...placeholdersOf(string.source, string.syntax)],
+    string.syntax,
+  ).map((name) => ({
+    name,
+    description: described.get(name),
+    format: formats.get(name),
+    written: written.get(name) ?? null,
+  }));
   // A draft rides back only beside the refusal or warning that carried
   // it, and only as one string: a bare link with ?draft= is ignored.
   const carriedDraft =
