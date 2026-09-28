@@ -4,6 +4,7 @@
 // `unfinished`, `vanished` or `obsolete`.
 import type { StringEntry } from "@corpus/contract";
 import {
+  formOf,
   pluralCategoryIndexes,
   pluralIndexCategories,
   pluralIndexMajority,
@@ -241,8 +242,7 @@ export function qtTsTranslations(
       const back =
         branches &&
         categories.every(
-          (c, i) =>
-            c === undefined || (branches[c] ?? branches.other) === m.forms[i],
+          (c, i) => c === undefined || formOf(branches, c) === m.forms[i],
         );
       if (back) return [{ id: m.id, type: "", source: text }];
       onUnread?.(m.id);
@@ -396,7 +396,7 @@ export function entriesToQtTs(
     // empty, from the category most of its integers are, so no form of
     // a finished message ships empty.
     const pick = (c: string | undefined) =>
-      c === undefined ? undefined : (branches[c] ?? branches.other);
+      c === undefined ? undefined : formOf(branches, c);
     const read = categories.map((c, i) =>
       c === undefined ? (m.forms[i] ?? "") : (pick(c) ?? ""),
     );

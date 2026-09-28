@@ -3,7 +3,7 @@
 // select. Attributes, terms, functions and string literals are refused
 // by name. A file is patched message by message, so an unchanged pull
 // writes the same bytes and a changed message keeps its layout.
-import type { StringEntry } from "@corpus/contract";
+import { PLURAL_CATEGORIES, type StringEntry } from "@corpus/contract";
 
 export type FluentOp =
   | { kind: "edit" | "add"; id: string; text: string }
@@ -36,7 +36,7 @@ const DEFAULT_STYLE: Style = {
   fallback: "    ",
   close: "  ",
 };
-const CATEGORIES = new Set(["zero", "one", "two", "few", "many", "other"]);
+const CATEGORIES = new Set<string>(PLURAL_CATEGORIES);
 const KEY_RE = /^(?:[A-Za-z_][A-Za-z0-9_]*|[0-9]+)$/;
 
 class Refusal extends Error {}

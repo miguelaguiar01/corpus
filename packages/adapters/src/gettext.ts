@@ -1,7 +1,7 @@
 // gettext `.po` and `.pot` (#668): the msgid is the text and the key, a
 // `msgid_plural` with its `msgstr[n]` one plural, mapped to CLDR's
 // categories through the file's `Plural-Forms`.
-import type { StringEntry } from "@corpus/contract";
+import { PLURAL_CATEGORIES, type StringEntry } from "@corpus/contract";
 import { GETTEXT_PLURALS } from "./gettextplurals";
 import { pluralBranches } from "./messages";
 
@@ -188,8 +188,6 @@ export function poId(entry: Pick<PoEntry, "msgctxt" | "msgid">): string {
     : `${entry.msgctxt}${CONTEXT_SEPARATOR}${entry.msgid}`;
 }
 
-const CATEGORIES = ["zero", "one", "two", "few", "many", "other"] as const;
-
 // The numbers a category is tried on: the integers to a thousand and
 // the millions, which gettext's expression can take; a category only
 // decimals reach (Russian's other, Czech's many) has none.
@@ -256,7 +254,7 @@ function tally(
 
 function cldrOrder(rules: Intl.PluralRules): string[] {
   const categories = rules.resolvedOptions().pluralCategories;
-  return CATEGORIES.filter((c) => categories.includes(c));
+  return PLURAL_CATEGORIES.filter((c) => categories.includes(c));
 }
 
 // Which `msgstr[n]` each CLDR category of a language reads: the index
@@ -285,6 +283,15 @@ export function pluralCategoryIndexes(
     if (!out.has(category))
       out.set(category, out.get("other") ?? found.nplurals - 1);
   return out;
+}
+
+// A plural's form for a category: its own branch, or `other`'s, which
+// every runtime falls back to.
+export function formOf(
+  branches: Record<string, string>,
+  category: string,
+): string | undefined {
+  return branches[category] ?? branches.other;
 }
 
 // The category each `msgstr[n]` is written from: of those the reader
@@ -346,7 +353,7 @@ export function poPluralText(
   forms: string[],
   indexes: Map<string, number>,
 ): string {
-  const ordered = CATEGORIES.filter((c) => indexes.has(c));
+  const ordered = PLURAL_CATEGORIES.filter((c) => indexes.has(c));
   const branch = (c: string) =>
     forms[indexes.get(c)!] ?? forms[forms.length - 1] ?? "";
   return `{count, plural, ${ordered.map((c) => `${c} {${branch(c)}}`).join(" ")}}`;
@@ -679,7 +686,7 @@ function wantedForms(
   const branches = pluralBranches(text);
   if (!branches) return undefined;
   return categories.map((c) =>
-    c === undefined ? undefined : (branches[c] ?? branches.other),
+    c === undefined ? undefined : formOf(branches, c),
   );
 }
 

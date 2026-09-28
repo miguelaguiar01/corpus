@@ -25,6 +25,7 @@ import {
 import {
   entitySchema,
   libraryOf,
+  WHOLE_PLURAL_LIBRARIES,
   tagMode,
   messageKind,
   nestedCountsOf,
@@ -625,18 +626,9 @@ export function fileOf(
 // library's text can carry one read whole: not vue, whose plurals are
 // pipes, nor Chrome's entries.
 export function readsPluralObjects(source: FileSource): boolean {
-  return (
-    source.adapter === "messages" &&
-    [
-      "icu",
-      "i18next",
-      "printf",
-      "counterpart",
-      "easy_localization",
-      "rails",
-      "qt",
-    ].includes(libraryOf(source))
-  );
+  if (source.adapter !== "messages") return false;
+  const library = libraryOf(source);
+  return library === "icu" || WHOLE_PLURAL_LIBRARIES.has(library);
 }
 
 // The language a gettext target file is for, as the config names it:

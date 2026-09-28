@@ -1,4 +1,4 @@
-import type { StringEntry } from "@corpus/contract";
+import { PLURAL_CATEGORIES, type StringEntry } from "@corpus/contract";
 
 // `arb`: Flutter's ARB is JSON whose top-level keys starting with "@"
 // are metadata for their sibling ("@wallpaper", "@@locale"), not text
@@ -15,15 +15,6 @@ export type MessagesOptions = {
   plurals?: boolean;
 };
 
-export const PLURAL_OBJECT_CATEGORIES = [
-  "zero",
-  "one",
-  "two",
-  "few",
-  "many",
-  "other",
-] as const;
-
 // `{ one, other }`, as counterpart, easy_localization and Rails write a
 // plural: every key a category and `other` among them, every value a
 // string, matrix-web-i18n's own test (#662).
@@ -35,7 +26,7 @@ export function isPluralObject(node: unknown): node is Record<string, string> {
     !Object.hasOwn(node, "other") ||
     !entries.every(
       ([key, value]) =>
-        (PLURAL_OBJECT_CATEGORIES as readonly string[]).includes(key) &&
+        (PLURAL_CATEGORIES as readonly string[]).includes(key) &&
         typeof value === "string",
     )
   )

@@ -253,6 +253,29 @@ export function tagMode(
   return richText === "html" ? "markup" : hasVoidTags(syntax, richText);
 }
 
+// The libraries whose placeholders are written verbs (`%s`, `%(n)s`,
+// `%{n}`, `%1`, `{}`): a value missing with no verb written is a plural's
+// count, the translation having dropped the plural (#652).
+const VERB_LIBRARIES: ReadonlySet<Library> = new Set([
+  "printf",
+  "android",
+  "counterpart",
+  "easy_localization",
+  "rails",
+  "qt",
+]);
+
+export function isDroppedPlural(
+  error: ValidationError,
+  syntax: Library,
+): boolean {
+  return (
+    error.code === "missing-placeholder" &&
+    error.written === undefined &&
+    VERB_LIBRARIES.has(syntax)
+  );
+}
+
 export function validateTranslation(
   source: string,
   target: string,

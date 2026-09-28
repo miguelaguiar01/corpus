@@ -3,7 +3,7 @@
 // their dotted path. Read with the `yaml` package's document model,
 // which keeps every node where it is written, so a value that arrives
 // only through an alias or a `<<:` merge is the anchor's and read once.
-import type { StringEntry } from "@corpus/contract";
+import { PLURAL_CATEGORIES, type StringEntry } from "@corpus/contract";
 import {
   isAlias,
   isMap,
@@ -13,8 +13,7 @@ import {
   type Pair,
   type YAMLMap,
 } from "yaml";
-
-const PLURAL = ["zero", "one", "two", "few", "many", "other"] as const;
+import { pluralBranches } from "./messages";
 
 type YamlString = {
   id: string;
@@ -45,7 +44,8 @@ function pluralOf(map: YAMLMap): Record<string, string> | undefined {
   let other = false;
   for (const pair of map.items) {
     const key = keyOf(pair);
-    if (!key || !(PLURAL as readonly string[]).includes(key)) return undefined;
+    if (!key || !(PLURAL_CATEGORIES as readonly string[]).includes(key))
+      return undefined;
     if (key === "other") other = true;
     // A form left null is one not yet written.
     if (isScalar(pair.value) && pair.value.value === null) continue;
@@ -134,7 +134,7 @@ export function yamlStrings(
 }
 
 function pluralText(forms: Record<string, string>): string {
-  const branches = PLURAL.filter((c) => Object.hasOwn(forms, c)).map(
+  const branches = PLURAL_CATEGORIES.filter((c) => Object.hasOwn(forms, c)).map(
     (c) => `${c} {${forms[c]}}`,
   );
   return `{count, plural, ${branches.join(" ")}}`;
@@ -294,35 +294,6 @@ function styled(
   return doubleQuoted(text);
 }
 
-// The forms of a plural text, or undefined for one a hash cannot hold
-// (an `=N` branch, or text beside the plural).
-function formsOf(text: string): Record<string, string> | undefined {
-  const head = /^\s*\{\s*count\s*,\s*plural\s*,/.exec(text);
-  if (!head) return undefined;
-  const forms: Record<string, string> = {};
-  let at = head[0].length;
-  for (;;) {
-    while (/\s/.test(text[at] ?? "")) at++;
-    if (text[at] === "}")
-      return text.slice(at + 1).trim() === "" && Object.hasOwn(forms, "other")
-        ? forms
-        : undefined;
-    const open = text.indexOf("{", at);
-    if (open < 0) return undefined;
-    const key = text.slice(at, open).trim();
-    if (!(PLURAL as readonly string[]).includes(key)) return undefined;
-    let depth = 0;
-    let end = open;
-    for (; end < text.length; end++) {
-      if (text[end] === "{") depth++;
-      else if (text[end] === "}" && --depth === 0) break;
-    }
-    if (end >= text.length) return undefined;
-    forms[key] = text.slice(open + 1, end);
-    at = end + 1;
-  }
-}
-
 // A key a file does not have yet, as the source writes it, else plain
 // where Rails' YAML 1.1 reads it as the same string, else quoted:
 // `no:` would be the key false.
@@ -440,7 +411,7 @@ function writeYaml(
     patches.push({ start, end, text: `${tail}${held}` });
   };
   const formLines = (forms: Record<string, string>, indent: string) =>
-    PLURAL.filter((c) => Object.hasOwn(forms, c))
+    PLURAL_CATEGORIES.filter((c) => Object.hasOwn(forms, c))
       .map((c) => `${indent}${c}: ${doubleQuoted(forms[c]!)}${eol}`)
       .join("");
 
@@ -507,7 +478,7 @@ function writeYaml(
     if (text === undefined || text === "") continue;
     const now = current.get(id);
     if (now && now.text === text) continue;
-    const forms = plural.has(id) ? formsOf(text) : undefined;
+    const forms = plural.has(id) ? pluralBranches(text) : undefined;
     if (plural.has(id) && !forms) {
       onRefused?.(id, text, "plural");
       continue;
@@ -560,7 +531,7 @@ function writeYaml(
         if (k) held.set(k, p);
       }
       const inner = lineIndent(base, (value.items[0]!.key as Node).range![0]);
-      for (const c of PLURAL) {
+      for (const c of PLURAL_CATEGORIES) {
         if (!Object.hasOwn(forms, c)) continue;
         const p = held.get(c);
         if (p) {
@@ -578,7 +549,7 @@ function writeYaml(
         const line = `${inner}${c}: ${doubleQuoted(forms[c]!)}${eol}`;
         // Before the next form the text keeps: one it drops goes, its
         // comment with it, and cannot be an anchor (#759).
-        const next = PLURAL.slice(PLURAL.indexOf(c) + 1)
+        const next = PLURAL_CATEGORIES.slice(PLURAL_CATEGORIES.indexOf(c) + 1)
           .filter((k) => Object.hasOwn(forms, k))
           .map((k) => held.get(k))
           .find((q) => q !== undefined);
@@ -596,7 +567,7 @@ function writeYaml(
       // hash holds the text's forms (#759).
       for (const [c, p] of held)
         if (
-          (PLURAL as readonly string[]).includes(c) &&
+          (PLURAL_CATEGORIES as readonly string[]).includes(c) &&
           !Object.hasOwn(forms, c)
         )
           patches.push(pairRemoval(base, value, p));
@@ -662,7 +633,7 @@ function writeYaml(
           const key = keysAsWritten.get(id) ?? keyText(child);
           if (ids.includes(id)) {
             const text = translations[id]!;
-            const forms = plural.has(id) ? formsOf(text) : undefined;
+            const forms = plural.has(id) ? pluralBranches(text) : undefined;
             return forms
               ? `${indent}${key}:${eol}${formLines(forms, `${indent}${step}`)}`
               : `${indent}${key}: ${styled("", {}, text, indent)}${eol}`;
@@ -676,7 +647,7 @@ function writeYaml(
       const key = keysAsWritten.get(id) ?? keyText(child);
       if (ids.includes(id)) {
         const text = translations[id]!;
-        const forms = plural.has(id) ? formsOf(text) : undefined;
+        const forms = plural.has(id) ? pluralBranches(text) : undefined;
         return forms
           ? `${pairIndent}${key}:${eol}${formLines(forms, `${pairIndent}${step}`)}`
           : `${pairIndent}${key}: ${styled("", {}, text, pairIndent)}${eol}`;
@@ -832,7 +803,7 @@ export function applyYamlOps(
     }
     order.splice(at + 1, 0, op.id);
     // A `*_MF` key is ICU the app compiles: a scalar whatever its text.
-    if (!/_MF$/.test(op.id) && formsOf(op.text)) plural.add(op.id);
+    if (!/_MF$/.test(op.id) && pluralBranches(op.text)) plural.add(op.id);
   }
   let out =
     Object.keys(writes).length === 0

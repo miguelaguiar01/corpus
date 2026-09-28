@@ -1,4 +1,5 @@
 import {
+  isDroppedPlural,
   validateTranslation,
   type Library,
   type RichText,
@@ -16,17 +17,7 @@ export function validationMessage(
 ): string {
   switch (error.code) {
     case "missing-placeholder":
-      // Under printf and android a value that is not a verb is a plural's
-      // count: the translation dropped the plural (#652).
-      if (
-        (syntax === "printf" ||
-          syntax === "android" ||
-          syntax === "counterpart" ||
-          syntax === "easy_localization" ||
-          syntax === "rails" ||
-          syntax === "qt") &&
-        error.written === undefined
-      )
+      if (isDroppedPlural(error, syntax))
         return t("editor.pluralDropped", { name: error.name });
       return t("editor.missingPlaceholder", {
         name: chipText(error.name, syntax, null, error.written),

@@ -1,7 +1,7 @@
 // Android string resources (§3, #596). Text is what the app shows, aapt's
 // escapes undone on read and written back on change; a file is patched
 // element by element, so an unchanged pull writes the same bytes.
-import type { StringEntry } from "@corpus/contract";
+import { PLURAL_CATEGORIES, type StringEntry } from "@corpus/contract";
 
 export type AndroidOp =
   | { kind: "edit" | "add"; id: string; text: string }
@@ -22,7 +22,6 @@ const CDATA_RE = /^<!\[CDATA\[([\s\S]*)\]\]>$/;
 // Markup inside a string, `<b>`, `</b>`, `<xliff:g id="x">`: kept as
 // written, its quotes are not aapt's.
 const MARKUP_RE = /<\/?[A-Za-z][\w:.-]*(?:\s[^<>]*)?\/?>/g;
-const QUANTITIES = ["zero", "one", "two", "few", "many", "other"];
 
 function masked(xml: string): string {
   return xml.replace(/<!--[\s\S]*?-->/g, (c) => " ".repeat(c.length));
@@ -335,8 +334,8 @@ function pluralPatches(
     }
   }
   const rank = (q: string) => {
-    const at = QUANTITIES.indexOf(q);
-    return at < 0 ? QUANTITIES.length - 1.5 : at;
+    const at = (PLURAL_CATEGORIES as readonly string[]).indexOf(q);
+    return at < 0 ? PLURAL_CATEGORIES.length - 1.5 : at;
   };
   const added = [...wanted]
     .filter(([q]) => !old.some((item) => item.quantity === q))
