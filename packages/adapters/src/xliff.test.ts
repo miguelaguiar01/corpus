@@ -56,7 +56,7 @@ test("an XLIFF 1.2 source's units are strings, inline elements placeholders and 
       id: "signIn",
       type: "ui",
       source: "Sign in with <LINK>Google</LINK>",
-      note: "The sign-in button",
+      note: "The sign-in button\nUsed in apps/client/src/login.html",
     },
     {
       id: "holdings",
@@ -390,4 +390,86 @@ test("a placeholder's equiv-text, 2.0's disp, is the unit's example, so the prev
   expect(xliffToEntries(v20, { type: "ui" })[0]!.examples).toEqual([
     { values: { INTERPOLATION: "{{ name }}" }, rendered: "Hello {{ name }}" },
   ]);
+});
+
+test("a unit's source locations follow its note as `Used in`, as the gettext and qt-ts sources write them (#772)", () => {
+  const xml = `<?xml version="1.0" encoding="UTF-8" ?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file source-language="en" datatype="plaintext" original="ng2.template">
+    <body>
+      <trans-unit id="save" datatype="html">
+        <source>Save</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/a.html</context>
+          <context context-type="linenumber">12</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/b.html</context>
+          <context context-type="linenumber">3</context>
+        </context-group>
+        <note priority="1" from="description">The save button</note>
+      </trans-unit>
+      <trans-unit id="bare" datatype="html">
+        <source>Bare</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/c.ts</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="none" datatype="html">
+        <source>None</source>
+        <note from="description">Only a note</note>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>
+`;
+  const [save, bare, none] = xliffToEntries(xml, { type: "ui" });
+  expect(save!.note).toBe(
+    "The save button\nUsed in src/app/a.html:12 src/app/b.html:3",
+  );
+  expect(bare!.note).toBe("Used in src/app/c.ts");
+  expect(none!.note).toBe("Only a note");
+});
+
+test("locations read through spaced and prefixed attributes, and from 2.0's location notes (#772)", () => {
+  const v12 = `<?xml version="1.0" encoding="UTF-8" ?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file source-language="en" datatype="plaintext" original="ng2.template">
+    <body>
+      <trans-unit id="a" datatype="html">
+        <source>A</source>
+        <context-group purpose="location"/>
+        <context-group purpose="location">
+          <context context-type="linenumber"/>
+          <context x-context-type="sourcefile">9</context>
+          <context context-type = "sourcefile">src/a.html</context>
+          <context context-type='linenumber'>4</context>
+        </context-group>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>
+`;
+  expect(xliffToEntries(v12, { type: "ui" })[0]!.note).toBe(
+    "Used in src/a.html:4",
+  );
+  const v20 = `<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="2.0" xmlns="urn:oasis:names:tc:xliff:document:2.0" srcLang="en">
+  <file id="ngi18n" original="ng.template">
+    <unit id="b">
+      <notes>
+        <note category="description">Greeting</note>
+        <note category="location">src/app/b.html:12</note>
+        <note category="location">src/app/c.html:3,5</note>
+      </notes>
+      <segment>
+        <source>B</source>
+      </segment>
+    </unit>
+  </file>
+</xliff>
+`;
+  expect(xliffToEntries(v20, { type: "ui" })[0]!.note).toBe(
+    "Greeting\nUsed in src/app/b.html:12 src/app/c.html:3,5",
+  );
 });

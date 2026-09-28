@@ -212,14 +212,33 @@ function own(body: string): string {
 
 function notes(block: string, key: "from" | "category"): string | undefined {
   const out: string[] = [];
+  // Where Angular found the text, as the gettext and qt-ts sources say
+  // theirs (#772): 2.0's location notes, 1.2's context groups.
+  const used: string[] = [];
   const re = /<note\b([^>]*)>([\s\S]*?)<\/note>/g;
   for (let m = re.exec(block); m; m = re.exec(block)) {
     const kind = attr(m[1] ?? "", key);
-    if (kind === "description" || kind === "meaning") {
-      const text = decode(m[2]!.trim());
-      if (text) out.push(text);
-    }
+    const text = decode(m[2]!.trim());
+    if (!text) continue;
+    if (kind === "description" || kind === "meaning") out.push(text);
+    else if (key === "category" && kind === "location") used.push(text);
   }
+  const groups =
+    /<context-group(?=[\s>])([^>]*?)(?<!\/)>([\s\S]*?)<\/context-group>/g;
+  for (let m = groups.exec(block); m; m = groups.exec(block)) {
+    if (attr(m[1] ?? "", "purpose") !== "location") continue;
+    const context: Record<string, string> = {};
+    const contexts = /<context(?=[\s>])([^>]*?)(?<!\/)>([\s\S]*?)<\/context>/g;
+    for (let c = contexts.exec(m[2]!); c; c = contexts.exec(m[2]!)) {
+      const type = attr(c[1] ?? "", "context-type");
+      if (type !== undefined) context[type] ??= decode(c[2]!.trim());
+    }
+    const file = context.sourcefile;
+    if (!file) continue;
+    const line = context.linenumber;
+    used.push(line ? `${file}:${line}` : file);
+  }
+  if (used.length) out.push(`Used in ${used.join(" ")}`);
   return out.length ? out.join("\n") : undefined;
 }
 
