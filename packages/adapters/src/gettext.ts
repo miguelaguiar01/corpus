@@ -659,13 +659,29 @@ function wantedForms(
   entry: PoEntry,
   text: string,
   categories: (string | undefined)[],
+  majority: (string | undefined)[],
 ): (string | undefined)[] | undefined {
   if (entry.msgidPlural === undefined) return [text];
   const branches = pluralBranches(text);
   if (!branches) return undefined;
-  return categories.map((c) =>
+  const read = categories.map((c) =>
     c === undefined ? undefined : formOf(branches, c),
   );
+  const changed = read.some((f, i) => f !== undefined && f !== entry.msgstr[i]);
+  // A form no category reads keeps the file's text; one the file lacks,
+  // or holds empty in an entry written anyway, takes the branch of the
+  // category most of its integers are, as qt-ts does (#743, #848).
+  return read.map((f, i) => {
+    if (categories[i] !== undefined) return f;
+    const held = entry.msgstr[i];
+    if (held !== undefined && (held !== "" || !changed)) return undefined;
+    const fill = majority[i];
+    return (
+      (fill === undefined ? undefined : formOf(branches, fill)) ??
+      branches.other ??
+      ""
+    );
+  });
 }
 
 // An entry's patches: each msgstr whose text differs rewritten in
@@ -764,12 +780,11 @@ export function entriesToGettext(
       : existing;
   const eol = eolOf(base);
   const entries = parsePo(base);
-  const categories = pluralIndexCategories(
-    language.tag,
-    poHeader(entries)["Plural-Forms"],
-  );
+  const pluralForms = poHeader(entries)["Plural-Forms"];
+  const categories = pluralIndexCategories(language.tag, pluralForms);
+  const majority = pluralIndexMajority(language.tag, pluralForms);
   const forms = (entry: PoEntry, text: string) => {
-    const wanted = wantedForms(entry, text, categories);
+    const wanted = wantedForms(entry, text, categories, majority);
     if (!wanted) onRefused?.(poId(entry), text);
     return wanted;
   };

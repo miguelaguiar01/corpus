@@ -652,3 +652,29 @@ test("an entry with no msgstr ends at the next msgid or comment, as msgfmt reads
     `${RU_HEADER}\nmsgid "Open"\nmsgstr "Открыть"\n#: src/b.ts:2\nmsgid "Close"\nmsgstr "Закрыть"\n`,
   );
 });
+
+const LV_HEADER = `msgid ""\nmsgstr ""\n"Language: lv\\n"\n"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n != 0 ? 1 : 2);\\n"\n`;
+const LV = { tag: "lv", code: "lv" };
+const LV_PLURAL =
+  "{count, plural, zero {%d nulle} one {%d viens} other {%d daudz}}";
+const lvEntry = `msgid "%d file"\nmsgid_plural "%d files"\n`;
+const forms = (po: string) =>
+  parsePo(po).find((e) => e.msgid === "%d file")!.msgstr;
+
+test("a Plural-Forms index no CLDR category reads is filled from the category most of its integers are, never left empty (#848)", () => {
+  const pot = `msgid ""\nmsgstr ""\n"Content-Type: text/plain; charset=UTF-8\\n"\n\n${lvEntry}msgstr[0] ""\nmsgstr[1] ""\n`;
+  const fresh = `${LV_HEADER}\n${lvEntry}msgstr[0] ""\nmsgstr[1] ""\nmsgstr[2] ""\n`;
+  const written = forms(
+    entriesToGettext(pot, { "%d file": LV_PLURAL }, fresh, LV),
+  );
+  expect(written[2]).toBe("%d nulle");
+  expect(written.every((f) => f !== "")).toBe(true);
+  // A file short of that form gets it; one that holds text keeps it while
+  // the rest is unchanged.
+  const short = `${LV_HEADER}\n${lvEntry}msgstr[0] "${written[0]}"\nmsgstr[1] "${written[1]}"\n`;
+  expect(
+    forms(entriesToGettext(pot, { "%d file": LV_PLURAL }, short, LV))[2],
+  ).toBe("%d nulle");
+  const held = `${LV_HEADER}\n${lvEntry}msgstr[0] "${written[0]}"\nmsgstr[1] "${written[1]}"\nmsgstr[2] "mans"\n`;
+  expect(entriesToGettext(pot, { "%d file": LV_PLURAL }, held, LV)).toBe(held);
+});
