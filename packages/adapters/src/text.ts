@@ -51,7 +51,8 @@ const ENTITIES: Record<string, string> = {
 // reference to no character, and any other name, kept as written.
 export function decodeEntities(text: string): string {
   return text.replace(/&(#x[0-9a-fA-F]+|#\d+|[a-z]+);/g, (whole, e: string) => {
-    if (!e.startsWith("#")) return ENTITIES[e] ?? whole;
+    if (!e.startsWith("#"))
+      return Object.hasOwn(ENTITIES, e) ? ENTITIES[e]! : whole;
     const code = e.startsWith("#x")
       ? parseInt(e.slice(2), 16)
       : Number(e.slice(1));
