@@ -683,11 +683,12 @@ const OWN_FORMAT = new Set<FileSource["adapter"]>([
 // The adapters whose keys are the code's own (a msgid, a String Catalog
 // key, a `tr()` literal): no proposal is taken on their strings (#719,
 // #728, #741).
+type CodeKeyed = "gettext" | "xcstrings" | "qt-ts";
 const CODE_KEYED = new Set<FileSource["adapter"]>([
   "gettext",
   "xcstrings",
   "qt-ts",
-]);
+] satisfies CodeKeyed[]);
 
 // The adapters whose target file says which translations are done, so
 // one identical to its source is a translation, not filler (#658, #710,
@@ -705,9 +706,7 @@ export function sourceWritesBack(source: FileSource): boolean {
 
 // A source a proposal can be written into (§11): one pull writes back,
 // whose keys are not the code's.
-export function takesProposals(
-  source: FileSource,
-): source is Extract<FileSource, { adapter: WritableSource["adapter"] }> {
+export function takesProposals(source: FileSource): boolean {
   return sourceWritesBack(source) && !CODE_KEYED.has(source.adapter);
 }
 
@@ -853,7 +852,12 @@ export function writableSources(config: CorpusConfig): WritableSource[] {
               source.adapter === "android" || source.adapter === "xliff"
                 ? fileOf(source, config.sourceLanguage, config.sourceLanguage)
                 : source.path,
-            adapter: source.adapter,
+            // Every file adapter not code-keyed: tsc checks this set
+            // against the snapshot's writable enum.
+            adapter: source.adapter as Exclude<
+              FileSource["adapter"],
+              CodeKeyed
+            >,
             type: source.type,
             ...(typeof source.namespace === "string" && {
               namespace: source.namespace,
