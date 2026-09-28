@@ -95,12 +95,13 @@ function stringWrites(
     note: p("note"),
     syntax: p("syntax"),
   };
-  // An entry without metadata or examples leaves what the row holds, as
-  // an update that left the field out did.
+  // An entry without metadata leaves what the row holds, as an update
+  // that left the field out did. Examples are the push's, as the text
+  // is: one without them clears the old, whose slots the text may no
+  // longer have (#788).
   const kept = {
     ...fields,
     metadata: sql`coalesce(${sql.placeholder("metadata")}, ${strings.metadata})`,
-    examples: sql`coalesce(${sql.placeholder("examples")}, ${strings.examples})`,
     archived: false,
   };
   const params = (entry: Entry) => ({

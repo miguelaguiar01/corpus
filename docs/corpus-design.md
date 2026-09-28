@@ -280,7 +280,7 @@ The UI shows an entity card wherever a string refs it, and an entity browser per
 
 ## 7. Previews: data, not code
 
-Corpus never runs project code. Each string may ship **examples**: concrete slot values plus the source-language render, produced by the client's own exporter at push time.
+Corpus never runs project code. Each string may ship **examples**: concrete slot values plus the source-language render, produced by the client's own exporter at push time. They are the push's, as the text is: a push that carries none for a string clears what the string had (#788).
 
 ```jsonc
 "examples": [

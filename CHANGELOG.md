@@ -38,6 +38,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- A push that carries no examples for a string clears the ones it had. They stayed, so the editor previewed, and `get_string` returned, values for placeholders the text no longer had.
 - The string page keeps a note's line breaks: the `Used in …` line a gettext, qt-ts or xliff source adds after its comments ran into them.
 - A gettext source with no `sourcePath`, whose template is the source language's own `.po`, started a missing target file with the source language's msgstrs in it, which the next push seeded as the new language's translations. The new file now keeps the template's entries and header with every msgstr empty, no fuzzy flag and none of its obsolete `#~` entries, which msgmerge would revive with the source text.
 - A printf plural read whole on a named count, as a gettext `.po` or an exporter writes `{count, plural, one {%d card} other {%d cards}}`, previews from argument 1 when an example gives no `count`: `{1: 1}` rendered `1 cards`, the `other` branch, and now renders `1 card`. The gettext and String Catalog sources carry no examples, so it shows where an exporter or a JSON catalogue writes one.

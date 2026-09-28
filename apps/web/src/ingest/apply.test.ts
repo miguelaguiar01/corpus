@@ -955,3 +955,21 @@ test("a pushed entry's arguments are kept on the row, and a seed pluralising one
   applySnapshot(db, project.id, bare);
   expect(stringRow(db, "notifications.favorite %lld")?.arguments).toBeNull();
 });
+
+test("a push without a string's examples clears them; one that carries them keeps them (#788)", () => {
+  const { db, project } = seed();
+  applySnapshot(db, project.id, FIXTURE);
+  const id = "skin.seen-at-greenhouse-window";
+  expect(stringRow(db, id)?.examples).not.toBeNull();
+  applySnapshot(db, project.id, FIXTURE);
+  expect(stringRow(db, id)?.examples).toEqual(
+    FIXTURE.strings.find((s) => s.id === id)!.examples,
+  );
+  applySnapshot(db, project.id, {
+    ...FIXTURE,
+    strings: FIXTURE.strings.map((s) =>
+      s.id === id ? { ...s, examples: undefined } : s,
+    ),
+  });
+  expect(stringRow(db, id)?.examples ?? null).toBeNull();
+});
