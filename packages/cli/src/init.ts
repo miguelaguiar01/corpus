@@ -115,12 +115,20 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   }
   // Qt Linguist's XML under a `.ts` name (#742), told from TypeScript by
   // its first bytes.
+  // Only the files the pattern names decide, never a TypeScript file
+  // beside them (#749).
   const qt =
     /\.ts$/i.test(messages) &&
     (existsSync(sourceFile)
       ? isQtLinguist(headOf(sourceFile))
-      : qtTemplates(ctx.cwd, messages).length > 0);
-  if (qt && !existsSync(sourceFile))
+      : patternFiles(ctx.cwd, messages).some((file) =>
+          isQtLinguist(headOf(path.join(ctx.cwd, file))),
+        ));
+  // lupdate's template, `app.ts` beside `app_de.ts`, is the source where
+  // the source language has no file of its own (#749).
+  const qtTemplate =
+    qt && !existsSync(sourceFile) ? qtTemplateOf(ctx.cwd, messages) : undefined;
+  if (qt && !existsSync(sourceFile) && !qtTemplate)
     ctx.err(
       `corpus: no ${path.relative(ctx.cwd, sourceFile)}; set the qt-ts source's sourcePath to the template lupdate writes`,
     );
@@ -224,6 +232,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
           adapter: "qt-ts" as const,
           type,
           path: messages,
+          ...(qtTemplate && { sourcePath: qtTemplate }),
           ...(library && { library: library.value }),
           // The mappings of the languages the config lists, given or read.
           ...(Object.keys(kept).length > 0 && { languageFiles: kept }),
@@ -882,16 +891,60 @@ function qtLanguages(
   };
 }
 
-// Any Qt Linguist file the pattern names, for a repository whose source
-// language has no file of its own.
-function qtTemplates(cwd: string, pattern: string): string[] {
+// The files a pattern names, as repository paths: `{lang}` a part of a
+// file's name or a directory, each file one a code fills in.
+function patternFiles(cwd: string, pattern: string): string[] {
   const at = pattern.indexOf("{lang}");
-  const dir = path.join(cwd, path.dirname(`${pattern.slice(0, at)}x`));
+  const before = pattern.slice(0, at);
+  const after = pattern.slice(at + "{lang}".length);
+  const dir = path.join(cwd, path.dirname(`${before}x`));
+  const prefix = path.basename(`${before}x`).slice(0, -1);
+  const afterFirst = after.split("/")[0] ?? "";
   try {
     return readdirSync(dir)
-      .map((name) => path.join(dir, name))
-      .filter((file) => /\.ts$/i.test(file) && isQtLinguist(headOf(file)));
+      .filter((name) => name.startsWith(prefix) && name.endsWith(afterFirst))
+      .map((name) =>
+        pattern.replace(
+          "{lang}",
+          name.slice(prefix.length, name.length - afterFirst.length),
+        ),
+      )
+      .filter((file) => existsSync(path.join(cwd, file)));
   } catch {
     return [];
   }
+}
+
+// Whether a Qt file's `<TS>` names its language, in the file's first
+// kilobyte, past the declaration and doctype.
+function namesLanguage(file: string): boolean {
+  const head = readFileSync(file, "utf8").slice(0, 1024);
+  const open = /<TS\b[^>]*>/.exec(head)?.[0] ?? "";
+  return /\slanguage\s*=\s*(["'])[^"']+\1/.test(open);
+}
+
+// lupdate's template beside a file-name pattern's catalogues: the one Qt
+// file in their directory the pattern does not name whose `<TS>` names
+// no language, as lupdate writes a template; another component's
+// `qt_de.ts` names one.
+function qtTemplateOf(cwd: string, pattern: string): string | undefined {
+  const dir = path.posix.dirname(pattern);
+  if (dir.includes("{lang}")) return undefined;
+  const named = new Set(patternFiles(cwd, pattern));
+  let names: string[];
+  try {
+    names = readdirSync(path.join(cwd, dir));
+  } catch {
+    return undefined;
+  }
+  const templates = names
+    .map((name) => (dir === "." ? name : `${dir}/${name}`))
+    .filter(
+      (file) =>
+        /\.ts$/i.test(file) &&
+        !named.has(file) &&
+        isQtLinguist(headOf(path.join(cwd, file))) &&
+        !namesLanguage(path.join(cwd, file)),
+    );
+  return templates.length === 1 ? templates[0] : undefined;
 }

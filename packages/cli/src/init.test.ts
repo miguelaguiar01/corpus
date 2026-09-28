@@ -1333,3 +1333,56 @@ test("init refuses a YAML catalogue that is not Rails', naming what it holds (#7
   expect(p.err.join("\n")).toContain("an exec source converts any other");
   expect(existsSync(path.join(p.dir, "corpus.config.mjs"))).toBe(false);
 });
+
+test("init's qt-ts: lupdate's template is the sourcePath, {lang} as a directory needs no source directory, and only the files the pattern names decide (#749)", async () => {
+  const ts = (language: string) =>
+    `<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE TS>\n<TS version="2.1"${language ? ` language="${language}"` : ""}>\n<context>\n    <name>Main</name>\n    <message>\n        <source>Quit</source>\n        <translation type="unfinished"></translation>\n    </message>\n</context>\n</TS>\n`;
+  const base = ["init", "--project", "x", "--source", "en", "--messages"];
+
+  // The template beside the language files, and no app_en.ts.
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "lang"));
+  writeFileSync(path.join(p.dir, "lang", "app.ts"), ts(""));
+  for (const code of ["de", "fr"])
+    writeFileSync(path.join(p.dir, "lang", `app_${code}.ts`), ts(code));
+  expect(await run([...base, "lang/app_{lang}.ts"], p.ctx)).toBe(0);
+  expect((await loadConfig(p.dir)).sources[0]).toMatchObject({
+    adapter: "qt-ts",
+    sourcePath: "lang/app.ts",
+  });
+  expect(p.err.join("\n")).not.toContain("set the qt-ts source's sourcePath");
+  expect(await run(["build", "--out", "snapshot.json"], p.ctx)).toBe(0);
+
+  // {lang} as a directory with no t/en/.
+  const q = project();
+  stubCli(q.dir);
+  for (const code of ["de", "fr"]) {
+    mkdirSync(path.join(q.dir, "t", code), { recursive: true });
+    writeFileSync(path.join(q.dir, "t", code, "app.ts"), ts(code));
+  }
+  expect(await run([...base, "t/{lang}/app.ts"], q.ctx)).toBe(0);
+  expect((await loadConfig(q.dir)).sources[0]?.adapter).toBe("qt-ts");
+
+  // Only the files the pattern names decide: a Qt file beside TypeScript
+  // catalogues the pattern names does not make them Qt's.
+  const r = project();
+  stubCli(r.dir);
+  mkdirSync(path.join(r.dir, "src"));
+  writeFileSync(path.join(r.dir, "src", "other.ts"), ts(""));
+  writeFileSync(path.join(r.dir, "src", "main_de.ts"), "export default {};\n");
+  expect(await run([...base, "src/main_{lang}.ts"], r.ctx)).toBe(0);
+  expect((await loadConfig(r.dir)).sources[0]?.adapter).toBe("messages");
+
+  // Another component's catalogue, which names its language, is no
+  // template: sourcePath is asked for instead.
+  const s = project();
+  stubCli(s.dir);
+  mkdirSync(path.join(s.dir, "lang"));
+  for (const code of ["de", "fr"])
+    writeFileSync(path.join(s.dir, "lang", `app_${code}.ts`), ts(code));
+  writeFileSync(path.join(s.dir, "lang", "qt_de.ts"), ts("de"));
+  expect(await run([...base, "lang/app_{lang}.ts"], s.ctx)).toBe(0);
+  expect((await loadConfig(s.dir)).sources[0]).not.toHaveProperty("sourcePath");
+  expect(s.err.join("\n")).toContain("set the qt-ts source's sourcePath");
+});
