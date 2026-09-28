@@ -28,16 +28,18 @@ const EXEC =
 // can (#647): Node's loader would otherwise fail on it with an error
 // that names neither the format nor exec. `head` is the file's start,
 // which tells Qt Linguist's XML `.ts` from TypeScript.
+// Whether a `.ts` file's first bytes are Qt Linguist's XML, not
+// TypeScript.
+export function isQtLinguist(head: string): boolean {
+  return /^\uFEFF?\s*<(\?xml|!DOCTYPE TS\b|TS\b)/.test(head);
+}
+
 export function unreadableCatalogue(
   file: string,
   head?: string,
 ): string | null {
   const ext = path.extname(file).toLowerCase();
-  if (
-    ext === ".ts" &&
-    head !== undefined &&
-    /^\uFEFF?\s*<(\?xml|!DOCTYPE TS\b|TS\b)/.test(head)
-  )
+  if (ext === ".ts" && head !== undefined && isQtLinguist(head))
     return `a Qt Linguist catalogue: declare it { adapter: "qt-ts", type, path, sourcePath? }`;
   if (READ.has(ext)) return null;
   if (ext === ".po" || ext === ".pot")

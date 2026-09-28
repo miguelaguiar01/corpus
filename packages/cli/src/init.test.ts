@@ -792,28 +792,49 @@ test("init refuses a catalogue no adapter reads, by its format (#647)", async ()
     /--messages config\/locales\/client\.\{lang\}\.yml: a YAML catalogue, which no adapter reads/,
   );
   expect(existsSync(path.join(p.dir, "corpus.config.mjs"))).toBe(false);
+});
 
+test("init writes a qt-ts source for Qt Linguist .ts files, a POSIX code mapped through languageFiles (#742)", async () => {
+  const p = project();
+  stubCli(p.dir);
   mkdirSync(path.join(p.dir, "lang"));
+  const ts = (language: string, translation: string) =>
+    `<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE TS>\n<TS version="2.1"${language}>\n<context>\n    <name>Main</name>\n    <message>\n        <source>Quit</source>\n        <translation${translation}</translation>\n    </message>\n</context>\n</TS>\n`;
   writeFileSync(
     path.join(p.dir, "lang", "app_en.ts"),
-    '<?xml version="1.0"?>\n<TS version="2.1"></TS>\n',
+    ts("", ' type="unfinished">'),
   );
-  expect(
-    await run(
-      [
-        "init",
-        "--project",
-        "x",
-        "--source",
-        "en",
-        "--messages",
-        "lang/app_{lang}.ts",
-      ],
-      p.ctx,
-    ),
-  ).toBe(1);
-  expect(p.err.join("\n")).toMatch(/a Qt Linguist catalogue/);
-  expect(existsSync(path.join(p.dir, "corpus.config.mjs"))).toBe(false);
+  writeFileSync(
+    path.join(p.dir, "lang", "app_sr@latin.ts"),
+    ts(' language="sr@latin"', ">Izlaz"),
+  );
+  writeFileSync(
+    path.join(p.dir, "lang", "app_de.ts"),
+    ts(' language="de"', ">Beenden"),
+  );
+  const code = await run(
+    [
+      "init",
+      "--project",
+      "x",
+      "--source",
+      "en",
+      "--messages",
+      "lang/app_{lang}.ts",
+    ],
+    p.ctx,
+  );
+  expect(p.err.join("\n")).toBe("");
+  expect(code).toBe(0);
+  const config = await loadConfig(p.dir);
+  expect(config.languages).toEqual(["en", "de", "sr-Latn"]);
+  expect(config.sources[0]).toEqual({
+    adapter: "qt-ts",
+    type: "chrome",
+    path: "lang/app_{lang}.ts",
+    languageFiles: { "sr-Latn": "sr@latin" },
+  });
+  expect(await run(["build"], p.ctx)).toBe(0);
 });
 
 test("a real language without plural data draws no warning; a pseudo-locale and a made-up code do (#657)", async () => {

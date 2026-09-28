@@ -14,7 +14,7 @@ import {
   localeOf,
   type Library,
 } from "@corpus/contract";
-import { headOf, unreadableCatalogue } from "./catalogue-format";
+import { headOf, isQtLinguist, unreadableCatalogue } from "./catalogue-format";
 import { option } from "./args";
 import { readEntries } from "./build";
 import { DEFAULT_INCLUDE, EXTENSIONS, SKIP_DIRS } from "./check";
@@ -92,6 +92,12 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   // source, when there is one.
   const gettext = /\.po$/i.test(messages);
   const xcstrings = catalog !== undefined;
+  // Qt Linguist's XML under a `.ts` name (#742), told from TypeScript by
+  // its first bytes.
+  const qt =
+    /\.ts$/i.test(messages) &&
+    existsSync(sourceFile) &&
+    isQtLinguist(headOf(sourceFile));
   const templates = gettext ? potsBeside(ctx.cwd, messages) : [];
   const sourcePath = xliff
     ? !existsSync(sourceFile) && existsSync(path.join(ctx.cwd, bare))
@@ -115,7 +121,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       `--library does not apply to an xliff source: its text is ICU\nusage: ${INIT_USAGE}`,
     );
   const unreadable =
-    xliff || gettext || xcstrings
+    xliff || gettext || xcstrings || qt
       ? undefined
       : unreadableCatalogue(
           sourceFile,
@@ -124,6 +130,9 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
             : undefined,
         );
   if (unreadable) throw new CliError(`--messages ${messages}: ${unreadable}`);
+  const qtFiles = qt
+    ? qtLanguages(ctx.cwd, messages, sourceLanguage)
+    : { languages: [], languageFiles: {} };
   // The flag given without a value is an error, as for every option
   // (args.ts); only its absence means "read the files".
   const present = args.includes("--languages");
@@ -142,7 +151,9 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     ? listed
     : catalog
       ? catalog.languages
-      : languagesFromFiles(ctx.cwd, messages, sourceLanguage);
+      : qt
+        ? qtFiles.languages
+        : languagesFromFiles(ctx.cwd, messages, sourceLanguage);
   if (languages.length === 0) {
     throw new CliError(
       `no ${messages} file to take the languages from; pass --languages`,
@@ -158,7 +169,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   // gettext's library is printf unless the flag names another.
   const detected =
     xliff ||
-    ((gettext || xcstrings) &&
+    ((gettext || xcstrings || qt) &&
       !args.includes("--library") &&
       !args.includes("--syntax"))
       ? {}
@@ -166,29 +177,40 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   const library = detected.library;
   const components = checkIncludeFor(ctx.cwd, messages);
   const include = components.include;
-  const source = xcstrings
+  const source = qt
     ? {
-        adapter: "xcstrings" as const,
+        adapter: "qt-ts" as const,
         type,
         path: messages,
         ...(library && { library: library.value }),
+        ...(Object.keys(qtFiles.languageFiles).length > 0 &&
+          !args.includes("--languages") && {
+            languageFiles: qtFiles.languageFiles,
+          }),
       }
-    : xliff || gettext
+    : xcstrings
       ? {
-          adapter: xliff ? ("xliff" as const) : ("gettext" as const),
+          adapter: "xcstrings" as const,
           type,
           path: messages,
-          ...(sourcePath && { sourcePath }),
           ...(library && { library: library.value }),
         }
-      : {
-          adapter: "messages" as const,
-          type,
-          path: messages,
-          ...(library && library.value !== "icu"
-            ? { library: library.value }
-            : {}),
-        };
+      : xliff || gettext
+        ? {
+            adapter: xliff ? ("xliff" as const) : ("gettext" as const),
+            type,
+            path: messages,
+            ...(sourcePath && { sourcePath }),
+            ...(library && { library: library.value }),
+          }
+        : {
+            adapter: "messages" as const,
+            type,
+            path: messages,
+            ...(library && library.value !== "icu"
+              ? { library: library.value }
+              : {}),
+          };
   const parsed = corpusConfigSchema.safeParse({
     project,
     server,
@@ -226,7 +248,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       ? `wrote ${filename} (a plain object: @corpus-tool/cli is not installed in this repository)`
       : `wrote ${filename}`,
   );
-  if (library && (library.value !== "icu" || gettext || xcstrings)) {
+  if (library && (library.value !== "icu" || gettext || xcstrings || qt)) {
     const why =
       library.value === "i18next"
         ? "{{ }}"
@@ -256,7 +278,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     );
   }
   const siblings =
-    xliff || gettext || xcstrings
+    xliff || gettext || xcstrings || qt
       ? []
       : siblingCatalogues(ctx.cwd, messages, sourceLanguage);
   if (siblings.length > 0) {
@@ -311,6 +333,7 @@ function render(
       path?: string;
       library?: Library;
       sourcePath?: string;
+      languageFiles?: Record<string, string>;
     }[];
     check?: { include?: string[] };
   },
@@ -326,7 +349,13 @@ function render(
   sourceLanguage: ${q(config.sourceLanguage)},
   languages: [${config.languages.map(q).join(", ")}],
   sources: [
-    { adapter: ${q(source.adapter)}, type: ${q(source.type ?? "chrome")}, path: ${q(source.path ?? "")}${source.sourcePath ? `, sourcePath: ${q(source.sourcePath)}` : ""}${library} },
+    { adapter: ${q(source.adapter)}, type: ${q(source.type ?? "chrome")}, path: ${q(source.path ?? "")}${source.sourcePath ? `, sourcePath: ${q(source.sourcePath)}` : ""}${library}${
+      source.languageFiles
+        ? `, languageFiles: { ${Object.entries(source.languageFiles)
+            .map(([tag, code]) => `${q(tag)}: ${q(code)}`)
+            .join(", ")} }`
+        : ""
+    } },
   ],
 ${check}`;
   return plain
@@ -758,4 +787,50 @@ function readCatalog(
   } catch (error) {
     throw new CliError(`--messages ${file}: ${(error as Error).message}`);
   }
+}
+
+// The languages a Qt catalogue's files name, the source first: a POSIX
+// script modifier, `sr@latin`, is its tag `sr-Latn`, mapped back to the
+// file's code through languageFiles (#657).
+function qtLanguages(
+  cwd: string,
+  pattern: string,
+  sourceLanguage: string,
+): { languages: string[]; languageFiles: Record<string, string> } {
+  const at = pattern.indexOf("{lang}");
+  const before = pattern.slice(0, at);
+  const after = pattern.slice(at + "{lang}".length);
+  const dir = path.join(cwd, path.dirname(`${before}x`));
+  const prefix = path.basename(`${before}x`).slice(0, -1);
+  const scripts: Record<string, string> = {
+    latin: "Latn",
+    latn: "Latn",
+    cyrillic: "Cyrl",
+    cyrl: "Cyrl",
+  };
+  const languageFiles: Record<string, string> = {};
+  const found = new Set<string>();
+  let names: string[];
+  try {
+    names = readdirSync(dir);
+  } catch {
+    return { languages: [], languageFiles };
+  }
+  for (const name of names) {
+    if (!name.startsWith(prefix) || !name.endsWith(after)) continue;
+    const code = name.slice(prefix.length, name.length - after.length);
+    const posix = /^([a-z]{2,3})@([a-z]+)$/i.exec(code);
+    const script = posix && scripts[posix[2]!.toLowerCase()];
+    if (script) {
+      const tag = `${posix![1]}-${script}`;
+      languageFiles[tag] = code;
+      found.add(tag);
+    } else if (LANGUAGE_RE.test(code)) found.add(code);
+  }
+  if (found.size === 0) return { languages: [], languageFiles };
+  found.delete(sourceLanguage);
+  return {
+    languages: [sourceLanguage, ...[...found].sort()],
+    languageFiles,
+  };
 }
