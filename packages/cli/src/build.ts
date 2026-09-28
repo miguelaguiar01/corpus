@@ -978,7 +978,11 @@ function readSuggestions(
       if (!existsSync(path.join(cwd, file))) continue;
       const text = readFileSync(path.join(cwd, file), "utf8");
       for (const entry of gettextSuggestions(text, lang))
-        if (ids.has(entry.id) && seeds[lang]?.[entry.id] === undefined)
+        if (
+          ids.has(entry.id) &&
+          entry.source.trim() !== "" &&
+          seeds[lang]?.[entry.id] === undefined
+        )
           (suggestions[lang] ??= {})[entry.id] = entry.source;
     }
   }
@@ -987,7 +991,7 @@ function readSuggestions(
   );
   if (counts.length > 0)
     notes.push(
-      `${counts.join(", ")} fuzzy row(s) sent as suggestions, not translations`,
+      `${counts.join(", ")} fuzzy row(s) carried as suggestions, not translations`,
     );
   return suggestions;
 }

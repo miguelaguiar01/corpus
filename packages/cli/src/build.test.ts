@@ -1075,11 +1075,11 @@ test("a gettext source reads a .pot and its .po files: msgids, fuzzy rows, plura
   mkdirSync(path.join(dir, "locales"));
   writeFileSync(
     path.join(dir, "locales", "app.pot"),
-    `msgid ""\nmsgstr ""\n\nmsgid "Joplin"\nmsgstr ""\n\nmsgid "Delete %s?"\nmsgstr ""\n\nmsgid "%d note"\nmsgid_plural "%d notes"\nmsgstr[0] ""\nmsgstr[1] ""\n`,
+    `msgid ""\nmsgstr ""\n\nmsgid "Joplin"\nmsgstr ""\n\nmsgid "Delete %s?"\nmsgstr ""\n\nmsgid "Blank"\nmsgstr ""\n\nmsgid "%d note"\nmsgid_plural "%d notes"\nmsgstr[0] ""\nmsgstr[1] ""\n`,
   );
   writeFileSync(
     path.join(dir, "locales", "ru.po"),
-    `msgid ""\nmsgstr ""\n"Language: ru\\n"\n"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\\n"\n\nmsgid "Joplin"\nmsgstr "Joplin"\n\n#, fuzzy\nmsgid "Delete %s?"\nmsgstr "Удалить?"\n\nmsgid "%d note"\nmsgid_plural "%d notes"\nmsgstr[0] "%d заметка"\nmsgstr[1] "%d заметки"\nmsgstr[2] "%d заметок"\n`,
+    `msgid ""\nmsgstr ""\n"Language: ru\\n"\n"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\\n"\n\nmsgid "Joplin"\nmsgstr "Joplin"\n\n#, fuzzy\nmsgid "Delete %s?"\nmsgstr "Удалить?"\n\n#, fuzzy\nmsgid "Blank"\nmsgstr "   "\n\nmsgid "%d note"\nmsgid_plural "%d notes"\nmsgstr[0] "%d заметка"\nmsgstr[1] "%d заметки"\nmsgstr[2] "%d заметок"\n`,
   );
   const report = await buildSnapshotReport(
     config({
@@ -1102,6 +1102,7 @@ test("a gettext source reads a .pot and its .po files: msgids, fuzzy rows, plura
   ).toEqual([
     ["Joplin", "Joplin", "printf"],
     ["Delete %s?", "Delete %s?", "printf"],
+    ["Blank", "Blank", "printf"],
     ["%d note", "{count, plural, one {%d note} other {%d notes}}", "printf"],
   ]);
   // The fuzzy row is not seeded; the identical translation is marked.
@@ -1118,7 +1119,7 @@ test("a gettext source reads a .pot and its .po files: msgids, fuzzy rows, plura
     ru: { "Delete %s?": "Удалить?" },
   });
   expect(report.notes).toContain(
-    "ru 1 fuzzy row(s) sent as suggestions, not translations",
+    "ru 1 fuzzy row(s) carried as suggestions, not translations",
   );
   rmSync(dir, { recursive: true, force: true });
 });
