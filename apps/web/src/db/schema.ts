@@ -186,6 +186,10 @@ export const stringTranslations = sqliteTable(
     invalid: integer("invalid", { mode: "boolean" })
       .notNull()
       .default(sql`false`),
+    // What the repository offers a translator to start from, a gettext
+    // fuzzy row (#721, #773): never the text, never counted; each push
+    // replaces or clears it.
+    suggestion: text("suggestion"),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })
       .notNull()
       .$defaultFn(() => new Date()),

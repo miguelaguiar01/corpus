@@ -973,3 +973,28 @@ test("a push without a string's examples clears them; one that carries them keep
   });
   expect(stringRow(db, id)?.examples ?? null).toBeNull();
 });
+
+test("a push stores a string's suggestions per language, a later push without them clears them, and a suggestion never changes a row's state (#773)", () => {
+  const { db, project } = seed();
+  const id = "skin.seen-at-greenhouse-window";
+  applySnapshot(db, project.id, {
+    ...FIXTURE,
+    seedSuggestions: { en: { [id]: "A guess", "no.such.id": "x" } },
+  });
+  const row = () =>
+    db
+      .select()
+      .from(stringTranslations)
+      .where(
+        and(
+          eq(stringTranslations.stringId, stringRow(db, id)!.id),
+          eq(stringTranslations.language, "en"),
+        ),
+      )
+      .get()!;
+  expect(row().suggestion).toBe("A guess");
+  expect(row().state).toBe("untranslated");
+  expect(row().text).toBeNull();
+  applySnapshot(db, project.id, FIXTURE);
+  expect(row().suggestion).toBeNull();
+});

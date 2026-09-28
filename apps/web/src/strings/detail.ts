@@ -62,6 +62,8 @@ export type StringDetail = {
       // The latest edit was the agent actor's (§10): open to another
       // draft through the token, shown as an agent draft.
       agentDraft: boolean;
+      // What the repository offers to start from (#773), or null.
+      suggestion: string | null;
     }
   >;
   entities: EntityCard[];
@@ -139,6 +141,7 @@ export function stringDetail(
       text: row.text,
       version: versionOf(row),
       agentDraft: latestByLanguage.get(row.language)?.agent ?? false,
+      suggestion: row.suggestion,
     };
   }
 

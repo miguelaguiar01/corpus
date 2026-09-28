@@ -130,3 +130,13 @@ test("archived strings are excluded", () => {
   expect(payload.translations["en"]).toEqual({ [CONTINUE]: "Continue" });
   expect(payload.types[HEARD]).toBeUndefined();
 });
+
+test("a suggestion never reaches the pull payload (#773)", () => {
+  const { db, p } = pushed();
+  const before = pullPayload(db, p, "untranslated");
+  applySnapshot(db, p.id, {
+    ...FIXTURE,
+    seedSuggestions: { en: { [MARKS]: "A guess" } },
+  });
+  expect(pullPayload(db, p, "untranslated")).toEqual(before);
+});

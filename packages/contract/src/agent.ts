@@ -109,6 +109,10 @@ export type StringResponse = {
       // with it; additive.
       invalid: boolean;
       problem: string | null;
+      // What the repository offers to start from, a gettext fuzzy row
+      // (#773): never the translation, present only where there is one;
+      // additive.
+      suggestion?: string;
     }
   >;
   proposal: {
