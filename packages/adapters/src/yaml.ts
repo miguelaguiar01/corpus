@@ -585,7 +585,16 @@ function writeYaml(
     list.push(id);
     byContainer.set(parent, list);
   }
-  for (const [parent, ids] of byContainer) {
+  // Deepest first: where two containers' keys go in at one place, the
+  // end of a map, the deeper one's continue that map and the other's
+  // follow it, and patches at one place keep the order they came in
+  // (#802).
+  const containersInOrder = [...byContainer].sort(
+    ([a], [b]) =>
+      (b === "" ? 0 : b.split(".").length) -
+      (a === "" ? 0 : a.split(".").length),
+  );
+  for (const [parent, ids] of containersInOrder) {
     const container = containers.get(parent)!;
     const depth = parent === "" ? 0 : parent.split(".").length;
     const prefix = parent === "" ? "" : `${parent}.`;
