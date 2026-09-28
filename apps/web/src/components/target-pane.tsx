@@ -34,13 +34,21 @@ export type Slot = {
   written?: string | null;
 };
 
-type Branching = { kind: "select" | "plural"; arg: string; keys: string[] };
+type Branching = {
+  kind: "select" | "plural";
+  arg: string;
+  keys: string[];
+  // The arguments nested in each key's branch (#765).
+  inner: Map<string, string[]>;
+};
 
 // The source's select and plural arguments, each with every key any of
 // its uses has, in source order (validation unions them the same way):
 // a chip per argument inserts the whole skeleton so no braces are typed
 // by hand. A plural's keys are the target language's categories, since
 // those are what validation asks for, plus the source's exact =N ones.
+// A nested argument has a chip of its own, and its skeleton sits in
+// each branch of its outer one's.
 function branchingOf(
   source: string,
   language: string,
@@ -49,13 +57,23 @@ function branchingOf(
   const parsed = readIcu(source, syntax);
   if (!parsed.ok) return [];
   const byArg = new Map<string, Branching>();
+  const sourced = new Map<string, Set<string>>();
   for (const node of branchingNodes(parsed.nodes)) {
+    const keys = sourced.get(node.arg) ?? new Set<string>();
+    for (const key of Object.keys(node.branches)) keys.add(key);
+    sourced.set(node.arg, keys);
     const entry = byArg.get(node.arg) ?? {
       kind: node.kind,
       arg: node.arg,
       keys: node.kind === "plural" ? pluralCategoriesOf(language) : [],
+      inner: new Map<string, string[]>(),
     };
-    for (const key of Object.keys(node.branches)) {
+    for (const [key, branch] of Object.entries(node.branches)) {
+      for (const nested of branchingNodes(branch, false)) {
+        const args = entry.inner.get(key) ?? [];
+        if (!args.includes(nested.arg)) args.push(nested.arg);
+        entry.inner.set(key, args);
+      }
       if (entry.keys.includes(key)) continue;
       if (node.kind === "select") entry.keys.push(key);
       // Exact branches read first, before the categories, in source order.
@@ -68,14 +86,31 @@ function branchingOf(
       entry.keys.push("other");
     byArg.set(node.arg, entry);
   }
+  // A plural's categories are the target language's: a category the
+  // source lacks holds what the source's `other` does.
+  for (const entry of byArg.values()) {
+    const other = entry.inner.get("other");
+    if (entry.kind !== "plural" || !other) continue;
+    for (const key of entry.keys)
+      if (!key.startsWith("=") && !sourced.get(entry.arg)?.has(key))
+        entry.inner.set(key, other);
+  }
   return [...byArg.values()];
 }
 
 // A plural's branches open with the count so it is there to keep: `#`
 // where ICU reads it, the placeholder under i18next, and nothing under
 // printf and android, whose verb the source names (#662, #689).
-function skeleton({ kind, arg, keys }: Branching, syntax: Library) {
-  const fill =
+// A branch holding a nested argument holds its skeleton in place of
+// the count, which that argument's own branches carry (#765). Nesting
+// is one level deep, so an inner skeleton is never expanded further:
+// arguments nested in each other in different places would not end.
+function skeleton(
+  { kind, arg, keys, inner }: Branching,
+  syntax: Library,
+  byArg?: Map<string, Branching>,
+): { token: string; caret: number } {
+  const own =
     kind !== "plural"
       ? ""
       : syntax === "i18next"
@@ -91,12 +126,27 @@ function skeleton({ kind, arg, keys }: Branching, syntax: Library) {
                 : syntax === "printf" || syntax === "android"
                   ? ""
                   : "#";
-  const head = `{${arg}, ${kind}, ${keys[0]} {${fill}`;
+  const fill = (key: string) => {
+    const nested = (byArg ? (inner.get(key) ?? []) : []).flatMap((name) => {
+      const entry = byArg?.get(name);
+      return entry ? [skeleton(entry, syntax)] : [];
+    });
+    if (nested.length === 0) return { text: own, caret: own.length };
+    return {
+      text: nested.map((n) => n.token).join(" "),
+      caret: nested[0]!.caret,
+    };
+  };
+  const first = fill(keys[0]!);
+  const head = `{${arg}, ${kind}, ${keys[0]} {`;
   const rest = keys
     .slice(1)
-    .map((key) => ` ${key} {${fill}}`)
+    .map((key) => ` ${key} {${fill(key).text}}`)
     .join("");
-  return { token: `${head}}${rest}}`, caret: head.length };
+  return {
+    token: `${head}${first.text}}${rest}}`,
+    caret: head.length + first.caret,
+  };
 }
 
 // The target pane (§9.3): a draft, chips that insert the source's
@@ -162,6 +212,7 @@ export function TargetPane({
   // (#556); the chip for the category is still offered.
   const incomplete = validation.incomplete ?? [];
   const selects = branchingOf(source, language, syntax);
+  const byArg = new Map(selects.map((entry) => [entry.arg, entry]));
   const tags = [...tagsOf(source, syntax)];
 
   const insert = (token: string, caretOffset?: number) => {
@@ -235,7 +286,7 @@ export function TargetPane({
           aria-label={t("editor.selects")}
         >
           {selects.map((select) => {
-            const token = skeleton(select, syntax);
+            const token = skeleton(select, syntax, byArg);
             return (
               <button
                 key={select.arg}

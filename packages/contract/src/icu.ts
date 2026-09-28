@@ -1090,19 +1090,23 @@ function collect(
 }
 
 // The select and plural nodes of a tree in source order, through tags,
-// which may wrap them, and branches, which may hold one (#764).
+// which may wrap them, and, `deep`, branches, which may hold one (#764).
 export function branchingNodes(
   nodes: IcuNode[],
+  deep = true,
 ): Extract<IcuNode, { kind: "select" | "plural" }>[] {
   const out: Extract<IcuNode, { kind: "select" | "plural" }>[] = [];
   for (const node of nodes) {
     if (node.kind === "select" || node.kind === "plural") {
       out.push(node);
-      for (const branch of Object.values(node.branches))
-        out.push(...branchingNodes(branch));
-    } else if (node.kind === "tag") out.push(...branchingNodes(node.children));
+      if (deep)
+        for (const branch of Object.values(node.branches))
+          out.push(...branchingNodes(branch));
+    } else if (node.kind === "tag")
+      out.push(...branchingNodes(node.children, deep));
     else if (node.kind === "forms")
-      for (const branch of node.branches) out.push(...branchingNodes(branch));
+      for (const branch of node.branches)
+        out.push(...branchingNodes(branch, deep));
   }
   return out;
 }
