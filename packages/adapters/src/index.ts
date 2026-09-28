@@ -9,3 +9,4 @@ export * from "./fluent";
 export * from "./xliff";
 export * from "./gettext";
 export * from "./xcstrings";
+export * from "./qtts";

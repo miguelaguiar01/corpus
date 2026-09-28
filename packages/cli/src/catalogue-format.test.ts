@@ -22,7 +22,7 @@ test("a catalogue no adapter reads is named by its format, pointing at exec (#64
 test("a Qt Linguist .ts is told apart from TypeScript by its first bytes", () => {
   expect(
     unreadableCatalogue("lang/qbittorrent_en.ts", '<?xml version="1.0"?>'),
-  ).toMatch(/^a Qt Linguist catalogue/);
+  ).toMatch(/^a Qt Linguist catalogue: declare it \{ adapter: "qt-ts"/);
   expect(unreadableCatalogue("lang/app_en.ts", "\uFEFF<TS version")).toMatch(
     /^a Qt Linguist catalogue/,
   );
