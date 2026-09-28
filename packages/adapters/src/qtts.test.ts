@@ -98,3 +98,19 @@ test("a target's translations are its finished ones; unfinished text is work (#7
     },
   ]);
 });
+
+test("length variants seed the first; single quotes, CRLF, relative locations, empty comments and odd references read as Qt reads them (#740)", () => {
+  const xml = `<TS version="2.1" language="de">\r\n<context encoding="UTF-8">\r\n    <name>W</name>\r\n    <message>\r\n        <location filename="w.cpp" line="+5"/>\r\n        <source>Long\r\nline</source>\r\n        <comment></comment>\r\n        <translation variants="yes"><lengthvariant>Lang</lengthvariant><lengthvariant>L</lengthvariant></translation>\r\n    </message>\r\n    <message>\r\n        <source>Draft &#x110000;</source>\r\n        <translation type='unfinished'>Entwurf</translation>\r\n    </message>\r\n</context>\r\n</TS>\r\n`;
+  expect(qtTsToEntries(xml, { type: "ui" })).toEqual([
+    {
+      id: "W | Long\nline",
+      type: "ui",
+      source: "Long\nline",
+      note: "Used in w.cpp",
+    },
+    { id: "W | Draft &#x110000;", type: "ui", source: "Draft &#x110000;" },
+  ]);
+  expect(qtTsTranslations(xml)).toEqual([
+    { id: "W | Long\nline", type: "", source: "Lang" },
+  ]);
+});

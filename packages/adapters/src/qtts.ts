@@ -29,20 +29,30 @@ const ENTITIES: Record<string, string> = {
   apos: "'",
 };
 
+// An XML text's value: entities decoded, a reference to no character
+// kept as written, and line ends read as XML reads them, so a Windows
+// checkout gives the same ids.
 export function qtDecode(text: string): string {
-  return text.replace(/&(#x[0-9a-fA-F]+|#\d+|[a-z]+);/g, (whole, e: string) =>
-    e.startsWith("#x")
-      ? String.fromCodePoint(parseInt(e.slice(2), 16))
-      : e.startsWith("#")
-        ? String.fromCodePoint(Number(e.slice(1)))
-        : (ENTITIES[e] ?? whole),
-  );
+  return text
+    .replace(/\r\n?/g, "\n")
+    .replace(/&(#x[0-9a-fA-F]+|#\d+|[a-z]+);/g, (whole, e: string) => {
+      if (!e.startsWith("#")) return ENTITIES[e] ?? whole;
+      const code = e.startsWith("#x")
+        ? parseInt(e.slice(2), 16)
+        : Number(e.slice(1));
+      return code <= 0x10ffff ? String.fromCodePoint(code) : whole;
+    });
+}
+
+// An attribute's value, in either quote.
+function attr(attrs: string, name: string): string | undefined {
+  return new RegExp(`\\s${name}\\s*=\\s*(["'])(.*?)\\1`).exec(attrs)?.[2];
 }
 
 // A message's id: its context, its source, and the comment Qt tells two
 // otherwise equal messages apart by.
 export function qtId(context: string, source: string, comment?: string) {
-  return comment === undefined
+  return comment === undefined || comment === ""
     ? `${context} | ${source}`
     : `${context} | ${source} | ${comment}`;
 }
@@ -62,9 +72,11 @@ function inner(body: string, element: string): string | undefined {
 export function qtMessages(xml: string): QtMessage[] {
   const text = masked(xml);
   const out: QtMessage[] = [];
-  for (const c of text.matchAll(/<context>([\s\S]*?)<\/context>/g)) {
+  for (const c of text.matchAll(
+    /<context(?:\s[^>]*)?>([\s\S]*?)<\/context>/g,
+  )) {
     const body = c[1]!;
-    const bodyAt = c.index + "<context>".length;
+    const bodyAt = c.index + c[0].indexOf(">") + 1;
     const context = qtDecode(/<name>([\s\S]*?)<\/name>/.exec(body)?.[1] ?? "");
     for (const m of body.matchAll(
       /<message(\s[^>]*)?>([\s\S]*?)<\/message>/g,
@@ -73,15 +85,18 @@ export function qtMessages(xml: string): QtMessage[] {
       const inside = m[2]!;
       const insideAt = start + m[0].indexOf(">") + 1;
       const source = inner(inside, "source") ?? "";
-      const comment = inner(inside, "comment");
+      const said = inner(inside, "comment");
+      const comment = said === "" ? undefined : said;
       const t =
         /<translation(\s[^>]*?)?(?:\/>|>([\s\S]*?)<\/translation>)/.exec(
           inside,
         );
-      const state = t
-        ? /\stype\s*=\s*"([^"]*)"/.exec(t[1] ?? "")?.[1]
-        : undefined;
-      const numerus = /\snumerus\s*=\s*"yes"/.test(m[1] ?? "");
+      const state = t ? attr(t[1] ?? "", "type") : undefined;
+      const numerus = attr(m[1] ?? "", "numerus") === "yes";
+      // Length variants: a plain tr() gets the first, the longest.
+      const variants = t?.[2]?.match(
+        /<lengthvariant(?:\s[^>]*)?>([\s\S]*?)<\/lengthvariant>/,
+      );
       out.push({
         id: qtId(context, source, comment),
         context,
@@ -90,14 +105,24 @@ export function qtMessages(xml: string): QtMessage[] {
         ...(inner(inside, "extracomment") !== undefined && {
           extracomment: inner(inside, "extracomment"),
         }),
-        locations: [
-          ...inside.matchAll(
-            /<location\s+filename="([^"]*)"(?:\s+line="(\d+)")?\s*\/>/g,
-          ),
-        ].map((l) => (l[2] ? `${qtDecode(l[1]!)}:${l[2]}` : qtDecode(l[1]!))),
+        // lupdate's relative locations (`line="+5"`) name no line.
+        locations: [...inside.matchAll(/<location(\s[^>]*?)\/?>/g)].flatMap(
+          (l) => {
+            const file = attr(l[1]!, "filename");
+            const line = attr(l[1]!, "line");
+            if (file === undefined) return [];
+            return [
+              line && /^\d+$/.test(line)
+                ? `${qtDecode(file)}:${line}`
+                : qtDecode(file),
+            ];
+          },
+        ),
         numerus,
         ...(state !== undefined && { state }),
-        translation: numerus ? "" : qtDecode(t?.[2] ?? ""),
+        translation: numerus
+          ? ""
+          : qtDecode(variants ? variants[1]! : (t?.[2] ?? "")),
         at: { start, end: start + m[0].length },
         ...(t && {
           translationAt: {
