@@ -548,12 +548,6 @@ export function sourceLibrary(source: FileSource): Library {
     : libraryOf(source);
 }
 
-// Whether a source's target files are read for their translations: a
-// file source pull writes back, and gettext, whose write-back is #719.
-export function readsTargets(source: FileSource): boolean {
-  return source.adapter === "gettext" || sourceWritesBack(source);
-}
-
 // The file a source keeps a language in: its pattern with {lang}
 // filled, or, for Android, the `values` directory of the language.
 export function fileOf(
@@ -620,7 +614,8 @@ export function sourceWritesBack(source: FileSource): boolean {
   if (
     source.adapter === "android" ||
     source.adapter === "fluent" ||
-    source.adapter === "xliff"
+    source.adapter === "xliff" ||
+    source.adapter === "gettext"
   )
     return true;
   return writesBack(source.path);
@@ -722,6 +717,7 @@ async function readModule(
 // The sources pull can rewrite in place (§4): not exec, a .json path;
 // {lang} is not required, so a table without it takes proposals though
 // it takes no translations.
+// gettext is not one: its msgids are the code's, extracted, never proposed.
 export function writableSources(config: CorpusConfig): WritableSource[] {
   return config.sources.flatMap((source) =>
     source.adapter !== "exec" &&
@@ -778,12 +774,8 @@ export function pushOnlyNotes(config: CorpusConfig): string[] {
       }
     } else if (source.adapter === "android" || source.adapter === "fluent") {
       continue;
-    } else if (source.adapter === "xliff") {
+    } else if (source.adapter === "xliff" || source.adapter === "gettext") {
       continue;
-    } else if (source.adapter === "gettext") {
-      notes.push(
-        `${source.path}: pull does not write gettext yet; its translations are read and pushed`,
-      );
     } else if (!source.path.includes("{lang}")) {
       notes.push(
         `${source.path} has no {lang}: its translations cannot be written back`,
@@ -909,7 +901,7 @@ async function readSeeds(
   const seededFrom: Record<string, Record<string, string>> = {};
   for (const source of config.sources) {
     if (source.adapter === "exec" || !hasLanguages(source)) continue;
-    if (!readsTargets(source)) continue;
+    if (!sourceWritesBack(source)) continue;
     for (const lang of config.languages) {
       if (lang === config.sourceLanguage) continue;
       const file = fileOf(source, lang, config.sourceLanguage);

@@ -30,6 +30,12 @@ export default defineCorpus({
       path: "locale/messages.{lang}.xlf",
       sourcePath: "locale/messages.xlf",
     },
+    {
+      adapter: "gettext",
+      type: "menu",
+      path: "po/{lang}.po",
+      sourcePath: "po/messages.pot",
+    },
   ],
   richText: { screen: "html" },
 });

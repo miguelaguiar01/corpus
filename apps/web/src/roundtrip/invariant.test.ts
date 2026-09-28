@@ -178,6 +178,8 @@ test("translations that match the repository's target catalogues write the same 
   translate("step.open", "Open the door.");
   translate("step.key", "Find the key {where}.");
   translate("page.signIn", "Sign in with <LINK>Google</LINK>");
+  translate("Abrir o menu", "Open the menu");
+  translate("%d ficheiro", "{count, plural, one {%d file} other {%d files}}");
   expect(await run(["pull", "--min-state", "translated"], ctx())).toBe(0);
   expect(tree(repo)).toEqual(before);
   expect(output.join("\n")).toContain("0 file(s) changed");
@@ -191,6 +193,7 @@ test("a translation saved in Corpus comes back in exactly the expected file and 
   // A key segment with dots stays one segment (#642).
   translate("evento.m.sala.topico.removido", "The topic was removed.");
   translate("page.later", "Later");
+  translate("porta\u2404Fechar", "Close the door");
   expect(await run(["pull", "--min-state", "translated"], ctx())).toBe(0);
   const after = tree(repo);
   // XLIFF: the one target changed, its state with it; the source file stays.
@@ -199,6 +202,14 @@ test("a translation saved in Corpus comes back in exactly the expected file and 
     before["locale/messages.en.xlf"]!.replace(
       '<target state="new">Mais tarde</target>',
       '<target state="translated">Later</target>',
+    ),
+  );
+  // gettext: the msgstr rewritten, its fuzzy flag and previous msgid gone.
+  expect(after["po/messages.pot"]).toBe(before["po/messages.pot"]);
+  expect(after["po/en.po"]).toBe(
+    before["po/en.po"]!.replace(
+      '#, fuzzy\n#| msgid "Fecha"\nmsgctxt "porta"\nmsgid "Fechar"\nmsgstr "Close"',
+      'msgctxt "porta"\nmsgid "Fechar"\nmsgstr "Close the door"',
     ),
   );
   expect(Object.keys(after).sort()).toEqual(Object.keys(before).sort());
