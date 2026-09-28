@@ -439,3 +439,37 @@ test("a key's verbs are the arguments the code passes, by position (#731)", () =
     ["%#@posts@ from %@", ["", "%@"]],
   ]);
 });
+
+test("a catalogue with integer-like keys keeps Xcode's order: a no-op pull is byte-identical, an edit rewrites its unit alone (#853)", () => {
+  const unit = (value: string) => ({
+    localizations: { de: { stringUnit: { state: "translated", value } } },
+  });
+  // Xcode writes keys in code-point order; a plain object would move the
+  // integer-like ones first.
+  const body = serializeXcstrings({
+    sourceLanguage: "en",
+    strings: {},
+    version: "1.0",
+  }).replace(
+    '"strings" : {\n\n  }',
+    `"strings" : {\n${[
+      ["%@ items", "%@ Dinge"],
+      ["1", "eins"],
+      ["10", "zehn"],
+      ["2", "zwei"],
+      ["About", "Über"],
+    ]
+      .map(
+        ([k, v]) =>
+          `    ${JSON.stringify(k)} : ${serializeXcstrings(unit(v!), "    ")}`,
+      )
+      .join(",\n")}\n  }`,
+  );
+  const file = `${body}\n`;
+  const own = Object.fromEntries(
+    xcstringsTranslations(file, "de").map((e) => [e.id, e.source]),
+  );
+  expect(entriesToXcstrings(file, own, "de")).toBe(file);
+  const edited = entriesToXcstrings(file, { ...own, "10": "Zehn" }, "de");
+  expect(edited).toBe(file.replace('"zehn"', '"Zehn"'));
+});

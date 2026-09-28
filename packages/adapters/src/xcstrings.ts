@@ -4,6 +4,7 @@
 // device or width, or a `stringUnit` whose `%#@name@` substitutions are
 // plurals of their own.
 import type { StringEntry } from "@corpus/contract";
+import { parseTree, type Node } from "jsonc-parser";
 import { ownRecord } from "./text";
 
 type StringUnit = { state?: string; value?: string };
@@ -21,18 +22,19 @@ type XcUnit = {
   >;
 };
 
+type XcEntry = {
+  comment?: string;
+  extractionState?: string;
+  shouldTranslate?: boolean;
+  localizations?: Record<string, XcUnit>;
+};
+
 type XcCatalog = {
   sourceLanguage: string;
   version?: string;
-  strings: Record<
-    string,
-    {
-      comment?: string;
-      extractionState?: string;
-      shouldTranslate?: boolean;
-      localizations?: Record<string, XcUnit>;
-    }
-  >;
+  // A Map, in the file's order: an object would move integer-like keys
+  // ("1", "10") ahead of the rest (#853).
+  strings: Map<string, XcEntry>;
 };
 
 export function parseXcstrings(text: string): XcCatalog {
@@ -48,7 +50,18 @@ export function parseXcstrings(text: string): XcCatalog {
     throw new Error(
       "not a String Catalog: it has no sourceLanguage and strings",
     );
-  return data as XcCatalog;
+  const strings = data.strings as unknown as Record<string, XcEntry>;
+  const keys = !Object.keys(strings).some(isIndex)
+    ? undefined
+    : parseTree(text.replace(/^\uFEFF/, ""))
+        ?.children?.find((p) => p.children?.[0]?.value === "strings")
+        ?.children?.[1]?.children?.map((p) => p.children![0]!.value as string);
+  return {
+    ...(data as XcCatalog),
+    strings: new Map(
+      (keys ?? Object.keys(strings)).map((k) => [k, strings[k]!]),
+    ),
+  };
 }
 
 // A text and whether every unit in it is translated, for one variant.
@@ -141,7 +154,7 @@ function unitTexts(unit: XcUnit): Read[] {
 // The keys a catalogue offers for translation: not the empty key, one
 // Xcode marked stale, nor one marked not to translate.
 function live(catalog: XcCatalog) {
-  return Object.entries(catalog.strings).filter(
+  return [...catalog.strings].filter(
     ([key, entry]) =>
       key !== "" &&
       entry.extractionState !== "stale" &&
@@ -171,7 +184,8 @@ function sourceReads(
   catalog: XcCatalog,
   key: string,
 ): (Read & { keyIsText?: true })[] {
-  const unit = catalog.strings[key]?.localizations?.[catalog.sourceLanguage];
+  const unit =
+    catalog.strings.get(key)?.localizations?.[catalog.sourceLanguage];
   const reads = unit ? unitTexts(unit) : [];
   if (reads.length === 0 || (reads.length === 1 && reads[0]!.text === ""))
     return [{ suffix: "", text: key, done: true, keyIsText: true }];
@@ -243,7 +257,7 @@ export function xcstringsTranslations(
 export function xcstringsLanguages(text: string): string[] {
   const catalog = parseXcstrings(text);
   const found = new Set<string>();
-  for (const entry of Object.values(catalog.strings))
+  for (const entry of catalog.strings.values())
     for (const language of Object.keys(entry.localizations ?? {}))
       found.add(language);
   found.delete(catalog.sourceLanguage);
@@ -259,14 +273,40 @@ export function serializeXcstrings(value: unknown, indent = ""): string {
     return value.length === 0
       ? `[\n\n${indent}]`
       : `[\n${value.map((v) => inner + serializeXcstrings(v, inner)).join(",\n")}\n${indent}]`;
-  const keys = Object.keys(value);
-  if (keys.length === 0) return `{\n\n${indent}}`;
-  return `{\n${keys
+  const entries =
+    value instanceof Map
+      ? [...(value as Map<string, unknown>)]
+      : Object.entries(value);
+  if (entries.length === 0) return `{\n\n${indent}}`;
+  return `{\n${entries
     .map(
-      (k) =>
-        `${inner}${JSON.stringify(k)} : ${serializeXcstrings((value as Record<string, unknown>)[k], inner)}`,
+      ([k, v]) =>
+        `${inner}${JSON.stringify(k)} : ${serializeXcstrings(v, inner)}`,
     )
     .join(",\n")}\n${indent}}`;
+}
+
+// A substitution by name, the unit's own only (#845).
+function substitutionNamed<T>(
+  record: Record<string, T> | undefined,
+  key: string,
+) {
+  return record && Object.hasOwn(record, key) ? record[key] : undefined;
+}
+
+// A key an object puts ahead of the rest, whatever order it came in.
+const isIndex = (key: string) => /^(?:0|[1-9]\d*)$/.test(key);
+
+// A JSON value with every object a Map in the text's order.
+function inOrder(node: Node): unknown {
+  if (node.type === "array") return (node.children ?? []).map(inOrder);
+  if (node.type !== "object") return node.value;
+  return new Map(
+    (node.children ?? []).map((p) => [
+      p.children![0]!.value as string,
+      inOrder(p.children![1]!),
+    ]),
+  );
 }
 
 const sorted = <T>(record: Record<string, T>): Record<string, T> =>
@@ -401,8 +441,8 @@ function unitOf(
   for (const plural of plurals) {
     const name = nameOf(plural.arg);
     const before =
-      like?.substitutions?.[name] ??
-      source?.substitutions?.[theirs.get(plural.arg) ?? name];
+      substitutionNamed(like?.substitutions, name) ??
+      substitutionNamed(source?.substitutions, theirs.get(plural.arg) ?? name);
     const n = Number(plural.arg.slice(3));
     substitutions[name] = {
       ...((before?.argNum !== undefined ||
@@ -512,7 +552,10 @@ export function entriesToXcstrings(
   const bom = text.startsWith("\uFEFF") ? "\uFEFF" : "";
   const newline = text.endsWith("\n") ? "\n" : "";
   const body = text.slice(bom.length);
-  if (serializeXcstrings(JSON.parse(body)) + newline !== body)
+  if (
+    serializeXcstrings(JSON.parse(body)) + newline !== body &&
+    serializeXcstrings(inOrder(parseTree(body)!)) + newline !== body
+  )
     throw new Error(
       "the catalogue is not in Xcode's layout, so a write would move bytes it does not change; save it from Xcode first",
     );
