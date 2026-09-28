@@ -603,3 +603,26 @@ test("a numerus form that reads as a branch of its own is work too, so a pull ne
     ),
   ).toBe(ok);
 });
+
+test("a no-op pull keeps a numerus form beyond the language's rule; a change writes the rule's forms (#798)", () => {
+  const fr = numerus("fr", ["%n fichier", "%n fichiers", "%n fichiers"]);
+  const template = numerus("", ["", ""], ' type="unfinished"');
+  const language = { tag: "fr", code: "fr" };
+  const [seed] = qtTsTranslations(fr, "fr");
+  expect(
+    entriesToQtTs(
+      template,
+      { "Main | %n file(s)": seed!.source },
+      fr,
+      language,
+    ),
+  ).toBe(fr);
+  const changed = entriesToQtTs(
+    template,
+    { "Main | %n file(s)": "{count, plural, one {%n doc} other {%n docs}}" },
+    fr,
+    language,
+  );
+  expect(changed.match(/<numerusform>/g)).toHaveLength(2);
+  expect(changed).toContain("<numerusform>%n doc</numerusform>");
+});
