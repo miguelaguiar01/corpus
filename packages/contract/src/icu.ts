@@ -237,6 +237,9 @@ class Parser {
   // no closing tag matches and a closing tag with no open tag, found in
   // one pass over the text (#755).
   private proseTags?: Set<number>;
+  // Open tags already found not to close, where the one pass could not
+  // tell (a close in another branch): tried once, so never exponential.
+  private readonly unclosed = new Set<number>();
 
   constructor(
     private readonly source: string,
@@ -514,6 +517,7 @@ class Parser {
         if (
           this.html === "markup" &&
           (this.prose().has(tag.start) ||
+            this.unclosed.has(tag.start) ||
             (tag.kind === "close" &&
               (closing === undefined || tag.name !== closing)))
         ) {
@@ -545,6 +549,7 @@ class Parser {
               throw error;
             this.pos = after;
             [this.printfNext, this.ownFree, this.positional] = counters;
+            this.unclosed.add(tag.start);
             literal += raw;
           }
           literalStart = this.pos;
@@ -669,7 +674,6 @@ class Parser {
     return { kind: "placeholder", name: inner };
   }
 
-  // A tag at the cursor, consumed, or nothing when the < is text.
   private prose(): Set<number> {
     if (this.proseTags) return this.proseTags;
     const prose = new Set<number>();
@@ -682,8 +686,10 @@ class Parser {
       const match = TAG_RE.exec(this.source.slice(at));
       if (!match) continue;
       const name = match[2]!;
-      // Void elements and self-closed tags open nothing.
+      // Void elements and self-closed tags open nothing, and a closing
+      // tag with attributes is text, as readTag reads it.
       if (isVoidTag(name) || match[4] === "/") continue;
+      if (match[1] === "/" && match[3]!.trim() !== "") continue;
       if (match[1] !== "/") {
         open.push({ name, at });
         continue;
@@ -703,6 +709,7 @@ class Parser {
     return prose;
   }
 
+  // A tag at the cursor, consumed, or nothing when the < is text.
   private readTag():
     | {
         kind: "open" | "close" | "self";

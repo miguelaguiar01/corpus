@@ -1433,6 +1433,17 @@ test("in a type read as HTML a tag that never closes, or a stray closing tag, is
 test("reading prose tags is one pass: a thousand unclosed tags, verbs counted once, slots read from such a text (#755)", () => {
   const started = Date.now();
   expect(parseIcu("<a>".repeat(1000), "icu", { html: "markup" }).ok).toBe(true);
+  expect(
+    parseIcu(
+      `{n, plural, one {${"<a>".repeat(40)}} other {${"</a>".repeat(40)}}}`,
+      "icu",
+      { html: "markup" },
+    ).ok,
+  ).toBe(true);
+  expect(
+    parseIcu("<a>".repeat(40) + "</a x>".repeat(40), "icu", { html: "markup" })
+      .ok,
+  ).toBe(true);
   expect(Date.now() - started).toBeLessThan(1000);
   expect(
     validateTranslation(
