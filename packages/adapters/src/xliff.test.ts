@@ -473,3 +473,18 @@ test("locations read through spaced and prefixed attributes, and from 2.0's loca
     "Greeting\nUsed in src/app/b.html:12 src/app/c.html:3,5",
   );
 });
+
+test("a removal takes the unit alone where other markup shares its line (#847)", () => {
+  const one = `<?xml version="1.0"?><xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2"><file source-language="en" datatype="plaintext" original="a"><body><trans-unit id="a"><source>A</source></trans-unit><trans-unit id="b"><source>B</source></trans-unit></body></file></xliff>\n`;
+  expect(applyXliffOps(one, [{ kind: "delete", id: "b" }])).toBe(
+    one.replace('<trans-unit id="b"><source>B</source></trans-unit>', ""),
+  );
+  const grouped = `<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">\n  <file source-language="en" datatype="plaintext" original="a">\n    <body>\n      <group id="g"><trans-unit id="a"><source>A</source></trans-unit>\n      </group>\n    </body>\n  </file>\n</xliff>\n`;
+  expect(applyXliffOps(grouped, [{ kind: "delete", id: "a" }])).toBe(
+    grouped.replace('<trans-unit id="a"><source>A</source></trans-unit>', ""),
+  );
+  const lines = `<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">\r\n  <file source-language="en" datatype="plaintext" original="a">\r\n    <body>\r\n      <trans-unit id="a">\r\n        <source>A</source>\r\n      </trans-unit>\r\n    </body>\r\n  </file>\r\n</xliff>\r\n`;
+  expect(applyXliffOps(lines, [{ kind: "delete", id: "a" }])).toBe(
+    lines.replace(/\r\n {6}<trans-unit id="a">[\s\S]*?<\/trans-unit>/, ""),
+  );
+});
