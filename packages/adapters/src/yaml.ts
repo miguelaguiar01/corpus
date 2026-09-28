@@ -411,6 +411,11 @@ function writeYaml(
     const value = pair.value as Node | null;
     const range = value?.range;
     if (!range || range[1] <= range[0]) return colon;
+    // A map ending in a commented empty value (`u: # keep`) reaches into
+    // the next line's indentation: it ends at that line's start (#804).
+    const nl = base.lastIndexOf("\n", range[1] - 1);
+    if (nl >= range[0] && /^[ \t]*$/.test(base.slice(nl + 1, range[1])))
+      return nl + 1;
     return range[1];
   };
   // A pair's value replaced by `tail`, which starts after the key.

@@ -506,3 +506,16 @@ test("a map's missing last child goes in before a missing key after the map, so 
   );
   expect(out).toBe(`fr:\n  m: "1"\n  t:\n    x: "2"\n    y: "3"\n  s: "4"\n`);
 });
+
+test("a map ending in a commented empty parent ends on that line, so a missing key after it goes before the next key (#804)", () => {
+  const en = `en:\n  a:\n    e: "E"\n    u:\n      l: "L"\n  d: "D"\n  r:\n    x: "X"\n`;
+  const out = entriesToYaml(
+    en,
+    { "a.e": "2", "a.u.l": "4", d: "5", "r.x": "6" },
+    `fr:\n  a:\n    e: "2"\n    u: # keep\n  r:\n    x: "6"\n`,
+    { source: "en", code: "fr" },
+  );
+  expect(out).toBe(
+    `fr:\n  a:\n    e: "2"\n    u: # keep\n      l: "4"\n  d: "5"\n  r:\n    x: "6"\n`,
+  );
+});
