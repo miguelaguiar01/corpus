@@ -519,3 +519,32 @@ test("a map ending in a commented empty parent ends on that line, so a missing k
     `fr:\n  a:\n    e: "2"\n    u: # keep\n      l: "4"\n  d: "5"\n  r:\n    x: "6"\n`,
   );
 });
+
+test("an added plural form after a commented empty one goes inside its hash, and a removal after such a map takes its comment (#804)", () => {
+  const out = entriesToYaml(
+    `en:\n  p:\n    one: "one"\n    other: "other"\n  j: "J"\n`,
+    { p: "{count, plural, one {1} other {n}}", j: "6" },
+    `fr:\n  p:\n    one: # keep\n  j: "x"\n`,
+    { source: "en", code: "fr" },
+  );
+  expect(yamlTranslations(out, "fr").map((e) => [e.id, e.source])).toEqual([
+    ["p", "{count, plural, one {1} other {n}}"],
+    ["j", "6"],
+  ]);
+  const removed = applyYamlOps(
+    `en:\n  a:\n    u: # keep\n  # about b\n  b: "B"\n`,
+    [{ kind: "delete", id: "b" }],
+    "en",
+  );
+  expect(removed).toBe(`en:\n  a:\n    u: # keep\n`);
+});
+
+test("removing a map leaves the comment of the key after it (#804)", () => {
+  expect(
+    applyYamlOps(
+      `en:\n  a:\n    x: "X"\n  # about b\n  b: "B"\n`,
+      [{ kind: "delete", id: "a.x" }],
+      "en",
+    ),
+  ).toBe(`en:\n  a:\n  # about b\n  b: "B"\n`);
+});
