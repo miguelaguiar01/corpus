@@ -1199,3 +1199,50 @@ test("an xcstrings source reads one String Catalog for every language; only tran
   expect(writableSources(xc)).toEqual([]);
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("a qt-ts source reads the template and each language's finished translations under qt (#740)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-qtts-"));
+  mkdirSync(path.join(dir, "lang"));
+  const file = (language: string, translation: string) =>
+    `<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE TS>\n<TS version="2.1"${language ? ` language="${language}"` : ""}>\n<context>\n    <name>MainWindow</name>\n    <message>\n        <source>OK</source>\n        ${translation.replace("%", "OK")}\n    </message>\n    <message>\n        <source>Transfers (%1)</source>\n        ${translation.replace("%", "Transferências (%1)")}\n    </message>\n</context>\n</TS>\n`;
+  writeFileSync(
+    path.join(dir, "lang", "app_en.ts"),
+    file("", '<translation type="unfinished"></translation>'),
+  );
+  writeFileSync(
+    path.join(dir, "lang", "app_sr@latin.ts"),
+    file("sr@latin", "<translation>%</translation>"),
+  );
+  const report = await buildSnapshotReport(
+    config({
+      sourceLanguage: "en",
+      languages: ["en", "sr-Latn"],
+      sources: [
+        {
+          adapter: "qt-ts",
+          type: "ui",
+          path: "lang/app_{lang}.ts",
+          languageFiles: { "sr-Latn": "sr@latin" },
+        },
+      ],
+    }),
+    dir,
+  );
+  expect(report.refused).toEqual([]);
+  expect(
+    report.snapshot.strings.map((s) => [s.id, s.source, s.library]),
+  ).toEqual([
+    ["MainWindow | OK", "OK", "qt"],
+    ["MainWindow | Transfers (%1)", "Transfers (%1)", "qt"],
+  ]);
+  expect(report.snapshot.seedTranslations).toEqual({
+    "sr-Latn": {
+      "MainWindow | OK": "OK",
+      "MainWindow | Transfers (%1)": "Transferências (%1)",
+    },
+  });
+  expect(report.snapshot.seedTranslated).toEqual({
+    "sr-Latn": ["MainWindow | OK"],
+  });
+  rmSync(dir, { recursive: true, force: true });
+});

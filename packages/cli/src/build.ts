@@ -10,6 +10,8 @@ import {
   gettextToEntries,
   xcstringsToEntries,
   xcstringsTranslations,
+  qtTsToEntries,
+  qtTsTranslations,
   gettextTranslations,
   xliffToEntries,
   xliffTranslations,
@@ -333,7 +335,8 @@ export async function buildSnapshotReport(
     if (
       source.adapter !== "xliff" &&
       source.adapter !== "gettext" &&
-      source.adapter !== "xcstrings"
+      source.adapter !== "xcstrings" &&
+      source.adapter !== "qt-ts"
     )
       continue;
     const file = fileOf(source, config.sourceLanguage, config.sourceLanguage);
@@ -560,6 +563,7 @@ export function sourceLibrary(source: FileSource): Library {
   // gettext's msgids are C's format strings unless the source says else.
   if (source.adapter === "gettext" || source.adapter === "xcstrings")
     return source.library ?? "printf";
+  if (source.adapter === "qt-ts") return source.library ?? "qt";
   return source.adapter === "fluent" || source.adapter === "xliff"
     ? "icu"
     : libraryOf(source);
@@ -573,7 +577,9 @@ export function fileOf(
   sourceLanguage: string,
 ): string {
   if (
-    (source.adapter === "xliff" || source.adapter === "gettext") &&
+    (source.adapter === "xliff" ||
+      source.adapter === "gettext" ||
+      source.adapter === "qt-ts") &&
     source.sourcePath &&
     language === sourceLanguage
   )
@@ -633,6 +639,12 @@ export function hasLanguages(source: FileSource): boolean {
   );
 }
 
+// Whether a source's target files are read for their translations: a
+// source pull writes back, and qt-ts, whose write-back is #741.
+export function readsTargets(source: FileSource): boolean {
+  return source.adapter === "qt-ts" || sourceWritesBack(source);
+}
+
 export function sourceWritesBack(source: FileSource): boolean {
   if (
     source.adapter === "android" ||
@@ -685,6 +697,12 @@ export async function readEntries(
           ...e,
           type: source.type,
         }));
+  }
+  if (source.adapter === "qt-ts") {
+    const xml = readFileSync(path.join(cwd, file), "utf8");
+    return sourceFile
+      ? qtTsToEntries(xml, { type: source.type })
+      : qtTsTranslations(xml).map((e) => ({ ...e, type: source.type }));
   }
   if (source.adapter === "xliff") {
     const xml = readFileSync(path.join(cwd, file), "utf8");
@@ -762,6 +780,7 @@ export function writableSources(config: CorpusConfig): WritableSource[] {
     source.adapter !== "exec" &&
     source.adapter !== "gettext" &&
     source.adapter !== "xcstrings" &&
+    source.adapter !== "qt-ts" &&
     sourceWritesBack(source)
       ? [
           {
@@ -820,6 +839,10 @@ export function pushOnlyNotes(config: CorpusConfig): string[] {
       source.adapter === "xcstrings"
     ) {
       continue;
+    } else if (source.adapter === "qt-ts") {
+      notes.push(
+        `${source.path}: pull does not write qt-ts yet; its translations are read and pushed`,
+      );
     } else if (!source.path.includes("{lang}")) {
       notes.push(
         `${source.path} has no {lang}: its translations cannot be written back`,
@@ -945,7 +968,7 @@ async function readSeeds(
   const seededFrom: Record<string, Record<string, string>> = {};
   for (const source of config.sources) {
     if (source.adapter === "exec" || !hasLanguages(source)) continue;
-    if (!sourceWritesBack(source)) continue;
+    if (!readsTargets(source)) continue;
     for (const lang of config.languages) {
       if (lang === config.sourceLanguage) continue;
       const file = fileOf(source, lang, config.sourceLanguage);

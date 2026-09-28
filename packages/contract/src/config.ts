@@ -105,6 +105,18 @@ const gettextSchema = z.looseObject({
   languageFiles,
 });
 
+// Qt Linguist `.ts` (#740): a file per language, `lupdate`'s template
+// or the source language's own file as the source; qt's placeholders
+// unless the library says else.
+const qtTsSchema = z.looseObject({
+  adapter: z.literal("qt-ts"),
+  type: identifier(),
+  path: langPattern,
+  sourcePath: z.string().min(1).optional(),
+  library: librarySchema.optional(),
+  languageFiles,
+});
+
 // Apple's String Catalog (#727): one `.xcstrings` holding every
 // language, so its path has no {lang}; printf unless the library says
 // else.
@@ -130,6 +142,7 @@ export const sourceInputSchema = z.discriminatedUnion("adapter", [
   xliffSchema,
   gettextSchema,
   xcstringsSchema,
+  qtTsSchema,
   execSchema,
 ]);
 
@@ -161,6 +174,7 @@ export const sourceSchema = z.discriminatedUnion("adapter", [
   xliffSchema,
   gettextSchema,
   xcstringsSchema,
+  qtTsSchema,
   execSchema,
 ]);
 
@@ -250,10 +264,11 @@ export const corpusConfigSchema = z
         source.adapter !== "messages" &&
         source.adapter !== "fluent" &&
         source.adapter !== "xliff" &&
-        source.adapter !== "gettext"
+        source.adapter !== "gettext" &&
+        source.adapter !== "qt-ts"
       ) {
         issue(
-          `languageFiles is for messages, fluent, xliff and gettext sources`,
+          `languageFiles is for messages, fluent, xliff, gettext and qt-ts sources`,
         );
         return;
       }
