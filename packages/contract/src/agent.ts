@@ -69,6 +69,11 @@ export type StringResponse = {
   // when it goes with the config's alias (#522).
   library: Library;
   syntax: Library;
+  // The printf verbs the code passes by position where the key carries
+  // them (a String Catalog's `%lld`, #731): values a translation may
+  // pluralise on or print though the source prints none. Present only
+  // where the string has them; additive (#737).
+  arguments?: string[];
   // Every value the source takes, placeholders then counts, in source
   // order, with the type's declaration for the slot and the first
   // example's value per language (§5, §7); additive.

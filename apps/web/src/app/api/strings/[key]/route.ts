@@ -74,6 +74,7 @@ export async function GET(
     richText: detail.string.richText,
     library: detail.string.syntax,
     syntax: detail.string.syntax,
+    ...(detail.string.arguments && { arguments: detail.string.arguments }),
     slots: slotsOf(
       detail.string.source,
       detail.declarations,
