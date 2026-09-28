@@ -697,6 +697,9 @@ export async function readEntries(
   // The language a file is read for, where one file holds them all
   // (xcstrings): a target's, or the source's, which the file must name.
   language?: string,
+  // A translation the file holds that is not read, a Qt numerus form
+  // no plural holds (#751).
+  onUnread?: (id: string) => void,
 ): Promise<StringEntry[]> {
   if (source.adapter === "xcstrings") {
     const text = readFileSync(path.join(cwd, file), "utf8");
@@ -739,10 +742,9 @@ export async function readEntries(
     const xml = readFileSync(path.join(cwd, file), "utf8");
     return sourceFile
       ? qtTsToEntries(xml, { type: source.type })
-      : qtTsTranslations(xml, languageOfFile(file, source)).map((e) => ({
-          ...e,
-          type: source.type,
-        }));
+      : qtTsTranslations(xml, languageOfFile(file, source), onUnread).map(
+          (e) => ({ ...e, type: source.type }),
+        );
   }
   if (source.adapter === "xliff") {
     const xml = readFileSync(path.join(cwd, file), "utf8");
@@ -1011,6 +1013,7 @@ async function readSeeds(
       if (lang === config.sourceLanguage) continue;
       const file = fileOf(source, lang, config.sourceLanguage);
       if (!existsSync(path.join(cwd, file))) continue;
+      const unread: string[] = [];
       try {
         for (const entry of await readEntries(
           jiti,
@@ -1019,6 +1022,7 @@ async function readSeeds(
           source,
           false,
           lang,
+          (id) => unread.push(id),
         )) {
           // A key the source no longer has, or an empty value an
           // extraction tool left, is not a translation.
@@ -1037,6 +1041,10 @@ async function readSeeds(
           seeds[lang][entry.id] = entry.source;
           seededFrom[lang][entry.id] = file;
         }
+        if (unread.length > 0)
+          notes.push(
+            `${file}: ${unread.length} translation(s) not seeded: a numerus form Corpus cannot read as one plural, left as the file has it (${unread.map(printable).join(", ")})`,
+          );
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         errors.push(`${file}: ${message}`);
