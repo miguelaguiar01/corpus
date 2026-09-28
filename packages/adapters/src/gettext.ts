@@ -313,6 +313,32 @@ export function pluralIndexCategories(
   });
 }
 
+// The category the most integers at each index belong to, whether or
+// not the reader takes that index from it: what fills a form no
+// category reads, Latvian's for zero or Filipino's for 0 and 1, where a
+// file must hold text (#743).
+export function pluralIndexMajority(
+  language: string,
+  forms: string | undefined,
+): (string | undefined)[] {
+  const rules = rulesOf(language);
+  const found = tally(rules, forms);
+  const order = cldrOrder(rules);
+  if (!found) return order;
+  return Array.from({ length: found.nplurals }, (_, i) => {
+    let best: string | undefined;
+    let most = 0;
+    for (const category of order) {
+      const count = found.counts.get(category)?.get(i) ?? 0;
+      if (count > most) {
+        best = category;
+        most = count;
+      }
+    }
+    return best;
+  });
+}
+
 // A plural entry's forms as one ICU plural on `count`, a branch for
 // every category the language has, each the form its index names.
 export function poPluralText(

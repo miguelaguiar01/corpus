@@ -2,7 +2,9 @@
 // Plural-Forms expression each family of languages is counted by, and
 // the language codes in it. Qt's form count is not CLDR's (French has
 // two forms, where integers reach three categories), so a form maps to
-// a category through the expression, as a gettext file's does.
+// a category through the expression, as a gettext file's does. The
+// expressions are the rules lrelease compiles, not the gettext strings
+// Qt prints beside them: Macedonian counts by n%10, not n%100.
 const QT_NUMERUS: [string, string[]][] = [
   [
     "nplurals=1; plural=0;",
@@ -134,7 +136,7 @@ const QT_NUMERUS: [string, string[]][] = [
     ["dv", "ga", "gv", "ik", "iu", "mi", "sa", "se", "sm"],
   ],
   ["nplurals=3; plural=((n==1) ? 0 : (n>=2 && n<=4) ? 1 : 2);", ["cs", "sk"]],
-  ["nplurals=3; plural=(n%100==1 ? 0 : n%100==2 ? 1 : 2);", ["mk"]],
+  ["nplurals=3; plural=(n%10==1 ? 0 : n%10==2 ? 1 : 2);", ["mk"]],
   [
     "nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && (n%100<10 || n%100>=20) ? 1 : 2);",
     ["lt"],
@@ -173,13 +175,28 @@ const QT_NUMERUS: [string, string[]][] = [
   ],
 ];
 
-// The expression Qt counts a language's forms by: its own row, or its
-// base language's; Portuguese counts as French does in Brazil alone.
-// Undefined for a language Qt has no rule for.
-export function qtPluralForms(language: string): string | undefined {
+// Qt's older codes for a language (QLocale's codeToLanguage).
+const LEGACY: Record<string, string> = {
+  tl: "fil",
+  sh: "sr",
+  iw: "he",
+  in: "id",
+  ji: "yi",
+  no: "nb",
+};
+
+// The expression Qt counts a language's forms by: its base language's
+// row. Portuguese counts as French does unless a region other than
+// Brazil is named, since Qt reads a bare `pt` as Brazil's. A language
+// Qt has no rule for has the one form lupdate gives it.
+export function qtPluralForms(language: string): string {
   const [base, region] = language.replace(/_/g, "-").split(/[-@]/);
-  const code = base!.toLowerCase();
-  if (code === "pt" && region?.toUpperCase() === "BR")
+  const lower = base!.toLowerCase();
+  const code = LEGACY[lower] ?? lower;
+  if (code === "pt" && (region === undefined || region.toUpperCase() === "BR"))
     return "nplurals=2; plural=(n > 1);";
-  return QT_NUMERUS.find(([, codes]) => codes.includes(code))?.[0];
+  return (
+    QT_NUMERUS.find(([, codes]) => codes.includes(code))?.[0] ??
+    "nplurals=1; plural=0;"
+  );
 }

@@ -297,3 +297,63 @@ test("numerus forms read as one plural on count through Qt's rules, and write ba
     '<translation type="unfinished"></translation>',
   );
 });
+
+test("Qt's own counts: Macedonian by n%10, one form where Qt has no rule, older codes; no form ships empty; length variants kept (#743)", () => {
+  const template = numerus("", ["", ""], ' type="unfinished"');
+  const id = "Main | %n file(s)";
+  // Macedonian's singular is read and written.
+  const mk = numerus("mk", ["%n датотека", "%n датотеки", "%n датотеки"]);
+  expect(qtTsTranslations(mk, "mk")[0]!.source).toMatch(/one \{%n датотека\}/);
+  // Asturian has no Qt rule: one form, kept on a pull of its own.
+  const ast = numerus("ast", ["%n ficheros"]);
+  const AST = { tag: "ast", code: "ast" };
+  expect(
+    entriesToQtTs(
+      template,
+      { [id]: qtTsTranslations(ast, "ast")[0]!.source },
+      ast,
+      AST,
+    ),
+  ).toBe(ast);
+  // iw is Hebrew to Qt: two forms.
+  const iw = numerus("iw", ["%n קובץ", "%n קבצים"]);
+  expect(
+    entriesToQtTs(
+      template,
+      { [id]: qtTsTranslations(iw, "iw")[0]!.source },
+      iw,
+      {
+        tag: "iw",
+        code: "iw",
+      },
+    ),
+  ).toBe(iw);
+  // A fresh Latvian file: the zero form takes other's text, not nothing.
+  const lv = entriesToQtTs(
+    template,
+    {
+      [id]: "{count, plural, zero {%n failu} one {%n fails} other {%n faili}}",
+    },
+    undefined,
+    { tag: "lv", code: "lv" },
+  );
+  expect(lv).not.toContain("<numerusform></numerusform>");
+  // A form with length variants, left as it was, keeps them.
+  const pl = numerus("pl", [
+    "<lengthvariant>%n plik</lengthvariant><lengthvariant>%n p.</lengthvariant>",
+    "%n pliki",
+    "%n plików",
+  ]);
+  const changed = entriesToQtTs(
+    template,
+    {
+      [id]: "{count, plural, one {%n plik} few {%n pliki!} many {%n plików} other {%n plików}}",
+    },
+    pl,
+    { tag: "pl", code: "pl" },
+  );
+  expect(changed).toContain(
+    '<numerusform variants="yes"><lengthvariant>%n plik</lengthvariant><lengthvariant>%n p.</lengthvariant></numerusform>',
+  );
+  expect(changed).toContain("<numerusform>%n pliki!</numerusform>");
+});

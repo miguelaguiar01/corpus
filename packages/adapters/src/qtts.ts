@@ -6,6 +6,7 @@ import type { StringEntry } from "@corpus/contract";
 import {
   pluralCategoryIndexes,
   pluralIndexCategories,
+  pluralIndexMajority,
   poPluralText,
 } from "./gettext";
 import { pluralBranches } from "./messages";
@@ -21,8 +22,11 @@ export type QtMessage = {
   extracomment?: string;
   locations: string[];
   numerus: boolean;
-  // A numerus message's `<numerusform>`s, in Qt's order.
+  // A numerus message's `<numerusform>`s, in Qt's order: each its text,
+  // the first of its length variants where it has several, and as
+  // written, for a form a pull leaves as it is.
   forms: string[];
+  formsRaw: string[];
   // `type` on the translation: unfinished, vanished, obsolete, or none.
   state?: string;
   translation: string;
@@ -135,14 +139,7 @@ export function qtMessages(xml: string): QtMessage[] {
           },
         ),
         numerus,
-        forms:
-          numerus && t?.[2]
-            ? [
-                ...t[2].matchAll(
-                  /<numerusform(?:\s[^>]*)?>([\s\S]*?)<\/numerusform>/g,
-                ),
-              ].map((f) => qtDecode(f[1]!))
-            : [],
+        ...numerusForms(numerus ? (t?.[2] ?? "") : ""),
         ...(state !== undefined && { state }),
         translation: numerus
           ? ""
@@ -158,6 +155,21 @@ export function qtMessages(xml: string): QtMessage[] {
     }
   }
   return out;
+}
+
+function numerusForms(inside: string): { forms: string[]; formsRaw: string[] } {
+  const raw = [
+    ...inside.matchAll(/<numerusform(?:\s[^>]*)?>([\s\S]*?)<\/numerusform>/g),
+  ].map((f) => f[1]!);
+  return {
+    formsRaw: raw,
+    forms: raw.map((r) =>
+      qtDecode(
+        /<lengthvariant(?:\s[^>]*)?>([\s\S]*?)<\/lengthvariant>/.exec(r)?.[1] ??
+          r,
+      ),
+    ),
+  };
 }
 
 // What is read: every message but a vanished or obsolete one.
@@ -327,6 +339,10 @@ export function entriesToQtTs(
     language.tag,
     qtPluralForms(language.tag),
   );
+  const majority = pluralIndexMajority(
+    language.tag,
+    qtPluralForms(language.tag),
+  );
   // A message's new `<translation>`, or undefined where it is unchanged
   // or cannot be written.
   const element = (
@@ -343,10 +359,14 @@ export function entriesToQtTs(
       onRefused?.(m.id, text);
       return undefined;
     }
+    // A form no category reads keeps its text, or takes the branch of
+    // the category most of its integers are, so no form ships empty.
+    const pick = (c: string | undefined) =>
+      c === undefined ? undefined : (branches[c] ?? branches.other);
     const forms = categories.map((c, i) =>
       c === undefined
-        ? (m.forms[i] ?? "")
-        : (branches[c] ?? branches.other ?? ""),
+        ? m.forms[i] || (pick(majority[i]) ?? branches.other ?? "")
+        : (pick(c) ?? ""),
     );
     if (
       m.state === undefined &&
@@ -366,8 +386,15 @@ export function entriesToQtTs(
     const between = open ?? `${eol}${indent}    `;
     const end =
       open !== undefined && close !== undefined ? close : `${eol}${indent}`;
+    // A form left as it was keeps its length variants as written.
+    const kept = forms.map(
+      (f, i) => f === m.forms[i] && /<lengthvariant/.test(m.formsRaw[i] ?? ""),
+    );
     return `<translation>${forms
-      .map((f) => `${between}<numerusform>${escape(f)}</numerusform>`)
+      .map(
+        (f, i) =>
+          `${between}<numerusform${kept[i] ? ' variants="yes"' : ""}>${kept[i] ? m.formsRaw[i] : escape(f)}</numerusform>`,
+      )
       .join("")}${end}</translation>`;
   };
   const patches: Patch[] = [];
