@@ -220,3 +220,111 @@ test("a key the file lacks goes in after its source neighbour, parents made; a m
   );
   expect(refused).toEqual(["js.topic_count"]);
 });
+
+test("the writer's hard cases: YAML 1.1 keys and values, the source's shape, blocks, nulls, CRLF, order, flow stubs (#753)", () => {
+  const en = `en:
+  choices:
+    "no": "No"
+    "yes": "Yes"
+  mf_MF: "{count, plural, one {# like} other {# likes}}"
+  list:
+    a: "A"
+    b: "B"
+    c: "C"
+    d: "D"
+  blk: |
+    one
+  after: "After"
+  g:
+    h: "H"
+`;
+  const L = { source: "en", code: "de" };
+  // 1: a missing key Rails would read as false stays the string "no".
+  let out = entriesToYaml(
+    en,
+    { "choices.no": "Nein" },
+    'de:\n  choices:\n    "yes": "Ja"\n',
+    L,
+  );
+  expect(yamlTranslations(out, "de").map((e) => e.id)).toContain("choices.no");
+  expect(out).toContain('"no": "Nein"');
+  // 2: an _MF key the source writes as a scalar stays one, whatever its shape.
+  out = entriesToYaml(
+    en,
+    { mf_MF: "{count, plural, one {# Like} other {# Likes}}" },
+    'de:\n  mf_MF: "x"\n',
+    L,
+  );
+  expect(out).toBe(
+    'de:\n  mf_MF: "{count, plural, one {# Like} other {# Likes}}"\n',
+  );
+  // 3 and 4: a block changed beside an inserted key, and a block that
+  // falls back to quotes, keep their line breaks.
+  out = entriesToYaml(
+    en,
+    { blk: "x\n\n", after: "Nach" },
+    "de:\n  blk: |\n    eins\n",
+    L,
+  );
+  expect(yamlTranslations(out, "de")).toEqual([
+    { id: "blk", type: "", source: "x\n\n" },
+    { id: "after", type: "", source: "Nach" },
+  ]);
+  out = entriesToYaml(
+    en,
+    { blk: " lead\nx" },
+    'de:\n  blk: |\n    eins\n  after: "A"\n',
+    L,
+  );
+  expect(yamlTranslations(out, "de").map((e) => e.source)).toEqual([
+    " lead\nx",
+    "A",
+  ]);
+  // 5: a null value takes its text with a space, its comment kept.
+  out = entriesToYaml(en, { after: "Hi" }, "de:\n  after: # c\n", L);
+  expect(out).toBe('de:\n  after: "Hi" # c\n');
+  // 6: a CRLF file's rewritten block keeps CRLF.
+  out = entriesToYaml(
+    en,
+    { blk: "a\nb\n" },
+    "de:\r\n  blk: |\r\n    eins\r\n",
+    L,
+  );
+  expect(out.replace(/\r\n/g, "")).not.toContain("\n");
+  // 7: `yes` written plain would be true to Rails: it is quoted.
+  out = entriesToYaml(en, { after: "yes" }, "de:\n  after: nach\n", L);
+  expect(out).toBe('de:\n  after: "yes"\n');
+  // 8: missing keys each go after their own source neighbour.
+  out = entriesToYaml(
+    en,
+    { "list.a": "A", "list.c": "C" },
+    'de:\n  list:\n    b: "B"\n    d: "D"\n',
+    L,
+  );
+  expect(out).toBe(
+    'de:\n  list:\n    a: "A"\n    b: "B"\n    c: "C"\n    d: "D"\n',
+  );
+  // 9: a `{}` stub and a null parent take their keys as a block.
+  expect(entriesToYaml(en, { "g.h": "H" }, "de: {}\n", L)).toBe(
+    'de:\n  g:\n    h: "H"\n',
+  );
+  expect(entriesToYaml(en, { "g.h": "H" }, "de:\n  g:\n", L)).toBe(
+    'de:\n  g:\n    h: "H"\n',
+  );
+});
+
+test("a key under a flow hash that holds keys is refused, the file left as it is (#753)", () => {
+  const en = 'en:\n  g:\n    h: "H"\n    x: "X"\n';
+  const flow = 'de:\n  g: {x: "X"}\n';
+  const refused: string[] = [];
+  expect(
+    entriesToYaml(
+      en,
+      { "g.h": "H" },
+      flow,
+      { source: "en", code: "de" },
+      (id) => refused.push(id),
+    ),
+  ).toBe(flow);
+  expect(refused).toEqual(["g.h"]);
+});

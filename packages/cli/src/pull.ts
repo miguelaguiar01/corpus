@@ -283,7 +283,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
                           },
                           (id) =>
                             ctx.err(
-                              `corpus: ${file}: ${printable(id)} is a plural a Rails hash cannot hold (an =N branch, or text beside it); not written`,
+                              `corpus: ${file}: ${printable(id)} cannot be written: a plural a Rails hash cannot hold (an =N branch, or text beside it), or a key under a flow hash the file writes inline; not written`,
                             ),
                         )
                       : source.adapter === "xcstrings"
