@@ -669,12 +669,23 @@ test("a Plural-Forms index no CLDR category reads is filled from the category mo
   );
   expect(written[2]).toBe("%d nulle");
   expect(written.every((f) => f !== "")).toBe(true);
-  // A file short of that form gets it; one that holds text keeps it while
-  // the rest is unchanged.
+  // A file short of that form gets it; one that holds text there keeps it.
   const short = `${LV_HEADER}\n${lvEntry}msgstr[0] "${written[0]}"\nmsgstr[1] "${written[1]}"\n`;
   expect(
     forms(entriesToGettext(pot, { "%d file": LV_PLURAL }, short, LV))[2],
   ).toBe("%d nulle");
   const held = `${LV_HEADER}\n${lvEntry}msgstr[0] "${written[0]}"\nmsgstr[1] "${written[1]}"\nmsgstr[2] "mans"\n`;
   expect(entriesToGettext(pot, { "%d file": LV_PLURAL }, held, LV)).toBe(held);
+  // An entry appended from a source-language .po takes none of its text.
+  const enPo = `msgid ""\nmsgstr ""\n"Language: en\\n"\n"Plural-Forms: nplurals=2; plural=(n != 1);\\n"\n\n${lvEntry}msgstr[0] "%d file"\nmsgstr[1] "%d files"\n`;
+  const fil = `msgid ""\nmsgstr ""\n"Language: fil\\n"\n"Plural-Forms: nplurals=2; plural=(n != 1);\\n"\n`;
+  const appended = forms(
+    entriesToGettext(
+      enPo,
+      { "%d file": "{count, plural, one {%d O} other {%d X}}" },
+      fil,
+      { tag: "fil", code: "fil" },
+    ),
+  );
+  expect(appended.every((f) => f !== "")).toBe(true);
 });

@@ -809,7 +809,8 @@ export function entriesToGettext(
     const block = template.slice(entry.at.start, entry.at.end);
     const own = eolOf(template);
     const moved = parsePo(block)[0]!;
-    const wanted = forms(moved, text);
+    // The template's msgstrs are not the file's: none is held.
+    const wanted = forms({ ...moved, msgstr: [] }, text);
     if (!wanted) continue;
     // A plural takes the forms the language has; the template's lines
     // beyond them go.
