@@ -792,28 +792,49 @@ test("init refuses a catalogue no adapter reads, by its format (#647)", async ()
     /--messages config\/locales\/client\.\{lang\}\.yml: a YAML catalogue, which no adapter reads/,
   );
   expect(existsSync(path.join(p.dir, "corpus.config.mjs"))).toBe(false);
+});
 
+test("init writes a qt-ts source for Qt Linguist .ts files, a POSIX code mapped through languageFiles (#742)", async () => {
+  const p = project();
+  stubCli(p.dir);
   mkdirSync(path.join(p.dir, "lang"));
+  const ts = (language: string, translation: string) =>
+    `<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE TS>\n<TS version="2.1"${language}>\n<context>\n    <name>Main</name>\n    <message>\n        <source>Quit</source>\n        <translation${translation}</translation>\n    </message>\n</context>\n</TS>\n`;
   writeFileSync(
     path.join(p.dir, "lang", "app_en.ts"),
-    '<?xml version="1.0"?>\n<TS version="2.1"></TS>\n',
+    ts("", ' type="unfinished">'),
   );
-  expect(
-    await run(
-      [
-        "init",
-        "--project",
-        "x",
-        "--source",
-        "en",
-        "--messages",
-        "lang/app_{lang}.ts",
-      ],
-      p.ctx,
-    ),
-  ).toBe(1);
-  expect(p.err.join("\n")).toMatch(/a Qt Linguist catalogue/);
-  expect(existsSync(path.join(p.dir, "corpus.config.mjs"))).toBe(false);
+  writeFileSync(
+    path.join(p.dir, "lang", "app_sr@latin.ts"),
+    ts(' language="sr@latin"', ">Izlaz"),
+  );
+  writeFileSync(
+    path.join(p.dir, "lang", "app_de.ts"),
+    ts(' language="de"', ">Beenden"),
+  );
+  const code = await run(
+    [
+      "init",
+      "--project",
+      "x",
+      "--source",
+      "en",
+      "--messages",
+      "lang/app_{lang}.ts",
+    ],
+    p.ctx,
+  );
+  expect(p.err.join("\n")).toBe("");
+  expect(code).toBe(0);
+  const config = await loadConfig(p.dir);
+  expect(config.languages).toEqual(["en", "de", "sr-Latn"]);
+  expect(config.sources[0]).toEqual({
+    adapter: "qt-ts",
+    type: "chrome",
+    path: "lang/app_{lang}.ts",
+    languageFiles: { "sr-Latn": "sr@latin" },
+  });
+  expect(await run(["build"], p.ctx)).toBe(0);
 });
 
 test("a real language without plural data draws no warning; a pseudo-locale and a made-up code do (#657)", async () => {
@@ -1201,4 +1222,54 @@ test("init names what is wrong with a String Catalog path: missing, broken, {lan
     await run([...base, "App/Localizable.xcstrings", "--source"], p.ctx),
   ).toBe(1);
   expect(p.err.join("\n")).toContain("--source needs a value");
+});
+
+test("init's qt-ts: --languages keeps its mappings, an unmapped POSIX file is named, {lang} may be a directory, a missing source is said (#742)", async () => {
+  const ts = (language: string) =>
+    `<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE TS>\n<TS version="2.1"${language ? ` language="${language}"` : ""}>\n<context>\n    <name>Main</name>\n    <message>\n        <source>Quit</source>\n        <translation type="unfinished"></translation>\n    </message>\n</context>\n</TS>\n`;
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "lang"));
+  for (const code of ["en", "de", "sr@latin", "ca@valencia"])
+    writeFileSync(
+      path.join(p.dir, "lang", `app_${code}.ts`),
+      ts(code === "en" ? "" : code),
+    );
+  const base = ["init", "--project", "x", "--source", "en", "--messages"];
+  expect(
+    await run(
+      [...base, "lang/app_{lang}.ts", "--languages", "en,sr-Latn"],
+      p.ctx,
+    ),
+  ).toBe(0);
+  expect((await loadConfig(p.dir)).sources[0]).toMatchObject({
+    languageFiles: { "sr-Latn": "sr@latin" },
+  });
+  expect(p.err.join("\n")).toContain(
+    "lang/app_ca@valencia.ts names no language tag and no script",
+  );
+
+  // {lang} as a directory.
+  const q = project();
+  stubCli(q.dir);
+  for (const code of ["en", "de"]) {
+    mkdirSync(path.join(q.dir, "t", code), { recursive: true });
+    writeFileSync(
+      path.join(q.dir, "t", code, "app.ts"),
+      ts(code === "en" ? "" : code),
+    );
+  }
+  expect(await run([...base, "t/{lang}/app.ts"], q.ctx)).toBe(0);
+  expect((await loadConfig(q.dir)).languages).toEqual(["en", "de"]);
+
+  // No file for the source language: Qt still, and sourcePath is asked for.
+  const r = project();
+  stubCli(r.dir);
+  mkdirSync(path.join(r.dir, "lang"));
+  writeFileSync(path.join(r.dir, "lang", "app_de.ts"), ts("de"));
+  expect(await run([...base, "lang/app_{lang}.ts"], r.ctx)).toBe(0);
+  expect((await loadConfig(r.dir)).sources[0]?.adapter).toBe("qt-ts");
+  expect(r.err.join("\n")).toContain(
+    "no lang/app_en.ts; set the qt-ts source's sourcePath",
+  );
 });

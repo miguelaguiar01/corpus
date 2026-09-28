@@ -24,6 +24,12 @@ const NAMED: Record<string, string> = {
 const EXEC =
   "an exec source converts it (the wiki's Sources and adapters, exec)";
 
+// Whether a `.ts` file's first bytes are Qt Linguist's XML, not
+// TypeScript.
+export function isQtLinguist(head: string): boolean {
+  return /^\uFEFF?\s*<(\?xml|!DOCTYPE TS\b|TS\b)/.test(head);
+}
+
 // Why a messages or table source cannot read a file, or null when it
 // can (#647): Node's loader would otherwise fail on it with an error
 // that names neither the format nor exec. `head` is the file's start,
@@ -33,11 +39,7 @@ export function unreadableCatalogue(
   head?: string,
 ): string | null {
   const ext = path.extname(file).toLowerCase();
-  if (
-    ext === ".ts" &&
-    head !== undefined &&
-    /^\uFEFF?\s*<(\?xml|!DOCTYPE TS\b|TS\b)/.test(head)
-  )
+  if (ext === ".ts" && head !== undefined && isQtLinguist(head))
     return `a Qt Linguist catalogue: declare it { adapter: "qt-ts", type, path, sourcePath? }`;
   if (READ.has(ext)) return null;
   if (ext === ".po" || ext === ".pot")
