@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { moonlightManor } from "./fixtures/moonlight-manor";
 import type { Library } from "./strings";
-import { parseIcu } from "./icu";
+import { parseIcu, placeholderWrittenOf } from "./icu";
 import { validateTranslation, type ValidationError } from "./validate";
 
 const SIGHTING = moonlightManor.strings[0]!.source;
@@ -1256,7 +1256,7 @@ test("%arg is never the hex-float verb, and a brace in other printf text stays t
     nodes: [
       {
         kind: "plural",
-        arg: "1",
+        arg: "arg1",
         branches: {
           other: [{ kind: "placeholder", name: "1", written: "%arg" }],
         },
@@ -1282,4 +1282,48 @@ test("an unindexed verb in a substitution's branch is its argument, as Basque wr
       "printf",
     ),
   ).toEqual({ ok: true });
+});
+
+test("in a substitution's branch only the first unindexed verb is the argument; a draft on argN parses; %a is not %arg (#726)", () => {
+  const cards = "{arg1, plural, one {%d card in %@} other {%d cards in %@}}";
+  expect(
+    validateTranslation(
+      cards,
+      "{arg1, plural, one {%d Karte} other {%d Karten}}",
+      "de",
+      "printf",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "2" }],
+  });
+  expect(
+    validateTranslation(
+      cards,
+      "{arg1, plural, one {%@: %d Karte} other {%@: %d Karten}}",
+      "de",
+      "printf",
+    ).ok,
+  ).toBe(false);
+  // The editor's plural chip writes the source's own name.
+  const parsed = parseIcu(RECENT, "printf");
+  expect(
+    parsed.ok &&
+      parsed.nodes.flatMap((n) => (n.kind === "plural" ? [n.arg] : [])),
+  ).toEqual(["arg1", "arg2"]);
+  // `%arg` outside a branch is printf's hex float, `%a`.
+  expect(
+    validateTranslation(
+      "{arg1, plural, one {%arg post} other {%arg posts}} from %@",
+      "%arg Beiträge von %@",
+      "de",
+      "printf",
+    ),
+  ).toMatchObject({ ok: false, errors: [{ code: "changed-verb", name: "1" }] });
+  expect(
+    placeholderWrittenOf(
+      "{arg1, plural, one {%arg post} other {%lld posts}}",
+      "printf",
+    ).get("1"),
+  ).toBe("%lld");
 });

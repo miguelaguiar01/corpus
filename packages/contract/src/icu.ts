@@ -229,6 +229,8 @@ class Parser {
   private pos = 0;
   // The next verb's position when none is written (#594).
   private printfNext = 1;
+  // Whether a substitution's branch has yet to write its argument (#726).
+  private ownFree = false;
   // The next `{}`'s position under easy_localization (#664).
   private positional = 0;
 
@@ -430,6 +432,7 @@ class Parser {
         ) {
           flush();
           nodes.push({ kind: "placeholder", name: own, written: "%arg" });
+          this.ownFree = false;
           this.pos += 4;
           literalStart = this.pos;
           continue;
@@ -444,7 +447,6 @@ class Parser {
           const position = Number(argPlural[1]);
           const node = this.parseArgument(inBranch);
           // Named by its position, as the verb it stands for is.
-          if (node.kind === "plural") node.arg = String(position);
           this.printfNext = position + 1;
           nodes.push(node);
           literalStart = this.pos;
@@ -460,15 +462,17 @@ class Parser {
           if (verb) {
             flush();
             const explicit = verb[1] ?? verb[2];
-            // In a substitution's branch an unindexed verb is its
-            // argument, as `%arg` is (#726).
-            const substituted = this.argPlurals && own !== undefined;
+            // In a substitution's branch the first unindexed verb is its
+            // argument, as `%arg` is, and the rest count on after it (#726).
+            const substituted =
+              this.argPlurals && own !== undefined && !explicit && this.ownFree;
+            if (substituted) this.ownFree = false;
             const position = explicit
               ? Number(explicit)
               : substituted
                 ? Number(own)
                 : this.printfNext;
-            if (!substituted || explicit) this.printfNext = position + 1;
+            if (!substituted) this.printfNext = position + 1;
             nodes.push({
               kind: "placeholder",
               name: String(position),
@@ -763,6 +767,11 @@ class Parser {
       // Each Android plural item is a string of its own: its verbs count
       // from 1.
       if (this.syntax === "android" || this.printfPlural) this.printfNext = 1;
+      const own = this.argPlurals ? /^arg(\d+)$/.exec(name)?.[1] : undefined;
+      if (own !== undefined) {
+        this.printfNext = Number(own) + 1;
+        this.ownFree = true;
+      }
       branches[key] = this.parseSequence(
         true,
         type === "plural" ? name : undefined,
@@ -996,7 +1005,13 @@ export function placeholderWrittenOf(
 
 function collectWritten(nodes: IcuNode[], written: Map<string, string>): void {
   for (const node of nodes) {
-    if (node.kind === "placeholder" && node.written && !written.has(node.name))
+    // `%arg` stands in only inside a substitution's branch: another verb
+    // at its position is what a chip writes (#726).
+    if (
+      node.kind === "placeholder" &&
+      node.written &&
+      (!written.has(node.name) || written.get(node.name) === "%arg")
+    )
       written.set(node.name, node.written);
     else if (node.kind === "tag") collectWritten(node.children, written);
     else if (node.kind === "select" || node.kind === "plural") {
