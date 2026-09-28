@@ -1194,9 +1194,8 @@ test("an xcstrings source reads one String Catalog for every language; only tran
       { adapter: "xcstrings", type: "ui", path: "Localizable.xcstrings" },
     ],
   });
-  expect(pushOnlyNotes(xc)).toEqual([
-    "Localizable.xcstrings: pull does not write a String Catalog yet; its translations are read and pushed",
-  ]);
+  // Pull writes it back (#728), and no proposal reaches it.
+  expect(pushOnlyNotes(xc)).toEqual([]);
   expect(writableSources(xc)).toEqual([]);
   rmSync(dir, { recursive: true, force: true });
 });
