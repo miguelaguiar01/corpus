@@ -1189,5 +1189,14 @@ test("an xcstrings source reads one String Catalog for every language; only tran
     fr: { OK: "D'accord" },
   });
   expect(report.snapshot.seedTranslated).toEqual({ de: ["OK"] });
+  const xc = config({
+    sources: [
+      { adapter: "xcstrings", type: "ui", path: "Localizable.xcstrings" },
+    ],
+  });
+  expect(pushOnlyNotes(xc)).toEqual([
+    "Localizable.xcstrings: pull does not write a String Catalog yet; its translations are read and pushed",
+  ]);
+  expect(writableSources(xc)).toEqual([]);
   rmSync(dir, { recursive: true, force: true });
 });

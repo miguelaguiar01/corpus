@@ -214,7 +214,14 @@ export async function buildSnapshotReport(
     const file = fileOf(source, config.sourceLanguage, config.sourceLanguage);
     let entries: StringEntry[];
     try {
-      entries = await readEntries(jiti, cwd, file, source, true);
+      entries = await readEntries(
+        jiti,
+        cwd,
+        file,
+        source,
+        true,
+        config.sourceLanguage,
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       errors.push(`${file}: ${message}`);
@@ -653,14 +660,17 @@ export async function readEntries(
   file: string,
   source: FileSource,
   sourceFile = false,
-  // The language a target file is read for, where one file holds them
-  // all (xcstrings).
+  // The language a file is read for, where one file holds them all
+  // (xcstrings): a target's, or the source's, which the file must name.
   language?: string,
 ): Promise<StringEntry[]> {
   if (source.adapter === "xcstrings") {
     const text = readFileSync(path.join(cwd, file), "utf8");
     return sourceFile
-      ? xcstringsToEntries(text, { type: source.type })
+      ? xcstringsToEntries(text, {
+          type: source.type,
+          ...(language !== undefined && { sourceLanguage: language }),
+        })
       : xcstringsTranslations(text, language ?? "").map((e) => ({
           ...e,
           type: source.type,

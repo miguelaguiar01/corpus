@@ -41,7 +41,8 @@ export function parseXcstrings(text: string): XcCatalog {
     data === null ||
     typeof data.sourceLanguage !== "string" ||
     typeof data.strings !== "object" ||
-    data.strings === null
+    data.strings === null ||
+    Array.isArray(data.strings)
   )
     throw new Error(
       "not a String Catalog: it has no sourceLanguage and strings",
@@ -68,7 +69,7 @@ function pluralText(arg: string, forms: Record<string, XcUnit>): Read {
 // printf's verbs, `%%` a literal and `%#@name@` a substitution, each
 // taking the next argument unless it names its own with `%n$`.
 const VERB =
-  /%(?:(\d+)\$)?(?:#@([A-Za-z0-9_]+)@|[-+0# ]*\d*(?:\.\d+)?(?:hh|h|ll|l|z|j|t|q|L)?[a-zA-Z@])|%%/g;
+  /%(?:(\d+)\$)?(?:#@([^@\s]+)@|[-+0# ]*\d*(?:\.\d+)?(?:hh|h|ll|l|z|j|t|q|L)?[a-zA-Z@])|%%/g;
 
 // A substitution's name is the unit's own (`arg1` in English,
 // `count_posts` in Polish, for one argument), so its plural is named by
@@ -88,7 +89,7 @@ function substituted(unit: XcUnit): Read {
   }
   let complete = done(unit.stringUnit);
   const text = value.replace(
-    /%(?:\d+\$)?#@([A-Za-z0-9_]+)@/g,
+    /%(?:\d+\$)?#@([^@\s]+)@/g,
     (whole, name: string) => {
       const plural = subs[name]?.variations?.plural;
       if (!plural) return whole;
@@ -138,24 +139,40 @@ function live(catalog: XcCatalog) {
   );
 }
 
-// The catalogue's strings in its source language. A key with no unit
-// in it is its own text, as Xcode reads it (`Text("Bookmarks")`).
+// A key's source texts. A key with no unit in the source language, or
+// an empty one, is its own text, as Xcode reads it (`Text("Bookmarks")`).
+function sourceReads(
+  catalog: XcCatalog,
+  key: string,
+): (Read & { keyIsText?: true })[] {
+  const unit = catalog.strings[key]?.localizations?.[catalog.sourceLanguage];
+  const reads = unit ? unitTexts(unit) : [];
+  if (reads.length === 0 || (reads.length === 1 && reads[0]!.text === ""))
+    return [{ suffix: "", text: key, done: true, keyIsText: true }];
+  return reads;
+}
+
+// The catalogue's strings in its source language, which must be the
+// one the config names.
 export function xcstringsToEntries(
   text: string,
-  options: { type: string },
+  options: { type: string; sourceLanguage?: string },
 ): StringEntry[] {
   const catalog = parseXcstrings(text);
+  if (
+    options.sourceLanguage !== undefined &&
+    catalog.sourceLanguage !== options.sourceLanguage
+  )
+    throw new Error(
+      `the catalogue's sourceLanguage is ${catalog.sourceLanguage}, the config's ${options.sourceLanguage}`,
+    );
   return live(catalog).flatMap(([key, entry]) => {
-    const unit = entry.localizations?.[catalog.sourceLanguage];
     const note = entry.comment ? { note: entry.comment } : {};
-    if (!unit)
-      return [
-        { id: key, type: options.type, source: key, keyIsText: true, ...note },
-      ];
-    return unitTexts(unit).map((read) => ({
+    return sourceReads(catalog, key).map((read) => ({
       id: key + read.suffix,
       type: options.type,
       source: read.text,
+      ...(read.keyIsText && { keyIsText: true }),
       ...note,
     }));
   });
@@ -163,6 +180,9 @@ export function xcstringsToEntries(
 
 // A language's translations: the units marked translated throughout;
 // one still `new` or `needs_review` in any form is work, not a seed.
+// A language may vary by device where the source does not, or not where
+// it does: its text lands on the source's own strings, a plain one on
+// each variant, a varied one's `other` device on the plain string.
 export function xcstringsTranslations(
   text: string,
   language: string,
@@ -171,7 +191,21 @@ export function xcstringsTranslations(
   return live(catalog).flatMap(([key, entry]) => {
     const unit = entry.localizations?.[language];
     if (!unit) return [];
-    return unitTexts(unit)
+    const wanted = sourceReads(catalog, key).map((read) => read.suffix);
+    const reads = unitTexts(unit);
+    const shaped =
+      reads.length === 1 && reads[0]!.suffix === "" && wanted[0] !== ""
+        ? wanted.map((suffix) => ({ ...reads[0]!, suffix }))
+        : wanted.length === 1 && wanted[0] === ""
+          ? reads
+              .filter(
+                (read) =>
+                  read.suffix === "" || read.suffix === " [device:other]",
+              )
+              .slice(-1)
+              .map((read) => ({ ...read, suffix: "" }))
+          : reads.filter((read) => wanted.includes(read.suffix));
+    return shaped
       .filter((read) => read.done && read.text !== "")
       .map((read) => ({ id: key + read.suffix, type: "", source: read.text }));
   });

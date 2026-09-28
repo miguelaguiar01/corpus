@@ -12,7 +12,7 @@ test("a catalogue no adapter reads is named by its format, pointing at exec (#64
     /^an XLIFF catalogue: declare it \{ adapter: "xliff"/,
   );
   expect(unreadableCatalogue("Localizable.xcstrings")).toMatch(
-    /^a String Catalog/,
+    /^a String Catalog: declare it \{ adapter: "xcstrings"/,
   );
   expect(unreadableCatalogue("lang/app.fr.toml")).toMatch(
     /^\.toml is not a format any adapter reads/,

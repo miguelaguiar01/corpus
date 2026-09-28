@@ -111,7 +111,13 @@ const gettextSchema = z.looseObject({
 const xcstringsSchema = z.looseObject({
   adapter: z.literal("xcstrings"),
   type: identifier(),
-  path: z.string().min(1),
+  path: z
+    .string()
+    .min(1)
+    .refine((p) => !p.includes("{lang}"), {
+      message:
+        "a String Catalog holds every language in one file: its path has no {lang}",
+    }),
   library: librarySchema.optional(),
 });
 

@@ -693,3 +693,36 @@ test("validate reads a gettext target: a dropped %s is a finding, a fuzzy row is
   expect(err).toMatch(/po\/pt\.po:Delete %s\?: missing %s/);
   expect(err).not.toMatch(/Keep %s/);
 });
+
+test("validate reads a String Catalog, naming the language after the key; pull says it does not write one yet (#727)", async () => {
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8").replace(
+      /sources: \[[\s\S]*?\n {2}\],/,
+      'sources: [{ adapter: "xcstrings", type: "ui", path: "Localizable.xcstrings" }],',
+    ),
+  );
+  const unit = (value: string) => ({
+    stringUnit: { state: "translated", value },
+  });
+  writeFileSync(
+    path.join(repo, "Localizable.xcstrings"),
+    JSON.stringify({
+      sourceLanguage: "en",
+      strings: {
+        "%@ posts": {
+          localizations: { en: unit("%@ posts"), pt: unit("publicações") },
+        },
+        Done: { localizations: { pt: unit("Feito") } },
+      },
+    }),
+  );
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(1);
+  const err = c.stderr.join("\n");
+  expect(err).toContain("Localizable.xcstrings [%@ posts] pt: missing %@");
+  expect(err).not.toMatch(/Done/);
+});

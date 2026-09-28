@@ -143,3 +143,55 @@ test("a file that is not a String Catalog is refused by name (#727)", () => {
     "not a String Catalog",
   );
 });
+
+test("a language that varies by device where the source does not, or not where it does, lands on the source's strings (#727)", () => {
+  const catalog = JSON.stringify({
+    sourceLanguage: "en",
+    strings: {
+      platform: {
+        localizations: {
+          en: {
+            variations: { device: { ipad: u("iPad"), iphone: u("iPhone") } },
+          },
+          de: u("Gerät"),
+        },
+      },
+      done: {
+        localizations: {
+          en: u("Done"),
+          de: {
+            variations: {
+              device: { mac: u("Fertig."), other: u("Fertig") },
+            },
+          },
+          fr: { variations: { device: { mac: u("Terminé") } } },
+        },
+      },
+      empty: { localizations: { en: u(""), de: u("Leer") } },
+      bare: { localizations: { en: {}, de: u("Nackt") } },
+    },
+  });
+  expect(xcstringsTranslations(catalog, "de")).toEqual([
+    { id: "platform [device:ipad]", type: "", source: "Gerät" },
+    { id: "platform [device:iphone]", type: "", source: "Gerät" },
+    { id: "done", type: "", source: "Fertig" },
+    { id: "empty", type: "", source: "Leer" },
+    { id: "bare", type: "", source: "Nackt" },
+  ]);
+  expect(xcstringsTranslations(catalog, "fr")).toEqual([]);
+  // An empty source unit, or an empty value, is its key's text.
+  expect(
+    xcstringsToEntries(catalog, { type: "ui" })
+      .filter((e) => e.keyIsText)
+      .map((e) => e.id),
+  ).toEqual(["empty", "bare"]);
+});
+
+test("the catalogue's sourceLanguage must be the config's; strings must be an object (#727)", () => {
+  expect(() =>
+    xcstringsToEntries(CATALOG, { type: "ui", sourceLanguage: "de" }),
+  ).toThrow("the catalogue's sourceLanguage is en, the config's de");
+  expect(() =>
+    xcstringsToEntries('{"sourceLanguage":"en","strings":[]}', { type: "ui" }),
+  ).toThrow("not a String Catalog");
+});

@@ -170,7 +170,14 @@ export async function validateRepo(
     }
     if (!readsTargets(source)) continue;
     const library = sourceLibrary(source);
-    const sources = await texts(jiti, cwd, sourceFile, source, true);
+    const sources = await texts(
+      jiti,
+      cwd,
+      sourceFile,
+      source,
+      true,
+      config.sourceLanguage,
+    );
     if (sources === undefined) {
       throw new CliError(`source file ${sourceFile} does not exist`);
     }
