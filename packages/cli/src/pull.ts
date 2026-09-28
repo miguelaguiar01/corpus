@@ -12,6 +12,8 @@ import {
   entriesToGettext,
   entriesToXcstrings,
   entriesToQtTs,
+  entriesToYaml,
+  yamlToEntries,
   qtMessages,
   xcstringsToEntries,
   entriesToXliff,
@@ -109,7 +111,8 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     );
     sourceIds.set(
       source,
-      (template && ownIds(template, source)) || new Set<string>(),
+      (template && ownIds(template, source, config.sourceLanguage)) ||
+        new Set<string>(),
     );
   }
   const membersOf = (source: FileSource) => {
@@ -126,7 +129,9 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     let ids = targetIds.get(file);
     if (!ids) {
       const text = readRepoFile(ctx.cwd, file);
-      ids = (text !== undefined && ownIds(text, member)) || new Set<string>();
+      ids =
+        (text !== undefined && ownIds(text, member, config.sourceLanguage)) ||
+        new Set<string>();
       targetIds.set(file, ids);
     }
     return ids;
@@ -175,7 +180,8 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     );
     if (template === undefined) continue;
     const held = heldByType.get(source.type) ?? new Set<string>();
-    for (const id of ownIds(template, source) ?? []) held.add(id);
+    for (const id of ownIds(template, source, config.sourceLanguage) ?? [])
+      held.add(id);
     heldByType.set(source.type, held);
   }
   for (const source of config.sources) {
@@ -190,9 +196,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     }
     if (!sourceWritesBack(source)) {
       ctx.err(
-        source.adapter === "yaml"
-          ? `corpus: ${source.path}: pull does not write YAML yet; its translations are read and pushed`
-          : `corpus: ${source.path} is not JSON: pull writes JSON only, so its translations cannot be written back`,
+        `corpus: ${source.path} is not JSON: pull writes JSON only, so its translations cannot be written back`,
       );
       continue;
     }
@@ -209,7 +213,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     // A target file takes the ids its source-language file holds, under
     // the source's namespace when it has one, stripped for writing: two
     // sources of one type each write their own strings (#513).
-    const own = ownIds(template, source);
+    const own = ownIds(template, source, config.sourceLanguage);
     const members = membersOf(source);
     for (const language of targets) {
       const file = fileOf(source, language, config.sourceLanguage);
@@ -268,25 +272,39 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
                             `corpus: ${file}: ${printable(id)} is a numerus message and its translation is not one plural Qt can hold (a plain text, or an =N branch); not written`,
                           ),
                       )
-                    : source.adapter === "xcstrings"
-                      ? xcstringsInto(
-                          file,
-                          existing,
+                    : source.adapter === "yaml"
+                      ? entriesToYaml(
+                          template,
                           translations,
-                          language,
+                          existing,
+                          {
+                            source: config.sourceLanguage,
+                            code: fileCodeOf(source, language),
+                          },
                           (id) =>
                             ctx.err(
-                              `corpus: ${file}: ${printable(id)} is a plural a String Catalog cannot hold (an =N branch, or one that does not parse); not written`,
+                              `corpus: ${file}: ${printable(id)} cannot be written: a plural a Rails hash cannot hold (an =N branch, or text beside it), or a key under a flow hash the file writes inline; not written`,
                             ),
                         )
-                      : source.adapter === "table"
-                        ? entriesToTable(
-                            template,
-                            translations,
-                            source.map,
+                      : source.adapter === "xcstrings"
+                        ? xcstringsInto(
+                            file,
                             existing,
+                            translations,
+                            language,
+                            (id) =>
+                              ctx.err(
+                                `corpus: ${file}: ${printable(id)} is a plural a String Catalog cannot hold (an =N branch, or one that does not parse); not written`,
+                              ),
                           )
-                        : existing;
+                        : source.adapter === "table"
+                          ? entriesToTable(
+                              template,
+                              translations,
+                              source.map,
+                              existing,
+                            )
+                          : existing;
       if (next !== undefined) pending.set(file, next);
       if (next !== undefined && next !== existing) {
         if (!check) {
@@ -344,7 +362,8 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
       !sourceWritesBack(source) ||
       source.adapter === "gettext" ||
       source.adapter === "xcstrings" ||
-      source.adapter === "qt-ts"
+      source.adapter === "qt-ts" ||
+      source.adapter === "yaml"
     ) {
       ctx.err(
         `corpus: proposal(s) for ${ops.map((o) => printable(o.id)).join(", ")}: ${file} matches no writable source; not written`,
@@ -569,7 +588,11 @@ async function download(
 }
 
 // The ids a source-language file holds, as the snapshot names them.
-function ownIds(template: string, source: FileSource): Set<string> | undefined {
+function ownIds(
+  template: string,
+  source: FileSource,
+  sourceLanguage: string,
+): Set<string> | undefined {
   if (source.adapter === "android") {
     return new Set(
       androidToEntries(template, { type: source.type }).map((e) => e.id),
@@ -594,6 +617,17 @@ function ownIds(template: string, source: FileSource): Set<string> | undefined {
       return undefined;
     }
   }
+  if (source.adapter === "yaml")
+    try {
+      return new Set(
+        yamlToEntries(template, {
+          type: source.type,
+          root: sourceLanguage,
+        }).map((e) => e.id),
+      );
+    } catch {
+      return undefined;
+    }
   if (source.adapter === "qt-ts")
     return new Set(
       qtMessages(template).flatMap((m) =>

@@ -240,7 +240,9 @@ export async function buildSnapshotReport(
     const writable =
       sourceWritesBack(source) &&
       source.adapter !== "xcstrings" &&
-      source.adapter !== "qt-ts";
+      source.adapter !== "qt-ts" &&
+      // Rails catalogue proposals are #757's.
+      source.adapter !== "yaml";
     // A msgid is its key by nature, not an empty value (#718), and so is
     // a String Catalog key with no source-language unit (#727).
     const keyed =
@@ -653,12 +655,6 @@ export function hasLanguages(source: FileSource): boolean {
   );
 }
 
-// Whether a source's target files are read for their translations: a
-// source pull writes back, and yaml, whose write-back is #753.
-export function readsTargets(source: FileSource): boolean {
-  return source.adapter === "yaml" || sourceWritesBack(source);
-}
-
 export function sourceWritesBack(source: FileSource): boolean {
   if (
     source.adapter === "android" ||
@@ -666,7 +662,8 @@ export function sourceWritesBack(source: FileSource): boolean {
     source.adapter === "xliff" ||
     source.adapter === "gettext" ||
     source.adapter === "xcstrings" ||
-    source.adapter === "qt-ts"
+    source.adapter === "qt-ts" ||
+    source.adapter === "yaml"
   )
     return true;
   return writesBack(source.path);
@@ -867,13 +864,10 @@ export function pushOnlyNotes(config: CorpusConfig): string[] {
       source.adapter === "xliff" ||
       source.adapter === "gettext" ||
       source.adapter === "xcstrings" ||
-      source.adapter === "qt-ts"
+      source.adapter === "qt-ts" ||
+      source.adapter === "yaml"
     ) {
       continue;
-    } else if (source.adapter === "yaml") {
-      notes.push(
-        `${source.path}: pull does not write YAML yet; its translations are read and pushed`,
-      );
     } else if (!source.path.includes("{lang}")) {
       notes.push(
         `${source.path} has no {lang}: its translations cannot be written back`,
@@ -999,7 +993,7 @@ async function readSeeds(
   const seededFrom: Record<string, Record<string, string>> = {};
   for (const source of config.sources) {
     if (source.adapter === "exec" || !hasLanguages(source)) continue;
-    if (!readsTargets(source)) continue;
+    if (!sourceWritesBack(source)) continue;
     for (const lang of config.languages) {
       if (lang === config.sourceLanguage) continue;
       const file = fileOf(source, lang, config.sourceLanguage);

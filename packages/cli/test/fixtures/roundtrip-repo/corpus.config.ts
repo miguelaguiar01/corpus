@@ -38,6 +38,7 @@ export default defineCorpus({
     },
     { adapter: "xcstrings", type: "screen", path: "ios/Localizable.xcstrings" },
     { adapter: "qt-ts", type: "menu", path: "qt/app_{lang}.ts" },
+    { adapter: "yaml", type: "menu", path: "config/app.{lang}.yml" },
   ],
   richText: { screen: "html" },
 });

@@ -1290,8 +1290,6 @@ test("a yaml source reads Rails catalogues: the root key is the file's code, _MF
         sources: [{ adapter: "yaml", type: "ui", path: "l/{lang}.yml" }],
       }),
     ),
-  ).toEqual([
-    "l/{lang}.yml: pull does not write YAML yet; its translations are read and pushed",
-  ]);
+  ).toEqual([]);
   rmSync(dir, { recursive: true, force: true });
 });

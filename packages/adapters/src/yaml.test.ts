@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { yamlToEntries, yamlTranslations } from "./yaml";
+import { entriesToYaml, yamlToEntries, yamlTranslations } from "./yaml";
 
 // Discourse's shapes, cut down.
 const EN = `en:
@@ -125,4 +125,217 @@ test("a target stub reads no translations; a source with nothing under its root 
       root: "en",
     }).map((e) => e.id),
   ).toEqual(["p"]);
+});
+
+const DE = `# WARNING: Never edit this file.
+de:
+  js:
+    user_api_key:
+      title: 'Autorisiere "%{application_name}"'
+      deny: Abbrechen
+    topic_count:
+      one: "%{count} Thema"
+      other: "%{count} Themen"
+    traffic_info_footer_MF: |
+      Du hast {total, plural, one {# Anfrage} other {# Anfragen}}.
+  time:
+    am: "vorm."
+`;
+const DE_LANG = { source: "en", code: "de" };
+const own = (text: string, code = "de") =>
+  Object.fromEntries(yamlTranslations(text, code).map((e) => [e.id, e.source]));
+
+test("pulling a catalogue's own translations back writes the same bytes (#753)", () => {
+  expect(entriesToYaml(EN, own(DE), DE, DE_LANG)).toBe(DE);
+  const crlf = DE.replace(/\n/g, "\r\n");
+  expect(entriesToYaml(EN, own(crlf), crlf, DE_LANG)).toBe(crlf);
+});
+
+test("a changed scalar keeps its style: plain, single-quoted, a | block; a plural form in its hash (#753)", () => {
+  const out = entriesToYaml(
+    EN,
+    {
+      "js.user_api_key.deny": "Nein danke",
+      "js.user_api_key.title": 'Erlaube "%{application_name}"',
+      "js.traffic_info_footer_MF":
+        "Du hast {total, plural, one {# Anfrage} other {# Anfragen}} heute.\n",
+      "js.topic_count":
+        "{count, plural, one {%{count} Thema} other {%{count} Themen!}}",
+    },
+    DE,
+    DE_LANG,
+  );
+  expect(out).toBe(
+    DE.replace("deny: Abbrechen", "deny: Nein danke")
+      .replace(
+        "title: 'Autorisiere \"%{application_name}\"'",
+        "title: 'Erlaube \"%{application_name}\"'",
+      )
+      .replace("Anfragen}}.\n", "Anfragen}} heute.\n")
+      .replace('other: "%{count} Themen"', 'other: "%{count} Themen!"'),
+  );
+  // A plain scalar the text cannot be written as is double-quoted.
+  expect(
+    entriesToYaml(
+      EN,
+      { "js.user_api_key.deny": "Nein: danke #1" },
+      DE,
+      DE_LANG,
+    ),
+  ).toContain('deny: "Nein: danke #1"');
+});
+
+test("a key the file lacks goes in after its source neighbour, parents made; a missing file starts at its root (#753)", () => {
+  const without = DE.replace("      deny: Abbrechen\n", "").replace(
+    '  time:\n    am: "vorm."\n',
+    "",
+  );
+  const back = entriesToYaml(
+    EN,
+    { "js.user_api_key.deny": "Abbrechen", "time.am": "vorm." },
+    without,
+    DE_LANG,
+  );
+  expect(back).toBe(DE.replace("deny: Abbrechen", 'deny: "Abbrechen"'));
+  const fresh = entriesToYaml(
+    EN,
+    {
+      "js.topic_count":
+        "{count, plural, one {%{count} tema} other {%{count} temas}}",
+    },
+    undefined,
+    { source: "en", code: "pt_BR" },
+  );
+  expect(fresh).toBe(
+    'pt_BR:\n  js:\n    topic_count:\n      one: "%{count} tema"\n      other: "%{count} temas"\n',
+  );
+  // A plural a hash cannot hold is refused.
+  const refused: string[] = [];
+  entriesToYaml(
+    EN,
+    { "js.topic_count": "{count, plural, =0 {nada} other {%{count}}}" },
+    DE,
+    DE_LANG,
+    (id) => refused.push(id),
+  );
+  expect(refused).toEqual(["js.topic_count"]);
+});
+
+test("the writer's hard cases: YAML 1.1 keys and values, the source's shape, blocks, nulls, CRLF, order, flow stubs (#753)", () => {
+  const en = `en:
+  choices:
+    "no": "No"
+    "yes": "Yes"
+  mf_MF: "{count, plural, one {# like} other {# likes}}"
+  list:
+    a: "A"
+    b: "B"
+    c: "C"
+    d: "D"
+  blk: |
+    one
+  after: "After"
+  g:
+    h: "H"
+`;
+  const L = { source: "en", code: "de" };
+  // 1: a missing key Rails would read as false stays the string "no".
+  let out = entriesToYaml(
+    en,
+    { "choices.no": "Nein" },
+    'de:\n  choices:\n    "yes": "Ja"\n',
+    L,
+  );
+  expect(yamlTranslations(out, "de").map((e) => e.id)).toContain("choices.no");
+  expect(out).toContain('"no": "Nein"');
+  // 2: an _MF key the source writes as a scalar stays one, whatever its shape.
+  out = entriesToYaml(
+    en,
+    { mf_MF: "{count, plural, one {# Like} other {# Likes}}" },
+    'de:\n  mf_MF: "x"\n',
+    L,
+  );
+  expect(out).toBe(
+    'de:\n  mf_MF: "{count, plural, one {# Like} other {# Likes}}"\n',
+  );
+  // 3 and 4: a block changed beside an inserted key, and a block that
+  // falls back to quotes, keep their line breaks.
+  out = entriesToYaml(
+    en,
+    { blk: "x\n\n", after: "Nach" },
+    "de:\n  blk: |\n    eins\n",
+    L,
+  );
+  expect(yamlTranslations(out, "de")).toEqual([
+    { id: "blk", type: "", source: "x\n\n" },
+    { id: "after", type: "", source: "Nach" },
+  ]);
+  out = entriesToYaml(
+    en,
+    { blk: " lead\nx" },
+    'de:\n  blk: |\n    eins\n  after: "A"\n',
+    L,
+  );
+  expect(yamlTranslations(out, "de").map((e) => e.source)).toEqual([
+    " lead\nx",
+    "A",
+  ]);
+  // 5: a null value takes its text with a space, its comment kept.
+  out = entriesToYaml(en, { after: "Hi" }, "de:\n  after: # c\n", L);
+  expect(out).toBe('de:\n  after: "Hi" # c\n');
+  // 6: a CRLF file's rewritten block keeps CRLF.
+  out = entriesToYaml(
+    en,
+    { blk: "a\nb\n" },
+    "de:\r\n  blk: |\r\n    eins\r\n",
+    L,
+  );
+  expect(out.replace(/\r\n/g, "")).not.toContain("\n");
+  // 7: `yes` written plain would be true to Rails: it is quoted.
+  out = entriesToYaml(en, { after: "yes" }, "de:\n  after: nach\n", L);
+  expect(out).toBe('de:\n  after: "yes"\n');
+  // 8: missing keys each go after their own source neighbour.
+  out = entriesToYaml(
+    en,
+    { "list.a": "A", "list.c": "C" },
+    'de:\n  list:\n    b: "B"\n    d: "D"\n',
+    L,
+  );
+  expect(out).toBe(
+    'de:\n  list:\n    a: "A"\n    b: "B"\n    c: "C"\n    d: "D"\n',
+  );
+  // 9: a `{}` stub and a null parent take their keys as a block.
+  expect(entriesToYaml(en, { "g.h": "H" }, "de: {}\n", L)).toBe(
+    'de:\n  g:\n    h: "H"\n',
+  );
+  expect(entriesToYaml(en, { "g.h": "H" }, "de:\n  g:\n", L)).toBe(
+    'de:\n  g:\n    h: "H"\n',
+  );
+});
+
+test("a key under a flow hash that holds keys is refused, the file left as it is (#753)", () => {
+  const en = 'en:\n  g:\n    h: "H"\n    x: "X"\n';
+  const flow = 'de:\n  g: {x: "X"}\n';
+  const refused: string[] = [];
+  expect(
+    entriesToYaml(
+      en,
+      { "g.h": "H" },
+      flow,
+      { source: "en", code: "de" },
+      (id) => refused.push(id),
+    ),
+  ).toBe(flow);
+  expect(refused).toEqual(["g.h"]);
+});
+
+test("a root written as a flow hash with keys takes no write, its keys kept (#753)", () => {
+  const en = 'en:\n  a: "A"\n  b: "B"\n  c: "C"\n';
+  const flow = "fr: {a: A, b: B}\n";
+  const refused: string[] = [];
+  const L = { source: "en", code: "fr" };
+  expect(
+    entriesToYaml(en, { c: "C", a: "AA" }, flow, L, (id) => refused.push(id)),
+  ).toBe(flow);
+  expect(refused.sort()).toEqual(["a", "c"]);
 });
