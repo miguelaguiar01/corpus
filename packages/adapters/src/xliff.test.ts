@@ -438,7 +438,9 @@ test("locations read through spaced and prefixed attributes, and from 2.0's loca
     <body>
       <trans-unit id="a" datatype="html">
         <source>A</source>
+        <context-group purpose="location"/>
         <context-group purpose="location">
+          <context context-type="linenumber"/>
           <context x-context-type="sourcefile">9</context>
           <context context-type = "sourcefile">src/a.html</context>
           <context context-type='linenumber'>4</context>
