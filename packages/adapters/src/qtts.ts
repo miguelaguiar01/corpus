@@ -460,17 +460,20 @@ export function entriesToQtTs(
     );
     if (written === undefined) return;
     const block = blockOf(template, m, written).replace(/\r?\n/g, eol);
+    // The file's message before it, held or vanished and back in the
+    // source (#776): either stands where the source has it.
+    const inFile = (id: string) => held.get(id) ?? gone.get(id);
     const before = source
       .slice(0, i)
       .reverse()
-      .find((p) => p.context === m.context && held.has(p.id));
+      .find((p) => p.context === m.context && inFile(p.id));
     const context = contexts.find((c) => c.name === m.context);
     if (before) {
-      const at = held.get(before.id)!.at.end;
+      const anchor = inFile(before.id)!;
       patches.push({
-        start: at,
-        end: at,
-        text: `${eol}${lineIndent(base, held.get(before.id)!.at.start)}${block}`,
+        start: anchor.at.end,
+        end: anchor.at.end,
+        text: `${eol}${lineIndent(base, anchor.at.start)}${block}`,
       });
     } else if (context) {
       patches.push({

@@ -488,3 +488,43 @@ test("pull escapes as lupdate's tsProtect() does, character by character, in eit
     "\u0085\u2028\u0001a\r\nb",
   );
 });
+
+test("a missing message goes in after a vanished one the template has again, so the file keeps the template's order (#776)", () => {
+  const message = (source: string, translation: string) => `
+    <message>
+        <source>${source}</source>
+        ${translation}
+    </message>`;
+  const ts = (language: string, body: string) =>
+    `<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE TS>
+<TS version="2.1"${language}>
+<context>
+    <name>W</name>${body}
+</context>
+</TS>
+`;
+  const template = ts(
+    "",
+    ["A", "B", "C"]
+      .map((s) => message(s, '<translation type="unfinished"></translation>'))
+      .join(""),
+  );
+  const de = ts(
+    ' language="de"',
+    message("A", "<translation>Ah</translation>") +
+      message("B", '<translation type="vanished">Beh</translation>'),
+  );
+  const out = entriesToQtTs(template, { "W | B": "Be", "W | C": "Ce" }, de, {
+    tag: "de",
+    code: "de",
+  });
+  expect(qtTsTranslations(out).map((e) => e.id)).toEqual([
+    "W | A",
+    "W | B",
+    "W | C",
+  ]);
+  expect(out.indexOf("<source>B</source>")).toBeLessThan(
+    out.indexOf("<source>C</source>"),
+  );
+});
