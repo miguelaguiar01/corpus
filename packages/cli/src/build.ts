@@ -234,7 +234,6 @@ export async function buildSnapshotReport(
     // The file rides with the entry (§4) so a proposal can come back to
     // it, and only where pull can write it: a .ts catalogue carries none,
     // so a proposal on its strings is refused up front, not left pending.
-    // A String Catalog's keys are the code's (`Text("…")`, #728).
     // A String Catalog's keys and Qt's `tr()` literals are the code's
     // (#728, #741): no proposal is taken on them.
     const writable =

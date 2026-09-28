@@ -348,7 +348,7 @@ export function entriesToYaml(
   translations: Record<string, string>,
   existing: string | undefined,
   language: { source: string; code: string },
-  onRefused?: (id: string, text: string) => void,
+  onRefused?: (id: string, text: string, why: YamlRefusal) => void,
 ): string {
   const base =
     existing === undefined || existing.trim() === ""
@@ -378,7 +378,7 @@ function writeYaml(
   plural: Set<string>,
   keysAsWritten: Map<string, string>,
   translations: Record<string, string>,
-  onRefused?: (id: string, text: string) => void,
+  onRefused?: (id: string, text: string, why: YamlRefusal) => void,
 ): string {
   const language = { code };
   const eol = /\r\n/.test(base) ? "\r\n" : "\n";
@@ -466,7 +466,7 @@ function writeYaml(
     if (now && now.text === text) continue;
     const forms = plural.has(id) ? formsOf(text) : undefined;
     if (plural.has(id) && !forms) {
-      onRefused?.(id, text);
+      onRefused?.(id, text, "plural");
       continue;
     }
     const pair = pairs.get(id);
@@ -550,7 +550,7 @@ function writeYaml(
       !containers.has(parent) ||
       pairs.has(path.slice(0, depth + 1).join("."))
     ) {
-      onRefused?.(id, translations[id]!);
+      onRefused?.(id, translations[id]!, "parent");
       continue;
     }
     const list = byContainer.get(parent) ?? [];
@@ -660,6 +660,10 @@ function writeYaml(
   return applied(base, patches);
 }
 
+// Why a write was refused: a plural a Rails hash cannot hold, or a key
+// whose parent is a scalar, a flow hash or an alias.
+export type YamlRefusal = "plural" | "parent";
+
 export type YamlOp =
   | { kind: "edit" | "add"; id: string; text: string }
   | { kind: "delete"; id: string };
@@ -695,7 +699,8 @@ export function applyYamlOps(
       });
     }
     order.splice(at + 1, 0, op.id);
-    if (formsOf(op.text)) plural.add(op.id);
+    // A `*_MF` key is ICU the app compiles: a scalar whatever its text.
+    if (!/_MF$/.test(op.id) && formsOf(op.text)) plural.add(op.id);
   }
   let out =
     Object.keys(writes).length === 0
@@ -707,9 +712,11 @@ export function applyYamlOps(
           plural,
           writtenKeys(text, code),
           writes,
-          (id) => {
+          (id, _text, why) => {
             throw new Error(
-              `${id}: a plural a Rails hash cannot hold (an =N branch, or text beside it)`,
+              why === "plural"
+                ? `${id}: a plural a Rails hash cannot hold (an =N branch, or text beside it)`
+                : `${id}: its parent in the file is a scalar, a hash written inline or an alias, which cannot take the key`,
             );
           },
         );
@@ -731,17 +738,31 @@ export function applyYamlOps(
       if (removals.includes(id)) {
         const keyStart = (pair.key as Node).range![0];
         let start = out.lastIndexOf("\n", keyStart - 1) + 1;
-        while (start > 0) {
+        // Comment lines above go with it, never a line of the value
+        // before it: a block scalar's `# Heading` is text.
+        const index = map.items.indexOf(pair);
+        const before = index > 0 ? map.items[index - 1] : undefined;
+        const floor = before
+          ? ((before.value as Node | null)?.range?.[1] ??
+            (before.key as Node).range![1])
+          : 0;
+        while (start > floor) {
           const prev = out.lastIndexOf("\n", start - 2) + 1;
-          if (!out.slice(prev, start).trim().startsWith("#")) break;
+          if (prev < floor || !out.slice(prev, start).trim().startsWith("#"))
+            break;
           start = prev;
         }
         const value = pair.value as Node | null;
         const end = value?.range?.[1] ?? (pair.key as Node).range![1];
         const nl = out[end - 1] === "\n" ? end : out.indexOf("\n", end) + 1;
         spans.push({ start, end: nl <= 0 ? out.length : nl, text: "" });
-      } else if (isMap(pair.value) && !pair.value.flow)
-        walk(pair.value, [...path, key]);
+      } else if (isMap(pair.value) && pair.value.flow) {
+        const inside = removals.find((r) => r.startsWith(`${id}.`));
+        if (inside)
+          throw new Error(
+            `${inside}: its parent in the file is a hash written inline, which a removal cannot edit line by line`,
+          );
+      } else if (isMap(pair.value)) walk(pair.value, [...path, key]);
     }
   };
   if (root && isMap(root.value)) walk(root.value, []);

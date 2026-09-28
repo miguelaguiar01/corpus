@@ -405,3 +405,52 @@ test("a proposal edits a key in its own style, adds one after its parent's last,
     ),
   ).toBe(src);
 });
+
+test("proposal edges: an added _MF plural stays a scalar, a removal keeps the block before it, refusals say why (#757)", () => {
+  const added = applyYamlOps(
+    "en:\n  js:\n    a: A\n",
+    [
+      {
+        kind: "add",
+        id: "js.count_MF",
+        text: "{count, plural, one {# post} other {# posts}}",
+      },
+    ],
+    "en",
+  );
+  expect(added).toBe(
+    'en:\n  js:\n    a: A\n    count_MF: "{count, plural, one {# post} other {# posts}}"\n',
+  );
+  // A `# Heading` inside the block before is its text, not a comment.
+  const block = "en:\n  a: |\n    Intro\n    # Heading\n  b: B\n";
+  expect(applyYamlOps(block, [{ kind: "delete", id: "b" }], "en")).toBe(
+    "en:\n  a: |\n    Intro\n    # Heading\n",
+  );
+  expect(() =>
+    applyYamlOps(
+      "en:\n  js:\n    deny: Cancel\n",
+      [{ kind: "add", id: "js.deny.x", text: "X" }],
+      "en",
+    ),
+  ).toThrow("js.deny.x: its parent in the file is a scalar");
+  expect(() =>
+    applyYamlOps(
+      "en:\n  js:\n    n:\n      one: a\n      other: b\n",
+      [
+        {
+          kind: "edit",
+          id: "js.n",
+          text: "{count, plural, =0 {none} other {b}}",
+        },
+      ],
+      "en",
+    ),
+  ).toThrow("js.n: a plural a Rails hash cannot hold");
+  expect(() =>
+    applyYamlOps(
+      "en:\n  js: {a: A, b: B}\n",
+      [{ kind: "delete", id: "js.a" }],
+      "en",
+    ),
+  ).toThrow("js.a: its parent in the file is a hash written inline");
+});
