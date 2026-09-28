@@ -126,7 +126,7 @@ export async function buildSnapshot(
 // rather than that many: a mistyped library, or a tag left open in
 // five strings. Below it, a refusal is a string's own problem and the
 // build goes on without it.
-export const SAME_CAUSE = 5;
+const SAME_CAUSE = 5;
 
 // Why the build should stop rather than push what parsed (#491).
 // Pushing the rest archives every refused id, and a pending proposal on
@@ -683,12 +683,9 @@ const OWN_FORMAT = new Set<FileSource["adapter"]>([
 // The adapters whose keys are the code's own (a msgid, a String Catalog
 // key, a `tr()` literal): no proposal is taken on their strings (#719,
 // #728, #741).
-type CodeKeyed = "gettext" | "xcstrings" | "qt-ts";
-const CODE_KEYED = new Set<FileSource["adapter"]>([
-  "gettext",
-  "xcstrings",
-  "qt-ts",
-] satisfies CodeKeyed[]);
+const CODE_KEYED_ADAPTERS = ["gettext", "xcstrings", "qt-ts"] as const;
+type CodeKeyed = (typeof CODE_KEYED_ADAPTERS)[number];
+const CODE_KEYED = new Set<FileSource["adapter"]>(CODE_KEYED_ADAPTERS);
 
 // The adapters whose target file says which translations are done, so
 // one identical to its source is a translation, not filler (#658, #710,
@@ -914,7 +911,7 @@ export function pushOnlyNotes(config: CorpusConfig): string[] {
 
 // Pull rewrites a catalogue in place and only knows JSON (§8); a .ts or
 // .js catalogue pushes fine but nothing can come back to it.
-export function writesBack(sourcePath: string): boolean {
+function writesBack(sourcePath: string): boolean {
   return sourcePath.toLowerCase().endsWith(".json") || isArb(sourcePath);
 }
 

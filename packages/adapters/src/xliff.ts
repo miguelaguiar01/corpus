@@ -5,7 +5,7 @@ import { renderPreview, type StringEntry } from "@corpus/contract";
 
 // A unit as read: its id, its source and target as the editor shows
 // them, whether the target counts as translated, and its notes.
-export type XliffUnit = {
+type XliffUnit = {
   id: string;
   source: string;
   target?: string;
@@ -85,7 +85,7 @@ function skipTo(xml: string, at: number, element: string): number {
 // XML each token stands for, so a translation can be written back with
 // the unit's own elements (#711); `shown`, what each placeholder
 // displays as (#714).
-export function inlineText(
+function inlineText(
   xml: string,
   parts?: Map<string, string[]>,
   shown?: Record<string, string>,
@@ -370,7 +370,7 @@ const TOKEN_RE = /\{[A-Za-z][A-Za-z0-9_]*\}|<\/?[A-Za-z][A-Za-z0-9_-]*\/?>/g;
 // unit knows as the element it came from, a token that repeats taking
 // its elements in order (2.0 numbers each `<ph>` apart), the rest
 // escaped.
-export function inlineXml(text: string, parts: Map<string, string[]>): string {
+function inlineXml(text: string, parts: Map<string, string[]>): string {
   let out = "";
   let at = 0;
   const used = new Map<string, number>();
@@ -614,7 +614,7 @@ export function entriesToXliff(
   return out;
 }
 
-export type XliffOp =
+type XliffOp =
   | { kind: "edit" | "add"; id: string; text: string }
   | { kind: "delete"; id: string };
 

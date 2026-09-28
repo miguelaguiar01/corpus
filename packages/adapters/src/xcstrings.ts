@@ -7,7 +7,7 @@ import type { StringEntry } from "@corpus/contract";
 
 type StringUnit = { state?: string; value?: string };
 
-export type XcUnit = {
+type XcUnit = {
   stringUnit?: StringUnit;
   variations?: Record<string, Record<string, XcUnit>>;
   substitutions?: Record<
@@ -20,7 +20,7 @@ export type XcUnit = {
   >;
 };
 
-export type XcCatalog = {
+type XcCatalog = {
   sourceLanguage: string;
   version?: string;
   strings: Record<
@@ -103,7 +103,7 @@ function substituted(unit: XcUnit): Read {
 
 // A unit's texts: one, or one per device or width variant, each named
 // by a suffix on the key, `settings.platform [device:iphone]`.
-export function unitTexts(unit: XcUnit): Read[] {
+function unitTexts(unit: XcUnit): Read[] {
   const variations = unit.variations ?? {};
   for (const kind of ["device", "width"] as const) {
     const variants = variations[kind];

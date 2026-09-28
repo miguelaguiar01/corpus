@@ -137,13 +137,6 @@ export function libraryOf(
   return value?.library ?? value?.syntax ?? "icu";
 }
 
-/** @deprecated a source declares its `library`; goes at 1.0. */
-export const SYNTAXES = LIBRARIES;
-/** @deprecated use {@link Library}. */
-export type Syntax = Library;
-/** @deprecated use {@link librarySchema}. */
-export const syntaxSchema = librarySchema;
-
 // Entity ids carry their type: character:condessa-rosa (§6).
 export const ENTITY_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 export const entityId = () =>

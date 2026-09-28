@@ -691,7 +691,7 @@ async function libraryFor(
 // The languages a messages path names (§3): every file or directory
 // that fills its {lang}, the source first, so a repository that already
 // carries its catalogues is not asked to list them by hand.
-export function languagesFromFiles(
+function languagesFromFiles(
   cwd: string,
   pattern: string,
   sourceLanguage: string,
