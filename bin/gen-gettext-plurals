@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# gettext's Plural-Forms per language, compiled from CLDR's plural rules
+# (#812) into packages/adapters/src/gettextplurals.ts, which is
+# committed. --check says whether the committed file is what CLDR
+# compiles to. cldr-core is pinned to the CLDR version Node's Intl ships.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+node bin/gen-gettext-plurals.mjs "$@"
