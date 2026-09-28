@@ -966,3 +966,70 @@ test("init writes an xliff source for Angular's catalogues, the source file apar
     sourcePath: "src/locale/messages.xlf",
   });
 });
+
+test("init writes a gettext source for .po catalogues, the .pot beside them its source, and the config builds (#720)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "locales"), { recursive: true });
+  writeFileSync(
+    path.join(p.dir, "locales", "joplin.pot"),
+    'msgid ""\nmsgstr ""\n"Content-Type: text/plain; charset=UTF-8\\n"\n\nmsgid "%d note"\nmsgid_plural "%d notes"\nmsgstr[0] ""\nmsgstr[1] ""\n\nmsgid "Open %s"\nmsgstr ""\n',
+  );
+  for (const lang of ["de_DE", "ru_RU"])
+    writeFileSync(
+      path.join(p.dir, "locales", `${lang}.po`),
+      'msgid ""\nmsgstr ""\n"Plural-Forms: nplurals=2; plural=(n != 1);\\n"\n\nmsgid "Open %s"\nmsgstr "Öffne %s"\n',
+    );
+  const code = await run(
+    [
+      "init",
+      "--project",
+      "joplin",
+      "--source",
+      "en",
+      "--messages",
+      "locales/{lang}.po",
+    ],
+    p.ctx,
+  );
+  expect(p.err.join("\n")).not.toMatch(/gettext catalogue/);
+  expect(code).toBe(0);
+  const config = await loadConfig(p.dir);
+  expect(config.languages).toEqual(["en", "de_DE", "ru_RU"]);
+  expect(config.sources[0]).toEqual({
+    adapter: "gettext",
+    type: "chrome",
+    path: "locales/{lang}.po",
+    sourcePath: "locales/joplin.pot",
+  });
+  expect(p.out.join("\n")).not.toMatch(/^library:/m);
+  expect(await run(["build"], p.ctx)).toBe(0);
+});
+
+test("init names the .pot files when there are several, and sets none (#720)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "po"), { recursive: true });
+  for (const name of ["a.pot", "b.pot", "en.po", "de.po"])
+    writeFileSync(path.join(p.dir, "po", name), 'msgid "x"\nmsgstr ""\n');
+  expect(
+    await run(
+      [
+        "init",
+        "--project",
+        "x",
+        "--source",
+        "en",
+        "--messages",
+        "po/{lang}.po",
+      ],
+      p.ctx,
+    ),
+  ).toBe(0);
+  expect(p.err.join("\n")).toContain("po/a.pot, po/b.pot sit beside");
+  expect((await loadConfig(p.dir)).sources[0]).toEqual({
+    adapter: "gettext",
+    type: "chrome",
+    path: "po/{lang}.po",
+  });
+});
