@@ -572,3 +572,18 @@ msgstr "Файл"
     `"Plural-Forms: nplurals=3; plural=${GETTEXT_PLURALS["pt-PT"]!.plural};\\n"`,
   );
 });
+
+test("a header line with trailing whitespace after its closing quote ends its field; the fields after it stay (#818)", () => {
+  const en = `msgid ""
+msgstr ""
+"Language: en\\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\\n"   
+"X-Generator: Poedit\\n"
+
+msgid "File"
+msgstr "File"
+`;
+  const de = entriesToGettext(en, {}, undefined, { tag: "de", code: "de" });
+  expect(de).toContain('"X-Generator: Poedit\\n"');
+  expect(de).toContain('"Plural-Forms: nplurals=2; plural=(n==1) ? 0 : 1;\\n"');
+});

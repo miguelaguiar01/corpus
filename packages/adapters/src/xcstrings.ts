@@ -71,6 +71,21 @@ function pluralText(arg: string, forms: Record<string, XcUnit>): Read {
 const VERB =
   /%(?:(\d+)\$)?(?:#@([^@\s]+)@|[-+0# ]*\d*(?:\.\d+)?(?:hh|h|ll|l|z|j|t|q|L)?[a-zA-Z@])|%%/g;
 
+// Each substitution a unit's text names, `%#@name@`, with the argument
+// it formats: its `argNum`, or the position its verb stands at.
+function* substitutionArgs(
+  value: string,
+  subs: NonNullable<XcUnit["substitutions"]>,
+): Generator<[string, number]> {
+  let next = 1;
+  for (const m of value.matchAll(VERB)) {
+    if (m[0] === "%%") continue;
+    const position = m[1] ? Number(m[1]) : next;
+    next = position + 1;
+    if (m[2]) yield [m[2], subs[m[2]]?.argNum ?? position];
+  }
+}
+
 // A substitution's name is the unit's own (`arg1` in English,
 // `count_posts` in Polish, for one argument), so its plural is named by
 // the argument it formats, `argN`: its `argNum`, or the position its
@@ -79,14 +94,8 @@ function substituted(unit: XcUnit): Read {
   const value = unit.stringUnit?.value ?? "";
   const subs = unit.substitutions ?? {};
   const argOf = new Map<string, number>();
-  let next = 1;
-  for (const m of value.matchAll(VERB)) {
-    if (m[0] === "%%") continue;
-    const position = m[1] ? Number(m[1]) : next;
-    next = position + 1;
-    if (m[2] && !argOf.has(m[2]))
-      argOf.set(m[2], subs[m[2]]?.argNum ?? position);
-  }
+  for (const [name, arg] of substitutionArgs(value, subs))
+    if (!argOf.has(name)) argOf.set(name, arg);
   let complete = done(unit.stringUnit);
   const text = value.replace(
     /%(?:\d+\$)?#@([^@\s]+)@/g,
@@ -319,14 +328,8 @@ function namesOf(unit: XcUnit | undefined): Map<string, string> {
   const out = new Map<string, string>();
   const value = unit?.stringUnit?.value;
   if (!unit?.substitutions || value === undefined) return out;
-  let next = 1;
-  for (const m of value.matchAll(VERB)) {
-    if (m[0] === "%%") continue;
-    const position = m[1] ? Number(m[1]) : next;
-    next = position + 1;
-    if (m[2])
-      out.set(`arg${unit.substitutions[m[2]]?.argNum ?? position}`, m[2]);
-  }
+  for (const [name, arg] of substitutionArgs(value, unit.substitutions))
+    out.set(`arg${arg}`, name);
   return out;
 }
 

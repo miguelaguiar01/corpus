@@ -41,6 +41,15 @@ export function isPluralObject(node: unknown): node is Record<string, string> {
   );
 }
 
+// A plural's form for a category: its own branch, or `other`'s, which
+// every runtime falls back to.
+export function formOf(
+  branches: Record<string, string>,
+  category: string,
+): string | undefined {
+  return branches[category] ?? branches.other;
+}
+
 // A plural string's forms by category, as a plural object writes them:
 // the branches of `{count, plural, …}` with their text as written,
 // braces balanced; undefined for any other text.

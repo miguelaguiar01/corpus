@@ -3,6 +3,7 @@
 // pull or a proposal reads as the lines it changes. jsonc-parser gives
 // the node offsets; the text is spliced here.
 import { findNodeAtLocation, parseTree, type Node } from "jsonc-parser";
+import { eolOf } from "./text";
 
 const UNSAFE_SEGMENTS = new Set(["__proto__", "constructor", "prototype"]);
 
@@ -47,10 +48,6 @@ export function keyOrder(
     cache.set(id, keys);
     return keys;
   };
-}
-
-function eolOf(text: string): string {
-  return text.includes("\r\n") ? "\r\n" : "\n";
 }
 
 function isInline(text: string, node: Node): boolean {

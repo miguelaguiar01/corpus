@@ -2,6 +2,17 @@
 // tools export it: a unit's `<source>` is the text, its `<target>` the
 // translation, its inline elements the text's placeholders and tags.
 import { renderPreview, type StringEntry } from "@corpus/contract";
+import {
+  applied,
+  attr,
+  decodeEntities,
+  eolOf,
+  lineIndent,
+  masked,
+  type Patch,
+  type Span,
+  usedIn,
+} from "./text";
 
 // A unit as read: its id, its source and target as the editor shows
 // them, whether the target counts as translated, and its notes.
@@ -20,35 +31,8 @@ type XliffUnit = {
 // 2.0's `initial`. Every other state has a translation someone wrote.
 const UNTRANSLATED = new Set(["new", "needs-translation", "initial"]);
 
-function masked(xml: string): string {
-  return xml.replace(/<!--[\s\S]*?-->/g, (c) => " ".repeat(c.length));
-}
-
-function attr(attrs: string, name: string): string | undefined {
-  return new RegExp(`(?:^|\\s)${name}\\s*=\\s*(["'])(.*?)\\1`).exec(attrs)?.[2];
-}
-
 // An element's attributes, a `>` inside quotes included.
 const ATTRS = `((?:[^>"']|"[^"]*"|'[^']*')*?)`;
-
-function decode(text: string): string {
-  const named: Record<string, string> = {
-    lt: "<",
-    gt: ">",
-    amp: "&",
-    quot: '"',
-    apos: "'",
-  };
-  return text.replace(
-    /&(lt|gt|amp|quot|apos|#\d+|#x[0-9a-fA-F]+);/g,
-    (all, name: string) => {
-      if (name in named) return named[name]!;
-      const code =
-        name[1] === "x" ? parseInt(name.slice(2), 16) : Number(name.slice(1));
-      return code <= 0x10ffff ? String.fromCodePoint(code) : all;
-    },
-  );
-}
 
 // A name an ICU placeholder or tag can carry: Angular's
 // `INTERPOLATION_1` as it is, anything else with its odd characters
@@ -105,7 +89,7 @@ function inlineText(
   };
   INLINE_RE.lastIndex = 0;
   for (let m = INLINE_RE.exec(xml); m; m = INLINE_RE.exec(xml)) {
-    out += decode(xml.slice(at, m.index));
+    out += decodeEntities(xml.slice(at, m.index));
     at = INLINE_RE.lastIndex;
     if (m[5] !== undefined) {
       out += m[5];
@@ -118,7 +102,7 @@ function inlineText(
     if (token === undefined) continue;
     const display = attr(m[3] ?? "", "equiv-text") ?? attr(m[3] ?? "", "disp");
     if (shown && display !== undefined && /^\{.*\}$/.test(token))
-      shown[token.slice(1, -1)] = decode(display);
+      shown[token.slice(1, -1)] = decodeEntities(display);
     if (parts) {
       const list = parts.get(token) ?? [];
       list.push(xml.slice(m.index, at));
@@ -126,7 +110,7 @@ function inlineText(
     }
     out += token;
   }
-  return out + decode(xml.slice(at));
+  return out + decodeEntities(xml.slice(at));
 }
 
 // One inline element's token, or undefined for an annotation whose text
@@ -218,7 +202,7 @@ function notes(block: string, key: "from" | "category"): string | undefined {
   const re = /<note\b([^>]*)>([\s\S]*?)<\/note>/g;
   for (let m = re.exec(block); m; m = re.exec(block)) {
     const kind = attr(m[1] ?? "", key);
-    const text = decode(m[2]!.trim());
+    const text = decodeEntities(m[2]!.trim());
     if (!text) continue;
     if (kind === "description" || kind === "meaning") out.push(text);
     else if (key === "category" && kind === "location") used.push(text);
@@ -231,14 +215,14 @@ function notes(block: string, key: "from" | "category"): string | undefined {
     const contexts = /<context(?=[\s>])([^>]*?)(?<!\/)>([\s\S]*?)<\/context>/g;
     for (let c = contexts.exec(m[2]!); c; c = contexts.exec(m[2]!)) {
       const type = attr(c[1] ?? "", "context-type");
-      if (type !== undefined) context[type] ??= decode(c[2]!.trim());
+      if (type !== undefined) context[type] ??= decodeEntities(c[2]!.trim());
     }
     const file = context.sourcefile;
     if (!file) continue;
     const line = context.linenumber;
     used.push(line ? `${file}:${line}` : file);
   }
-  if (used.length) out.push(`Used in ${used.join(" ")}`);
+  out.push(...usedIn(used));
   return out.length ? out.join("\n") : undefined;
 }
 
@@ -288,7 +272,7 @@ export function xliffUnits(xml: string): XliffUnit[] {
     const targetAttrs = openTag(body, "target");
     out.push(
       unit(
-        decode(id),
+        decodeEntities(id),
         source,
         inner(body, "target"),
         targetAttrs === undefined ? undefined : attr(targetAttrs, "state"),
@@ -312,7 +296,7 @@ export function xliffUnits(xml: string): XliffUnit[] {
     const segment = openTag(body, "segment");
     out.push(
       unit(
-        decode(id),
+        decodeEntities(id),
         source,
         inner(body, "target"),
         segment === undefined ? undefined : attr(segment, "state"),
@@ -387,7 +371,6 @@ function inlineXml(text: string, parts: Map<string, string[]>): string {
   return out + escape(text.slice(at));
 }
 
-type Span = { start: number; end: number };
 type UnitSpan = Span & {
   id: string;
   version: "1.2" | "2.0";
@@ -451,7 +434,7 @@ function unitSpans(xml: string): UnitSpan[] {
       const segment =
         version === "2.0" ? find(m.index, re.lastIndex, "segment") : undefined;
       out.push({
-        id: decode(id),
+        id: decodeEntities(id),
         version,
         start: m.index,
         end: re.lastIndex,
@@ -465,24 +448,6 @@ function unitSpans(xml: string): UnitSpan[] {
     }
   }
   return out;
-}
-
-type Patch = Span & { text: string };
-
-function applyPatches(xml: string, patches: Patch[]): string {
-  let out = xml;
-  for (const p of [...patches].sort((a, b) => b.start - a.start))
-    out = out.slice(0, p.start) + p.text + out.slice(p.end);
-  return out;
-}
-
-function eolOf(xml: string): string {
-  return xml.includes("\r\n") ? "\r\n" : "\n";
-}
-
-function lineIndent(xml: string, at: number): string {
-  const start = xml.lastIndexOf("\n", at - 1) + 1;
-  return /^[ \t]*/.exec(xml.slice(start))![0];
 }
 
 // A state that says work, turned to `translated`; any other kept.
@@ -585,7 +550,7 @@ export function entriesToXliff(
       if (state) patches.push(state);
     }
   }
-  let out = applyPatches(base, patches);
+  let out = applied(base, patches);
   // Units the target file lacks, copied from the source with their target.
   const missing = Object.keys(translations).filter(
     (id) => !seen.has(id) && sources.has(id),
