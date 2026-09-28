@@ -1163,3 +1163,123 @@ test("under qt %1–%99, %L1 and %n are placeholders by number; any other % and 
     validateTranslation("100% of <dir> {x}", "100% von <dir> {x}", "de", lib),
   ).toEqual({ ok: true });
 });
+
+// Ice Cubes' `timeline.n-recent-from-n-participants %lld %lld`, as the
+// xcstrings reader writes a String Catalog's substitutions (#726).
+const RECENT =
+  "{arg1, plural, one {%arg recent post} other {%arg recent posts}} from {arg2, plural, one {%arg participant} other {%arg participants}}";
+
+test("printf reads plurals on argN among its text, %arg the argument itself (#726)", () => {
+  const parsed = parseIcu(RECENT, "printf");
+  expect(parsed.ok && parsed.nodes.map((n) => n.kind)).toEqual([
+    "plural",
+    "literal",
+    "plural",
+  ]);
+  expect(validateTranslation(RECENT, RECENT, "en", "printf")).toEqual({
+    ok: true,
+  });
+  // German's names differ in the file; read by argument they agree.
+  expect(
+    validateTranslation(
+      RECENT,
+      "{arg1, plural, one {%arg aktueller Beitrag} other {%arg aktuelle Beiträge}} von {arg2, plural, one {%arg Teilnehmendem} other {%arg Teilnehmenden}}",
+      "de",
+      "printf",
+    ),
+  ).toEqual({ ok: true });
+  // Polish joins them with a space and adds few.
+  expect(
+    validateTranslation(
+      RECENT,
+      "{arg1, plural, one {%arg ostatni post} few {%arg ostatnie posty} many {%arg ostatnich postów} other {%arg ostatnich postów}} {arg2, plural, one {od %arg uczestnika} few {od %arg uczestników} many {od %arg uczestników} other {od %arg uczestników}}",
+      "pl",
+      "printf",
+    ),
+  ).toEqual({ ok: true });
+  // Dropping an argument is still missing.
+  expect(
+    validateTranslation(
+      RECENT,
+      "{arg1, plural, one {%arg Beitrag} other {%arg Beiträge}}",
+      "de",
+      "printf",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "2" }],
+  });
+});
+
+test("a translation may pluralise an argument the source prints plainly, and write one it pluralises plainly (#726)", () => {
+  const source = "%@ boosted %lld posts";
+  expect(
+    validateTranslation(
+      source,
+      "%@ hat {arg2, plural, one {%arg Beitrag} other {%arg Beiträge}} geteilt",
+      "de",
+      "printf",
+    ),
+  ).toEqual({ ok: true });
+  expect(
+    validateTranslation(
+      "{arg1, plural, one {%arg post} other {%arg posts}} from %@",
+      "%lld Beiträge von %@",
+      "de",
+      "printf",
+    ),
+  ).toEqual({ ok: true });
+  // A positional verb beside a plural keeps its place.
+  expect(
+    validateTranslation(
+      "%2$@: {arg1, plural, one {%arg post} other {%arg posts}}",
+      "{arg1, plural, one {%arg Beitrag} other {%arg Beiträge}} — %2$@",
+      "de",
+      "printf",
+    ),
+  ).toEqual({ ok: true });
+  // A verb of another type beside the plural is still a changed verb.
+  expect(
+    validateTranslation(
+      "{arg1, plural, one {%arg post} other {%arg posts}} from %@",
+      "{arg1, plural, one {%arg Beitrag} other {%arg Beiträge}} von %lld",
+      "de",
+      "printf",
+    ),
+  ).toMatchObject({ ok: false, errors: [{ code: "changed-verb", name: "2" }] });
+});
+
+test("%arg is never the hex-float verb, and a brace in other printf text stays text (#726)", () => {
+  const parsed = parseIcu("{arg1, plural, other {%arg}}", "printf");
+  expect(parsed).toEqual({
+    ok: true,
+    nodes: [
+      {
+        kind: "plural",
+        arg: "1",
+        branches: {
+          other: [{ kind: "placeholder", name: "1", written: "%arg" }],
+        },
+      },
+    ],
+  });
+  expect(parseIcu("{count} %@ {x, plural, other {y}} tail", "printf")).toEqual({
+    ok: true,
+    nodes: [
+      { kind: "literal", text: "{count} " },
+      { kind: "placeholder", name: "1", written: "%@" },
+      { kind: "literal", text: " {x, plural, other {y}} tail" },
+    ],
+  });
+});
+
+test("an unindexed verb in a substitution's branch is its argument, as Basque writes %lld (#726)", () => {
+  expect(
+    validateTranslation(
+      RECENT,
+      "{arg2, plural, one {Partaide batek egindako} other {%lld partaidek egindako}} {arg1, plural, one {bidalketa %lld} other {%lld bidalketa}}",
+      "eu",
+      "printf",
+    ),
+  ).toEqual({ ok: true });
+});

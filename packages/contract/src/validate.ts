@@ -303,9 +303,18 @@ export function validateTranslation(
     for (const [name, written] of expected.verbs)
       allowed.set(name, (allowed.get(name) ?? new Set()).add(verbOf(written)));
     const said = new Set<string>();
+    // A String Catalog's `%arg` is its argument whatever the verb (#726).
+    const any = new Set(
+      expected.verbs.filter(([, w]) => w === "%arg").map(([name]) => name),
+    );
     for (const [name, got] of verbs) {
       const written = expected.written.get(name);
-      if (written === undefined || allowed.get(name)?.has(verbOf(got)))
+      if (
+        written === undefined ||
+        got === "%arg" ||
+        any.has(name) ||
+        allowed.get(name)?.has(verbOf(got))
+      )
         continue;
       if (said.has(name)) continue;
       said.add(name);
