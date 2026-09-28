@@ -4,7 +4,7 @@ Add it when a string is ambiguous, not before.
 
 ## Types
 
-Every `messages` and `table` source names a `type`, and a type is the unit everything else attaches to. It groups strings in the catalogue, carries a note on how they should read, and decides what metadata a string may have.
+Every source but `exec`, whose export command gives each string its type, names a `type`, and a type is the unit everything else attaches to. It groups strings in the catalogue, carries a note on how they should read, and decides what metadata a string may have.
 
 Group by how the text behaves, not by where it lives. `ui` for buttons and labels, `email` for text that must survive a mail client, `tour-step` for a sequence someone should read in order. A single `ui` is a fine start, and splitting later costs nothing but a config edit and a push.
 
