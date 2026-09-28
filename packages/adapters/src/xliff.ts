@@ -570,7 +570,7 @@ export function entriesToXliff(
           { [id]: translations[id]! },
           block,
           language,
-        );
+        ).replace(/\r?\n/g, eol);
       });
       out =
         out.slice(0, at) +

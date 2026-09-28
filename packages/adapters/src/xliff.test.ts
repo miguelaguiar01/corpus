@@ -488,3 +488,17 @@ test("a removal takes the unit alone where other markup shares its line (#847)",
     lines.replace(/\r\n {6}<trans-unit id="a">[\s\S]*?<\/trans-unit>/, ""),
   );
 });
+
+test("a unit copied from a CRLF template into an LF target takes the target's line endings (#850)", () => {
+  const unit = (id: string, target = "") =>
+    `      <trans-unit id="${id}" datatype="html">\n        <source>${id.toUpperCase()}</source>${target}\n      </trans-unit>\n`;
+  const file = (units: string) =>
+    `<?xml version="1.0" encoding="UTF-8" ?>\n<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">\n  <file source-language="en" target-language="fr" datatype="plaintext" original="ng2.template">\n    <body>\n${units}    </body>\n  </file>\n</xliff>\n`;
+  const template = file(unit("a") + unit("b")).replace(/\n/g, "\r\n");
+  const target = file(
+    unit("a", '\n        <target state="translated">Aa</target>'),
+  );
+  const out = entriesToXliff(template, { a: "Aa", b: "Bb" }, target, "fr");
+  expect(out).not.toContain("\r");
+  expect(out).toContain("Bb");
+});

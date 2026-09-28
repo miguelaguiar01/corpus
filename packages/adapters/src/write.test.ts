@@ -920,3 +920,12 @@ test("a proposal a plural object cannot hold fails, naming the key (#662)", () =
     ),
   ).toBe(`{\n  "k": { "one": "x", "other": "y" }\n}\n`);
 });
+
+test("a JSON target built from the template keeps the template's line endings and BOM (#850)", () => {
+  const crlf = '{\r\n  "a": "A",\r\n  "b": "B"\r\n}\r\n';
+  expect(entriesToMessages(crlf, { a: "X" }, undefined, { locale: "fr" })).toBe(
+    '{\r\n  "@@locale": "fr",\r\n  "a": "X"\r\n}\r\n',
+  );
+  const bom = '﻿{\n  "a": "A"\n}\n';
+  expect(entriesToMessages(bom, { a: "X" }, "")).toBe('﻿{\n  "a": "X"\n}\n');
+});
