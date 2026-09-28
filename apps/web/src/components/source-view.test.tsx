@@ -145,12 +145,26 @@ test("a nested argument's keys are listed within each branch of its outer one's,
   const outer = strip.querySelectorAll(":scope > div");
   expect(outer).toHaveLength(1);
   const female = outer[0]!.querySelectorAll(":scope > dd")[0]!;
-  // The branch reads whole, its own text kept, then the inner keys.
+  // The branch keeps its own text and names the inner argument, whose
+  // keys follow once (#769).
   expect(female.textContent?.replaceAll("\u00a0", " ")).toBe(
-    "femaleEla: # dela / # delasnone# delaother# delas",
+    "femaleEla: {n}none# delaother# delas",
   );
   const sentence = container.querySelector("p")!;
   expect(sentence.textContent?.replaceAll("\u00a0", " ")).toBe(
     "Ela: (# dela / # delas) / (# um / # uns)",
   );
+});
+
+test("a nested argument inside a tag in a branch is named within the tag (#769)", () => {
+  render(
+    <SourceView
+      source="{g, select, female {<b>Ela: {n, plural, one {# dela} other {# delas}}</b>} other {x}}"
+      declarations={{}}
+    />,
+  );
+  const strip = screen.getByRole("group", { name: "Branches" });
+  const female = strip.querySelectorAll(":scope > div > dd")[0]!;
+  expect(female.querySelector("[data-tag=b]")?.textContent).toBe("Ela: {n}");
+  expect(female.textContent?.match(/# dela/g)).toHaveLength(2);
 });
