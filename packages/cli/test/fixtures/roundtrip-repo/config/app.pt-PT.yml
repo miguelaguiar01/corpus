@@ -1,0 +1,10 @@
+pt-PT:
+  rails:
+    # The button that closes the dialog
+    close: "Fechar"
+    greeting: 'Olá %{name}'
+    items:
+      one: "%{count} item"
+      other: "%{count} itens"
+    footer_MF: |
+      Tem {n, plural, one {# aviso} other {# avisos}}.

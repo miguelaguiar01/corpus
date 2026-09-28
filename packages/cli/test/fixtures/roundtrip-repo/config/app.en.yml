@@ -1,0 +1,8 @@
+# Pulled from the translation service.
+en:
+  rails:
+    close: Close
+    greeting: 'Hello %{name}'
+    items:
+      one: "%{count} item"
+      other: "%{count} items"

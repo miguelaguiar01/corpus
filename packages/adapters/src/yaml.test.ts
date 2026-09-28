@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { yamlToEntries, yamlTranslations } from "./yaml";
+import { entriesToYaml, yamlToEntries, yamlTranslations } from "./yaml";
 
 // Discourse's shapes, cut down.
 const EN = `en:
@@ -125,4 +125,98 @@ test("a target stub reads no translations; a source with nothing under its root 
       root: "en",
     }).map((e) => e.id),
   ).toEqual(["p"]);
+});
+
+const DE = `# WARNING: Never edit this file.
+de:
+  js:
+    user_api_key:
+      title: 'Autorisiere "%{application_name}"'
+      deny: Abbrechen
+    topic_count:
+      one: "%{count} Thema"
+      other: "%{count} Themen"
+    traffic_info_footer_MF: |
+      Du hast {total, plural, one {# Anfrage} other {# Anfragen}}.
+  time:
+    am: "vorm."
+`;
+const DE_LANG = { source: "en", code: "de" };
+const own = (text: string, code = "de") =>
+  Object.fromEntries(yamlTranslations(text, code).map((e) => [e.id, e.source]));
+
+test("pulling a catalogue's own translations back writes the same bytes (#753)", () => {
+  expect(entriesToYaml(EN, own(DE), DE, DE_LANG)).toBe(DE);
+  const crlf = DE.replace(/\n/g, "\r\n");
+  expect(entriesToYaml(EN, own(crlf), crlf, DE_LANG)).toBe(crlf);
+});
+
+test("a changed scalar keeps its style: plain, single-quoted, a | block; a plural form in its hash (#753)", () => {
+  const out = entriesToYaml(
+    EN,
+    {
+      "js.user_api_key.deny": "Nein danke",
+      "js.user_api_key.title": 'Erlaube "%{application_name}"',
+      "js.traffic_info_footer_MF":
+        "Du hast {total, plural, one {# Anfrage} other {# Anfragen}} heute.\n",
+      "js.topic_count":
+        "{count, plural, one {%{count} Thema} other {%{count} Themen!}}",
+    },
+    DE,
+    DE_LANG,
+  );
+  expect(out).toBe(
+    DE.replace("deny: Abbrechen", "deny: Nein danke")
+      .replace(
+        "title: 'Autorisiere \"%{application_name}\"'",
+        "title: 'Erlaube \"%{application_name}\"'",
+      )
+      .replace("Anfragen}}.\n", "Anfragen}} heute.\n")
+      .replace('other: "%{count} Themen"', 'other: "%{count} Themen!"'),
+  );
+  // A plain scalar the text cannot be written as is double-quoted.
+  expect(
+    entriesToYaml(
+      EN,
+      { "js.user_api_key.deny": "Nein: danke #1" },
+      DE,
+      DE_LANG,
+    ),
+  ).toContain('deny: "Nein: danke #1"');
+});
+
+test("a key the file lacks goes in after its source neighbour, parents made; a missing file starts at its root (#753)", () => {
+  const without = DE.replace("      deny: Abbrechen\n", "").replace(
+    '  time:\n    am: "vorm."\n',
+    "",
+  );
+  const back = entriesToYaml(
+    EN,
+    { "js.user_api_key.deny": "Abbrechen", "time.am": "vorm." },
+    without,
+    DE_LANG,
+  );
+  expect(back).toBe(DE.replace("deny: Abbrechen", 'deny: "Abbrechen"'));
+  const fresh = entriesToYaml(
+    EN,
+    {
+      "js.topic_count":
+        "{count, plural, one {%{count} tema} other {%{count} temas}}",
+    },
+    undefined,
+    { source: "en", code: "pt_BR" },
+  );
+  expect(fresh).toBe(
+    'pt_BR:\n  js:\n    topic_count:\n      one: "%{count} tema"\n      other: "%{count} temas"\n',
+  );
+  // A plural a hash cannot hold is refused.
+  const refused: string[] = [];
+  entriesToYaml(
+    EN,
+    { "js.topic_count": "{count, plural, =0 {nada} other {%{count}}}" },
+    DE,
+    DE_LANG,
+    (id) => refused.push(id),
+  );
+  expect(refused).toEqual(["js.topic_count"]);
 });

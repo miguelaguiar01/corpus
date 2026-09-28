@@ -181,6 +181,12 @@ test("translations that match the repository's target catalogues write the same 
   translate("Abrir o menu", "Open the menu");
   translate("Cancelar", "Cancel");
   translate("Janela | Transferências (%1)", "Transfers (%1)");
+  translate("rails.close", "Close");
+  translate("rails.greeting", "Hello %{name}");
+  translate(
+    "rails.items",
+    "{count, plural, one {%{count} item} other {%{count} items}}",
+  );
   translate(
     "Janela | %n ficheiro(s)",
     "{count, plural, one {%n file} other {%n files}}",
@@ -206,6 +212,11 @@ test("a translation saved in Corpus comes back in exactly the expected file and 
   translate("porta\u2404Fechar", "Close the door");
   translate("ios.welcome", "Welcome");
   translate("Janela | Sair | menu", "Exit");
+  translate("rails.close", "Shut");
+  translate(
+    "rails.footer_MF",
+    "You have {n, plural, one {# warning} other {# warnings}}.\n",
+  );
   expect(await run(["pull", "--min-state", "translated"], ctx())).toBe(0);
   const after = tree(repo);
   // XLIFF: the one target changed, its state with it; the source file stays.
@@ -230,6 +241,13 @@ test("a translation saved in Corpus comes back in exactly the expected file and 
       '"state" : "needs_review",\n            "value" : "Welcom"',
       '"state" : "translated",\n            "value" : "Welcome"',
     ),
+  );
+  // Rails YAML: the plain scalar changed in place, the missing _MF key
+  // inserted after its neighbour; the source untouched.
+  expect(after["config/app.pt-PT.yml"]).toBe(before["config/app.pt-PT.yml"]);
+  expect(after["config/app.en.yml"]).toBe(
+    before["config/app.en.yml"]!.replace("close: Close", "close: Shut") +
+      '    footer_MF: "You have {n, plural, one {# warning} other {# warnings}}.\\n"\n',
   );
   // Qt: the unfinished row spliced, its mark gone; the source untouched.
   expect(after["qt/app_pt-PT.ts"]).toBe(before["qt/app_pt-PT.ts"]);
