@@ -495,3 +495,14 @@ test("a form added before one the text drops goes in its place, the dropped form
     ),
   );
 });
+
+test("a map's missing last child goes in before a missing key after the map, so the file parses (#802)", () => {
+  const en = `en:\n  m: "M"\n  t:\n    x: "X"\n    y: "Y"\n  s: "S"\n`;
+  const out = entriesToYaml(
+    en,
+    { m: "1", "t.x": "2", "t.y": "3", s: "4" },
+    `fr:\n  t:\n    x: "2"\n`,
+    { source: "en", code: "fr" },
+  );
+  expect(out).toBe(`fr:\n  m: "1"\n  t:\n    x: "2"\n    y: "3"\n  s: "4"\n`);
+});
