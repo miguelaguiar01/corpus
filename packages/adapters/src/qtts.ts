@@ -263,18 +263,27 @@ function escaperOf(xml: string): (text: string) => string {
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
+    // As lupdate's tsProtect() writes them (#747): a character below
+    // 0x20 but tab and newline as its `<byte>` element, which XML cannot
+    // hold raw in either style, a carriage return among them, so a text
+    // with `\r\n` reads back as written. Where the file writes
+    // references, a space above 0x7f as one, U+0085 among them; U+007F
+    // stays raw.
     if (entities)
       out = out
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&apos;")
-        // Every space but the plain one as a reference, as lupdate
-        // writes them; a control character as its `<byte>` element.
-        .replace(/[\p{Zs}\p{Cc}]/gu, (c) => {
-          const code = c.codePointAt(0)!.toString(16);
-          if (c === " " || c === "\n" || c === "\t" || c === "\r") return c;
-          return /\p{Cc}/u.test(c) ? `<byte value="x${code}"/>` : `&#x${code};`;
-        });
-    return out;
+        .replace(/[\u0085\p{Zs}\p{Zl}\p{Zp}]/gu, (c) =>
+          c === " " ? c : `&#x${c.codePointAt(0)!.toString(16)};`,
+        );
+    let bytes = "";
+    for (let i = 0; i < out.length; i++) {
+      const c = out[i]!;
+      const code = out.charCodeAt(i);
+      const kept = code >= 0x20 || c === "\n" || c === "\t";
+      bytes += kept ? c : `<byte value="x${code.toString(16)}"/>`;
+    }
+    return bytes;
   };
 }
 
