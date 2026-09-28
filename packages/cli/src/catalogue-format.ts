@@ -15,7 +15,6 @@ const READ = new Set([
 const NAMED: Record<string, string> = {
   ".yml": "a YAML catalogue",
   ".yaml": "a YAML catalogue",
-  ".xcstrings": "a String Catalog",
   ".strings": "an Apple .strings catalogue",
   ".stringsdict": "an Apple .stringsdict catalogue",
   ".properties": "a Java .properties catalogue",
@@ -45,6 +44,8 @@ export function unreadableCatalogue(
     return `a gettext catalogue: declare it { adapter: "gettext", type, path, sourcePath? }`;
   if (ext === ".xlf" || ext === ".xliff")
     return `an XLIFF catalogue: declare it { adapter: "xliff", type, path, sourcePath? }`;
+  if (ext === ".xcstrings")
+    return `a String Catalog: declare it { adapter: "xcstrings", type, path }`;
   if (ext === ".ftl")
     return `a Fluent catalogue: declare it { adapter: "fluent", type, path }`;
   if (ext === ".xml")
