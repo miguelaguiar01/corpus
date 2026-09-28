@@ -314,6 +314,29 @@ function keyText(key: string): string {
     : doubleQuoted(key);
 }
 
+// The keys of a catalogue under its root as the file writes them, by id
+// (`"no"`, `01`), for a key another file lacks.
+function writtenKeys(text: string, root: string): Map<string, string> {
+  const out = new Map<string, string>();
+  const body = text.replace(/^\uFEFF/, "");
+  const document = parseDocument(body, { uniqueKeys: false });
+  const walk = (map: YAMLMap, path: string[]) => {
+    for (const pair of map.items) {
+      const key = keyOf(pair, body);
+      const range = (pair.key as Node | null)?.range;
+      if (key === undefined || !range) continue;
+      const id = [...path, key];
+      out.set(id.join("."), body.slice(range[0], range[1]));
+      if (isMap(pair.value)) walk(pair.value, id);
+    }
+  };
+  if (isMap(document.contents)) {
+    const top = document.contents.items.find((p) => keyOf(p, body) === root);
+    if (top && isMap(top.value)) walk(top.value, []);
+  }
+  return out;
+}
+
 // Pull's write into a target Rails catalogue (§8): a changed scalar in
 // its own style, a plural's forms in its hash, whichever the source file
 // makes the key; a key the file lacks after the one before it in the
@@ -325,43 +348,40 @@ export function entriesToYaml(
   translations: Record<string, string>,
   existing: string | undefined,
   language: { source: string; code: string },
-  onRefused?: (id: string, text: string) => void,
+  onRefused?: (id: string, text: string, why: YamlRefusal) => void,
 ): string {
   const base =
     existing === undefined || existing.trim() === ""
       ? `${language.code}:\n`
       : existing;
-  const eol = /\r\n/.test(base) ? "\r\n" : "\n";
   const sourceStrings = yamlStrings(template, language.source, {
     source: true,
   });
-  const order = sourceStrings.map((s) => s.id);
-  const plural = new Set(
-    sourceStrings.flatMap((s) => (s.plural ? [s.id] : [])),
+  return writeYaml(
+    base,
+    language.code,
+    sourceStrings.map((s) => s.id),
+    new Set(sourceStrings.flatMap((s) => (s.plural ? [s.id] : []))),
+    writtenKeys(template, language.source),
+    translations,
+    onRefused,
   );
-  // The source's own text for each key, `"no"` and `01` as written.
-  const keysAsWritten = new Map<string, string>();
-  const sourceDoc = parseDocument(template.replace(/^\uFEFF/, ""), {
-    uniqueKeys: false,
-  });
-  const sourceBody = template.replace(/^\uFEFF/, "");
-  const noteKeys = (map: YAMLMap, path: string[]) => {
-    for (const pair of map.items) {
-      const key = keyOf(pair, sourceBody);
-      const range = (pair.key as Node | null)?.range;
-      if (key === undefined || !range) continue;
-      const id = [...path, key];
-      keysAsWritten.set(id.join("."), sourceBody.slice(range[0], range[1]));
-      if (isMap(pair.value)) noteKeys(pair.value, id);
-    }
-  };
-  if (isMap(sourceDoc.contents)) {
-    const root = sourceDoc.contents.items.find(
-      (p) => keyOf(p, sourceBody) === language.source,
-    );
-    if (root && isMap(root.value)) noteKeys(root.value, []);
-  }
+}
 
+// The write itself, into `base` rooted at `code`: `order` is the ids in
+// the order a missing one is placed by, `plural` those written as a
+// hash, `keysAsWritten` the text of a key the file lacks.
+function writeYaml(
+  base: string,
+  code: string,
+  order: string[],
+  plural: Set<string>,
+  keysAsWritten: Map<string, string>,
+  translations: Record<string, string>,
+  onRefused?: (id: string, text: string, why: YamlRefusal) => void,
+): string {
+  const language = { code };
+  const eol = /\r\n/.test(base) ? "\r\n" : "\n";
   const document = parseDocument(base, { uniqueKeys: false });
   if (document.errors.length > 0)
     throw new Error(document.errors[0]!.message.split("\n")[0]);
@@ -446,7 +466,7 @@ export function entriesToYaml(
     if (now && now.text === text) continue;
     const forms = plural.has(id) ? formsOf(text) : undefined;
     if (plural.has(id) && !forms) {
-      onRefused?.(id, text);
+      onRefused?.(id, text, "plural");
       continue;
     }
     const pair = pairs.get(id);
@@ -530,7 +550,7 @@ export function entriesToYaml(
       !containers.has(parent) ||
       pairs.has(path.slice(0, depth + 1).join("."))
     ) {
-      onRefused?.(id, translations[id]!);
+      onRefused?.(id, translations[id]!, "parent");
       continue;
     }
     const list = byContainer.get(parent) ?? [];
@@ -638,4 +658,114 @@ export function entriesToYaml(
     }
   }
   return applied(base, patches);
+}
+
+// Why a write was refused: a plural a Rails hash cannot hold, or a key
+// whose parent is a scalar, a flow hash or an alias.
+export type YamlRefusal = "plural" | "parent";
+
+export type YamlOp =
+  | { kind: "edit" | "add"; id: string; text: string }
+  | { kind: "delete"; id: string };
+
+// A proposal into a Rails catalogue (§11), the source file or, for a
+// removal, a target: an edit rewrites the key's scalar in its own style,
+// an addition goes after the last key of its parent the file holds, its
+// parents made as needed, a plural text as a hash; a removal drops the
+// key's lines and the comment above it. An edit of a key the file no
+// longer has, or a removal of one, is nothing to do.
+export function applyYamlOps(
+  text: string,
+  ops: YamlOp[],
+  code: string,
+): string {
+  const strings = yamlStrings(text, code);
+  const held = new Set(strings.map((s) => s.id));
+  const order = strings.map((s) => s.id);
+  const plural = new Set(strings.flatMap((s) => (s.plural ? [s.id] : [])));
+  const writes: Record<string, string> = {};
+  for (const op of ops) {
+    if (op.kind === "delete") continue;
+    if (op.kind === "edit" && !held.has(op.id)) continue;
+    writes[op.id] = op.text;
+    if (held.has(op.id)) continue;
+    // After the last held key sharing the most of its path.
+    const path = op.id.split(".");
+    let at = -1;
+    for (let depth = path.length - 1; depth >= 0 && at < 0; depth--) {
+      const prefix = path.slice(0, depth).join(".");
+      order.forEach((id, i) => {
+        if (depth === 0 || id.startsWith(`${prefix}.`)) at = i;
+      });
+    }
+    order.splice(at + 1, 0, op.id);
+    // A `*_MF` key is ICU the app compiles: a scalar whatever its text.
+    if (!/_MF$/.test(op.id) && formsOf(op.text)) plural.add(op.id);
+  }
+  let out =
+    Object.keys(writes).length === 0
+      ? text
+      : writeYaml(
+          text,
+          code,
+          order,
+          plural,
+          writtenKeys(text, code),
+          writes,
+          (id, _text, why) => {
+            throw new Error(
+              why === "plural"
+                ? `${id}: a plural a Rails hash cannot hold (an =N branch, or text beside it)`
+                : `${id}: its parent in the file is a scalar, a hash written inline or an alias, which cannot take the key`,
+            );
+          },
+        );
+  const removals = ops.filter((o) => o.kind === "delete").map((o) => o.id);
+  if (removals.length === 0) return out;
+  // Each removal's lines: from its key's line, or the comment lines just
+  // above it, through the line its value ends on.
+  const document = parseDocument(out, { uniqueKeys: false });
+  const top = document.contents;
+  const root = isMap(top)
+    ? [...top.items].reverse().find((p) => keyOf(p, out) === code)
+    : undefined;
+  const spans: Patch[] = [];
+  const walk = (map: YAMLMap, path: string[]) => {
+    for (const pair of map.items) {
+      const key = keyOf(pair, out);
+      if (key === undefined) continue;
+      const id = [...path, key].join(".");
+      if (removals.includes(id)) {
+        const keyStart = (pair.key as Node).range![0];
+        let start = out.lastIndexOf("\n", keyStart - 1) + 1;
+        // Comment lines above go with it, never a line of the value
+        // before it: a block scalar's `# Heading` is text.
+        const index = map.items.indexOf(pair);
+        const before = index > 0 ? map.items[index - 1] : undefined;
+        const floor = before
+          ? ((before.value as Node | null)?.range?.[1] ??
+            (before.key as Node).range![1])
+          : 0;
+        while (start > floor) {
+          const prev = out.lastIndexOf("\n", start - 2) + 1;
+          if (prev < floor || !out.slice(prev, start).trim().startsWith("#"))
+            break;
+          start = prev;
+        }
+        const value = pair.value as Node | null;
+        const end = value?.range?.[1] ?? (pair.key as Node).range![1];
+        const nl = out[end - 1] === "\n" ? end : out.indexOf("\n", end) + 1;
+        spans.push({ start, end: nl <= 0 ? out.length : nl, text: "" });
+      } else if (isMap(pair.value) && pair.value.flow) {
+        const inside = removals.find((r) => r.startsWith(`${id}.`));
+        if (inside)
+          throw new Error(
+            `${inside}: its parent in the file is a hash written inline, which a removal cannot edit line by line`,
+          );
+      } else if (isMap(pair.value)) walk(pair.value, [...path, key]);
+    }
+  };
+  if (root && isMap(root.value)) walk(root.value, []);
+  out = applied(out, spans);
+  return out;
 }
