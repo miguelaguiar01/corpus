@@ -19,7 +19,8 @@ export function inPositionOrder(names: string[], syntax: Library): string[] {
   return names.sort((a, b) => position(a) - position(b));
 }
 
-// Every value a source takes, placeholders then counts, in source order,
+// Every value a source takes, placeholders then counts, in source order
+// (under printf, in position order, #739),
 // with what the type declares for the slot (§5) and the first example's
 // value per language (§7): what a translator reads off the chips, for
 // an agent that has no chips.
