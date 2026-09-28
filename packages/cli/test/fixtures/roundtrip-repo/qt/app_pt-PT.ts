@@ -14,5 +14,13 @@
         <comment>menu</comment>
         <translation type="unfinished"></translation>
     </message>
+    <message numerus="yes">
+        <location filename="../janela.cpp" line="31"/>
+        <source>%n ficheiro(s)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
 </context>
 </TS>

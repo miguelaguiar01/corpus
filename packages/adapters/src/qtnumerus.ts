@@ -1,0 +1,202 @@
+// Qt's own numerus rules (#743), from qttools' `numerus.cpp`: the
+// Plural-Forms expression each family of languages is counted by, and
+// the language codes in it. Qt's form count is not CLDR's (French has
+// two forms, where integers reach three categories), so a form maps to
+// a category through the expression, as a gettext file's does. The
+// expressions are the rules lrelease compiles, not the gettext strings
+// Qt prints beside them: Macedonian counts by n%10, not n%100.
+const QT_NUMERUS: [string, string[]][] = [
+  [
+    "nplurals=1; plural=0;",
+    [
+      "bi",
+      "bo",
+      "dz",
+      "fa",
+      "fj",
+      "gn",
+      "hu",
+      "id",
+      "ja",
+      "jv",
+      "ko",
+      "ms",
+      "my",
+      "na",
+      "om",
+      "su",
+      "th",
+      "tr",
+      "tt",
+      "vi",
+      "yo",
+      "za",
+      "zh",
+    ],
+  ],
+  [
+    "nplurals=2; plural=(n != 1);",
+    [
+      "aa",
+      "ab",
+      "af",
+      "am",
+      "as",
+      "ay",
+      "az",
+      "ba",
+      "bg",
+      "bn",
+      "ca",
+      "co",
+      "da",
+      "de",
+      "el",
+      "en",
+      "eo",
+      "es",
+      "et",
+      "eu",
+      "fi",
+      "fo",
+      "fur",
+      "fy",
+      "gl",
+      "gu",
+      "ha",
+      "he",
+      "hi",
+      "ia",
+      "ie",
+      "it",
+      "ka",
+      "kk",
+      "kl",
+      "km",
+      "kn",
+      "ks",
+      "ku",
+      "kw",
+      "ky",
+      "la",
+      "lb",
+      "lg",
+      "ln",
+      "lo",
+      "mg",
+      "ml",
+      "mn",
+      "mr",
+      "nb",
+      "ne",
+      "nl",
+      "nn",
+      "no",
+      "nso",
+      "oc",
+      "or",
+      "pa",
+      "ps",
+      "pt",
+      "qu",
+      "rm",
+      "rn",
+      "rw",
+      "sd",
+      "si",
+      "sn",
+      "so",
+      "sq",
+      "ss",
+      "st",
+      "sv",
+      "sw",
+      "ta",
+      "te",
+      "tg",
+      "tk",
+      "tn",
+      "to",
+      "ts",
+      "ug",
+      "ur",
+      "uz",
+      "vo",
+      "wo",
+      "xh",
+      "yi",
+      "zu",
+    ],
+  ],
+  ["nplurals=2; plural=(n > 1);", ["br", "fil", "fr", "hy", "ti", "wa"]],
+  ["nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n != 0 ? 1 : 2);", ["lv"]],
+  ["nplurals=2; plural=(n%10==1 && n%100!=11 ? 0 : 1);", ["is"]],
+  [
+    "nplurals=3; plural=(n==1 ? 0 : n==2 ? 1 : 2);",
+    ["dv", "ga", "gv", "ik", "iu", "mi", "sa", "se", "sm"],
+  ],
+  ["nplurals=3; plural=((n==1) ? 0 : (n>=2 && n<=4) ? 1 : 2);", ["cs", "sk"]],
+  ["nplurals=3; plural=(n%10==1 ? 0 : n%10==2 ? 1 : 2);", ["mk"]],
+  [
+    "nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && (n%100<10 || n%100>=20) ? 1 : 2);",
+    ["lt"],
+  ],
+  [
+    "nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);",
+    ["be", "bs", "hr", "ru", "sr", "uk"],
+  ],
+  [
+    "nplurals=3; plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);",
+    ["pl"],
+  ],
+  [
+    "nplurals=3; plural=(n==1 ? 0 : (n==0 || (n%100 > 0 && n%100 < 20)) ? 1 : 2);",
+    ["mo", "ro"],
+  ],
+  [
+    "nplurals=4; plural=(n%100==1 ? 0 : n%100==2 ? 1 : n%100==3 || n%100==4 ? 2 : 3);",
+    ["sl"],
+  ],
+  [
+    "nplurals=4; plural=(n==1 ? 0 : (n==0 || (n%100>=1 && n%100<=10)) ? 1 : (n%100>=11 && n%100<=19) ? 2 : 3);",
+    ["mt"],
+  ],
+  [
+    "nplurals=5; plural=(n==0 ? 0 : n==1 ? 1 : (n>=2 && n<=5) ? 2 : n==6 ? 3 : 4);",
+    ["cy"],
+  ],
+  [
+    "nplurals=6; plural=(n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : (n%100>=3 && n%100<=10) ? 3 : n%100>=11 ? 4 : 5);",
+    ["ar"],
+  ],
+  [
+    "nplurals=4; plural=(n==1 || n==11) ? 0 : (n==2 || n==12) ? 1 : (n > 2 && n < 20) ? 2 : 3;",
+    ["gd"],
+  ],
+];
+
+// Qt's older codes for a language (QLocale's codeToLanguage).
+const LEGACY: Record<string, string> = {
+  tl: "fil",
+  sh: "sr",
+  iw: "he",
+  in: "id",
+  ji: "yi",
+  no: "nb",
+};
+
+// The expression Qt counts a language's forms by: its base language's
+// row. Portuguese counts as French does unless a region other than
+// Brazil is named, since Qt reads a bare `pt` as Brazil's. A language
+// Qt has no rule for has the one form lupdate gives it.
+export function qtPluralForms(language: string): string {
+  const [base, region] = language.replace(/_/g, "-").split(/[-@]/);
+  const lower = base!.toLowerCase();
+  const code = LEGACY[lower] ?? lower;
+  if (code === "pt" && (region === undefined || region.toUpperCase() === "BR"))
+    return "nplurals=2; plural=(n > 1);";
+  return (
+    QT_NUMERUS.find(([, codes]) => codes.includes(code))?.[0] ??
+    "nplurals=1; plural=0;"
+  );
+}

@@ -119,7 +119,7 @@ test("pulling a .ts file's own translations back writes the same bytes (#741)", 
   const own = Object.fromEntries(
     qtTsTranslations(DE).map((e) => [e.id, e.source]),
   );
-  expect(entriesToQtTs(EN, own, DE, "de")).toBe(DE);
+  expect(entriesToQtTs(EN, own, DE, { tag: "de", code: "de" })).toBe(DE);
 });
 
 test("a changed translation is spliced alone, unfinished dropped, escaped as the file escapes (#741)", () => {
@@ -127,7 +127,7 @@ test("a changed translation is spliced alone, unfinished dropped, escaped as the
     EN,
     { "AboutDialog | N/A | This date is unavailable": 'Datum „n/a"  ' },
     DE,
-    "de",
+    { tag: "de", code: "de" },
   );
   expect(out).toBe(
     DE.replace(
@@ -144,7 +144,7 @@ test("a changed translation is spliced alone, unfinished dropped, escaped as the
     EN,
     { 'AboutDialog | About "qBittorrent"': 'Über "qBittorrent"' },
     raw,
-    "de",
+    { tag: "de", code: "de" },
   );
   expect(rawOut).toContain('<translation>Über "qBittorrent"</translation>');
 });
@@ -160,14 +160,14 @@ test("a message the file lacks is inserted after its neighbour; a missing file s
       EN,
       { "AboutDialog | About qBittorrent": "Über qBittorrent" },
       without,
-      "de",
+      { tag: "de", code: "de" },
     ),
   ).toBe(DE);
   const fresh = entriesToQtTs(
     EN,
     { "AboutDialog | About qBittorrent": "Über qBittorrent" },
     undefined,
-    "sr@latin",
+    { tag: "sr-Latn", code: "sr@latin" },
   );
   expect(fresh).toContain('<TS version="2.1" language="sr@latin">');
   expect(qtTsTranslations(fresh)).toEqual([
@@ -188,7 +188,10 @@ test("a fresh target empties the template's numerus forms; a vanished message co
     "</context>\n</TS>",
     `    <message numerus="yes">\n        <source>%n file(s)</source>\n        <translation><numerusform>%n file</numerusform><numerusform>%n files</numerusform></translation>\n    </message>\n</context>\n</TS>`,
   );
-  const fresh = entriesToQtTs(withPlural, {}, undefined, "de");
+  const fresh = entriesToQtTs(withPlural, {}, undefined, {
+    tag: "de",
+    code: "de",
+  });
   expect(fresh).toContain(
     '<translation type="unfinished"><numerusform></numerusform><numerusform></numerusform></translation>',
   );
@@ -202,7 +205,7 @@ test("a fresh target empties the template's numerus forms; a vanished message co
       EN,
       { "AboutDialog | About qBittorrent": "Über qBittorrent" },
       vanished,
-      "de",
+      { tag: "de", code: "de" },
     ),
   ).toBe(DE);
   // An ideographic space as a reference, a control character as <byte>.
@@ -210,7 +213,7 @@ test("a fresh target empties the template's numerus forms; a vanished message co
     EN,
     { "AboutDialog | About qBittorrent": "Über\u3000qBittorrent\u0001" },
     DE,
-    "de",
+    { tag: "de", code: "de" },
   );
   expect(out).toContain(
     '<translation>Über&#x3000;qBittorrent<byte value="x1"/></translation>',
@@ -220,4 +223,148 @@ test("a fresh target empties the template's numerus forms; a vanished message co
       (e) => e.id === "AboutDialog | About qBittorrent",
     )?.source,
   ).toBe("Über\u3000qBittorrent\u0001");
+});
+
+// lupdate's numerus layout: a form a line.
+const numerus = (language: string, forms: string[], state = "") =>
+  `<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE TS>
+<TS version="2.1"${language ? ` language="${language}"` : ""}>
+<context>
+    <name>Main</name>
+    <message numerus="yes">
+        <source>%n file(s)</source>
+        <translation${state}>
+${forms.map((f) => `            <numerusform>${f}</numerusform>`).join("\n")}
+        </translation>
+    </message>
+</context>
+</TS>
+`;
+
+test("numerus forms read as one plural on count through Qt's rules, and write back in its order (#743)", () => {
+  const template = numerus("", ["", ""], ' type="unfinished"');
+  expect(qtTsToEntries(template, { type: "ui" })[0]?.source).toBe(
+    "{count, plural, other {%n file(s)}}",
+  );
+  const pl = numerus("pl", ["%n plik", "%n pliki", "%n plików"]);
+  const read = qtTsTranslations(pl, "pl")[0]!.source;
+  expect(read).toBe(
+    "{count, plural, one {%n plik} few {%n pliki} many {%n plików} other {%n plików}}",
+  );
+  const PL = { tag: "pl", code: "pl" };
+  expect(entriesToQtTs(template, { "Main | %n file(s)": read }, pl, PL)).toBe(
+    pl,
+  );
+  // French counts 0 and 1 as the singular: two forms, where CLDR has three.
+  const fr = numerus("fr", ["%n fichier", "%n fichiers"]);
+  const frRead = qtTsTranslations(fr, "fr")[0]!.source;
+  expect(frRead).toBe(
+    "{count, plural, one {%n fichier} many {%n fichiers} other {%n fichiers}}",
+  );
+  expect(
+    entriesToQtTs(template, { "Main | %n file(s)": frRead }, fr, {
+      tag: "fr",
+      code: "fr",
+    }),
+  ).toBe(fr);
+  // A new Russian plural lands as three forms, in lupdate's layout.
+  expect(
+    entriesToQtTs(
+      template,
+      {
+        "Main | %n file(s)":
+          "{count, plural, one {%n файл} few {%n файла} many {%n файлов} other {%n файла}}",
+      },
+      undefined,
+      { tag: "ru", code: "ru" },
+    ),
+  ).toBe(numerus("ru", ["%n файл", "%n файла", "%n файлов"]));
+  // A plain text for a numerus message is refused.
+  const refused: string[] = [];
+  expect(
+    entriesToQtTs(template, { "Main | %n file(s)": "plik" }, pl, PL, (id) =>
+      refused.push(id),
+    ),
+  ).toBe(pl);
+  expect(refused).toEqual(["Main | %n file(s)"]);
+  // A template's self-closing plural translation starts empty.
+  const closed = template.replace(
+    /<translation type="unfinished">[\s\S]*?<\/translation>/,
+    "<translation/>",
+  );
+  expect(entriesToQtTs(closed, {}, undefined, PL)).toContain(
+    '<translation type="unfinished"></translation>',
+  );
+});
+
+test("Qt's own counts: Macedonian by n%10, one form where Qt has no rule, older codes; no form ships empty; length variants kept (#743)", () => {
+  const template = numerus("", ["", ""], ' type="unfinished"');
+  const id = "Main | %n file(s)";
+  // Macedonian's singular is read and written.
+  const mk = numerus("mk", ["%n датотека", "%n датотеки", "%n датотеки"]);
+  expect(qtTsTranslations(mk, "mk")[0]!.source).toMatch(/one \{%n датотека\}/);
+  // Asturian has no Qt rule: one form, kept on a pull of its own.
+  const ast = numerus("ast", ["%n ficheros"]);
+  const AST = { tag: "ast", code: "ast" };
+  expect(
+    entriesToQtTs(
+      template,
+      { [id]: qtTsTranslations(ast, "ast")[0]!.source },
+      ast,
+      AST,
+    ),
+  ).toBe(ast);
+  // iw is Hebrew to Qt: two forms.
+  const iw = numerus("iw", ["%n קובץ", "%n קבצים"]);
+  expect(
+    entriesToQtTs(
+      template,
+      { [id]: qtTsTranslations(iw, "iw")[0]!.source },
+      iw,
+      {
+        tag: "iw",
+        code: "iw",
+      },
+    ),
+  ).toBe(iw);
+  // A fresh Latvian file: the zero form takes other's text, not nothing.
+  const lv = entriesToQtTs(
+    template,
+    {
+      [id]: "{count, plural, zero {%n failu} one {%n fails} other {%n faili}}",
+    },
+    undefined,
+    { tag: "lv", code: "lv" },
+  );
+  expect(lv).not.toContain("<numerusform></numerusform>");
+  // A file that leaves that form empty is left as it is on a pull of
+  // its own translations.
+  const lvFile = numerus("lv", ["%n fails", "%n faili", ""]);
+  expect(
+    entriesToQtTs(
+      template,
+      { [id]: qtTsTranslations(lvFile, "lv")[0]!.source },
+      lvFile,
+      { tag: "lv", code: "lv" },
+    ),
+  ).toBe(lvFile);
+  // A form with length variants, left as it was, keeps them.
+  const pl = numerus("pl", [
+    "<lengthvariant>%n plik</lengthvariant><lengthvariant>%n p.</lengthvariant>",
+    "%n pliki",
+    "%n plików",
+  ]);
+  const changed = entriesToQtTs(
+    template,
+    {
+      [id]: "{count, plural, one {%n plik} few {%n pliki!} many {%n plików} other {%n plików}}",
+    },
+    pl,
+    { tag: "pl", code: "pl" },
+  );
+  expect(changed).toContain(
+    '<numerusform variants="yes"><lengthvariant>%n plik</lengthvariant><lengthvariant>%n p.</lengthvariant></numerusform>',
+  );
+  expect(changed).toContain("<numerusform>%n pliki!</numerusform>");
 });
