@@ -535,21 +535,64 @@ function eolOf(text: string): string {
 
 // The target file a missing one starts as: the template, its header's
 // `Language:` the file's code, its charset UTF-8 and its fuzzy flag
-// gone, as msginit does.
+// gone, as msginit does. A template that is the source language's own
+// `.po` keeps its entries with every msgstr emptied, or its text would
+// seed as the new language's (#725).
 function targetFrom(template: string, code: string): string {
-  const header = parsePo(template).find((e) => e.msgid === "" && !e.msgctxt);
-  const span = header?.at.msgstr[0];
-  if (!header || !span) return template;
+  const entries = parsePo(template);
   const eol = eolOf(template);
-  const unflagged = header.at.flags
-    ? [fuzzyRemoval(template, header, header.at.flags)]
-    : [];
-  let block = template.slice(span.start, span.end);
-  block = block.replace(/charset=CHARSET/, "charset=UTF-8");
-  block = /"Language:[^"\\]*(?:\\.[^"\\]*)*"/.test(block)
-    ? block.replace(/("Language:)[^"\\]*(\\n")/, `$1 ${code}$2`)
-    : `${block}${eol}"Language: ${code}\\n"`;
-  return applyPatches(template, [{ ...span, text: block }, ...unflagged]);
+  const header = entries.find((e) => e.msgid === "" && !e.msgctxt);
+  const patches: Patch[] = entries
+    .filter((e) => e !== header)
+    .flatMap((e) =>
+      entryPatches(
+        template,
+        e,
+        e.msgstr.map(() => ""),
+        eol,
+      ),
+    );
+  const span = header?.at.msgstr[0];
+  if (header && span) {
+    if (header.at.flags)
+      patches.push(fuzzyRemoval(template, header, header.at.flags));
+    let block = template.slice(span.start, span.end);
+    block = block.replace(/charset=CHARSET/, "charset=UTF-8");
+    block = /"Language:[^"\\]*(?:\\.[^"\\]*)*"/.test(block)
+      ? block.replace(/("Language:)[^"\\]*(\\n")/, `$1 ${code}$2`)
+      : `${block}${eol}"Language: ${code}\\n"`;
+    patches.push({ ...span, text: block });
+  }
+  // A `.pot`, whose msgstrs are all empty, is kept as msginit keeps it.
+  const translated = entries.some(
+    (e) => e !== header && e.msgstr.some((m) => m !== ""),
+  );
+  const started = applyPatches(template, patches);
+  return translated ? withoutObsolete(started) : started;
+}
+
+// A file with its obsolete `#~` entries, and the comments above them,
+// gone: a new file has no history, and msgmerge would revive one whose
+// msgid returns with the source language's text as its msgstr (#725).
+function withoutObsolete(text: string): string {
+  const parts = text.split(/(\r?\n(?:[ \t]*\r?\n)+)/);
+  const obsolete = (block: string) => {
+    const lines = block.split(/\r?\n/).filter((l) => l.trim() !== "");
+    return (
+      lines.length > 0 &&
+      lines.every((l) => l.startsWith("#")) &&
+      lines.some((l) => l.startsWith("#~"))
+    );
+  };
+  let out = "";
+  for (let i = 0; i < parts.length; i += 2) {
+    const block = parts[i]!;
+    if (obsolete(block)) continue;
+    out += (out === "" ? "" : (parts[i - 1] ?? "")) + block;
+  }
+  const eol = eolOf(text);
+  if (/\r?\n$/.test(text) && !out.endsWith("\n")) out += eol;
+  return out;
 }
 
 // What an entry's msgstrs become: `msgstr` the text, or each `msgstr[n]`
