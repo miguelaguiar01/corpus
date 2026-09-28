@@ -10,7 +10,7 @@ One key-value catalogue per language.
 { adapter: "messages", type: "ui", path: "src/i18n/{lang}.json" }
 ```
 
-The files are JSON (`.json`, Flutter's `.arb`) or a JavaScript or TypeScript module that default-exports the object. Any other catalogue is refused by name: gettext `.po` and XLIFF have adapters of their own, [gettext](#gettext) and [xliff](#xliff), Apple's String Catalog has [xcstrings](#xcstrings), Qt Linguist's XML `.ts` has [qt-ts](#qt-ts), and an [exec](#exec) source converts YAML.
+The files are JSON (`.json`, Flutter's `.arb`) or a JavaScript or TypeScript module that default-exports the object. Any other catalogue is refused by name: gettext `.po` and XLIFF have adapters of their own, [gettext](#gettext) and [xliff](#xliff), Apple's String Catalog has [xcstrings](#xcstrings), Qt Linguist's XML `.ts` has [qt-ts](#qt-ts), Rails' YAML has [yaml](#yaml), and an [exec](#exec) source converts anything else.
 
 An object whose keys are all plural categories, `other` among them, is one string, not one per key: `"rooms": { "one": "{{count}} room", "other": "{{count}} rooms" }` reads as `{count, plural, one {{{count}} room} other {{{count}} rooms}}`, so the editor shows one plural and a Polish translation gains `few` and `many`, which a pull writes back into the object in CLDR's order. This holds under `icu`, `i18next`, `printf`, `counterpart`, `easy_localization`, `rails` and `qt`; under `vue` the forms stay keys of their own.
 
@@ -114,6 +114,18 @@ Qt Linguist's `.ts` files, one per language:
 The source is the source language's file, often `lupdate`'s template with every translation empty; `sourcePath` names another. `corpus init --messages src/lang/app_{lang}.ts` writes the source when the file is Qt's XML, and a POSIX code among the files, `sr@latin`, goes into `languageFiles` as its tag, `sr-Latn`. A message is a string named by Qt's own identity, `Context | source`, or `Context | source | comment` where a disambiguating comment tells two apart; its `<extracomment>`, comment and locations are the note. Only a finished translation is one already made: an `unfinished` one is work, and a vanished one is not read. The library is [qt](Your-i18n-library#qt). Qt's source text is the code's `tr()` literal, so no proposal reaches it.
 
 A pull writes a changed translation into its `<translation>` and nothing else, drops its `unfinished` mark, and escapes as the file does: `&quot;` and `&#xa0;` where lupdate and Transifex wrote the file, raw quotes where it keeps them raw. A message the file lacks goes in where the source file has it, and a language with no file yet gets one made from the source file. A plural (`numerus`) message is one plural on `count`: its forms map to the language's CLDR categories through Qt's own rule for the language, so French has two forms and Polish three, and a pull writes them back in Qt's order. A form no CLDR category reads, Latvian's for zero or Filipino's for 0 and 1, is not shown in the editor: a pull keeps it as the file has it, and fills it only where it would otherwise be empty.
+
+## yaml
+
+Rails I18n's YAML catalogues, one file per language rooted at its code:
+
+```ts
+{ adapter: "yaml", type: "ui", path: "config/locales/client.{lang}.yml" }
+```
+
+`corpus init --messages config/locales/client.{lang}.yml` writes the source, and refuses a YAML file that is not rooted at its language, as Symfony's and Hugo's are, pointing at an exec source. A string is a scalar under the root key, named by its dotted path (`js.user_api_key.deny`); a hash of plural categories (`one:`, `other:`) is one plural; a key ending in `_MF` is ICU MessageFormat, as Discourse's messageFormat reads it; the comment above a key is its note. Anchors, aliases and `<<:` merges are read where they are written, so a merged key is not a second string. A file whose language code differs from the config's tag, `pt_BR` for `pt-BR`, maps through `languageFiles`. The library is [rails](Your-i18n-library#rails-i18n-and-i18njs).
+
+A pull writes a changed translation into its scalar in the scalar's own style, plain, quoted or a `|` or `>` block, quoting what Rails' YAML 1.1 would read as another type (`yes`, `no`, `on`); a missing key goes in after its neighbour in the source file, its parents made as needed; comments, anchors and every other byte stay. A key under a hash written inline (`{a: A}`) that already holds keys is refused by name, and so is a plural with an `=N` branch.
 
 ## exec
 

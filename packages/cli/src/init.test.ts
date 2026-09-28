@@ -768,12 +768,17 @@ test("init reads languages through a {ns} pattern in either order, and names sib
   expect(langs.out.join("\n")).not.toMatch(/sibling catalogue/);
 });
 
-test("init refuses a catalogue no adapter reads, by its format (#647)", async () => {
+test("init writes a yaml source for Rails catalogues, the languages from the files (#754)", async () => {
   const p = project();
+  stubCli(p.dir);
   mkdirSync(path.join(p.dir, "config", "locales"), { recursive: true });
   writeFileSync(
     path.join(p.dir, "config", "locales", "client.en.yml"),
-    "en:\n  a: A\n",
+    'en:\n  a: "Hello %{name}"\n',
+  );
+  writeFileSync(
+    path.join(p.dir, "config", "locales", "client.pt_BR.yml"),
+    'pt_BR:\n  a: "Olá %{name}"\n',
   );
   const code = await run(
     [
@@ -787,11 +792,16 @@ test("init refuses a catalogue no adapter reads, by its format (#647)", async ()
     ],
     p.ctx,
   );
-  expect(code).toBe(1);
-  expect(p.err.join("\n")).toMatch(
-    /--messages config\/locales\/client\.\{lang\}\.yml: a YAML catalogue: declare it \{ adapter: "yaml"/,
-  );
-  expect(existsSync(path.join(p.dir, "corpus.config.mjs"))).toBe(false);
+  expect(p.err.join("\n")).toBe("");
+  expect(code).toBe(0);
+  const config = await loadConfig(p.dir);
+  expect(config.languages).toEqual(["en", "pt_BR"]);
+  expect(config.sources[0]).toEqual({
+    adapter: "yaml",
+    type: "chrome",
+    path: "config/locales/client.{lang}.yml",
+  });
+  expect(await run(["build"], p.ctx)).toBe(0);
 });
 
 test("init writes a qt-ts source for Qt Linguist .ts files, a POSIX code mapped through languageFiles (#742)", async () => {
@@ -1272,4 +1282,54 @@ test("init's qt-ts: --languages keeps its mappings, an unmapped POSIX file is na
   expect(r.err.join("\n")).toContain(
     "no lang/app_en.ts; set the qt-ts source's sourcePath",
   );
+});
+
+test("init refuses a catalogue no adapter reads, by its format (#647)", async () => {
+  const p = project();
+  mkdirSync(path.join(p.dir, "i18n"), { recursive: true });
+  writeFileSync(path.join(p.dir, "i18n", "app_en.properties"), "a=A\n");
+  const code = await run(
+    [
+      "init",
+      "--project",
+      "x",
+      "--source",
+      "en",
+      "--messages",
+      "i18n/app_{lang}.properties",
+    ],
+    p.ctx,
+  );
+  expect(code).toBe(1);
+  expect(p.err.join("\n")).toMatch(
+    /a Java \.properties catalogue, which no adapter reads/,
+  );
+  expect(existsSync(path.join(p.dir, "corpus.config.mjs"))).toBe(false);
+});
+
+test("init refuses a YAML catalogue that is not Rails', naming what it holds (#754)", async () => {
+  const p = project();
+  mkdirSync(path.join(p.dir, "translations"), { recursive: true });
+  writeFileSync(
+    path.join(p.dir, "translations", "messages.en.yaml"),
+    'hello: "Hello"\nbye: "Bye"\n',
+  );
+  const code = await run(
+    [
+      "init",
+      "--project",
+      "x",
+      "--source",
+      "en",
+      "--messages",
+      "translations/messages.{lang}.yaml",
+    ],
+    p.ctx,
+  );
+  expect(code).toBe(1);
+  expect(p.err.join("\n")).toContain(
+    "a YAML catalogue the yaml source cannot read (no root key en: the file's root keys are hello, bye",
+  );
+  expect(p.err.join("\n")).toContain("an exec source converts any other");
+  expect(existsSync(path.join(p.dir, "corpus.config.mjs"))).toBe(false);
 });

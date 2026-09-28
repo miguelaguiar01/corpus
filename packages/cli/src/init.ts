@@ -4,6 +4,7 @@ import { createJiti } from "jiti";
 import {
   isChromeMessages,
   parseXcstrings,
+  yamlStrings,
   stripBom,
   xcstringsLanguages,
 } from "@corpus/adapters";
@@ -93,6 +94,25 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   // source, when there is one.
   const gettext = /\.po$/i.test(messages);
   const xcstrings = catalog !== undefined;
+  // Rails I18n's YAML (#754): one file per language, rooted at its code.
+  // Any other YAML (Symfony's, Hugo's) is refused here, by what it holds,
+  // rather than written into a config that cannot build.
+  const yaml = /\.ya?ml$/i.test(messages);
+  if (yaml) {
+    if (!existsSync(sourceFile))
+      throw new CliError(
+        `--messages ${messages}: no ${path.relative(ctx.cwd, sourceFile)} to read the source language's strings from`,
+      );
+    try {
+      yamlStrings(readFileSync(sourceFile, "utf8"), sourceLanguage, {
+        source: true,
+      });
+    } catch (error) {
+      throw new CliError(
+        `--messages ${messages}: a YAML catalogue the yaml source cannot read (${(error as Error).message}); it reads Rails I18n's layout, rooted at the language, and an exec source converts any other`,
+      );
+    }
+  }
   // Qt Linguist's XML under a `.ts` name (#742), told from TypeScript by
   // its first bytes.
   const qt =
@@ -127,7 +147,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       `--library does not apply to an xliff source: its text is ICU\nusage: ${INIT_USAGE}`,
     );
   const unreadable =
-    xliff || gettext || xcstrings || qt
+    xliff || gettext || xcstrings || qt || yaml
       ? undefined
       : unreadableCatalogue(
           sourceFile,
@@ -179,7 +199,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   // gettext's library is printf unless the flag names another.
   const detected =
     xliff ||
-    ((gettext || xcstrings || qt) &&
+    ((gettext || xcstrings || qt || yaml) &&
       !args.includes("--library") &&
       !args.includes("--syntax"))
       ? {}
@@ -192,38 +212,45 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       languages.includes(tag),
     ),
   );
-  const source = qt
+  const source = yaml
     ? {
-        adapter: "qt-ts" as const,
+        adapter: "yaml" as const,
         type,
         path: messages,
         ...(library && { library: library.value }),
-        // The mappings of the languages the config lists, given or read.
-        ...(Object.keys(kept).length > 0 && { languageFiles: kept }),
       }
-    : xcstrings
+    : qt
       ? {
-          adapter: "xcstrings" as const,
+          adapter: "qt-ts" as const,
           type,
           path: messages,
           ...(library && { library: library.value }),
+          // The mappings of the languages the config lists, given or read.
+          ...(Object.keys(kept).length > 0 && { languageFiles: kept }),
         }
-      : xliff || gettext
+      : xcstrings
         ? {
-            adapter: xliff ? ("xliff" as const) : ("gettext" as const),
+            adapter: "xcstrings" as const,
             type,
             path: messages,
-            ...(sourcePath && { sourcePath }),
             ...(library && { library: library.value }),
           }
-        : {
-            adapter: "messages" as const,
-            type,
-            path: messages,
-            ...(library && library.value !== "icu"
-              ? { library: library.value }
-              : {}),
-          };
+        : xliff || gettext
+          ? {
+              adapter: xliff ? ("xliff" as const) : ("gettext" as const),
+              type,
+              path: messages,
+              ...(sourcePath && { sourcePath }),
+              ...(library && { library: library.value }),
+            }
+          : {
+              adapter: "messages" as const,
+              type,
+              path: messages,
+              ...(library && library.value !== "icu"
+                ? { library: library.value }
+                : {}),
+            };
   const parsed = corpusConfigSchema.safeParse({
     project,
     server,
@@ -261,7 +288,10 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       ? `wrote ${filename} (a plain object: @corpus-tool/cli is not installed in this repository)`
       : `wrote ${filename}`,
   );
-  if (library && (library.value !== "icu" || gettext || xcstrings || qt)) {
+  if (
+    library &&
+    (library.value !== "icu" || gettext || xcstrings || qt || yaml)
+  ) {
     const why =
       library.value === "i18next"
         ? "{{ }}"
@@ -281,6 +311,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     );
   }
   if (detected.note) ctx.out(detected.note);
+  if (yaml && !library) ctx.out("library: rails (the yaml source's default)");
   if (include) {
     ctx.out(
       `check.include: ${include.join(", ")} (the directories holding components, which corpus check scans)`,
@@ -291,7 +322,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     );
   }
   const siblings =
-    xliff || gettext || xcstrings || qt
+    xliff || gettext || xcstrings || qt || yaml
       ? []
       : siblingCatalogues(ctx.cwd, messages, sourceLanguage);
   if (siblings.length > 0) {
