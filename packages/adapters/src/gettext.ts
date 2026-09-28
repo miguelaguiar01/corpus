@@ -2,6 +2,7 @@
 // `msgid_plural` with its `msgstr[n]` one plural, mapped to CLDR's
 // categories through the file's `Plural-Forms`.
 import type { StringEntry } from "@corpus/contract";
+import { GETTEXT_PLURALS } from "./gettextplurals";
 import { pluralBranches } from "./messages";
 
 // gettext joins a context to its msgid with EOT, a control character an
@@ -555,20 +556,36 @@ function eolOf(text: string): string {
 // gone, as msginit does. A template that is the source language's own
 // `.po` keeps its entries with every msgstr emptied, or its text would
 // seed as the new language's (#725).
-function targetFrom(template: string, code: string): string {
+function targetFrom(
+  template: string,
+  language: { tag: string; code: string },
+  onNote?: (message: string) => void,
+): string {
+  const code = language.code;
   const entries = parsePo(template);
   const eol = eolOf(template);
   const header = entries.find((e) => e.msgid === "" && !e.msgctxt);
+  const rule = pluralRuleOf(language.tag);
+  // Every msgstr empty; a plural's as many as the language's forms,
+  // when the header is the language's own (#786).
   const patches: Patch[] = entries
     .filter((e) => e !== header)
-    .flatMap((e) =>
-      entryPatches(
-        template,
-        e,
-        e.msgstr.map(() => ""),
-        eol,
-      ),
-    );
+    .flatMap((e) => {
+      const count =
+        rule && e.msgidPlural !== undefined ? rule.nplurals : e.msgstr.length;
+      const extra = e.at.msgstr
+        .slice(count)
+        .flatMap((s) => (s ? [lineRemoval(template, s)] : []));
+      return [
+        ...entryPatches(
+          template,
+          e,
+          Array.from({ length: count }, () => ""),
+          eol,
+        ),
+        ...extra,
+      ];
+    });
   const span = header?.at.msgstr[0];
   if (header && span) {
     if (header.at.flags)
@@ -578,6 +595,15 @@ function targetFrom(template: string, code: string): string {
     block = /"Language:[^"\\]*(?:\\.[^"\\]*)*"/.test(block)
       ? block.replace(/("Language:)[^"\\]*(\\n")/, `$1 ${code}$2`)
       : `${block}${eol}"Language: ${code}\\n"`;
+    // The language's own forms, as msginit writes them (#786): the
+    // template's are its language's, or a .pot's placeholder.
+    if (rule) {
+      const line = `"Plural-Forms: nplurals=${rule.nplurals}; plural=${rule.plural};\\n"`;
+      block = withHeaderField(block, "Plural-Forms", line, eol);
+    } else
+      onNote?.(
+        `no CLDR plural rule for ${language.tag}; the new file's Plural-Forms is the template's, or none`,
+      );
     patches.push({ ...span, text: block });
   }
   // A `.pot`, whose msgstrs are all empty, is kept as msginit keeps it.
@@ -586,6 +612,40 @@ function targetFrom(template: string, code: string): string {
   );
   const started = applyPatches(template, patches);
   return translated ? withoutObsolete(started) : started;
+}
+
+// A header block with its `field` replaced by `line`: the field's quoted
+// strings through the one that ends it with `\n`, as msgmerge wraps a
+// long one over several (#786); a field it lacks goes after Language.
+function withHeaderField(
+  block: string,
+  field: string,
+  line: string,
+  eol: string,
+): string {
+  const lines = block.split(/\r?\n/);
+  const at = lines.findIndex((l) => l.startsWith(`"${field}:`));
+  if (at < 0) {
+    const language = lines.findIndex((l) => l.startsWith('"Language:'));
+    lines.splice(language < 0 ? lines.length : language + 1, 0, line);
+    return lines.join(eol);
+  }
+  let end = at;
+  while (end < lines.length - 1 && !/\\n"$/.test(lines[end]!)) end++;
+  lines.splice(at, end - at + 1, line);
+  return lines.join(eol);
+}
+
+// A language's gettext forms from the CLDR table (#812): its tag, else
+// its language alone (`ru-RU`, `pt_BR`'s `pt`).
+const RULE_KEYS = new Map(
+  Object.keys(GETTEXT_PLURALS).map((key) => [key.toLowerCase(), key]),
+);
+
+function pluralRuleOf(tag: string) {
+  const bcp = tag.replace(/_/g, "-").toLowerCase();
+  const key = RULE_KEYS.get(bcp) ?? RULE_KEYS.get(bcp.split("-")[0]!);
+  return key === undefined ? undefined : GETTEXT_PLURALS[key];
 }
 
 // A file with its obsolete `#~` entries, and the comments above them,
@@ -692,10 +752,12 @@ export function entriesToGettext(
   existing: string | undefined,
   language: { tag: string; code: string },
   onRefused?: (id: string, text: string) => void,
+  // Said of a new file whose language the CLDR table lacks (#786).
+  onNote?: (message: string) => void,
 ): string {
   const base =
     existing === undefined || existing.trim() === ""
-      ? targetFrom(template, language.code)
+      ? targetFrom(template, language, onNote)
       : existing;
   const eol = eolOf(base);
   const entries = parsePo(base);

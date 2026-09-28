@@ -1,4 +1,5 @@
 import { expect, test } from "vitest";
+import { GETTEXT_PLURALS } from "./gettextplurals";
 import {
   CONTEXT_SEPARATOR,
   entriesToGettext,
@@ -310,6 +311,11 @@ test("a form no category reads, Latvian's for zero alone, keeps the file's text 
   expect(out).toBe(lv.replace('"%d piezīmes"', '"%d piezīmes!"'));
 });
 
+// French's forms as CLDR 48 has them: one, many (a million), other.
+const FR = "((n==0 || n==1)) ? 0 : ((!(n==0) && n%1000000==0)) ? 1 : 2";
+const SR =
+  "((n%10==1 && !(n%100==11))) ? 0 : (((n%10>=2 && n%10<=4) && !(n%100>=12 && n%100<=14))) ? 1 : 2";
+
 test("a missing target starts from the template, its Language and charset set (#719)", () => {
   const pot = POT.replace(
     '"Content-Type: text/plain; charset=UTF-8\\n"',
@@ -321,9 +327,14 @@ test("a missing target starts from the template, its Language and charset set (#
   });
   expect(out).toBe(
     pot
-      .replace('"Language: \\n"', '"Language: sr@latin\\n"')
+      .replace(
+        '"Language: \\n"',
+        `"Language: sr@latin\\n"\n"Plural-Forms: nplurals=3; plural=${SR};\\n"`,
+      )
       .replace("charset=CHARSET", "charset=UTF-8")
-      .replace('msgid "Joplin"\nmsgstr ""', 'msgid "Joplin"\nmsgstr "Joplin"'),
+      .replace('msgid "Joplin"\nmsgstr ""', 'msgid "Joplin"\nmsgstr "Joplin"')
+      // Serbian's three forms, as its header says (#786).
+      .replace('msgstr[1] ""\n\n#~', 'msgstr[1] ""\nmsgstr[2] ""\n\n#~'),
   );
   // A template with no Language line gets one.
   expect(entriesToGettext(POT, {}, undefined, DE_LANG)).toContain(
@@ -382,7 +393,7 @@ test("a missing target started from a source .po keeps its entries and header wi
   expect(out).toBe(`msgid ""
 msgstr ""
 "Language: fr\\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\\n"
+"Plural-Forms: nplurals=3; plural=${FR};\\n"
 
 msgid "Joplin"
 msgstr ""
@@ -398,6 +409,7 @@ msgid "%d note"
 msgid_plural "%d notes"
 msgstr[0] ""
 msgstr[1] ""
+msgstr[2] ""
 `);
   // A plural Corpus holds is written; the others stay empty.
   const plural = entriesToGettext(
@@ -407,7 +419,7 @@ msgstr[1] ""
     { tag: "fr", code: "fr" },
   );
   expect(plural).toContain(
-    'msgid_plural "%d notes"\nmsgstr[0] "%d note"\nmsgstr[1] "%d notes"\n',
+    'msgid_plural "%d notes"\nmsgstr[0] "%d note"\nmsgstr[1] "%d notes"\nmsgstr[2] "%d notes"\n',
   );
   expect(plural).toContain('msgid "Joplin"\nmsgstr ""\n');
 });
@@ -420,7 +432,7 @@ test("a missing target started from a source .po drops its obsolete entries, and
   });
   expect(out).not.toContain("#~");
   expect(out).not.toContain("old note");
-  expect(out.endsWith('msgstr[1] ""\n')).toBe(true);
+  expect(out.endsWith('msgstr[2] ""\n')).toBe(true);
   const headerless = 'msgid "Joplin"\nmsgstr "Joplin"\n';
   expect(
     entriesToGettext(headerless, {}, undefined, { tag: "fr", code: "fr" }),
@@ -459,4 +471,104 @@ msgstr[1] "%d Notizen"
       source: "{count, plural, one {%d Notiz} other {%d Notizen}}",
     },
   ]);
+});
+
+test("a target started from a template takes its language's Plural-Forms from the CLDR table; a language the table lacks keeps the template's, said once (#786)", () => {
+  const en = `msgid ""
+msgstr ""
+"Language: en\\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\\n"
+
+msgid "%d file"
+msgid_plural "%d files"
+msgstr[0] "%d file"
+msgstr[1] "%d files"
+`;
+  const pl = entriesToGettext(
+    en,
+    {
+      "%d file":
+        "{count, plural, one {%d plik} few {%d pliki} many {%d plików} other {%d pliku}}",
+    },
+    undefined,
+    { tag: "pl", code: "pl" },
+  );
+  expect(pl).toContain(
+    '"Plural-Forms: nplurals=3; plural=(n==1) ? 0 : (((n%10>=2 && n%10<=4) && !(n%100>=12 && n%100<=14))) ? 1 : 2;\\n"',
+  );
+  expect(pl).toContain(
+    'msgstr[0] "%d plik"\nmsgstr[1] "%d pliki"\nmsgstr[2] "%d plików"\n',
+  );
+  // A .pot's placeholder header gets the language's line; a tag with a
+  // region falls back to its language.
+  const pot = en
+    .replace('"Language: en\\n"', '"Language: \\n"')
+    .replace(
+      "nplurals=2; plural=(n != 1);",
+      "nplurals=INTEGER; plural=EXPRESSION;",
+    )
+    .replace(
+      'msgstr[0] "%d file"\nmsgstr[1] "%d files"',
+      'msgstr[0] ""\nmsgstr[1] ""',
+    );
+  expect(
+    entriesToGettext(pot, {}, undefined, { tag: "ru-RU", code: "ru_RU" }),
+  ).toContain('"Plural-Forms: nplurals=3; plural=');
+  // A language CLDR has no rule for keeps the template's line.
+  const notes: string[] = [];
+  const xx = entriesToGettext(
+    en,
+    {},
+    undefined,
+    { tag: "tlh", code: "tlh" },
+    undefined,
+    (note) => notes.push(note),
+  );
+  expect(xx).toContain('"Plural-Forms: nplurals=2; plural=(n != 1);\\n"');
+  expect(notes).toEqual([
+    "no CLDR plural rule for tlh; the new file's Plural-Forms is the template's, or none",
+  ]);
+});
+
+test("a new file's plural entries hold as many msgstrs as its language's forms (#786)", () => {
+  const en = `msgid ""
+msgstr ""
+"Language: en\\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\\n"
+
+msgid "%d file"
+msgid_plural "%d files"
+msgstr[0] "%d file"
+msgstr[1] "%d files"
+`;
+  const ru = entriesToGettext(en, {}, undefined, { tag: "ru", code: "ru" });
+  expect(ru).toContain(
+    'msgid_plural "%d files"\nmsgstr[0] ""\nmsgstr[1] ""\nmsgstr[2] ""\n',
+  );
+  const ja = entriesToGettext(en, {}, undefined, { tag: "ja", code: "ja" });
+  expect(ja).toContain('msgid_plural "%d files"\nmsgstr[0] ""\n');
+  expect(ja).not.toContain("msgstr[1]");
+});
+
+test("a Plural-Forms msgmerge wrapped over two lines is replaced whole; a tag's case does not matter (#786)", () => {
+  const ru = `msgid ""
+msgstr ""
+"Language: ru\\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
+"n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\\n"
+"Content-Type: text/plain; charset=UTF-8\\n"
+
+msgid "File"
+msgstr "Файл"
+`;
+  const de = entriesToGettext(ru, {}, undefined, { tag: "de", code: "de" });
+  expect(de).toContain(
+    '"Language: de\\n"\n"Plural-Forms: nplurals=2; plural=(n==1) ? 0 : 1;\\n"\n"Content-Type: text/plain; charset=UTF-8\\n"\n',
+  );
+  expect(de).not.toContain("n%10<=4");
+  expect(
+    entriesToGettext(ru, {}, undefined, { tag: "pt-pt", code: "pt_PT" }),
+  ).toContain(
+    `"Plural-Forms: nplurals=3; plural=${GETTEXT_PLURALS["pt-PT"]!.plural};\\n"`,
+  );
 });
