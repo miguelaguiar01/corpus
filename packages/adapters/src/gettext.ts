@@ -535,12 +535,25 @@ function eolOf(text: string): string {
 
 // The target file a missing one starts as: the template, its header's
 // `Language:` the file's code, its charset UTF-8 and its fuzzy flag
-// gone, as msginit does.
+// gone, as msginit does. A template that is the source language's own
+// `.po` keeps its entries with every msgstr emptied, or its text would
+// seed as the new language's (#725).
 function targetFrom(template: string, code: string): string {
-  const header = parsePo(template).find((e) => e.msgid === "" && !e.msgctxt);
+  const entries = parsePo(template);
+  const header = entries.find((e) => e.msgid === "" && !e.msgctxt);
   const span = header?.at.msgstr[0];
   if (!header || !span) return template;
   const eol = eolOf(template);
+  const emptied = entries
+    .filter((e) => e !== header)
+    .flatMap((e) =>
+      entryPatches(
+        template,
+        e,
+        e.msgstr.map(() => ""),
+        eol,
+      ),
+    );
   const unflagged = header.at.flags
     ? [fuzzyRemoval(template, header, header.at.flags)]
     : [];
@@ -549,7 +562,11 @@ function targetFrom(template: string, code: string): string {
   block = /"Language:[^"\\]*(?:\\.[^"\\]*)*"/.test(block)
     ? block.replace(/("Language:)[^"\\]*(\\n")/, `$1 ${code}$2`)
     : `${block}${eol}"Language: ${code}\\n"`;
-  return applyPatches(template, [{ ...span, text: block }, ...unflagged]);
+  return applyPatches(template, [
+    { ...span, text: block },
+    ...unflagged,
+    ...emptied,
+  ]);
 }
 
 // What an entry's msgstrs become: `msgstr` the text, or each `msgstr[n]`

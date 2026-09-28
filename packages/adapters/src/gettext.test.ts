@@ -367,3 +367,46 @@ test("a no-wrap entry breaks at newlines alone; a new file drops the template he
     true,
   );
 });
+
+test("a missing target started from a source .po keeps its entries and header with every msgstr empty, as msginit starts one (#725)", () => {
+  const out = entriesToGettext(
+    DE,
+    { [`menu${CONTEXT_SEPARATOR}Open`]: "Ouvrir" },
+    undefined,
+    {
+      tag: "fr",
+      code: "fr",
+    },
+  );
+  expect(out).toBe(`msgid ""
+msgstr ""
+"Language: fr\\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\\n"
+
+msgid "Joplin"
+msgstr ""
+
+msgctxt "menu"
+msgid "Open"
+msgstr "Ouvrir"
+
+msgid "Synchronise %s with \\"%s\\""
+msgstr ""
+
+msgid "%d note"
+msgid_plural "%d notes"
+msgstr[0] ""
+msgstr[1] ""
+`);
+  // A plural Corpus holds is written; the others stay empty.
+  const plural = entriesToGettext(
+    DE,
+    { "%d note": "{count, plural, one {%d note} other {%d notes}}" },
+    undefined,
+    { tag: "fr", code: "fr" },
+  );
+  expect(plural).toContain(
+    'msgid_plural "%d notes"\nmsgstr[0] "%d note"\nmsgstr[1] "%d notes"\n',
+  );
+  expect(plural).toContain('msgid "Joplin"\nmsgstr ""\n');
+});
