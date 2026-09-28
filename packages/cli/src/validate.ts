@@ -3,6 +3,7 @@ import path from "node:path";
 import { createJiti } from "jiti";
 import {
   libraryOf,
+  isDroppedPlural,
   messageKind,
   nestedCountsOf,
   validateTranslation,
@@ -320,15 +321,7 @@ export function describe(
       // the translation is a <string> where the source is a <plurals>.
       if (syntax === "android" && error.written === undefined)
         return `a <string> where the source is a <plurals> on ${error.name}`;
-      // Under printf a value that is not a verb is a plural's count (#652).
-      if (
-        (syntax === "printf" ||
-          syntax === "counterpart" ||
-          syntax === "easy_localization" ||
-          syntax === "rails" ||
-          syntax === "qt") &&
-        error.written === undefined
-      )
+      if (isDroppedPlural(error, syntax))
         return `the source is a plural on ${error.name}: write the translation as one`;
       return `missing ${error.written ?? written(error.name)}`;
     case "unexpected-placeholder":
