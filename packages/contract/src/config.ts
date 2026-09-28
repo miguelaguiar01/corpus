@@ -22,9 +22,9 @@ const langPattern = z
   .refine((p) => p.includes("{lang}"), "path must contain {lang}");
 // `{ns}` only where the ids are prefixed with it, and a pull strips it
 // again (#854).
-const noNamespace = <T extends z.ZodType<string>>(path: T) =>
+const noNamespace = <T extends z.ZodType<string>>(adapter: string, path: T) =>
   path.refine((p) => !p.includes("{ns}"), {
-    message: "{ns} is read by the messages, table and fluent adapters only",
+    message: `${adapter} does not read {ns}: only messages, table and fluent do`,
   });
 const patterns = <T extends z.ZodType<string>>(pattern: T) =>
   z.union([pattern, z.array(pattern).min(1)]);
@@ -80,7 +80,7 @@ const execSchema = z.looseObject({
 const androidSchema = z.looseObject({
   adapter: z.literal("android"),
   type: identifier(),
-  path: noNamespace(z.string().min(1)),
+  path: noNamespace("android", z.string().min(1)),
 });
 
 // Fluent `.ftl` (#597): messages as ICU, a select as a plural or select.
@@ -95,8 +95,8 @@ const fluentFields = {
 const xliffSchema = z.looseObject({
   adapter: z.literal("xliff"),
   type: identifier(),
-  path: noNamespace(langPattern),
-  sourcePath: noNamespace(z.string().min(1)).optional(),
+  path: noNamespace("xliff", langPattern),
+  sourcePath: noNamespace("xliff", z.string().min(1)).optional(),
   languageFiles,
 });
 
@@ -105,8 +105,8 @@ const xliffSchema = z.looseObject({
 const gettextSchema = z.looseObject({
   adapter: z.literal("gettext"),
   type: identifier(),
-  path: noNamespace(langPattern),
-  sourcePath: noNamespace(z.string().min(1)).optional(),
+  path: noNamespace("gettext", langPattern),
+  sourcePath: noNamespace("gettext", z.string().min(1)).optional(),
   library: librarySchema.optional(),
   languageFiles,
 });
@@ -117,8 +117,8 @@ const gettextSchema = z.looseObject({
 const qtTsSchema = z.looseObject({
   adapter: z.literal("qt-ts"),
   type: identifier(),
-  path: noNamespace(langPattern),
-  sourcePath: noNamespace(z.string().min(1)).optional(),
+  path: noNamespace("qt-ts", langPattern),
+  sourcePath: noNamespace("qt-ts", z.string().min(1)).optional(),
   library: librarySchema.optional(),
   languageFiles,
 });
@@ -128,7 +128,7 @@ const qtTsSchema = z.looseObject({
 const yamlSchema = z.looseObject({
   adapter: z.literal("yaml"),
   type: identifier(),
-  path: noNamespace(langPattern),
+  path: noNamespace("yaml", langPattern),
   library: librarySchema.optional(),
   languageFiles,
 });
@@ -140,6 +140,7 @@ const xcstringsSchema = z.looseObject({
   adapter: z.literal("xcstrings"),
   type: identifier(),
   path: noNamespace(
+    "xcstrings",
     z
       .string()
       .min(1)

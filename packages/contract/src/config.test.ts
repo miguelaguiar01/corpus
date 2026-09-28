@@ -415,7 +415,7 @@ test("{ns} is refused by name on an adapter that does not read it (#854)", () =>
     const result = config(source);
     expect(result.success).toBe(false);
     expect(JSON.stringify(result.error?.issues)).toContain(
-      "{ns} is read by the messages, table and fluent adapters only",
+      `${source.adapter} does not read {ns}: only messages, table and fluent do`,
     );
   }
 });
