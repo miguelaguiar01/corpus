@@ -1432,7 +1432,7 @@ test("a JSON catalogue's @script files are languages, never siblings (#855)", as
     p.ctx,
   );
   expect(code).toBe(0);
-  expect(p.err.join("\n")).not.toMatch(/sibling/);
+  expect([...p.out, ...p.err].join("\n")).not.toMatch(/sibling/);
   const config = await loadConfig(p.dir);
   expect(config.languages).toEqual(["en", "de", "sr-Latn", "uz-Latn"]);
   expect(config.sources[0]).toMatchObject({
