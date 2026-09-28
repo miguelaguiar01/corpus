@@ -19,6 +19,7 @@ import { OtherLanguages } from "@/components/other-languages";
 import { GlossaryTerms } from "@/components/glossary-terms";
 import { Siblings } from "@/components/siblings";
 import { NoteText } from "@/components/note-text";
+import { suggestionOf } from "@/translations/suggestion";
 import { siblingsOf } from "@/strings/siblings";
 import { inPositionOrder } from "@/strings/slots";
 import { ProposalPanel } from "@/components/proposal-panel";
@@ -377,6 +378,7 @@ export default async function StringPage({
                 queue={queueKind}
                 examples={examples}
                 sourceLanguage={project.sourceLanguage}
+                suggestion={suggestionOf(targetRow)}
               />
             </section>
           )}
