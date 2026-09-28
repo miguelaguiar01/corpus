@@ -789,7 +789,7 @@ test("init refuses a catalogue no adapter reads, by its format (#647)", async ()
   );
   expect(code).toBe(1);
   expect(p.err.join("\n")).toMatch(
-    /--messages config\/locales\/client\.\{lang\}\.yml: a YAML catalogue, which no adapter reads/,
+    /--messages config\/locales\/client\.\{lang\}\.yml: a YAML catalogue: declare it \{ adapter: "yaml"/,
   );
   expect(existsSync(path.join(p.dir, "corpus.config.mjs"))).toBe(false);
 });
