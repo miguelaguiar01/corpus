@@ -1410,6 +1410,36 @@ test("a GNU @modifier catalogue is kept for every format: a script maps through 
   });
 });
 
+test("a JSON catalogue's @script files are languages, never siblings (#855)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "messages"), { recursive: true });
+  for (const lang of ["en", "de", "sr@latin", "uz@Latn"])
+    writeFileSync(
+      path.join(p.dir, "messages", `${lang}.json`),
+      JSON.stringify({ hello: lang === "en" ? "Hello" : "Hallo" }),
+    );
+  const code = await run(
+    [
+      "init",
+      "--project",
+      "x",
+      "--source",
+      "en",
+      "--messages",
+      "messages/{lang}.json",
+    ],
+    p.ctx,
+  );
+  expect(code).toBe(0);
+  expect(p.err.join("\n")).not.toMatch(/sibling/);
+  const config = await loadConfig(p.dir);
+  expect(config.languages).toEqual(["en", "de", "sr-Latn", "uz-Latn"]);
+  expect(config.sources[0]).toMatchObject({
+    languageFiles: { "sr-Latn": "sr@latin", "uz-Latn": "uz@Latn" },
+  });
+});
+
 test("init refuses {ns} for a format whose adapter does not read it, Qt's .ts too (#855)", async () => {
   const p = project();
   stubCli(p.dir);

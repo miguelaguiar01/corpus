@@ -705,9 +705,6 @@ async function libraryFor(
   return {};
 }
 
-// The languages a messages path names (§3): every file or directory
-// that fills its {lang}, the source first, so a repository that already
-// carries its catalogues is not asked to list them by hand.
 // Only messages, table and fluent read `{ns}` (#854).
 function refuseNamespace(messages: string, adapter: string): void {
   if (messages.includes("{ns}"))
@@ -716,6 +713,7 @@ function refuseNamespace(messages: string, adapter: string): void {
     );
 }
 
+// The languages a `{ns}` pattern's files name, the source first.
 function namespacedLanguages(
   cwd: string,
   pattern: string,
@@ -786,7 +784,7 @@ function siblingCatalogues(
       const suffix = base.slice(at + "{lang}".length);
       if (!name.startsWith(prefix) || !name.endsWith(suffix)) return true;
       const code = name.slice(prefix.length, name.length - suffix.length);
-      return !LANGUAGE_RE.test(code);
+      return !LANGUAGE_RE.test(code) && !posixTag(code);
     })
     .map((name) => path.join(dir, name))
     .sort();
