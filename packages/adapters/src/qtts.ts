@@ -441,6 +441,10 @@ export function entriesToQtTs(
     name: qtDecode(c[1]!),
     after: c.index + c[0].length,
   }));
+  // The file's message by id, held or vanished and back in the source
+  // (#776): either stands where the source has it. An id message's id
+  // names no context, so an anchor must be in the message's own.
+  const inFile = (id: string) => held.get(id) ?? gone.get(id);
   const missingContexts = new Map<string, QtMessage[]>();
   source.forEach((m, i) => {
     const text = translations[m.id];
@@ -463,14 +467,16 @@ export function entriesToQtTs(
     const before = source
       .slice(0, i)
       .reverse()
-      .find((p) => p.context === m.context && held.has(p.id));
+      .find(
+        (p) => p.context === m.context && inFile(p.id)?.context === m.context,
+      );
     const context = contexts.find((c) => c.name === m.context);
     if (before) {
-      const at = held.get(before.id)!.at.end;
+      const anchor = inFile(before.id)!;
       patches.push({
-        start: at,
-        end: at,
-        text: `${eol}${lineIndent(base, held.get(before.id)!.at.start)}${block}`,
+        start: anchor.at.end,
+        end: anchor.at.end,
+        text: `${eol}${lineIndent(base, anchor.at.start)}${block}`,
       });
     } else if (context) {
       patches.push({
