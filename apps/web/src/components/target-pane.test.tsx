@@ -732,6 +732,7 @@ test("a suggestion shows above the draft, and its button fills the draft, valida
   expect(textarea.value).toBe("");
   fireEvent.click(screen.getByRole("button", { name: "Use as draft" }));
   expect(textarea.value).toBe("{witness} saw {suspect}");
+  expect(document.activeElement).toBe(textarea);
   // The guess drops {hour}: validation says so, as for typed text.
   expect(screen.getByText("Missing {hour}")).toBeTruthy();
   expect(

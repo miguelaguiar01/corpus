@@ -252,18 +252,21 @@ export function TargetPane({
       {suggestion && (
         <div
           role="region"
-          aria-label={t("editor.suggestionLabel")}
+          aria-labelledby="suggestion-label"
           className="space-y-2 rounded-md border border-dashed border-input p-3"
         >
-          <p className="text-sm text-muted-foreground">
+          <p id="suggestion-label" className="text-sm text-muted-foreground">
             {t("editor.suggestionLabel")}
           </p>
-          <p className="text-base whitespace-pre-line">{suggestion}</p>
+          <p className="text-base whitespace-pre-wrap">{suggestion}</p>
           <Button
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => setText(suggestion)}
+            onClick={() => {
+              setText(suggestion);
+              ref.current?.focus();
+            }}
           >
             {t("editor.useSuggestion")}
           </Button>
