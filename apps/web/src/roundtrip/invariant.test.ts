@@ -182,6 +182,10 @@ test("translations that match the repository's target catalogues write the same 
   translate("Cancelar", "Cancel");
   translate("Janela | Transferências (%1)", "Transfers (%1)");
   translate(
+    "Janela | %n ficheiro(s)",
+    "{count, plural, one {%n file} other {%n files}}",
+  );
+  translate(
     "ios.photos %lld",
     "{count, plural, one {%lld photo} other {%lld photos}}",
   );

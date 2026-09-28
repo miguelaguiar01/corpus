@@ -702,7 +702,10 @@ export async function readEntries(
     const xml = readFileSync(path.join(cwd, file), "utf8");
     return sourceFile
       ? qtTsToEntries(xml, { type: source.type })
-      : qtTsTranslations(xml).map((e) => ({ ...e, type: source.type }));
+      : qtTsTranslations(xml, languageOfFile(file, source)).map((e) => ({
+          ...e,
+          type: source.type,
+        }));
   }
   if (source.adapter === "xliff") {
     const xml = readFileSync(path.join(cwd, file), "utf8");

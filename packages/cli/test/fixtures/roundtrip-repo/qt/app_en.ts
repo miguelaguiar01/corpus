@@ -14,6 +14,14 @@
         <comment>menu</comment>
         <translation type="unfinished">Exti</translation>
     </message>
+    <message numerus="yes">
+        <location filename="../janela.cpp" line="31"/>
+        <source>%n ficheiro(s)</source>
+        <translation>
+            <numerusform>%n file</numerusform>
+            <numerusform>%n files</numerusform>
+        </translation>
+    </message>
     <message>
         <source>Velho</source>
         <translation type="vanished">Old</translation>

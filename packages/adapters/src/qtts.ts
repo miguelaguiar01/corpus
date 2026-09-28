@@ -3,6 +3,13 @@
 // disambiguating `<comment>`; its `<translation>` is finished, or marked
 // `unfinished`, `vanished` or `obsolete`.
 import type { StringEntry } from "@corpus/contract";
+import {
+  pluralCategoryIndexes,
+  pluralIndexCategories,
+  poPluralText,
+} from "./gettext";
+import { pluralBranches } from "./messages";
+import { qtPluralForms } from "./qtnumerus";
 
 type Span = { start: number; end: number };
 
@@ -14,6 +21,8 @@ export type QtMessage = {
   extracomment?: string;
   locations: string[];
   numerus: boolean;
+  // A numerus message's `<numerusform>`s, in Qt's order.
+  forms: string[];
   // `type` on the translation: unfinished, vanished, obsolete, or none.
   state?: string;
   translation: string;
@@ -126,6 +135,14 @@ export function qtMessages(xml: string): QtMessage[] {
           },
         ),
         numerus,
+        forms:
+          numerus && t?.[2]
+            ? [
+                ...t[2].matchAll(
+                  /<numerusform(?:\s[^>]*)?>([\s\S]*?)<\/numerusform>/g,
+                ),
+              ].map((f) => qtDecode(f[1]!))
+            : [],
         ...(state !== undefined && { state }),
         translation: numerus
           ? ""
@@ -159,6 +176,14 @@ function noteOf(m: QtMessage): string | undefined {
   return lines.length ? lines.join("\n") : undefined;
 }
 
+// A numerus message's source, `%n file(s)`, as a plural on `count` with
+// the one form the code writes, so a translation's plural is one: never
+// on `n`, which qt names `%n`, or dropping `%n` from every form would
+// pass (#743). A source a plural cannot hold stays text.
+function sourcePlural(source: string): string {
+  return /[{}]/.test(source) ? source : `{count, plural, other {${source}}}`;
+}
+
 // The source file's messages: each its source text, keyed by Qt's
 // identity.
 export function qtTsToEntries(
@@ -170,21 +195,28 @@ export function qtTsToEntries(
     return {
       id: m.id,
       type: options.type,
-      source: m.source,
+      source: m.numerus ? sourcePlural(m.source) : m.source,
       ...(note && { note }),
     };
   });
 }
 
 // A target file's translations: the finished ones. An unfinished one,
-// with text or without, is work; its forms, for a numerus message, are
-// read by #743.
-export function qtTsTranslations(xml: string): StringEntry[] {
-  return live(xml).flatMap((m) =>
-    m.state === undefined && !m.numerus && m.translation !== ""
+// with text or without, is work. A numerus message's forms are one
+// plural on `count`, each of the language's CLDR categories reading
+// the form Qt's rule gives its integers (#743).
+export function qtTsTranslations(xml: string, language = "en"): StringEntry[] {
+  const indexes = pluralCategoryIndexes(language, qtPluralForms(language));
+  return live(xml).flatMap((m) => {
+    if (m.state !== undefined) return [];
+    if (m.numerus)
+      return m.forms.some((f) => f !== "")
+        ? [{ id: m.id, type: "", source: poPluralText(m.forms, indexes) }]
+        : [];
+    return m.translation !== ""
       ? [{ id: m.id, type: "", source: m.translation }]
-      : [],
-  );
+      : [];
+  });
 }
 
 type Patch = Span & { text: string };
@@ -249,16 +281,18 @@ function targetFrom(template: string, code: string): string {
     if (!m.translationAt || m.state === "vanished" || m.state === "obsolete")
       continue;
     // A numerus message keeps its forms' places, emptied.
-    const forms = m.numerus
-      ? out
-          .slice(m.translationAt.start, m.translationAt.end)
-          .replace(
-            /<numerusform(\s[^>]*)?>[\s\S]*?<\/numerusform>/g,
-            "<numerusform$1></numerusform>",
-          )
-          .replace(/^<translation(\s[^>]*?)?>/, "")
-          .replace(/<\/translation>$/, "")
-      : "";
+    const whole = out.slice(m.translationAt.start, m.translationAt.end);
+    const forms =
+      m.numerus && !whole.endsWith("/>")
+        ? out
+            .slice(m.translationAt.start, m.translationAt.end)
+            .replace(
+              /<numerusform(\s[^>]*)?>[\s\S]*?<\/numerusform>/g,
+              "<numerusform$1></numerusform>",
+            )
+            .replace(/^<translation(\s[^>]*?)?>/, "")
+            .replace(/<\/translation>$/, "")
+        : "";
     patches.push({
       ...m.translationAt,
       text: `<translation type="unfinished">${forms}</translation>`,
@@ -272,21 +306,70 @@ function targetFrom(template: string, code: string): string {
 // escapes; a message the file lacks inserted from the source file after
 // the one before it there, a context it lacks at the end; a message
 // the file holds only as vanished brought back in its place; a missing
-// file started from the source file. Every other byte
-// stays. A numerus message's forms are #743's.
+// file started from the source file. Every other byte stays. A numerus
+// message's plural becomes its `<numerusform>`s in the order and number
+// Qt's rule for the language gives, a form no category reads keeping
+// its text (#743); a text that is not a plural there is refused.
 export function entriesToQtTs(
   template: string,
   translations: Record<string, string>,
   existing: string | undefined,
-  code: string,
+  language: { tag: string; code: string },
+  onRefused?: (id: string, text: string) => void,
 ): string {
   const base =
     existing === undefined || existing.trim() === ""
-      ? targetFrom(template, code)
+      ? targetFrom(template, language.code)
       : existing;
   const escape = escaperOf(base);
-  const element = (text: string) =>
-    `<translation>${escape(text)}</translation>`;
+  const eol = /\r\n/.test(base) ? "\r\n" : "\n";
+  const categories = pluralIndexCategories(
+    language.tag,
+    qtPluralForms(language.tag),
+  );
+  // A message's new `<translation>`, or undefined where it is unchanged
+  // or cannot be written.
+  const element = (
+    m: QtMessage,
+    text: string,
+    from: string,
+  ): string | undefined => {
+    if (!m.numerus) {
+      if (m.state === undefined && m.translation === text) return undefined;
+      return `<translation>${escape(text)}</translation>`;
+    }
+    const branches = pluralBranches(text);
+    if (!branches) {
+      onRefused?.(m.id, text);
+      return undefined;
+    }
+    const forms = categories.map((c, i) =>
+      c === undefined
+        ? (m.forms[i] ?? "")
+        : (branches[c] ?? branches.other ?? ""),
+    );
+    if (
+      m.state === undefined &&
+      forms.length === m.forms.length &&
+      forms.every((f, i) => f === m.forms[i])
+    )
+      return undefined;
+    // lupdate's layout: a form a line, the file's own where it has one.
+    const old = m.translationAt
+      ? from.slice(m.translationAt.start, m.translationAt.end)
+      : "";
+    const indent = m.translationAt
+      ? lineIndent(from, m.translationAt.start)
+      : "";
+    const open = /^<translation(?:\s[^>]*?)?>(\s*)<numerusform/.exec(old)?.[1];
+    const close = /(\s*)<\/translation>$/.exec(old)?.[1];
+    const between = open ?? `${eol}${indent}    `;
+    const end =
+      open !== undefined && close !== undefined ? close : `${eol}${indent}`;
+    return `<translation>${forms
+      .map((f) => `${between}<numerusform>${escape(f)}</numerusform>`)
+      .join("")}${end}</translation>`;
+  };
   const patches: Patch[] = [];
   const held = new Map<string, QtMessage>();
   const gone = new Map<string, QtMessage>();
@@ -297,14 +380,14 @@ export function entriesToQtTs(
     }
     held.set(m.id, m);
     const text = translations[m.id];
-    if (text === undefined || m.numerus || !m.translationAt) continue;
-    if (m.state === undefined && m.translation === text) continue;
-    patches.push({ ...m.translationAt, text: element(text) });
+    if (text === undefined || !m.translationAt) continue;
+    const written = element(m, text, base);
+    if (written !== undefined)
+      patches.push({ ...m.translationAt, text: written });
   }
   // Messages the file lacks, with a translation to give: each after the
   // source file's message before it that the file holds, or at the
   // start of its context; a context the file lacks, whole.
-  const eol = /\r\n/.test(base) ? "\r\n" : "\n";
   const source = qtMessages(template).filter(
     (m) => m.state !== "vanished" && m.state !== "obsolete",
   );
@@ -317,14 +400,22 @@ export function entriesToQtTs(
   const missingContexts = new Map<string, QtMessage[]>();
   source.forEach((m, i) => {
     const text = translations[m.id];
-    if (held.has(m.id) || text === undefined || m.numerus) return;
+    if (held.has(m.id) || text === undefined) return;
     // A message lupdate marked vanished and the source has again.
     const back = gone.get(m.id);
     if (back?.translationAt) {
-      patches.push({ ...back.translationAt, text: element(text) });
+      const written = element({ ...back, state: "unfinished" }, text, base);
+      if (written !== undefined)
+        patches.push({ ...back.translationAt, text: written });
       return;
     }
-    const block = blockOf(template, m, element(text)).replace(/\r?\n/g, eol);
+    const written = element(
+      { ...m, state: "unfinished", forms: [] },
+      text,
+      template,
+    );
+    if (written === undefined) return;
+    const block = blockOf(template, m, written).replace(/\r?\n/g, eol);
     const before = source
       .slice(0, i)
       .reverse()
@@ -361,7 +452,7 @@ export function entriesToQtTs(
           `${nameIndent}    <name>${escape(name)}</name>`,
           ...messages.map(
             (m) =>
-              `${indent}${blockOf(template, m, element(translations[m.id]!)).replace(/\r?\n/g, eol)}`,
+              `${indent}${blockOf(template, m, element({ ...m, state: "unfinished", forms: [] }, translations[m.id]!, template)!).replace(/\r?\n/g, eol)}`,
           ),
           "</context>",
         ].join(eol);

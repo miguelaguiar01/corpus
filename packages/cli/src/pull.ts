@@ -260,7 +260,11 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
                         template,
                         translations,
                         existing,
-                        fileCodeOf(source, language),
+                        { tag: language, code: fileCodeOf(source, language) },
+                        (id) =>
+                          ctx.err(
+                            `corpus: ${file}: ${printable(id)} is a numerus message and its translation is not one plural Qt can hold (a plain text, or an =N branch); not written`,
+                          ),
                       )
                     : source.adapter === "xcstrings"
                       ? xcstringsInto(
