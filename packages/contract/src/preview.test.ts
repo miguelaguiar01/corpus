@@ -261,3 +261,16 @@ test("a printf plural on argN takes the Nth argument's value (#735)", () => {
     ),
   ).toEqual({ ok: true, text: "1 recent post from 3 participants" });
 });
+
+test("a preview renders a plural nested in a select's branch (#764)", () => {
+  const source =
+    "{g, select, female {{n, plural, one {She has # file} other {She has # files}}} other {{n, plural, one {# file} other {# files}}}}";
+  expect(renderPreview(source, { g: "female", n: "3" }, "en")).toMatchObject({
+    ok: true,
+    text: "She has 3 files",
+  });
+  expect(renderPreview(source, { g: "x", n: "1" }, "en")).toMatchObject({
+    ok: true,
+    text: "1 file",
+  });
+});

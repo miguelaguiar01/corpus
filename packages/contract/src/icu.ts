@@ -240,6 +240,8 @@ class Parser {
   // Open tags already found not to close, where the one pass could not
   // tell (a close in another branch): tried once, so never exponential.
   private readonly unclosed = new Set<number>();
+  // The select and plural whose branches the cursor is in, outermost first.
+  private readonly within: ("select" | "plural")[] = [];
 
   constructor(
     private readonly source: string,
@@ -807,8 +809,33 @@ class Parser {
         start,
       );
     }
+    // One level of nesting, a plural in a select's branch or a select in
+    // a plural's (#674); a printf plural's braces are the plural's own,
+    // and an Android item is a string with no select.
     if (inBranch) {
-      throw new ParseFailure(`${type}s cannot nest`, start);
+      const outer = this.within.at(-1);
+      if (
+        this.printfPlural ||
+        this.argPlurals ||
+        this.syntax === "android" ||
+        outer === undefined
+      )
+        throw new ParseFailure(`${type}s cannot nest`, start);
+      if (outer === type)
+        throw new ParseFailure(
+          `a ${type} cannot nest in a ${type}'s branch`,
+          start,
+        );
+      if (this.within.length > 1)
+        throw new ParseFailure(
+          `select and plural nest one level deep: this ${type} is inside ${[
+            ...this.within,
+          ]
+            .reverse()
+            .map((kind) => `a ${kind}`)
+            .join(" inside ")}`,
+          start,
+        );
     }
     if (!NAME_RE.test(name)) {
       throw new ParseFailure(
@@ -859,10 +886,15 @@ class Parser {
         this.printfNext = Number(own) + 1;
         this.ownFree = true;
       }
-      branches[key] = this.parseSequence(
-        true,
-        type === "plural" ? name : undefined,
-      );
+      this.within.push(type);
+      try {
+        branches[key] = this.parseSequence(
+          true,
+          type === "plural" ? name : undefined,
+        );
+      } finally {
+        this.within.pop();
+      }
       this.pos += 1; // consume '}'
     }
   }
@@ -1058,15 +1090,17 @@ function collect(
 }
 
 // The select and plural nodes of a tree in source order, through tags,
-// which may wrap them; a branch's own nodes are not entered, since
-// select and plural do not nest.
+// which may wrap them, and branches, which may hold one (#764).
 export function branchingNodes(
   nodes: IcuNode[],
 ): Extract<IcuNode, { kind: "select" | "plural" }>[] {
   const out: Extract<IcuNode, { kind: "select" | "plural" }>[] = [];
   for (const node of nodes) {
-    if (node.kind === "select" || node.kind === "plural") out.push(node);
-    else if (node.kind === "tag") out.push(...branchingNodes(node.children));
+    if (node.kind === "select" || node.kind === "plural") {
+      out.push(node);
+      for (const branch of Object.values(node.branches))
+        out.push(...branchingNodes(branch));
+    } else if (node.kind === "tag") out.push(...branchingNodes(node.children));
     else if (node.kind === "forms")
       for (const branch of node.branches) out.push(...branchingNodes(branch));
   }

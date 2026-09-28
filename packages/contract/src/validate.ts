@@ -41,6 +41,11 @@ export type ValidationError =
   | { code: "missing-branch"; arg: string; key: string }
   | { code: "unexpected-branch"; arg: string; key: string }
   | { code: "unknown-plural"; arg: string }
+  // A select and plural nested as the source does not nest them (#764).
+  | { code: "changed-nesting"; outer: string; inner: string }
+  // `#` in a select within a plural, text to FormatJS and ICU and the
+  // count to messageformat.js: `{arg}` reads the same to all.
+  | { code: "nested-count"; arg: string }
   | { code: "missing-category"; arg: string; key: string }
   | { code: "unexpected-category"; arg: string; key: string }
   // A formatted placeholder written with another type, or with none
@@ -143,6 +148,45 @@ function shapeOf(
     }
   }
   return shape;
+}
+
+// Each select or plural inside another's branch, as `outer inner`.
+function nestingOf(
+  nodes: IcuNode[],
+  outer?: string,
+  out = new Set<string>(),
+): Set<string> {
+  for (const node of nodes) {
+    if (node.kind === "select" || node.kind === "plural") {
+      if (outer !== undefined) out.add(`${outer} ${node.arg}`);
+      for (const branch of Object.values(node.branches))
+        nestingOf(branch, node.arg, out);
+    } else if (node.kind === "tag") nestingOf(node.children, outer, out);
+  }
+  return out;
+}
+
+// The plurals whose count a `#` in a select within them was meant for.
+function countsInSelects(
+  nodes: IcuNode[],
+  within: { plural?: string; select?: boolean } = {},
+  out = new Set<string>(),
+): Set<string> {
+  for (const node of nodes) {
+    if (node.kind === "literal" && within.select && within.plural)
+      if (node.text.includes("#")) out.add(within.plural);
+    if (node.kind === "select" || node.kind === "plural")
+      for (const branch of Object.values(node.branches))
+        countsInSelects(
+          branch,
+          node.kind === "plural"
+            ? { plural: node.arg }
+            : { plural: within.plural, select: true },
+          out,
+        );
+    if (node.kind === "tag") countsInSelects(node.children, within, out);
+  }
+  return out;
 }
 
 // The values a message uses: its placeholders and the counts it
@@ -422,6 +466,16 @@ export function validateTranslation(
         errors.push({ code: "unexpected-category", arg, key });
     }
   }
+  // A writer that holds a plural as its forms (Android's <plurals>, a
+  // plural object) reads a target nested the other way as no plural.
+  const nested = nestingOf(sourceNodes);
+  for (const pair of nestingOf(parsedTarget.nodes)) {
+    if (nested.has(pair)) continue;
+    const [outer, inner] = pair.split(" ") as [string, string];
+    errors.push({ code: "changed-nesting", outer, inner });
+  }
+  for (const arg of countsInSelects(parsedTarget.nodes))
+    errors.push({ code: "nested-count", arg });
   for (const [arg, keys] of actual.selects) {
     const sourceKeys = expected.selects.get(arg);
     if (!sourceKeys) {

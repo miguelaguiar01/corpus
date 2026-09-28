@@ -154,7 +154,7 @@ test("a plural parses with categories, =N exact branches and # for the count", (
   ]);
 });
 
-test("# outside a plural branch is text; a plural needs other and known keys; plurals cannot nest", () => {
+test("# outside a plural branch is text; a plural needs other and known keys", () => {
   const plain = parseIcu("Ticket #{n} {g, select, m {#} other {#}}");
   expect(plain.ok).toBe(true);
   if (!plain.ok) throw new Error("parse failed");
@@ -174,17 +174,86 @@ test("# outside a plural branch is text; a plural needs other and known keys; pl
     ],
   });
   expect(parseIcu("{n, plural, 1 {x} other {y}}").ok).toBe(false);
+});
+
+test("a plural may sit in a select's branch and a select in a plural's, one level deep (#764)", () => {
+  const inSelect = parseIcu(
+    "{g, select, f {{n, plural, one {# her} other {# hers}}} other {{n, plural, one {#} other {#}}}}",
+  );
+  expect(inSelect.ok).toBe(true);
+  if (!inSelect.ok) throw new Error("parse failed");
+  const outer = inSelect.nodes[0];
+  expect(outer?.kind === "select" && outer.branches.f).toEqual([
+    {
+      kind: "plural",
+      arg: "n",
+      branches: {
+        one: [
+          { kind: "count", arg: "n" },
+          { kind: "literal", text: " her" },
+        ],
+        other: [
+          { kind: "count", arg: "n" },
+          { kind: "literal", text: " hers" },
+        ],
+      },
+    },
+  ]);
+  // `#` is the nearest plural's count, and text in a select within one,
+  // as ICU and FormatJS read it.
+  const inPlural = parseIcu(
+    "{n, plural, one {<b>{g, select, f {#} other {x}}</b>} other {#}}",
+  );
+  expect(inPlural.ok).toBe(true);
+  if (!inPlural.ok) throw new Error("parse failed");
+  const plural = inPlural.nodes[0];
+  expect(plural?.kind === "plural" && plural.branches.one).toEqual([
+    {
+      kind: "tag",
+      name: "b",
+      children: [
+        {
+          kind: "select",
+          arg: "g",
+          branches: {
+            f: [{ kind: "literal", text: "#" }],
+            other: [{ kind: "literal", text: "x" }],
+          },
+        },
+      ],
+    },
+  ]);
   expect(
     parseIcu("{n, plural, one {{m, plural, other {y}}} other {z}}"),
   ).toMatchObject({
     ok: false,
-    errors: [{ message: "plurals cannot nest" }],
+    errors: [{ message: "a plural cannot nest in a plural's branch" }],
   });
   expect(
-    parseIcu("{n, plural, one {{g, select, m {a} f {b}}} other {z}}"),
+    parseIcu("{g, select, m {{h, select, a {x} other {y}}} other {z}}"),
   ).toMatchObject({
     ok: false,
-    errors: [{ message: "selects cannot nest" }],
+    errors: [{ message: "a select cannot nest in a select's branch" }],
+  });
+  // An Android plural item is a string, with no select in it.
+  expect(
+    parseIcu(
+      "{quantity, plural, one {{g, select, m {%d} other {%d}}} other {%d}}",
+      "android",
+    ),
+  ).toMatchObject({ ok: false, errors: [{ message: "selects cannot nest" }] });
+  expect(
+    parseIcu(
+      "{g, select, m {{n, plural, other {{h, select, a {x} other {y}}}}} other {z}}",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [
+      {
+        message:
+          "select and plural nest one level deep: this select is inside a plural inside a select",
+      },
+    ],
   });
 });
 

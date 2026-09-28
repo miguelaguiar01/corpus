@@ -319,6 +319,10 @@ export function describe(
       return `select on {${error.arg}} has the branch ${error.key}, which the source does not`;
     case "unknown-plural":
       return `plural on {${error.arg}}, which the source has no value for`;
+    case "changed-nesting":
+      return `{${error.inner}} sits inside {${error.outer}}'s branch, where the source does not put it`;
+    case "nested-count":
+      return `# in a select within the plural on {${error.arg}} is text to some runtimes; write {${error.arg}}`;
     case "missing-category":
       return `plural on {${error.arg}} lacks the ${error.key} branch its language uses`;
     case "unexpected-category":
