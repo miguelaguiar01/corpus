@@ -12,6 +12,8 @@ import {
   xcstringsTranslations,
   qtTsToEntries,
   qtTsTranslations,
+  yamlToEntries,
+  yamlTranslations,
   gettextTranslations,
   xliffToEntries,
   xliffTranslations,
@@ -258,6 +260,12 @@ export async function buildSnapshotReport(
           // the key, which is the code's, not the catalogue's.
           ...(writable && !entry.keyIsText ? { file } : {}),
           ...libraryFields(source),
+          // An entry that names its own library keeps it: a Rails
+          // catalogue's `*_MF` keys are ICU (#752).
+          ...(entry.library && {
+            library: entry.library,
+            syntax: entry.library,
+          }),
         },
         file,
         sourced,
@@ -569,6 +577,7 @@ export function sourceLibrary(source: FileSource): Library {
   if (source.adapter === "gettext" || source.adapter === "xcstrings")
     return source.library ?? "printf";
   if (source.adapter === "qt-ts") return source.library ?? "qt";
+  if (source.adapter === "yaml") return source.library ?? "rails";
   return source.adapter === "fluent" || source.adapter === "xliff"
     ? "icu"
     : libraryOf(source);
@@ -644,6 +653,12 @@ export function hasLanguages(source: FileSource): boolean {
   );
 }
 
+// Whether a source's target files are read for their translations: a
+// source pull writes back, and yaml, whose write-back is #753.
+export function readsTargets(source: FileSource): boolean {
+  return source.adapter === "yaml" || sourceWritesBack(source);
+}
+
 export function sourceWritesBack(source: FileSource): boolean {
   if (
     source.adapter === "android" ||
@@ -697,6 +712,17 @@ export async function readEntries(
           ...e,
           type: source.type,
         }));
+  }
+  if (source.adapter === "yaml") {
+    const text = readFileSync(path.join(cwd, file), "utf8");
+    // The root key is the file's own code for its language (`pt_BR`).
+    const tag = sourceFile
+      ? (language ?? languageOfFile(file, source))
+      : languageOfFile(file, source);
+    const root = fileCodeOf(source, tag);
+    return sourceFile
+      ? yamlToEntries(text, { type: source.type, root })
+      : yamlTranslations(text, root).map((e) => ({ ...e, type: source.type }));
   }
   if (source.adapter === "qt-ts") {
     const xml = readFileSync(path.join(cwd, file), "utf8");
@@ -784,6 +810,7 @@ export function writableSources(config: CorpusConfig): WritableSource[] {
     source.adapter !== "gettext" &&
     source.adapter !== "xcstrings" &&
     source.adapter !== "qt-ts" &&
+    source.adapter !== "yaml" &&
     sourceWritesBack(source)
       ? [
           {
@@ -843,6 +870,10 @@ export function pushOnlyNotes(config: CorpusConfig): string[] {
       source.adapter === "qt-ts"
     ) {
       continue;
+    } else if (source.adapter === "yaml") {
+      notes.push(
+        `${source.path}: pull does not write YAML yet; its translations are read and pushed`,
+      );
     } else if (!source.path.includes("{lang}")) {
       notes.push(
         `${source.path} has no {lang}: its translations cannot be written back`,
@@ -968,7 +999,7 @@ async function readSeeds(
   const seededFrom: Record<string, Record<string, string>> = {};
   for (const source of config.sources) {
     if (source.adapter === "exec" || !hasLanguages(source)) continue;
-    if (!sourceWritesBack(source)) continue;
+    if (!readsTargets(source)) continue;
     for (const lang of config.languages) {
       if (lang === config.sourceLanguage) continue;
       const file = fileOf(source, lang, config.sourceLanguage);

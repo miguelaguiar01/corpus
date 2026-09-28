@@ -117,6 +117,16 @@ const qtTsSchema = z.looseObject({
   languageFiles,
 });
 
+// Rails I18n's YAML (#752): a file per language, the language as its
+// root key; rails's placeholders unless the library says else.
+const yamlSchema = z.looseObject({
+  adapter: z.literal("yaml"),
+  type: identifier(),
+  path: langPattern,
+  library: librarySchema.optional(),
+  languageFiles,
+});
+
 // Apple's String Catalog (#727): one `.xcstrings` holding every
 // language, so its path has no {lang}; printf unless the library says
 // else.
@@ -143,6 +153,7 @@ export const sourceInputSchema = z.discriminatedUnion("adapter", [
   gettextSchema,
   xcstringsSchema,
   qtTsSchema,
+  yamlSchema,
   execSchema,
 ]);
 
@@ -175,6 +186,7 @@ export const sourceSchema = z.discriminatedUnion("adapter", [
   gettextSchema,
   xcstringsSchema,
   qtTsSchema,
+  yamlSchema,
   execSchema,
 ]);
 
@@ -265,10 +277,11 @@ export const corpusConfigSchema = z
         source.adapter !== "fluent" &&
         source.adapter !== "xliff" &&
         source.adapter !== "gettext" &&
-        source.adapter !== "qt-ts"
+        source.adapter !== "qt-ts" &&
+        source.adapter !== "yaml"
       ) {
         issue(
-          `languageFiles is for messages, fluent, xliff, gettext and qt-ts sources`,
+          `languageFiles is for messages, fluent, xliff, gettext, qt-ts and yaml sources`,
         );
         return;
       }

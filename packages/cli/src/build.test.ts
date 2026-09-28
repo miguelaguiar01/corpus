@@ -1248,3 +1248,50 @@ test("a qt-ts source reads the template and each language's finished translation
   expect(report.snapshot.strings.every((s) => s.file === undefined)).toBe(true);
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("a yaml source reads Rails catalogues: the root key is the file's code, _MF keys stay ICU (#752)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-yaml-"));
+  mkdirSync(path.join(dir, "locales"));
+  writeFileSync(
+    path.join(dir, "locales", "client.en.yml"),
+    'en:\n  js:\n    deny: "Cancel"\n    hello: "Hello %{name}"\n    count_MF: "{n, plural, one {# item} other {# items}}"\n',
+  );
+  writeFileSync(
+    path.join(dir, "locales", "client.pt_BR.yml"),
+    'pt_BR:\n  js:\n    deny: "Cancelar"\n    hello: "Olá %{nome}"\n',
+  );
+  const report = await buildSnapshotReport(
+    config({
+      sourceLanguage: "en",
+      languages: ["en", "pt-BR"],
+      sources: [
+        {
+          adapter: "yaml",
+          type: "ui",
+          path: "locales/client.{lang}.yml",
+          languageFiles: { "pt-BR": "pt_BR" },
+        },
+      ],
+    }),
+    dir,
+  );
+  expect(report.refused).toEqual([]);
+  expect(report.snapshot.strings.map((s) => [s.id, s.library])).toEqual([
+    ["js.deny", "rails"],
+    ["js.hello", "rails"],
+    ["js.count_MF", "icu"],
+  ]);
+  expect(report.snapshot.seedTranslations).toEqual({
+    "pt-BR": { "js.deny": "Cancelar", "js.hello": "Olá %{nome}" },
+  });
+  expect(
+    pushOnlyNotes(
+      config({
+        sources: [{ adapter: "yaml", type: "ui", path: "l/{lang}.yml" }],
+      }),
+    ),
+  ).toEqual([
+    "l/{lang}.yml: pull does not write YAML yet; its translations are read and pushed",
+  ]);
+  rmSync(dir, { recursive: true, force: true });
+});
