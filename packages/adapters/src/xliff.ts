@@ -9,6 +9,7 @@ import {
   eolOf,
   lineIndent,
   masked,
+  ownRecord,
   type Patch,
   type Span,
   usedIn,
@@ -508,6 +509,7 @@ export function entriesToXliff(
   existing: string | undefined,
   language: string,
 ): string {
+  translations = ownRecord(translations);
   const base =
     existing === undefined || existing.trim() === ""
       ? targetFrom(template, language)

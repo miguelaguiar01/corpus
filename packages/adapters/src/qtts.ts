@@ -18,6 +18,7 @@ import {
   eolOf,
   lineIndent,
   masked,
+  ownRecord,
   usedIn,
   type Patch,
   type Span,
@@ -323,6 +324,7 @@ export function entriesToQtTs(
   language: { tag: string; code: string },
   onRefused?: (id: string, text: string) => void,
 ): string {
+  translations = ownRecord(translations);
   const base =
     existing === undefined || existing.trim() === ""
       ? targetFrom(template, language.code)
