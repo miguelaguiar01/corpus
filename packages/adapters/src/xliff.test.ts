@@ -500,5 +500,14 @@ test("a unit copied from a CRLF template into an LF target takes the target's li
   );
   const out = entriesToXliff(template, { a: "Aa", b: "Bb" }, target, "fr");
   expect(out).not.toContain("\r");
-  expect(out).toContain("Bb");
+  expect(out).toContain("Bb"); // Into a CRLF target a multi-line translation keeps its own line
+  // break, and reads back and pulls again unchanged.
+  const lf = file(unit("a") + unit("b"));
+  const crlf = target.replace(/\n/g, "\r\n");
+  const once = entriesToXliff(lf, { a: "Aa", b: "x\ny" }, crlf, "fr");
+  expect(once.replace(/\r\n/g, "")).not.toContain("\n        ");
+  expect(xliffTranslations(once).find((e) => e.id === "b")?.source).toBe(
+    "x\ny",
+  );
+  expect(entriesToXliff(lf, { a: "Aa", b: "x\ny" }, once, "fr")).toBe(once);
 });
