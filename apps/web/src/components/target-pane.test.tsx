@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
-import { moonlightManor } from "@corpus/contract";
+import { moonlightManor, validateTranslation } from "@corpus/contract";
 import { TargetPane } from "./target-pane";
 
 afterEach(cleanup);
@@ -670,4 +670,25 @@ test("a nested skeleton goes one level deep, fills only the categories the sourc
   fireEvent.click(screen.getByRole("button", { name: "{c, plural}" }));
   const inner = "{g, select, a {} other {}} {h, select, b {} other {}}";
   expect(two.value).toBe(`{c, plural, =0 {#} one {${inner}} other {${inner}}}`);
+});
+
+test("a select and a plural on one argument name each get their own chip and skeleton (#770)", () => {
+  const source = "{n, plural, one {{n, select, a {x} other {y}}} other {z}}";
+  const textarea = pluralPane("en", "", source);
+  fireEvent.click(screen.getByRole("button", { name: "{n, plural}" }));
+  expect(textarea.value).toBe(
+    "{n, plural, one {{n, select, a {} other {}}} other {#}}",
+  );
+  cleanup();
+  const select = pluralPane("en", "", source);
+  fireEvent.click(screen.getByRole("button", { name: "{n, select}" }));
+  expect(select.value).toBe("{n, select, a {} other {}}");
+  // Filled, the plural's skeleton validates against the source.
+  expect(
+    validateTranslation(
+      source,
+      "{n, plural, one {{n, select, a {x} other {y}}} other {# z}}",
+      "en",
+    ),
+  ).toEqual({ ok: true });
 });

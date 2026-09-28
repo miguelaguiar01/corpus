@@ -38,9 +38,14 @@ type Branching = {
   kind: "select" | "plural";
   arg: string;
   keys: string[];
-  // The arguments nested in each key's branch (#765).
+  // The arguments nested in each key's branch (#765), by `idOf`.
   inner: Map<string, string[]>;
 };
+
+// A select and a plural may share an argument's name; each is its own
+// chip (#770).
+const idOf = (node: { kind: "select" | "plural"; arg: string }) =>
+  `${node.kind} ${node.arg}`;
 
 // The source's select and plural arguments, each with every key any of
 // its uses has, in source order (validation unions them the same way):
@@ -59,10 +64,10 @@ function branchingOf(
   const byArg = new Map<string, Branching>();
   const sourced = new Map<string, Set<string>>();
   for (const node of branchingNodes(parsed.nodes)) {
-    const keys = sourced.get(node.arg) ?? new Set<string>();
+    const keys = sourced.get(idOf(node)) ?? new Set<string>();
     for (const key of Object.keys(node.branches)) keys.add(key);
-    sourced.set(node.arg, keys);
-    const entry = byArg.get(node.arg) ?? {
+    sourced.set(idOf(node), keys);
+    const entry = byArg.get(idOf(node)) ?? {
       kind: node.kind,
       arg: node.arg,
       keys: node.kind === "plural" ? pluralCategoriesOf(language) : [],
@@ -71,7 +76,7 @@ function branchingOf(
     for (const [key, branch] of Object.entries(node.branches)) {
       for (const nested of branchingNodes(branch, false)) {
         const args = entry.inner.get(key) ?? [];
-        if (!args.includes(nested.arg)) args.push(nested.arg);
+        if (!args.includes(idOf(nested))) args.push(idOf(nested));
         entry.inner.set(key, args);
       }
       if (entry.keys.includes(key)) continue;
@@ -84,7 +89,7 @@ function branchingOf(
     }
     if (entry.kind === "plural" && !entry.keys.includes("other"))
       entry.keys.push("other");
-    byArg.set(node.arg, entry);
+    byArg.set(idOf(node), entry);
   }
   // A plural's categories are the target language's: a category the
   // source lacks holds what the source's `other` does.
@@ -92,7 +97,7 @@ function branchingOf(
     const other = entry.inner.get("other");
     if (entry.kind !== "plural" || !other) continue;
     for (const key of entry.keys)
-      if (!key.startsWith("=") && !sourced.get(entry.arg)?.has(key))
+      if (!key.startsWith("=") && !sourced.get(idOf(entry))?.has(key))
         entry.inner.set(key, other);
   }
   return [...byArg.values()];
@@ -212,7 +217,7 @@ export function TargetPane({
   // (#556); the chip for the category is still offered.
   const incomplete = validation.incomplete ?? [];
   const selects = branchingOf(source, language, syntax);
-  const byArg = new Map(selects.map((entry) => [entry.arg, entry]));
+  const byArg = new Map(selects.map((entry) => [idOf(entry), entry]));
   const tags = [...tagsOf(source, syntax)];
 
   const insert = (token: string, caretOffset?: number) => {
@@ -289,7 +294,7 @@ export function TargetPane({
             const token = skeleton(select, syntax, byArg);
             return (
               <button
-                key={select.arg}
+                key={idOf(select)}
                 type="button"
                 className={chipVariants({
                   variant: "key",
