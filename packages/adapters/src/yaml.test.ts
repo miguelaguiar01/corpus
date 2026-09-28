@@ -454,3 +454,22 @@ test("proposal edges: an added _MF plural stays a scalar, a removal keeps the bl
     ),
   ).toThrow("js.a: its parent in the file is a hash written inline");
 });
+
+test("a null parent keeps its comment, a new block takes the file's indentation, and a plural form the text lacks goes (#759)", () => {
+  const lang = { source: "en", code: "de" };
+  const en = `en:\n    g:\n        a: "A"\n        b: "B"\n    files:\n        one: "%{count} file"\n        few: "%{count} files"\n        other: "%{count} files"\n`;
+  // A null parent with a comment, in a file indented by four.
+  const de = `de:\n    g: # later\n    files:\n        one: "%{count} Datei"\n        # rare\n        few: "%{count} Dateien"\n        other: "%{count} Dateien"\n`;
+  const out = entriesToYaml(
+    en,
+    {
+      "g.a": "Ah",
+      files: "{count, plural, one {%{count} Datei} other {%{count} Dateien}}",
+    },
+    de,
+    lang,
+  );
+  expect(out).toBe(
+    `de:\n    g: # later\n        a: "Ah"\n    files:\n        one: "%{count} Datei"\n        other: "%{count} Dateien"\n`,
+  );
+});
