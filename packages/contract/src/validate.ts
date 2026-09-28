@@ -326,7 +326,8 @@ export function validateTranslation(
   const positioned = (nodes: IcuNode[]) =>
     syntax === "printf" ? argPositions(nodes) : nodes;
   const sourceNodes = positioned(parsedSource.nodes);
-  const actual = shapeOf(positioned(parsedTarget.nodes));
+  const targetNodes = positioned(parsedTarget.nodes);
+  const actual = shapeOf(targetNodes);
   let expected = shapeOf(sourceNodes);
   // A language whose only category is `other` renders a plural as its
   // `other` branch, so a translation may write that text plainly (#651);
@@ -338,7 +339,7 @@ export function validateTranslation(
   );
   if (categories.length === 1 && flat.size > 0 && syntax !== "android")
     expected = shapeOf(otherBranch(sourceNodes, flat));
-  const errors: ValidationError[] = [];
+  let errors: ValidationError[] = [];
   const expectedValues = valuesOf(expected);
   const actualValues = valuesOf(actual);
 
@@ -379,82 +380,8 @@ export function validateTranslation(
         );
     }
   }
-  if (syntax === "printf" || syntax === "android") {
-    // The index form follows the source: `%n$` where it writes one (C,
-    // Java, JavaScript's sprintf, Android), Go's `%[n]` where it writes
-    // that, and both where it writes neither, since only the project's
-    // language decides and Go has no `%n$` nor sprintf-js a `%[n]` (#645).
-    const writtenForms = [...expected.written.values()];
-    const posix =
-      syntax === "android" || writtenForms.some((w) => /^%\d+\$/.test(w));
-    const go = writtenForms.some((w) => /^%\[\d+\]/.test(w));
-    const indexFor = (verb: string) =>
-      posix ? `%n$${verb}` : go ? `%[n]${verb}` : `%n$${verb} or %[n]${verb}`;
-    // The verb is the modifier and the letter together: `%ld` against
-    // `%lu` is a changed verb (#614).
-    const verbOf = (written: string) => printfVerbOf(written) ?? written;
-    const changed: Extract<ValidationError, { code: "changed-verb" }>[] = [];
-    const positions = [...expected.written.keys()];
-    const verbs = [...actual.verbs].sort(
-      ([a], [b]) => positions.indexOf(a) - positions.indexOf(b),
-    );
-    // A position's verbs are every verb the source writes there: each
-    // Android plural item numbers its own from 1 (#596).
-    const allowed = new Map<string, Set<string>>();
-    for (const [name, written] of expected.verbs)
-      if (written !== "%arg")
-        allowed.set(
-          name,
-          (allowed.get(name) ?? new Set()).add(verbOf(written)),
-        );
-    // The key's type where the text writes no verb of its own there.
-    for (const [name, written] of passed)
-      if (!allowed.has(name)) allowed.set(name, new Set([verbOf(written)]));
-    const said = new Set<string>();
-    // A String Catalog's `%arg` is its argument whatever the verb (#726).
-    // Unless the key says what type it is.
-    const any = new Set(
-      expected.verbs
-        .filter(([name, w]) => w === "%arg" && !passed.has(name))
-        .map(([name]) => name),
-    );
-    for (const [name, got] of verbs) {
-      const own = expected.written.get(name);
-      const written =
-        own === undefined || own === "%arg" ? (passed.get(name) ?? own) : own;
-      if (
-        written === undefined ||
-        got === "%arg" ||
-        (any.has(name) && verbOf(got) !== "a") ||
-        allowed.get(name)?.has(verbOf(got))
-      )
-        continue;
-      if (said.has(name)) continue;
-      said.add(name);
-      changed.push({
-        code: "changed-verb",
-        name,
-        expected: written,
-        actual: got,
-        indexed: indexFor(verbOf(got)),
-        moved: expected.verbs.some(
-          ([other, w]) => other !== name && verbOf(w) === verbOf(got),
-        ),
-      });
-    }
-    // One dropped verb shifts every verb after it one place: read by
-    // position that is a changed verb at each place from the drop on and
-    // a missing last, and it is said as the one omission it is (#614).
-    // Anything else, a reorder or a drop beside a change, is said as it
-    // reads.
-    const drop = droppedVerb(expected, actual, changed, errors, verbOf);
-    if (drop) {
-      errors.length = 0;
-      errors.push(drop);
-    } else {
-      errors.push(...changed);
-    }
-  }
+  if (syntax === "printf" || syntax === "android")
+    errors = verbErrors(errors, expected, actual, passed, syntax);
   for (const [name, type] of expected.formats) {
     if (!actual.placeholders.has(name)) continue;
     const got = actual.formats.get(name) ?? null;
@@ -476,38 +403,10 @@ export function validateTranslation(
         errors.push({ code: "unexpected-tag", name });
     }
   }
-  for (const [arg, keys] of actual.plurals) {
-    if (!expectedValues.has(arg) && !passed.has(arg)) {
-      errors.push({ code: "unknown-plural", arg });
-      continue;
-    }
-    if (categories.length === 0) continue;
-    // `=01` is not `=1` to the runtimes, which match the key as written.
-    const exact = new Set(
-      [...keys]
-        .filter((k) => /^=(0|[1-9]\d*)$/.test(k))
-        .map((k) => Number(k.slice(1))),
-    );
-    for (const key of categories) {
-      if (
-        !keys.has(key) &&
-        !(language && pluralCategoryCovered(language, key, exact))
-      )
-        errors.push({ code: "missing-category", arg, key });
-    }
-    for (const key of keys) {
-      if (!key.startsWith("=") && !categories.includes(key))
-        errors.push({ code: "unexpected-category", arg, key });
-    }
-  }
-  // A writer that holds a plural as its forms (Android's <plurals>, a
-  // plural object) reads a target nested the other way as no plural.
-  const nested = nestingOf(sourceNodes);
-  for (const pair of nestingOf(parsedTarget.nodes)) {
-    if (nested.has(pair)) continue;
-    const [outer, inner] = pair.split(" ") as [string, string];
-    errors.push({ code: "changed-nesting", outer, inner });
-  }
+  errors.push(
+    ...pluralErrors(actual, expectedValues, passed, categories, language),
+  );
+  errors.push(...nestingErrors(sourceNodes, targetNodes));
   for (const arg of countsInSelects(parsedTarget.nodes))
     errors.push({ code: "nested-count", arg });
   for (const [arg, keys] of actual.selects) {
@@ -537,6 +436,133 @@ export function validateTranslation(
   return incomplete.length === 0
     ? { ok: false, errors: invalid }
     : { ok: false, errors: invalid, incomplete };
+}
+
+// printf's and Android's verbs: each position's against the source's,
+// said as one dropped verb where that is what the translation did; the
+// errors so far, and these, as the result.
+function verbErrors(
+  errors: ValidationError[],
+  expected: Shape,
+  actual: Shape,
+  passed: Map<string, string>,
+  syntax: "printf" | "android",
+): ValidationError[] {
+  // The index form follows the source: `%n$` where it writes one (C,
+  // Java, JavaScript's sprintf, Android), Go's `%[n]` where it writes
+  // that, and both where it writes neither, since only the project's
+  // language decides and Go has no `%n$` nor sprintf-js a `%[n]` (#645).
+  const writtenForms = [...expected.written.values()];
+  const posix =
+    syntax === "android" || writtenForms.some((w) => /^%\d+\$/.test(w));
+  const go = writtenForms.some((w) => /^%\[\d+\]/.test(w));
+  const indexFor = (verb: string) =>
+    posix ? `%n$${verb}` : go ? `%[n]${verb}` : `%n$${verb} or %[n]${verb}`;
+  // The verb is the modifier and the letter together: `%ld` against
+  // `%lu` is a changed verb (#614).
+  const verbOf = (written: string) => printfVerbOf(written) ?? written;
+  const changed: Extract<ValidationError, { code: "changed-verb" }>[] = [];
+  const positions = [...expected.written.keys()];
+  const verbs = [...actual.verbs].sort(
+    ([a], [b]) => positions.indexOf(a) - positions.indexOf(b),
+  );
+  // A position's verbs are every verb the source writes there: each
+  // Android plural item numbers its own from 1 (#596).
+  const allowed = new Map<string, Set<string>>();
+  for (const [name, written] of expected.verbs)
+    if (written !== "%arg")
+      allowed.set(name, (allowed.get(name) ?? new Set()).add(verbOf(written)));
+  // The key's type where the text writes no verb of its own there.
+  for (const [name, written] of passed)
+    if (!allowed.has(name)) allowed.set(name, new Set([verbOf(written)]));
+  const said = new Set<string>();
+  // A String Catalog's `%arg` is its argument whatever the verb (#726).
+  // Unless the key says what type it is.
+  const any = new Set(
+    expected.verbs
+      .filter(([name, w]) => w === "%arg" && !passed.has(name))
+      .map(([name]) => name),
+  );
+  for (const [name, got] of verbs) {
+    const own = expected.written.get(name);
+    const written =
+      own === undefined || own === "%arg" ? (passed.get(name) ?? own) : own;
+    if (
+      written === undefined ||
+      got === "%arg" ||
+      (any.has(name) && verbOf(got) !== "a") ||
+      allowed.get(name)?.has(verbOf(got))
+    )
+      continue;
+    if (said.has(name)) continue;
+    said.add(name);
+    changed.push({
+      code: "changed-verb",
+      name,
+      expected: written,
+      actual: got,
+      indexed: indexFor(verbOf(got)),
+      moved: expected.verbs.some(
+        ([other, w]) => other !== name && verbOf(w) === verbOf(got),
+      ),
+    });
+  }
+  // One dropped verb shifts every verb after it one place: read by
+  // position that is a changed verb at each place from the drop on and
+  // a missing last, and it is said as the one omission it is (#614).
+  // Anything else, a reorder or a drop beside a change, is said as it
+  // reads.
+  const drop = droppedVerb(expected, actual, changed, errors, verbOf);
+  return drop ? [drop] : [...errors, ...changed];
+}
+
+function pluralErrors(
+  actual: Shape,
+  expectedValues: Set<string>,
+  passed: Map<string, string>,
+  categories: string[],
+  language: string | undefined,
+): ValidationError[] {
+  const out: ValidationError[] = [];
+  for (const [arg, keys] of actual.plurals) {
+    if (!expectedValues.has(arg) && !passed.has(arg)) {
+      out.push({ code: "unknown-plural", arg });
+      continue;
+    }
+    if (categories.length === 0) continue;
+    // `=01` is not `=1` to the runtimes, which match the key as written.
+    const exact = new Set(
+      [...keys]
+        .filter((k) => /^=(0|[1-9]\d*)$/.test(k))
+        .map((k) => Number(k.slice(1))),
+    );
+    for (const key of categories) {
+      if (
+        !keys.has(key) &&
+        !(language && pluralCategoryCovered(language, key, exact))
+      )
+        out.push({ code: "missing-category", arg, key });
+    }
+    for (const key of keys) {
+      if (!key.startsWith("=") && !categories.includes(key))
+        out.push({ code: "unexpected-category", arg, key });
+    }
+  }
+  return out;
+}
+
+// A writer that holds a plural as its forms (Android's <plurals>, a
+// plural object) reads a target nested the other way as no plural.
+function nestingErrors(
+  sourceNodes: IcuNode[],
+  targetNodes: IcuNode[],
+): ValidationError[] {
+  const nested = nestingOf(sourceNodes);
+  return [...nestingOf(targetNodes)].flatMap((pair) => {
+    if (nested.has(pair)) return [];
+    const [outer, inner] = pair.split(" ") as [string, string];
+    return [{ code: "changed-nesting" as const, outer, inner }];
+  });
 }
 
 // The one omission a shifted tail is (#614): the translation writes one
