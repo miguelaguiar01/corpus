@@ -530,7 +530,10 @@ function writeYaml(
           continue;
         }
         const line = `${inner}${c}: ${doubleQuoted(forms[c]!)}${eol}`;
+        // Before the next form the text keeps: one it drops goes, its
+        // comment with it, and cannot be an anchor (#759).
         const next = PLURAL.slice(PLURAL.indexOf(c) + 1)
+          .filter((k) => Object.hasOwn(forms, k))
           .map((k) => held.get(k))
           .find((q) => q !== undefined);
         const at = next
