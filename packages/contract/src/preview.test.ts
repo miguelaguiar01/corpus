@@ -313,6 +313,15 @@ test("a value, branch or placeholder named like an Object.prototype member is on
     ok: true,
     text: "Hi {constructor}",
   });
+  for (const count of ["constructor", "toString", "__proto__"])
+    expect(
+      renderPreview(
+        `{${count}, plural, one {%d file} other {%d files}}`,
+        { "1": "1" },
+        "en",
+        { syntax: "printf" },
+      ),
+    ).toEqual({ ok: true, text: "1 file" });
   expect(renderPreview("Hi {toString}", { toString: "you" })).toEqual({
     ok: true,
     text: "Hi you",

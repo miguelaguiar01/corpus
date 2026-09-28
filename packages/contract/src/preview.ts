@@ -124,7 +124,10 @@ function withCount(
 ): Record<string, string> {
   const first = values["1"];
   if (syntax !== "printf" || first === undefined) return values;
-  const counted = { ...values };
+  const counted = Object.assign(
+    Object.create(null) as Record<string, string>,
+    values,
+  );
   for (const node of branchingNodes(nodes))
     if (node.kind === "plural" && !/^\d+$/.test(node.arg))
       counted[node.arg] ??= first;

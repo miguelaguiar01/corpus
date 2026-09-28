@@ -31,7 +31,10 @@ export function slotsOf(
   sourceLanguage: string,
   syntax: Library = "icu",
 ): StringResponse["slots"] {
-  const declared: Record<string, { description: string; role?: string }> = {};
+  const declared = Object.create(null) as Record<
+    string,
+    { description: string; role?: string }
+  >;
   for (const declaration of Object.values(declarations)) {
     if (declaration.type === "placeholders")
       Object.assign(declared, declaration.slots);
@@ -49,12 +52,15 @@ export function slotsOf(
   inPositionOrder(names, syntax);
   return names.map((name) => {
     const values: Record<string, string> = {};
-    const own = example?.values[name];
+    const own =
+      example && Object.hasOwn(example.values, name)
+        ? example.values[name]
+        : undefined;
     if (own !== undefined) values[sourceLanguage] = own;
     for (const [language, map] of Object.entries(
       example?.valuesByLanguage ?? {},
     )) {
-      const value = map[name];
+      const value = Object.hasOwn(map, name) ? map[name] : undefined;
       if (value !== undefined) values[language] = value;
     }
     return {
