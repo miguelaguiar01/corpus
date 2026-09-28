@@ -360,7 +360,28 @@ function writeYaml(
   };
   const missing = patchHeld(write, order, current);
   placeMissing(write, missing, order, keysAsWritten);
-  return applied(base, write.patches);
+  return applied(base, onLinesOfTheirOwn(base, write.patches, file.eol));
+}
+
+// The patches, each one that goes in at the end of the file starting on
+// a line of its own: a file with no final line break takes one before
+// the first, and no more (#837).
+function onLinesOfTheirOwn(
+  base: string,
+  patches: Patch[],
+  eol: string,
+): Patch[] {
+  const end = base.length;
+  const through = patches.find((p) => p.start < end && p.end === end);
+  // A removal's empty text leaves what came before it last.
+  const before = through ? through.text || base.slice(0, through.start) : base;
+  let broken = before === "" || before.endsWith("\n");
+  return patches.map((p) => {
+    if (p.start !== end || p.text === "") return p;
+    const text = broken || p.text.startsWith(eol) ? p.text : `${eol}${p.text}`;
+    broken = text.endsWith("\n");
+    return { ...p, text };
+  });
 }
 
 // A target file, indexed for a write: where each held id's pair is, and
@@ -629,11 +650,7 @@ function patchPluralHash(
     const at = next
       ? base.lastIndexOf("\n", (next.key as Node).range![0] - 1) + 1
       : afterLine(base, nodeEnd(base, value.range!));
-    patches.push({
-      start: at,
-      end: at,
-      text: at === base.length && !base.endsWith("\n") ? `${eol}${line}` : line,
-    });
+    patches.push({ start: at, end: at, text: line });
   }
   // A form the text no longer has goes, with its comment, so the hash
   // holds the text's forms (#759).
@@ -784,11 +801,7 @@ function insertion(
       pos = prev;
     }
   }
-  return {
-    start: pos,
-    end: pos,
-    text: pos === base.length && !base.endsWith("\n") ? `${eol}${text}` : text,
-  };
+  return { start: pos, end: pos, text };
 }
 
 // Why a write was refused: a plural a Rails hash cannot hold, or a key
