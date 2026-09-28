@@ -144,6 +144,23 @@ function shapeOf(
   return shape;
 }
 
+// A String Catalog's `argN` plural is the Nth printf argument, named as
+// the verb it replaces is, so the two meet by position (#726).
+function byPosition(nodes: IcuNode[]): IcuNode[] {
+  return nodes.map((node): IcuNode => {
+    if (node.kind === "tag")
+      return { ...node, children: byPosition(node.children) };
+    if (node.kind !== "plural" && node.kind !== "select") return node;
+    const branches = Object.fromEntries(
+      Object.entries(node.branches).map(([k, b]) => [k, byPosition(b)]),
+    );
+    const n = /^arg(\d+)$/.exec(node.arg)?.[1];
+    return node.kind === "plural" && n !== undefined
+      ? { ...node, arg: n, branches }
+      : { ...node, branches };
+  });
+}
+
 // The values a message uses: its placeholders and the counts it
 // pluralises on. A select's argument is not one; it picks a branch.
 function valuesOf(shape: Shape): Set<string> {
@@ -230,8 +247,11 @@ export function validateTranslation(
       ok: false,
       errors: [{ code: "invalid-icu", where: "target", ...brokenPlural }],
     };
-  const actual = shapeOf(parsedTarget.nodes);
-  let expected = shapeOf(parsedSource.nodes);
+  const positioned = (nodes: IcuNode[]) =>
+    syntax === "printf" ? byPosition(nodes) : nodes;
+  const sourceNodes = positioned(parsedSource.nodes);
+  const actual = shapeOf(positioned(parsedTarget.nodes));
+  let expected = shapeOf(sourceNodes);
   // A language whose only category is `other` renders a plural as its
   // `other` branch, so a translation may write that text plainly (#651);
   // not on Android, where a <string> is another resource than the
@@ -241,7 +261,7 @@ export function validateTranslation(
     [...expected.plurals.keys()].filter((arg) => !actual.plurals.has(arg)),
   );
   if (categories.length === 1 && flat.size > 0 && syntax !== "android")
-    expected = shapeOf(otherBranch(parsedSource.nodes, flat));
+    expected = shapeOf(otherBranch(sourceNodes, flat));
   const errors: ValidationError[] = [];
   const expectedValues = valuesOf(expected);
   const actualValues = valuesOf(actual);
@@ -301,11 +321,24 @@ export function validateTranslation(
     // Android plural item numbers its own from 1 (#596).
     const allowed = new Map<string, Set<string>>();
     for (const [name, written] of expected.verbs)
-      allowed.set(name, (allowed.get(name) ?? new Set()).add(verbOf(written)));
+      if (written !== "%arg")
+        allowed.set(
+          name,
+          (allowed.get(name) ?? new Set()).add(verbOf(written)),
+        );
     const said = new Set<string>();
+    // A String Catalog's `%arg` is its argument whatever the verb (#726).
+    const any = new Set(
+      expected.verbs.filter(([, w]) => w === "%arg").map(([name]) => name),
+    );
     for (const [name, got] of verbs) {
       const written = expected.written.get(name);
-      if (written === undefined || allowed.get(name)?.has(verbOf(got)))
+      if (
+        written === undefined ||
+        got === "%arg" ||
+        (any.has(name) && verbOf(got) !== "a") ||
+        allowed.get(name)?.has(verbOf(got))
+      )
         continue;
       if (said.has(name)) continue;
       said.add(name);

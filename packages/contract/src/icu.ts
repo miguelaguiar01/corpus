@@ -157,6 +157,24 @@ const PRINTF_PLURAL_RE = new RegExp(
   "u",
 );
 
+// A String Catalog's substitutions (#726): plurals on `argN`, the Nth
+// printf argument, among printf text, `%arg` in a branch that argument.
+const ARG_PLURAL_RE = /\{\s*arg\d+\s*,\s*plural\s*,/;
+
+function argPlurals(
+  source: string,
+  html: boolean,
+  syntax: Library,
+): IcuNode[] | undefined {
+  if (syntax !== "printf" || !ARG_PLURAL_RE.test(source)) return undefined;
+  try {
+    return new Parser(source, syntax, html, false, true).parseSequence(false);
+  } catch (error) {
+    if (error instanceof ParseFailure) return undefined;
+    throw error;
+  }
+}
+
 // The printf text read as one plural, or undefined where it is not one
 // from end to end, or does not parse as one: then it is printf text as
 // before (#652).
@@ -177,6 +195,7 @@ export function printfPluralError(
   syntax: Library = "printf",
 ): IcuError | undefined {
   if (!PRINTF_PLURAL_OPENS_RE.test(text)) return undefined;
+  if (argPlurals(text, html, syntax)) return undefined;
   const read = readPrintfPlural(text, html, syntax);
   return "error" in read ? read.error : undefined;
 }
@@ -210,6 +229,8 @@ class Parser {
   private pos = 0;
   // The next verb's position when none is written (#594).
   private printfNext = 1;
+  // Whether a substitution's branch has yet to write its argument (#726).
+  private ownFree = false;
   // The next `{}`'s position under easy_localization (#664).
   private positional = 0;
 
@@ -221,6 +242,8 @@ class Parser {
     // Catalog converter writes it (#652): its braces are the plural's,
     // its branches printf.
     private readonly printfPlural = false,
+    // printf text with plurals on `argN` in it (#726).
+    private readonly argPlurals = false,
   ) {}
 
   // Inside a plural's branch, `#` is the number; anywhere else it is text.
@@ -247,7 +270,7 @@ class Parser {
         ch === "}" &&
         (this.syntax === "icu" ||
           this.syntax === "android" ||
-          (this.printfPlural && inBranch))
+          ((this.printfPlural || this.argPlurals) && inBranch))
       ) {
         if (!inBranch) {
           throw new ParseFailure("unmatched '}'", this.pos);
@@ -399,6 +422,36 @@ class Parser {
       // printf: braces, angle brackets and `#` are text; `%` opens a verb.
       // android (#596): the verbs, with ICU's plural and tags around them.
       if (this.syntax === "printf" || this.syntax === "android") {
+        // A substitution's own value, its argument's verb whatever type
+        // the catalogue formats it with.
+        const own = /^arg(\d+)$/.exec(pluralArg ?? "")?.[1];
+        if (
+          this.argPlurals &&
+          own !== undefined &&
+          this.source.startsWith("%arg", this.pos)
+        ) {
+          flush();
+          nodes.push({ kind: "placeholder", name: own, written: "%arg" });
+          this.ownFree = false;
+          this.pos += 4;
+          literalStart = this.pos;
+          continue;
+        }
+        const argPlural =
+          this.argPlurals &&
+          !inBranch &&
+          ch === "{" &&
+          /^\{\s*arg(\d+)\s*,\s*plural\s*,/.exec(this.source.slice(this.pos));
+        if (argPlural) {
+          flush();
+          const position = Number(argPlural[1]);
+          const node = this.parseArgument(inBranch);
+          // Named by its position, as the verb it stands for is.
+          this.printfNext = position + 1;
+          nodes.push(node);
+          literalStart = this.pos;
+          continue;
+        }
         if (ch === "%") {
           if (this.source[this.pos + 1] === "%") {
             literal += "%";
@@ -409,8 +462,17 @@ class Parser {
           if (verb) {
             flush();
             const explicit = verb[1] ?? verb[2];
-            const position = explicit ? Number(explicit) : this.printfNext;
-            this.printfNext = position + 1;
+            // In a substitution's branch the first unindexed verb is its
+            // argument, as `%arg` is, and the rest count on after it (#726).
+            const substituted =
+              this.argPlurals && own !== undefined && !explicit && this.ownFree;
+            if (substituted) this.ownFree = false;
+            const position = explicit
+              ? Number(explicit)
+              : substituted
+                ? Number(own)
+                : this.printfNext;
+            if (!substituted) this.printfNext = position + 1;
             nodes.push({
               kind: "placeholder",
               name: String(position),
@@ -705,6 +767,11 @@ class Parser {
       // Each Android plural item is a string of its own: its verbs count
       // from 1.
       if (this.syntax === "android" || this.printfPlural) this.printfNext = 1;
+      const own = this.argPlurals ? /^arg(\d+)$/.exec(name)?.[1] : undefined;
+      if (own !== undefined) {
+        this.printfNext = Number(own) + 1;
+        this.ownFree = true;
+      }
       branches[key] = this.parseSequence(
         true,
         type === "plural" ? name : undefined,
@@ -793,6 +860,8 @@ function parseWith(
           branches.length === 1 ? branches[0]! : [{ kind: "forms", branches }],
       };
     }
+    const substituted = argPlurals(source, html, syntax);
+    if (substituted) return { ok: true, nodes: substituted };
     if (WHOLE_PLURAL_LIBRARIES.has(syntax) && PRINTF_PLURAL_RE.test(source)) {
       const plural = printfPlural(source, html, syntax);
       if (plural) return { ok: true, nodes: plural };
@@ -936,7 +1005,13 @@ export function placeholderWrittenOf(
 
 function collectWritten(nodes: IcuNode[], written: Map<string, string>): void {
   for (const node of nodes) {
-    if (node.kind === "placeholder" && node.written && !written.has(node.name))
+    // `%arg` stands in only inside a substitution's branch: another verb
+    // at its position is what a chip writes (#726).
+    if (
+      node.kind === "placeholder" &&
+      node.written &&
+      (!written.has(node.name) || written.get(node.name) === "%arg")
+    )
       written.set(node.name, node.written);
     else if (node.kind === "tag") collectWritten(node.children, written);
     else if (node.kind === "select" || node.kind === "plural") {
