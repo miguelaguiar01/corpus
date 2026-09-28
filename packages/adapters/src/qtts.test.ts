@@ -528,3 +528,45 @@ test("a missing message goes in after a vanished one the template has again, so 
     out.indexOf("<source>C</source>"),
   );
 });
+
+test("a vanished id message in another context is no anchor for a missing message (#776)", () => {
+  const template = `<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE TS>
+<TS version="2.1">
+<context>
+    <name>New</name>
+    <message id="x.id">
+        <source>X</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Y</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+</TS>
+`;
+  const de = `<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE TS>
+<TS version="2.1" language="de">
+<context>
+    <name>Old</name>
+    <message id="x.id">
+        <source>X</source>
+        <translation type="vanished">Iks</translation>
+    </message>
+</context>
+<context>
+    <name>New</name>
+</context>
+</TS>
+`;
+  const out = entriesToQtTs(template, { "New | Y": "Ypsilon" }, de, {
+    tag: "de",
+    code: "de",
+  });
+  expect(qtTsTranslations(out, "de").map((e) => e.id)).toEqual(["New | Y"]);
+  expect(out.indexOf("Ypsilon")).toBeGreaterThan(
+    out.indexOf("<name>New</name>"),
+  );
+});
