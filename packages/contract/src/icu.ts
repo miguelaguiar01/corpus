@@ -163,7 +163,7 @@ const ARG_PLURAL_RE = /\{\s*arg\d+\s*,\s*plural\s*,/;
 
 function argPlurals(
   source: string,
-  html: boolean,
+  html: boolean | "markup",
   syntax: Library,
 ): IcuNode[] | undefined {
   if (syntax !== "printf" || !ARG_PLURAL_RE.test(source)) return undefined;
@@ -180,7 +180,7 @@ function argPlurals(
 // before (#652).
 function printfPlural(
   source: string,
-  html: boolean,
+  html: boolean | "markup",
   syntax: Library,
 ): IcuNode[] | undefined {
   const read = readPrintfPlural(source, html, syntax);
@@ -191,7 +191,7 @@ function printfPlural(
 // translation of a plural, where falling back to text would hide it.
 export function printfPluralError(
   text: string,
-  html = false,
+  html: boolean | "markup" = false,
   syntax: Library = "printf",
 ): IcuError | undefined {
   if (!PRINTF_PLURAL_OPENS_RE.test(text)) return undefined;
@@ -202,7 +202,7 @@ export function printfPluralError(
 
 function readPrintfPlural(
   source: string,
-  html: boolean,
+  html: boolean | "markup",
   syntax: Library,
 ): { nodes: IcuNode[] } | { error: IcuError } {
   try {
@@ -237,7 +237,10 @@ class Parser {
   constructor(
     private readonly source: string,
     private readonly syntax: Library,
-    private readonly html: boolean,
+    // True reads HTML's void tags; "markup", a type read as HTML (#755),
+    // also reads a tag that never closes, or a stray closing tag, as text,
+    // as a browser does.
+    private readonly html: boolean | "markup",
     // printf text that is wholly one ICU plural, as a gettext or String
     // Catalog converter writes it (#652): its braces are the plural's,
     // its branches printf.
@@ -502,7 +505,38 @@ class Parser {
           this.pos += 1;
           continue;
         }
+        const after = this.pos;
+        const raw = this.source.slice(tag.start, after);
+        if (
+          this.html === "markup" &&
+          tag.kind === "close" &&
+          (closing === undefined || tag.name !== closing)
+        ) {
+          literal += raw;
+          continue;
+        }
         flush();
+        if (tag.kind === "open" && this.html === "markup") {
+          try {
+            const children = this.parseSequence(inBranch, pluralArg, tag.name);
+            nodes.push({
+              kind: "tag",
+              name: tag.name,
+              ...(tag.attrs ? { attrs: tag.attrs } : {}),
+              children,
+            });
+          } catch (error) {
+            if (
+              !(error instanceof ParseFailure) ||
+              error.message !== `unclosed <${tag.name}>`
+            )
+              throw error;
+            this.pos = after;
+            literal += raw;
+          }
+          literalStart = this.pos;
+          continue;
+        }
         if (tag.kind === "close") {
           if (closing === undefined || tag.name !== closing) {
             throw new ParseFailure(
@@ -804,7 +838,7 @@ class Parser {
 export function parseIcu(
   source: string,
   syntax: Library = "icu",
-  options: { html?: boolean } = {},
+  options: { html?: boolean | "markup" } = {},
 ): IcuParseResult {
   if (options.html === undefined) {
     const lenient = parseWith(source, syntax, true);
@@ -818,7 +852,7 @@ export function parseIcu(
 function parseWith(
   source: string,
   syntax: Library,
-  html: boolean,
+  html: boolean | "markup",
 ): IcuParseResult {
   try {
     if (syntax === "vue") {

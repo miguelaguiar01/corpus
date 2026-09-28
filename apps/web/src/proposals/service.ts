@@ -1,6 +1,6 @@
 import { and, count, desc, eq } from "drizzle-orm";
 import {
-  hasVoidTags,
+  tagMode,
   messageKind,
   parseIcu,
   stringEntrySchema,
@@ -46,7 +46,7 @@ export type ProposeResult =
 function invalidIcuMessage(
   text: string,
   syntax: Library,
-  html: boolean,
+  html: boolean | "markup",
 ): string | undefined {
   if (text.trim() === "") return undefined;
   const parsed = parseIcu(text, syntax, { html });
@@ -55,7 +55,11 @@ function invalidIcuMessage(
   return `invalid ${messageKind(syntax)} at ${first.position}: ${first.message}${refusalAdvice(text, syntax, first.message)}`;
 }
 
-function validIcu(text: string, syntax: Library, html: boolean): boolean {
+function validIcu(
+  text: string,
+  syntax: Library,
+  html: boolean | "markup",
+): boolean {
   return text.trim() !== "" && parseIcu(text, syntax, { html }).ok;
 }
 
@@ -65,7 +69,7 @@ function htmlOf(db: Db, projectId: number, type: string, syntax: Library) {
     .from(projects)
     .where(eq(projects.id, projectId))
     .get();
-  return hasVoidTags(syntax, project?.richText?.[type]);
+  return tagMode(syntax, project?.richText?.[type]);
 }
 
 // One pending proposal per string or key (§11): a newer one replaces
@@ -176,7 +180,7 @@ export function proposeAdd(
   );
   const key = namespacedKey(source, typed, namespaces);
   if (key === undefined) return { ok: false, reason: "invalid-key" };
-  const html = hasVoidTags(libraryOf(source), project.richText?.[source.type]);
+  const html = tagMode(libraryOf(source), project.richText?.[source.type]);
   if (!validIcu(input.text, libraryOf(source), html)) {
     const message = invalidIcuMessage(input.text, libraryOf(source), html);
     return {

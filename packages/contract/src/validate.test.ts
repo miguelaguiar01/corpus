@@ -536,8 +536,9 @@ describe("rich-text tags", () => {
       "icu",
       html,
     );
-    expect(unclosed.ok).toBe(false);
-    expect(!unclosed.ok && unclosed.errors[0]?.code).toBe("invalid-icu");
+    // A tag that never closes is text in HTML, as a browser reads it
+    // (#755): the translation is valid.
+    expect(unclosed.ok).toBe(true);
     expect(errorsOf(source, "<i>{user}</i> {host}")).toEqual([
       { code: "unexpected-tag", name: "i" },
     ]);
@@ -1388,5 +1389,42 @@ test("the key's type applies where the text writes no verb of its own (#731)", (
     validateTranslation("%lld stars", "%@ Sterne", "de", "printf", {
       arguments: ["%@"],
     }).ok,
+  ).toBe(false);
+});
+
+test("in a type read as HTML a tag that never closes, or a stray closing tag, is text (#755)", () => {
+  const head = "HTML to insert at the end of the <head> of each page";
+  expect(parseIcu(head, "rails", { html: "markup" }).ok).toBe(true);
+  expect(parseIcu(head, "rails", { html: true }).ok).toBe(false);
+  expect(
+    validateTranslation(
+      head,
+      "HTML a inserir no fim do <head> de cada página",
+      "pt",
+      "rails",
+      { richText: "html" },
+    ),
+  ).toEqual({ ok: true });
+  // An unclosed <p> as browsers accept it, and a stray </b>.
+  const prose = parseIcu("<p>One<p>Two</b>", "icu", { html: "markup" });
+  expect(prose.ok && prose.nodes.every((n) => n.kind === "literal")).toBe(true);
+  expect(
+    prose.ok &&
+      prose.nodes.map((n) => (n.kind === "literal" ? n.text : "")).join(""),
+  ).toBe("<p>One<p>Two</b>");
+  // A tag that does close is still a tag.
+  expect(
+    parseIcu("a <b>bold</b> word", "icu", { html: "markup" }),
+  ).toMatchObject({
+    ok: true,
+    nodes: [
+      { kind: "literal", text: "a " },
+      { kind: "tag", name: "b" },
+      { kind: "literal", text: " word" },
+    ],
+  });
+  // A component-rendered type still refuses an unclosed tag.
+  expect(
+    validateTranslation("a <b>bold</b>", "a <b>bold", "pt", "icu").ok,
   ).toBe(false);
 });

@@ -184,6 +184,16 @@ function otherBranch(nodes: IcuNode[], args: Set<string>): IcuNode[] {
 // Where `<br>` and the other void elements open nothing (#643): a type
 // read as HTML, an Android string (rendered through fromHtml), and
 // i18next, whose react-i18next Trans keeps them void.
+// How a type's text reads its tags: "markup" for a type read as HTML,
+// where a tag that never closes is text, as a browser reads it (#755);
+// else whether void elements open nothing.
+export function tagMode(
+  syntax: Library,
+  richText?: RichText,
+): boolean | "markup" {
+  return richText === "html" ? "markup" : hasVoidTags(syntax, richText);
+}
+
 export function hasVoidTags(syntax: Library, richText?: RichText): boolean {
   return richText === "html" || syntax === "android" || syntax === "i18next";
 }
@@ -199,7 +209,7 @@ export function validateTranslation(
   // prints none of them.
   options: { richText?: RichText; arguments?: string[] } = {},
 ): ValidationResult {
-  const html = hasVoidTags(syntax, options.richText);
+  const html = tagMode(syntax, options.richText);
   const parsedSource = parseIcu(source, syntax, { html });
   if (!parsedSource.ok) {
     return {

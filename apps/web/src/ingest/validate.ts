@@ -1,6 +1,6 @@
 import {
   libraryOf,
-  hasVoidTags,
+  tagMode,
   messageKind,
   parseIcu,
   refusalAdvice,
@@ -50,7 +50,7 @@ export function validateSnapshot(body: unknown): ValidationResult {
 
     const library = libraryOf(entry);
     const icu = parseIcu(entry.source, library, {
-      html: hasVoidTags(library, snapshot.richText?.[entry.type]),
+      html: tagMode(library, snapshot.richText?.[entry.type]),
     });
     if (!icu.ok) {
       // The CLI refuses these before a push, so this message reaches

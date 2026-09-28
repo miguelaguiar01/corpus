@@ -31,6 +31,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- In a type declared `richText: "html"`, a tag that never closes, or a stray closing tag, is text, as a browser reads it: Discourse's "HTML to insert at the end of the `<head>`" and an unclosed `<p>` no longer stop a build, and its client catalogues build (7,985 strings; the 3 `_MF` strings that nest a plural in a select wait for #674). A component-rendered type still refuses an unclosed tag.
 - `validate` names an orphan key where it is, the target file that keeps it, with the source that no longer has it in brackets and how many other target files carry it, where it named the source file.
 - A config language that is not a tag is refused by name, `"sr@latin" is not a language tag; write sr-Latn, and map its files with languageFiles: …`, where it said `languages.2: a language tag such as en, pt-PT or en_US`. `corpus init` no longer warns for a real language the runtime has no plural rules for, `kaa`, `oc`, `oc-FR`, `ltg`, when it has a name for it; it still warns for a made-up code and for Crowdin's `cr` and `ach`.
 - `corpus check` skips test, spec and story files (`*.test.*`, `*.spec.*`, `*.stories.*`, anything under `__tests__/`) and says how many: 7 of Excalidraw's 33 findings were `*.test.tsx` fixtures. A `__tests__` directory named in `check.include` is read. A JSX text shorter than its indentation is reported at the line it is on, where it was counted from past its own leading whitespace and named the next line (Excalidraw's `TTDDialogOutput.tsx:70` for `Likely causes:` on 69).
