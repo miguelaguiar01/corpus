@@ -411,7 +411,7 @@ function writeYaml(
     const value = pair.value as Node | null;
     const range = value?.range;
     if (!range || range[1] <= range[0]) return colon;
-    return range[1];
+    return nodeEnd(base, range);
   };
   // A pair's value replaced by `tail`, which starts after the key.
   const replaceValue = (pair: Pair, tail: string) => {
@@ -538,7 +538,7 @@ function writeYaml(
           .find((q) => q !== undefined);
         const at = next
           ? base.lastIndexOf("\n", (next.key as Node).range![0] - 1) + 1
-          : afterLine(value.range![1]);
+          : afterLine(nodeEnd(base, value.range!));
         patches.push({
           start: at,
           end: at,
@@ -712,6 +712,28 @@ export type YamlOp =
   | { kind: "edit" | "add"; id: string; text: string }
   | { kind: "delete"; id: string };
 
+// Where a node ends. A map ending in a commented empty value (`u: #
+// keep`) reaches into the next line's indentation; it ends at that
+// line's start (#804).
+function nodeEnd(text: string, range: readonly number[]): number {
+  const end = range[1]!;
+  const nl = text.lastIndexOf("\n", end - 1);
+  if (nl >= range[0]! && /^[ \t]*$/.test(text.slice(nl + 1, end)))
+    return nl + 1;
+  return end;
+}
+
+// Where a pair's content ends: a map's last item's, since the library
+// lets a map's range take the comment lines after it (#804).
+function contentEnd(text: string, pair: Pair): number {
+  const value = pair.value as Node | null;
+  if (isMap(value) && !value.flow && value.items.length > 0)
+    return contentEnd(text, value.items[value.items.length - 1] as Pair);
+  return value?.range && value.range[1] > value.range[0]
+    ? nodeEnd(text, value.range)
+    : (pair.key as Node).range![1];
+}
+
 // A pair's lines, removed: from its key's line, or the comment lines
 // just above it, through the line its value ends on.
 function pairRemoval(text: string, map: YAMLMap, pair: Pair): Patch {
@@ -721,17 +743,13 @@ function pairRemoval(text: string, map: YAMLMap, pair: Pair): Patch {
   // it: a block scalar's `# Heading` is text.
   const index = map.items.indexOf(pair);
   const before = index > 0 ? map.items[index - 1] : undefined;
-  const floor = before
-    ? ((before.value as Node | null)?.range?.[1] ??
-      (before.key as Node).range![1])
-    : 0;
+  const floor = before ? contentEnd(text, before) : 0;
   while (start > floor) {
     const prev = text.lastIndexOf("\n", start - 2) + 1;
     if (prev < floor || !text.slice(prev, start).trim().startsWith("#")) break;
     start = prev;
   }
-  const value = pair.value as Node | null;
-  const end = value?.range?.[1] ?? (pair.key as Node).range![1];
+  const end = contentEnd(text, pair);
   const nl = text[end - 1] === "\n" ? end : text.indexOf("\n", end) + 1;
   return { start, end: nl <= 0 ? text.length : nl, text: "" };
 }
