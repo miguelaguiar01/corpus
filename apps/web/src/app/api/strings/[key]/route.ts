@@ -74,6 +74,10 @@ export async function GET(
     richText: detail.string.richText,
     library: detail.string.syntax,
     syntax: detail.string.syntax,
+    // An empty list is none: an exporter may send one (#737).
+    ...(detail.string.arguments?.length && {
+      arguments: detail.string.arguments,
+    }),
     slots: slotsOf(
       detail.string.source,
       detail.declarations,

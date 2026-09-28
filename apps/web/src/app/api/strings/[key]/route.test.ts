@@ -168,3 +168,44 @@ test("a seeded translation that fails validation carries the flag and what is wr
   });
   applySnapshot(db, project.id, FIXTURE);
 });
+
+test("a string's key arguments are in its response, and absent where it has none (#737)", async () => {
+  const { db, project, token } = seeded;
+  const favorite = "notifications.label.favorite %lld";
+  applySnapshot(db, project.id, {
+    ...FIXTURE,
+    strings: [
+      ...FIXTURE.strings,
+      {
+        id: favorite,
+        type: FIXTURE.strings[0]!.type,
+        source: "starred",
+        library: "printf",
+        syntax: "printf",
+        arguments: ["%lld"],
+      },
+    ],
+  });
+  const withArguments = (await (
+    await string(token, favorite)
+  ).json()) as StringResponse;
+  expect(withArguments.arguments).toEqual(["%lld"]);
+  const without = (await (await string(token, CONTINUE)).json()) as Record<
+    string,
+    unknown
+  >;
+  expect("arguments" in without).toBe(false);
+  // An empty list, as an exporter may send, is none.
+  applySnapshot(db, project.id, {
+    ...FIXTURE,
+    strings: FIXTURE.strings.map((s) =>
+      s.id === CONTINUE ? { ...s, arguments: [] } : s,
+    ),
+  });
+  const empty = (await (await string(token, CONTINUE)).json()) as Record<
+    string,
+    unknown
+  >;
+  expect("arguments" in empty).toBe(false);
+  applySnapshot(db, project.id, FIXTURE);
+});
