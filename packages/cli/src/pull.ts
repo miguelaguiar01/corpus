@@ -235,81 +235,16 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
       }
       if (existing === undefined && Object.keys(translations).length === 0)
         continue;
-      const next =
-        source.adapter === "android"
-          ? entriesToAndroid(template, translations, existing)
-          : source.adapter === "fluent"
-            ? entriesToFluent(template, translations, existing)
-            : source.adapter === "messages"
-              ? entriesToMessages(template, translations, existing, {
-                  ...(isArb(file) && { locale: language }),
-                  chrome: libraryOf(source) === "chrome",
-                  plurals: readsPluralObjects(source),
-                  onRefused: (id) =>
-                    ctx.err(
-                      `corpus: ${file}: ${printable(id)} is a plural its object cannot hold (an =N branch, or a brace a form leaves open); not written`,
-                    ),
-                })
-              : source.adapter === "xliff"
-                ? entriesToXliff(template, translations, existing, language)
-                : source.adapter === "gettext"
-                  ? entriesToGettext(
-                      template,
-                      translations,
-                      existing,
-                      { tag: language, code: fileCodeOf(source, language) },
-                      (id) =>
-                        ctx.err(
-                          `corpus: ${file}: ${printable(id)} is a plural and its translation is not one gettext can hold (a plain text, or an =N branch); not written`,
-                        ),
-                      (note) => ctx.err(`corpus: ${file}: ${note}`),
-                    )
-                  : source.adapter === "qt-ts"
-                    ? entriesToQtTs(
-                        template,
-                        translations,
-                        existing,
-                        { tag: language, code: fileCodeOf(source, language) },
-                        (id) =>
-                          ctx.err(
-                            `corpus: ${file}: ${printable(id)} is a numerus message and its translation is not one plural Qt can hold (a plain text, or an =N branch); not written`,
-                          ),
-                      )
-                    : source.adapter === "yaml"
-                      ? entriesToYaml(
-                          template,
-                          translations,
-                          existing,
-                          {
-                            source: config.sourceLanguage,
-                            code: fileCodeOf(source, language),
-                          },
-                          (id, _text, why) =>
-                            ctx.err(
-                              why === "plural"
-                                ? `corpus: ${file}: ${printable(id)} is a plural a Rails hash cannot hold (an =N branch, or text beside it); not written`
-                                : `corpus: ${file}: ${printable(id)}'s parent in the file is a scalar, a hash written inline or an alias; not written`,
-                            ),
-                        )
-                      : source.adapter === "xcstrings"
-                        ? xcstringsInto(
-                            file,
-                            existing,
-                            translations,
-                            language,
-                            (id) =>
-                              ctx.err(
-                                `corpus: ${file}: ${printable(id)} is a plural a String Catalog cannot hold (an =N branch, or one that does not parse); not written`,
-                              ),
-                          )
-                        : source.adapter === "table"
-                          ? entriesToTable(
-                              template,
-                              translations,
-                              source.map,
-                              existing,
-                            )
-                          : existing;
+      const next = writeTarget(
+        source,
+        file,
+        template,
+        translations,
+        existing,
+        language,
+        config,
+        ctx.err,
+      );
       if (next !== undefined) pending.set(file, next);
       if (next !== undefined && next !== existing) {
         if (!check) {
@@ -400,23 +335,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
       }
       let next: string;
       try {
-        next =
-          source.adapter === "android"
-            ? applyAndroidOps(existing, targetOps)
-            : source.adapter === "fluent"
-              ? applyFluentOps(existing, targetOps)
-              : source.adapter === "messages"
-                ? applyMessagesOps(existing, targetOps, {
-                    chrome: libraryOf(source) === "chrome",
-                    plurals: readsPluralObjects(source),
-                  })
-                : source.adapter === "xliff"
-                  ? applyXliffOps(existing, targetOps)
-                  : source.adapter === "yaml"
-                    ? applyYamlOps(existing, targetOps, code)
-                    : source.adapter === "table"
-                      ? applyTableOps(existing, targetOps, source.map)
-                      : existing;
+        next = applyOps(source, existing, targetOps, code);
       } catch (error) {
         throw new CliError(
           `${target}: proposal(s) for ${targetOps.map((o) => printable(o.id)).join(", ")}: ${(error as Error).message}`,
@@ -525,6 +444,119 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     );
   }
   return 0;
+}
+
+// The target file `source` writes for `language`, with each refusal said
+// through `err`; undefined when there is no file to write.
+function writeTarget(
+  source: FileSource,
+  file: string,
+  template: string,
+  translations: Record<string, string>,
+  existing: string | undefined,
+  language: string,
+  config: CorpusConfig,
+  err: (line: string) => void,
+): string | undefined {
+  const refused = (id: string, why: string) =>
+    err(`corpus: ${file}: ${printable(id)} ${why}; not written`);
+  switch (source.adapter) {
+    case "android":
+      return entriesToAndroid(template, translations, existing);
+    case "fluent":
+      return entriesToFluent(template, translations, existing);
+    case "messages":
+      return entriesToMessages(template, translations, existing, {
+        ...(isArb(file) && { locale: language }),
+        chrome: libraryOf(source) === "chrome",
+        plurals: readsPluralObjects(source),
+        onRefused: (id) =>
+          refused(
+            id,
+            "is a plural its object cannot hold (an =N branch, or a brace a form leaves open)",
+          ),
+      });
+    case "xliff":
+      return entriesToXliff(template, translations, existing, language);
+    case "gettext":
+      return entriesToGettext(
+        template,
+        translations,
+        existing,
+        { tag: language, code: fileCodeOf(source, language) },
+        (id) =>
+          refused(
+            id,
+            "is a plural and its translation is not one gettext can hold (a plain text, or an =N branch)",
+          ),
+        (note) => err(`corpus: ${file}: ${note}`),
+      );
+    case "qt-ts":
+      return entriesToQtTs(
+        template,
+        translations,
+        existing,
+        { tag: language, code: fileCodeOf(source, language) },
+        (id) =>
+          refused(
+            id,
+            "is a numerus message and its translation is not one plural Qt can hold (a plain text, or an =N branch)",
+          ),
+      );
+    case "yaml":
+      return entriesToYaml(
+        template,
+        translations,
+        existing,
+        { source: config.sourceLanguage, code: fileCodeOf(source, language) },
+        (id, _text, why) =>
+          err(
+            why === "plural"
+              ? `corpus: ${file}: ${printable(id)} is a plural a Rails hash cannot hold (an =N branch, or text beside it); not written`
+              : `corpus: ${file}: ${printable(id)}'s parent in the file is a scalar, a hash written inline or an alias; not written`,
+          ),
+      );
+    case "xcstrings":
+      return xcstringsInto(file, existing, translations, language, (id) =>
+        refused(
+          id,
+          "is a plural a String Catalog cannot hold (an =N branch, or one that does not parse)",
+        ),
+      );
+    case "table":
+      return entriesToTable(template, translations, source.map, existing);
+    default:
+      return existing;
+  }
+}
+
+// A source file with the proposals applied; `code` is the root key a
+// yaml target file carries.
+function applyOps(
+  source: FileSource,
+  existing: string,
+  ops: SourceOp[],
+  code: string,
+): string {
+  switch (source.adapter) {
+    case "android":
+      return applyAndroidOps(existing, ops);
+    case "fluent":
+      return applyFluentOps(existing, ops);
+    case "messages":
+      return applyMessagesOps(existing, ops, {
+        chrome: libraryOf(source) === "chrome",
+        plurals: readsPluralObjects(source),
+      });
+    case "xliff":
+      return applyXliffOps(existing, ops);
+    case "yaml":
+      return applyYamlOps(existing, ops, code);
+    case "table":
+      return applyTableOps(existing, ops, source.map);
+    default:
+      return existing;
+  }
 }
 
 function proposalsByFile(
