@@ -168,6 +168,33 @@ export function yamlTranslations(text: string, root: string): StringEntry[] {
   );
 }
 
+// YAML's own escapes for the line breaks libyaml reads in a quoted
+// scalar: written raw, NEL reads back as a space (#851).
+const NAMED_ESCAPES: Record<number, string> = {
+  0x85: "\\N",
+  0x2028: "\\L",
+  0x2029: "\\P",
+};
+
+// What libyaml refuses raw anywhere in a file, a quoted scalar too: a C0
+// control but tab and line feed, DEL, a C1 control, U+FFFE and U+FFFF;
+// NEL and the Unicode separators it reads raw only as a break (#851).
+function refusedRaw(code: number): boolean {
+  return (
+    (code < 0x20 && code !== 0x09 && code !== 0x0a) ||
+    (code >= 0x7f && code <= 0x9f) ||
+    code === 0x2028 ||
+    code === 0x2029 ||
+    code === 0xfffe ||
+    code === 0xffff
+  );
+}
+
+function unplain(text: string): boolean {
+  for (const c of text) if (refusedRaw(c.codePointAt(0)!)) return true;
+  return false;
+}
+
 // A text as a double-quoted scalar: JSON's escapes, which YAML reads,
 // on one line; everything else as it is.
 function doubleQuoted(text: string): string {
@@ -183,9 +210,10 @@ function doubleQuoted(text: string): string {
             ? "\\n"
             : c === "\t"
               ? "\\t"
-              : code < 0x20 || code === 0x7f
-                ? `\\u${code.toString(16).padStart(4, "0")}`
-                : c;
+              : (NAMED_ESCAPES[code] ??
+                (refusedRaw(code)
+                  ? `\\u${code.toString(16).padStart(4, "0")}`
+                  : c));
   }
   return `"${out}"`;
 }
@@ -242,6 +270,7 @@ function styled(
   eol = "\n",
 ): string {
   const was = node.range ? source.slice(node.range[0], node.range[1]) : "";
+  if (unplain(text)) return doubleQuoted(text);
   let out: string | undefined;
   if (node.type === "PLAIN" && !text.includes("\n")) out = text;
   else if (node.type === "QUOTE_SINGLE" && !text.includes("\n"))
@@ -266,7 +295,8 @@ function styled(
       .split("\n")
       .map((l) => (l === "" ? "" : `${body}${l}`))
       .join("\n")}\n${"\n".repeat(Math.max(0, trailing - 1))}`;
-    if (kept !== "" && readsAs(block, indent, text))
+    // libyaml reads a tab at a block line's start as indentation (#851).
+    if (kept !== "" && !/^\t/m.test(kept) && readsAs(block, indent, text))
       return block.replace(/\n/g, eol);
   }
   if (out !== undefined && readsAs(out, indent, text)) return out;

@@ -637,3 +637,40 @@ test("keys going in at the end of a file with no final line break start one line
       ),
     ).toBe(`fr:\n  n:\n    one: "un"\n    other: "des"\n  m: "MM"\n`);
 });
+
+test("a text Rails' parser could not read back is written double-quoted, whatever the scalar's style (#851)", () => {
+  const lang = { source: "en", code: "fr" };
+  const en =
+    "en:\n  a: A\n  b: 'B'\n  c: |\n    C\n  d: >\n    D\n  e: {x: X}\n";
+  const fr =
+    "fr:\n  a: y\n  b: 'y'\n  c: |\n    y\n  d: >\n    y\n  e: {x: y}\n";
+  const [nel, ls, ps, nonchar] = [0x85, 0x2028, 0x2029, 0xfffe].map((c) =>
+    String.fromCodePoint(c),
+  );
+  // Nothing libyaml refuses is written raw: C0 and C1 controls, DEL,
+  // NEL, the Unicode line and paragraph separators, U+FFFE and U+FFFF.
+  const refused = new RegExp(
+    `[\x00-\x08\x0b-\x1f\x7f-\x9f${ls}${ps}${nonchar}]`,
+  );
+  const texts = [
+    "k\x07",
+    `p${ls}q`,
+    `p${ps}q`,
+    `p${nel}q`,
+    "k\x7f",
+    "\tlead",
+    "k\x80",
+    `k${nonchar}`,
+    "x\n\tnext",
+  ];
+  for (const text of texts) {
+    const tr = { a: text, b: text, c: text, d: text, "e.x": text };
+    const out = entriesToYaml(en, tr, fr, lang);
+    const back = Object.fromEntries(
+      yamlTranslations(out, "fr").map((e) => [e.id, e.source]),
+    );
+    expect(back).toEqual(tr);
+    expect(out).not.toMatch(refused);
+    expect(out).not.toMatch(/\n +\t/);
+  }
+});
