@@ -225,6 +225,10 @@ function readPrintfPlural(
   }
 }
 
+// What a sequence has read so far: its nodes, the text not yet a node,
+// and where that text starts.
+type Sequence = { nodes: IcuNode[]; literal: string; literalStart: number };
+
 class Parser {
   private pos = 0;
   // The next verb's position when none is written (#594).
@@ -265,19 +269,10 @@ class Parser {
     pluralArg?: string,
     closing?: string,
   ): IcuNode[] {
-    const nodes: IcuNode[] = [];
-    let literal = "";
-    let literalStart = this.pos;
-
-    const flush = () => {
-      if (literal !== "") {
-        nodes.push({ kind: "literal", text: literal });
-        literal = "";
-      }
-    };
+    const seq: Sequence = { nodes: [], literal: "", literalStart: this.pos };
 
     while (this.pos < this.source.length) {
-      const ch = this.source[this.pos];
+      const ch = this.source[this.pos]!;
       if (
         ch === "}" &&
         (this.syntax === "icu" ||
@@ -288,230 +283,19 @@ class Parser {
           throw new ParseFailure("unmatched '}'", this.pos);
         }
         if (closing !== undefined) {
-          throw new ParseFailure(`unclosed <${closing}>`, literalStart);
+          throw new ParseFailure(`unclosed <${closing}>`, seq.literalStart);
         }
-        flush();
-        return nodes;
+        this.flush(seq);
+        return seq.nodes;
       }
-      // counterpart (#663): `%(name)s` is a placeholder, braces and `#`
-      // are text but for a plural read whole, and tags are substitutions.
-      if (this.syntax === "counterpart") {
-        if (ch === "%") {
-          const match = COUNTERPART_PLACEHOLDER_RE.exec(
-            this.source.slice(this.pos),
-          );
-          if (match) {
-            flush();
-            nodes.push({
-              kind: "placeholder",
-              name: match[1]!,
-              written: match[0],
-            });
-            this.pos += match[0].length;
-            literalStart = this.pos;
-            continue;
-          }
-        }
-        if (ch === "#" || (ch === "{" && !(this.printfPlural && !inBranch))) {
-          literal += ch;
-          this.pos += 1;
-          continue;
-        }
-      }
-      // easy_localization (#664): `{}` and `{name}` are placeholders, a
-      // link must be kept, and braces around anything else, `#` and
-      // angle brackets are text, but for a plural read whole.
-      if (this.syntax === "easy_localization") {
-        const rest = this.source.slice(this.pos);
-        const link = ch === "@" ? EASY_LINK_RE.exec(rest) : null;
-        if (link) {
-          flush();
-          nodes.push({ kind: "placeholder", name: link[0], written: link[0] });
-          this.pos += link[0].length;
-          literalStart = this.pos;
-          continue;
-        }
-        const opensPlural = this.printfPlural && !inBranch && ch === "{";
-        const brace =
-          ch === "{" && !opensPlural ? EASY_PLACEHOLDER_RE.exec(rest) : null;
-        if (brace) {
-          flush();
-          // In a plural's form, `{}` is the count.
-          const name = brace[1] ?? pluralArg ?? String(this.positional++);
-          nodes.push({ kind: "placeholder", name, written: brace[0] });
-          this.pos += brace[0].length;
-          literalStart = this.pos;
-          continue;
-        }
-        if (ch === "#" || ch === "<" || (ch === "{" && !opensPlural)) {
-          literal += ch;
-          this.pos += 1;
-          continue;
-        }
-      }
-      // Rails I18n (#665): `%{name}` is a placeholder, `%%{` a literal,
-      // braces and `#` text but for a plural read whole; tags as ICU's.
-      if (this.syntax === "rails") {
-        const rest = this.source.slice(this.pos);
-        if (rest.startsWith("%%")) {
-          literal += "%%";
-          this.pos += 2;
-          continue;
-        }
-        const match = ch === "%" ? RAILS_PLACEHOLDER_RE.exec(rest) : null;
-        if (match) {
-          flush();
-          nodes.push({
-            kind: "placeholder",
-            name: (match[1] ?? match[2])!,
-            written: match[0],
-          });
-          this.pos += match[0].length;
-          literalStart = this.pos;
-          continue;
-        }
-        if (ch === "#" || (ch === "{" && !(this.printfPlural && !inBranch))) {
-          literal += ch;
-          this.pos += 1;
-          continue;
-        }
-      }
-      // Qt (#666): a placeholder is its number, `%L1` being `%1` shown
-      // in the locale's digits; any other `%`, braces and `#` are text,
-      // and angle brackets too unless the type is read as HTML.
-      if (this.syntax === "qt") {
-        const match =
-          ch === "%"
-            ? QT_PLACEHOLDER_RE.exec(this.source.slice(this.pos))
-            : null;
-        if (match) {
-          flush();
-          // Named by its value: `%01` is Qt's `%1`.
-          const digits = match[2]!;
-          nodes.push({
-            kind: "placeholder",
-            name: digits === "n" ? "n" : String(Number(digits)),
-            written: match[0],
-          });
-          this.pos += match[0].length;
-          literalStart = this.pos;
-          continue;
-        }
-        if (
-          ch === "#" ||
-          (ch === "<" && !this.html) ||
-          (ch === "{" && !(this.printfPlural && !inBranch))
-        ) {
-          literal += ch;
-          this.pos += 1;
-          continue;
-        }
-      }
-      if (this.syntax === "chrome") {
-        if (ch === "$") {
-          if (this.source[this.pos + 1] === "$") {
-            literal += "$";
-            this.pos += 2;
-            continue;
-          }
-          const match = CHROME_PLACEHOLDER_RE.exec(this.source.slice(this.pos));
-          if (match) {
-            flush();
-            nodes.push({
-              kind: "placeholder",
-              name: match[1]!.toLowerCase(),
-              written: match[0],
-            });
-            this.pos += match[0].length;
-            literalStart = this.pos;
-            continue;
-          }
-        }
-        literal += ch;
-        this.pos += 1;
-        continue;
-      }
-      // printf: braces, angle brackets and `#` are text; `%` opens a verb.
-      // android (#596): the verbs, with ICU's plural and tags around them.
-      if (this.syntax === "printf" || this.syntax === "android") {
-        // A substitution's own value, its argument's verb whatever type
-        // the catalogue formats it with.
-        const own = /^arg(\d+)$/.exec(pluralArg ?? "")?.[1];
-        if (
-          this.argPlurals &&
-          own !== undefined &&
-          this.source.startsWith("%arg", this.pos)
-        ) {
-          flush();
-          nodes.push({ kind: "placeholder", name: own, written: "%arg" });
-          this.ownFree = false;
-          this.pos += 4;
-          literalStart = this.pos;
-          continue;
-        }
-        const argPlural =
-          this.argPlurals &&
-          !inBranch &&
-          ch === "{" &&
-          /^\{\s*arg(\d+)\s*,\s*plural\s*,/.exec(this.source.slice(this.pos));
-        if (argPlural) {
-          flush();
-          const position = Number(argPlural[1]);
-          const node = this.parseArgument(inBranch);
-          // Named by its position, as the verb it stands for is.
-          this.printfNext = position + 1;
-          nodes.push(node);
-          literalStart = this.pos;
-          continue;
-        }
-        if (ch === "%") {
-          if (this.source[this.pos + 1] === "%") {
-            literal += "%";
-            this.pos += 2;
-            continue;
-          }
-          const verb = PRINTF_VERB_RE.exec(this.source.slice(this.pos));
-          if (verb) {
-            flush();
-            const explicit = verb[1] ?? verb[2];
-            // In a substitution's branch the first unindexed verb is its
-            // argument, as `%arg` is, and the rest count on after it (#726).
-            const substituted =
-              this.argPlurals && own !== undefined && !explicit && this.ownFree;
-            if (substituted) this.ownFree = false;
-            const position = explicit
-              ? Number(explicit)
-              : substituted
-                ? Number(own)
-                : this.printfNext;
-            if (!substituted) this.printfNext = position + 1;
-            nodes.push({
-              kind: "placeholder",
-              name: String(position),
-              written: verb[0],
-            });
-            this.pos += verb[0].length;
-            literalStart = this.pos;
-            continue;
-          }
-        }
-        const opensPlural = this.printfPlural && !inBranch && ch === "{";
-        if (
-          (this.syntax === "printf" && !opensPlural) ||
-          ch === "%" ||
-          ch === "#"
-        ) {
-          literal += ch;
-          this.pos += 1;
-          continue;
-        }
-      }
+      // A plural read whole opens with the text's first brace.
+      const opensPlural = this.printfPlural && !inBranch && ch === "{";
+      if (this.lexLibrary(seq, ch, inBranch, opensPlural, pluralArg)) continue;
       // vue-i18n has no tag syntax: a `<` is text (#644).
       if (ch === "<" && this.syntax !== "vue") {
         const tag = this.readTag();
         if (tag === undefined) {
-          literal += ch;
-          this.pos += 1;
+          this.text(seq, ch);
           continue;
         }
         const after = this.pos;
@@ -523,10 +307,10 @@ class Parser {
             (tag.kind === "close" &&
               (closing === undefined || tag.name !== closing)))
         ) {
-          literal += raw;
+          seq.literal += raw;
           continue;
         }
-        flush();
+        this.flush(seq);
         if (tag.kind === "open" && this.html === "markup") {
           // A tag whose close sits in another branch, which the one pass
           // cannot tell, is text too; what it read is undone.
@@ -537,7 +321,7 @@ class Parser {
           ] as const;
           try {
             const children = this.parseSequence(inBranch, pluralArg, tag.name);
-            nodes.push({
+            seq.nodes.push({
               kind: "tag",
               name: tag.name,
               ...(tag.attrs ? { attrs: tag.attrs } : {}),
@@ -552,9 +336,9 @@ class Parser {
             this.pos = after;
             [this.printfNext, this.ownFree, this.positional] = counters;
             this.unclosed.add(tag.start);
-            literal += raw;
+            seq.literal += raw;
           }
-          literalStart = this.pos;
+          seq.literalStart = this.pos;
           continue;
         }
         if (tag.kind === "close") {
@@ -566,9 +350,9 @@ class Parser {
               tag.start,
             );
           }
-          return nodes;
+          return seq.nodes;
         }
-        nodes.push({
+        seq.nodes.push({
           kind: "tag",
           name: tag.name,
           ...(tag.attrs ? { attrs: tag.attrs } : {}),
@@ -577,7 +361,7 @@ class Parser {
               ? []
               : this.parseSequence(inBranch, pluralArg, tag.name),
         });
-        literalStart = this.pos;
+        seq.literalStart = this.pos;
         continue;
       }
       if (ch === "{") {
@@ -585,48 +369,241 @@ class Parser {
         // for a literal `@`, `|` or `{`, which the language would
         // otherwise read as syntax.
         if (this.syntax === "vue") {
-          flush();
-          nodes.push(this.parseVueBrace());
-          literalStart = this.pos;
+          this.node(seq, this.parseVueBrace());
           continue;
         }
         // i18next: {{name}} is a placeholder, a single brace is text,
         // and there are no arguments, so nothing else opens here.
         // A plural read whole opens with a single brace (#662).
-        if (this.syntax === "i18next" && !(this.printfPlural && !inBranch)) {
+        if (this.syntax === "i18next" && !opensPlural) {
           if (this.source[this.pos + 1] !== "{") {
-            literal += ch;
-            this.pos += 1;
+            this.text(seq, ch);
             continue;
           }
-          flush();
-          nodes.push(this.parseDoubleBrace());
-          literalStart = this.pos;
+          this.node(seq, this.parseDoubleBrace());
           continue;
         }
-        flush();
-        nodes.push(this.parseArgument(inBranch));
-        literalStart = this.pos;
+        this.node(seq, this.parseArgument(inBranch));
         continue;
       }
       if (ch === "#" && pluralArg !== undefined && this.syntax !== "i18next") {
-        flush();
-        nodes.push({ kind: "count", arg: pluralArg });
+        this.flush(seq);
+        seq.nodes.push({ kind: "count", arg: pluralArg });
         this.pos += 1;
-        literalStart = this.pos;
+        seq.literalStart = this.pos;
         continue;
       }
-      literal += ch;
-      this.pos += 1;
+      this.text(seq, ch);
     }
     if (closing !== undefined) {
-      throw new ParseFailure(`unclosed <${closing}>`, literalStart);
+      throw new ParseFailure(`unclosed <${closing}>`, seq.literalStart);
     }
     if (inBranch) {
-      throw new ParseFailure("unclosed branch '{'", literalStart);
+      throw new ParseFailure("unclosed branch '{'", seq.literalStart);
     }
-    flush();
-    return nodes;
+    this.flush(seq);
+    return seq.nodes;
+  }
+
+  private flush(seq: Sequence): void {
+    if (seq.literal !== "") {
+      seq.nodes.push({ kind: "literal", text: seq.literal });
+      seq.literal = "";
+    }
+  }
+
+  // Text at the cursor, `length` characters of the source read as `text`.
+  private text(seq: Sequence, text: string, length = text.length): true {
+    seq.literal += text;
+    this.pos += length;
+    return true;
+  }
+
+  // A node the reader that made it has already consumed.
+  private node(seq: Sequence, node: IcuNode): void {
+    this.flush(seq);
+    seq.nodes.push(node);
+    seq.literalStart = this.pos;
+  }
+
+  // A placeholder written as `written` at the cursor, consumed.
+  private placeholder(seq: Sequence, name: string, written: string): true {
+    this.flush(seq);
+    seq.nodes.push({ kind: "placeholder", name, written });
+    this.pos += written.length;
+    seq.literalStart = this.pos;
+    return true;
+  }
+
+  // A library's own syntax at the cursor: true where it read something.
+  private lexLibrary(
+    seq: Sequence,
+    ch: string,
+    inBranch: boolean,
+    opensPlural: boolean,
+    pluralArg: string | undefined,
+  ): boolean {
+    switch (this.syntax) {
+      case "counterpart":
+        return this.lexCounterpart(seq, ch, opensPlural);
+      case "easy_localization":
+        return this.lexEasy(seq, ch, opensPlural, pluralArg);
+      case "rails":
+        return this.lexRails(seq, ch, opensPlural);
+      case "qt":
+        return this.lexQt(seq, ch, opensPlural);
+      case "chrome":
+        return this.lexChrome(seq, ch);
+      case "printf":
+      case "android":
+        return this.lexPrintf(seq, ch, inBranch, opensPlural, pluralArg);
+      default:
+        return false;
+    }
+  }
+
+  // counterpart (#663): `%(name)s` is a placeholder, braces and `#` are
+  // text but for a plural read whole, and tags are substitutions.
+  private lexCounterpart(
+    seq: Sequence,
+    ch: string,
+    opensPlural: boolean,
+  ): boolean {
+    if (ch === "%") {
+      const match = COUNTERPART_PLACEHOLDER_RE.exec(
+        this.source.slice(this.pos),
+      );
+      if (match) return this.placeholder(seq, match[1]!, match[0]);
+    }
+    if (ch === "#" || (ch === "{" && !opensPlural)) return this.text(seq, ch);
+    return false;
+  }
+
+  // easy_localization (#664): `{}` and `{name}` are placeholders, a link
+  // must be kept, and braces around anything else, `#` and angle
+  // brackets are text, but for a plural read whole.
+  private lexEasy(
+    seq: Sequence,
+    ch: string,
+    opensPlural: boolean,
+    pluralArg: string | undefined,
+  ): boolean {
+    const rest = this.source.slice(this.pos);
+    const link = ch === "@" ? EASY_LINK_RE.exec(rest) : null;
+    if (link) return this.placeholder(seq, link[0], link[0]);
+    const brace =
+      ch === "{" && !opensPlural ? EASY_PLACEHOLDER_RE.exec(rest) : null;
+    // In a plural's form, `{}` is the count.
+    if (brace)
+      return this.placeholder(
+        seq,
+        brace[1] ?? pluralArg ?? String(this.positional++),
+        brace[0],
+      );
+    if (ch === "#" || ch === "<" || (ch === "{" && !opensPlural))
+      return this.text(seq, ch);
+    return false;
+  }
+
+  // Rails I18n (#665): `%{name}` is a placeholder, `%%{` a literal,
+  // braces and `#` text but for a plural read whole; tags as ICU's.
+  private lexRails(seq: Sequence, ch: string, opensPlural: boolean): boolean {
+    const rest = this.source.slice(this.pos);
+    if (rest.startsWith("%%")) return this.text(seq, "%%");
+    const match = ch === "%" ? RAILS_PLACEHOLDER_RE.exec(rest) : null;
+    if (match) return this.placeholder(seq, (match[1] ?? match[2])!, match[0]);
+    if (ch === "#" || (ch === "{" && !opensPlural)) return this.text(seq, ch);
+    return false;
+  }
+
+  // Qt (#666): a placeholder is its number, `%L1` being `%1` shown in the
+  // locale's digits; any other `%`, braces and `#` are text, and angle
+  // brackets too unless the type is read as HTML.
+  private lexQt(seq: Sequence, ch: string, opensPlural: boolean): boolean {
+    const match =
+      ch === "%" ? QT_PLACEHOLDER_RE.exec(this.source.slice(this.pos)) : null;
+    if (match) {
+      // Named by its value: `%01` is Qt's `%1`.
+      const digits = match[2]!;
+      return this.placeholder(
+        seq,
+        digits === "n" ? "n" : String(Number(digits)),
+        match[0],
+      );
+    }
+    if (
+      ch === "#" ||
+      (ch === "<" && !this.html) ||
+      (ch === "{" && !opensPlural)
+    )
+      return this.text(seq, ch);
+    return false;
+  }
+
+  private lexChrome(seq: Sequence, ch: string): true {
+    if (ch === "$") {
+      if (this.source[this.pos + 1] === "$") return this.text(seq, "$", 2);
+      const match = CHROME_PLACEHOLDER_RE.exec(this.source.slice(this.pos));
+      if (match)
+        return this.placeholder(seq, match[1]!.toLowerCase(), match[0]);
+    }
+    return this.text(seq, ch);
+  }
+
+  // printf: braces, angle brackets and `#` are text; `%` opens a verb.
+  // android (#596): the verbs, with ICU's plural and tags around them.
+  private lexPrintf(
+    seq: Sequence,
+    ch: string,
+    inBranch: boolean,
+    opensPlural: boolean,
+    pluralArg: string | undefined,
+  ): boolean {
+    // A substitution's own value, its argument's verb whatever type the
+    // catalogue formats it with.
+    const own = /^arg(\d+)$/.exec(pluralArg ?? "")?.[1];
+    if (
+      this.argPlurals &&
+      own !== undefined &&
+      this.source.startsWith("%arg", this.pos)
+    ) {
+      this.ownFree = false;
+      return this.placeholder(seq, own, "%arg");
+    }
+    const argPlural =
+      this.argPlurals &&
+      !inBranch &&
+      ch === "{" &&
+      /^\{\s*arg(\d+)\s*,\s*plural\s*,/.exec(this.source.slice(this.pos));
+    if (argPlural) {
+      const node = this.parseArgument(inBranch);
+      // Named by its position, as the verb it stands for is.
+      this.printfNext = Number(argPlural[1]) + 1;
+      this.node(seq, node);
+      return true;
+    }
+    if (ch === "%") {
+      if (this.source[this.pos + 1] === "%") return this.text(seq, "%", 2);
+      const verb = PRINTF_VERB_RE.exec(this.source.slice(this.pos));
+      if (verb) {
+        const explicit = verb[1] ?? verb[2];
+        // In a substitution's branch the first unindexed verb is its
+        // argument, as `%arg` is, and the rest count on after it (#726).
+        const substituted =
+          this.argPlurals && own !== undefined && !explicit && this.ownFree;
+        if (substituted) this.ownFree = false;
+        const position = explicit
+          ? Number(explicit)
+          : substituted
+            ? Number(own)
+            : this.printfNext;
+        if (!substituted) this.printfNext = position + 1;
+        return this.placeholder(seq, String(position), verb[0]);
+      }
+    }
+    if ((this.syntax === "printf" && !opensPlural) || ch === "%" || ch === "#")
+      return this.text(seq, ch);
+    return false;
   }
 
   // {{ name }} or {{name, format}} at the cursor, consumed (i18next).
@@ -764,13 +741,15 @@ class Parser {
     }
 
     const name = body.trim();
-    if (next === "}") {
-      if (!NAME_RE.test(name)) {
+    const checkName = (what: string) => {
+      if (!NAME_RE.test(name))
         throw new ParseFailure(
-          `invalid placeholder name ${JSON.stringify(name)}`,
+          `invalid ${what} name ${JSON.stringify(name)}`,
           start,
         );
-      }
+    };
+    if (next === "}") {
+      checkName("placeholder");
       this.pos += 1;
       return { kind: "placeholder", name };
     }
@@ -779,12 +758,7 @@ class Parser {
     this.pos += 1; // consume ','
     const type = this.readUntil([",", "}"]).trim();
     if (type === "number" || type === "date" || type === "time") {
-      if (!NAME_RE.test(name)) {
-        throw new ParseFailure(
-          `invalid placeholder name ${JSON.stringify(name)}`,
-          start,
-        );
-      }
+      checkName("placeholder");
       let style: string | undefined;
       if (this.source[this.pos] === ",") {
         this.pos += 1;
@@ -809,46 +783,51 @@ class Parser {
         start,
       );
     }
-    // One level of nesting, a plural in a select's branch or a select in
-    // a plural's (#674); a printf plural's braces are the plural's own,
-    // and an Android item is a string with no select.
-    if (inBranch) {
-      const outer = this.within.at(-1);
-      if (
-        this.printfPlural ||
-        this.argPlurals ||
-        this.syntax === "android" ||
-        outer === undefined
-      )
-        throw new ParseFailure(`${type}s cannot nest`, start);
-      if (outer === type)
-        throw new ParseFailure(
-          `a ${type} cannot nest in a ${type}'s branch`,
-          start,
-        );
-      if (this.within.length > 1)
-        throw new ParseFailure(
-          `select and plural nest one level deep: this ${type} is inside ${[
-            ...this.within,
-          ]
-            .reverse()
-            .map((kind) => `a ${kind}`)
-            .join(" inside ")}`,
-          start,
-        );
-    }
-    if (!NAME_RE.test(name)) {
-      throw new ParseFailure(
-        `invalid ${type} argument name ${JSON.stringify(name)}`,
-        start,
-      );
-    }
+    if (inBranch) this.checkNesting(type, start);
+    checkName(`${type} argument`);
     if (this.source[this.pos] !== ",") {
       throw new ParseFailure(`${type} needs branches`, start);
     }
     this.pos += 1; // consume ','
+    return this.parseBranches(type, name, start);
+  }
 
+  // One level of nesting, a plural in a select's branch or a select in
+  // a plural's (#674); a printf plural's braces are the plural's own,
+  // and an Android item is a string with no select.
+  private checkNesting(type: "select" | "plural", start: number): void {
+    const outer = this.within.at(-1);
+    if (
+      this.printfPlural ||
+      this.argPlurals ||
+      this.syntax === "android" ||
+      outer === undefined
+    )
+      throw new ParseFailure(`${type}s cannot nest`, start);
+    if (outer === type)
+      throw new ParseFailure(
+        `a ${type} cannot nest in a ${type}'s branch`,
+        start,
+      );
+    if (this.within.length > 1)
+      throw new ParseFailure(
+        `select and plural nest one level deep: this ${type} is inside ${[
+          ...this.within,
+        ]
+          .reverse()
+          .map((kind) => `a ${kind}`)
+          .join(" inside ")}`,
+        start,
+      );
+  }
+
+  private parseBranches(
+    type: "select" | "plural",
+    name: string,
+    start: number,
+  ): IcuNode {
     const branches: Record<string, IcuNode[]> = {};
+    const own = this.argPlurals ? /^arg(\d+)$/.exec(name)?.[1] : undefined;
     for (;;) {
       this.skipWhitespace();
       const ch = this.source[this.pos];
@@ -881,7 +860,6 @@ class Parser {
       // Each Android plural item is a string of its own: its verbs count
       // from 1.
       if (this.syntax === "android" || this.printfPlural) this.printfNext = 1;
-      const own = this.argPlurals ? /^arg(\d+)$/.exec(name)?.[1] : undefined;
       if (own !== undefined) {
         this.printfNext = Number(own) + 1;
         this.ownFree = true;
@@ -915,11 +893,6 @@ class Parser {
   }
 }
 
-// `html` reads `<br>`, `<hr>`, `<wbr>` and `<img>` as void elements
-// (#643): without it, where a component renders each tag, `<br></br>` is
-// a pair like any other and a lone `<br>` is unclosed. Validation passes
-// it for the text in hand; reading a source for its parts leaves it
-// unset, which takes whatever either reading takes.
 // A text read for what it holds (its slots, its tags, a preview), not
 // for whether it is valid: the reading parseIcu gives, or, where that
 // fails, a type read as HTML's, whose unclosed tags are text (#755).
@@ -934,6 +907,11 @@ export function readIcu(
   return markup.ok ? markup : read;
 }
 
+// `html` reads `<br>`, `<hr>`, `<wbr>` and `<img>` as void elements
+// (#643): without it, where a component renders each tag, `<br></br>` is
+// a pair like any other and a lone `<br>` is unclosed. Validation passes
+// it for the text in hand; reading a source for its parts leaves it
+// unset, which takes whatever either reading takes.
 export function parseIcu(
   source: string,
   syntax: Library = "icu",
@@ -1014,9 +992,6 @@ function parseWith(
   }
 }
 
-// vue-i18n separates plural forms with a top-level `|`. The source is
-// split before it is parsed, so a pipe inside a `{'…'}` literal is
-// text: that escape is exactly how a catalogue writes one (#496).
 // The `}` that closes a vue brace, skipping one inside the quotes of a
 // `{'…'}` literal: `{'}'}` is a literal closing brace.
 function closingBrace(source: string, at: number): number {
@@ -1033,6 +1008,9 @@ function closingBrace(source: string, at: number): number {
   return -1;
 }
 
+// vue-i18n separates plural forms with a top-level `|`. The source is
+// split before it is parsed, so a pipe inside a `{'…'}` literal is
+// text: that escape is exactly how a catalogue writes one (#496).
 function splitVueSource(source: string): string[] {
   const parts: string[] = [];
   let current = "";
