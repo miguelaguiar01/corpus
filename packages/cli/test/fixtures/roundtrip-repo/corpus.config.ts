@@ -36,6 +36,7 @@ export default defineCorpus({
       path: "po/{lang}.po",
       sourcePath: "po/messages.pot",
     },
+    { adapter: "xcstrings", type: "screen", path: "ios/Localizable.xcstrings" },
   ],
   richText: { screen: "html" },
 });

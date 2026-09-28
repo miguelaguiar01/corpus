@@ -1,5 +1,7 @@
 import { expect, test } from "vitest";
 import {
+  entriesToXcstrings,
+  serializeXcstrings,
   xcstringsLanguages,
   xcstringsToEntries,
   xcstringsTranslations,
@@ -194,4 +196,142 @@ test("the catalogue's sourceLanguage must be the config's; strings must be an ob
   expect(() =>
     xcstringsToEntries('{"sourceLanguage":"en","strings":[]}', { type: "ui" }),
   ).toThrow("not a String Catalog");
+});
+
+// A catalogue as Xcode saves it.
+const xcode = (catalog: unknown) => `${serializeXcstrings(catalog)}\n`;
+
+test("a catalogue's own translations write the same bytes; Xcode's layout is its serializer's (#728)", () => {
+  const file = xcode(JSON.parse(CATALOG));
+  for (const language of ["de", "fr", "pl"]) {
+    const own = Object.fromEntries(
+      xcstringsTranslations(file, language).map((e) => [e.id, e.source]),
+    );
+    expect(entriesToXcstrings(file, own, language)).toBe(file);
+  }
+  expect(file).toContain(
+    '"sourceLanguage" : "en",\n  "strings" : {\n    "" : {\n\n    },',
+  );
+});
+
+test("a changed text rewrites its unit alone, translated; substitutions keep the language's own names (#728)", () => {
+  const file = xcode(JSON.parse(CATALOG));
+  const out = entriesToXcstrings(
+    file,
+    {
+      "timeline.n-recent-from-n-participants %lld %lld":
+        "{arg1, plural, one {%arg post} few {%arg posty} other {%arg postów}} {arg2, plural, one {od %arg uczestnika} other {od %arg uczestników}}",
+    },
+    "pl",
+  );
+  const pl =
+    JSON.parse(out).strings["timeline.n-recent-from-n-participants %lld %lld"]
+      .localizations.pl;
+  expect(pl.stringUnit.value).toBe("%#@count_posts@ %#@count_participants@");
+  expect(Object.keys(pl.substitutions)).toEqual([
+    "count_participants",
+    "count_posts",
+  ]);
+  expect(Object.keys(pl.substitutions.count_posts.variations.plural)).toEqual([
+    "few",
+    "one",
+    "other",
+  ]);
+  expect(pl.substitutions.count_posts).not.toHaveProperty("argNum");
+  // Only that unit moved: put back, the bytes are the file's.
+  const back = JSON.parse(out);
+  back.strings[
+    "timeline.n-recent-from-n-participants %lld %lld"
+  ].localizations.pl =
+    JSON.parse(file).strings[
+      "timeline.n-recent-from-n-participants %lld %lld"
+    ].localizations.pl;
+  expect(xcode(back)).toBe(file);
+  // A needs_review unit given a text becomes translated; a new language
+  // lands in order; a key the file lacks is not added.
+  const fr = JSON.parse(
+    entriesToXcstrings(
+      file,
+      {
+        Bookmarks: "Signets",
+        "timeline.new-posts %lld":
+          "{count, plural, one {%lld nouveau} other {%lld nouveaux}}",
+        "not.in.file": "x",
+      },
+      "fr",
+    ),
+  );
+  expect(fr.strings.Bookmarks.localizations.fr).toEqual({
+    stringUnit: { state: "translated", value: "Signets" },
+  });
+  expect(
+    Object.keys(fr.strings["timeline.new-posts %lld"].localizations),
+  ).toEqual(["en", "de", "fr"]);
+  // Sorted localizations take a new one in order; unsorted ones, as
+  // above, at the end.
+  const es = JSON.parse(
+    entriesToXcstrings(file, { Bookmarks: "Marcadores" }, "es"),
+  );
+  expect(Object.keys(es.strings.Bookmarks.localizations)).toEqual([
+    "de",
+    "es",
+    "fr",
+  ]);
+  expect(fr.strings).not.toHaveProperty("not.in.file");
+});
+
+test("a language keeps its own device shape when written (#728)", () => {
+  const file = xcode({
+    sourceLanguage: "en",
+    strings: {
+      platform: {
+        localizations: {
+          en: {
+            variations: { device: { ipad: u("iPad"), iphone: u("iPhone") } },
+          },
+          de: u("Gerät"),
+        },
+      },
+      done: {
+        localizations: {
+          en: u("Done"),
+          de: {
+            variations: { device: { mac: u("Fertig."), other: u("Fertig") } },
+          },
+        },
+      },
+    },
+  });
+  // Every variant the same: German stays plain.
+  let de = JSON.parse(
+    entriesToXcstrings(
+      file,
+      {
+        "platform [device:ipad]": "Geräte",
+        "platform [device:iphone]": "Geräte",
+      },
+      "de",
+    ),
+  ).strings;
+  expect(de.platform.localizations.de).toEqual(u("Geräte"));
+  // One variant apart: German varies, the other keeping its text.
+  de = JSON.parse(
+    entriesToXcstrings(file, { "platform [device:ipad]": "Tablet" }, "de"),
+  ).strings;
+  expect(de.platform.localizations.de).toEqual({
+    variations: { device: { ipad: u("Tablet"), iphone: u("Gerät") } },
+  });
+  // A plain source's text goes to German's `other`, `mac` kept.
+  de = JSON.parse(entriesToXcstrings(file, { done: "Erledigt" }, "de")).strings;
+  expect(de.done.localizations.de).toEqual({
+    variations: { device: { mac: u("Fertig."), other: u("Erledigt") } },
+  });
+});
+
+test("a catalogue not in Xcode's layout is refused rather than moved; one with nothing to write is left alone (#728)", () => {
+  const minified = JSON.stringify(JSON.parse(CATALOG));
+  expect(() =>
+    entriesToXcstrings(minified, { Bookmarks: "Merkliste" }, "de"),
+  ).toThrow("not in Xcode's layout");
+  expect(entriesToXcstrings(minified, {}, "de")).toBe(minified);
 });

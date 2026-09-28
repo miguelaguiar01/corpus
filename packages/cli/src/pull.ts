@@ -10,6 +10,8 @@ import {
   fluentToEntries,
   applyXliffOps,
   entriesToGettext,
+  entriesToXcstrings,
+  xcstringsToEntries,
   entriesToXliff,
   parsePo,
   poId,
@@ -154,6 +156,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
       for (const language of targets) idsInTarget(member, language);
 
   const changed: string[] = [];
+  const pending = new Map<string, string>();
   const claimedTypes = new Set<string>();
   // Ids the server holds that no source-language file of their type does
   // any more: orphans, listed by validate, never appended to a target
@@ -185,9 +188,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     }
     if (!sourceWritesBack(source)) {
       ctx.err(
-        source.adapter === "xcstrings"
-          ? `corpus: ${source.path}: pull does not write a String Catalog yet; its translations are read and pushed`
-          : `corpus: ${source.path} is not JSON: pull writes JSON only, so its translations cannot be written back`,
+        `corpus: ${source.path} is not JSON: pull writes JSON only, so its translations cannot be written back`,
       );
       continue;
     }
@@ -208,7 +209,9 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     const members = membersOf(source);
     for (const language of targets) {
       const file = fileOf(source, language, config.sourceLanguage);
-      const existing = readRepoFile(ctx.cwd, file);
+      // A String Catalog is one file for every language: each language
+      // writes into what the one before it left.
+      const existing = pending.get(file) ?? readRepoFile(ctx.cwd, file);
       const forSource = sharedFor(
         forType(payload, language, source.type),
         source,
@@ -250,14 +253,17 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
                           `corpus: ${file}: ${printable(id)} is a plural and its translation is not one gettext can hold (a plain text, or an =N branch); not written`,
                         ),
                     )
-                  : source.adapter === "table"
-                    ? entriesToTable(
-                        template,
-                        translations,
-                        source.map,
-                        existing,
-                      )
-                    : existing;
+                  : source.adapter === "xcstrings"
+                    ? xcstringsInto(file, existing, translations, language)
+                    : source.adapter === "table"
+                      ? entriesToTable(
+                          template,
+                          translations,
+                          source.map,
+                          existing,
+                        )
+                      : existing;
+      if (next !== undefined) pending.set(file, next);
       if (next !== undefined && next !== existing) {
         if (!check) {
           // A language new to the repository may need its directory.
@@ -266,7 +272,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
           });
           writeFileSync(path.join(ctx.cwd, file), next);
         }
-        changed.push(file);
+        if (!changed.includes(file)) changed.push(file);
       }
     }
   }
@@ -309,7 +315,12 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
         s.adapter !== "exec" &&
         fileOf(s, config.sourceLanguage, config.sourceLanguage) === file,
     );
-    if (!source || !sourceWritesBack(source) || source.adapter === "gettext") {
+    if (
+      !source ||
+      !sourceWritesBack(source) ||
+      source.adapter === "gettext" ||
+      source.adapter === "xcstrings"
+    ) {
       ctx.err(
         `corpus: proposal(s) for ${ops.map((o) => printable(o.id)).join(", ")}: ${file} matches no writable source; not written`,
       );
@@ -558,6 +569,14 @@ function ownIds(template: string, source: FileSource): Set<string> | undefined {
       return undefined;
     }
   }
+  if (source.adapter === "xcstrings")
+    try {
+      return new Set(
+        xcstringsToEntries(template, { type: source.type }).map((e) => e.id),
+      );
+    } catch {
+      return undefined;
+    }
   if (source.adapter === "gettext")
     return new Set(
       parsePo(template).flatMap((e) => (e.msgid === "" ? [] : [poId(e)])),
@@ -641,4 +660,18 @@ function repoPath(cwd: string, file: string): string | undefined {
   )
     return undefined;
   return rel.split(path.sep).join("/");
+}
+
+function xcstringsInto(
+  file: string,
+  existing: string | undefined,
+  translations: Record<string, string>,
+  language: string,
+): string | undefined {
+  if (existing === undefined) return undefined;
+  try {
+    return entriesToXcstrings(existing, translations, language);
+  } catch (error) {
+    throw new CliError(`${file}: ${(error as Error).message}`);
+  }
 }

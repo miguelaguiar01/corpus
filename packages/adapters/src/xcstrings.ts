@@ -221,3 +221,232 @@ export function xcstringsLanguages(text: string): string[] {
   found.delete(catalog.sourceLanguage);
   return [catalog.sourceLanguage, ...[...found].sort()];
 }
+
+// Xcode's layout for a String Catalog: two-space indent, `"k" : v`,
+// UTF-8 as it is, an empty object or array with a blank line inside.
+export function serializeXcstrings(value: unknown, indent = ""): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  const inner = `${indent}  `;
+  if (Array.isArray(value))
+    return value.length === 0
+      ? `[\n\n${indent}]`
+      : `[\n${value.map((v) => inner + serializeXcstrings(v, inner)).join(",\n")}\n${indent}]`;
+  const keys = Object.keys(value);
+  if (keys.length === 0) return `{\n\n${indent}}`;
+  return `{\n${keys
+    .map(
+      (k) =>
+        `${inner}${JSON.stringify(k)} : ${serializeXcstrings((value as Record<string, unknown>)[k], inner)}`,
+    )
+    .join(",\n")}\n${indent}}`;
+}
+
+const sorted = <T>(record: Record<string, T>): Record<string, T> =>
+  Object.fromEntries(
+    Object.entries(record).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+  );
+
+const translated = (value: string): XcUnit => ({
+  stringUnit: { state: "translated", value },
+});
+
+type Part = string | { arg: string; branches: Record<string, string> };
+
+// The plurals Corpus reads a unit as, `{count, plural, …}` or
+// `{argN, plural, …}`, among the text around them; any other brace is
+// printf text.
+function partsOf(text: string): Part[] {
+  const parts: Part[] = [];
+  let literal = "";
+  let at = 0;
+  while (at < text.length) {
+    const open = /^\{\s*(count|arg\d+)\s*,\s*plural\s*,/.exec(text.slice(at));
+    if (!open) {
+      literal += text[at++];
+      continue;
+    }
+    let i = at + open[0].length;
+    const branches: Record<string, string> = {};
+    for (;;) {
+      while (/\s/.test(text[i] ?? "")) i++;
+      if (text[i] === "}") {
+        i++;
+        break;
+      }
+      const key = /^([a-z]+|=\d+)\s*\{/.exec(text.slice(i));
+      if (!key) return [text];
+      i += key[0].length;
+      let depth = 1;
+      let body = "";
+      while (i < text.length) {
+        const ch = text[i++]!;
+        if (ch === "{") depth++;
+        else if (ch === "}" && --depth === 0) break;
+        body += ch;
+      }
+      if (depth !== 0) return [text];
+      branches[key[1]!] = body;
+    }
+    if (literal) parts.push(literal);
+    literal = "";
+    parts.push({ arg: open[1]!, branches });
+    at = i;
+  }
+  if (literal) parts.push(literal);
+  return parts;
+}
+
+// Each substitution of a unit by the argument it formats, `argN`.
+function namesOf(unit: XcUnit | undefined): Map<string, string> {
+  const out = new Map<string, string>();
+  const value = unit?.stringUnit?.value;
+  if (!unit?.substitutions || value === undefined) return out;
+  let next = 1;
+  for (const m of value.matchAll(VERB)) {
+    if (m[0] === "%%") continue;
+    const position = m[1] ? Number(m[1]) : next;
+    next = position + 1;
+    if (m[2])
+      out.set(`arg${unit.substitutions[m[2]]?.argNum ?? position}`, m[2]);
+  }
+  return out;
+}
+
+// A text as a unit, shaped as the unit it replaces or the source's: a
+// plural on count is `variations.plural`, plurals on arguments are
+// substitutions under the unit's own names, its `argNum` and
+// `formatSpecifier` kept.
+function unitOf(
+  text: string,
+  like: XcUnit | undefined,
+  source: XcUnit | undefined,
+): XcUnit {
+  const parts = partsOf(text);
+  const plurals = parts.filter(
+    (p): p is Exclude<Part, string> => typeof p !== "string",
+  );
+  if (plurals.length === 0) return translated(text);
+  const forms = (branches: Record<string, string>) =>
+    sorted(
+      Object.fromEntries(
+        Object.entries(branches).map(([k, v]) => [k, translated(v)]),
+      ),
+    );
+  if (parts.length === 1 && plurals[0]!.arg === "count")
+    return { variations: { plural: forms(plurals[0]!.branches) } };
+  const own = namesOf(like);
+  const theirs = namesOf(source);
+  const nameOf = (arg: string) => own.get(arg) ?? theirs.get(arg) ?? arg;
+  const substitutions: NonNullable<XcUnit["substitutions"]> = {};
+  for (const plural of plurals) {
+    const name = nameOf(plural.arg);
+    const before =
+      like?.substitutions?.[name] ??
+      source?.substitutions?.[theirs.get(plural.arg) ?? name];
+    substitutions[name] = {
+      ...(before?.argNum !== undefined && { argNum: before.argNum }),
+      formatSpecifier: before?.formatSpecifier ?? "lld",
+      variations: { plural: forms(plural.branches) },
+    };
+  }
+  return {
+    stringUnit: {
+      state: "translated",
+      value: parts
+        .map((p) => (typeof p === "string" ? p : `%#@${nameOf(p.arg)}@`))
+        .join(""),
+    },
+    substitutions: sorted(substitutions),
+  };
+}
+
+// Pull's write into a String Catalog (§8): each changed text into its
+// key's unit for the language, `state` translated, in Xcode's layout; a
+// language that varies by device where the source does not keeps its
+// variants, the plain text going to `other`, one that does not vary
+// where the source does stays plain while every variant reads the
+// same; a key the file lacks is not added. A file Xcode's layout does
+// not reproduce is refused rather than moved.
+export function entriesToXcstrings(
+  text: string,
+  translations: Record<string, string>,
+  language: string,
+): string {
+  const catalog = parseXcstrings(text);
+  const current = new Map(
+    xcstringsTranslations(text, language).map((e) => [e.id, e.source]),
+  );
+  let changed = false;
+  for (const [key, entry] of live(catalog)) {
+    const wanted = sourceReads(catalog, key);
+    const texts = new Map<string, string>();
+    for (const read of wanted) {
+      const t = translations[key + read.suffix];
+      if (t !== undefined && current.get(key + read.suffix) !== t)
+        texts.set(read.suffix, t);
+    }
+    if (texts.size === 0) continue;
+    changed = true;
+    const source = entry.localizations?.[catalog.sourceLanguage];
+    const localizations = (entry.localizations ??= {});
+    const had = localizations[language];
+    const variants = (unit: XcUnit | undefined) =>
+      unit?.variations?.device ?? unit?.variations?.width;
+    let next: XcUnit;
+    if (wanted.length === 1 && wanted[0]!.suffix === "") {
+      const t = texts.get("")!;
+      const mine = had?.variations?.device;
+      next = mine
+        ? {
+            ...had,
+            variations: {
+              ...had!.variations,
+              device: sorted({ ...mine, other: unitOf(t, mine.other, source) }),
+            },
+          }
+        : unitOf(t, had, source);
+    } else {
+      const kind = wanted[0]!.suffix.startsWith(" [width:")
+        ? "width"
+        : "device";
+      const mine = variants(had);
+      const all = wanted.map(
+        (r) => texts.get(r.suffix) ?? translations[key + r.suffix],
+      );
+      const one = all.every((t) => t !== undefined && t === all[0]);
+      if (!mine && had && one) next = unitOf(all[0]!, had, source);
+      else {
+        const variantOf = (suffix: string) => /:(.*)\]$/.exec(suffix)![1]!;
+        // A plain unit becoming variants keeps its text on each.
+        const out: Record<string, XcUnit> = mine
+          ? { ...mine }
+          : had
+            ? Object.fromEntries(wanted.map((r) => [variantOf(r.suffix), had]))
+            : {};
+        for (const read of wanted) {
+          const t = texts.get(read.suffix);
+          if (t === undefined) continue;
+          const name = variantOf(read.suffix);
+          out[name] = unitOf(t, out[name], variants(source)?.[name]);
+        }
+        next = {
+          ...(had && mine ? had : {}),
+          variations: { [kind]: sorted(out) },
+        };
+      }
+    }
+    localizations[language] = next;
+    const others = Object.keys(localizations).filter((k) => k !== language);
+    const wasSorted = others.every((k, i) => i === 0 || others[i - 1]! <= k);
+    if (wasSorted) entry.localizations = sorted(localizations);
+  }
+  if (!changed) return text;
+  const bom = text.startsWith("\uFEFF") ? "\uFEFF" : "";
+  const newline = text.endsWith("\n") ? "\n" : "";
+  const body = text.slice(bom.length);
+  if (serializeXcstrings(JSON.parse(body)) + newline !== body)
+    throw new Error(
+      "the catalogue is not in Xcode's layout, so a write would move bytes it does not change; save it from Xcode first",
+    );
+  return bom + serializeXcstrings(catalog) + newline;
+}

@@ -179,6 +179,11 @@ test("translations that match the repository's target catalogues write the same 
   translate("step.key", "Find the key {where}.");
   translate("page.signIn", "Sign in with <LINK>Google</LINK>");
   translate("Abrir o menu", "Open the menu");
+  translate("Cancelar", "Cancel");
+  translate(
+    "ios.photos %lld",
+    "{count, plural, one {%lld photo} other {%lld photos}}",
+  );
   translate("%d ficheiro", "{count, plural, one {%d file} other {%d files}}");
   expect(await run(["pull", "--min-state", "translated"], ctx())).toBe(0);
   expect(tree(repo)).toEqual(before);
@@ -194,6 +199,7 @@ test("a translation saved in Corpus comes back in exactly the expected file and 
   translate("evento.m.sala.topico.removido", "The topic was removed.");
   translate("page.later", "Later");
   translate("porta\u2404Fechar", "Close the door");
+  translate("ios.welcome", "Welcome");
   expect(await run(["pull", "--min-state", "translated"], ctx())).toBe(0);
   const after = tree(repo);
   // XLIFF: the one target changed, its state with it; the source file stays.
@@ -210,6 +216,13 @@ test("a translation saved in Corpus comes back in exactly the expected file and 
     before["po/en.po"]!.replace(
       '#, fuzzy\n#| msgid "Fecha"\nmsgctxt "porta"\nmsgid "Fechar"\nmsgstr "Close"',
       'msgctxt "porta"\nmsgid "Fechar"\nmsgstr "Close the door"',
+    ),
+  );
+  // String Catalog: the one unit rewritten, translated; nothing else.
+  expect(after["ios/Localizable.xcstrings"]).toBe(
+    before["ios/Localizable.xcstrings"]!.replace(
+      '"state" : "needs_review",\n            "value" : "Welcom"',
+      '"state" : "translated",\n            "value" : "Welcome"',
     ),
   );
   expect(Object.keys(after).sort()).toEqual(Object.keys(before).sort());

@@ -230,7 +230,8 @@ export async function buildSnapshotReport(
     // The file rides with the entry (§4) so a proposal can come back to
     // it, and only where pull can write it: a .ts catalogue carries none,
     // so a proposal on its strings is refused up front, not left pending.
-    const writable = sourceWritesBack(source);
+    // A String Catalog's keys are the code's (`Text("…")`, #728).
+    const writable = sourceWritesBack(source) && source.adapter !== "xcstrings";
     // A msgid is its key by nature, not an empty value (#718), and so is
     // a String Catalog key with no source-language unit (#727).
     const keyed =
@@ -632,18 +633,13 @@ export function hasLanguages(source: FileSource): boolean {
   );
 }
 
-// Whether a source's target files are read for their translations: a
-// source pull writes back, and xcstrings, whose write-back is #728.
-export function readsTargets(source: FileSource): boolean {
-  return source.adapter === "xcstrings" || sourceWritesBack(source);
-}
-
 export function sourceWritesBack(source: FileSource): boolean {
   if (
     source.adapter === "android" ||
     source.adapter === "fluent" ||
     source.adapter === "xliff" ||
-    source.adapter === "gettext"
+    source.adapter === "gettext" ||
+    source.adapter === "xcstrings"
   )
     return true;
   return writesBack(source.path);
@@ -818,12 +814,12 @@ export function pushOnlyNotes(config: CorpusConfig): string[] {
       }
     } else if (source.adapter === "android" || source.adapter === "fluent") {
       continue;
-    } else if (source.adapter === "xliff" || source.adapter === "gettext") {
+    } else if (
+      source.adapter === "xliff" ||
+      source.adapter === "gettext" ||
+      source.adapter === "xcstrings"
+    ) {
       continue;
-    } else if (source.adapter === "xcstrings") {
-      notes.push(
-        `${source.path}: pull does not write a String Catalog yet; its translations are read and pushed`,
-      );
     } else if (!source.path.includes("{lang}")) {
       notes.push(
         `${source.path} has no {lang}: its translations cannot be written back`,
@@ -949,7 +945,7 @@ async function readSeeds(
   const seededFrom: Record<string, Record<string, string>> = {};
   for (const source of config.sources) {
     if (source.adapter === "exec" || !hasLanguages(source)) continue;
-    if (!readsTargets(source)) continue;
+    if (!sourceWritesBack(source)) continue;
     for (const lang of config.languages) {
       if (lang === config.sourceLanguage) continue;
       const file = fileOf(source, lang, config.sourceLanguage);
