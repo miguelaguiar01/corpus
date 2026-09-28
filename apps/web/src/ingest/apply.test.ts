@@ -15,7 +15,7 @@ import {
 import { memoryDb } from "@/db/test-helpers";
 import { applyTransition } from "@/translations/service";
 import { queueItems } from "@/catalogue/queues";
-import { applySnapshot } from "./apply";
+import { applySnapshot, suggestionClear } from "./apply";
 
 const FIXTURE = moonlightManor as Snapshot;
 
@@ -997,4 +997,16 @@ test("a push stores a string's suggestions per language, a later push without th
   expect(row().text).toBeNull();
   applySnapshot(db, project.id, FIXTURE);
   expect(row().suggestion).toBeNull();
+});
+
+test("a push's suggestion clear reads the rows that hold one through their partial index (#810)", () => {
+  const { db, project } = seed();
+  const client = (db as unknown as { $client: BetterSqlite }).$client;
+  const { sql, params } = suggestionClear(db, project.id).toSQL();
+  const plan = client.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...params) as {
+    detail: string;
+  }[];
+  expect(plan.map((p) => p.detail).join("\n")).toContain(
+    "translations_suggestion",
+  );
 });

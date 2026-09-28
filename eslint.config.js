@@ -11,6 +11,9 @@ export default tseslint.config(
       "**/dist/",
       "coverage/",
       "**/test/fixtures/",
+      // Agent worktrees are whole checkouts of the repository; the
+      // prettier ignore has the same line.
+      ".claude/",
     ],
   },
   js.configs.recommended,

@@ -547,6 +547,24 @@ function applyEntities(
   };
 }
 
+// The clear of a project's suggestions every push runs: through the
+// partial index on the rows that hold one (#810), not every row.
+export function suggestionClear(db: Db, projectId: number) {
+  const projectStrings = db
+    .select({ id: strings.id })
+    .from(strings)
+    .where(eq(strings.projectId, projectId));
+  return db
+    .update(stringTranslations)
+    .set({ suggestion: null })
+    .where(
+      and(
+        isNotNull(stringTranslations.suggestion),
+        inArray(stringTranslations.stringId, projectStrings),
+      ),
+    );
+}
+
 // seedSuggestions (§8, #773): what the repository offers a translator to
 // start from, a gettext fuzzy row. Each push replaces them whole, a push
 // without them clearing them; they never touch a row's text or state.
@@ -557,19 +575,7 @@ function applySuggestions(
   targetLanguages: string[],
   snapshot: Snapshot,
 ): void {
-  const projectStrings = db
-    .select({ id: strings.id })
-    .from(strings)
-    .where(eq(strings.projectId, projectId));
-  db.update(stringTranslations)
-    .set({ suggestion: null })
-    .where(
-      and(
-        isNotNull(stringTranslations.suggestion),
-        inArray(stringTranslations.stringId, projectStrings),
-      ),
-    )
-    .run();
+  suggestionClear(db, projectId).run();
   const suggestions = snapshot.seedSuggestions ?? {};
   if (Object.keys(suggestions).length === 0) return;
   const rowOf = new Map(
