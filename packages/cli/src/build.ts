@@ -717,65 +717,49 @@ export async function readEntries(
   // no plural holds (#751).
   onUnread?: (id: string) => void,
 ): Promise<StringEntry[]> {
-  if (source.adapter === "xcstrings") {
-    const text = readFileSync(path.join(cwd, file), "utf8");
-    return sourceFile
-      ? xcstringsToEntries(text, {
-          type: source.type,
-          ...(language !== undefined && { sourceLanguage: language }),
-        })
-      : xcstringsTranslations(text, language ?? "").map((e) => ({
-          ...e,
-          type: source.type,
-        }));
-  }
-  if (source.adapter === "android") {
-    return androidToEntries(readFileSync(path.join(cwd, file), "utf8"), {
-      type: source.type,
-    });
-  }
-  if (source.adapter === "gettext") {
-    const text = readFileSync(path.join(cwd, file), "utf8");
-    return sourceFile
-      ? gettextToEntries(text, { type: source.type })
-      : gettextTranslations(text, languageOfFile(file, source)).map((e) => ({
-          ...e,
-          type: source.type,
-        }));
-  }
-  if (source.adapter === "yaml") {
-    const text = readFileSync(path.join(cwd, file), "utf8");
-    // The root key is the file's own code for its language (`pt_BR`).
-    const tag = sourceFile
-      ? (language ?? languageOfFile(file, source))
-      : languageOfFile(file, source);
-    const root = fileCodeOf(source, tag);
-    return sourceFile
-      ? yamlToEntries(text, { type: source.type, root })
-      : yamlTranslations(text, root).map((e) => ({ ...e, type: source.type }));
-  }
-  if (source.adapter === "qt-ts") {
-    const xml = readFileSync(path.join(cwd, file), "utf8");
-    return sourceFile
-      ? qtTsToEntries(xml, { type: source.type })
-      : qtTsTranslations(xml, languageOfFile(file, source), onUnread).map(
-          (e) => ({ ...e, type: source.type }),
-        );
-  }
-  if (source.adapter === "xliff") {
-    const xml = readFileSync(path.join(cwd, file), "utf8");
-    return sourceFile
-      ? xliffToEntries(xml, { type: source.type })
-      : xliffTranslations(xml).map((e) => ({ ...e, type: source.type }));
-  }
-  if (source.adapter === "fluent") {
-    const entries = fluentToEntries(
-      readFileSync(path.join(cwd, file), "utf8"),
-      { type: source.type },
-    );
-    return source.namespace
-      ? entries.map((e) => ({ ...e, id: `${source.namespace}:${e.id}` }))
-      : entries;
+  const typed = <T>(entries: T[]) =>
+    entries.map((e) => ({ ...e, type: source.type }));
+  const text = () => readFileSync(path.join(cwd, file), "utf8");
+  switch (source.adapter) {
+    case "xcstrings":
+      return sourceFile
+        ? xcstringsToEntries(text(), {
+            type: source.type,
+            ...(language !== undefined && { sourceLanguage: language }),
+          })
+        : typed(xcstringsTranslations(text(), language ?? ""));
+    case "android":
+      return androidToEntries(text(), { type: source.type });
+    case "gettext":
+      return sourceFile
+        ? gettextToEntries(text(), { type: source.type })
+        : typed(gettextTranslations(text(), languageOfFile(file, source)));
+    case "yaml": {
+      // The root key is the file's own code for its language (`pt_BR`).
+      const tag = sourceFile
+        ? (language ?? languageOfFile(file, source))
+        : languageOfFile(file, source);
+      const root = fileCodeOf(source, tag);
+      return sourceFile
+        ? yamlToEntries(text(), { type: source.type, root })
+        : typed(yamlTranslations(text(), root));
+    }
+    case "qt-ts":
+      return sourceFile
+        ? qtTsToEntries(text(), { type: source.type })
+        : typed(
+            qtTsTranslations(text(), languageOfFile(file, source), onUnread),
+          );
+    case "xliff":
+      return sourceFile
+        ? xliffToEntries(text(), { type: source.type })
+        : typed(xliffTranslations(text()));
+    case "fluent": {
+      const entries = fluentToEntries(text(), { type: source.type });
+      return source.namespace
+        ? entries.map((e) => ({ ...e, id: `${source.namespace}:${e.id}` }))
+        : entries;
+    }
   }
   const data = await readModule(
     jiti,
