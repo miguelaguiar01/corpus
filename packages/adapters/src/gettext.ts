@@ -131,8 +131,10 @@ export function parsePo(text: string): PoEntry[] {
     } else if (line.startsWith("#~")) {
       // An obsolete entry's line: kept, never read.
     } else if (line.startsWith("#")) {
-      if (seenStr) end();
+      // A msgid with no msgstr ends at the next comment or msgid, as
+      // msgfmt reads it (#842).
       flush();
+      if (seenStr || seenId) end();
       begin(at);
       entry.at.end = lineEnd;
       if (line.startsWith("#,")) {
@@ -155,9 +157,12 @@ export function parsePo(text: string): PoEntry[] {
         line,
       );
       if (keyword) {
-        if (seenStr && (keyword[1] === "msgctxt" || keyword[1] === "msgid"))
-          end();
         flush();
+        if (
+          (seenStr || seenId) &&
+          (keyword[1] === "msgctxt" || keyword[1] === "msgid")
+        )
+          end();
         begin(at);
         key = keyword[1];
         keyStart = at;
