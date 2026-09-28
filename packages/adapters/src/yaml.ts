@@ -519,10 +519,17 @@ function writeYaml(
     }
     const value = pair.value as Node | null;
     const indent = lineIndent(base, (pair.key as Node).range![0]);
-    if (inFlow.has(id) || (forms && isMap(value) && value.flow)) {
-      // Inside a flow hash a plural's forms cannot go line by line, and
-      // a scalar keeps its style only where flow reads it back.
-      if (forms || !isScalar(value) || !value.range) {
+    if (inFlow.has(id)) {
+      // Inside a flow hash a plural's forms cannot go line by line, a
+      // null has no text to replace in place, and a scalar keeps its
+      // style only where flow reads it back.
+      if (
+        forms ||
+        !isScalar(value) ||
+        value.value === null ||
+        !value.range ||
+        value.range[1] <= value.range[0]
+      ) {
         onRefused?.(id, text, "parent");
         continue;
       }

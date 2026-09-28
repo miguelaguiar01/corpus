@@ -566,15 +566,38 @@ test("an edit inside a flow map is written in place, quoted where flow syntax ne
   expect(
     yamlTranslations(quoted, "de").find((e) => e.id === "g.b")?.source,
   ).toBe("x, [y]");
-  // A plural inside a flow map cannot be written line by line.
-  const refused: [string, string][] = [];
-  const out = entriesToYaml(
+  // A plural held as a flow hash is rewritten as its block, as before;
+  // one inside a flow hash, and a null there, are refused by name.
+  const block = entriesToYaml(
     en,
     { p: "{count, plural, one {ein} other {mehr}}" },
     de,
     lang,
-    (id, _text, why) => refused.push([id, why]),
   );
-  expect(out).toBe(de);
-  expect(refused).toEqual([["p", "parent"]]);
+  expect(yamlTranslations(block, "de").find((e) => e.id === "p")?.source).toBe(
+    "{count, plural, one {ein} other {mehr}}",
+  );
+  const refused: [string, string][] = [];
+  const onRefused = (id: string, _text: string, why: string) =>
+    refused.push([id, why]);
+  const nested = `de:\n  g: {a: "A", p: {one: "eins", other: "viele"}}\n`;
+  const enNested = `en:\n  g:\n    a: "A"\n    p:\n      one: "one"\n      other: "other"\n`;
+  expect(
+    entriesToYaml(
+      enNested,
+      { "g.p": "{count, plural, one {ein} other {mehr}}" },
+      nested,
+      lang,
+      onRefused,
+    ),
+  ).toBe(nested);
+  for (const target of [`de:\n  g: {a:}\n`, `de:\n  g: {b: B, a:}\n`])
+    expect(entriesToYaml(en, { "g.a": "Ah" }, target, lang, onRefused)).toBe(
+      target,
+    );
+  expect(refused).toEqual([
+    ["g.p", "parent"],
+    ["g.a", "parent"],
+    ["g.a", "parent"],
+  ]);
 });
