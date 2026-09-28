@@ -548,3 +548,33 @@ test("removing a map leaves the comment of the key after it (#804)", () => {
     ),
   ).toBe(`en:\n  a:\n  # about b\n  b: "B"\n`);
 });
+
+test("an edit inside a flow map is written in place, quoted where flow syntax needs it; a plural there is refused by name (#806)", () => {
+  const lang = { source: "en", code: "de" };
+  const en = `en:\n  g: {a: "A", b: B}\n  p:\n    one: "one"\n    other: "other"\n`;
+  const de = `de:\n  g: {a: "A", b: B}\n  p: {one: "eins", other: "viele"}\n`;
+  expect(entriesToYaml(en, { "g.a": "Ah", "g.b": "B" }, de, lang)).toBe(
+    `de:\n  g: {a: "Ah", b: B}\n  p: {one: "eins", other: "viele"}\n`,
+  );
+  // A plain scalar keeps its style where flow reads it back; a comma or
+  // a bracket takes double quotes.
+  expect(entriesToYaml(en, { "g.b": "Be" }, de, lang)).toContain(
+    'g: {a: "A", b: Be}',
+  );
+  const quoted = entriesToYaml(en, { "g.b": "x, [y]" }, de, lang);
+  expect(quoted).toContain('g: {a: "A", b: "x, [y]"}');
+  expect(
+    yamlTranslations(quoted, "de").find((e) => e.id === "g.b")?.source,
+  ).toBe("x, [y]");
+  // A plural inside a flow map cannot be written line by line.
+  const refused: [string, string][] = [];
+  const out = entriesToYaml(
+    en,
+    { p: "{count, plural, one {ein} other {mehr}}" },
+    de,
+    lang,
+    (id, _text, why) => refused.push([id, why]),
+  );
+  expect(out).toBe(de);
+  expect(refused).toEqual([["p", "parent"]]);
+});
