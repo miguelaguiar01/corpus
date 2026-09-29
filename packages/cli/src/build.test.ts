@@ -1463,3 +1463,26 @@ test("a gettext plural string carries the categories each target file's Plural-F
   ]);
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("a refused string a type read as HTML would take names the declaration, once per type (#952)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-952-"));
+  writeFileSync(
+    path.join(dir, "en.json"),
+    '{ "a": "One<br>two", "b": "<p>Welcome", "c": "fine", "d": "{broken" }\n',
+  );
+  const at = (richText?: Record<string, "html">) =>
+    config({
+      languages: ["en"],
+      sources: [{ adapter: "messages", type: "ui", path: "{lang}.json" }],
+      ...(richText && { richText }),
+    });
+  const plain = await buildSnapshotReport(at(), dir);
+  expect(plain.refused.map((r) => r.id).sort()).toEqual(["a", "b", "d"]);
+  expect(plain.notes.filter((n) => /richText/.test(n))).toEqual([
+    '2 refused ui string(s) hold tags a type read as HTML takes as text, an unclosed tag or a lone <br>: if the app renders ui as HTML, declare richText: { ui: "html" } in the config',
+  ]);
+  const html = await buildSnapshotReport(at({ ui: "html" }), dir);
+  expect(html.refused.map((r) => r.id)).toEqual(["d"]);
+  expect(html.notes.filter((n) => /richText/.test(n))).toEqual([]);
+  rmSync(dir, { recursive: true, force: true });
+});

@@ -1625,3 +1625,48 @@ test("an xliff pattern with {lang} twice guesses no bare source file (#930)", as
   );
   expect(said).not.toContain("{lang}");
 });
+
+test("init reads a Rails type as HTML where its tags are only HTML's, and names the edit for any other library (#952)", async () => {
+  const rails = project();
+  stubCli(rails.dir);
+  mkdirSync(path.join(rails.dir, "config", "locales"), { recursive: true });
+  writeFileSync(
+    path.join(rails.dir, "config", "locales", "client.en.yml"),
+    'en:\n  empty: "No likes yet.<br>Like a post to see it here."\n  intro: "<p>Welcome, %{name}."\n',
+  );
+  writeFileSync(
+    path.join(rails.dir, "config", "locales", "client.pt.yml"),
+    "pt:\n  intro: Olá\n",
+  );
+  const args = (messages: string) => [
+    "init",
+    "--project",
+    "x",
+    "--source",
+    "en",
+    "--messages",
+    messages,
+  ];
+  expect(await run(args("config/locales/client.{lang}.yml"), rails.ctx)).toBe(
+    0,
+  );
+  expect(rails.out.join("\n")).toMatch(
+    /richText: ui is read as HTML: 2 source string\(s\) hold tags/,
+  );
+  expect((await loadConfig(rails.dir)).richText).toEqual({ ui: "html" });
+  expect(await run(["build"], rails.ctx)).toBe(0);
+
+  const react = project();
+  stubCli(react.dir);
+  mkdirSync(path.join(react.dir, "locales"));
+  writeFileSync(
+    path.join(react.dir, "locales", "en.json"),
+    '{ "empty": "No likes yet.<br>Like a post to see it here." }\n',
+  );
+  writeFileSync(path.join(react.dir, "locales", "pt.json"), "{}\n");
+  expect(await run(args("locales/{lang}.json"), react.ctx)).toBe(0);
+  expect(react.out.join("\n")).toMatch(
+    /1 source string\(s\) hold tags only HTML takes as text.*add richText: \{ ui: "html" \}/,
+  );
+  expect((await loadConfig(react.dir)).richText).toBeUndefined();
+});
