@@ -6,11 +6,11 @@
 // count the source pluralises on is a value like a placeholder: it must
 // survive, as `{n}` or as a plural on n, and a target may pluralise any
 // value the source has; with the target language given, a plural's
-// categories must be the ones its runtime picks in that language. A rich-text tag is a
-// component the client renders: every tag in the source must occur in
-// the target and none may be added, wherever it moves, unless the
-// string's type is read as HTML (`richText: "html"`), where a tag is
-// markup the translation may write its own way.
+// categories must be the ones its runtime picks in that language. A
+// rich-text tag is a component the client renders: every tag in the
+// source must occur in the target and none may be added, wherever it
+// moves, unless the string's type is read as HTML (`richText: "html"`),
+// where a tag is markup the translation may write its own way.
 // Errors are data (code + params); callers render them through their
 // own message catalog.
 import {
