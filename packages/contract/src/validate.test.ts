@@ -1866,6 +1866,13 @@ test("a gettext file's Plural-Forms, where given, are the categories a plural ne
       pluralForms: ["one", "other"],
     }),
   ).toEqual({ ok: true });
+  // A tag the runtime has no plural data for enforces nothing, whatever
+  // categories came with it.
+  expect(
+    validateTranslation(source, it, "oc", "printf", {
+      pluralForms: ["one", "many"],
+    }),
+  ).toEqual({ ok: true });
   // The reader writes every CLDR category, a form the file lacks as other.
   expect(
     validateTranslation(

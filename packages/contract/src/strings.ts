@@ -101,6 +101,17 @@ export const LIBRARIES = [
 export type Library = (typeof LIBRARIES)[number];
 export const librarySchema = z.enum(LIBRARIES);
 
+// CLDR's plural categories, in its order.
+export const PLURAL_CATEGORIES = [
+  "zero",
+  "one",
+  "two",
+  "few",
+  "many",
+  "other",
+] as const;
+export type PluralCategory = (typeof PLURAL_CATEGORIES)[number];
+
 const LIBRARY_NAMES: Record<Library, string> = {
   icu: "ICU",
   i18next: "i18next",
@@ -216,7 +227,9 @@ export const stringEntrySchema = z.looseObject({
   // Per target language, the plural categories a gettext target file's
   // `Plural-Forms` picks, where they are not the language's CLDR ones
   // (#951): Italian's one and other under `nplurals=2`. Additive.
-  pluralForms: z.record(z.string(), z.array(z.string())).optional(),
+  pluralForms: z
+    .record(z.string(), z.array(z.enum(PLURAL_CATEGORIES)).min(1))
+    .optional(),
   // What the repository says about this one string, for a translator:
   // an ARB's @key.description (§4, #567). Never written back.
   note: z.string().min(1).optional(),

@@ -1435,10 +1435,14 @@ test("a gettext plural string carries the categories each target file's Plural-F
     path.join(dir, "locales", "de.po"),
     `msgid ""\nmsgstr ""\n"Plural-Forms: nplurals=2; plural=(n != 1);\\n"\n`,
   );
+  writeFileSync(
+    path.join(dir, "locales", "oc.po"),
+    `msgid ""\nmsgstr ""\n"Plural-Forms: nplurals=2; plural=(n > 1);\\n"\n`,
+  );
   const report = await buildSnapshotReport(
     config({
       sourceLanguage: "en",
-      languages: ["en", "it", "de", "fr"],
+      languages: ["en", "it", "de", "fr", "oc"],
       sources: [
         {
           adapter: "gettext",
@@ -1451,7 +1455,8 @@ test("a gettext plural string carries the categories each target file's Plural-F
     dir,
   );
   // German's file is CLDR's; French has none yet, and pull writes its
-  // table's, CLDR's too; Italian's leaves out many.
+  // table's, CLDR's too; Occitan has no plural data in the runtime, so
+  // nothing is enforced; Italian's leaves out many.
   expect(report.snapshot.strings.map((s) => [s.id, s.pluralForms])).toEqual([
     ["Joplin", undefined],
     ["%d note", { it: ["one", "other"] }],

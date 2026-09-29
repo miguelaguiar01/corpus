@@ -1,7 +1,11 @@
 // gettext `.po` and `.pot` (#668): the msgid is the text and the key, a
 // `msgid_plural` with its `msgstr[n]` one plural, mapped to CLDR's
 // categories through the file's `Plural-Forms`.
-import { PLURAL_CATEGORIES, type StringEntry } from "@corpus/contract";
+import {
+  PLURAL_CATEGORIES,
+  type PluralCategory,
+  type StringEntry,
+} from "@corpus/contract";
 import { GETTEXT_PLURALS } from "./gettextplurals";
 import { formOf, pluralBranches } from "./messages";
 import {
@@ -469,7 +473,7 @@ export function gettextTranslations(
 export function gettextPluralCategories(
   text: string | undefined,
   language: string,
-): string[] {
+): PluralCategory[] {
   const rule = pluralRuleOf(language);
   const forms =
     (text === undefined

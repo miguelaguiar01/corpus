@@ -5,7 +5,7 @@
 // and a translation must keep. Each library reads its own placeholder
 // syntax into the same nodes; a < that opens no tag is text.
 
-import { localeOf, type Library } from "./strings";
+import { localeOf, PLURAL_CATEGORIES, type Library } from "./strings";
 
 export type IcuNode =
   // `attrPlaceholders`: those written in the attributes of a tag the
@@ -62,14 +62,7 @@ const NAME_RE = /^(?:[\p{L}_][\p{L}\p{M}\p{N}_]*|[0-9]+)$/u;
 // A branch key is a word, or a bare number (`1 {marca} other {marcas}`).
 const KEY_RE = /^(?:[A-Za-z_][A-Za-z0-9_]*|[0-9]+)$/;
 // A plural branch is a CLDR category or an exact number (`=1 {…}`).
-export const PLURAL_CATEGORIES = [
-  "zero",
-  "one",
-  "two",
-  "few",
-  "many",
-  "other",
-] as const;
+export { PLURAL_CATEGORIES };
 const PLURAL_KEY_RE = /^(?:zero|one|two|few|many|other|=[0-9]+)$/;
 // A tag as the rich-text libraries write it: <link>, <checkoutDocs/>,
 // react-i18next's <2> for an indexed Trans child, and HTML with
@@ -1417,7 +1410,7 @@ export function pluralCategoriesFor(
   if (library === "counterpart")
     return { required: ["one", "other"], allowed: ["zero", "one", "other"] };
   const cldr = pluralCategoriesOf(language);
-  if (picked)
+  if (picked && cldr.length > 0)
     return {
       required: [...picked],
       allowed: PLURAL_CATEGORIES.filter(

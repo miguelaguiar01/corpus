@@ -43,6 +43,7 @@ import {
   type Glossary,
   type Snapshot,
   type Library,
+  type PluralCategory,
   type Source,
   type StringEntry,
   type WritableSource,
@@ -811,27 +812,30 @@ export async function readEntries(
 // Per target language, the plural categories a gettext source's target
 // file picks, where they are not the language's CLDR ones (#951): a
 // missing file is the one pull would write, from the language's table,
-// and one that will not read is named where its seeds are read.
+// and one that will not read is named where its seeds are read. A tag
+// the runtime has no plural data for has none: its rules would be the
+// pushing machine's locale, and nothing is enforced for it.
 export function gettextPluralForms(
   cwd: string,
   source: FileSource,
   config: CorpusConfig,
-): Record<string, string[]> | undefined {
-  const out: Record<string, string[]> = {};
+): Record<string, PluralCategory[]> | undefined {
+  const out: Record<string, PluralCategory[]> = {};
   for (const lang of config.languages) {
     if (lang === config.sourceLanguage) continue;
-    const file = fileOf(source, lang, config.sourceLanguage);
-    const tag = languageOfFile(file, source);
+    const rel = fileOf(source, lang, config.sourceLanguage);
+    const file = path.join(cwd, rel);
+    const tag = languageOfFile(rel, source);
+    const cldr = pluralCategoriesOf(tag);
+    if (cldr.length === 0) continue;
     let text: string | undefined;
     try {
-      text = existsSync(path.join(cwd, file))
-        ? readFileSync(path.join(cwd, file), "utf8")
-        : undefined;
-      const picked = gettextPluralCategories(text, tag);
-      if (picked.join() !== pluralCategoriesOf(tag).join()) out[lang] = picked;
+      text = existsSync(file) ? readFileSync(file, "utf8") : undefined;
     } catch {
       continue;
     }
+    const picked = gettextPluralCategories(text, tag);
+    if (picked.join() !== cldr.join()) out[lang] = picked;
   }
   return Object.keys(out).length > 0 ? out : undefined;
 }

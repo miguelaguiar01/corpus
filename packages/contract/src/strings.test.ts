@@ -233,3 +233,20 @@ test("libraryOf prefers the library, falls back to the old name, and defaults to
   expect(libraryOf({})).toBe("icu");
   expect(libraryOf(undefined)).toBe("icu");
 });
+
+test("an entry's pluralForms are CLDR categories, at least one per language (#951)", () => {
+  const entry = { id: "n", type: "ui", source: "{count, plural, other {#}}" };
+  expect(
+    stringEntrySchema.safeParse({
+      ...entry,
+      pluralForms: { it: ["one", "other"] },
+    }).success,
+  ).toBe(true);
+  expect(
+    stringEntrySchema.safeParse({ ...entry, pluralForms: { it: [] } }).success,
+  ).toBe(false);
+  expect(
+    stringEntrySchema.safeParse({ ...entry, pluralForms: { it: ["bogus"] } })
+      .success,
+  ).toBe(false);
+});
