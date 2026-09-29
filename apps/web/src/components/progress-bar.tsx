@@ -63,7 +63,7 @@ export function InvalidCount({
 // screen reader and a copy read them apart.
 export function ProgressSummary({ p }: { p: LanguageProgress }) {
   return (
-    <span className="text-xs whitespace-nowrap text-muted-foreground">
+    <span className="text-xs text-muted-foreground sm:whitespace-nowrap">
       {t("progress.summary", {
         verified: p.verified,
         translated: p.translated,
@@ -84,7 +84,7 @@ export function ProgressSummary({ p }: { p: LanguageProgress }) {
 export function InvalidSlot({ n, reserve }: { n: number; reserve: boolean }) {
   if (!reserve) return null;
   return (
-    <span className="w-20 shrink-0 text-right">
+    <span className="w-24 shrink-0 text-right whitespace-nowrap">
       <InvalidCount n={n} />
     </span>
   );

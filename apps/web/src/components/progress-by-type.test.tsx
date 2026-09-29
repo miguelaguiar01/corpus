@@ -215,7 +215,7 @@ test("a language's invalid rows are counted beside its states, in blocks and in 
   const bars = screen.getAllByRole("meter");
   expect(bars).toHaveLength(4);
   for (const bar of bars)
-    expect(bar.nextElementSibling?.className).toContain("w-20");
+    expect(bar.nextElementSibling?.className).toContain("w-24");
   cleanup();
 
   const languages = ["a", "b", "c", "d", "e", "f", "g", "h", "i"];
