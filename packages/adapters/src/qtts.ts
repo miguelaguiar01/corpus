@@ -69,7 +69,7 @@ function inner(body: string, element: string): string | undefined {
   return m ? qtDecode(m[1]!) : undefined;
 }
 
-export function qtMessages(xml: string): QtMessage[] {
+function qtMessages(xml: string): QtMessage[] {
   const text = masked(xml);
   const out: QtMessage[] = [];
   for (const c of text.matchAll(
