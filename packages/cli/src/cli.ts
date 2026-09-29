@@ -125,18 +125,29 @@ async function serverLacks(
     );
   const newer = used.filter((v) => !known(BEFORE_ACCEPTS, v));
   if (newer.length === 0) return [];
-  let accepts = BEFORE_ACCEPTS;
+  const accepts = await serverAccepts(base, token);
+  if (accepts === undefined) return [];
+  return newer
+    .filter((v) => !known(accepts ?? BEFORE_ACCEPTS, v))
+    .map((v) => `the ${v.value} ${v.kind}`);
+}
+
+// What the server says it accepts: null where it reports nothing, a
+// server from before 0.21.0; undefined where it cannot be asked.
+async function serverAccepts(
+  base: string,
+  token: string,
+): Promise<Accepts | null | undefined> {
   try {
     const response = await request(`${base}/api/health`, token);
-    if (!response.ok) return [];
-    const body = (await response.json()) as { accepts?: Accepts };
-    if (body.accepts) accepts = body.accepts;
+    if (!response.ok) return undefined;
+    const { accepts } = (await response.json()) as { accepts?: Accepts };
+    return Array.isArray(accepts?.adapters) && Array.isArray(accepts?.libraries)
+      ? accepts
+      : null;
   } catch {
-    return [];
+    return undefined;
   }
-  return newer
-    .filter((v) => !known(accepts, v))
-    .map((v) => `the ${v.value} ${v.kind}`);
 }
 
 // The snapshot is built and validated before the token is needed, so a
@@ -187,6 +198,12 @@ async function push(args: string[], ctx: RunContext): Promise<number> {
     for (const error of body.errors ?? []) {
       ctx.err(`  ${printable(error.id)}: ${error.message}`);
     }
+    // A server before 0.21.0 also reads with an older parser, which
+    // refuses texts this CLI takes (#875).
+    if ((await serverAccepts(base, token)) === null)
+      ctx.err(
+        `corpus: the server at ${base} predates 0.21.0 and may refuse what this CLI reads; upgrade it to ${cliVersion()} (@corpus-tool/workbench or the image), then push again`,
+      );
     return 1;
   }
   if (!response.ok) {

@@ -506,3 +506,36 @@ test("push goes ahead where the server accepts the project's values, cannot say,
     server.close();
   }
 });
+
+test("a snapshot refused by a server that predates 0.21.0 draws the upgrade too, whatever the libraries (#875)", async () => {
+  for (const [health, hinted] of [
+    [{ status: "ok" }, true],
+    [
+      {
+        status: "ok",
+        accepts: { adapters: ["messages"], libraries: ["i18next"] },
+      },
+      false,
+    ],
+    [{ status: "ok", accepts: {} }, true],
+  ] as const) {
+    const { server, url } = await startServer((c) =>
+      c.url === "/api/health"
+        ? { status: 200, json: health }
+        : c.url === "/api/push"
+          ? {
+              status: 422,
+              json: { errors: [{ id: "hello", message: "invalid ICU" }] },
+            }
+          : { status: 200, json: {} },
+    );
+    active = server;
+    process.env.CORPUS_SERVER = url;
+    const c = ctx({ cwd: railsRepo("i18next") });
+    expect(await run(["push"], c)).toBe(1);
+    const said = c.output.join("\n");
+    expect(said).toMatch(/hello: invalid ICU/);
+    expect(/predates 0\.21\.0/.test(said)).toBe(hinted);
+    server.close();
+  }
+});
