@@ -1190,3 +1190,77 @@ export default defineCorpus({
   expect(await run(["pull", "--check"], ctx())).toBe(0);
   expect(read("i18n/pl.json")).toBe(plFile);
 });
+
+test("under merge: last-wins the later file's translation is seeded and written, an earlier one only where it agreed, and a pull of what was pushed changes nothing (#953)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "pt", "de", "fr"],
+  sources: [
+    { adapter: "messages", type: "chrome", path: ["i18n/{lang}.json", "shared/{lang}.json"], merge: "last-wins" },
+  ],
+});
+`,
+  );
+  mkdirSync(path.join(repo, "shared"));
+  writeFileSync(
+    path.join(repo, "shared", "en.json"),
+    `{\n  "greeting": "Hello {name}"\n}\n`,
+  );
+  // pt: the files disagree. de: they agree. fr: neither holds it.
+  const files = {
+    "i18n/pt.json": `{\n  "greeting": "Olá {name}"\n}\n`,
+    "shared/pt.json": `{\n  "greeting": "Oi {name}"\n}\n`,
+    "i18n/de.json": `{\n  "greeting": "Hallo {name}"\n}\n`,
+    "shared/de.json": `{\n  "greeting": "Hallo {name}"\n}\n`,
+  };
+  for (const [file, text] of Object.entries(files))
+    writeFileSync(path.join(repo, file), text);
+  const { buildSnapshotReport } = await import("./build");
+  const { loadConfig } = await import("./config");
+  const report = await buildSnapshotReport(await loadConfig(repo), repo);
+  expect(report.snapshot.seedTranslations?.pt).toEqual({
+    greeting: "Oi {name}",
+  });
+  expect(report.notes.join("\n")).toMatch(
+    /shared\/\{lang\}\.json: 1 translation\(s\) differ from an earlier pattern's/,
+  );
+  const v = ctx();
+  await run(["validate"], v);
+  expect(v.output.join("\n")).toMatch(
+    /shared\/pt\.json:greeting: reads otherwise in i18n\/pt\.json, which the app never shows/,
+  );
+  expect(v.output.join("\n")).not.toMatch(/de\.json:greeting: reads/);
+  const payload = {
+    ...PAYLOAD,
+    types: { "app.title": "chrome", greeting: "chrome" },
+    translations: {
+      en: { "app.title": "Corpus", greeting: "Hello {name}" },
+      ...report.snapshot.seedTranslations,
+    },
+  };
+  await serve(200, payload);
+  expect(await run(["pull", "--check"], ctx())).toBe(0);
+  active?.close();
+  await serve(200, {
+    ...payload,
+    translations: {
+      ...payload.translations,
+      pt: { greeting: "Oi, {name}!" },
+      de: { greeting: "Servus {name}" },
+      fr: { greeting: "Salut {name}" },
+    },
+  });
+  expect(await run(["pull"], ctx())).toBe(0);
+  // The earlier pt file, which the app never shows, keeps its text.
+  expect(read("i18n/pt.json")).toBe(files["i18n/pt.json"]);
+  expect(JSON.parse(read("shared/pt.json")).greeting).toBe("Oi, {name}!");
+  expect(JSON.parse(read("i18n/de.json")).greeting).toBe("Servus {name}");
+  expect(JSON.parse(read("shared/de.json")).greeting).toBe("Servus {name}");
+  expect(JSON.parse(read("shared/fr.json")).greeting).toBe("Salut {name}");
+  expect(existsSync(path.join(repo, "i18n", "fr.json"))).toBe(false);
+});

@@ -1486,3 +1486,34 @@ test("a refused string a type read as HTML would take names the declaration, onc
   expect(html.notes.filter((n) => /richText/.test(n))).toEqual([]);
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("under merge: last-wins a source text two files hold otherwise is the later file's, and said (#953)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-953-"));
+  mkdirSync(path.join(dir, "app"));
+  mkdirSync(path.join(dir, "shared"));
+  writeFileSync(path.join(dir, "app", "en.json"), '{ "save": "Save" }');
+  writeFileSync(path.join(dir, "shared", "en.json"), '{ "save": "Save it" }');
+  const at = (merge?: "last-wins") =>
+    config({
+      languages: ["en"],
+      sources: [
+        {
+          adapter: "messages",
+          type: "ui",
+          path: ["app/{lang}.json", "shared/{lang}.json"],
+          ...(merge && { merge }),
+        },
+      ],
+    });
+  await expect(buildSnapshot(at(), dir)).rejects.toThrow(
+    /duplicate id save in app\/en\.json and shared\/en\.json, with different text/,
+  );
+  const report = await buildSnapshotReport(at("last-wins"), dir);
+  expect(report.snapshot.strings.map((s) => [s.id, s.source, s.file])).toEqual([
+    ["save", "Save it", "shared/en.json"],
+  ]);
+  expect(report.notes.join("\n")).toMatch(
+    /save reads otherwise in app\/en\.json and shared\/en\.json: the later file's is the source/,
+  );
+  rmSync(dir, { recursive: true, force: true });
+});

@@ -153,10 +153,28 @@ const xcstringsSchema = z.looseObject({
 });
 
 // What a config file declares.
+// How the patterns of one source merge an id two of them hold (#953):
+// "strict", one text in every file, or "last-wins", the later pattern's,
+// as an app that merges its catalogues in order reads them.
+const mergeField = {
+  merge: z.enum(["strict", "last-wins"]).optional(),
+};
 const sourceInputSchema = z.discriminatedUnion("adapter", [
-  z.looseObject({ ...messagesFields, path: patterns(langPattern) }),
-  z.looseObject({ ...tableFields, path: patterns(z.string().min(1)) }),
-  z.looseObject({ ...fluentFields, path: patterns(langPattern) }),
+  z.looseObject({
+    ...messagesFields,
+    path: patterns(langPattern),
+    ...mergeField,
+  }),
+  z.looseObject({
+    ...tableFields,
+    path: patterns(z.string().min(1)),
+    ...mergeField,
+  }),
+  z.looseObject({
+    ...fluentFields,
+    path: patterns(langPattern),
+    ...mergeField,
+  }),
   androidSchema,
   xliffSchema,
   gettextSchema,
@@ -174,9 +192,24 @@ const expanded = {
   group: z.number().int().optional(),
 };
 const sourceSchema = z.discriminatedUnion("adapter", [
-  z.looseObject({ ...messagesFields, path: langPattern, ...expanded }),
-  z.looseObject({ ...tableFields, path: z.string().min(1), ...expanded }),
-  z.looseObject({ ...fluentFields, path: langPattern, ...expanded }),
+  z.looseObject({
+    ...messagesFields,
+    path: langPattern,
+    ...expanded,
+    ...mergeField,
+  }),
+  z.looseObject({
+    ...tableFields,
+    path: z.string().min(1),
+    ...expanded,
+    ...mergeField,
+  }),
+  z.looseObject({
+    ...fluentFields,
+    path: langPattern,
+    ...expanded,
+    ...mergeField,
+  }),
   androidSchema,
   xliffSchema,
   gettextSchema,
@@ -269,6 +302,17 @@ export const corpusConfigSchema = z
           path: ["sourceVariants"],
         });
     c.sources.forEach((source, index) => {
+      if (
+        "merge" in source &&
+        source.merge !== undefined &&
+        !Array.isArray(source.path)
+      )
+        ctx.addIssue({
+          code: "custom",
+          message:
+            "merge says how a list of patterns shares an id; a single path has nothing to merge",
+          path: ["sources", index, "merge"],
+        });
       // A library field the build does not read is refused, not ignored
       // (#860): syntax is the old name on messages and table alone,
       // xliff, fluent and android set their own, and an exec source's
