@@ -380,11 +380,15 @@ export function entriesToTable(
   existing?: string,
 ): string {
   translations = ownRecord(translations);
-  // A blank file, or one with no records, is a new one: the template's
-  // layout, line endings and BOM (#883, #927).
-  if (existing !== undefined && parseRecords(existing).length === 0)
-    existing = undefined;
-  const base = existing ?? template;
+  // A blank file is a new one: the template's layout, line endings and
+  // BOM (#883).
+  if (existing?.trim() === "") existing = undefined;
+  // One with no records keeps its own BOM and line endings but takes the
+  // template's layout, which `[]` cannot show, and is left as it is when
+  // nothing goes into it (#927).
+  const empty = existing !== undefined && parseRecords(existing).length === 0;
+  const fresh = existing === undefined || empty;
+  const base = fresh ? template : existing!;
   const style = styleOf(base);
   const baseRecords = parseRecords(base);
   const inline = oneRecordPerLine(base, baseRecords.length);
@@ -398,14 +402,22 @@ export function entriesToTable(
     if (text === undefined && !fallback) return;
     out.push({ ...record, [map.text]: text ?? record[map.text] });
   };
-  for (const record of baseRecords) emit(record, existing !== undefined);
-  if (existing !== undefined) {
+  for (const record of baseRecords) emit(record, !fresh);
+  if (!fresh) {
     for (const record of parseRecords(template)) {
       if (!seen.has(String(record[map.id]))) emit(record, false);
     }
   }
 
-  return renderRecords(out, style, inline, base);
+  if (!empty) return renderRecords(out, style, inline, base);
+  if (out.length === 0) return existing!;
+  const own = existing!.startsWith("\uFEFF") ? "\uFEFF" : "";
+  return renderRecords(
+    out,
+    style,
+    inline,
+    own + eolOf(existing!.includes("\n") ? existing! : template),
+  );
 }
 
 // A table's records in the file's layout: one record a line where the

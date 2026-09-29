@@ -981,4 +981,14 @@ test("a table file with no records takes the template's layout, as a blank one d
     MAP,
   );
   expect(entriesToTable(TABLE, texts, MAP, emptied)).toBe(fresh);
+  // Nothing to write leaves such a file as it is, byte for byte.
+  for (const empty of ["[]", "[]\r\n", "\uFEFF[]\r\n"])
+    expect(entriesToTable(TABLE, {}, MAP, empty)).toBe(empty);
+  // A translation takes the template's layout, the file's own BOM and
+  // line endings kept.
+  expect(entriesToTable(TABLE, texts, MAP, "\uFEFF[]\r\n")).toBe(
+    "\uFEFF" + fresh.replace(/\n/g, "\r\n"),
+  );
+  // With no line break of its own, the template's.
+  expect(entriesToTable(TABLE, texts, MAP, "[]")).toBe(fresh);
 });
