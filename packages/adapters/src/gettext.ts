@@ -83,12 +83,15 @@ function escapedBytes(run: string): string {
   return String.fromCharCode(...codes);
 }
 
-// The quoted strings of a keyword and its continuation lines, joined.
+// The quoted strings of a keyword and its continuation lines, joined,
+// then read as one, as msgfmt reads them: a character's escaped bytes
+// may be split across lines (#926). An escape never crosses a quote.
 function quoted(lines: string[]): string {
-  return lines
-    .map((line) => /^[^"]*"((?:[^"\\]|\\.)*)"\s*$/.exec(line)?.[1] ?? "")
-    .map(unescape)
-    .join("");
+  return unescape(
+    lines
+      .map((line) => /^[^"]*"((?:[^"\\]|\\.)*)"\s*$/.exec(line)?.[1] ?? "")
+      .join(""),
+  );
 }
 
 // Every entry of a file, the header's included (its msgid empty), the
