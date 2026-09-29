@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-09-29
+
+What nine new projects found: XLIFF, gettext, String Catalogs, Qt Linguist and Rails YAML read natively; counterpart, easy_localization, Rails and Qt as libraries, each plural checked by its own rule; a source's catalogues merged strictly or last-wins; broken seeds in an Invalid queue; and nine projects that push and pull back byte-identical.
+
 ### Added
 
 - The wiki's exec section documents the whole contract: every field an export command's entries may carry and what each does, `entities` and `translations`, and every field of the JSON a pull hands an import command on stdin, which ids reach it and which do not. It ends with a worked example, an exporter, a merging importer and their config for a JSON file no adapter reads, which the test suite runs through `build`, `validate`, `pull --check` and `pull` as the page shows them.
@@ -471,7 +475,8 @@ The first published version.
 - The `messages`, `table` and `exec` adapters, and the `corpus/1` snapshot contract with its ICU subset (placeholders and `select`).
 - The package ships plain JavaScript for Node 22 with type declarations; a client's config imports `defineCorpus` from `@corpus-tool/cli`.
 
-[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.20.0...HEAD
+[Unreleased]: https://github.com/miguelaguiar01/corpus/compare/v0.21.0...HEAD
+[0.21.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.21.0
 [0.20.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.20.0
 [0.19.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.19.0
 [0.18.0]: https://github.com/miguelaguiar01/corpus/releases/tag/v0.18.0

@@ -65,7 +65,7 @@ curl -s https://corpus.example/api/health
 
 <!-- from: recorded/health.json -->
 ```json
-{"status":"ok","version":"v0.20.0","accepts":{"adapters":["messages","table","android","fluent","xliff","yaml"],"libraries":["icu","i18next","vue","printf","chrome","android","counterpart","easy_localization","rails","qt"]}}
+{"status":"ok","version":"v0.21.0","accepts":{"adapters":["messages","table","android","fluent","xliff","yaml"],"libraries":["icu","i18next","vue","printf","chrome","android","counterpart","easy_localization","rails","qt"]}}
 ```
 
 ## Creating the project
