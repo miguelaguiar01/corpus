@@ -206,9 +206,13 @@ export function parsePo(text: string): PoEntry[] {
   return out;
 }
 
+function headerOf(entries: PoEntry[]): PoEntry | undefined {
+  return entries.find((e) => e.msgid === "" && !e.msgctxt);
+}
+
 // A header's fields: `Language`, `Plural-Forms` and the rest.
 function poHeader(entries: PoEntry[]): Record<string, string> {
-  const header = entries.find((e) => e.msgid === "" && !e.msgctxt);
+  const header = headerOf(entries);
   const out: Record<string, string> = {};
   for (const line of (header?.msgstr[0] ?? "").split("\n")) {
     const at = line.indexOf(":");
@@ -528,35 +532,37 @@ function breaks(before2: string, before: string, after: string): boolean {
 // flagged `no-wrap` breaks at `\n` alone.
 function poLines(keyword: string, value: string, wraps = true): string[] {
   const portions = value.split(/(?<=\n)/);
-  const wrap = (portion: string, start: number): string[] => {
-    const chars = [...portion];
-    const words: string[] = [];
-    chars.forEach((c, i) => {
-      if (i > 0 && breaks(chars[i - 2] ?? "", chars[i - 1]!, c)) words.push("");
-      if (words.length === 0) words.push("");
-      words[words.length - 1] += escape(c);
-    });
-    const lines: string[] = [];
-    let line = "";
-    let at = start;
-    for (const word of words) {
-      if (line !== "" && wraps && at + columns(line + word) + 2 > WIDTH) {
-        lines.push(line);
-        line = "";
-        at = 0;
-      }
-      line += word;
-    }
-    lines.push(line);
-    return lines;
-  };
-  const first = wrap(portions[0] ?? "", keyword.length + 1);
+  const first = wrap(portions[0] ?? "", keyword.length + 1, wraps);
   if (portions.length <= 1 && first.length === 1)
     return [`${keyword} "${first[0]}"`];
   return [
     `${keyword} ""`,
-    ...portions.flatMap((p) => wrap(p, 0)).map((line) => `"${line}"`),
+    ...portions.flatMap((p) => wrap(p, 0, wraps)).map((line) => `"${line}"`),
   ];
+}
+
+// One portion of a value, escaped, in lines that fit from column `start`.
+function wrap(portion: string, start: number, wraps: boolean): string[] {
+  const chars = [...portion];
+  const words: string[] = [];
+  chars.forEach((c, i) => {
+    if (i > 0 && breaks(chars[i - 2] ?? "", chars[i - 1]!, c)) words.push("");
+    if (words.length === 0) words.push("");
+    words[words.length - 1] += escape(c);
+  });
+  const lines: string[] = [];
+  let line = "";
+  let at = start;
+  for (const word of words) {
+    if (line !== "" && wraps && at + columns(line + word) + 2 > WIDTH) {
+      lines.push(line);
+      line = "";
+      at = 0;
+    }
+    line += word;
+  }
+  lines.push(line);
+  return lines;
 }
 
 // The target file a missing one starts as: the template, its header's
@@ -572,7 +578,7 @@ function targetFrom(
   const code = language.code;
   const entries = parsePo(template);
   const eol = eolOf(template);
-  const header = entries.find((e) => e.msgid === "" && !e.msgctxt);
+  const header = headerOf(entries);
   const rule = pluralRuleOf(language.tag);
   // Every msgstr empty; a plural's as many as the language's forms,
   // when the header is the language's own (#786).
@@ -777,13 +783,14 @@ function fuzzyRemoval(text: string, entry: PoEntry, span: Span): Patch {
     : lineRemoval(text, span);
 }
 
+// A line removed with its line break: the one after it, or, on a last
+// line, the one before.
 function lineRemoval(text: string, span: Span): Patch {
-  const end = text.startsWith("\r\n", span.end)
-    ? span.end + 2
-    : text.startsWith("\n", span.end)
-      ? span.end + 1
-      : span.end;
-  return { start: span.start, end, text: "" };
+  const after = /^\r?\n/.exec(text.slice(span.end))?.[0];
+  if (after)
+    return { start: span.start, end: span.end + after.length, text: "" };
+  const before = /\r?\n$/.exec(text.slice(0, span.start))?.[0] ?? "";
+  return { start: span.start - before.length, end: span.end, text: "" };
 }
 
 // Pull's write into a target `.po` (§8): a changed entry's msgstr, found
@@ -827,13 +834,13 @@ export function entriesToGettext(
   }
   let out = applied(base, patches);
   const blocks: string[] = [];
+  const own = eolOf(template);
   for (const entry of parsePo(template)) {
     const id = poId(entry);
     const text = translations[id];
     if (entry.msgid === "" || seen.has(id) || text === undefined) continue;
     // The template's own line endings, turned to the file's at the end.
     const block = template.slice(entry.at.start, entry.at.end);
-    const own = eolOf(template);
     const moved = parsePo(block)[0]!;
     // The template's msgstrs are not the file's: none is held.
     const wanted = forms({ ...moved, msgstr: [] }, text);
@@ -842,9 +849,7 @@ export function entriesToGettext(
     // beyond them go.
     const extra = moved.at.msgstr
       .slice(wanted.length)
-      .flatMap((s) =>
-        s ? [{ start: s.start - own.length, end: s.end, text: "" }] : [],
-      );
+      .flatMap((s) => (s ? [lineRemoval(block, s)] : []));
     const filled = wanted.map((w) => w ?? "");
     blocks.push(
       applied(block, [

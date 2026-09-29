@@ -76,8 +76,18 @@ function leaves(
 // Each id's key path as a file writes it: a segment may hold dots
 // (`"m.room.topic": { … }`), so an id is never split to find its
 // place when a file already names it (#642).
-function pathsOf(tree: Tree, plurals = false): Map<string, string[]> {
-  return new Map(leaves(tree, plurals).map(([path]) => [path.join("."), path]));
+// Each leaf's key path by id, and the ids that are plural objects.
+function keyPaths(
+  tree: Tree,
+  plurals = false,
+): { paths: Map<string, string[]>; pluralIds: Set<string> } {
+  const found = leaves(tree, plurals);
+  return {
+    paths: new Map(found.map(([path]) => [path.join("."), path])),
+    pluralIds: new Set(
+      found.filter(([, , plural]) => plural).map(([path]) => path.join(".")),
+    ),
+  };
 }
 
 // Why an id's text was not written, for the caller to say.
@@ -213,11 +223,9 @@ export function entriesToMessages(
   const style = styleOf(base);
   const nested = isNested(baseTree);
   const sourceTree = parseTree(template);
-  const sourcePaths = pathsOf(sourceTree, plurals);
-  const sourcePlurals = new Set(
-    leaves(sourceTree, plurals)
-      .filter(([, , plural]) => plural)
-      .map(([path]) => path.join(".")),
+  const { paths: sourcePaths, pluralIds: sourcePlurals } = keyPaths(
+    sourceTree,
+    plurals,
   );
   const order = keyOrder(stripBom(template));
   let text = base;
@@ -388,9 +396,19 @@ export function entriesToTable(
     }
   }
 
+  return renderRecords(out, style, inline);
+}
+
+// A table's records in the file's layout: one record a line where the
+// file writes them so, else JSON's own.
+function renderRecords(
+  records: Record_[],
+  style: Style,
+  inline: boolean,
+): string {
   const body = inline
-    ? `[\n${out.map((r) => style.indent + inlineRecord(r)).join(",\n")}\n]`
-    : JSON.stringify(out, null, style.indent);
+    ? `[\n${records.map((r) => style.indent + inlineRecord(r)).join(",\n")}\n]`
+    : JSON.stringify(records, null, style.indent);
   return body + (style.trailingNewline ? "\n" : "");
 }
 
@@ -412,12 +430,7 @@ export function applyMessagesOps(
   const tree = parseTree(text);
   const nested = isNested(tree);
   const plurals = options.plurals ?? false;
-  const paths = pathsOf(tree, plurals);
-  const pluralIds = new Set(
-    leaves(tree, plurals)
-      .filter(([, , plural]) => plural)
-      .map(([path]) => path.join(".")),
-  );
+  const { paths, pluralIds } = keyPaths(tree, plurals);
   const { indent } = styleOf(text);
   let out = text;
   for (const op of ops) {
@@ -476,8 +489,5 @@ export function applyTableOps(
       out.push({ [map.id]: op.id, [map.text]: op.text });
     }
   }
-  const body = inline
-    ? `[\n${out.map((r) => style.indent + inlineRecord(r)).join(",\n")}\n]`
-    : JSON.stringify(out, null, style.indent);
-  return body + (style.trailingNewline ? "\n" : "");
+  return renderRecords(out, style, inline);
 }
