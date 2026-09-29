@@ -1150,3 +1150,43 @@ test("a String Catalog naming another source language than the config's still re
   await run(["pull"], c);
   expect(c.output.join("\n")).not.toMatch(/no source-language file holds/);
 });
+
+test("a target's plural object without other is seeded as the plural, named by validate for its missing other, and pulled back unchanged (#950)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "pl"],
+  sources: [{ adapter: "messages", type: "chrome", library: "counterpart", path: "i18n/{lang}.json" }],
+});
+`,
+  );
+  writeFileSync(
+    path.join(repo, "i18n", "en.json"),
+    `{\n  "rooms": {\n    "one": "%(count)s room",\n    "other": "%(count)s rooms"\n  }\n}\n`,
+  );
+  const plFile = `{\n  "rooms": {\n    "one": "%(count)s pokój",\n    "few": "%(count)s pokoje",\n    "many": "%(count)s pokoi"\n  }\n}\n`;
+  writeFileSync(path.join(repo, "i18n", "pl.json"), plFile);
+  const { buildSnapshot } = await import("./build");
+  const { loadConfig } = await import("./config");
+  const snapshot = await buildSnapshot(await loadConfig(repo), repo);
+  const pl = snapshot.seedTranslations?.pl?.rooms;
+  expect(pl).toBe(
+    "{count, plural, one {%(count)s pokój} few {%(count)s pokoje} many {%(count)s pokoi}}",
+  );
+  const v = ctx();
+  expect(await run(["validate"], v)).toBe(1);
+  const said = v.output.join("\n");
+  expect(said).not.toMatch(/no longer has/);
+  expect(said).toMatch(/pl\.json:rooms: .*other/);
+  await serve(200, {
+    ...PAYLOAD,
+    types: { rooms: "chrome" },
+    translations: { en: {}, pl: { rooms: pl } },
+  });
+  expect(await run(["pull", "--check"], ctx())).toBe(0);
+  expect(read("i18n/pl.json")).toBe(plFile);
+});

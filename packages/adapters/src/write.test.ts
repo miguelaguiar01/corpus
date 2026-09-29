@@ -992,3 +992,58 @@ test("a table file with no records takes the template's layout, as a blank one d
   // With no line break of its own, the template's.
   expect(entriesToTable(TABLE, texts, MAP, "[]")).toBe(fresh);
 });
+
+describe("a target's plural object without other writes back as the file has it (#950)", () => {
+  const source = `{
+  "rooms": {
+    "one": "%(count)s room",
+    "other": "%(count)s rooms"
+  }
+}
+`;
+  const target = `{
+  "rooms": {
+    "one": "%(count)s pokój",
+    "few": "%(count)s pokoje",
+    "many": "%(count)s pokoi"
+  }
+}
+`;
+  test("its own forms pulled back change nothing, and nothing is refused", () => {
+    const refused: string[] = [];
+    expect(
+      entriesToMessages(
+        source,
+        {
+          rooms:
+            "{count, plural, one {%(count)s pokój} few {%(count)s pokoje} many {%(count)s pokoi}}",
+        },
+        target,
+        { plurals: true, onRefused: (id) => refused.push(id) },
+      ),
+    ).toBe(target);
+    expect(refused).toEqual([]);
+  });
+
+  test("a draft that adds other changes that form alone", () => {
+    expect(
+      entriesToMessages(
+        source,
+        {
+          rooms:
+            "{count, plural, one {%(count)s pokój} few {%(count)s pokoje} many {%(count)s pokoi} other {%(count)s pokoju}}",
+        },
+        target,
+        { plurals: true },
+      ),
+    ).toBe(`{
+  "rooms": {
+    "one": "%(count)s pokój",
+    "few": "%(count)s pokoje",
+    "many": "%(count)s pokoi",
+    "other": "%(count)s pokoju"
+  }
+}
+`);
+  });
+});

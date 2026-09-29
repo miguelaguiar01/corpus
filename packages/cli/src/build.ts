@@ -19,6 +19,7 @@ import {
   xliffToEntries,
   xliffTranslations,
   messagesToEntries,
+  pluralBranches,
   stripBom,
   tableToEntries,
 } from "@corpus/adapters";
@@ -335,6 +336,7 @@ export async function buildSnapshotReport(
     errors,
     notes,
     new Set(refused.map((r) => r.id)),
+    pluralIdsOf(sourced.map((s) => s.entry)),
   );
   // A mark counts only for a seed that is there to import.
   const seedTranslated: Record<string, string[]> = {};
@@ -724,6 +726,9 @@ export async function readEntries(
   // A translation the file holds that is not read, a Qt numerus form
   // no plural holds (#751).
   onUnread?: (id: string) => void,
+  // The ids the source reads as plurals, where a target's object of
+  // categories is the plural though it lacks `other` (#950).
+  pluralIds?: ReadonlySet<string>,
 ): Promise<StringEntry[]> {
   const typed = <T>(entries: T[]) =>
     entries.map((e) => ({ ...e, type: source.type }));
@@ -750,7 +755,7 @@ export async function readEntries(
       const root = fileCodeOf(source, tag);
       return sourceFile
         ? yamlToEntries(text(), { type: source.type, root })
-        : typed(yamlTranslations(text(), root));
+        : typed(yamlTranslations(text(), root, pluralIds));
     }
     case "qt-ts":
       return sourceFile
@@ -782,6 +787,9 @@ export async function readEntries(
           chrome: libraryOf(source) === "chrome",
           keyIsText: sourceFile,
           plurals: readsPluralObjects(source),
+          ...(pluralIds && {
+            pluralIds: unspaced(pluralIds, source.namespace),
+          }),
         })
       : tableToEntries(data, { type: source.type, map: source.map });
   // A namespaced file's ids are `ns:key` (#513), i18next's own separator.
@@ -791,6 +799,30 @@ export async function readEntries(
         id: `${source.namespace}:${entry.id}`,
       }))
     : entries;
+}
+
+// The ids a source's own catalogue reads as a plural object.
+export function pluralIdsOf(
+  entries: Iterable<{ id: string; source: string }>,
+): Set<string> {
+  const ids = new Set<string>();
+  for (const entry of entries)
+    if (pluralBranches(entry.source)) ids.add(entry.id);
+  return ids;
+}
+
+// Ids as a namespaced file writes them, without the `ns:` push adds.
+function unspaced(
+  ids: ReadonlySet<string>,
+  namespace: string | undefined,
+): ReadonlySet<string> {
+  if (!namespace) return ids;
+  const prefix = `${namespace}:`;
+  return new Set(
+    [...ids].flatMap((id) =>
+      id.startsWith(prefix) ? [id.slice(prefix.length)] : [],
+    ),
+  );
 }
 
 async function readModule(
@@ -1004,6 +1036,7 @@ async function readSeeds(
   errors: string[],
   notes: string[],
   refusedIds: Set<string>,
+  pluralIds: ReadonlySet<string>,
 ): Promise<Record<string, Record<string, string>>> {
   const seeds: Record<string, Record<string, string>> = {};
   for (const { command, translations } of execSeeds) {
@@ -1060,6 +1093,7 @@ async function readSeeds(
           false,
           lang,
           (id) => unread.push(id),
+          pluralIds,
         )) {
           // A key the source no longer has, or an empty value an
           // extraction tool left, is not a translation.

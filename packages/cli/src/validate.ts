@@ -23,6 +23,7 @@ import {
   type FileSource,
   hasLanguages,
   nestedCountMessage,
+  pluralIdsOf,
   readEntries,
   sourceWritesBack,
   runExporter,
@@ -198,6 +199,9 @@ export async function validateRepo(
     );
     // A source that does not parse is the source file's finding, once.
     const brokenSources = new Set<string>();
+    const pluralIds = pluralIdsOf(
+      [...sources].map(([id, entry]) => ({ id, source: entry.source })),
+    );
     for (const language of targets) {
       const file = fileOf(source, language, config.sourceLanguage);
       const translations = await texts(
@@ -218,6 +222,7 @@ export async function validateRepo(
             message:
               "a numerus form Corpus cannot read as one plural; it is not seeded, and pull leaves it as the file has it",
           }),
+        pluralIds,
       );
       if (translations === undefined) continue;
       for (const [key, { source: target }] of translations) {
@@ -267,6 +272,7 @@ async function texts(
   sourceFile = false,
   language?: string,
   onUnread?: (id: string) => void,
+  pluralIds?: ReadonlySet<string>,
 ): Promise<Map<string, StringEntry> | undefined> {
   if (!existsSync(path.join(cwd, rel))) return undefined;
   try {
@@ -278,6 +284,7 @@ async function texts(
       sourceFile,
       language,
       onUnread,
+      pluralIds,
     );
     return new Map(entries.map((e) => [e.id, e]));
   } catch (error) {
