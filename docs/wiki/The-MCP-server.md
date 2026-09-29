@@ -62,7 +62,7 @@ Nine, each one API call.
 | Tool | What it does |
 |---|---|
 | `list_queue` | A queue's items: `untranslated`, `stale`, `unverifiedSource`, `agentDrafts` or `invalid` (each item with its `problem`), narrowed by language, by string type, or both |
-| `get_string` | One string: the source and the file it came from, its placeholders, selects, plurals and tags, its slots with their example values, every language's text and state, the type's note, the glossary terms it contains, the entities it refers to, its siblings under the same key prefix, and any pending proposal |
+| `get_string` | One string: the source and the file it came from, its placeholders, selects, plurals, `forms` (how many vue-i18n pipe forms) and tags, its `arguments` where the key names the verbs the code passes, its slots with their example values, every language's text and state, whether it is `invalid` and its `problem`, and the repository's `suggestion` where one was pushed, the type's note, the glossary terms it contains, the entities it refers to, its siblings under the same key prefix, and any pending proposal |
 | `save_draft` | A translation for one string in one language |
 | `propose_change` | New source text for a string, as a proposal |
 | `propose_removal` | A string the repository should drop, as a proposal |

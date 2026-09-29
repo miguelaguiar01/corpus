@@ -95,7 +95,7 @@ export default async function CataloguePage({
     distinctTypes(db, project.id),
     project.languages,
   );
-  const progress = progressCounts(db, project.id);
+  const progress = progressCounts(db, project.id, { invalid: false });
   const pending = pendingKeys(db, project.id);
   const adds = pendingAdds(db, project.id);
 

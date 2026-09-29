@@ -30,8 +30,14 @@ export function emptyProgress(): LanguageProgress {
 }
 
 // Progress numbers over string×language states, excluding archived strings
-// (§11). Broken down per language and per string type (§9.2).
-export function progressCounts(db: Db, projectId: number): Progress {
+// (§11). Broken down per language and per string type (§9.2). The invalid
+// count is `/api/status`'s (§9.1); a page that shows no count of them
+// skips it.
+export function progressCounts(
+  db: Db,
+  projectId: number,
+  { invalid: countInvalid = true } = {},
+): Progress {
   const types = db
     .selectDistinct({ type: strings.type })
     .from(strings)
@@ -103,6 +109,7 @@ export function progressCounts(db: Db, projectId: number): Progress {
       bucket.stale += row.stale;
     }
   }
+  if (!countInvalid) return progress;
   // Few rows, read through their partial index.
   const invalid = db.all<{ language: string; type: string; count: number }>(
     sql`select st.language as language, s.type as type, count(*) as count
