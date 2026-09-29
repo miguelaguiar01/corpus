@@ -699,3 +699,14 @@ test("an element whose name only begins like one of XLIFF's is none of them, at 
     ),
   ).toMatchObject([{ id: "u", source: "Own" }]);
 });
+
+test("a comment inside a target survives a pull of the target's own text (#925)", () => {
+  const file12 = `<?xml version="1.0"?>\n<xliff version="1.2"><file source-language="en" target-language="de" datatype="plaintext" original="x"><body>\n<trans-unit id="a"><source>Hello</source><target>Hallo<!-- c --></target></trans-unit>\n</body></file></xliff>\n`;
+  const file20 = `<?xml version="1.0"?>\n<xliff version="2.0" srcLang="en" trgLang="de"><file id="f"><unit id="a"><segment state="translated"><source>Hello</source><target><!-- c -->Hallo</target></segment></unit></file></xliff>\n`;
+  for (const file of [file12, file20]) {
+    expect(entriesToXliff(file, { a: "Hallo" }, file, "de")).toBe(file);
+    expect(entriesToXliff(file, { a: "Neu" }, file, "de")).toContain(
+      ">Neu</target>",
+    );
+  }
+});
