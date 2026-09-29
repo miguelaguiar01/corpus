@@ -1196,3 +1196,25 @@ test("a string moved from a type read as HTML to a plain one marks its seed's ta
   });
   expect(translationOf(db, id, "en")?.invalid).toBe(true);
 });
+
+test("a row a push resets to untranslated is no longer stale (#934)", () => {
+  const { db, project } = seed();
+  const id = FIXTURE.strings[0]!.id;
+  const push = (source: string) =>
+    applySnapshot(db, project.id, {
+      ...FIXTURE,
+      strings: [{ ...FIXTURE.strings[0]!, source, examples: undefined }],
+      seedTranslations: { en: { [id]: "Seguir" } },
+    });
+  push("Seguir");
+  push("Continuar");
+  expect(translationOf(db, id, "en")).toMatchObject({ state: "translated" });
+  // Back to its seed's text: the source change marks the row stale, and
+  // the seed, identical again, leaves it untranslated.
+  push("Seguir");
+  expect(translationOf(db, id, "en")).toMatchObject({
+    state: "untranslated",
+    stale: false,
+  });
+  expect(queueItems(db, project.id, "stale").items).toEqual([]);
+});
