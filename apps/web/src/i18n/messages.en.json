@@ -115,6 +115,7 @@
   "password.newLabel": "New password",
   "password.submit": "Save password",
   "progress.invalid": "{count} invalid",
+  "progress.invalidAfter": "· {count} invalid",
   "progress.languageColumn": "Language",
   "progress.legend": "Legend",
   "progress.progressColumn": "Progress",

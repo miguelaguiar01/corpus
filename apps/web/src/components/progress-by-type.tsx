@@ -75,8 +75,10 @@ export function ProgressByType({
         const p = progress.perLanguage[language]!;
         return (
           <section key={language} className="space-y-2">
-            <div className="flex items-baseline justify-between">
-              <h3 className="text-base font-medium">{language}</h3>
+            <div className="flex items-baseline justify-between gap-3">
+              <h3 className="shrink-0 text-base font-medium whitespace-nowrap">
+                {language}
+              </h3>
               <ProgressSummary p={p} />
             </div>
             {types.map((type) => {

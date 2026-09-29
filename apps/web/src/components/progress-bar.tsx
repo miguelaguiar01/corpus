@@ -41,7 +41,7 @@ export function ProgressBar({
   );
 }
 
-// The translated rows that fail validation (#646), after the counts
+// The translated rows that fail validation (#646), beside a type's bar
 // where there are any (§9.1, #911): part of translated, so a number and
 // not a share of the bar.
 export function InvalidCount({
@@ -63,7 +63,7 @@ export function InvalidCount({
 // screen reader and a copy read them apart.
 export function ProgressSummary({ p }: { p: LanguageProgress }) {
   return (
-    <span className="text-xs text-muted-foreground sm:whitespace-nowrap">
+    <span className="text-right text-xs text-muted-foreground sm:whitespace-nowrap">
       {t("progress.summary", {
         verified: p.verified,
         translated: p.translated,
@@ -71,8 +71,10 @@ export function ProgressSummary({ p }: { p: LanguageProgress }) {
       })}
       {p.invalid > 0 && (
         <>
-          {" · "}
-          <InvalidCount n={p.invalid} />
+          {" "}
+          <span className="text-destructive">
+            {t("progress.invalidAfter", { count: p.invalid })}
+          </span>
         </>
       )}
     </span>
