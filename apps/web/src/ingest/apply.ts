@@ -429,7 +429,12 @@ export function applySnapshot(
       remarkSeeds(
         tx,
         targetLanguages,
-        plan.updateSource.map((id) => currentRowId.get(id)!),
+        [
+          ...recheckedSeeds(current, bySnapshotId, plan.updateSource, {
+            before: project.richText ?? {},
+            after: richText,
+          }),
+        ].map((id) => currentRowId.get(id)!),
         richText,
       );
 
@@ -472,7 +477,12 @@ function loadCurrent(
   db: Db,
   projectId: number,
   sourceLanguage: string,
-): (CurrentString & { rowId: number })[] {
+): (CurrentString & {
+  rowId: number;
+  type: string;
+  syntax: Library | null;
+  arguments: string[] | null;
+})[] {
   const rows = db
     .select()
     .from(strings)
@@ -505,6 +515,9 @@ function loadCurrent(
     stringId: row.stringId,
     source: row.source,
     archived: row.archived,
+    type: row.type,
+    syntax: row.syntax,
+    arguments: row.arguments,
     translatedTargets: targetsByString.get(row.id) ?? [],
   }));
 }
@@ -772,6 +785,39 @@ function applySeeds(
     }
   }
   return { seeded, seedsIgnored, seedsIdentical };
+}
+
+// The strings whose unedited seeds a push re-checks (#857, #891): those
+// whose source changed, and those whose library, arguments or type's
+// richText changed, which a seed is validated against too, though the
+// seed digest (#601) leaves their seeds out of the push.
+function recheckedSeeds(
+  current: {
+    stringId: string;
+    type: string;
+    syntax: Library | null;
+    arguments: string[] | null;
+  }[],
+  bySnapshotId: Map<string, Entry>,
+  sourceChanged: string[],
+  richText: {
+    before: NonNullable<Snapshot["richText"]>;
+    after: NonNullable<Snapshot["richText"]>;
+  },
+): Set<string> {
+  const out = new Set(sourceChanged);
+  for (const was of current) {
+    const entry = bySnapshotId.get(was.stringId);
+    if (!entry) continue;
+    if (
+      entryLibrary(entry) !== was.syntax ||
+      JSON.stringify(entry.arguments ?? null) !==
+        JSON.stringify(was.arguments) ||
+      richText.after[entry.type] !== richText.before[was.type]
+    )
+      out.add(was.stringId);
+  }
+  return out;
 }
 
 // A push that changes a source leaves the unchanged seeds out (#601),
