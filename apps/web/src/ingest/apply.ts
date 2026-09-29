@@ -690,6 +690,7 @@ function applySeeds(
       text: stringTranslations.text,
       state: stringTranslations.state,
       invalid: stringTranslations.invalid,
+      stale: stringTranslations.stale,
     })
     .from(stringTranslations)
     .innerJoin(strings, eq(strings.id, stringTranslations.stringId))
@@ -707,6 +708,8 @@ function applySeeds(
       text: sql`${sql.placeholder("text")}`,
       state: sql`${sql.placeholder("state")}`,
       invalid: sql`${sql.placeholder("invalid")}`,
+      // An untranslated row has nothing to be stale (#620, #934).
+      stale: sql`case when ${sql.placeholder("state")} = 'untranslated' then 0 else ${stringTranslations.stale} end`,
       updatedAt: new Date(),
     })
     .where(
@@ -767,7 +770,12 @@ function applySeeds(
       // the editor's "changed since you opened it" stays quiet. Its mark
       // follows the source it is read against now.
       const row = current.get(rowId);
-      if (row && row.text === text && row.state === state) {
+      if (
+        row &&
+        row.text === text &&
+        row.state === state &&
+        !(state === "untranslated" && row.stale)
+      ) {
         if (row.invalid !== invalid)
           mark.run({ rowId, language, invalid: invalid ? 1 : 0 });
         continue;
