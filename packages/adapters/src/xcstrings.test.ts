@@ -481,3 +481,42 @@ test("a catalogue with integer-like keys keeps Xcode's order: a no-op pull is by
     entriesToXcstrings(nested, { ...own, "10": "Zehn" }, "de"),
   ).toThrow("not in Xcode's layout");
 });
+
+test("a plural reads in CLDR's order, whatever order Xcode keeps its keys in (#862)", () => {
+  const unit = (value: string) => ({
+    stringUnit: { state: "translated", value },
+  });
+  const catalog = `${serializeXcstrings({
+    sourceLanguage: "en",
+    strings: {
+      "%lld files": {
+        localizations: {
+          en: {
+            variations: {
+              plural: { one: unit("%lld file"), other: unit("%lld files") },
+            },
+          },
+          pl: {
+            variations: {
+              plural: {
+                few: unit("%lld pliki"),
+                many: unit("%lld plików"),
+                one: unit("%lld plik"),
+                other: unit("%lld pliku"),
+              },
+            },
+          },
+        },
+      },
+    },
+    version: "1.0",
+  })}\n`;
+  expect(xcstringsTranslations(catalog, "pl")[0]?.source).toBe(
+    "{count, plural, one {%lld plik} few {%lld pliki} many {%lld plików} other {%lld pliku}}",
+  );
+  // Written back, the keys keep Xcode's order: the file is unchanged.
+  const own = Object.fromEntries(
+    xcstringsTranslations(catalog, "pl").map((e) => [e.id, e.source]),
+  );
+  expect(entriesToXcstrings(catalog, own, "pl")).toBe(catalog);
+});

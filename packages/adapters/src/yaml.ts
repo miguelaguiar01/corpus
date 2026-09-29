@@ -14,8 +14,9 @@ import {
   type Pair,
   type YAMLMap,
 } from "yaml";
-import { pluralBranches } from "./messages";
+import { pluralBranches, pluralText } from "./messages";
 import { applied, eolOf, lineIndent, ownRecord, type Patch } from "./text";
+import type { SourceOp } from "./write";
 
 type YamlString = {
   id: string;
@@ -118,7 +119,7 @@ export function yamlStrings(
         if (plural)
           out.push({
             id: id.join("."),
-            text: pluralText(plural),
+            text: pluralText("count", plural),
             plural,
             ...note,
           });
@@ -130,20 +131,12 @@ export function yamlStrings(
   return out;
 }
 
-function pluralText(forms: Record<string, string>): string {
-  const branches = PLURAL_CATEGORIES.filter((c) => Object.hasOwn(forms, c)).map(
-    (c) => `${c} {${forms[c]}}`,
-  );
-  return `{count, plural, ${branches.join(" ")}}`;
-}
-
 // A `*_MF` key holds ICU MessageFormat, as Discourse's `I18n.messageFormat`
 // reads it; every other string is the source's library.
 function libraryOf(id: string): { library?: "icu" } {
   return /_MF$/.test(id) ? { library: "icu" } : {};
 }
 
-// The source file's strings.
 export function yamlToEntries(
   text: string,
   options: { type: string; root: string },
@@ -287,7 +280,6 @@ function styled(
         `${indent}  `);
     const kept = text.replace(/\n+$/, "");
     const trailing = text.length - kept.length;
-    // Chomping: strip for none, clip for one, keep for more.
     const chomp = trailing === 0 ? "-" : trailing === 1 ? "" : "+";
     // A folded block rewraps; a text with its own lines is literal.
     const mark = kept.includes("\n") ? "|" : (header?.[1] ?? "|");
@@ -839,10 +831,6 @@ function insertion(
 // whose parent is a scalar, a flow hash or an alias.
 export type YamlRefusal = "plural" | "parent";
 
-export type YamlOp =
-  | { kind: "edit" | "add"; id: string; text: string }
-  | { kind: "delete"; id: string };
-
 // Where a node ends. A map ending in a commented empty value (`u: #
 // keep`) reaches into the next line's indentation; it ends at that
 // line's start (#804).
@@ -893,7 +881,7 @@ function pairRemoval(text: string, map: YAMLMap, pair: Pair): Patch {
 // longer has, or a removal of one, is nothing to do.
 export function applyYamlOps(
   text: string,
-  ops: YamlOp[],
+  ops: SourceOp[],
   code: string,
 ): string {
   const strings = yamlStrings(text, code);

@@ -292,19 +292,48 @@ function cldrOrder(rules: Intl.PluralRules): string[] {
   return PLURAL_CATEGORIES.filter((c) => categories.includes(c));
 }
 
-// Which `msgstr[n]` each CLDR category of a language reads: the index
-// the most integers of the category are given; a category no integer
-// reaches reads `other`'s. With no expression to go by, the language's
-// categories in CLDR's order are the indexes.
-export function pluralCategoryIndexes(
+// How a language's CLDR categories and a file's `msgstr[n]` meet, from
+// one reading of its rules and its `Plural-Forms`:
+// - `indexes`: which index each category reads, the one the most of its
+//   integers are given; a category no integer reaches reads `other`'s,
+//   and with no expression to go by the categories in CLDR's order are
+//   the indexes;
+// - `categories`: the category each index is written from, of those
+//   that read it the one the most of its integers are, a tie to CLDR's
+//   order; an index no category reads (Latvian's form for zero alone)
+//   is none, and keeps what the file holds;
+// - `majority`: the category the most integers at each index belong to,
+//   whether or not it reads that index: what fills a form no category
+//   reads, where a file must hold text (#743).
+export function pluralTable(
   language: string,
   forms: string | undefined,
-): Map<string, number> {
+): {
+  indexes: Map<string, number>;
+  categories: (string | undefined)[];
+  majority: (string | undefined)[];
+} {
   const rules = rulesOf(language);
   const found = tally(rules, forms);
+  const order = cldrOrder(rules);
+  const indexes = indexesOf(rules, found, order);
+  return {
+    indexes,
+    categories: categoriesOf(found, order, indexes),
+    majority: majorityOf(found, order),
+  };
+}
+
+type Tally = ReturnType<typeof tally>;
+
+function indexesOf(
+  rules: Intl.PluralRules,
+  found: Tally,
+  order: string[],
+): Map<string, number> {
   const out = new Map<string, number>();
   if (!found) {
-    cldrOrder(rules).forEach((c, i) => out.set(c, i));
+    order.forEach((c, i) => out.set(c, i));
     return out;
   }
   for (const [category, byIndex] of found.counts)
@@ -320,18 +349,11 @@ export function pluralCategoryIndexes(
   return out;
 }
 
-// The category each `msgstr[n]` is written from: of those the reader
-// takes from index n, the one the most of its integers are, a tie to
-// CLDR's order; an index no category reads (Latvian's form for zero
-// alone) is none, and keeps what the file holds.
-export function pluralIndexCategories(
-  language: string,
-  forms: string | undefined,
+function categoriesOf(
+  found: Tally,
+  order: string[],
+  indexes: Map<string, number>,
 ): (string | undefined)[] {
-  const rules = rulesOf(language);
-  const found = tally(rules, forms);
-  const indexes = pluralCategoryIndexes(language, forms);
-  const order = cldrOrder(rules);
   return Array.from({ length: found?.nplurals ?? order.length }, (_, i) => {
     let best: string | undefined;
     let most = -1;
@@ -347,17 +369,7 @@ export function pluralIndexCategories(
   });
 }
 
-// The category the most integers at each index belong to, whether or
-// not the reader takes that index from it: what fills a form no
-// category reads, Latvian's for zero or Filipino's for 0 and 1, where a
-// file must hold text (#743).
-export function pluralIndexMajority(
-  language: string,
-  forms: string | undefined,
-): (string | undefined)[] {
-  const rules = rulesOf(language);
-  const found = tally(rules, forms);
-  const order = cldrOrder(rules);
+function majorityOf(found: Tally, order: string[]): (string | undefined)[] {
   if (!found) return order;
   return Array.from({ length: found.nplurals }, (_, i) => {
     let best: string | undefined;
@@ -447,10 +459,7 @@ function poTexts(
   const entries = parsePo(text);
   // The config's tag says the language; the header's code may be one
   // the runtime cannot read (`sr@latin`).
-  const indexes = pluralCategoryIndexes(
-    language,
-    poHeader(entries)["Plural-Forms"],
-  );
+  const { indexes } = pluralTable(language, poHeader(entries)["Plural-Forms"]);
   return entries
     .filter((e) => e.msgid !== "" && e.flags.includes("fuzzy") === fuzzy)
     .flatMap((e) => {
@@ -799,8 +808,7 @@ export function entriesToGettext(
   const eol = eolOf(base);
   const entries = parsePo(base);
   const pluralForms = poHeader(entries)["Plural-Forms"];
-  const categories = pluralIndexCategories(language.tag, pluralForms);
-  const majority = pluralIndexMajority(language.tag, pluralForms);
+  const { categories, majority } = pluralTable(language.tag, pluralForms);
   const forms = (entry: PoEntry, text: string) => {
     const wanted = wantedForms(entry, text, categories, majority);
     if (!wanted) onRefused?.(poId(entry), text);

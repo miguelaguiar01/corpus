@@ -4,7 +4,7 @@ import {
   keyIsSentence,
   messagesToEntries,
   pluralBranches,
-  pluralObjectText,
+  pluralText,
 } from "./messages";
 
 test("flat catalog maps key -> id with the configured type", () => {
@@ -236,7 +236,7 @@ test("an object of plural categories with other is one plural string on count (#
 
 test("a plural string reads back into its forms; any other text is not one (#662)", () => {
   const forms = { one: "{{count}} room", other: "{{count}} rooms" };
-  expect(pluralBranches(pluralObjectText(forms))).toEqual(forms);
+  expect(pluralBranches(pluralText("count", forms, "written"))).toEqual(forms);
   expect(
     pluralBranches("{count, plural, one {a} few {b {x} c} other {d}}"),
   ).toEqual({
