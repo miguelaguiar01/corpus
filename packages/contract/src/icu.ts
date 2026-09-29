@@ -1086,35 +1086,6 @@ function splitVueSource(source: string): string[] {
   return parts;
 }
 
-function collect(
-  nodes: IcuNode[],
-  placeholders: Set<string>,
-  selectArgs: Set<string>,
-  pluralArgs: Set<string> = new Set(),
-  tags: Set<string> = new Set(),
-): void {
-  for (const node of nodes) {
-    if (node.kind === "placeholder") placeholders.add(node.name);
-    if (node.kind === "select" || node.kind === "plural") {
-      (node.kind === "select" ? selectArgs : pluralArgs).add(node.arg);
-      for (const branch of Object.values(node.branches)) {
-        collect(branch, placeholders, selectArgs, pluralArgs, tags);
-      }
-    }
-    if (node.kind === "tag") {
-      tags.add(tagIdentity(node));
-      collect(node.children, placeholders, selectArgs, pluralArgs, tags);
-    }
-    // A form's placeholders are the message's: without this an agent is
-    // told a pipe plural has none, drafts without them, and is refused.
-    if (node.kind === "forms") {
-      for (const branch of node.branches) {
-        collect(branch, placeholders, selectArgs, pluralArgs, tags);
-      }
-    }
-  }
-}
-
 // The select and plural nodes of a tree in source order, through tags,
 // which may wrap them, and, `deep`, branches, which may hold one (#764).
 export function branchingNodes(
@@ -1137,57 +1108,6 @@ export function branchingNodes(
   return out;
 }
 
-export function tagsOf(source: string, syntax: Library = "icu"): Set<string> {
-  const result = readIcu(source, syntax);
-  const tags = new Set<string>();
-  if (result.ok) collect(result.nodes, new Set(), new Set(), new Set(), tags);
-  return tags;
-}
-
-// Each formatted placeholder's format as the source wrote it,
-// `number, ::percent`, so a chip inserts the source's form (#555).
-export function placeholderFormatsOf(
-  source: string,
-  syntax: Library = "icu",
-): Map<string, string> {
-  const formats = new Map<string, string>();
-  const result = readIcu(source, syntax);
-  if (result.ok) collectFormats(result.nodes, formats);
-  return formats;
-}
-
-// Each placeholder as the source writes it, for a library whose verbs
-// are not their names (printf): position to `%[2]s`.
-export function placeholderWrittenOf(
-  source: string,
-  syntax: Library = "icu",
-): Map<string, string> {
-  const written = new Map<string, string>();
-  const result = readIcu(source, syntax);
-  if (result.ok) collectWritten(result.nodes, written);
-  return written;
-}
-
-function collectWritten(nodes: IcuNode[], written: Map<string, string>): void {
-  for (const node of nodes) {
-    // `%arg` stands in only inside a substitution's branch: another verb
-    // at its position is what a chip writes (#726).
-    if (
-      node.kind === "placeholder" &&
-      node.written &&
-      (!written.has(node.name) || written.get(node.name) === "%arg")
-    )
-      written.set(node.name, node.written);
-    else if (node.kind === "tag") collectWritten(node.children, written);
-    else if (node.kind === "select" || node.kind === "plural") {
-      for (const branch of Object.values(node.branches))
-        collectWritten(branch, written);
-    } else if (node.kind === "forms") {
-      for (const branch of node.branches) collectWritten(branch, written);
-    }
-  }
-}
-
 // A format as the source writes it after the name: "number, ::percent".
 export function placeholderFormatText(format: PlaceholderFormat): string {
   return format.style === undefined
@@ -1195,59 +1115,125 @@ export function placeholderFormatText(format: PlaceholderFormat): string {
     : `${format.type}, ${format.style}`;
 }
 
-function collectFormats(nodes: IcuNode[], formats: Map<string, string>) {
+export type Shape = {
+  placeholders: Set<string>;
+  formats: Map<string, PlaceholderFormat>;
+  selects: Map<string, Set<string>>;
+  plurals: Map<string, Set<string>>;
+  tags: Set<string>;
+  // printf: each verb as written, by position, and the positions in
+  // the order they appear (#594).
+  written: Map<string, string>;
+  // Every verb as written, a position repeated in each plural branch
+  // included (#596).
+  verbs: [string, string][];
+  // How many placeholders the text writes, positions repeated included:
+  // fewer than the source's is what a dropped verb looks like (#614).
+  count: number;
+};
+
+export function shapeOf(
+  nodes: IcuNode[],
+  shape: Shape = {
+    placeholders: new Set(),
+    formats: new Map(),
+    selects: new Map(),
+    plurals: new Map(),
+    tags: new Set(),
+    written: new Map(),
+    verbs: [],
+    count: 0,
+  },
+): Shape {
   for (const node of nodes) {
-    if (node.kind === "placeholder" && node.format && !formats.has(node.name)) {
-      formats.set(node.name, placeholderFormatText(node.format));
-    } else if (node.kind === "tag") collectFormats(node.children, formats);
-    else if (node.kind === "forms") {
-      for (const branch of node.branches) collectFormats(branch, formats);
-    } else if (node.kind === "select" || node.kind === "plural") {
-      for (const branch of Object.values(node.branches)) {
-        collectFormats(branch, formats);
+    if (node.kind === "placeholder") {
+      shape.placeholders.add(node.name);
+      shape.count += 1;
+      if (node.written) {
+        if (!shape.written.has(node.name))
+          shape.written.set(node.name, node.written);
+        shape.verbs.push([node.name, node.written]);
+      }
+      if (node.format && !shape.formats.has(node.name)) {
+        shape.formats.set(node.name, node.format);
       }
     }
+    if (node.kind === "tag") {
+      shape.tags.add(tagIdentity(node));
+      shapeOf(node.children, shape);
+    }
+    // A form's placeholders are the message's; how many forms there are
+    // is the project's rule to decide, not Corpus's (#495).
+    if (node.kind === "forms") {
+      for (const branch of node.branches) shapeOf(branch, shape);
+    }
+    if (node.kind === "select" || node.kind === "plural") {
+      const map = node.kind === "select" ? shape.selects : shape.plurals;
+      const keys = map.get(node.arg) ?? new Set<string>();
+      for (const key of Object.keys(node.branches)) keys.add(key);
+      map.set(node.arg, keys);
+      for (const branch of Object.values(node.branches)) shapeOf(branch, shape);
+    }
   }
+  return shape;
 }
 
-export function placeholdersOf(
-  source: string,
-  syntax: Library = "icu",
-): Set<string> {
+// What a source's text holds, read once: its placeholders, each one's
+// format as the source wrote it (`number, ::percent`, for a chip, #555)
+// and its verb as written (printf's `%[2]s`, `%arg` only where no other
+// verb takes the position, #726), the arguments it selects and
+// pluralises on, its tags, and its vue-i18n pipe forms (#660), `no posts
+// | one post | {n} posts` being 3. A text that does not parse holds
+// nothing.
+export type Parts = {
+  placeholders: Set<string>;
+  formats: Map<string, string>;
+  written: Map<string, string>;
+  selects: Set<string>;
+  plurals: Set<string>;
+  tags: Set<string>;
+  forms: number;
+};
+
+export function partsOf(source: string, syntax: Library = "icu"): Parts {
   const result = readIcu(source, syntax);
-  const placeholders = new Set<string>();
-  if (result.ok) collect(result.nodes, placeholders, new Set());
-  return placeholders;
+  const nodes = result.ok ? result.nodes : [];
+  const shape = shapeOf(nodes);
+  const written = new Map<string, string>();
+  for (const [name, verb] of shape.verbs)
+    if (!written.has(name) || written.get(name) === "%arg")
+      written.set(name, verb);
+  const only = nodes.length === 1 ? nodes[0] : undefined;
+  return {
+    placeholders: shape.placeholders,
+    formats: new Map(
+      [...shape.formats].map(([name, format]) => [
+        name,
+        placeholderFormatText(format),
+      ]),
+    ),
+    written,
+    selects: new Set(shape.selects.keys()),
+    plurals: new Set(shape.plurals.keys()),
+    tags: shape.tags,
+    forms: only?.kind === "forms" ? only.branches.length : 0,
+  };
 }
 
-export function selectArgsOf(
-  source: string,
-  syntax: Library = "icu",
-): Set<string> {
-  const result = readIcu(source, syntax);
-  const selectArgs = new Set<string>();
-  if (result.ok) collect(result.nodes, new Set(), selectArgs);
-  return selectArgs;
-}
-
-// How many vue-i18n pipe forms a source has (#660): `no posts | one post
-// | {n} posts` is 3, anything else 0.
-export function formsOf(source: string, syntax: Library = "icu"): number {
-  const result = readIcu(source, syntax);
-  const only =
-    result.ok && result.nodes.length === 1 ? result.nodes[0] : undefined;
-  return only?.kind === "forms" ? only.branches.length : 0;
-}
-
-export function pluralArgsOf(
-  source: string,
-  syntax: Library = "icu",
-): Set<string> {
-  const result = readIcu(source, syntax);
-  const pluralArgs = new Set<string>();
-  if (result.ok) collect(result.nodes, new Set(), new Set(), pluralArgs);
-  return pluralArgs;
-}
+export const tagsOf = (source: string, syntax: Library = "icu") =>
+  partsOf(source, syntax).tags;
+export const placeholderFormatsOf = (source: string, syntax: Library = "icu") =>
+  partsOf(source, syntax).formats;
+export const placeholderWrittenOf = (source: string, syntax: Library = "icu") =>
+  partsOf(source, syntax).written;
+export const placeholdersOf = (source: string, syntax: Library = "icu") =>
+  partsOf(source, syntax).placeholders;
+export const selectArgsOf = (source: string, syntax: Library = "icu") =>
+  partsOf(source, syntax).selects;
+export const formsOf = (source: string, syntax: Library = "icu") =>
+  partsOf(source, syntax).forms;
+export const pluralArgsOf = (source: string, syntax: Library = "icu") =>
+  partsOf(source, syntax).plurals;
 
 // Whether the runtime has plural data for a tag: a well-formed tag it
 // lacks (`tlh`, `qaa`) would otherwise resolve to the default locale.

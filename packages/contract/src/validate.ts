@@ -23,7 +23,8 @@ import {
   pluralCategoryCovered,
   printfVerbOf,
   type IcuNode,
-  tagIdentity,
+  type Shape,
+  shapeOf,
 } from "./icu";
 import type { Library, RichText } from "./strings";
 
@@ -84,72 +85,6 @@ export type ValidationError =
 export type ValidationResult =
   | { ok: true; incomplete?: ValidationError[] }
   | { ok: false; errors: ValidationError[]; incomplete?: ValidationError[] };
-
-type Shape = {
-  placeholders: Set<string>;
-  formats: Map<string, string>;
-  selects: Map<string, Set<string>>;
-  plurals: Map<string, Set<string>>;
-  tags: Set<string>;
-  // printf: each verb as written, by position, and the positions in
-  // the order they appear (#594).
-  written: Map<string, string>;
-  // Every verb as written, a position repeated in each plural branch
-  // included (#596).
-  verbs: [string, string][];
-  order: string[];
-  // How many placeholders the text writes, positions repeated included:
-  // fewer than the source's is what a dropped verb looks like (#614).
-  count: number;
-};
-
-function shapeOf(
-  nodes: IcuNode[],
-  shape: Shape = {
-    placeholders: new Set(),
-    formats: new Map(),
-    selects: new Map(),
-    plurals: new Map(),
-    tags: new Set(),
-    written: new Map(),
-    verbs: [],
-    order: [],
-    count: 0,
-  },
-): Shape {
-  for (const node of nodes) {
-    if (node.kind === "placeholder") {
-      shape.placeholders.add(node.name);
-      shape.order.push(node.name);
-      shape.count += 1;
-      if (node.written) {
-        if (!shape.written.has(node.name))
-          shape.written.set(node.name, node.written);
-        shape.verbs.push([node.name, node.written]);
-      }
-      if (node.format && !shape.formats.has(node.name)) {
-        shape.formats.set(node.name, node.format.type);
-      }
-    }
-    if (node.kind === "tag") {
-      shape.tags.add(tagIdentity(node));
-      shapeOf(node.children, shape);
-    }
-    // A form's placeholders are the message's; how many forms there are
-    // is the project's rule to decide, not Corpus's (#495).
-    if (node.kind === "forms") {
-      for (const branch of node.branches) shapeOf(branch, shape);
-    }
-    if (node.kind === "select" || node.kind === "plural") {
-      const map = node.kind === "select" ? shape.selects : shape.plurals;
-      const keys = map.get(node.arg) ?? new Set<string>();
-      for (const key of Object.keys(node.branches)) keys.add(key);
-      map.set(node.arg, keys);
-      for (const branch of Object.values(node.branches)) shapeOf(branch, shape);
-    }
-  }
-  return shape;
-}
 
 // Each select or plural inside another's branch, as `outer inner`.
 function nestingOf(
@@ -382,9 +317,9 @@ export function validateTranslation(
   }
   if (syntax === "printf" || syntax === "android")
     errors = verbErrors(errors, expected, actual, passed, syntax);
-  for (const [name, type] of expected.formats) {
+  for (const [name, { type }] of expected.formats) {
     if (!actual.placeholders.has(name)) continue;
-    const got = actual.formats.get(name) ?? null;
+    const got = actual.formats.get(name)?.type ?? null;
     if (got !== type) {
       errors.push({
         code: "unexpected-format",
