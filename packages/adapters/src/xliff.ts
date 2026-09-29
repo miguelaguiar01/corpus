@@ -34,6 +34,10 @@ const UNTRANSLATED = new Set(["new", "needs-translation", "initial"]);
 
 // An element's attributes, a `>` inside quotes included.
 const ATTRS = `((?:[^>"']|"[^"]*"|'[^']*')*?)`;
+// Where an element's name ends, at every element this file finds: `\b`
+// would also end `alt-trans` inside `<alt-trans-x>` and `unit` inside
+// `<unit-info>` (#919, #920).
+const NAME_END = "(?=[\\s/>])";
 
 // A name an ICU placeholder or tag can carry: Angular's
 // `INTERPOLATION_1` as it is, anything else with its odd characters
@@ -44,7 +48,7 @@ function nameOf(raw: string, prefix: string): string {
 }
 
 const INLINE_RE = new RegExp(
-  `<(\\/?)(x|g|bx|ex|bpt|ept|ph|pc|sc|ec|it|mrk|sm|em)\\b${ATTRS}(\\/?)>|<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>`,
+  `<(\\/?)(x|g|bx|ex|bpt|ept|ph|pc|sc|ec|it|mrk|sm|em)${NAME_END}${ATTRS}(\\/?)>|<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>`,
   "g",
 );
 
@@ -227,10 +231,14 @@ function notes(block: string, key: "from" | "category"): string | undefined {
   // Where Angular found the text, as the gettext and qt-ts sources say
   // theirs (#772): 2.0's location notes, 1.2's context groups.
   const used: string[] = [];
-  const re = /<note\b([^>]*)>([\s\S]*?)<\/note>/g;
+  // A `<note/>` is empty, and ends where it stands.
+  const re = new RegExp(
+    `<note${NAME_END}${ATTRS}(?:/>|>([\\s\\S]*?)</note>)`,
+    "g",
+  );
   for (let m = re.exec(block); m; m = re.exec(block)) {
     const kind = attr(m[1] ?? "", key);
-    const text = decodeEntities(m[2]!.trim());
+    const text = decodeEntities((m[2] ?? "").trim());
     if (!text) continue;
     if (kind === "description" || kind === "meaning") out.push(text);
     else if (key === "category" && kind === "location") used.push(text);
@@ -282,7 +290,7 @@ function unit(
 export function xliffUnits(xml: string): XliffUnit[] {
   const { text } = hidden(xml);
   // A namespace prefix (`<xlf:trans-unit>`) would read as no unit at all.
-  if (/<[\w.-]+:(?:trans-unit|unit)\b/.test(text))
+  if (new RegExp(`<[\\w.-]+:(?:trans-unit|unit)${NAME_END}`).test(text))
     throw new Error(
       "xliff: a file whose elements carry a namespace prefix is not read; write them unprefixed",
     );
@@ -388,10 +396,7 @@ type UnitSpan = Span & {
 // within the unit, at the same offsets, a self-closing one included, and
 // listed at `offset`; one left open is refused, as blanking to some
 // later unit's close would drop every unit between (#900).
-const FOREIGN = "alt-trans|ignorable|[\\w.-]+:matches";
-// Where an element's name ends: `\b` would also end `alt-trans` inside
-// `<alt-trans-x>` and `source` inside `<source-x>`.
-const NAME_END = "(?=[\\s/>])";
+const FOREIGN = "alt-trans|ignorable|(?:[\\w.-]+:)?matches";
 
 function blankInside(
   unit: string,
@@ -463,7 +468,7 @@ function unitSpans(xml: string): UnitSpan[] {
     ["unit", "2.0"],
   ] as const) {
     const re = new RegExp(
-      `<${element}\\b${ATTRS}>[\\s\\S]*?</${element}>`,
+      `<${element}${NAME_END}${ATTRS}>[\\s\\S]*?</${element}>`,
       "g",
     );
     for (let m = re.exec(text); m; m = re.exec(text)) {
@@ -491,7 +496,9 @@ function unitSpans(xml: string): UnitSpan[] {
   const cuts = [...read.comments, ...foreign].sort((x, y) => x.start - y.start);
   for (const { version, id, start, end } of units) {
     if (version === "2.0") {
-      const segments = text.slice(start, end).match(/<segment\b/g)?.length ?? 0;
+      const segments =
+        text.slice(start, end).match(new RegExp(`<segment${NAME_END}`, "g"))
+          ?.length ?? 0;
       if (segments > 1)
         throw new Error(
           `xliff: unit ${id} has ${segments} segments; a unit is read as one text`,
@@ -534,7 +541,7 @@ function statePatch(xml: string, tag: Span | undefined): Patch | undefined {
 function targetFrom(template: string, language: string): string {
   const named = (tag: string, name: string, xml: string, all: boolean) =>
     xml.replace(
-      new RegExp(`<${tag}\\b${ATTRS}>`, all ? "g" : ""),
+      new RegExp(`<${tag}${NAME_END}${ATTRS}>`, all ? "g" : ""),
       (open: string, attrs: string) =>
         new RegExp(`\\s${name}\\s*=`).test(attrs)
           ? open.replace(
@@ -546,7 +553,9 @@ function targetFrom(template: string, language: string): string {
               `<${tag} ${name}="${language}"`,
             ),
     );
-  return /<xliff\b[^>]*version\s*=\s*["']2/.test(template)
+  return new RegExp(`<xliff${NAME_END}[^>]*version\\s*=\\s*["']2`).test(
+    template,
+  )
     ? named("xliff", "trgLang", template, false)
     : named("file", "target-language", template, true);
 }

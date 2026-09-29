@@ -644,3 +644,58 @@ test("a 2.0 unit's translation candidates, a comment in CDATA, and a note past a
     )[0]?.note,
   ).toBe("Kept");
 });
+
+test("an element whose name only begins like one of XLIFF's is none of them, at every element read (#920)", () => {
+  const file12 = (units: string, head = "") =>
+    `<?xml version="1.0"?>\n<xliff version="1.2"${head}><file source-language="en" datatype="plaintext" original="x"><body>\n${units}\n</body></file></xliff>\n`;
+  // A unit, an inline tag and a note by their whole names.
+  expect(
+    xliffUnits(
+      file12(
+        `<trans-unit-info id="z"><source>no</source></trans-unit-info>\n<trans-unit id="a"><source>A <x-foo id="1"/> <x id="2"/></source><note-x from="description">no</note-x><note from="description">Yes</note></trans-unit>`,
+      ),
+    ),
+  ).toEqual([
+    {
+      id: "a",
+      source: 'A <x-foo id="1"/> {ph2}',
+      translated: false,
+      note: "Yes",
+    },
+  ]);
+  // A self-closing note is empty and ends where it stands.
+  expect(
+    xliffUnits(
+      file12(
+        `<trans-unit id="a"><source>A</source><note/><note from="description">N2</note></trans-unit>`,
+      ),
+    )[0]?.note,
+  ).toBe("N2");
+  // A missing target file starts from the template, its language on the
+  // real <file> and <xliff>, never on an element that only begins so.
+  const template = `<?xml version="1.0"?>\n<xliff-x version="2.0"/>\n<xliff version="1.2"><file-x/><file source-language="en" datatype="plaintext" original="x"><body>\n<trans-unit id="a"><source>A</source></trans-unit>\n</body></file></xliff>\n`;
+  const started = entriesToXliff(template, { a: "Ah" }, undefined, "fr");
+  expect(started).toContain(`<xliff-x version="2.0"/>`);
+  expect(started).toContain(`<file-x/>`);
+  expect(started).toContain(`<file target-language="fr" source-language="en"`);
+  expect(started).toContain(`<target state="translated">Ah</target>`);
+  // A prefixed element that only begins like a unit is not refused.
+  expect(() =>
+    xliffUnits(
+      file12(
+        `<x:unit-info/><trans-unit id="a"><source>A</source></trans-unit>`,
+      ),
+    ),
+  ).not.toThrow();
+  // A 2.0 unit with a `<segment-x>` beside its segment has one segment,
+  // and an unprefixed `<matches>` is a candidate like `<mtc:matches>`.
+  const file20 = (inner: string) =>
+    `<?xml version="1.0"?>\n<xliff version="2.0" srcLang="en"><file id="f"><unit id="u">${inner}</unit></file></xliff>\n`;
+  expect(
+    xliffUnits(
+      file20(
+        `<matches xmlns="urn:oasis:names:tc:xliff:matches:2.0"><match><source>C</source><target>K</target></match></matches><segment-x/><segment><source>Own</source></segment>`,
+      ),
+    ),
+  ).toMatchObject([{ id: "u", source: "Own" }]);
+});
