@@ -57,7 +57,7 @@ volumes:
 | `CORPUS_DB_PATH` | Where the database lives. `/data/corpus.db` in the image. |
 | `PORT` | What it listens on. `3000`. |
 
-`/api/health` reports the build it is running, so an instance is traceable to a commit without signing in:
+`/api/health` reports the build it is running, so an instance is traceable to a commit without signing in, and the adapters and libraries it accepts, which a push checks first:
 
 ```sh
 curl -s https://corpus.example/api/health
@@ -65,7 +65,7 @@ curl -s https://corpus.example/api/health
 
 <!-- from: recorded/health.json -->
 ```json
-{"status":"ok","version":"v0.20.0"}
+{"status":"ok","version":"v0.20.0","accepts":{"adapters":["messages","table","android","fluent","xliff","yaml"],"libraries":["icu","i18next","vue","printf","chrome","android","counterpart","easy_localization","rails","qt"]}}
 ```
 
 ## Creating the project

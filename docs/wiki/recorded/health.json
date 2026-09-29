@@ -1,1 +1,1 @@
-{"status":"ok","version":"v0.20.0"}
+{"status":"ok","version":"v0.20.0","accepts":{"adapters":["messages","table","android","fluent","xliff","yaml"],"libraries":["icu","i18next","vue","printf","chrome","android","counterpart","easy_localization","rails","qt"]}}
