@@ -250,11 +250,6 @@ export function xliffUnits(xml: string): XliffUnit[] {
     );
   return unitSpans(xml).map((u) => {
     const body = own(xml.slice(u.start, u.end));
-    const segments = body.match(/<segment\b/g)?.length ?? 0;
-    if (u.version === "2.0" && segments > 1)
-      throw new Error(
-        `xliff: unit ${u.id} has ${segments} segments; a unit is read as one text`,
-      );
     const content = (span: Span) => own(xml.slice(span.start, span.end));
     return unit(
       u.id,
@@ -346,14 +341,31 @@ type UnitSpan = Span & {
   stateTag?: Span;
 };
 
+// A unit's fuzzy matches (1.2's `<alt-trans>`) and ignorables (2.0's
+// `<ignorable>`) blanked within it, at the same offsets, a self-closing
+// one included; one left open is refused, as blanking to some later
+// unit's close would drop every unit between (#900).
+function blankInside(unit: string, id: string): string {
+  const inner = unit.replace(
+    new RegExp(
+      `<(alt-trans|ignorable)\\b${ATTRS}(?:/>|>[\\s\\S]*?</\\1>)`,
+      "g",
+    ),
+    (c) => " ".repeat(c.length),
+  );
+  const open = /<(alt-trans|ignorable)\b/.exec(inner);
+  if (open)
+    throw new Error(`xliff: unit ${id} has a <${open[1]}> that does not close`);
+  return inner;
+}
+
 function unitSpans(xml: string): UnitSpan[] {
-  // Found in the text with comments, fuzzy matches and ignorables blanked,
-  // so none of theirs is taken for the unit's own.
-  const text = masked(xml)
-    .replace(/<alt-trans\b[\s\S]*?<\/alt-trans>/g, (c) => " ".repeat(c.length))
-    .replace(/<ignorable\b[\s\S]*?<\/ignorable>/g, (c) => " ".repeat(c.length));
+  // Found in the text with comments masked, and each unit's fuzzy
+  // matches and ignorables blanked within it, so none of theirs is taken
+  // for the unit's own (#900).
+  let text = masked(xml);
   const out: UnitSpan[] = [];
-  const find = (from: number, to: number, element: string) => {
+  const find = (from: number, to: number, element: string, id: string) => {
     const re = new RegExp(
       `<${element}\\b${ATTRS}(/>|>([\\s\\S]*?)</${element}>)`,
       "y",
@@ -362,7 +374,12 @@ function unitSpans(xml: string): UnitSpan[] {
     if (at < 0) return undefined;
     re.lastIndex = from + at;
     const m = re.exec(text);
-    if (!m || re.lastIndex > to) return undefined;
+    // A tag that does not parse, or does not close in its unit, is
+    // refused: skipping the unit would drop it without a word.
+    if (!m || re.lastIndex > to)
+      throw new Error(
+        `xliff: unit ${id} has a <${element}> that does not parse or close`,
+      );
     const openEnd =
       m.index +
       `<${element}`.length +
@@ -378,6 +395,12 @@ function unitSpans(xml: string): UnitSpan[] {
       self,
     };
   };
+  const units: {
+    version: "1.2" | "2.0";
+    id: string;
+    start: number;
+    end: number;
+  }[] = [];
   for (const [element, version] of [
     ["trans-unit", "1.2"],
     ["unit", "2.0"],
@@ -388,25 +411,50 @@ function unitSpans(xml: string): UnitSpan[] {
     );
     for (let m = re.exec(text); m; m = re.exec(text)) {
       const id = attr(m[1] ?? "", "id");
-      if (id === undefined) continue;
-      const source = find(m.index, re.lastIndex, "source");
-      if (!source) continue;
-      const target = find(m.index, re.lastIndex, "target");
-      const segment =
-        version === "2.0" ? find(m.index, re.lastIndex, "segment") : undefined;
-      out.push({
-        id: decodeEntities(id),
-        version,
-        start: m.index,
-        end: re.lastIndex,
-        source: source.content,
-        sourceEnd: source.whole.end,
-        ...(target && !target.self && { target: target.content }),
-        ...(target?.self && { emptyTarget: target.whole }),
-        ...(version === "1.2" && target && { stateTag: target.tag }),
-        ...(segment && { stateTag: segment.tag }),
-      });
+      if (id !== undefined)
+        units.push({
+          version,
+          id: decodeEntities(id),
+          start: m.index,
+          end: re.lastIndex,
+        });
     }
+  }
+  // One pass builds the blanked text, units in document order.
+  let blanked = "";
+  let at = 0;
+  for (const u of [...units].sort((x, y) => x.start - y.start)) {
+    if (u.start < at) continue;
+    blanked +=
+      text.slice(at, u.start) + blankInside(text.slice(u.start, u.end), u.id);
+    at = u.end;
+  }
+  text = blanked + text.slice(at);
+  for (const { version, id, start, end } of units) {
+    if (version === "2.0") {
+      const segments = text.slice(start, end).match(/<segment\b/g)?.length ?? 0;
+      if (segments > 1)
+        throw new Error(
+          `xliff: unit ${id} has ${segments} segments; a unit is read as one text`,
+        );
+    }
+    const source = find(start, end, "source", id);
+    if (!source) continue;
+    const target = find(start, end, "target", id);
+    const segment =
+      version === "2.0" ? find(start, end, "segment", id) : undefined;
+    out.push({
+      id,
+      version,
+      start,
+      end,
+      source: source.content,
+      sourceEnd: source.whole.end,
+      ...(target && !target.self && { target: target.content }),
+      ...(target?.self && { emptyTarget: target.whole }),
+      ...(version === "1.2" && target && { stateTag: target.tag }),
+      ...(segment && { stateTag: segment.tag }),
+    });
   }
   return out;
 }

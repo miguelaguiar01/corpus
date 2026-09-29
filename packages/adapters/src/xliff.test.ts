@@ -512,3 +512,60 @@ test("a unit copied from a CRLF template into an LF target takes the target's li
   );
   expect(entriesToXliff(lf, { a: "Aa", b: "x\ny" }, once, "fr")).toBe(once);
 });
+
+test("a malformed unit is refused by name, never dropped without a word (#900)", () => {
+  const file12 = (units: string) =>
+    `<?xml version="1.0"?>\n<xliff version="1.2"><file source-language="en" datatype="plaintext" original="x"><body>\n${units}\n</body></file></xliff>\n`;
+  const unit = (id: string, extra = "") =>
+    `<trans-unit id="${id}"><source>${id.toUpperCase()}</source>${extra}</trans-unit>`;
+  // A self-closing fuzzy match is blanked alone: the units after it stay.
+  expect(
+    xliffUnits(
+      file12(
+        [
+          unit("a", "<alt-trans/>"),
+          unit("b"),
+          unit("c", "<alt-trans><target>C?</target></alt-trans>"),
+        ].join("\n"),
+      ),
+    ).map((u) => u.id),
+  ).toEqual(["a", "b", "c"]);
+  // One left open would blank every unit up to a later close.
+  expect(() =>
+    xliffUnits(
+      file12(
+        [
+          unit("a", "<alt-trans><target>A?</target>"),
+          unit("b"),
+          unit("c", "<alt-trans><target>C?</target></alt-trans>"),
+        ].join("\n"),
+      ),
+    ),
+  ).toThrow("xliff: unit a has a <alt-trans> that does not close");
+  // A 2.0 unit of two segments is refused whether or not it has a source.
+  const file20 = (inner: string) =>
+    `<?xml version="1.0"?>\n<xliff version="2.0" srcLang="en"><file id="f"><unit id="u">${inner}</unit></file></xliff>\n`;
+  expect(() =>
+    xliffUnits(file20("<segment><target>x</target></segment><segment/>")),
+  ).toThrow("xliff: unit u has 2 segments; a unit is read as one text");
+  expect(() =>
+    xliffUnits(
+      file20(
+        "<segment><source>a</source></segment><segment><source>b</source></segment>",
+      ),
+    ),
+  ).toThrow("xliff: unit u has 2 segments");
+  // A source open tag that does not parse refuses its unit, where the
+  // unit was skipped.
+  expect(() =>
+    xliffUnits(
+      file12(
+        `<trans-unit id="a"><source xml:lang="en>A</source><source>B</source></trans-unit>`,
+      ),
+    ),
+  ).toThrow("xliff: unit a has a <source> that does not parse or close");
+  // A unit with no source at all is still left out, as before.
+  expect(
+    xliffUnits(file12(`<trans-unit id="a"><target>A</target></trans-unit>`)),
+  ).toEqual([]);
+});
