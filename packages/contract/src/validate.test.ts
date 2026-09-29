@@ -1873,7 +1873,7 @@ test("a gettext file's Plural-Forms, where given, are the categories a plural ne
       pluralForms: ["one", "many"],
     }),
   ).toEqual({ ok: true });
-  // The reader writes every CLDR category, a form the file lacks as other.
+  // A form the file holds none of is text it cannot write (#973).
   expect(
     validateTranslation(
       source,
@@ -1882,5 +1882,8 @@ test("a gettext file's Plural-Forms, where given, are the categories a plural ne
       "printf",
       { pluralForms: ["one", "other"] },
     ),
-  ).toEqual({ ok: true });
+  ).toMatchObject({
+    ok: true,
+    incomplete: [{ code: "unexpected-category", key: "many" }],
+  });
 });
