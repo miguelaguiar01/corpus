@@ -150,8 +150,9 @@ export const entityId = () =>
 
 // A record keyed by data, a placeholder's name (#878): zod builds a
 // record by assignment and so drops a `__proto__` key, which is a name
-// like any other. The record's own checks stand; the result is a
-// null-prototype object holding every own key, in the input's order.
+// like any other. The record's own checks stand; a record that has one
+// is rebuilt as a null-prototype object holding every own key, in the
+// input's order.
 function dataRecord<V extends z.ZodType>(value: V) {
   const record = z.record(z.string(), value);
   return z.unknown().transform((input, ctx) => {
@@ -161,6 +162,7 @@ function dataRecord<V extends z.ZodType>(value: V) {
       return z.NEVER;
     }
     const read = input as Record<string, unknown>;
+    if (!Object.hasOwn(read, "__proto__")) return parsed.data;
     const out = Object.create(null) as Record<string, z.output<V>>;
     for (const key of Object.keys(read)) {
       if (key !== "__proto__") {
