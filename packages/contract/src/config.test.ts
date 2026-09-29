@@ -419,3 +419,61 @@ test("{ns} is refused by name on an adapter that does not read it (#854)", () =>
     );
   }
 });
+
+test("a library field the build does not read is refused by name (#860)", () => {
+  const config = (source: Record<string, unknown>) =>
+    corpusConfigSchema.safeParse({
+      project: "demo",
+      server: "http://localhost:3000",
+      sourceLanguage: "en",
+      languages: ["en", "de"],
+      sources: [source],
+    });
+  const issues = (source: Record<string, unknown>) => {
+    const result = config(source);
+    expect(result.success).toBe(false);
+    return JSON.stringify(result.error?.issues);
+  };
+  // syntax is the old name on messages and table alone.
+  expect(
+    config({
+      adapter: "messages",
+      type: "ui",
+      path: "i/{lang}.json",
+      syntax: "i18next",
+    }).success,
+  ).toBe(true);
+  for (const adapter of ["gettext", "qt-ts", "yaml"])
+    expect(
+      issues({ adapter, type: "ui", path: `l/{lang}.x`, syntax: "icu" }),
+    ).toContain(`${adapter} reads library, not syntax`);
+  expect(
+    issues({
+      adapter: "xcstrings",
+      type: "ui",
+      path: "L.xcstrings",
+      syntax: "bogus",
+    }),
+  ).toContain("xcstrings reads library, not syntax");
+  // xliff's text is ICU, fluent's its own, android's its own: no library.
+  for (const [adapter, path] of [
+    ["xliff", "l/{lang}.xlf"],
+    ["fluent", "l/{lang}.ftl"],
+    ["android", "res"],
+  ] as const) {
+    for (const field of ["library", "syntax"])
+      expect(issues({ adapter, type: "ui", path, [field]: "icu" })).toContain(
+        `${adapter} sets its own library; ${field} does not apply`,
+      );
+  }
+  // The not-both message speaks of messages and table only.
+  expect(
+    issues({
+      adapter: "messages",
+      type: "ui",
+      path: "i/{lang}.json",
+      library: "icu",
+      syntax: "icu",
+    }),
+  ).toContain("syntax is the old name for library");
+});

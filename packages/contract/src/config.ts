@@ -253,6 +253,7 @@ export const corpusConfigSchema = z
     (c) =>
       c.sources.every(
         (source) =>
+          (source.adapter !== "messages" && source.adapter !== "table") ||
           !(
             "library" in source &&
             source.library !== undefined &&
@@ -275,6 +276,33 @@ export const corpusConfigSchema = z
           path: ["sourceVariants"],
         });
     c.sources.forEach((source, index) => {
+      // A library field the build does not read is refused, not ignored
+      // (#860): syntax is the old name on messages and table alone, and
+      // xliff, fluent and android set their own.
+      const set = source as { library?: unknown; syntax?: unknown };
+      const field = (name: "library" | "syntax", message: string) =>
+        ctx.addIssue({
+          code: "custom",
+          message,
+          path: ["sources", index, name],
+        });
+      if (
+        source.adapter === "xliff" ||
+        source.adapter === "fluent" ||
+        source.adapter === "android"
+      ) {
+        for (const name of ["library", "syntax"] as const)
+          if (set[name] !== undefined)
+            field(
+              name,
+              `${source.adapter} sets its own library; ${name} does not apply`,
+            );
+      } else if (
+        source.adapter !== "messages" &&
+        source.adapter !== "table" &&
+        set.syntax !== undefined
+      )
+        field("syntax", `${source.adapter} reads library, not syntax`);
       const files = (source as { languageFiles?: Record<string, string> })
         .languageFiles;
       if (!files) return;
