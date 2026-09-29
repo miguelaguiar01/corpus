@@ -73,10 +73,9 @@ function leaves(
   return out;
 }
 
-// Each id's key path as a file writes it: a segment may hold dots
-// (`"m.room.topic": { … }`), so an id is never split to find its
-// place when a file already names it (#642).
-// Each leaf's key path by id, and the ids that are plural objects.
+// Each id's key path as a file writes it, and the ids that are plural
+// objects: a segment may hold dots (`"m.room.topic": { … }`), so an id
+// is never split to find its place when a file already names it (#642).
 function keyPaths(
   tree: Tree,
   plurals = false,

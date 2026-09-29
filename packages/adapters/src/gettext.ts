@@ -589,7 +589,7 @@ function targetFrom(
         rule && e.msgidPlural !== undefined ? rule.nplurals : e.msgstr.length;
       const extra = e.at.msgstr
         .slice(count)
-        .flatMap((s) => (s ? [lineRemoval(template, s)] : []));
+        .flatMap((s) => (s ? [msgstrRemoval(template, s)] : []));
       return [
         ...entryPatches(
           template,
@@ -783,12 +783,18 @@ function fuzzyRemoval(text: string, entry: PoEntry, span: Span): Patch {
     : lineRemoval(text, span);
 }
 
-// A line removed with its line break: the one after it, or, on a last
-// line, the one before.
 function lineRemoval(text: string, span: Span): Patch {
-  const after = /^\r?\n/.exec(text.slice(span.end))?.[0];
-  if (after)
-    return { start: span.start, end: span.end + after.length, text: "" };
+  const end = text.startsWith("\r\n", span.end)
+    ? span.end + 2
+    : text.startsWith("\n", span.end)
+      ? span.end + 1
+      : span.end;
+  return { start: span.start, end, text: "" };
+}
+
+// A surplus msgstr removed with the line break before it: it is never a
+// file's first line, and removals of lines in a row never overlap.
+function msgstrRemoval(text: string, span: Span): Patch {
   const before = /\r?\n$/.exec(text.slice(0, span.start))?.[0] ?? "";
   return { start: span.start - before.length, end: span.end, text: "" };
 }
@@ -849,7 +855,7 @@ export function entriesToGettext(
     // beyond them go.
     const extra = moved.at.msgstr
       .slice(wanted.length)
-      .flatMap((s) => (s ? [lineRemoval(block, s)] : []));
+      .flatMap((s) => (s ? [msgstrRemoval(block, s)] : []));
     const filled = wanted.map((w) => w ?? "");
     blocks.push(
       applied(block, [
