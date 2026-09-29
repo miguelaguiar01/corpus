@@ -204,7 +204,9 @@ test("a plural missing a category the language uses saves, and the agent is told
   expect(result).toMatchObject({
     ok: true,
     state: "translated",
-    incomplete: ["Plural n is missing the one branch this language uses"],
+    incomplete: [
+      "Plural n is missing the one branch the runtime picks in this language",
+    ],
   });
 });
 

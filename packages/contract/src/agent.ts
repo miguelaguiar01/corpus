@@ -155,7 +155,7 @@ export type DraftResponse = {
   state: "translated";
   text: string;
   actor: string;
-  // What the saved plural still lacks, a category its language uses,
+  // What the saved plural still lacks, a category the runtime picks,
   // one message per branch; absent when nothing is (#556).
   incomplete?: string[];
 };

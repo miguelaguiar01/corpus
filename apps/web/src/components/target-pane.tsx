@@ -5,7 +5,7 @@ import {
   branchingNodes,
   exampleValues,
   readIcu,
-  pluralCategoriesOf,
+  pluralCategoriesFor,
   renderPreviewSegments,
   hasVoidTags,
   isVoidTag,
@@ -51,8 +51,9 @@ const idOf = (node: { kind: "select" | "plural"; arg: string }) =>
 // its uses has, in source order (validation unions them the same way):
 // a chip per argument and kind inserts the whole skeleton so no braces
 // are typed
-// by hand. A plural's keys are the target language's categories, since
-// those are what validation asks for, plus the source's exact =N ones.
+// by hand. A plural's keys are the categories the runtime picks in the
+// target language, since those are what validation asks for (#951),
+// plus the source's exact =N ones.
 // A nested argument has a chip of its own, and its skeleton sits in
 // each branch of its outer one's.
 function branchingOf(
@@ -71,7 +72,10 @@ function branchingOf(
     const entry = byId.get(idOf(node)) ?? {
       kind: node.kind,
       arg: node.arg,
-      keys: node.kind === "plural" ? pluralCategoriesOf(language) : [],
+      keys:
+        node.kind === "plural"
+          ? pluralCategoriesFor(language, syntax).required
+          : [],
       inner: new Map<string, string[]>(),
     };
     for (const [key, branch] of Object.entries(node.branches)) {
@@ -92,7 +96,7 @@ function branchingOf(
       entry.keys.push("other");
     byId.set(idOf(node), entry);
   }
-  // A plural's categories are the target language's: a category the
+  // A plural's categories are the ones the runtime picks: a category the
   // source lacks holds what the source's `other` does.
   for (const entry of byId.values()) {
     const other = entry.inner.get("other");
@@ -217,7 +221,7 @@ export function TargetPane({
         ...(passed && { arguments: passed }),
       });
   const errors = validation.ok ? [] : validation.errors;
-  // A plural missing a category its language uses saves with a warning
+  // A plural missing a category the runtime picks saves with a warning
   // (#556); the chip for the category is still offered.
   const incomplete = validation.incomplete ?? [];
   const selects = branchingOf(source, language, syntax);

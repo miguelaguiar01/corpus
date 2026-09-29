@@ -395,7 +395,9 @@ test("a plural draft previews each example through its count's branch, and a mis
   cleanup();
   pluralPane("ru", "{n, plural, one {# метка} other {# меток}}");
   expect(
-    screen.getByText("Plural n is missing the few branch this language uses"),
+    screen.getByText(
+      "Plural n is missing the few branch the runtime picks in this language",
+    ),
   ).toBeTruthy();
   // Incomplete, not invalid: the warning shows and the draft saves.
   expect(
@@ -749,4 +751,36 @@ test("a suggestion shows above the draft, and its button fills the draft, valida
       name: "The repository's fuzzy guess, not yet a translation",
     }),
   ).toBeNull();
+});
+
+test("a plural chip offers the branches the library's runtime picks: counterpart's English rule, easy_localization's by value (#951)", () => {
+  for (const [syntax, language, fill, keys] of [
+    ["counterpart", "pl", "%(count)s", ["one", "other"]],
+    ["counterpart", "ja", "%(count)s", ["one", "other"]],
+    ["easy_localization", "pl", "{}", ["one", "other"]],
+    ["easy_localization", "ar", "{}", ["zero", "one", "two", "other"]],
+    ["rails", "pl", "%{count}", ["one", "few", "many", "other"]],
+  ] as const) {
+    render(
+      <TargetPane
+        action={vi.fn()}
+        source={`{count, plural, one {${fill} room} other {${fill} rooms}}`}
+        syntax={syntax}
+        slots={[]}
+        language={language}
+        initialText=""
+        slug="mm"
+        stringKey="k"
+        openedVersion={1}
+        examples={[]}
+        sourceLanguage="en"
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /\{count, plural\}/ }));
+    expect(
+      (screen.getByRole("textbox") as HTMLTextAreaElement).value,
+      `${syntax} ${language}`,
+    ).toBe(`{count, plural, ${keys.map((k) => `${k} {${fill}}`).join(" ")}}`);
+    cleanup();
+  }
 });

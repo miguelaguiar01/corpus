@@ -150,7 +150,7 @@
     {
       "id": "editor.missingCategory",
       "type": "chrome",
-      "source": "Plural {arg} is missing the {key} branch this language uses",
+      "source": "Plural {arg} is missing the {key} branch the runtime picks in this language",
       "file": "apps/web/src/i18n/messages.en.json"
     },
     {
@@ -234,7 +234,7 @@
     {
       "id": "editor.unexpectedCategory",
       "type": "chrome",
-      "source": "Plural {arg} has a {key} branch this language does not use",
+      "source": "Plural {arg} has a {key} branch the runtime never picks in this language",
       "file": "apps/web/src/i18n/messages.en.json"
     },
     {

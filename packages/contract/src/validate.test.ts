@@ -995,7 +995,8 @@ test("under counterpart %(name)s is a placeholder and a bare <tag> a substitutio
       ],
     },
   );
-  // A plural object read as one string, its forms counterpart's.
+  // A plural object read as one string, its forms counterpart's, whose
+  // English rule never picks few or many (#951).
   expect(
     validateTranslation(
       "{count, plural, one {%(count)s room} other {%(count)s rooms}}",
@@ -1003,7 +1004,13 @@ test("under counterpart %(name)s is a placeholder and a bare <tag> a substitutio
       "pl",
       lib,
     ),
-  ).toEqual({ ok: true });
+  ).toEqual({
+    ok: true,
+    incomplete: [
+      { code: "unexpected-category", arg: "count", key: "few" },
+      { code: "unexpected-category", arg: "count", key: "many" },
+    ],
+  });
 });
 
 test("under easy_localization {} is positional, {name} named, and a link must be kept (#664)", () => {
@@ -1740,4 +1747,109 @@ test("a whole plural without other is named for it, under i18next too (#950)", (
         { code: "invalid-icu", message: "plural needs an other branch" },
       ],
     });
+});
+
+test("a plural's categories are its library's rule: counterpart's English one, easy_localization's by value, CLDR's elsewhere (#951)", () => {
+  const counterpart =
+    "{count, plural, one {%(count)s room} other {%(count)s rooms}}";
+  // Element's Polish: one and other, as counterpart picks in every language.
+  expect(
+    validateTranslation(
+      counterpart,
+      "{count, plural, one {%(count)s pokój} other {%(count)s pokoi}}",
+      "pl",
+      "counterpart",
+    ),
+  ).toEqual({ ok: true });
+  expect(
+    validateTranslation(
+      counterpart,
+      "{count, plural, zero {Brak} one {%(count)s pokój} few {%(count)s pokoje} other {%(count)s pokoi}}",
+      "pl",
+      "counterpart",
+    ),
+  ).toMatchObject({
+    ok: true,
+    incomplete: [{ code: "unexpected-category", key: "few" }],
+  });
+  // Japanese keeps one, which counterpart picks for 1.
+  expect(
+    validateTranslation(
+      counterpart,
+      "{count, plural, other {%(count)s 部屋}}",
+      "ja",
+      "counterpart",
+    ),
+  ).toMatchObject({
+    ok: true,
+    incomplete: [{ code: "missing-category", key: "one" }],
+  });
+  const easy = "{count, plural, zero {No rows} one {{} row} other {{} rows}}";
+  expect(
+    validateTranslation(
+      easy,
+      "{count, plural, zero {Brak} one {{} wiersz} other {{} wierszy}}",
+      "pl",
+      "easy_localization",
+    ),
+  ).toEqual({ ok: true });
+  expect(
+    validateTranslation(
+      easy,
+      "{count, plural, one {{} wiersz} few {{} wiersze} other {{} wierszy}}",
+      "pl",
+      "easy_localization",
+    ),
+  ).toMatchObject({
+    ok: true,
+    incomplete: [{ code: "unexpected-category", key: "few" }],
+  });
+  expect(
+    validateTranslation(
+      easy,
+      "{count, plural, zero {لا} one {{} صف} other {{} صفوف}}",
+      "ar",
+      "easy_localization",
+    ),
+  ).toMatchObject({
+    ok: true,
+    incomplete: [{ code: "missing-category", key: "two" }],
+  });
+  // Value 1 reads a Japanese `one` where written, so it is no dead text.
+  expect(
+    validateTranslation(
+      easy,
+      "{count, plural, one {{} 行} other {{} 行}}",
+      "ja",
+      "easy_localization",
+    ),
+  ).toEqual({ ok: true });
+  // counterpart's rule is English's whatever the tag, one it has no data
+  // for too.
+  expect(
+    validateTranslation(
+      counterpart,
+      "{count, plural, other {%(count)s qach}}",
+      "tlh",
+      "counterpart",
+    ),
+  ).toMatchObject({
+    ok: true,
+    incomplete: [{ code: "missing-category", key: "one" }],
+  });
+  // CLDR's elsewhere, as before.
+  expect(
+    validateTranslation(
+      "{count, plural, one {%{count} room} other {%{count} rooms}}",
+      "{count, plural, one {%{count} pokój} other {%{count} pokoi}}",
+      "pl",
+      "rails",
+    ),
+  ).toMatchObject({
+    ok: true,
+    incomplete: [
+      { code: "missing-category", key: "few" },
+      { code: "missing-category", key: "many" },
+    ],
+  });
 });

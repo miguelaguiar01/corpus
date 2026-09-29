@@ -42,7 +42,7 @@ export type Finding = {
   // source's command does not (#592).
   language: string;
   code: ValidationError["code"] | "orphan" | "unread-plural";
-  // A plural missing a category its language uses, or with one it never
+  // A plural missing a category the runtime picks, or with one it never
   // selects, is incomplete, not invalid (#556, #651): printed apart, and
   // never the reason for exit 1. A source's warning (#767) is the same.
   severity: "invalid" | "incomplete" | "warning";
@@ -105,7 +105,7 @@ export async function validate(
         ? `${byKey.size} orphan key(s) in ${new Set(orphans.map((f) => f.file)).size} file(s)`
         : "",
       incomplete.length
-        ? `${incomplete.length} incomplete plural(s), a category the language uses and the translation lacks or one it never selects`
+        ? `${incomplete.length} incomplete plural(s), a category the runtime picks that the translation lacks, or one it never picks`
         : "",
       warnings.length ? `${warnings.length} warning(s)` : "",
     ].filter(Boolean);
@@ -331,9 +331,9 @@ export function describe(
     case "nested-count":
       return nestedCountMessage(error.arg);
     case "missing-category":
-      return `plural on {${error.arg}} lacks the ${error.key} branch its language uses`;
+      return `plural on {${error.arg}} lacks the ${error.key} branch the runtime picks in its language`;
     case "unexpected-category":
-      return `plural on {${error.arg}} has the branch ${error.key}, which its language does not use`;
+      return `plural on {${error.arg}} has the branch ${error.key}, which the runtime never picks in its language`;
     case "unexpected-format":
       return error.actual === null
         ? `{${error.name}} is a ${error.expected} in the source; write it {${error.name}, ${error.expected}}`

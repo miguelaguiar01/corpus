@@ -1401,6 +1401,27 @@ export function pluralCategoriesOf(language: string): string[] {
   return [...categories];
 }
 
+// The categories a translation's plural must hold, and those it may,
+// by the rule its library picks a form by (#951): counterpart's is
+// English's in every language, `zero` when written; easy_localization's,
+// by default, the value itself, 0, 1 and 2 reading `zero`, `one` and
+// `two` where written and anything else `other`, so `few` and `many`
+// are never read. Every other library picks by CLDR's rule.
+export function pluralCategoriesFor(
+  language: string,
+  library: Library,
+): { required: string[]; allowed: string[] } {
+  if (library === "counterpart")
+    return { required: ["one", "other"], allowed: ["zero", "one", "other"] };
+  const cldr = pluralCategoriesOf(language);
+  if (library === "easy_localization" && cldr.length > 0)
+    return {
+      required: cldr.filter((c) => c !== "few" && c !== "many"),
+      allowed: ["zero", "one", "two", "other"],
+    };
+  return { required: cldr, allowed: cldr };
+}
+
 // The values a category is tried on: integers to a thousand, millions
 // (Spanish and French `many`), and fractions (French `one` holds 1.5).
 const SAMPLES = [
