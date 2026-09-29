@@ -178,8 +178,6 @@ function inlineToken(
   return undefined;
 }
 
-// A unit's own content: comments, fuzzy matches (`<alt-trans>`) and
-// 2.0's `<ignorable>` are not its source, its target nor its notes.
 // The raw text from `from` to `to` without the spans `cuts` names:
 // a unit's own text, its comments and foreign elements left out.
 function without(xml: string, from: number, to: number, cuts: Span[]): string {
@@ -646,7 +644,9 @@ function targetPatches(
   eol: string,
 ): Patch[] {
   if (u.target) {
-    const current = base.slice(u.target.start, u.target.end);
+    // As the reader reads it, comments left out, so a target holding
+    // one is unchanged by its own text (#925).
+    const current = without(base, u.target.start, u.target.end, u.cuts);
     if (inlineText(current) === text) return [];
     const parts = partsOf([current, sourceXml]);
     const state = statePatch(base, u.stateTag);
