@@ -136,3 +136,29 @@ test("an invalid seed is listed with what is wrong with it (#646)", async () => 
   expect(body.queues.agentDrafts.items[0]).not.toHaveProperty("problem");
   applySnapshot(db, project.id, FIXTURE);
 });
+
+test("an invalid printf seed's problem is read under its own library (#923)", async () => {
+  const { db, project, token } = seeded;
+  applySnapshot(db, project.id, {
+    ...FIXTURE,
+    strings: [
+      ...FIXTURE.strings,
+      {
+        id: "ui.items %lld",
+        type: "chrome",
+        source: "%lld items",
+        library: "printf",
+        arguments: ["%lld"],
+      },
+    ],
+    seedTranslations: { en: { "ui.items %lld": "%@ items" } },
+  });
+  const body = (await (
+    await queues(token, "?language=en")
+  ).json()) as QueuesResponse;
+  // Read as ICU the seed is plain text, with nothing wrong with it.
+  expect(
+    body.queues.invalid.items.find((i) => i.key === "ui.items %lld")?.problem,
+  ).toBe("%@ at position 1 where the source has %lld");
+  applySnapshot(db, project.id, FIXTURE);
+});

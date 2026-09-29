@@ -1550,6 +1550,16 @@ test("a nested message is validated at both levels (#764)", () => {
   ).toEqual({ ok: true });
 });
 
+test("a translation that is its source's own text keeps the source's # warning, not an error (#923)", () => {
+  const source =
+    "{n, plural, one {{g, select, a {# x} other {y}}} other {{g, select, a {# xs} other {ys}}}}";
+  expect(validateTranslation(source, source, "en")).toEqual({ ok: true });
+  // Any other text writing # there is still the translator's, refused.
+  expect(
+    validateTranslation(source, source.replace("# x}", "# z}"), "en"),
+  ).toMatchObject({ ok: false, errors: [{ code: "nested-count", arg: "n" }] });
+});
+
 test("nestedCountsOf names the plurals whose # sits in a select within them (#767)", () => {
   expect(
     nestedCountsOf(

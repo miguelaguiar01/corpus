@@ -1149,3 +1149,50 @@ test("an example value keyed __proto__ is stored with the string as any placehol
   expect(Object.hasOwn(stored[0]!.values, "__proto__")).toBe(true);
   expect(stored[0]!.values["__proto__"]).toBe("P");
 });
+
+test("a seed identical to its source is never invalid, whichever push writes it (#923)", () => {
+  const { db, project } = seed(["pt-PT", "en", "pt-BR"]);
+  // A # in a select within a plural: warned in a source, refused in a
+  // translation.
+  const source =
+    "{n, plural, one {{g, select, a {# x} other {y}}} other {{g, select, a {# xs} other {ys}}}}";
+  const push = () =>
+    applySnapshot(db, project.id, {
+      ...FIXTURE,
+      strings: [{ ...FIXTURE.strings[0]!, source }],
+      sourceVariants: ["pt-BR"],
+      seedTranslations: { "pt-BR": { [FIXTURE.strings[0]!.id]: source } },
+    });
+  push();
+  expect(translationOf(db, FIXTURE.strings[0]!.id, "pt-BR")).toMatchObject({
+    state: "translated",
+    invalid: false,
+  });
+  push();
+  expect(translationOf(db, FIXTURE.strings[0]!.id, "pt-BR")?.invalid).toBe(
+    false,
+  );
+});
+
+test("a string moved from a type read as HTML to a plain one marks its seed's tag (#923)", () => {
+  const { db, project } = seed();
+  const id = FIXTURE.strings[0]!.id;
+  const strings = (type: string) => [
+    { ...FIXTURE.strings[0]!, type, source: "Seguir", examples: undefined },
+  ];
+  applySnapshot(db, project.id, {
+    ...FIXTURE,
+    strings: strings("rich"),
+    richText: { rich: "html" },
+    seedTranslations: { en: { [id]: "<b>Follow</b>" } },
+  });
+  expect(translationOf(db, id, "en")?.invalid).toBe(false);
+  // No seeds: the digest leaves the unchanged one out.
+  applySnapshot(db, project.id, {
+    ...FIXTURE,
+    strings: strings("plain"),
+    richText: { rich: "html" },
+    seedTranslations: {},
+  });
+  expect(translationOf(db, id, "en")?.invalid).toBe(true);
+});
