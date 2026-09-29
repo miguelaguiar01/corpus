@@ -232,6 +232,7 @@ An entry read from an empty value under a sentence key has the key as its `sourc
 Rules:
 - Every string and entity has a **stable ID**, unique within the project, stable across pushes. IDs are the identity for diffing; changing an ID is a delete + create.
 - The schema is **additive-versioned**: `corpus/1` consumers must ignore unknown fields, so future extensions (e.g. entity form tables, §13) don't break old CLIs.
+- Its **closed values**, a writable source's `adapter` and a string's `library`, grow with Corpus, and a server refuses a snapshot carrying one it does not know. `GET /api/health`, which needs no token, reports what the server accepts, `accepts: { adapters, libraries }` (additive, 0.21.0 on). Before sending, `corpus push` asks it when the project uses a value beyond those every server since 0.20.0 takes. Where the server lacks one, or reports no `accepts` and so predates 0.21.0, the push sends nothing and names the values and the upgrade (#875); a health check that fails leaves the push as it was.
 - The zod schema in `packages/contract` is the normative definition; this section is illustrative.
 
 ---

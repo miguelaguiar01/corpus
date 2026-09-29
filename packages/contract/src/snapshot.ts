@@ -7,6 +7,7 @@ import {
   identifier,
   languageCode,
   entityId,
+  LIBRARIES,
   librarySchema,
   richTextSchema,
 } from "./strings";
@@ -38,6 +39,26 @@ export const writableSourceSchema = z.looseObject({
   library: librarySchema.optional(),
   syntax: librarySchema.optional(),
 });
+
+// The contract's closed values (#875): a server reports them on
+// /api/health as `accepts`, so a push finds a server too old for what it
+// sends before the whole snapshot is refused.
+export type Accepts = {
+  adapters: readonly string[];
+  libraries: readonly string[];
+};
+
+export const ACCEPTS: Accepts = {
+  adapters: writableSourceSchema.shape.adapter.options,
+  libraries: LIBRARIES,
+};
+
+// What every server since 0.20.0 accepts, which needs no asking; a server
+// that reports no `accepts` is older than 0.21.0 and takes these alone.
+export const BEFORE_ACCEPTS: Accepts = {
+  adapters: ["messages", "table", "android", "fluent"],
+  libraries: ["icu", "i18next", "vue", "printf", "chrome", "android"],
+};
 
 // stringTypes/entityTypes travel in the snapshot so the server can
 // render metadata generically (§5) without reading the client's config.

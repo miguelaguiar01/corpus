@@ -1,4 +1,6 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, expect, test } from "vitest";
@@ -418,4 +420,89 @@ test("a seed's digest changes with its marks and its language's variance, and on
   expect(variant.de).toBe(plain.de);
   // Dropping the variant gives the plain digest back, so it resends too.
   expect(seedDigestsOf({ ...base, sourceVariants: [] }, config)).toEqual(plain);
+});
+
+// A project whose strings are rails's, a library new in 0.21.0.
+function railsRepo(library = "rails"): string {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-accepts-"));
+  mkdirSync(path.join(dir, "i18n"));
+  writeFileSync(
+    path.join(dir, "i18n", "en.json"),
+    JSON.stringify({ hello: "Hi %{name}" }),
+  );
+  writeFileSync(
+    path.join(dir, "corpus.config.mjs"),
+    `export default { project: "acme", server: process.env.CORPUS_SERVER, sourceLanguage: "en", languages: ["en", "de"], sources: [{ adapter: "messages", type: "ui", path: "i18n/{lang}.json", library: ${JSON.stringify(library)} }] };\n`,
+  );
+  return dir;
+}
+
+const REPORT = {
+  report: {
+    added: 1,
+    changed: 0,
+    stale: 0,
+    archived: 0,
+    seeded: 0,
+    seedsIgnored: 0,
+    seedsIdentical: 0,
+  },
+};
+
+test("push refuses, before sending, a server that predates a value the project uses (#875)", async () => {
+  for (const health of [
+    { status: "ok", version: "abc" },
+    {
+      status: "ok",
+      version: "abc",
+      accepts: { adapters: ["messages"], libraries: ["icu", "i18next"] },
+    },
+  ]) {
+    const { server, url, calls } = await startServer((c) =>
+      c.url === "/api/health"
+        ? { status: 200, json: health }
+        : { status: 200, json: REPORT },
+    );
+    active = server;
+    process.env.CORPUS_SERVER = url;
+    const c = ctx({ cwd: railsRepo() });
+    expect(await run(["push"], c)).toBe(1);
+    expect(c.output.join("\n")).toMatch(
+      /the server at .* predates the rails library this project uses; upgrade it to \d+\.\d+\.\d+/,
+    );
+    expect(calls.map((call) => call.url)).toEqual(["/api/health"]);
+    server.close();
+  }
+});
+
+test("push goes ahead where the server accepts the project's values, cannot say, or is not asked (#875)", async () => {
+  const cases: {
+    library: string;
+    health: { status: number; json: unknown };
+    asked: boolean;
+  }[] = [
+    {
+      library: "rails",
+      health: {
+        status: 200,
+        json: { accepts: { adapters: ["messages"], libraries: ["rails"] } },
+      },
+      asked: true,
+    },
+    { library: "rails", health: { status: 500, json: {} }, asked: true },
+    { library: "i18next", health: { status: 200, json: {} }, asked: false },
+  ];
+  for (const { library, health, asked } of cases) {
+    const { server, url, calls } = await startServer((c) =>
+      c.url === "/api/health" ? health : { status: 200, json: REPORT },
+    );
+    active = server;
+    process.env.CORPUS_SERVER = url;
+    const c = ctx({ cwd: railsRepo(library) });
+    expect(await run(["push"], c)).toBe(0);
+    const urls = calls.map((call) => call.url);
+    expect(urls.includes("/api/health")).toBe(asked);
+    expect(urls.at(-1)).toBe("/api/push");
+    server.close();
+  }
 });
