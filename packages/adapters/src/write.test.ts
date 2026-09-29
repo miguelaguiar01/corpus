@@ -963,3 +963,22 @@ test("a table keeps its file's line endings and BOM, and a new one takes the tem
   // An LF file stays LF with no BOM.
   expect(entriesToTable(TABLE, texts, MAP, TABLE)).toBe(TABLE);
 });
+
+test("a table file with no records takes the template's layout, as a blank one does (#927)", () => {
+  const texts = { "step.1": "Open the door." };
+  const fresh = entriesToTable(TABLE, texts, MAP);
+  // Blank, then settled at [], then translated: the template's one record
+  // a line, and a second pull leaves it.
+  const settled = entriesToTable(TABLE, {}, MAP, "");
+  expect(settled).toBe("[]\n");
+  const translated = entriesToTable(TABLE, texts, MAP, settled);
+  expect(translated).toBe(fresh);
+  expect(entriesToTable(TABLE, texts, MAP, translated)).toBe(translated);
+  // The same after a proposal removes a one-per-line table's last record.
+  const emptied = applyTableOps(
+    `[\n  { "id": "step.1", "text": "Abre a porta." }\n]\n`,
+    [{ kind: "delete", id: "step.1" }],
+    MAP,
+  );
+  expect(entriesToTable(TABLE, texts, MAP, emptied)).toBe(fresh);
+});

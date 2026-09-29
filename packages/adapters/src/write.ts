@@ -334,13 +334,19 @@ function fromTemplate(
     if (seen.has(id)) continue;
     setPath(out, nested ? id.split(".") : [id], translations[id]!);
   }
-  // The template's line endings and BOM (#850); JSON escapes a line
-  // break inside a string, so every one here is the layout's.
-  const json =
+  // The template's line endings and BOM (#850).
+  return likeFile(
     JSON.stringify(out, null, style.indent) +
-    (style.trailingNewline ? "\n" : "");
-  const bom = template.startsWith("\uFEFF") ? "\uFEFF" : "";
-  return bom + json.replace(/\n/g, eolOf(template));
+      (style.trailingNewline ? "\n" : ""),
+    template,
+  );
+}
+
+// JSON written as `like` is: its line endings and its BOM. JSON escapes
+// a line break inside a string, so every one here is the layout's.
+function likeFile(json: string, like: string): string {
+  const bom = like.startsWith("\uFEFF") ? "\uFEFF" : "";
+  return bom + json.replace(/\n/g, eolOf(like));
 }
 
 type Record_ = Record<string, unknown>;
@@ -374,9 +380,10 @@ export function entriesToTable(
   existing?: string,
 ): string {
   translations = ownRecord(translations);
-  // A blank file is a new one: the template's layout, line endings and
-  // BOM (#883).
-  if (existing?.trim() === "") existing = undefined;
+  // A blank file, or one with no records, is a new one: the template's
+  // layout, line endings and BOM (#883, #927).
+  if (existing !== undefined && parseRecords(existing).length === 0)
+    existing = undefined;
   const base = existing ?? template;
   const style = styleOf(base);
   const baseRecords = parseRecords(base);
@@ -402,9 +409,7 @@ export function entriesToTable(
 }
 
 // A table's records in the file's layout: one record a line where the
-// file writes them so, else JSON's own, in `like`'s line endings and
-// with its BOM (#883); JSON escapes a line break inside a string, so
-// every one here is the layout's.
+// file writes them so, else JSON's own, written as `like` is (#883).
 function renderRecords(
   records: Record_[],
   style: Style,
@@ -416,11 +421,7 @@ function renderRecords(
     inline && records.length > 0
       ? `[\n${records.map((r) => style.indent + inlineRecord(r)).join(",\n")}\n]`
       : JSON.stringify(records, null, style.indent);
-  const bom = like.startsWith("\uFEFF") ? "\uFEFF" : "";
-  return (
-    bom +
-    (body + (style.trailingNewline ? "\n" : "")).replace(/\n/g, eolOf(like))
-  );
+  return likeFile(body + (style.trailingNewline ? "\n" : ""), like);
 }
 
 // Source-side operations (§8, §11): a proposal sets, adds or removes a
