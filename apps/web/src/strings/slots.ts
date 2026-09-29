@@ -1,4 +1,5 @@
 import {
+  argIndexOf,
   partsOf,
   type Example,
   type FieldDeclaration,
@@ -41,8 +42,7 @@ export function slotsOf(
   const names = [...placeholders];
   // A printf plural on `argN` is the Nth argument, one slot (#735).
   for (const plural of plurals) {
-    const arg =
-      syntax === "printf" ? (/^arg(\d+)$/.exec(plural)?.[1] ?? plural) : plural;
+    const arg = syntax === "printf" ? (argIndexOf(plural) ?? plural) : plural;
     if (!names.includes(arg)) names.push(arg);
   }
   inPositionOrder(names, syntax);
