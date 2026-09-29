@@ -13,12 +13,20 @@ import {
   LANGUAGE_RE,
   LIBRARIES,
   localeOf,
+  parseIcu,
   posixTag,
+  tagMode,
   type Library,
 } from "@corpus/contract";
 import { headOf, isQtLinguist, unreadableFile } from "./catalogue-format";
 import { option } from "./args";
-import { readEntries } from "./build";
+import {
+  configKey,
+  fileOf,
+  readEntries,
+  sourceLibrary,
+  type FileSource,
+} from "./build";
 import { DEFAULT_INCLUDE, EXTENSIONS, SKIP_DIRS } from "./check";
 import type { RunContext } from "./cli";
 import {
@@ -174,12 +182,22 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       }),
     ...(Object.keys(kept).length > 0 && { languageFiles: kept }),
   };
+  // A Rails YAML catalogue is HTML the server renders, so a source
+  // whose tags only HTML reads builds with its type read so; any other
+  // catalogue's tags may be components, I18n.js's JSON's too, and init
+  // only says it (#952).
+  const htmlTags = await htmlOnlyTags(ctx.cwd, source, sourceLanguage);
+  const readAsHtml =
+    htmlTags > 0 &&
+    adapter === "yaml" &&
+    sourceLibrary(source as FileSource) === "rails";
   const config: InitConfig = {
     project,
     server,
     sourceLanguage,
     languages,
     sources: [source],
+    ...(readAsHtml && { richText: { [type]: "html" as const } }),
     ...(include && { check: { include } }),
   };
   const parsed = corpusConfigSchema.safeParse(config);
@@ -210,6 +228,14 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   if (detected.note) ctx.out(detected.note);
   if (adapter === "yaml" && !library)
     ctx.out("library: rails (the yaml source's default)");
+  if (readAsHtml)
+    ctx.out(
+      `richText: ${type} is read as HTML: ${htmlTags} source string(s) hold tags only HTML takes as text, an unclosed tag or a lone <br>`,
+    );
+  else if (htmlTags > 0)
+    ctx.out(
+      `corpus: ${htmlTags} source string(s) hold tags only HTML takes as text, an unclosed tag or a lone <br>, and are refused as they are: if the app renders ${type} as HTML, add richText: { ${configKey(type)}: "html" } to ${filename}`,
+    );
   if (include) {
     ctx.out(
       `check.include: ${include.join(", ")} (the directories holding components, which corpus check scans)`,
@@ -249,8 +275,43 @@ type InitConfig = {
   sourceLanguage: string;
   languages: string[];
   sources: [InitSource];
+  richText?: Record<string, "html">;
   check?: { include: string[] };
 };
+
+// How many of the source file's strings are refused as the library
+// reads their tags and taken as text where the type is read as HTML
+// (#952); none where the file will not read, which build then says.
+async function htmlOnlyTags(
+  cwd: string,
+  source: InitSource,
+  sourceLanguage: string,
+): Promise<number> {
+  const declared = source as FileSource;
+  let entries;
+  try {
+    entries = await readEntries(
+      createJiti(import.meta.url),
+      cwd,
+      fileOf(declared, sourceLanguage, sourceLanguage),
+      declared,
+      true,
+      sourceLanguage,
+    );
+  } catch {
+    return 0;
+  }
+  let count = 0;
+  for (const entry of entries) {
+    const library = entry.library ?? sourceLibrary(declared);
+    if (
+      !parseIcu(entry.source, library, { html: tagMode(library) }).ok &&
+      parseIcu(entry.source, library, { html: "markup" }).ok
+    )
+      count += 1;
+  }
+  return count;
+}
 
 // What each library init detects is told by, for the line that says so.
 const DETECTED_BY: Partial<Record<Library, string>> = {
@@ -419,6 +480,11 @@ function render(plain: boolean, config: InitConfig): string {
   const check = config.check
     ? `  check: { include: [${config.check.include.map(q).join(", ")}] },\n`
     : "";
+  const richText = config.richText
+    ? `  richText: { ${Object.entries(config.richText)
+        .map(([type, value]) => `${configKey(type)}: ${q(value)}`)
+        .join(", ")} },\n`
+    : "";
   const body = `  project: ${q(config.project)},
   server: ${q(config.server)},
   sourceLanguage: ${q(config.sourceLanguage)},
@@ -432,7 +498,7 @@ function render(plain: boolean, config: InitConfig): string {
         : ""
     } },
   ],
-${check}`;
+${richText}${check}`;
   return plain
     ? `export default {\n${body}};\n`
     : `import { defineCorpus } from "@corpus-tool/cli";\n\nexport default defineCorpus({\n${body}});\n`;

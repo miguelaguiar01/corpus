@@ -169,7 +169,7 @@ Two things to know. **A moved verb needs its index.** Unindexed verbs are read i
 
 `library: "rails"` is Rails' interpolation, and I18n.js's `%{name}` form: the library of the [yaml](Sources-and-adapters#yaml) source, which reads Rails' YAML catalogues with no converter. `%{name}` is a placeholder a translation keeps as written, and the chip inserts it whole: `{application_name}` without the `%` is text to Rails and prints as it stands, so a translation that writes it is refused with `missing %{application_name}`. Rails' format style, `%<count>d` or `%<amount>.2f`, is a placeholder too; `%%` is a literal `%`; other braces, `#` and a lone `%` are text. Tags are read as under ICU, so a lone `<br>` is an unclosed tag unless the type is declared `richText: { ui: "html" }`, which a catalogue whose strings Rails renders as HTML, as Discourse's are, wants. Plurals are hashes, `{ "one": "%{count} post", "other": "%{count} posts" }`, read as one plural.
 
-`corpus init` writes it for a JSON catalogue when `%{name}` placeholders outnumber every other shape; a yaml source is `rails` unless it names another.
+`corpus init` writes it for a JSON catalogue when `%{name}` placeholders outnumber every other shape; a yaml source is `rails` unless it names another. Where the source file has strings only HTML reads, an unclosed `<p>` or a lone `<br>`, init writes `richText: { ui: "html" }` for a yaml source read as `rails` and says so; for any other catalogue, a JSON one read as `rails` or a yaml one of another library, it names the line to add, and `corpus build` names it beside the refusals.
 
 ## Qt
 

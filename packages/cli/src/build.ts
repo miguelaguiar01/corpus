@@ -65,6 +65,9 @@ export type Refused = {
   hint: string;
   // What it is put down to, when the advice says (#549).
   cause?: RefusalCause;
+  // Its type, where the type read as HTML would take it: an unclosed
+  // tag or a lone <br> as text (#952).
+  htmlType?: string;
 };
 export type BuildReport = {
   snapshot: Snapshot;
@@ -420,12 +423,34 @@ export async function buildSnapshotReport(
       [
         "snapshot build failed:",
         ...refused.map((entry) => `  ${describeRefused(entry)}`),
+        ...richTextAdvice(refused).map((advice) => `  ${advice}`),
         ...ruined.map((reason) => `  ${reason}`),
         `  ${pushing ? "nothing was pushed" : "no snapshot was built"}: pushing the rest would archive every refused string`,
       ].join("\n"),
     );
   }
-  return { snapshot: parsed.data as Snapshot, refused, notes };
+  return {
+    snapshot: parsed.data as Snapshot,
+    refused,
+    notes: [...richTextAdvice(refused), ...notes],
+  };
+}
+
+// A type as a config object's key: bare where it can be.
+export function configKey(type: string): string {
+  return /^[A-Za-z_$][\w$]*$/.test(type) ? type : JSON.stringify(type);
+}
+
+// One line per type whose refused strings its reading as HTML would
+// take (#952), naming the declaration that does.
+export function richTextAdvice(refused: Refused[]): string[] {
+  const byType = new Map<string, number>();
+  for (const { htmlType } of refused)
+    if (htmlType) byType.set(htmlType, (byType.get(htmlType) ?? 0) + 1);
+  return [...byType].map(
+    ([type, count]) =>
+      `${count} refused ${type} string(s) hold tags a type read as HTML takes as text, an unclosed tag or a lone <br>: if the app renders ${type} as HTML, declare richText: { ${configKey(type)}: "html" } in the config`,
+  );
 }
 
 // A `#` in a select within a plural, said of a source by build and
@@ -459,11 +484,15 @@ function validateEntry(
     const message = icu.errors[0]?.message ?? "";
     const advice = refusalAdvice(entry.source, syntax, message);
     const cause = refusalCause(entry.source, syntax, message);
+    const html =
+      richText?.[entry.type] !== "html" &&
+      parseIcu(entry.source, syntax, { html: "markup" }).ok;
     refused.push({
       file,
       id: entry.id,
       hint: advice,
       ...(cause ? { cause } : {}),
+      ...(html && { htmlType: entry.type }),
       message: `invalid ${messageKind(syntax)}: ${message}${advice}`,
     });
   }
