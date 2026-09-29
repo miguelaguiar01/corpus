@@ -541,7 +541,7 @@ test("a malformed unit is refused by name, never dropped without a word (#900)",
         ].join("\n"),
       ),
     ),
-  ).toThrow("xliff: unit a has a <alt-trans> that does not close");
+  ).toThrow("xliff: unit a: its <alt-trans> does not close");
   // A 2.0 unit of two segments is refused whether or not it has a source.
   const file20 = (inner: string) =>
     `<?xml version="1.0"?>\n<xliff version="2.0" srcLang="en"><file id="f"><unit id="u">${inner}</unit></file></xliff>\n`;
@@ -563,7 +563,33 @@ test("a malformed unit is refused by name, never dropped without a word (#900)",
         `<trans-unit id="a"><source xml:lang="en>A</source><source>B</source></trans-unit>`,
       ),
     ),
-  ).toThrow("xliff: unit a has a <source> that does not parse or close");
+  ).toThrow("xliff: unit a: its <source> does not parse or close");
+  // So is an ignorable left open, and a broken target or segment tag.
+  expect(() =>
+    xliffUnits(
+      file20(
+        "<ignorable><source> </source><segment><source>a</source></segment>",
+      ),
+    ),
+  ).toThrow("xliff: unit u: its <ignorable> does not close");
+  expect(() =>
+    xliffUnits(
+      file12(
+        `<trans-unit id="a"><source>A</source><target state="x>A</target></trans-unit>`,
+      ),
+    ),
+  ).toThrow("xliff: unit a: its <target> does not parse or close");
+  expect(() =>
+    xliffUnits(file20(`<segment state="x><source>a</source></segment>`)),
+  ).toThrow("xliff: unit u: its <segment> does not parse or close");
+  // CDATA is text: a tag it spells is none of the unit's.
+  expect(
+    xliffUnits(
+      file12(
+        `<trans-unit id="a"><source><![CDATA[use <alt-trans> and <target here]]></source></trans-unit>`,
+      ),
+    ).map((u) => u.id),
+  ).toEqual(["a"]);
   // A unit with no source at all is still left out, as before.
   expect(
     xliffUnits(file12(`<trans-unit id="a"><target>A</target></trans-unit>`)),

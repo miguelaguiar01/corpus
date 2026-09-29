@@ -355,7 +355,7 @@ function blankInside(unit: string, id: string): string {
   );
   const open = /<(alt-trans|ignorable)\b/.exec(inner);
   if (open)
-    throw new Error(`xliff: unit ${id} has a <${open[1]}> that does not close`);
+    throw new Error(`xliff: unit ${id}: its <${open[1]}> does not close`);
   return inner;
 }
 
@@ -363,7 +363,10 @@ function unitSpans(xml: string): UnitSpan[] {
   // Found in the text with comments masked, and each unit's fuzzy
   // matches and ignorables blanked within it, so none of theirs is taken
   // for the unit's own (#900).
-  let text = masked(xml);
+  // CDATA is text, whatever tags it spells, and is hidden like comments.
+  let text = masked(xml).replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, (c) =>
+    " ".repeat(c.length),
+  );
   const out: UnitSpan[] = [];
   const find = (from: number, to: number, element: string, id: string) => {
     const re = new RegExp(
@@ -378,7 +381,7 @@ function unitSpans(xml: string): UnitSpan[] {
     // refused: skipping the unit would drop it without a word.
     if (!m || re.lastIndex > to)
       throw new Error(
-        `xliff: unit ${id} has a <${element}> that does not parse or close`,
+        `xliff: unit ${id}: its <${element}> does not parse or close`,
       );
     const openEnd =
       m.index +
