@@ -14,11 +14,13 @@ import {
   qtTsTranslations,
   yamlToEntries,
   yamlTranslations,
+  yamlPluralIds,
   gettextSuggestions,
   gettextTranslations,
   xliffToEntries,
   xliffTranslations,
   messagesToEntries,
+  pluralObjectIds,
   stripBom,
   tableToEntries,
 } from "@corpus/adapters";
@@ -724,6 +726,10 @@ export async function readEntries(
   // A translation the file holds that is not read, a Qt numerus form
   // no plural holds (#751).
   onUnread?: (id: string) => void,
+  // The ids the source file holds as plural objects, as the file writes
+  // them, where a target's object of categories is the plural though it
+  // lacks `other` (#950): sourcePluralIds.
+  pluralIds?: ReadonlySet<string>,
 ): Promise<StringEntry[]> {
   const typed = <T>(entries: T[]) =>
     entries.map((e) => ({ ...e, type: source.type }));
@@ -750,7 +756,7 @@ export async function readEntries(
       const root = fileCodeOf(source, tag);
       return sourceFile
         ? yamlToEntries(text(), { type: source.type, root })
-        : typed(yamlTranslations(text(), root));
+        : typed(yamlTranslations(text(), root, pluralIds));
     }
     case "qt-ts":
       return sourceFile
@@ -782,6 +788,7 @@ export async function readEntries(
           chrome: libraryOf(source) === "chrome",
           keyIsText: sourceFile,
           plurals: readsPluralObjects(source),
+          ...(pluralIds && { pluralIds }),
         })
       : tableToEntries(data, { type: source.type, map: source.map });
   // A namespaced file's ids are `ns:key` (#513), i18next's own separator.
@@ -791,6 +798,27 @@ export async function readEntries(
         id: `${source.namespace}:${entry.id}`,
       }))
     : entries;
+}
+
+// The ids a source's own file holds as a plural object or hash, which
+// the writers keep as one (#950); none where the file is absent.
+export async function sourcePluralIds(
+  jiti: ReturnType<typeof createJiti>,
+  cwd: string,
+  source: FileSource,
+  sourceLanguage: string,
+): Promise<ReadonlySet<string> | undefined> {
+  const file = fileOf(source, sourceLanguage, sourceLanguage);
+  const abs = path.join(cwd, file);
+  if (!existsSync(abs)) return undefined;
+  if (source.adapter === "yaml")
+    return yamlPluralIds(
+      readFileSync(abs, "utf8"),
+      fileCodeOf(source, sourceLanguage),
+    );
+  if (source.adapter === "messages" && readsPluralObjects(source))
+    return pluralObjectIds(await readModule(jiti, abs));
+  return undefined;
 }
 
 async function readModule(
@@ -1046,6 +1074,13 @@ async function readSeeds(
   for (const source of config.sources) {
     if (source.adapter === "exec" || !hasLanguages(source)) continue;
     if (!sourceWritesBack(source)) continue;
+    // A source file that will not read is named once, where it is read.
+    const pluralIds = await sourcePluralIds(
+      jiti,
+      cwd,
+      source,
+      config.sourceLanguage,
+    ).catch(() => undefined);
     for (const lang of config.languages) {
       if (lang === config.sourceLanguage) continue;
       const file = fileOf(source, lang, config.sourceLanguage);
@@ -1060,6 +1095,7 @@ async function readSeeds(
           false,
           lang,
           (id) => unread.push(id),
+          pluralIds,
         )) {
           // A key the source no longer has, or an empty value an
           // extraction tool left, is not a translation.

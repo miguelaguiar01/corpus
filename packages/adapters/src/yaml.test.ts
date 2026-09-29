@@ -703,3 +703,39 @@ test("a text Rails' parser could not read back is written double-quoted, whateve
     expect(out).not.toMatch(/\n +\t/);
   }
 });
+
+test("in a target, a hash of categories at an id the source reads as a plural is that plural, other or not, and writes back as it is (#950)", () => {
+  const source =
+    'en:\n  rooms:\n    one: "%{count} room"\n    other: "%{count} rooms"\n';
+  const target =
+    'pl:\n  rooms:\n    one: "%{count} pokój"\n    few: "%{count} pokoje"\n    many: "%{count} pokoi"\n';
+  const read = yamlTranslations(target, "pl", new Set(["rooms"]));
+  expect(read).toEqual([
+    {
+      id: "rooms",
+      type: "",
+      source:
+        "{count, plural, one {%{count} pokój} few {%{count} pokoje} many {%{count} pokoi}}",
+    },
+  ]);
+  expect(yamlTranslations(target, "pl").map((e) => e.id)).toEqual([
+    "rooms.one",
+    "rooms.few",
+    "rooms.many",
+  ]);
+  const lang = { source: "en", code: "pl" };
+  expect(entriesToYaml(source, { rooms: read[0]!.source }, target, lang)).toBe(
+    target,
+  );
+  expect(
+    entriesToYaml(
+      source,
+      {
+        rooms:
+          "{count, plural, one {%{count} pokój} few {%{count} pokoje} many {%{count} pokoi} other {%{count} pokoju}}",
+      },
+      target,
+      lang,
+    ),
+  ).toBe(`${target}    other: "%{count} pokoju"\n`);
+});

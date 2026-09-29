@@ -41,8 +41,12 @@ function keyOf(pair: Pair, text?: string): string | undefined {
 }
 
 // A hash of plural categories, `other` among them, each a string: one
-// plural, as Rails reads it (#662).
-function pluralOf(map: YAMLMap): Record<string, string> | undefined {
+// plural, as Rails reads it (#662); in a target, at an id the source
+// reads as a plural, `other` or not (#950).
+function pluralOf(
+  map: YAMLMap,
+  needsOther = true,
+): Record<string, string> | undefined {
   const forms: Record<string, string> = {};
   let other = false;
   for (const pair of map.items) {
@@ -57,7 +61,9 @@ function pluralOf(map: YAMLMap): Record<string, string> | undefined {
     forms[key] = pair.value.value;
   }
   // A hash of nulls alone is no plural yet: its nulls are skipped.
-  return other && Object.keys(forms).length > 0 ? forms : undefined;
+  return (other || !needsOther) && Object.keys(forms).length > 0
+    ? forms
+    : undefined;
 }
 
 // The strings under a language's root key, in the file's order; a key
@@ -68,7 +74,7 @@ export function yamlStrings(
   root: string,
   // A target may be a stub, `fr:` or no key yet: no translations. The
   // source may not, since reading nothing would archive every string.
-  options: { source?: boolean } = {},
+  options: { source?: boolean; pluralIds?: ReadonlySet<string> } = {},
 ): YamlString[] {
   const body = text.replace(/^\uFEFF/, "");
   const document = parseYaml(body);
@@ -111,7 +117,11 @@ export function yamlStrings(
         if (typeof value.value === "string")
           out.push({ id: id.join("."), text: value.value, ...note });
       } else if (isMap(value)) {
-        const plural = pluralOf(value);
+        const plural =
+          pluralOf(value) ??
+          (options.pluralIds?.has(id.join("."))
+            ? pluralOf(value, false)
+            : undefined);
         if (plural)
           out.push({
             id: id.join("."),
@@ -125,6 +135,16 @@ export function yamlStrings(
   };
   walk(rootPair.value, []);
   return out;
+}
+
+// The ids a source catalogue holds as plural hashes, as the writer
+// finds them (#950).
+export function yamlPluralIds(text: string, root: string): Set<string> {
+  return new Set(
+    yamlStrings(text, root, { source: true }).flatMap((s) =>
+      s.plural ? [s.id] : [],
+    ),
+  );
 }
 
 // A `*_MF` key holds ICU MessageFormat, as Discourse's `I18n.messageFormat`
@@ -148,8 +168,12 @@ export function yamlToEntries(
 
 // A target file's translations: its non-empty strings; a lone space,
 // a number's delimiter, is one (build decides what seeds).
-export function yamlTranslations(text: string, root: string): StringEntry[] {
-  return yamlStrings(text, root).flatMap((s) =>
+export function yamlTranslations(
+  text: string,
+  root: string,
+  pluralIds?: ReadonlySet<string>,
+): StringEntry[] {
+  return yamlStrings(text, root, { pluralIds }).flatMap((s) =>
     s.text === "" ||
     (s.plural && Object.values(s.plural).every((f) => f === ""))
       ? []
@@ -388,7 +412,9 @@ function writeYaml(
   onRefused?: (id: string, text: string, why: YamlRefusal) => void,
 ): string {
   const file = indexYaml(base, code, plural);
-  const current = new Map(yamlStrings(base, code).map((s) => [s.id, s]));
+  const current = new Map(
+    yamlStrings(base, code, { pluralIds: plural }).map((s) => [s.id, s]),
+  );
   const write: Write = {
     file,
     plural,

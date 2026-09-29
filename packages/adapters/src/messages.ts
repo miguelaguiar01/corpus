@@ -13,17 +13,25 @@ export type MessagesOptions = {
   // An object of plural categories is one plural string (#662), under a
   // library whose text can hold one: not vue, whose plurals are pipes.
   plurals?: boolean;
+  // The ids the source reads as plurals: in a target file an object of
+  // categories at one of them is that plural, `other` or not (#950).
+  pluralIds?: ReadonlySet<string>;
 };
 
 // `{ one, other }`, as counterpart, easy_localization and Rails write a
 // plural: every key a category and `other` among them, every value a
-// string, matrix-web-i18n's own test (#662).
-export function isPluralObject(node: unknown): node is Record<string, string> {
+// string, matrix-web-i18n's own test (#662). Where the source already
+// reads the id as a plural, a target's object needs no `other` (#950).
+export function isPluralObject(
+  node: unknown,
+  needsOther = true,
+): node is Record<string, string> {
   if (node === null || typeof node !== "object" || Array.isArray(node))
     return false;
   const entries = Object.entries(node);
   if (
-    !Object.hasOwn(node, "other") ||
+    entries.length === 0 ||
+    (needsOther && !Object.hasOwn(node, "other")) ||
     !entries.every(
       ([key, value]) =>
         (PLURAL_CATEGORIES as readonly string[]).includes(key) &&
@@ -35,12 +43,27 @@ export function isPluralObject(node: unknown): node is Record<string, string> {
   // could not be split out of the plural again, so its keys stay keys.
   const back = pluralBranches(
     pluralText("count", node as Record<string, string>, "written"),
+    needsOther,
   );
   return (
     back !== undefined &&
     entries.every(([key, value]) => back[key] === value) &&
     Object.keys(back).length === entries.length
   );
+}
+
+// The ids a source catalogue holds as plural objects, as the writer
+// finds them: a target's object at one needs no `other` (#950).
+export function pluralObjectIds(
+  node: unknown,
+  path: string[] = [],
+  out = new Set<string>(),
+): Set<string> {
+  if (path.length > 0 && isPluralObject(node)) return out.add(path.join("."));
+  if (node !== null && typeof node === "object" && !Array.isArray(node))
+    for (const [key, child] of Object.entries(node))
+      pluralObjectIds(child, [...path, key], out);
+  return out;
 }
 
 // A plural's form for a category: its own branch, or `other`'s, which
@@ -57,6 +80,7 @@ export function formOf(
 // braces balanced; undefined for any other text.
 export function pluralBranches(
   text: string,
+  needsOther = true,
 ): Record<string, string> | undefined {
   const head = /^\s*\{\s*count\s*,\s*plural\s*,/.exec(text);
   if (!head) return undefined;
@@ -65,7 +89,9 @@ export function pluralBranches(
   for (;;) {
     while (/\s/.test(text[at] ?? "")) at++;
     if (text[at] === "}") {
-      return text.slice(at + 1).trim() === "" && Object.hasOwn(forms, "other")
+      return text.slice(at + 1).trim() === "" &&
+        Object.keys(forms).length > 0 &&
+        (!needsOther || Object.hasOwn(forms, "other"))
         ? forms
         : undefined;
     }
@@ -275,7 +301,12 @@ function walk(
   paths = new Map<string, string[]>(),
 ): void {
   const type = options.type;
-  if (options.plurals && path.length > 0 && isPluralObject(node))
+  if (
+    options.plurals &&
+    path.length > 0 &&
+    (isPluralObject(node) ||
+      (options.pluralIds?.has(path.join(".")) && isPluralObject(node, false)))
+  )
     node = pluralText("count", node, "written");
   if (typeof node === "string") {
     const id = path.join(".");

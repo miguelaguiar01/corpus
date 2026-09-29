@@ -57,18 +57,25 @@ export function stripBom(text: string): string {
 type Leaf = [path: string[], value: string, plural: boolean];
 
 // With `plurals`, a plural object is one leaf, its text the plural
-// string it reads as (#662).
+// string it reads as (#662); at an id of `known`, the source's plurals,
+// one without `other` too (#950).
 function leaves(
   tree: Tree,
   plurals = false,
+  known?: ReadonlySet<string>,
   path: string[] = [],
   out: Leaf[] = [],
 ): Leaf[] {
   for (const [key, value] of Object.entries(tree)) {
-    if (typeof value === "string") out.push([[...path, key], value, false]);
-    else if (plurals && isPluralObject(value))
-      out.push([[...path, key], pluralText("count", value, "written"), true]);
-    else leaves(value, plurals, [...path, key], out);
+    const at = [...path, key];
+    if (typeof value === "string") out.push([at, value, false]);
+    else if (
+      plurals &&
+      (isPluralObject(value) ||
+        (known?.has(at.join(".")) && isPluralObject(value, false)))
+    )
+      out.push([at, pluralText("count", value, "written"), true]);
+    else leaves(value, plurals, known, at, out);
   }
   return out;
 }
@@ -229,7 +236,11 @@ export function entriesToMessages(
   const order = keyOrder(stripBom(template));
   let text = base;
   const seen = new Set<string>();
-  for (const [path, value, plural] of leaves(baseTree, plurals)) {
+  for (const [path, value, plural] of leaves(
+    baseTree,
+    plurals,
+    sourcePlurals,
+  )) {
     const id = path.join(".");
     seen.add(id);
     const next = translations[id];

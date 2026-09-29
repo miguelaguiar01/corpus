@@ -1338,3 +1338,84 @@ test("a {ns} pattern with no {lang} builds, each file's ids prefixed (#930)", as
   ]);
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("a target object or hash without other is a plural only where the source file holds one, never at a source string that is an ICU plural (#950 review)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-950-"));
+  mkdirSync(path.join(dir, "locales"));
+  writeFileSync(
+    path.join(dir, "locales", "en.yml"),
+    'en:\n  files_MF: "{count, plural, one {# file} other {# files}}"\n  rooms:\n    one: "%{count} room"\n    other: "%{count} rooms"\n',
+  );
+  writeFileSync(
+    path.join(dir, "locales", "pl.yml"),
+    'pl:\n  files_MF:\n    one: "# plik"\n    few: "# pliki"\n  rooms:\n    one: "%{count} pokój"\n    few: "%{count} pokoje"\n',
+  );
+  mkdirSync(path.join(dir, "i18n"));
+  writeFileSync(
+    path.join(dir, "i18n", "en.json"),
+    '{\n  "files": "{count, plural, one {# file} other {# files}}",\n  "rooms": { "one": "{count} room", "other": "{count} rooms" }\n}\n',
+  );
+  writeFileSync(
+    path.join(dir, "i18n", "pl.json"),
+    '{\n  "files": { "one": "# plik", "few": "# pliki" },\n  "rooms": { "one": "{count} pokój", "few": "{count} pokoje" }\n}\n',
+  );
+  const report = await buildSnapshotReport(
+    config({
+      sourceLanguage: "en",
+      languages: ["en", "pl"],
+      sources: [
+        { adapter: "yaml", type: "ui", path: "locales/{lang}.yml" },
+        {
+          adapter: "messages",
+          type: "ui",
+          library: "icu",
+          path: "i18n/{lang}.json",
+          namespace: "web",
+        },
+      ],
+    }),
+    dir,
+  );
+  expect(report.snapshot.seedTranslations?.pl).toEqual({
+    rooms: "{count, plural, one {%{count} pokój} few {%{count} pokoje}}",
+    "web:rooms": "{count, plural, one {{count} pokój} few {{count} pokoje}}",
+  });
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("a source file that will not read is named once, never thrown from the seeds' read (#950 review)", async () => {
+  for (const [adapter, file, body] of [
+    ["messages", "en.json", '{\n  "r": {\n'],
+    ["yaml", "en.yml", "en:\n  r: [\n"],
+  ] as const) {
+    const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-950b-"));
+    writeFileSync(path.join(dir, file), body);
+    writeFileSync(
+      path.join(dir, file.replace("en", "pl")),
+      adapter === "yaml" ? "pl:\n  r: R\n" : '{ "r": "R" }\n',
+    );
+    await expect(
+      buildSnapshotReport(
+        config({
+          sourceLanguage: "en",
+          languages: ["en", "pl"],
+          sources: [
+            adapter === "yaml"
+              ? { adapter, type: "ui", path: "{lang}.yml" }
+              : {
+                  adapter,
+                  type: "ui",
+                  library: "counterpart",
+                  path: "{lang}.json",
+                },
+          ],
+        }),
+        dir,
+      ),
+      adapter,
+    ).rejects.toThrow(
+      new RegExp(`^snapshot build failed:\n  ${file.replace(".", "\\.")}: `),
+    );
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

@@ -267,3 +267,40 @@ test("a Chrome placeholder named like an Object.prototype member is a name like 
   // member rendered.
   expect(example.rendered).toBe("Ana met $CONSTRUCTOR$");
 });
+
+test("in a target, an object of categories at an id the source reads as a plural is that plural, other or not (#950)", () => {
+  const data = {
+    n_rooms: {
+      one: "%(count)s pokój",
+      few: "%(count)s pokoje",
+      many: "%(count)s pokoi",
+    },
+    pair: { one: "Jeden", two: "Dwa" },
+  };
+  expect(
+    messagesToEntries(data, {
+      type: "ui",
+      plurals: true,
+      pluralIds: new Set(["n_rooms"]),
+    }),
+  ).toEqual([
+    {
+      id: "n_rooms",
+      type: "ui",
+      source:
+        "{count, plural, one {%(count)s pokój} few {%(count)s pokoje} many {%(count)s pokoi}}",
+    },
+    { id: "pair.one", type: "ui", source: "Jeden" },
+    { id: "pair.two", type: "ui", source: "Dwa" },
+  ]);
+  // Where the source has no plural there, the keys stay keys.
+  expect(
+    messagesToEntries(data, { type: "ui", plurals: true }).map((e) => e.id),
+  ).toEqual([
+    "n_rooms.one",
+    "n_rooms.few",
+    "n_rooms.many",
+    "pair.one",
+    "pair.two",
+  ]);
+});
