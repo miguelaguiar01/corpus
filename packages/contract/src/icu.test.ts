@@ -746,6 +746,27 @@ test("hostile input is read in bounded time and fails cleanly, never with a thro
   within(500, () => parseIcu(`{{a b}} {x${" ".repeat(32000)}`, "vue"));
 });
 
+test("markup tags are paired in linear time, stray closes and opens alike (#924)", () => {
+  for (const text of [
+    "<a></b>".repeat(4300),
+    "<a></b>".repeat(17000),
+    "<a>".repeat(5000) + "</b>".repeat(3750),
+  ]) {
+    within(200, () =>
+      validateTranslation("<a>x</a>", text, "ru", "icu", { richText: "html" }),
+    );
+    within(200, () => parseIcu(text, "icu", { html: "markup" }));
+  }
+  // A close pairs with the nearest open of its name; what opened inside
+  // it and never closed is text.
+  expect(parseIcu("<a><b>x</a>", "icu", { html: "markup" })).toMatchObject({
+    ok: true,
+    nodes: [
+      { kind: "tag", name: "a", children: [{ kind: "literal", text: "<b>x" }] },
+    ],
+  });
+});
+
 test("counterpart's tags and vue's unclosed braces are read in linear time (#896)", () => {
   const names = Array.from({ length: 6000 }, (_, i) => `<t${i}>`).join("");
   for (const [text, library] of [

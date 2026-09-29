@@ -710,6 +710,9 @@ class Parser {
     if (this.proseTags) return this.proseTags;
     const prose = new Set<number>();
     const open: { name: string; at: number }[] = [];
+    // Each name's open tags, as indexes into `open`, so a close finds its
+    // own without reading the stack through (#924).
+    const byName = new Map<string, number[]>();
     for (
       let at = this.source.indexOf("<");
       at >= 0;
@@ -723,18 +726,24 @@ class Parser {
       if (isVoidTag(name) || match[4] === "/") continue;
       if (match[1] === "/" && match[3]!.trim() !== "") continue;
       if (match[1] !== "/") {
+        const own = byName.get(name);
+        if (own) own.push(open.length);
+        else byName.set(name, [open.length]);
         open.push({ name, at });
         continue;
       }
-      const index = open.map((o) => o.name).lastIndexOf(name);
-      if (index < 0) {
+      const index = byName.get(name)?.at(-1);
+      if (index === undefined) {
         prose.add(at);
         continue;
       }
       // It closes the one at `index`; those opened inside it and never
       // closed are text.
-      for (const unclosed of open.splice(index).slice(1))
-        prose.add(unclosed.at);
+      while (open.length > index) {
+        const closed = open.pop()!;
+        byName.get(closed.name)!.pop();
+        if (open.length > index) prose.add(closed.at);
+      }
     }
     for (const unclosed of open) prose.add(unclosed.at);
     this.proseTags = prose;
