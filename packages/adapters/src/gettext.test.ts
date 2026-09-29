@@ -710,3 +710,26 @@ test("a keyword with its string right after it, and escaped UTF-8 bytes, read as
     { id: "d", type: "", source: "D" },
   ]);
 });
+
+test("surplus msgstrs go cleanly, every one of them, whatever the template's last byte (#864)", () => {
+  const plHeader = `msgid ""\nmsgstr ""\n"Language: pl\\n"\n"Plural-Forms: nplurals=3; plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\\n"\n`;
+  const entry = `msgid "%d file"\nmsgid_plural "%d files"\nmsgstr[0] "a"\nmsgstr[1] "b"\nmsgstr[2] "c"`;
+  const ja = { tag: "ja", code: "ja" };
+  // Appended into an existing file: three forms to one, no blank line.
+  const template = `${plHeader}\n${entry}\n\nmsgid "Bye"\nmsgstr "Pa"\n`;
+  const existing = `msgid ""\nmsgstr ""\n"Language: ja\\n"\n"Plural-Forms: nplurals=1; plural=0;\\n"\n\nmsgid "Bye"\nmsgstr "Sayonara"\n`;
+  const out = entriesToGettext(
+    template,
+    { "%d file": "{count, plural, other {%d fairu}}" },
+    existing,
+    ja,
+  );
+  expect(out.endsWith(`msgid_plural "%d files"\nmsgstr[0] "%d fairu"\n`)).toBe(
+    true,
+  );
+  // A new file from a template with no final newline ends as it does.
+  const bare = `${plHeader}\n${entry}`;
+  expect(
+    entriesToGettext(bare, {}, undefined, ja).endsWith('msgstr[0] ""'),
+  ).toBe(true);
+});
