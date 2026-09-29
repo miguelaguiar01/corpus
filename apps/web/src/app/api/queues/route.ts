@@ -2,9 +2,7 @@ import type { QueuesResponse } from "@corpus/contract";
 import { getDb } from "@/db";
 import { authenticateProject } from "@/api/bearer";
 import { apiError } from "@/api/body";
-import { inArray } from "drizzle-orm";
-import { QUEUE_KINDS, queueItems, type QueueItem } from "@/catalogue/queues";
-import { strings } from "@/db/schema";
+import { QUEUE_KINDS, queueItems } from "@/catalogue/queues";
 import { problemOf } from "@/translations/validation-message";
 
 // The dashboard's queues for an agent (§9.1, §10), narrowed by
@@ -28,57 +26,37 @@ export async function GET(request: Request): Promise<Response> {
 
   const queues = {} as QueuesResponse["queues"];
   for (const kind of QUEUE_KINDS) {
-    const listed = queueItems(db, project.id, kind, { language, type }).items;
-    const problem = kind === "invalid" ? problems(listed) : undefined;
+    const listed = queueItems(
+      db,
+      project.id,
+      kind,
+      { language, type },
+      kind === "invalid",
+    ).items;
+    // An invalid row says what is wrong with it, as the editor would.
     const items = listed.map(
-      ({ stringId, key, language, type, source, text }) => ({
+      ({ key, language, type, source, text, syntax, arguments: args }) => ({
         key,
         language,
         type,
         source,
         text,
-        ...(problem && {
-          problem: problem(stringId, language, type, source, text),
+        ...(kind === "invalid" && {
+          problem:
+            text === null
+              ? null
+              : problemOf(
+                  source,
+                  text,
+                  language,
+                  syntax ?? "icu",
+                  project.richText?.[type] ?? null,
+                  args,
+                ),
         }),
       }),
     );
     queues[kind] = { count: items.length, items };
-  }
-  // An invalid row says what is wrong with it, as the editor would.
-  function problems(listed: QueueItem[]) {
-    const syntaxOf = new Map(
-      listed.length === 0
-        ? []
-        : db
-            .select({
-              id: strings.id,
-              syntax: strings.syntax,
-              arguments: strings.arguments,
-            })
-            .from(strings)
-            .where(
-              inArray(strings.id, [...new Set(listed.map((i) => i.stringId))]),
-            )
-            .all()
-            .map((row) => [row.id, row] as const),
-    );
-    return (
-      stringId: number,
-      language: string,
-      type: string,
-      source: string,
-      text: string | null,
-    ) =>
-      text === null
-        ? null
-        : problemOf(
-            source,
-            text,
-            language,
-            syntaxOf.get(stringId)?.syntax ?? "icu",
-            project.richText?.[type] ?? null,
-            syntaxOf.get(stringId)?.arguments,
-          );
   }
   const body: QueuesResponse = {
     project: project.slug,

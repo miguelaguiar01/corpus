@@ -1,4 +1,5 @@
 import { and, asc, eq, ne, notInArray, sql } from "drizzle-orm";
+import type { Library } from "@corpus/contract";
 import type { Db } from "@/db";
 import {
   edits,
@@ -33,6 +34,9 @@ export type QueueItem = {
   type: string;
   source: string;
   text: string | null;
+  // Read only where asked for, to validate the row (#873).
+  syntax?: Library | null;
+  arguments?: string[] | null;
 };
 export type Queue = {
   kind: QueueKind;
@@ -129,6 +133,7 @@ function select(
   scope: Scope,
   filter: Filter,
   limit?: number,
+  withLibrary = false,
 ): QueueItem[] {
   const from = db
     .select({
@@ -138,6 +143,10 @@ function select(
       language: stringTranslations.language,
       source: strings.source,
       text: stringTranslations.text,
+      ...(withLibrary && {
+        syntax: strings.syntax,
+        arguments: strings.arguments,
+      }),
     })
     .from(stringTranslations);
   const query = (
@@ -174,8 +183,17 @@ export function queueItems(
   projectId: number,
   kind: QueueKind,
   filter: Filter = {},
+  withLibrary = false,
 ): Queue {
-  const items = select(db, projectId, kind, scopeOf(db, projectId), filter);
+  const items = select(
+    db,
+    projectId,
+    kind,
+    scopeOf(db, projectId),
+    filter,
+    undefined,
+    withLibrary,
+  );
   return { kind, count: items.length, first: items[0] ?? null, items };
 }
 

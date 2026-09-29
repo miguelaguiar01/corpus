@@ -104,9 +104,23 @@ function branchingOf(
   return [...byId.values()];
 }
 
-// A plural's branches open with the count so it is there to keep: `#`
-// where ICU reads it, the placeholder under i18next, and nothing under
-// printf and android, whose verb the source names (#662, #689).
+// The count a plural's branch opens with, so it is there to keep: `#`
+// where ICU reads it, each library's placeholder for it, and nothing
+// under printf and android, whose verb the source names (#662, #689).
+const COUNT_IN_BRANCH: Record<Library, (arg: string) => string> = {
+  icu: () => "#",
+  vue: () => "#",
+  chrome: () => "#",
+  i18next: (arg) => `{{${arg}}}`,
+  counterpart: (arg) => `%(${arg})s`,
+  easy_localization: () => "{}",
+  rails: (arg) => `%{${arg}}`,
+  qt: () => "%n",
+  printf: () => "",
+  android: () => "",
+};
+
+// A plural's branches open with that count.
 // A branch holding a nested argument holds its skeleton in place of
 // the count, which that argument's own branches carry (#765). Nesting
 // is one level deep, so an inner skeleton is never expanded further:
@@ -116,22 +130,7 @@ function skeleton(
   syntax: Library,
   byId?: Map<string, Branching>,
 ): { token: string; caret: number } {
-  const own =
-    kind !== "plural"
-      ? ""
-      : syntax === "i18next"
-        ? `{{${arg}}}`
-        : syntax === "counterpart"
-          ? `%(${arg})s`
-          : syntax === "easy_localization"
-            ? "{}"
-            : syntax === "rails"
-              ? `%{${arg}}`
-              : syntax === "qt"
-                ? "%n"
-                : syntax === "printf" || syntax === "android"
-                  ? ""
-                  : "#";
+  const own = kind === "plural" ? COUNT_IN_BRANCH[syntax](arg) : "";
   const fill = (key: string) => {
     const nested = (byId ? (inner.get(key) ?? []) : []).flatMap((name) => {
       const entry = byId?.get(name);
