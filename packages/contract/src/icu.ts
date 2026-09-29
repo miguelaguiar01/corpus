@@ -200,6 +200,20 @@ export function printfPluralError(
   return "error" in read ? read.error : undefined;
 }
 
+// Where the text after a whole plural starts, as the parser reads the
+// plural: its first character past the plural, whitespace skipped, or
+// 0 where text comes before it.
+function pluralEnd(
+  source: string,
+  html: boolean | "markup",
+  syntax: Library,
+): number {
+  const start = source.search(/\S/);
+  if (source[start] !== "{") return 0;
+  const end = new Parser(source, syntax, html, true).argumentEnd(start);
+  return end + (/^\s*/.exec(source.slice(end))?.[0].length ?? 0);
+}
+
 function readPrintfPlural(
   source: string,
   html: boolean | "markup",
@@ -211,7 +225,7 @@ function readPrintfPlural(
       (node) => !(node.kind === "literal" && node.text.trim() === ""),
     );
     if (kept.length === 1 && kept[0]!.kind === "plural") return { nodes };
-    const after = source.search(/\}[^}]*$/) + 1;
+    const after = pluralEnd(source, html, syntax);
     return {
       error: {
         message: "text after the plural: a plural read whole is the whole text",
@@ -228,6 +242,8 @@ function readPrintfPlural(
 // What a sequence has read so far: its nodes, the text not yet a node,
 // and where that text starts.
 type Sequence = { nodes: IcuNode[]; literal: string; literalStart: number };
+
+const MAX_DEPTH = 200;
 
 class Parser {
   private pos = 0;
@@ -246,6 +262,11 @@ class Parser {
   private readonly unclosed = new Set<number>();
   // The select and plural whose branches the cursor is in, outermost first.
   private readonly within: ("select" | "plural")[] = [];
+  // Hostile input stays bounded (#861): nesting past any catalogue, and
+  // markup retries past a budget of the text's length, fail the parse
+  // rather than the stack or the clock.
+  private depth = 0;
+  private steps = 0;
 
   constructor(
     private readonly source: string,
@@ -269,9 +290,28 @@ class Parser {
     pluralArg?: string,
     closing?: string,
   ): IcuNode[] {
+    if (++this.depth > MAX_DEPTH)
+      throw new ParseFailure(`nested more than ${MAX_DEPTH} deep`, this.pos);
+    try {
+      return this.readSequence(inBranch, pluralArg, closing);
+    } finally {
+      this.depth--;
+    }
+  }
+
+  private readSequence(
+    inBranch: boolean,
+    pluralArg?: string,
+    closing?: string,
+  ): IcuNode[] {
     const seq: Sequence = { nodes: [], literal: "", literalStart: this.pos };
 
     while (this.pos < this.source.length) {
+      if (++this.steps > 4 * this.source.length + 10_000)
+        throw new ParseFailure(
+          "too many tags left open to read the text",
+          this.pos,
+        );
       const ch = this.source[this.pos]!;
       if (
         ch === "}" &&
@@ -729,6 +769,13 @@ class Parser {
     )
       this.pos += close.length;
     return { kind, name, ...(attrs ? { attrs } : {}), start };
+  }
+
+  // Where the argument at `at` ends.
+  argumentEnd(at: number): number {
+    this.pos = at;
+    this.parseArgument(false);
+    return this.pos;
   }
 
   private parseArgument(inBranch: boolean): IcuNode {
@@ -1388,7 +1435,7 @@ function refusal(
   if (
     library !== "icu" &&
     badName &&
-    /(?<!\{)\{\s*[^{},\s][^{},]*\s*,\s*[a-z]+/.test(source)
+    /(?<!\{)\{\s*[^{},\s][^{},]*,\s*[a-z]+/.test(source)
   ) {
     return {
       cause: "library",
