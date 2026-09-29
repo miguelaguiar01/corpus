@@ -41,7 +41,7 @@ export function ProgressBar({
   );
 }
 
-// The translated rows that fail validation (#646), after the counts
+// The translated rows that fail validation (#646), beside a type's bar
 // where there are any (§9.1, #911): part of translated, so a number and
 // not a share of the bar.
 export function InvalidCount({
