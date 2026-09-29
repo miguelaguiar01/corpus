@@ -613,6 +613,14 @@ test("a 2.0 unit's translation candidates, a comment in CDATA, and a note past a
   expect(() =>
     xliffUnits(file20(`<mtc:matches><segment><source>a</source></segment>`)),
   ).toThrow("xliff: unit u: its <mtc:matches> does not close");
+  // An element whose name only begins like one is none of them.
+  expect(
+    xliffUnits(
+      file20(
+        `<foo:matches-list>q</foo:matches-list><alt-trans-x/><segment><source-x>no</source-x><source>Own</source></segment>`,
+      ),
+    ),
+  ).toMatchObject([{ id: "u", source: "Own" }]);
   // A CDATA that spells `<!--` hides nothing past it.
   const file12 = (units: string) =>
     `<?xml version="1.0"?>\n<xliff version="1.2"><file source-language="en" datatype="plaintext" original="x"><body>\n${units}\n</body></file></xliff>\n`;

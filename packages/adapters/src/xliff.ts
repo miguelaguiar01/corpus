@@ -389,6 +389,9 @@ type UnitSpan = Span & {
 // listed at `offset`; one left open is refused, as blanking to some
 // later unit's close would drop every unit between (#900).
 const FOREIGN = "alt-trans|ignorable|[\\w.-]+:matches";
+// Where an element's name ends: `\b` would also end `alt-trans` inside
+// `<alt-trans-x>` and `source` inside `<source-x>`.
+const NAME_END = "(?=[\\s/>])";
 
 function blankInside(
   unit: string,
@@ -397,13 +400,13 @@ function blankInside(
   foreign: Span[],
 ): string {
   const inner = unit.replace(
-    new RegExp(`<(${FOREIGN})\\b${ATTRS}(?:/>|>[\\s\\S]*?</\\1>)`, "g"),
+    new RegExp(`<(${FOREIGN})${NAME_END}${ATTRS}(?:/>|>[\\s\\S]*?</\\1>)`, "g"),
     (c: string, _name: string, _attrs: string, at: number) => {
       foreign.push({ start: offset + at, end: offset + at + c.length });
       return " ".repeat(c.length);
     },
   );
-  const open = new RegExp(`<(${FOREIGN})\\b`).exec(inner);
+  const open = new RegExp(`<(${FOREIGN})${NAME_END}`).exec(inner);
   if (open)
     throw new Error(`xliff: unit ${id}: its <${open[1]}> does not close`);
   return inner;
@@ -419,10 +422,12 @@ function unitSpans(xml: string): UnitSpan[] {
   const out: UnitSpan[] = [];
   const find = (from: number, to: number, element: string, id: string) => {
     const re = new RegExp(
-      `<${element}\\b${ATTRS}(/>|>([\\s\\S]*?)</${element}>)`,
+      `<${element}${NAME_END}${ATTRS}(/>|>([\\s\\S]*?)</${element}>)`,
       "y",
     );
-    const at = text.slice(from, to).search(new RegExp(`<${element}\\b`));
+    const at = text
+      .slice(from, to)
+      .search(new RegExp(`<${element}${NAME_END}`));
     if (at < 0) return undefined;
     re.lastIndex = from + at;
     const m = re.exec(text);
