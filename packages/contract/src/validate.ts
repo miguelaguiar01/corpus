@@ -342,8 +342,11 @@ export function validateTranslation(
     ...pluralErrors(actual, expectedValues, passed, categories, language),
   );
   errors.push(...nestingErrors(sourceNodes, targetNodes));
-  for (const arg of countsInSelects(parsedTarget.nodes))
-    errors.push({ code: "nested-count", arg });
+  // The source's own text keeps the source's warning, not an error: a
+  // translation that is the source cannot be the translator's `#` (#923).
+  if (target !== source)
+    for (const arg of countsInSelects(parsedTarget.nodes))
+      errors.push({ code: "nested-count", arg });
   for (const [arg, keys] of actual.selects) {
     const sourceKeys = expected.selects.get(arg);
     if (!sourceKeys) {

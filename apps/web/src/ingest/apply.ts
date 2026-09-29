@@ -56,8 +56,8 @@ type Entry = Snapshot["strings"][number];
 // Invalid queue rather than counted as done (#646); a missing plural
 // category is only incomplete. Text free of every library's syntax
 // characters always validates, and a first push can hold half a million
-// seeds. A text that is its source is never invalid, whichever push
-// writes it (#923): the source is the repository's own, and only warned.
+// seeds, as does a text that is its source (#923), whichever push
+// writes it.
 const PLAIN = /^[^{}<>%$@|'"#&\\[\]]*$/;
 function seedInvalid(
   source: string,
