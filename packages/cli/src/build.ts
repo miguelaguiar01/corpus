@@ -14,12 +14,13 @@ import {
   qtTsTranslations,
   yamlToEntries,
   yamlTranslations,
+  yamlPluralIds,
   gettextSuggestions,
   gettextTranslations,
   xliffToEntries,
   xliffTranslations,
   messagesToEntries,
-  pluralBranches,
+  pluralObjectIds,
   stripBom,
   tableToEntries,
 } from "@corpus/adapters";
@@ -336,7 +337,6 @@ export async function buildSnapshotReport(
     errors,
     notes,
     new Set(refused.map((r) => r.id)),
-    pluralIdsOf(sourced.map((s) => s.entry)),
   );
   // A mark counts only for a seed that is there to import.
   const seedTranslated: Record<string, string[]> = {};
@@ -726,8 +726,9 @@ export async function readEntries(
   // A translation the file holds that is not read, a Qt numerus form
   // no plural holds (#751).
   onUnread?: (id: string) => void,
-  // The ids the source reads as plurals, where a target's object of
-  // categories is the plural though it lacks `other` (#950).
+  // The ids the source file holds as plural objects, as the file writes
+  // them, where a target's object of categories is the plural though it
+  // lacks `other` (#950): sourcePluralIds.
   pluralIds?: ReadonlySet<string>,
 ): Promise<StringEntry[]> {
   const typed = <T>(entries: T[]) =>
@@ -787,9 +788,7 @@ export async function readEntries(
           chrome: libraryOf(source) === "chrome",
           keyIsText: sourceFile,
           plurals: readsPluralObjects(source),
-          ...(pluralIds && {
-            pluralIds: unspaced(pluralIds, source.namespace),
-          }),
+          ...(pluralIds && { pluralIds }),
         })
       : tableToEntries(data, { type: source.type, map: source.map });
   // A namespaced file's ids are `ns:key` (#513), i18next's own separator.
@@ -801,28 +800,25 @@ export async function readEntries(
     : entries;
 }
 
-// The ids a source's own catalogue reads as a plural object.
-export function pluralIdsOf(
-  entries: Iterable<{ id: string; source: string }>,
-): Set<string> {
-  const ids = new Set<string>();
-  for (const entry of entries)
-    if (pluralBranches(entry.source)) ids.add(entry.id);
-  return ids;
-}
-
-// Ids as a namespaced file writes them, without the `ns:` push adds.
-function unspaced(
-  ids: ReadonlySet<string>,
-  namespace: string | undefined,
-): ReadonlySet<string> {
-  if (!namespace) return ids;
-  const prefix = `${namespace}:`;
-  return new Set(
-    [...ids].flatMap((id) =>
-      id.startsWith(prefix) ? [id.slice(prefix.length)] : [],
-    ),
-  );
+// The ids a source's own file holds as a plural object or hash, which
+// the writers keep as one (#950); none where the file is absent.
+export async function sourcePluralIds(
+  jiti: ReturnType<typeof createJiti>,
+  cwd: string,
+  source: FileSource,
+  sourceLanguage: string,
+): Promise<ReadonlySet<string> | undefined> {
+  const file = fileOf(source, sourceLanguage, sourceLanguage);
+  const abs = path.join(cwd, file);
+  if (!existsSync(abs)) return undefined;
+  if (source.adapter === "yaml")
+    return yamlPluralIds(
+      readFileSync(abs, "utf8"),
+      fileCodeOf(source, sourceLanguage),
+    );
+  if (source.adapter === "messages" && readsPluralObjects(source))
+    return pluralObjectIds(await readModule(jiti, abs));
+  return undefined;
 }
 
 async function readModule(
@@ -1036,7 +1032,6 @@ async function readSeeds(
   errors: string[],
   notes: string[],
   refusedIds: Set<string>,
-  pluralIds: ReadonlySet<string>,
 ): Promise<Record<string, Record<string, string>>> {
   const seeds: Record<string, Record<string, string>> = {};
   for (const { command, translations } of execSeeds) {
@@ -1079,6 +1074,12 @@ async function readSeeds(
   for (const source of config.sources) {
     if (source.adapter === "exec" || !hasLanguages(source)) continue;
     if (!sourceWritesBack(source)) continue;
+    const pluralIds = await sourcePluralIds(
+      jiti,
+      cwd,
+      source,
+      config.sourceLanguage,
+    );
     for (const lang of config.languages) {
       if (lang === config.sourceLanguage) continue;
       const file = fileOf(source, lang, config.sourceLanguage);

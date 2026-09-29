@@ -1719,3 +1719,25 @@ test("outside ICU a count the source prints is printed by some form of the trans
     ),
   ).toMatchObject({ ok: true });
 });
+
+test("a whole plural without other is named for it, under i18next too (#950)", () => {
+  for (const [lib, count] of [
+    ["i18next", "{{count}}"],
+    ["counterpart", "%(count)s"],
+    ["rails", "%{count}"],
+  ] as const)
+    expect(
+      validateTranslation(
+        `{count, plural, one {${count} thing} other {${count} things}}`,
+        `{count, plural, one {${count} rzecz} few {${count} rzeczy}}`,
+        "pl",
+        lib,
+      ),
+      lib,
+    ).toMatchObject({
+      ok: false,
+      errors: [
+        { code: "invalid-icu", message: "plural needs an other branch" },
+      ],
+    });
+});

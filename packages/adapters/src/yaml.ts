@@ -137,6 +137,16 @@ export function yamlStrings(
   return out;
 }
 
+// The ids a source catalogue holds as plural hashes, as the writer
+// finds them (#950).
+export function yamlPluralIds(text: string, root: string): Set<string> {
+  return new Set(
+    yamlStrings(text, root, { source: true }).flatMap((s) =>
+      s.plural ? [s.id] : [],
+    ),
+  );
+}
+
 // A `*_MF` key holds ICU MessageFormat, as Discourse's `I18n.messageFormat`
 // reads it; every other string is the source's library.
 function libraryOf(id: string): { library?: "icu" } {

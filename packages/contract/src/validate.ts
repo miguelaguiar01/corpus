@@ -234,6 +234,19 @@ export function validateTranslation(
       })),
     };
   }
+  // A translation of a printf plural that opens as one but is not one
+  // is a broken plural, not text (#652), whatever reading it as text
+  // then trips on (#950).
+  const brokenPlural =
+    WHOLE_PLURAL_LIBRARIES.has(syntax) &&
+    parsedSource.nodes.some((node) => node.kind === "plural")
+      ? printfPluralError(target, html, syntax)
+      : undefined;
+  if (brokenPlural)
+    return {
+      ok: false,
+      errors: [{ code: "invalid-icu", where: "target", ...brokenPlural }],
+    };
   const parsedTarget = parseIcu(target, syntax, { html });
   if (!parsedTarget.ok) {
     return {
@@ -245,19 +258,6 @@ export function validateTranslation(
       })),
     };
   }
-
-  // A translation of a printf plural that opens as one but is not one
-  // is a broken plural, not text (#652).
-  const brokenPlural =
-    WHOLE_PLURAL_LIBRARIES.has(syntax) &&
-    parsedSource.nodes.some((node) => node.kind === "plural")
-      ? printfPluralError(target, html, syntax)
-      : undefined;
-  if (brokenPlural)
-    return {
-      ok: false,
-      errors: [{ code: "invalid-icu", where: "target", ...brokenPlural }],
-    };
   const positioned = (nodes: IcuNode[]) =>
     syntax === "printf" ? argPositions(nodes) : nodes;
   const sourceNodes = positioned(parsedSource.nodes);

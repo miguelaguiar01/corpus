@@ -52,6 +52,20 @@ export function isPluralObject(
   );
 }
 
+// The ids a source catalogue holds as plural objects, as the writer
+// finds them: a target's object at one needs no `other` (#950).
+export function pluralObjectIds(
+  node: unknown,
+  path: string[] = [],
+  out = new Set<string>(),
+): Set<string> {
+  if (path.length > 0 && isPluralObject(node)) return out.add(path.join("."));
+  if (node !== null && typeof node === "object" && !Array.isArray(node))
+    for (const [key, child] of Object.entries(node))
+      pluralObjectIds(child, [...path, key], out);
+  return out;
+}
+
 // A plural's form for a category: its own branch, or `other`'s, which
 // every runtime falls back to.
 export function formOf(

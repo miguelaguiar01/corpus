@@ -23,7 +23,7 @@ import {
   type FileSource,
   hasLanguages,
   nestedCountMessage,
-  pluralIdsOf,
+  sourcePluralIds,
   readEntries,
   sourceWritesBack,
   runExporter,
@@ -199,8 +199,11 @@ export async function validateRepo(
     );
     // A source that does not parse is the source file's finding, once.
     const brokenSources = new Set<string>();
-    const pluralIds = pluralIdsOf(
-      [...sources].map(([id, entry]) => ({ id, source: entry.source })),
+    const pluralIds = await sourcePluralIds(
+      jiti,
+      cwd,
+      source,
+      config.sourceLanguage,
     );
     for (const language of targets) {
       const file = fileOf(source, language, config.sourceLanguage);
