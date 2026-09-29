@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { moonlightManor } from "./fixtures/moonlight-manor";
 import type { Library } from "./strings";
-import { parseIcu, placeholdersOf, placeholderWrittenOf } from "./icu";
+import { parseIcu, partsOf } from "./icu";
 import { renderPreview } from "./preview";
 import {
   nestedCountsOf,
@@ -1327,10 +1327,10 @@ test("in a substitution's branch only the first unindexed verb is the argument; 
     ),
   ).toMatchObject({ ok: false, errors: [{ code: "changed-verb", name: "1" }] });
   expect(
-    placeholderWrittenOf(
+    partsOf(
       "{arg1, plural, one {%arg post} other {%lld posts}}",
       "printf",
-    ).get("1"),
+    ).written.get("1"),
   ).toBe("%lld");
 });
 
@@ -1459,7 +1459,7 @@ test("reading prose tags is one pass: a thousand unclosed tags, verbs counted on
     ),
   ).toEqual({ ok: true });
   expect(
-    placeholdersOf("<p><span>%{username}</span> %{description}", "rails"),
+    partsOf("<p><span>%{username}</span> %{description}", "rails").placeholders,
   ).toEqual(new Set(["username", "description"]));
   expect(
     renderPreview("Insert <head> {name}", { name: "x" }, "en"),

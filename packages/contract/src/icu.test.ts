@@ -2,19 +2,13 @@ import { expect, test } from "vitest";
 import { validateTranslation } from "./validate";
 import {
   branchingNodes,
-  formsOf,
   partsOf,
   parseIcu,
-  placeholdersOf,
-  pluralArgsOf,
   pluralBranch,
   pluralCategoriesOf,
-  selectArgsOf,
-  tagsOf,
   isVoidTag,
   refusalAdvice,
   refusalCause,
-  placeholderWrittenOf,
   printfPluralError,
 } from "./icu";
 import { LIBRARIES, libraryName } from "./strings";
@@ -88,17 +82,17 @@ test("error positions point at the offending syntax", () => {
 });
 
 test("placeholdersOf collects placeholder names, including inside branches", () => {
-  expect(placeholdersOf(SIGHTING)).toEqual(
+  expect(partsOf(SIGHTING).placeholders).toEqual(
     new Set(["person", "room_de", "hour"]),
   );
-  expect(placeholdersOf("{g, select, m {seu {item}} f {sua {coisa}}}")).toEqual(
-    new Set(["item", "coisa"]),
-  );
+  expect(
+    partsOf("{g, select, m {seu {item}} f {sua {coisa}}}").placeholders,
+  ).toEqual(new Set(["item", "coisa"]));
 });
 
 test("selectArgsOf collects select argument names", () => {
-  expect(selectArgsOf(SIGHTING)).toEqual(new Set(["person_gender"]));
-  expect(selectArgsOf("plain")).toEqual(new Set());
+  expect(partsOf(SIGHTING).selects).toEqual(new Set(["person_gender"]));
+  expect(partsOf("plain").selects).toEqual(new Set());
 });
 
 test("braces are structural: no ICU quote-escaping in the v1 subset", () => {
@@ -152,7 +146,7 @@ test("a plural parses with categories, =N exact branches and # for the count", (
       },
     },
   ]);
-  expect([...pluralArgsOf("{n, plural, one {#} other {#}} {m}")]).toEqual([
+  expect([...partsOf("{n, plural, one {#} other {#}} {m}").plurals]).toEqual([
     "n",
   ]);
 });
@@ -303,9 +297,9 @@ test("rich-text tags parse as nodes with their children, nest, and self-close; a
     { kind: "tag", name: "icon", children: [] },
     { kind: "literal", text: " a < b" },
   ]);
-  expect([...tagsOf("Received {n} from <url></url>. <checkoutDocs/>")]).toEqual(
-    ["url", "checkoutDocs"],
-  );
+  expect([
+    ...partsOf("Received {n} from <url></url>. <checkoutDocs/>").tags,
+  ]).toEqual(["url", "checkoutDocs"]);
   // A tag may hold a placeholder and sit inside a branch.
   const inside = parseIcu("{g, select, m {<b>{name}</b>} other {{name}}}");
   expect(inside.ok).toBe(true);
@@ -337,7 +331,9 @@ test("a tag name may be a number, as react-i18next indexes Trans children", () =
     ),
   ).toMatchObject({ ok: false, errors: [{ code: "missing-tag", name: "2" }] });
   // i18next's own strings write the same tags.
-  expect([...tagsOf("Shared by <2>{{ name }}</2>", "i18next")]).toEqual(["2"]);
+  expect([...partsOf("Shared by <2>{{ name }}</2>", "i18next").tags]).toEqual([
+    "2",
+  ]);
 });
 
 test("a tag keeps its attribute text as its identity, and a void tag opens nothing (#590)", () => {
@@ -362,7 +358,7 @@ test("a tag keeps its attribute text as its identity, and a void tag opens nothi
     { kind: "tag", name: "br", children: [] },
     { kind: "tag", name: "b", children: [{ kind: "literal", text: "go" }] },
   ]);
-  expect([...tagsOf(source)]).toEqual([
+  expect([...partsOf(source).tags]).toEqual([
     'a href="%s" target="_blank"',
     'code id="branch_target"',
     "br",
@@ -412,8 +408,8 @@ test("chrome: $NAME$ is a placeholder named case-insensitively, $$ is a dollar, 
     { kind: "placeholder", name: "site", written: "$Site$" },
     { kind: "literal", text: "; a lone $ and $not a name" },
   ]);
-  expect([...placeholdersOf(source, "chrome")]).toEqual(["user", "site"]);
-  expect([...placeholderWrittenOf(source, "chrome")]).toEqual([
+  expect([...partsOf(source, "chrome").placeholders]).toEqual(["user", "site"]);
+  expect([...partsOf(source, "chrome").written]).toEqual([
     ["user", "$USER$"],
     ["site", "$Site$"],
   ]);
@@ -421,11 +417,11 @@ test("chrome: $NAME$ is a placeholder named case-insensitively, $$ is a dollar, 
 
 test("android: printf verbs and tags, a plural on quantity whose branches each count their verbs from 1, and # as text (#596)", () => {
   const source = "Logged in as %1$s on <b>%2$s</b>, 100%% sure";
-  expect([...placeholderWrittenOf(source, "android")]).toEqual([
+  expect([...partsOf(source, "android").written]).toEqual([
     ["1", "%1$s"],
     ["2", "%2$s"],
   ]);
-  expect([...tagsOf(source, "android")]).toEqual(["b"]);
+  expect([...partsOf(source, "android").tags]).toEqual(["b"]);
   const plural =
     "{quantity, plural, one {%d episode #1} other {%d episodes in %s}}";
   const parsed = parseIcu(plural, "android");
@@ -466,8 +462,8 @@ test("printf: verbs are placeholders named by position, %% is a percent, and bra
     { kind: "placeholder", name: "3", written: "%s" },
     { kind: "literal", text: "</a>: 100% done, {not} an argument" },
   ]);
-  expect([...placeholdersOf(source, "printf")]).toEqual(["1", "2", "3"]);
-  expect([...placeholderWrittenOf(source, "printf")]).toEqual([
+  expect([...partsOf(source, "printf").placeholders]).toEqual(["1", "2", "3"]);
+  expect([...partsOf(source, "printf").written]).toEqual([
     ["1", "%d"],
     ["2", "%s"],
     ["3", "%s"],
@@ -476,29 +472,27 @@ test("printf: verbs are placeholders named by position, %% is a percent, and bra
   // one continues from it, as Go reads it. Flags, width and precision
   // ride with the verb.
   expect([
-    ...placeholderWrittenOf("%[2]s then %s and %1$d, %-8.2f", "printf"),
+    ...partsOf("%[2]s then %s and %1$d, %-8.2f", "printf").written,
   ]).toEqual([
     ["2", "%[2]s"],
     ["3", "%s"],
     ["1", "%1$d"],
   ]);
   expect([
-    ...placeholdersOf("%[2]s then %s and %1$d, %-8.2f", "printf"),
+    ...partsOf("%[2]s then %s and %1$d, %-8.2f", "printf").placeholders,
   ]).toEqual(["2", "3", "1"]);
   // A % that opens no verb is text, never a refusal.
   expect(parseIcu("50% off, 100 % and %", "printf")).toMatchObject({
     ok: true,
     nodes: [{ kind: "literal", text: "50% off, 100 % and %" }],
   });
-  expect([...tagsOf('<a href="%s">x</a>', "printf")]).toEqual([]);
+  expect([...partsOf('<a href="%s">x</a>', "printf").tags]).toEqual([]);
 });
 
 test("printf: a C length modifier rides with the verb, and %@ is Objective-C's object verb (#614)", () => {
   expect([
-    ...placeholderWrittenOf(
-      "%ld of %lu, %zu bytes, %lld ms, %hhd, %5.2Lf",
-      "printf",
-    ),
+    ...partsOf("%ld of %lu, %zu bytes, %lld ms, %hhd, %5.2Lf", "printf")
+      .written,
   ]).toEqual([
     ["1", "%ld"],
     ["2", "%lu"],
@@ -507,13 +501,13 @@ test("printf: a C length modifier rides with the verb, and %@ is Objective-C's o
     ["5", "%hhd"],
     ["6", "%5.2Lf"],
   ]);
-  expect([...placeholderWrittenOf("%2$@ by %@", "printf")]).toEqual([
+  expect([...partsOf("%2$@ by %@", "printf").written]).toEqual([
     ["2", "%2$@"],
     ["3", "%@"],
   ]);
   // Go's %t and %q stay verbs of their own when no letter follows; a
   // letter after one reads as C's modifier and verb.
-  expect([...placeholderWrittenOf("%t or %q, %td", "printf")]).toEqual([
+  expect([...partsOf("%t or %q, %td", "printf").written]).toEqual([
     ["1", "%t"],
     ["2", "%q"],
     ["3", "%td"],
@@ -554,20 +548,22 @@ test("a placeholder or argument name may be a bare number, as ICU allows", () =>
     "Added {0}; {1} and {2} other artists {0, select, 1 {one} other {many}}",
   );
   expect(result.ok).toBe(true);
-  expect([...placeholdersOf("Added {0}; {1} and {2}")]).toEqual([
+  expect([...partsOf("Added {0}; {1} and {2}").placeholders]).toEqual([
     "0",
     "1",
     "2",
   ]);
-  expect([...selectArgsOf("{0, select, 1 {one} other {many}}")]).toEqual(["0"]);
+  expect([...partsOf("{0, select, 1 {one} other {many}}").selects]).toEqual([
+    "0",
+  ]);
 });
 
 test("i18next's unescaped form {{- name}} is its own placeholder, -name, since it escapes differently", () => {
   expect([
-    ...placeholdersOf(
+    ...partsOf(
       "Hello {{- name}}, {{-user.name}} and {{-date, short}}",
       "i18next",
-    ),
+    ).placeholders,
   ]).toEqual(["-name", "-user.name", "-date"]);
   expect(parseIcu("{{-}}", "i18next").ok).toBe(false);
   // i18next reads {{ - name }} as the key "- name", which is no name.
@@ -595,10 +591,10 @@ test("i18next syntax: {{name}} is a placeholder, a single brace is text, there a
   expect(result.ok).toBe(true);
   if (!result.ok) throw new Error("parse failed");
   expect([
-    ...placeholdersOf(
+    ...partsOf(
       "{{ count }} documents starred by {{user.name}} on {{date, short}} {not a placeholder} and #1 <em>{{ templateName }}</em>",
       "i18next",
-    ),
+    ).placeholders,
   ]).toEqual(["count", "user.name", "date", "templateName"]);
   expect(
     result.nodes.some(
@@ -608,9 +604,9 @@ test("i18next syntax: {{name}} is a placeholder, a single brace is text, there a
   expect(result.nodes.some((n) => n.kind === "tag" && n.name === "em")).toBe(
     true,
   );
-  expect([...placeholdersOf("{{ count }} and {{count}}", "i18next")]).toEqual([
-    "count",
-  ]);
+  expect([
+    ...partsOf("{{ count }} and {{count}}", "i18next").placeholders,
+  ]).toEqual(["count"]);
   expect(parseIcu("open {{name", "i18next")).toMatchObject({
     ok: false,
     errors: [{ message: "unclosed '{{'" }],
@@ -630,7 +626,7 @@ test("<br> opens nothing only in HTML mode, where <br></br> is one <br> as brows
   });
   expect(parseIcu("a<br>b", "icu").ok).toBe(true);
   expect(parseIcu("a<br></br>b", "icu").ok).toBe(true);
-  expect([...tagsOf("a<br></br>b")]).toEqual(["br"]);
+  expect([...partsOf("a<br></br>b").tags]).toEqual(["br"]);
   expect(parseIcu("a</br>b", "icu")).toMatchObject({ ok: false });
 });
 
@@ -638,7 +634,7 @@ test("the lenient reading falls back to the strict one, so every source the stri
   for (const source of ["a<br> </br>b", "<br><b>x</b></br>"]) {
     expect(parseIcu(source, "icu", { html: false }).ok).toBe(true);
     expect(parseIcu(source).ok).toBe(true);
-    expect(tagsOf(source).has("br")).toBe(true);
+    expect(partsOf(source).tags.has("br")).toBe(true);
   }
   // An unclosed void tag is advised as self-closing, never as </br>,
   // which a browser renders as a second line break.
@@ -654,7 +650,7 @@ test("vue: angle brackets are text, since vue-i18n has no tag syntax (#644)", ()
   const source = "Replace <access token> with your token, <b>now</b>";
   const parsed = parseIcu(source, "vue");
   expect(parsed.ok).toBe(true);
-  expect([...tagsOf(source, "vue")]).toEqual([]);
+  expect([...partsOf(source, "vue").tags]).toEqual([]);
   expect(
     validateTranslation(
       source,
@@ -691,9 +687,9 @@ test("a {} refused under another library advises easy_localization, and counts t
 test("a nested argument is listed once, and branchingNodes reaches it unless told to stay at the top (#765)", () => {
   const source =
     "{g, select, female {{n, plural, one {# {what}} other {# {what}s}}} other {{n, plural, other {# {what}s}}}}";
-  expect([...selectArgsOf(source)]).toEqual(["g"]);
-  expect([...pluralArgsOf(source)]).toEqual(["n"]);
-  expect([...placeholdersOf(source)]).toEqual(["what"]);
+  expect([...partsOf(source).selects]).toEqual(["g"]);
+  expect([...partsOf(source).plurals]).toEqual(["n"]);
+  expect([...partsOf(source).placeholders]).toEqual(["what"]);
   const parsed = parseIcu(source);
   if (!parsed.ok) throw new Error("parse failed");
   expect(branchingNodes(parsed.nodes).map((n) => n.arg)).toEqual([
@@ -791,8 +787,8 @@ test("counterpart's tags and vue's unclosed braces are read in linear time (#896
       { kind: "tag", name: "b", children: [{ kind: "literal", text: "x" }] },
     ],
   });
-  expect(formsOf("a {'|'} b | c", "vue")).toBe(2);
-  expect(formsOf("a {'}'} | b {x} | c", "vue")).toBe(3);
+  expect(partsOf("a {'|'} b | c", "vue").forms).toBe(2);
+  expect(partsOf("a {'}'} | b {x} | c", "vue").forms).toBe(3);
 });
 
 test("the text after a whole plural is placed after the plural as the parser reads it (#861)", () => {

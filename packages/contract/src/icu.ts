@@ -1268,21 +1268,6 @@ export function partsOf(source: string, syntax: Library = "icu"): Parts {
   };
 }
 
-export const tagsOf = (source: string, syntax: Library = "icu") =>
-  partsOf(source, syntax).tags;
-export const placeholderFormatsOf = (source: string, syntax: Library = "icu") =>
-  partsOf(source, syntax).formats;
-export const placeholderWrittenOf = (source: string, syntax: Library = "icu") =>
-  partsOf(source, syntax).written;
-export const placeholdersOf = (source: string, syntax: Library = "icu") =>
-  partsOf(source, syntax).placeholders;
-export const selectArgsOf = (source: string, syntax: Library = "icu") =>
-  partsOf(source, syntax).selects;
-export const formsOf = (source: string, syntax: Library = "icu") =>
-  partsOf(source, syntax).forms;
-export const pluralArgsOf = (source: string, syntax: Library = "icu") =>
-  partsOf(source, syntax).plurals;
-
 // Whether the runtime has plural data for a tag: a well-formed tag it
 // lacks (`tlh`, `qaa`) would otherwise resolve to the default locale.
 function known(language: string): boolean {

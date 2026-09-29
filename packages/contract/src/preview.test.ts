@@ -328,7 +328,7 @@ test("a value, branch or placeholder named like an Object.prototype member is on
   });
 });
 
-test("preview: a number is a date's epoch milliseconds, i18next's placeholders keep their own form, and an empty count is no count (#859)", () => {
+test("preview: a number is a date's epoch milliseconds, a value i18next's example lacks shows in i18next's form, and an empty count is no count (#859)", () => {
   const at = Date.UTC(2023, 10, 14, 12);
   const long = new Intl.DateTimeFormat("en", { dateStyle: "long" }).format(at);
   expect(renderPreview("{d, date, long}", { d: String(at) }, "en")).toEqual({

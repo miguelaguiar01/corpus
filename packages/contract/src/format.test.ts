@@ -2,7 +2,7 @@
 // {t, time}, with an optional style. A placeholder with a format, which
 // react-intl and svelte-i18n write every day.
 import { expect, test } from "vitest";
-import { parseIcu, placeholderFormatsOf, placeholdersOf } from "./icu";
+import { parseIcu, partsOf } from "./icu";
 import { renderPreview } from "./preview";
 import { validateTranslation } from "./validate";
 
@@ -38,12 +38,10 @@ test("number, date and time are placeholders that keep their format", () => {
     parseIcu("Every {hours, plural, one {hour} other {{hours, number} hours}}")
       .ok,
   ).toBe(true);
-  expect(placeholdersOf("{count, number} of {total, number}")).toEqual(
+  expect(partsOf("{count, number} of {total, number}").placeholders).toEqual(
     new Set(["count", "total"]),
   );
-  expect(
-    placeholderFormatsOf("{count, number, ::percent} {d, date} {x}"),
-  ).toEqual(
+  expect(partsOf("{count, number, ::percent} {d, date} {x}").formats).toEqual(
     new Map([
       ["count", "number, ::percent"],
       ["d", "date"],
