@@ -102,10 +102,15 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       ? { languages: [], languageFiles: {}, skipped: [] }
       : catalogueLanguages(ctx.cwd, messages, sourceLanguage);
   // Beside a JSON catalogue a file that names no language is a glossary
-  // or a fixture, not a catalogue left out.
-  if (files.skipped.length > 0 && adapter !== "messages")
+  // or a fixture, not a catalogue left out, unless its name carries a
+  // POSIX modifier (`ca@valencia`), which only a language's does.
+  const unnamed =
+    adapter === "messages"
+      ? files.skipped.filter((file) => path.basename(file).includes("@"))
+      : files.skipped;
+  if (unnamed.length > 0)
     ctx.err(
-      `corpus: ${files.skipped.join(", ")} ${files.skipped.length === 1 ? "names" : "name"} no language tag and no script; left out, or map ${files.skipped.length === 1 ? "it" : "each"} with languageFiles`,
+      `corpus: ${unnamed.join(", ")} ${unnamed.length === 1 ? "names" : "name"} no language tag and no script; left out, or map ${unnamed.length === 1 ? "it" : "each"} with languageFiles`,
     );
   // The flag given without a value is an error, as for every option
   // (args.ts); only its absence means "read the files".
@@ -278,12 +283,21 @@ function formatOf(
   // file with no language in it, `messages.xlf` beside `messages.de.xlf`.
   if (/\.(?:xlf|xliff)$/i.test(messages)) {
     refuseNamespace(messages, "xliff");
-    const bare = path.posix.normalize(messages.replace(/[._-]?\{lang\}/, ""));
+    // Angular's file with no language in its name, guessed where one
+    // {lang} names the language; two leave no name to guess.
+    const bare =
+      messages.split("{lang}").length === 2
+        ? path.posix.normalize(messages.replace(/[._-]?\{lang\}/, ""))
+        : undefined;
     const sourcePath =
-      missing && existsSync(path.join(ctx.cwd, bare)) ? bare : undefined;
+      missing && bare !== undefined && existsSync(path.join(ctx.cwd, bare))
+        ? bare
+        : undefined;
     if (!sourcePath && missing)
       ctx.err(
-        `corpus: no ${relative} and no ${bare}; set the xliff source's sourcePath to the file Angular extracts`,
+        bare === undefined
+          ? `corpus: no ${relative}; set the xliff source's sourcePath to the file Angular extracts`
+          : `corpus: no ${relative} and no ${bare}; set the xliff source's sourcePath to the file Angular extracts`,
       );
     return { adapter: "xliff", ...(sourcePath && { sourcePath }) };
   }
@@ -766,7 +780,8 @@ function siblingCatalogues(
       const suffix = base.slice(at + "{lang}".length);
       if (!name.startsWith(prefix) || !name.endsWith(suffix)) return true;
       const code = name.slice(prefix.length, name.length - suffix.length);
-      return !LANGUAGE_RE.test(code) && !posixTag(code);
+      // A code with a POSIX modifier is a language's too, if no tag.
+      return !LANGUAGE_RE.test(code) && !posixTag(code) && !code.includes("@");
     })
     .map((name) => path.join(dir, name))
     .sort();
