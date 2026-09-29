@@ -710,3 +710,19 @@ test("a comment inside a target survives a pull of the target's own text (#925)"
     );
   }
 });
+
+test("a source's comments are no part of the inline elements an edit copies (#937)", () => {
+  const src = `<?xml version="1.0"?>\n<xliff version="1.2"><file source-language="en" datatype="plaintext" original="x"><body>\n<trans-unit id="a"><source>Hi <ph id="1">&lt;b<!-- </ph> -->&gt;</ph></source></trans-unit>\n</body></file></xliff>\n`;
+  // A new target file, a pull into an existing one, and a proposal's edit
+  // of the source each write the element whole.
+  const started = entriesToXliff(src, { a: "Neu {ph1}" }, undefined, "de");
+  expect(started).toContain(
+    `<target state="translated">Neu <ph id="1">&lt;b&gt;</ph></target>`,
+  );
+  expect(entriesToXliff(src, { a: "Neu {ph1}" }, src, "de")).toContain(
+    `<target state="translated">Neu <ph id="1">&lt;b&gt;</ph></target>`,
+  );
+  expect(
+    applyXliffOps(src, [{ kind: "edit", id: "a", text: "Hello {ph1}" }]),
+  ).toContain(`<source>Hello <ph id="1">&lt;b&gt;</ph></source>`);
+});

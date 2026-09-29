@@ -598,9 +598,10 @@ export function entriesToXliff(
     const text = translations[u.id];
     if (text === undefined) continue;
     const from = sources.get(u.id);
+    // The source as the reader reads it, comments left out (#937).
     const sourceXml = from
-      ? template.slice(from.source.start, from.source.end)
-      : base.slice(u.source.start, u.source.end);
+      ? without(template, from.source.start, from.source.end, from.cuts)
+      : without(base, u.source.start, u.source.end, u.cuts);
     patches.push(...targetPatches(base, u, text, sourceXml, eol));
   }
   let out = applied(base, patches);
@@ -619,7 +620,7 @@ export function entriesToXliff(
           .slice(from.start, from.end)
           .replace(/\r?\n/g, eol);
         const u = unitSpans(block)[0]!;
-        const sourceXml = block.slice(u.source.start, u.source.end);
+        const sourceXml = without(block, u.source.start, u.source.end, u.cuts);
         return applied(
           block,
           targetPatches(block, u, translations[id]!, sourceXml, eol),
@@ -698,7 +699,9 @@ export function applyXliffOps(xml: string, ops: SourceOp[]): string {
       continue;
     }
     if (u) {
-      const parts = partsOf([out.slice(u.source.start, u.source.end)]);
+      const parts = partsOf([
+        without(out, u.source.start, u.source.end, u.cuts),
+      ]);
       out =
         out.slice(0, u.source.start) +
         inlineXml(op.text, parts) +
