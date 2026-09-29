@@ -63,15 +63,6 @@ function validIcu(
   return text.trim() !== "" && parseIcu(text, syntax, { html }).ok;
 }
 
-function htmlOf(db: Db, projectId: number, type: string, syntax: Library) {
-  const project = db
-    .select({ richText: projects.richText })
-    .from(projects)
-    .where(eq(projects.id, projectId))
-    .get();
-  return tagMode(syntax, project?.richText?.[type]);
-}
-
 // One pending proposal per string or key (§11): a newer one replaces
 // the older, which is marked superseded so the author can see why.
 function supersedePending(db: Db, projectId: number, key: string): void {
@@ -94,18 +85,20 @@ function forString(
   kind: "edit" | "delete",
   text?: string,
 ): ProposeResult {
-  const row = db
-    .select()
+  const found = db
+    .select({ row: strings, richText: projects.richText })
     .from(strings)
+    .innerJoin(projects, eq(projects.id, strings.projectId))
     .where(eq(strings.id, stringRowId))
     .get();
-  if (!row) return { ok: false, reason: "not-found" };
+  if (!found) return { ok: false, reason: "not-found" };
+  const { row } = found;
   if (row.archived) return { ok: false, reason: "archived" };
   if (row.keyIsText) return { ok: false, reason: "key-is-text" };
   if (!row.file) return { ok: false, reason: "not-writable" };
   if (kind === "edit") {
     const syntax = row.syntax ?? "icu";
-    const html = htmlOf(db, row.projectId, row.type, syntax);
+    const html = tagMode(syntax, found.richText?.[row.type]);
     if (text === undefined || !validIcu(text, syntax, html)) {
       const message = invalidIcuMessage(text ?? "", syntax, html);
       return {
