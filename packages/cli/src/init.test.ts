@@ -1697,4 +1697,18 @@ test("init reads a Rails type as HTML where its tags are only HTML's, and names 
     /add richText: \{ "ui-text": "html" \}/,
   );
   expect((await loadConfig(i18next.dir)).richText).toBeUndefined();
+
+  // A JSON catalogue read as rails, I18n.js's, is not a server's HTML.
+  const i18njs = project();
+  stubCli(i18njs.dir);
+  mkdirSync(path.join(i18njs.dir, "locales"));
+  writeFileSync(
+    path.join(i18njs.dir, "locales", "en.json"),
+    '{ "a": "Hi %{name}<br>there", "b": "%{count} posts", "c": "<p>Bye %{name}" }\n',
+  );
+  writeFileSync(path.join(i18njs.dir, "locales", "pt.json"), "{}\n");
+  expect(await run(args("locales/{lang}.json"), i18njs.ctx)).toBe(0);
+  expect(i18njs.out.join("\n")).toMatch(/library: rails/);
+  expect(i18njs.out.join("\n")).toMatch(/add richText: \{ ui: "html" \}/);
+  expect((await loadConfig(i18njs.dir)).richText).toBeUndefined();
 });

@@ -182,12 +182,15 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       }),
     ...(Object.keys(kept).length > 0 && { languageFiles: kept }),
   };
-  // A Rails catalogue is HTML the server renders, so a source whose
-  // tags only HTML reads builds with its type read so; any other
-  // library's tags may be components, and init only says it (#952).
+  // A Rails YAML catalogue is HTML the server renders, so a source
+  // whose tags only HTML reads builds with its type read so; any other
+  // catalogue's tags may be components, I18n.js's JSON's too, and init
+  // only says it (#952).
   const htmlTags = await htmlOnlyTags(ctx.cwd, source, sourceLanguage);
   const readAsHtml =
-    htmlTags > 0 && sourceLibrary(source as FileSource) === "rails";
+    htmlTags > 0 &&
+    adapter === "yaml" &&
+    sourceLibrary(source as FileSource) === "rails";
   const config: InitConfig = {
     project,
     server,
