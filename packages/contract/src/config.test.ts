@@ -466,6 +466,13 @@ test("a library field the build does not read is refused by name (#860)", () => 
         `${adapter} sets its own library; ${field} does not apply`,
       );
   }
+  // An exec source's entries carry their own library.
+  for (const field of ["library", "syntax"])
+    expect(
+      issues({ adapter: "exec", command: "x", [field]: "i18next" }),
+    ).toContain(
+      `an exec source's entries carry their own library; ${field} does not apply`,
+    );
   // The not-both message speaks of messages and table only.
   expect(
     issues({

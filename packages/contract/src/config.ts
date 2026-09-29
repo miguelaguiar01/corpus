@@ -277,8 +277,9 @@ export const corpusConfigSchema = z
         });
     c.sources.forEach((source, index) => {
       // A library field the build does not read is refused, not ignored
-      // (#860): syntax is the old name on messages and table alone, and
-      // xliff, fluent and android set their own.
+      // (#860): syntax is the old name on messages and table alone,
+      // xliff, fluent and android set their own, and an exec source's
+      // entries carry theirs.
       const set = source as { library?: unknown; syntax?: unknown };
       const field = (name: "library" | "syntax", message: string) =>
         ctx.addIssue({
@@ -286,7 +287,14 @@ export const corpusConfigSchema = z
           message,
           path: ["sources", index, name],
         });
-      if (
+      if (source.adapter === "exec") {
+        for (const name of ["library", "syntax"] as const)
+          if (set[name] !== undefined)
+            field(
+              name,
+              `an exec source's entries carry their own library; ${name} does not apply`,
+            );
+      } else if (
         source.adapter === "xliff" ||
         source.adapter === "fluent" ||
         source.adapter === "android"

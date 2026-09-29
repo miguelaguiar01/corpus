@@ -8,7 +8,7 @@ One value decides how placeholders are spelled, how plurals are written, and wha
 
 `corpus init` looks at your source file and writes the library it finds, saying so as it does: `i18next` when more values use `{{name}}` than use a single-brace `{name}` or a printf verb, and none holds an ICU plural or select, `vue` when they use a top-level pipe or a `{'…'}` literal and neither of those, `chrome` when every value is a Chrome i18n entry with a `message`, `counterpart` when `%(name)s` placeholders outnumber every other shape, `easy_localization` when a string holds `{}` or an `@:key` link, `rails` when `%{name}` placeholders outnumber every other shape. It writes nothing for a plain ICU catalogue, since that is the default.
 
-(`syntax` is the old name for this field. A config that still uses it works, and `build`, `push` and `validate` each say once that the field has been renamed. It goes at 1.0.)
+(`syntax` is the old name for this field, on a `messages` or `table` source; any other source refuses it by name. A config that still uses it there works, and `build`, `push` and `validate` each say once that the field has been renamed. It goes at 1.0.)
 
 ## next-intl, FormatJS, Lingui, and anything ICU
 
