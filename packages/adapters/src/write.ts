@@ -374,7 +374,10 @@ export function entriesToTable(
   existing?: string,
 ): string {
   translations = ownRecord(translations);
-  const base = existing !== undefined ? existing : template;
+  // A blank file is a new one: the template's layout, line endings and
+  // BOM (#883).
+  if (existing?.trim() === "") existing = undefined;
+  const base = existing ?? template;
   const style = styleOf(base);
   const baseRecords = parseRecords(base);
   const inline = oneRecordPerLine(base, baseRecords.length);
@@ -395,20 +398,27 @@ export function entriesToTable(
     }
   }
 
-  return renderRecords(out, style, inline);
+  return renderRecords(out, style, inline, base);
 }
 
 // A table's records in the file's layout: one record a line where the
-// file writes them so, else JSON's own.
+// file writes them so, else JSON's own, in `like`'s line endings and
+// with its BOM (#883); JSON escapes a line break inside a string, so
+// every one here is the layout's.
 function renderRecords(
   records: Record_[],
   style: Style,
   inline: boolean,
+  like: string,
 ): string {
   const body = inline
     ? `[\n${records.map((r) => style.indent + inlineRecord(r)).join(",\n")}\n]`
     : JSON.stringify(records, null, style.indent);
-  return body + (style.trailingNewline ? "\n" : "");
+  const bom = like.startsWith("\uFEFF") ? "\uFEFF" : "";
+  return (
+    bom +
+    (body + (style.trailingNewline ? "\n" : "")).replace(/\n/g, eolOf(like))
+  );
 }
 
 // Source-side operations (§8, §11): a proposal sets, adds or removes a
@@ -488,5 +498,5 @@ export function applyTableOps(
       out.push({ [map.id]: op.id, [map.text]: op.text });
     }
   }
-  return renderRecords(out, style, inline);
+  return renderRecords(out, style, inline, text);
 }

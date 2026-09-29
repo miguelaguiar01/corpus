@@ -929,3 +929,32 @@ test("a JSON target built from the template keeps the template's line endings an
   const bom = '﻿{\n  "a": "A"\n}\n';
   expect(entriesToMessages(bom, { a: "X" }, "")).toBe('﻿{\n  "a": "X"\n}\n');
 });
+
+test("a table keeps its file's line endings and BOM, and a new one takes the template's (#883)", () => {
+  const crlf = (text: string) => "﻿" + text.replace(/\n/g, "\r\n");
+  const target = crlf(TABLE);
+  const texts = { "step.1": "Abre a porta.", "step.2": "Procura a chave." };
+  // A pull of the file's own texts leaves every byte.
+  expect(entriesToTable(target, texts, MAP, target)).toBe(target);
+  const edited = entriesToTable(
+    target,
+    { ...texts, "step.1": "Open the door." },
+    MAP,
+    target,
+  );
+  expect(edited).toBe(crlf(TABLE.replace("Abre a porta.", "Open the door.")));
+  // A new file, and a blank one, start from the template's.
+  expect(entriesToTable(target, texts, MAP)).toBe(target);
+  expect(entriesToTable(target, texts, MAP, "")).toBe(target);
+  // The expanded layout too, and a proposal's ops.
+  const expanded = crlf(JSON.stringify(JSON.parse(TABLE), null, 2) + "\n");
+  expect(entriesToTable(expanded, texts, MAP, expanded)).toBe(expanded);
+  expect(applyTableOps(target, [{ kind: "delete", id: "step.2" }], MAP)).toBe(
+    crlf(`[
+  { "id": "step.1", "text": "Abre a porta.", "kind": "hint" }
+]
+`),
+  );
+  // An LF file stays LF with no BOM.
+  expect(entriesToTable(TABLE, texts, MAP, TABLE)).toBe(TABLE);
+});
