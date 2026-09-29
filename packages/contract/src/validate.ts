@@ -329,7 +329,24 @@ export function validateTranslation(
       });
     }
   }
-  if (options.richText !== "html") {
+  // Where a type is read as HTML its tags are not compared, so the
+  // placeholders in their attributes are, apart from the text's (#948);
+  // elsewhere a tag's attribute text is its identity and says as much.
+  if (options.richText === "html") {
+    const missing = new Set(
+      errors.flatMap((e) => (e.code === "missing-placeholder" ? [e.name] : [])),
+    );
+    for (const name of expected.attrPlaceholders)
+      if (!actual.attrPlaceholders.has(name) && !missing.has(name))
+        errors.push({ code: "missing-placeholder", name });
+    for (const name of actual.attrPlaceholders)
+      if (
+        !expected.attrPlaceholders.has(name) &&
+        !expectedValues.has(name) &&
+        !passed.has(name)
+      )
+        errors.push({ code: "unexpected-placeholder", name });
+  } else {
     for (const name of expected.tags) {
       if (!actual.tags.has(name)) errors.push({ code: "missing-tag", name });
     }

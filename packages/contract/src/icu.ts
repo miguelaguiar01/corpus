@@ -8,7 +8,9 @@
 import { localeOf, type Library } from "./strings";
 
 export type IcuNode =
-  | { kind: "literal"; text: string }
+  // `attrPlaceholders`: those written in the attributes of a tag the
+  // text holds as prose, an unclosed one in a type read as HTML (#948).
+  | { kind: "literal"; text: string; attrPlaceholders?: IcuNode[] }
   // A formatted placeholder, `{n, number}`, `{d, date, short}`, `{t,
   // time}`, keeps its type and its style (#555): a translation keeps
   // the name and the type and may change the style.
@@ -29,7 +31,7 @@ export type IcuNode =
   // part of the tag's identity: a translation keeps it verbatim (#590).
   // `attrPlaceholders` are the placeholders written in it, which a type
   // read as HTML, whose tags a translation writes its own way, still
-  // keeps (#948).
+  // keeps apart from the text's own (#948).
   | {
       kind: "tag";
       name: string;
@@ -261,7 +263,12 @@ function readPrintfPlural(
 
 // What a sequence has read so far: its nodes, the text not yet a node,
 // and where that text starts.
-type Sequence = { nodes: IcuNode[]; literal: string; literalStart: number };
+type Sequence = {
+  nodes: IcuNode[];
+  literal: string;
+  literalStart: number;
+  attrPlaceholders: IcuNode[];
+};
 
 const MAX_DEPTH = 200;
 
@@ -325,7 +332,12 @@ class Parser {
     pluralArg?: string,
     closing?: string,
   ): IcuNode[] {
-    const seq: Sequence = { nodes: [], literal: "", literalStart: this.pos };
+    const seq: Sequence = {
+      nodes: [],
+      literal: "",
+      literalStart: this.pos,
+      attrPlaceholders: [],
+    };
 
     while (this.pos < this.source.length) {
       if (++this.steps > 4 * this.source.length + 10_000)
@@ -369,7 +381,7 @@ class Parser {
             (tag.kind === "close" &&
               (closing === undefined || tag.name !== closing)))
         ) {
-          seq.literal += raw;
+          this.proseTag(seq, raw, tag.attrs, tag.start);
           continue;
         }
         this.flush(seq);
@@ -386,7 +398,7 @@ class Parser {
             seq.nodes.push({
               kind: "tag",
               name: tag.name,
-              ...this.tagAttrs(tag.attrs),
+              ...this.tagAttrs(tag.attrs, tag.start),
               children,
             });
           } catch (error) {
@@ -398,7 +410,7 @@ class Parser {
             this.pos = after;
             [this.printfNext, this.ownFree, this.positional] = counters;
             this.unclosed.add(tag.start);
-            seq.literal += raw;
+            this.proseTag(seq, raw, tag.attrs, tag.start);
           }
           seq.literalStart = this.pos;
           continue;
@@ -417,7 +429,7 @@ class Parser {
         seq.nodes.push({
           kind: "tag",
           name: tag.name,
-          ...this.tagAttrs(tag.attrs),
+          ...this.tagAttrs(tag.attrs, tag.start),
           children:
             tag.kind === "self"
               ? []
@@ -469,8 +481,15 @@ class Parser {
 
   private flush(seq: Sequence): void {
     if (seq.literal !== "") {
-      seq.nodes.push({ kind: "literal", text: seq.literal });
+      seq.nodes.push({
+        kind: "literal",
+        text: seq.literal,
+        ...(seq.attrPlaceholders.length > 0
+          ? { attrPlaceholders: seq.attrPlaceholders }
+          : {}),
+      });
       seq.literal = "";
+      seq.attrPlaceholders = [];
     }
   }
 
@@ -825,7 +844,10 @@ class Parser {
   // library names or numbers its placeholders: a positional one (printf's
   // `%s`, easy_localization's `{}`) in an attribute would move every
   // position after it (#948).
-  private tagAttrs(attrs: string | undefined): {
+  private tagAttrs(
+    attrs: string | undefined,
+    start: number,
+  ): {
     attrs?: string;
     attrPlaceholders?: IcuNode[];
   } {
@@ -835,13 +857,30 @@ class Parser {
     try {
       nodes = new Parser(attrs, this.syntax, false).parseSequence(false);
     } catch (error) {
-      if (error instanceof ParseFailure) return { attrs };
-      throw error;
+      // Brace CSS in an ICU attribute is text; Rails reads only `%{`, so
+      // a mistyped one there is refused as it is in the text.
+      if (!(error instanceof ParseFailure)) throw error;
+      if (this.syntax === "rails") throw new ParseFailure(error.message, start);
+      return { attrs };
     }
     const placeholders = nodes.filter((node) => node.kind === "placeholder");
     return placeholders.length > 0
       ? { attrs, attrPlaceholders: placeholders }
       : { attrs };
+  }
+
+  // A tag read as prose: its text, and the placeholders its attributes
+  // write, which the runtime fills whether the tag closes or not.
+  private proseTag(
+    seq: Sequence,
+    raw: string,
+    attrs: string | undefined,
+    start: number,
+  ): void {
+    seq.literal += raw;
+    seq.attrPlaceholders.push(
+      ...(this.tagAttrs(attrs, start).attrPlaceholders ?? []),
+    );
   }
 
   // Where the argument at `at` ends.
@@ -1221,6 +1260,8 @@ export type Shape = {
   selects: Map<string, Set<string>>;
   plurals: Map<string, Set<string>>;
   tags: Set<string>;
+  // The placeholders written in tags' attributes (#948).
+  attrPlaceholders: Set<string>;
   // printf: each verb as written, by position (#594).
   written: Map<string, string>;
   // Every verb as written, a position repeated in each plural branch
@@ -1239,6 +1280,7 @@ export function shapeOf(
     selects: new Map(),
     plurals: new Map(),
     tags: new Set(),
+    attrPlaceholders: new Set(),
     written: new Map(),
     verbs: [],
     count: 0,
@@ -1257,9 +1299,11 @@ export function shapeOf(
         shape.formats.set(node.name, node.format);
       }
     }
+    if (node.kind === "tag" || node.kind === "literal")
+      for (const attr of node.attrPlaceholders ?? [])
+        if (attr.kind === "placeholder") shape.attrPlaceholders.add(attr.name);
     if (node.kind === "tag") {
       shape.tags.add(tagIdentity(node));
-      if (node.attrPlaceholders) shapeOf(node.attrPlaceholders, shape);
       shapeOf(node.children, shape);
     }
     // A form's placeholders are the message's; how many forms there are
