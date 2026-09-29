@@ -8,7 +8,6 @@ import {
   decodeEntities,
   eolOf,
   lineIndent,
-  masked,
   ownRecord,
   type Patch,
   type Span,
@@ -177,11 +176,50 @@ function inlineToken(
 
 // A unit's own content: comments, fuzzy matches (`<alt-trans>`) and
 // 2.0's `<ignorable>` are not its source, its target nor its notes.
-function own(body: string): string {
-  return body
-    .replace(/<!--[\s\S]*?-->/g, "")
-    .replace(/<alt-trans\b[\s\S]*?<\/alt-trans>/g, "")
-    .replace(/<ignorable\b[\s\S]*?<\/ignorable>/g, "");
+// The raw text from `from` to `to` without the spans `cuts` names:
+// a unit's own text, its comments and foreign elements left out.
+function without(xml: string, from: number, to: number, cuts: Span[]): string {
+  let out = "";
+  let at = from;
+  for (const cut of cuts) {
+    if (cut.end <= at || cut.start >= to) continue;
+    out += xml.slice(at, Math.max(at, cut.start));
+    at = Math.max(at, cut.end);
+  }
+  return out + xml.slice(at, to);
+}
+
+// The cuts inside `start`–`end`, found by halving the list sorted by
+// start rather than read through for every unit. No cut crosses a
+// unit's start: a comment there would hide the unit's own tag.
+function cutsIn(cuts: Span[], start: number, end: number): Span[] {
+  let lo = 0;
+  let hi = cuts.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (cuts[mid]!.start < start) lo = mid + 1;
+    else hi = mid;
+  }
+  const out: Span[] = [];
+  for (let i = lo; i < cuts.length && cuts[i]!.start < end; i++)
+    out.push(cuts[i]!);
+  return out;
+}
+
+// Comments and CDATA hidden, at the same offsets, in one pass left to
+// right, so neither hides the other's delimiters (#917); the comments
+// are listed, being no part of a unit's text.
+function hidden(xml: string): { text: string; comments: Span[] } {
+  const comments: Span[] = [];
+  const text = xml.replace(
+    /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>/g,
+    (c: string, at: number) => {
+      if (c.startsWith("<!--"))
+        comments.push({ start: at, end: at + c.length });
+      return " ".repeat(c.length);
+    },
+  );
+  return { text, comments };
 }
 
 function notes(block: string, key: "from" | "category"): string | undefined {
@@ -242,15 +280,15 @@ function unit(
 // Every unit of a file, 1.2's `<trans-unit>` then 2.0's `<unit>`, each
 // in document order.
 export function xliffUnits(xml: string): XliffUnit[] {
-  const text = masked(xml);
+  const { text } = hidden(xml);
   // A namespace prefix (`<xlf:trans-unit>`) would read as no unit at all.
   if (/<[\w.-]+:(?:trans-unit|unit)\b/.test(text))
     throw new Error(
       "xliff: a file whose elements carry a namespace prefix is not read; write them unprefixed",
     );
   return unitSpans(xml).map((u) => {
-    const body = own(xml.slice(u.start, u.end));
-    const content = (span: Span) => own(xml.slice(span.start, span.end));
+    const body = without(xml, u.start, u.end, u.cuts);
+    const content = (span: Span) => without(xml, span.start, span.end, u.cuts);
     return unit(
       u.id,
       content(u.source),
@@ -339,41 +377,57 @@ type UnitSpan = Span & {
   emptyTarget?: Span;
   // Where a state lives: 1.2's `<target>` open tag, 2.0's `<segment>`.
   stateTag?: Span;
+  // What in the unit is not its own text: its comments and foreign
+  // elements, in order.
+  cuts: Span[];
 };
 
-// A unit's fuzzy matches (1.2's `<alt-trans>`) and ignorables (2.0's
-// `<ignorable>`) blanked within it, at the same offsets, a self-closing
-// one included; one left open is refused, as blanking to some later
-// unit's close would drop every unit between (#900).
-function blankInside(unit: string, id: string): string {
+// A unit's foreign elements, which hold a source and a target of their
+// own: 1.2's fuzzy matches (`<alt-trans>`), 2.0's ignorables and
+// translation candidates (`<mtc:matches>`, any prefix, #917). Blanked
+// within the unit, at the same offsets, a self-closing one included, and
+// listed at `offset`; one left open is refused, as blanking to some
+// later unit's close would drop every unit between (#900).
+const FOREIGN = "alt-trans|ignorable|[\\w.-]+:matches";
+// Where an element's name ends: `\b` would also end `alt-trans` inside
+// `<alt-trans-x>` and `source` inside `<source-x>`.
+const NAME_END = "(?=[\\s/>])";
+
+function blankInside(
+  unit: string,
+  id: string,
+  offset: number,
+  foreign: Span[],
+): string {
   const inner = unit.replace(
-    new RegExp(
-      `<(alt-trans|ignorable)\\b${ATTRS}(?:/>|>[\\s\\S]*?</\\1>)`,
-      "g",
-    ),
-    (c) => " ".repeat(c.length),
+    new RegExp(`<(${FOREIGN})${NAME_END}${ATTRS}(?:/>|>[\\s\\S]*?</\\1>)`, "g"),
+    (c: string, _name: string, _attrs: string, at: number) => {
+      foreign.push({ start: offset + at, end: offset + at + c.length });
+      return " ".repeat(c.length);
+    },
   );
-  const open = /<(alt-trans|ignorable)\b/.exec(inner);
+  const open = new RegExp(`<(${FOREIGN})${NAME_END}`).exec(inner);
   if (open)
     throw new Error(`xliff: unit ${id}: its <${open[1]}> does not close`);
   return inner;
 }
 
 function unitSpans(xml: string): UnitSpan[] {
-  // Found in the text with comments masked, and each unit's fuzzy
-  // matches and ignorables blanked within it, so none of theirs is taken
-  // for the unit's own (#900).
-  // CDATA is text, whatever tags it spells, and is hidden like comments.
-  let text = masked(xml).replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, (c) =>
-    " ".repeat(c.length),
-  );
+  // Found in the text with comments and CDATA hidden, and each unit's
+  // foreign elements blanked within it, so none of theirs is taken for
+  // the unit's own (#900, #917).
+  const read = hidden(xml);
+  let text = read.text;
+  const foreign: Span[] = [];
   const out: UnitSpan[] = [];
   const find = (from: number, to: number, element: string, id: string) => {
     const re = new RegExp(
-      `<${element}\\b${ATTRS}(/>|>([\\s\\S]*?)</${element}>)`,
+      `<${element}${NAME_END}${ATTRS}(/>|>([\\s\\S]*?)</${element}>)`,
       "y",
     );
-    const at = text.slice(from, to).search(new RegExp(`<${element}\\b`));
+    const at = text
+      .slice(from, to)
+      .search(new RegExp(`<${element}${NAME_END}`));
     if (at < 0) return undefined;
     re.lastIndex = from + at;
     const m = re.exec(text);
@@ -429,10 +483,12 @@ function unitSpans(xml: string): UnitSpan[] {
   for (const u of [...units].sort((x, y) => x.start - y.start)) {
     if (u.start < at) continue;
     blanked +=
-      text.slice(at, u.start) + blankInside(text.slice(u.start, u.end), u.id);
+      text.slice(at, u.start) +
+      blankInside(text.slice(u.start, u.end), u.id, u.start, foreign);
     at = u.end;
   }
   text = blanked + text.slice(at);
+  const cuts = [...read.comments, ...foreign].sort((x, y) => x.start - y.start);
   for (const { version, id, start, end } of units) {
     if (version === "2.0") {
       const segments = text.slice(start, end).match(/<segment\b/g)?.length ?? 0;
@@ -457,6 +513,7 @@ function unitSpans(xml: string): UnitSpan[] {
       ...(target?.self && { emptyTarget: target.whole }),
       ...(version === "1.2" && target && { stateTag: target.tag }),
       ...(segment && { stateTag: segment.tag }),
+      cuts: cutsIn(cuts, start, end),
     });
   }
   return out;
