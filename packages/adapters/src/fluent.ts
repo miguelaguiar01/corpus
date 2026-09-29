@@ -4,10 +4,7 @@
 // by name. A file is patched message by message, so an unchanged pull
 // writes the same bytes and a changed message keeps its layout.
 import { PLURAL_CATEGORIES, type StringEntry } from "@corpus/contract";
-
-export type FluentOp =
-  | { kind: "edit" | "add"; id: string; text: string }
-  | { kind: "delete"; id: string };
+import type { SourceOp } from "./write";
 
 type Message = {
   id: string;
@@ -459,7 +456,7 @@ export function entriesToFluent(
   return patch(base, changes, source);
 }
 
-export function applyFluentOps(text: string, ops: FluentOp[]): string {
+export function applyFluentOps(text: string, ops: SourceOp[]): string {
   const source = templateOf(
     text,
     ops.filter((op) => op.kind !== "delete").map((op) => op.id),

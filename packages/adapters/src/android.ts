@@ -2,10 +2,7 @@
 // escapes undone on read and written back on change; a file is patched
 // element by element, so an unchanged pull writes the same bytes.
 import { PLURAL_CATEGORIES, type StringEntry } from "@corpus/contract";
-
-export type AndroidOp =
-  | { kind: "edit" | "add"; id: string; text: string }
-  | { kind: "delete"; id: string };
+import type { SourceOp } from "./write";
 
 type Span = { start: number; end: number };
 type Element = Span & {
@@ -428,7 +425,7 @@ export function entriesToAndroid(
 }
 
 // Proposals are few; each is applied to the file the one before left.
-export function applyAndroidOps(xml: string, ops: AndroidOp[]): string {
+export function applyAndroidOps(xml: string, ops: SourceOp[]): string {
   let out = xml.trim() === "" ? SKELETON : xml;
   for (const op of ops) {
     out = patchAll(out, [

@@ -93,9 +93,15 @@ export function pluralText(
   forms: Record<string, string>,
   order: "cldr" | "written" = "cldr",
 ): string {
+  // CLDR's categories first; any other key after them, as written.
   const keys =
     order === "cldr"
-      ? PLURAL_CATEGORIES.filter((c) => Object.hasOwn(forms, c))
+      ? [
+          ...PLURAL_CATEGORIES.filter((c) => Object.hasOwn(forms, c)),
+          ...Object.keys(forms).filter(
+            (k) => !(PLURAL_CATEGORIES as readonly string[]).includes(k),
+          ),
+        ]
       : Object.keys(forms);
   return `{${arg}, plural, ${keys.map((k) => `${k} {${forms[k]}}`).join(" ")}}`;
 }
