@@ -85,11 +85,24 @@ function escapedBytes(run: string): string {
 
 // The quoted strings of a keyword and its continuation lines, joined,
 // then read as one, as msgfmt reads them: a character's escaped bytes
-// may be split across lines (#926). An escape never crosses a quote.
+// may be split across lines (#926). msgfmt reads each string's escapes
+// on their own, so each line's numeric escapes are widened to their
+// full width first, and none takes the next line's digits.
 function quoted(lines: string[]): string {
   return unescape(
     lines
       .map((line) => /^[^"]*"((?:[^"\\]|\\.)*)"\s*$/.exec(line)?.[1] ?? "")
+      .map((content) =>
+        content.replace(
+          /\\(?:x([0-9a-fA-F]{1,2})|([0-7]{1,3})|.)/g,
+          (escape: string, hex?: string, octal?: string) =>
+            hex !== undefined
+              ? `\\x${hex.padStart(2, "0")}`
+              : octal !== undefined
+                ? `\\${octal.padStart(3, "0")}`
+                : escape,
+        ),
+      )
       .join(""),
   );
 }
