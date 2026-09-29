@@ -1074,3 +1074,54 @@ test("a verified seed is still the repository's: a source change re-checks its m
   applySnapshot(db, project.id, withSeeds({}, withSource("Continuar {name}")));
   expect(translationOf(db, "ui.continue", "en")?.invalid).toBe(false);
 });
+
+test("a push that changes a string's arguments, library or type's richText re-checks its seeds' marks (#891)", () => {
+  const { db, project } = seed();
+  const id = "notifications.favorite %lld";
+  const favorite = (fields: Partial<Snapshot["strings"][number]>) => [
+    {
+      id,
+      type: "chrome",
+      source: "favoritou",
+      library: "printf" as const,
+      arguments: ["%lld"],
+      ...fields,
+    },
+  ];
+  const push = (
+    strings: Snapshot["strings"],
+    seeds: Record<string, Record<string, string>> = {},
+    richText?: Snapshot["richText"],
+  ) =>
+    applySnapshot(db, project.id, {
+      ...FIXTURE,
+      strings,
+      seedTranslations: seeds,
+      ...(richText && { richText }),
+    });
+  push(favorite({}), {
+    en: { [id]: "{arg1, plural, one {starred} other {starred it}}" },
+  });
+  expect(translationOf(db, id, "en")?.invalid).toBe(false);
+  // The seed is unchanged, so the digest leaves it out; the key's verbs
+  // went, and with them the value it pluralises on.
+  push(favorite({ arguments: undefined }));
+  expect(translationOf(db, id, "en")?.invalid).toBe(true);
+  push(favorite({}));
+  expect(translationOf(db, id, "en")?.invalid).toBe(false);
+  // A library that reads no argN plural.
+  push(favorite({ library: "icu" }));
+  expect(translationOf(db, id, "en")?.invalid).toBe(true);
+  push(favorite({}));
+  expect(translationOf(db, id, "en")?.invalid).toBe(false);
+  // A tag the source lacks is invalid until the type reads as HTML.
+  const bold = favorite({
+    library: undefined,
+    arguments: undefined,
+    source: "Seguir",
+  });
+  push(bold, { en: { [id]: "<b>Follow</b>" } });
+  expect(translationOf(db, id, "en")?.invalid).toBe(true);
+  push(bold, {}, { chrome: "html" });
+  expect(translationOf(db, id, "en")?.invalid).toBe(false);
+});
