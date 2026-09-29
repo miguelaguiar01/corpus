@@ -6,7 +6,7 @@
 // count the source pluralises on is a value like a placeholder: it must
 // survive, as `{n}` or as a plural on n, and a target may pluralise any
 // value the source has; with the target language given, a plural's
-// categories must be the ones that language uses. A rich-text tag is a
+// categories must be the ones its runtime picks in that language. A rich-text tag is a
 // component the client renders: every tag in the source must occur in
 // the target and none may be added, wherever it moves, unless the
 // string's type is read as HTML (`richText: "html"`), where a tag is
@@ -79,7 +79,7 @@ export type ValidationError =
       moved: boolean;
     };
 
-// A plural missing a category its language uses is incomplete rather
+// A plural missing a category the runtime picks is incomplete rather
 // than invalid (#556): ICU falls back to `other`, and a many-language
 // catalogue ships that way. It rides beside the result, apart, and an
 // editor warns where it would have refused.

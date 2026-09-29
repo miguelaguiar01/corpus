@@ -42,7 +42,7 @@ export type Finding = {
   // source's command does not (#592).
   language: string;
   code: ValidationError["code"] | "orphan" | "unread-plural";
-  // A plural missing a category its language uses, or with one it never
+  // A plural missing a category the runtime picks, or with one it never
   // selects, is incomplete, not invalid (#556, #651): printed apart, and
   // never the reason for exit 1. A source's warning (#767) is the same.
   severity: "invalid" | "incomplete" | "warning";

@@ -1815,6 +1815,28 @@ test("a plural's categories are its library's rule: counterpart's English one, e
     ok: true,
     incomplete: [{ code: "missing-category", key: "two" }],
   });
+  // Value 1 reads a Japanese `one` where written, so it is no dead text.
+  expect(
+    validateTranslation(
+      easy,
+      "{count, plural, one {{} 行} other {{} 行}}",
+      "ja",
+      "easy_localization",
+    ),
+  ).toEqual({ ok: true });
+  // counterpart's rule is English's whatever the tag, one it has no data
+  // for too.
+  expect(
+    validateTranslation(
+      counterpart,
+      "{count, plural, other {%(count)s qach}}",
+      "tlh",
+      "counterpart",
+    ),
+  ).toMatchObject({
+    ok: true,
+    incomplete: [{ code: "missing-category", key: "one" }],
+  });
   // CLDR's elsewhere, as before.
   expect(
     validateTranslation(
