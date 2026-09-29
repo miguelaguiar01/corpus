@@ -103,7 +103,8 @@ type PushReport = {
 // What the snapshot uses that the server cannot take, named (#875): a
 // server refuses a whole snapshot over one closed value it does not
 // know. Values every server since 0.20.0 takes need no asking; a server
-// that cannot say, or reports no `accepts`, is judged by its age.
+// that reports no `accepts` is judged by its age, and one that cannot be
+// asked is not judged: the push goes ahead as it always did.
 async function serverLacks(
   base: string,
   token: string,

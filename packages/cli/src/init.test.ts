@@ -1571,3 +1571,57 @@ test("a yaml pattern with {lang} twice reads each file's own language (#856)", a
   const snap = JSON.parse(readFileSync(path.join(p.dir, "snap.json"), "utf8"));
   expect(snap.seedTranslations).toEqual({ de: { a: "B" } });
 });
+
+test("a JSON catalogue named with a POSIX modifier that is no tag is said to name no language, not a sibling (#930)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "l"));
+  for (const code of ["en", "de", "sr@latin", "ca@valencia"])
+    writeFileSync(path.join(p.dir, "l", `${code}.json`), '{"a":"A"}');
+  expect(
+    await run(
+      [
+        "init",
+        "--project",
+        "app",
+        "--source",
+        "en",
+        "--messages",
+        "l/{lang}.json",
+      ],
+      p.ctx,
+    ),
+  ).toBe(0);
+  const said = [...p.out, ...p.err].join("\n");
+  expect(said).toMatch(
+    /l\/ca@valencia\.json names no language tag and no script; left out, or map it with languageFiles/,
+  );
+  expect(said).not.toMatch(/sibling catalogue/);
+});
+
+test("an xliff pattern with {lang} twice guesses no bare source file (#930)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "loc", "de"), { recursive: true });
+  writeFileSync(
+    path.join(p.dir, "loc", "de", "messages.de.xlf"),
+    `<?xml version="1.0"?>\n<xliff version="1.2"><file source-language="en" target-language="de" datatype="plaintext" original="x"><body>\n</body></file></xliff>\n`,
+  );
+  await run(
+    [
+      "init",
+      "--project",
+      "app",
+      "--source",
+      "en",
+      "--messages",
+      "loc/{lang}/messages.{lang}.xlf",
+    ],
+    p.ctx,
+  );
+  const said = p.err.join("\n");
+  expect(said).toContain(
+    "corpus: no loc/en/messages.en.xlf; set the xliff source's sourcePath to the file Angular extracts",
+  );
+  expect(said).not.toContain("{lang}");
+});

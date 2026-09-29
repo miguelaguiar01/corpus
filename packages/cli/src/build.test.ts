@@ -1301,3 +1301,40 @@ test("a yaml source reads Rails catalogues: the root key is the file's code, _MF
   ).toEqual([]);
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("a {ns} pattern with no {lang} builds, each file's ids prefixed (#930)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-nsonly-"));
+  mkdirSync(path.join(dir, "strings"));
+  writeFileSync(
+    path.join(dir, "strings", "app.json"),
+    JSON.stringify([{ id: "hello", text: "Hello" }]),
+  );
+  writeFileSync(
+    path.join(dir, "strings", "web.json"),
+    JSON.stringify([{ id: "bye", text: "Bye" }]),
+  );
+  const cfg = expandSources(
+    defineCorpus({
+      project: "p",
+      server: "https://corpus.example",
+      sourceLanguage: "en",
+      languages: ["en", "de"],
+      sources: [
+        {
+          adapter: "table",
+          type: "ui",
+          path: "strings/{ns}.json",
+          map: { id: "id", text: "text" },
+        },
+      ],
+    }),
+    dir,
+  );
+  const { snapshot, refused } = await buildSnapshotReport(cfg, dir);
+  expect(refused).toEqual([]);
+  expect(snapshot.strings.map((s) => s.id).sort()).toEqual([
+    "app:hello",
+    "web:bye",
+  ]);
+  rmSync(dir, { recursive: true, force: true });
+});

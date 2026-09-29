@@ -14,7 +14,12 @@ const REPO = fileURLToPath(
 type Captured = { url: string; auth: string | undefined; body: unknown };
 
 function startServer(
-  respond: (captured: Captured) => { status: number; json: unknown },
+  // `raw` answers with a body that is not JSON.
+  respond: (captured: Captured) => {
+    status: number;
+    json?: unknown;
+    raw?: string;
+  },
 ): Promise<{ server: Server; url: string; calls: Captured[] }> {
   const calls: Captured[] = [];
   const server = createServer((req, res) => {
@@ -27,9 +32,9 @@ function startServer(
         body: raw ? JSON.parse(raw) : undefined,
       };
       calls.push(captured);
-      const { status, json } = respond(captured);
+      const { status, json, raw: body } = respond(captured);
       res.writeHead(status, { "content-type": "application/json" });
-      res.end(JSON.stringify(json));
+      res.end(body ?? JSON.stringify(json));
     });
   });
   return new Promise((resolve) => {
@@ -478,7 +483,7 @@ test("push refuses, before sending, a server that predates a value the project u
 test("push goes ahead where the server accepts the project's values, cannot say, or is not asked (#875)", async () => {
   const cases: {
     library: string;
-    health: { status: number; json: unknown };
+    health: { status: number; json?: unknown; raw?: string };
     asked: boolean;
   }[] = [
     {
@@ -490,6 +495,12 @@ test("push goes ahead where the server accepts the project's values, cannot say,
       asked: true,
     },
     { library: "rails", health: { status: 500, json: {} }, asked: true },
+    {
+      library: "rails",
+      health: { status: 200, raw: "<html>not JSON</html>" },
+      asked: true,
+    },
+    { library: "rails", health: { status: 200, json: null }, asked: true },
     { library: "i18next", health: { status: 200, json: {} }, asked: false },
   ];
   for (const { library, health, asked } of cases) {
@@ -538,4 +549,55 @@ test("a snapshot refused by a server that predates 0.21.0 draws the upgrade too,
     expect(/predates 0\.21\.0/.test(said)).toBe(hinted);
     server.close();
   }
+});
+
+test("push refuses a server that predates the project's adapter, as it does a library (#930)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-accepts-"));
+  mkdirSync(path.join(dir, "loc"));
+  writeFileSync(
+    path.join(dir, "loc", "messages.en.xlf"),
+    `<?xml version="1.0"?>\n<xliff version="1.2"><file source-language="en" datatype="plaintext" original="x"><body>\n<trans-unit id="hello"><source>Hi</source></trans-unit>\n</body></file></xliff>\n`,
+  );
+  writeFileSync(
+    path.join(dir, "corpus.config.mjs"),
+    `export default { project: "acme", server: process.env.CORPUS_SERVER, sourceLanguage: "en", languages: ["en", "de"], sources: [{ adapter: "xliff", type: "ui", path: "loc/messages.{lang}.xlf" }] };\n`,
+  );
+  const { server, url, calls } = await startServer((c) =>
+    c.url === "/api/health"
+      ? { status: 200, json: { status: "ok" } }
+      : { status: 200, json: REPORT },
+  );
+  active = server;
+  process.env.CORPUS_SERVER = url;
+  const c = ctx({ cwd: dir });
+  expect(await run(["push"], c)).toBe(1);
+  expect(c.output.join("\n")).toMatch(
+    /the server at .* predates the xliff adapter this project uses/,
+  );
+  expect(calls.map((call) => call.url)).toEqual(["/api/health"]);
+});
+
+test("a push whose whole file is refused says nothing was pushed, and sends nothing (#930)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-ruined-"));
+  mkdirSync(path.join(dir, "i18n"));
+  writeFileSync(
+    path.join(dir, "i18n", "en.json"),
+    JSON.stringify({ a: "{", b: "{x", c: "}" }),
+  );
+  writeFileSync(
+    path.join(dir, "corpus.config.mjs"),
+    `export default { project: "acme", server: process.env.CORPUS_SERVER, sourceLanguage: "en", languages: ["en", "de"], sources: [{ adapter: "messages", type: "ui", path: "i18n/{lang}.json" }] };\n`,
+  );
+  const { server, url, calls } = await startServer(() => ({
+    status: 200,
+    json: REPORT,
+  }));
+  active = server;
+  process.env.CORPUS_SERVER = url;
+  const c = ctx({ cwd: dir });
+  expect(await run(["push"], c)).toBe(1);
+  expect(c.output.join("\n")).toMatch(
+    /nothing was pushed: pushing the rest would archive every refused string/,
+  );
+  expect(calls).toEqual([]);
 });
