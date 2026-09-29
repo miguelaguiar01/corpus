@@ -38,7 +38,9 @@ import {
   type FileSource,
   hasLanguages,
   isArb,
+  lastWins,
   readEntries,
+  sourcePluralIds,
   readsPluralObjects,
   sourceWritesBack,
   takesProposals,
@@ -120,6 +122,9 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
   // file that holds it, and into the first file's when none does, so a
   // push and a pull leave the files as they were (#661).
   const targetIds = new Map<string, Set<string>>();
+  const targetTexts = new Map<string, Map<string, string>>();
+  const textIn = (member: FileSource, language: string, id: string) =>
+    targetTexts.get(fileOf(member, language, config.sourceLanguage))?.get(id);
   const idsInTarget = (member: FileSource, language: string) =>
     targetIds.get(fileOf(member, language, config.sourceLanguage)) ??
     new Set<string>();
@@ -134,6 +139,23 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
       Object.entries(translations).filter(([id]) => {
         const holders = members.filter((m) => sourceIds.get(m)?.has(id));
         if (holders.length < 2) return true;
+        // Under last-wins the app reads the later file's (#953): that one
+        // is written, and an earlier one only where it held the same
+        // text, so a file that disagrees keeps what the app never shows
+        // and a pull of what was pushed leaves every byte.
+        if (lastWins(source)) {
+          // An empty value is a key the file lacks, as build seeds it.
+          const inTarget = holders.filter(
+            (m) => (textIn(m, language, id)?.trim() ?? "") !== "",
+          );
+          const winner = inTarget.at(-1);
+          if (!winner) return holders.at(-1) === source;
+          return (
+            source === winner ||
+            (inTarget.includes(source) &&
+              textIn(source, language, id) === textIn(winner, language, id))
+          );
+        }
         if (idsInTarget(source, language).has(id)) return true;
         return (
           holders[0] === source &&
@@ -145,16 +167,38 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
 
   // Read before anything is written: what the files held when the pull
   // began decides where a shared string goes.
+  // A target's plural object without `other` is read as build reads it
+  // (#950), or the file that holds it would seem not to.
   for (const members of groups.values())
-    for (const member of members)
+    for (const member of members) {
+      const pluralIds = await sourcePluralIds(
+        jiti,
+        ctx.cwd,
+        member,
+        config.sourceLanguage,
+      ).catch(() => undefined);
       for (const language of targets) {
         const file = fileOf(member, language, config.sourceLanguage);
         if (targetIds.has(file)) continue;
         targetIds.set(
           file,
-          (await ownIds(jiti, ctx.cwd, file, member)) ?? new Set<string>(),
+          (await ownIds(jiti, ctx.cwd, file, member, pluralIds)) ??
+            new Set<string>(),
         );
+        if (lastWins(member))
+          targetTexts.set(
+            file,
+            (await ownTexts(
+              jiti,
+              ctx.cwd,
+              file,
+              member,
+              language,
+              pluralIds,
+            )) ?? new Map<string, string>(),
+          );
       }
+    }
 
   const changed: string[] = [];
   const pending = new Map<string, string>();
@@ -619,11 +663,47 @@ async function ownIds(
   cwd: string,
   file: string,
   source: FileSource,
+  pluralIds?: ReadonlySet<string>,
 ): Promise<Set<string> | undefined> {
   if (source.adapter === "table" || !sourceWritesBack(source)) return undefined;
   try {
-    const entries = await readEntries(jiti, cwd, file, source, true);
+    const entries = await readEntries(
+      jiti,
+      cwd,
+      file,
+      source,
+      true,
+      undefined,
+      undefined,
+      pluralIds,
+    );
     return new Set(entries.map((e) => e.id));
+  } catch {
+    return undefined;
+  }
+}
+
+// A target file's translations by id, where last-wins compares them.
+async function ownTexts(
+  jiti: ReturnType<typeof createJiti>,
+  cwd: string,
+  file: string,
+  source: FileSource,
+  language: string,
+  pluralIds?: ReadonlySet<string>,
+): Promise<Map<string, string> | undefined> {
+  try {
+    const entries = await readEntries(
+      jiti,
+      cwd,
+      file,
+      source,
+      false,
+      language,
+      undefined,
+      pluralIds,
+    );
+    return new Map(entries.map((e) => [e.id, e.source]));
   } catch {
     return undefined;
   }

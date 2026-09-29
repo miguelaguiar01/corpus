@@ -484,3 +484,41 @@ test("a library field the build does not read is refused by name (#860)", () => 
     }),
   ).toContain("syntax is the old name for library");
 });
+
+test("merge takes a list of patterns, strict or last-wins (#953)", () => {
+  const base = {
+    project: "p",
+    server: "https://c.example",
+    sourceLanguage: "en",
+    languages: ["en", "pt"],
+  };
+  const parse = (source: object) =>
+    corpusConfigSchema.safeParse({ ...base, sources: [source] });
+  const list = ["a/{lang}.json", "b/{lang}.json"];
+  expect(
+    parse({ adapter: "messages", type: "ui", path: list, merge: "last-wins" })
+      .success,
+  ).toBe(true);
+  expect(
+    parse({ adapter: "messages", type: "ui", path: list, merge: "first" })
+      .success,
+  ).toBe(false);
+  const single = parse({
+    adapter: "messages",
+    type: "ui",
+    path: "a/{lang}.json",
+    merge: "last-wins",
+  });
+  expect(single.success).toBe(false);
+  expect(JSON.stringify(single.error?.issues)).toMatch(
+    /merge applies to a source whose path is a list of patterns/,
+  );
+  expect(
+    parse({
+      adapter: "yaml",
+      type: "ui",
+      path: "c/{lang}.yml",
+      merge: "last-wins",
+    }).success,
+  ).toBe(false);
+});

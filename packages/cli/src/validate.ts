@@ -25,6 +25,7 @@ import {
   hasLanguages,
   nestedCountMessage,
   gettextPluralForms,
+  lastWins,
   sourcePluralIds,
   readEntries,
   sourceWritesBack,
@@ -43,7 +44,7 @@ export type Finding = {
   // the source language. A file source's path names it, an exec
   // source's command does not (#592).
   language: string;
-  code: ValidationError["code"] | "orphan" | "unread-plural";
+  code: ValidationError["code"] | "orphan" | "unread-plural" | "shared-differs";
   // A plural missing a category the runtime picks, or with one it never
   // selects, is incomplete, not invalid (#556, #651): printed apart, and
   // never the reason for exit 1. A source's warning (#767) is the same.
@@ -154,6 +155,9 @@ export async function validateRepo(
   const findings: Finding[] = [];
   const unvalidated: string[] = [];
   const targets = config.languages.filter((l) => l !== config.sourceLanguage);
+  // Under last-wins, the translations each group's earlier files hold,
+  // by language (#953).
+  const shared = new Map<string, Map<string, { file: string; text: string }>>();
   for (const source of config.sources) {
     if (source.adapter === "exec") {
       const exec = validateExec(
@@ -234,6 +238,28 @@ export async function validateRepo(
         pluralIds,
       );
       if (translations === undefined) continue;
+      const group = "group" in source ? source.group : undefined;
+      if (lastWins(source) && typeof group === "number") {
+        const earlier =
+          shared.get(`${group} ${language}`) ??
+          new Map<string, { file: string; text: string }>();
+        for (const [key, { source: text }] of translations) {
+          // An empty value is a key the file lacks, never a finding.
+          if (text.trim() === "") continue;
+          const held = earlier.get(key);
+          if (held !== undefined && held.text !== text)
+            findings.push({
+              file,
+              key,
+              language,
+              code: "shared-differs",
+              severity: "warning",
+              message: `reads otherwise in ${held.file}, which the app never shows: this later file's is its translation, as merge: "last-wins" says`,
+            });
+          earlier.set(key, { file, text });
+        }
+        shared.set(`${group} ${language}`, earlier);
+      }
       for (const [key, { source: target }] of translations) {
         // An empty value is a key the target lacks: what an extraction
         // tool leaves for an untranslated row, and what push seeds as

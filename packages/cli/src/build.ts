@@ -298,14 +298,13 @@ export async function buildSnapshotReport(
   // components' catalogues at runtime. Anywhere else a duplicate is an
   // error.
   const groupOf = new Map<string, number>();
+  const laterWins = new Set<string>();
   for (const source of config.sources) {
     if (source.adapter === "exec") continue;
     const group = "group" in source ? source.group : undefined;
-    if (typeof group === "number")
-      groupOf.set(
-        fileOf(source, config.sourceLanguage, config.sourceLanguage),
-        group,
-      );
+    const file = fileOf(source, config.sourceLanguage, config.sourceLanguage);
+    if (typeof group === "number") groupOf.set(file, group);
+    if (lastWins(source)) laterWins.add(file);
   }
   const byId = new Map<string, Sourced>();
   const merged = new Set<Sourced>();
@@ -325,6 +324,12 @@ export async function buildSnapshotReport(
         merged.add(prev);
         byId.set(entry.id, item);
       } else merged.add(item);
+    } else if (oneSource && laterWins.has(file)) {
+      merged.add(prev);
+      byId.set(entry.id, item);
+      notes.push(
+        `${printable(entry.id)} reads otherwise in ${prev.file} and ${file}: the later file's is the source, as merge: "last-wins" says`,
+      );
     } else
       errors.push(
         `duplicate id ${printable(entry.id)} in ${prev.file} and ${file}${oneSource ? ", with different text" : ""}`,
@@ -434,6 +439,12 @@ export async function buildSnapshotReport(
     refused,
     notes: [...richTextAdvice(refused), ...notes],
   };
+}
+
+// Whether the patterns of a source take the later one's text for an id
+// two of them hold, as an app that merges them in order does (#953).
+export function lastWins(source: Source): boolean {
+  return "merge" in source && source.merge === "last-wins";
 }
 
 // A type as a config object's key: bare where it can be.
@@ -1143,6 +1154,7 @@ async function readSeeds(
   for (const source of config.sources) {
     if (source.adapter === "exec" || !hasLanguages(source)) continue;
     if (!sourceWritesBack(source)) continue;
+    let overridden = 0;
     // A source file that will not read is named once, where it is read.
     const pluralIds = await sourcePluralIds(
       jiti,
@@ -1174,7 +1186,11 @@ async function readSeeds(
           const seeded = (seeds[lang] ??= {})[entry.id];
           const from = (seededFrom[lang] ??= {})[entry.id];
           if (seeded !== undefined && from !== undefined) {
-            if (seeded !== entry.source)
+            if (seeded !== entry.source && lastWins(source)) {
+              overridden += 1;
+              seeds[lang][entry.id] = entry.source;
+              seededFrom[lang][entry.id] = file;
+            } else if (seeded !== entry.source)
               errors.push(
                 `${file}: ${printable(entry.id)} is translated otherwise in ${from}; a string the files share takes one translation, so write the same in both`,
               );
@@ -1192,6 +1208,10 @@ async function readSeeds(
         errors.push(`${file}: ${message}`);
       }
     }
+    if (overridden > 0)
+      notes.push(
+        `${source.path}: ${overridden} translation(s) differ from an earlier pattern's of the source; this later one's is seeded, as merge: "last-wins" says, and validate names each`,
+      );
   }
   return seeds;
 }
