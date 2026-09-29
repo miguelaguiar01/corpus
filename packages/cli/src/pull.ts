@@ -120,14 +120,13 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
 
   // A string two files of one source share is written into each target
   // file that holds it, and into the first file's when none does, so a
-  // push and a pull leave the files as they were (#661).
-  const targetIds = new Map<string, Set<string>>();
+  // push and a pull leave the files as they were (#661). An empty value
+  // is a key the file lacks, as build seeds it (#970).
   const targetTexts = new Map<string, Map<string, string>>();
   const textIn = (member: FileSource, language: string, id: string) =>
     targetTexts.get(fileOf(member, language, config.sourceLanguage))?.get(id);
-  const idsInTarget = (member: FileSource, language: string) =>
-    targetIds.get(fileOf(member, language, config.sourceLanguage)) ??
-    new Set<string>();
+  const holds = (member: FileSource, language: string, id: string) =>
+    (textIn(member, language, id)?.trim() ?? "") !== "";
   const sharedFor = (
     translations: Record<string, string>,
     source: FileSource,
@@ -144,10 +143,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
         // text, so a file that disagrees keeps what the app never shows
         // and a pull of what was pushed leaves every byte.
         if (lastWins(source)) {
-          // An empty value is a key the file lacks, as build seeds it.
-          const inTarget = holders.filter(
-            (m) => (textIn(m, language, id)?.trim() ?? "") !== "",
-          );
+          const inTarget = holders.filter((m) => holds(m, language, id));
           const winner = inTarget.at(-1);
           if (!winner) return holders.at(-1) === source;
           return (
@@ -156,10 +152,9 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
               textIn(source, language, id) === textIn(winner, language, id))
           );
         }
-        if (idsInTarget(source, language).has(id)) return true;
+        if (holds(source, language, id)) return true;
         return (
-          holders[0] === source &&
-          !holders.some((m) => idsInTarget(m, language).has(id))
+          holders[0] === source && !holders.some((m) => holds(m, language, id))
         );
       }),
     );
@@ -179,24 +174,12 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
       ).catch(() => undefined);
       for (const language of targets) {
         const file = fileOf(member, language, config.sourceLanguage);
-        if (targetIds.has(file)) continue;
-        targetIds.set(
+        if (targetTexts.has(file)) continue;
+        targetTexts.set(
           file,
-          (await ownIds(jiti, ctx.cwd, file, member, pluralIds)) ??
-            new Set<string>(),
+          (await ownTexts(jiti, ctx.cwd, file, member, language, pluralIds)) ??
+            new Map<string, string>(),
         );
-        if (lastWins(member))
-          targetTexts.set(
-            file,
-            (await ownTexts(
-              jiti,
-              ctx.cwd,
-              file,
-              member,
-              language,
-              pluralIds,
-            )) ?? new Map<string, string>(),
-          );
       }
     }
 
@@ -663,27 +646,18 @@ async function ownIds(
   cwd: string,
   file: string,
   source: FileSource,
-  pluralIds?: ReadonlySet<string>,
 ): Promise<Set<string> | undefined> {
   if (source.adapter === "table" || !sourceWritesBack(source)) return undefined;
   try {
-    const entries = await readEntries(
-      jiti,
-      cwd,
-      file,
-      source,
-      true,
-      undefined,
-      undefined,
-      pluralIds,
-    );
+    const entries = await readEntries(jiti, cwd, file, source, true);
     return new Set(entries.map((e) => e.id));
   } catch {
     return undefined;
   }
 }
 
-// A target file's translations by id, where last-wins compares them.
+// A target file's translations by id: which files of a source hold a
+// string they share, and, under last-wins, whether they agree.
 async function ownTexts(
   jiti: ReturnType<typeof createJiti>,
   cwd: string,
@@ -692,6 +666,7 @@ async function ownTexts(
   language: string,
   pluralIds?: ReadonlySet<string>,
 ): Promise<Map<string, string> | undefined> {
+  if (source.adapter === "table" || !sourceWritesBack(source)) return undefined;
   try {
     const entries = await readEntries(
       jiti,

@@ -1326,3 +1326,47 @@ export default defineCorpus({
     other: "%(count)s itens",
   });
 });
+
+test("a shared string's empty value in one target file is a key it lacks: a pull of what was pushed changes nothing (#970)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "pt"],
+  sources: [
+    { adapter: "messages", type: "chrome", path: ["i18n/{lang}.json", "shared/{lang}.json"] },
+  ],
+});
+`,
+  );
+  mkdirSync(path.join(repo, "shared"));
+  writeFileSync(
+    path.join(repo, "shared", "en.json"),
+    `{\n  "greeting": "Hello {name}"\n}\n`,
+  );
+  const files = {
+    "i18n/pt.json": `{\n  "greeting": ""\n}\n`,
+    "shared/pt.json": `{\n  "greeting": "Olá {name}"\n}\n`,
+  };
+  for (const [file, text] of Object.entries(files))
+    writeFileSync(path.join(repo, file), text);
+  const { buildSnapshot } = await import("./build");
+  const { loadConfig } = await import("./config");
+  const snapshot = await buildSnapshot(await loadConfig(repo), repo);
+  expect(snapshot.seedTranslations?.pt).toEqual({ greeting: "Olá {name}" });
+  await serve(200, {
+    ...PAYLOAD,
+    types: { "app.title": "chrome", greeting: "chrome" },
+    translations: {
+      en: { "app.title": "Corpus", greeting: "Hello {name}" },
+      ...snapshot.seedTranslations,
+    },
+  });
+  expect(await run(["pull", "--check"], ctx())).toBe(0);
+  expect(await run(["pull"], ctx())).toBe(0);
+  for (const [file, text] of Object.entries(files))
+    expect(read(file), file).toBe(text);
+});
