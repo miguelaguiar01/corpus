@@ -13,6 +13,7 @@ export {
   placeholderFormatText,
   PLURAL_CATEGORIES,
   pluralCategoriesOf,
+  pluralCategoriesFor,
   readIcu,
   refusalAdvice,
   refusalCause,

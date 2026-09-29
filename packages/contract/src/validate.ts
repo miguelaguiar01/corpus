@@ -19,6 +19,7 @@ import {
   readIcu,
   printfPluralError,
   WHOLE_PLURAL_LIBRARIES,
+  pluralCategoriesFor,
   pluralCategoriesOf,
   pluralCategoryCovered,
   printfVerbOf,
@@ -375,7 +376,15 @@ export function validateTranslation(
     }
   }
   errors.push(
-    ...pluralErrors(actual, expectedValues, passed, categories, language),
+    ...pluralErrors(
+      actual,
+      expectedValues,
+      passed,
+      language === undefined
+        ? { required: [], allowed: [] }
+        : pluralCategoriesFor(language, syntax),
+      language,
+    ),
   );
   errors.push(...nestingErrors(sourceNodes, targetNodes));
   // The source's own text keeps the source's warning, not an error: a
@@ -494,7 +503,7 @@ function pluralErrors(
   actual: Shape,
   expectedValues: Set<string>,
   passed: Map<string, string>,
-  categories: string[],
+  categories: { required: string[]; allowed: string[] },
   language: string | undefined,
 ): ValidationError[] {
   const out: ValidationError[] = [];
@@ -503,14 +512,14 @@ function pluralErrors(
       out.push({ code: "unknown-plural", arg });
       continue;
     }
-    if (categories.length === 0) continue;
+    if (categories.required.length === 0) continue;
     // `=01` is not `=1` to the runtimes, which match the key as written.
     const exact = new Set(
       [...keys]
         .filter((k) => /^=(0|[1-9]\d*)$/.test(k))
         .map((k) => Number(k.slice(1))),
     );
-    for (const key of categories) {
+    for (const key of categories.required) {
       if (
         !keys.has(key) &&
         !(language && pluralCategoryCovered(language, key, exact))
@@ -518,7 +527,7 @@ function pluralErrors(
         out.push({ code: "missing-category", arg, key });
     }
     for (const key of keys) {
-      if (!key.startsWith("=") && !categories.includes(key))
+      if (!key.startsWith("=") && !categories.allowed.includes(key))
         out.push({ code: "unexpected-category", arg, key });
     }
   }

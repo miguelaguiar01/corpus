@@ -395,7 +395,9 @@ test("a plural draft previews each example through its count's branch, and a mis
   cleanup();
   pluralPane("ru", "{n, plural, one {# метка} other {# меток}}");
   expect(
-    screen.getByText("Plural n is missing the few branch this language uses"),
+    screen.getByText(
+      "Plural n is missing the few branch the runtime picks in this language",
+    ),
   ).toBeTruthy();
   // Incomplete, not invalid: the warning shows and the draft saves.
   expect(

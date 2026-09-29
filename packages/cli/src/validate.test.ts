@@ -146,7 +146,7 @@ test("an exec source's translations are validated from its exporter, the command
     "exec:node scripts/export.mjs [exec.bye] pt: missing {who}",
   );
   expect(err).toContain(
-    "exec:node scripts/export.mjs [exec.marks] pt: plural on {n} lacks the many branch its language uses",
+    "exec:node scripts/export.mjs [exec.marks] pt: plural on {n} lacks the many branch the runtime picks in its language",
   );
   expect(err).not.toContain("[exec.bye] fr");
   expect(err).not.toMatch(/is not validated/);
@@ -412,10 +412,10 @@ test("a plural missing a category its language uses is incomplete: printed apart
   expect(await run(["validate"], c)).toBe(0);
   const err = c.stderr.join("\n");
   expect(err).toContain(
-    "i18n/pt.json:marks: plural on {n} lacks the many branch its language uses",
+    "i18n/pt.json:marks: plural on {n} lacks the many branch the runtime picks in its language",
   );
   expect(err).toMatch(
-    /corpus: 1 incomplete plural\(s\), a category the language uses/,
+    /corpus: 1 incomplete plural\(s\), a category the runtime picks/,
   );
   expect(err).not.toMatch(/invalid translation/);
   expect(c.stdout.join("\n")).toBe(

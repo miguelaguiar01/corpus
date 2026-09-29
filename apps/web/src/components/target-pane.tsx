@@ -5,7 +5,7 @@ import {
   branchingNodes,
   exampleValues,
   readIcu,
-  pluralCategoriesOf,
+  pluralCategoriesFor,
   renderPreviewSegments,
   hasVoidTags,
   isVoidTag,
@@ -71,7 +71,10 @@ function branchingOf(
     const entry = byId.get(idOf(node)) ?? {
       kind: node.kind,
       arg: node.arg,
-      keys: node.kind === "plural" ? pluralCategoriesOf(language) : [],
+      keys:
+        node.kind === "plural"
+          ? pluralCategoriesFor(language, syntax).required
+          : [],
       inner: new Map<string, string[]>(),
     };
     for (const [key, branch] of Object.entries(node.branches)) {
