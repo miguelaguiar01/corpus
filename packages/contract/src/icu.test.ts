@@ -2,6 +2,8 @@ import { expect, test } from "vitest";
 import { validateTranslation } from "./validate";
 import {
   branchingNodes,
+  formsOf,
+  partsOf,
   parseIcu,
   placeholdersOf,
   pluralArgsOf,
@@ -741,6 +743,37 @@ test("hostile input is read in bounded time and fails cleanly, never with a thro
   ).toBe(true);
   // The refusal's advice regex, once backtracking on long runs of spaces.
   within(500, () => parseIcu(`{{a b}} {x${" ".repeat(32000)}`, "vue"));
+});
+
+test("counterpart's tags and vue's unclosed braces are read in linear time (#896)", () => {
+  const within = (ms: number, f: () => unknown) => {
+    const start = performance.now();
+    f();
+    expect(performance.now() - start).toBeLessThan(ms);
+  };
+  for (const [text, library] of [
+    ["<b>".repeat(30000), "counterpart"],
+    ["<b>x".repeat(20000), "counterpart"],
+    ["{".repeat(30000), "vue"],
+    ["{{".repeat(20000), "vue"],
+    ["{'".repeat(20000), "vue"],
+    ["|{".repeat(20000), "vue"],
+  ] as const) {
+    within(200, () => parseIcu(text, library));
+    within(200, () => partsOf(text, library));
+  }
+  // What each reads is unchanged: a bare tag with no close, a pair, and
+  // a pipe kept by a quoted brace or split by a bare one.
+  expect(parseIcu("<pill> and <b>x</b>", "counterpart")).toMatchObject({
+    ok: true,
+    nodes: [
+      { kind: "tag", name: "pill", children: [] },
+      { kind: "literal", text: " and " },
+      { kind: "tag", name: "b", children: [{ kind: "literal", text: "x" }] },
+    ],
+  });
+  expect(formsOf("a {'|'} b | c", "vue")).toBe(2);
+  expect(formsOf("a {'}'} | b {x} | c", "vue")).toBe(3);
 });
 
 test("the text after a whole plural is placed after the plural as the parser reads it (#861)", () => {
