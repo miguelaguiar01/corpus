@@ -56,8 +56,12 @@ export type Finding = {
 // A file source's line names the language in its path; an exec source's
 // names it after the key, since the command stands for every language,
 // and so does a String Catalog's, one file holding them all (#727).
+function oneForAll(f: Finding): boolean {
+  return f.file.startsWith("exec:") || /\.xcstrings$/i.test(f.file);
+}
+
 function line(f: Finding): string {
-  return f.file.startsWith("exec:") || /\.xcstrings$/i.test(f.file)
+  return oneForAll(f)
     ? `${f.file} [${printable(f.key)}] ${f.language}: ${f.message}`
     : `${f.file}:${printable(f.key)}: ${f.message}`;
 }
@@ -120,8 +124,7 @@ export async function validate(
 // An orphan is named where it is, the target file that keeps it (#662),
 // with the source that no longer has it.
 function orphanLine(f: Finding): string {
-  if (f.file.startsWith("exec:") || /\.xcstrings$/i.test(f.file))
-    return line(f);
+  if (oneForAll(f)) return line(f);
   return `${f.file}:${printable(f.key)}: ${f.message} (${f.sourceFile})`;
 }
 
@@ -185,16 +188,14 @@ export async function validateRepo(
     if (sources === undefined) {
       throw new CliError(`source file ${sourceFile} does not exist`);
     }
-    for (const [key, entry] of sources)
-      for (const arg of nestedCountsOf(entry.source, entry.library ?? library))
-        findings.push({
-          file: sourceFile,
-          key,
-          language: config.sourceLanguage,
-          code: "nested-count",
-          severity: "warning",
-          message: nestedCountMessage(arg),
-        });
+    findings.push(
+      ...nestedCounts(
+        sourceFile,
+        config.sourceLanguage,
+        sources,
+        (entry) => entry.library ?? library,
+      ),
+    );
     // A source that does not parse is the source file's finding, once.
     const brokenSources = new Set<string>();
     for (const language of targets) {
@@ -237,41 +238,18 @@ export async function validateRepo(
           });
           continue;
         }
-        const result = validateTranslation(
-          entry.source,
-          target,
-          language,
-          entry.library ?? library,
-          {
-            richText: config.richText?.[source.type],
-            ...(entry.arguments && { arguments: entry.arguments }),
-          },
-        );
-        for (const error of result.incomplete ?? []) {
-          findings.push({
+        findings.push(
+          ...checkTranslation(entry, target, {
             file,
+            sourceFile,
             key,
             language,
-            code: error.code,
-            severity: "incomplete",
-            message: describe(error, entry.library ?? library),
-          });
-        }
-        if (result.ok) continue;
-        for (const error of result.errors) {
-          const inSource =
-            error.code === "invalid-icu" && error.where === "source";
-          if (inSource && brokenSources.has(key)) continue;
-          if (inSource) brokenSources.add(key);
-          findings.push({
-            file: inSource ? sourceFile : file,
-            key,
-            language: inSource ? config.sourceLanguage : language,
-            code: error.code,
-            severity: "invalid",
-            message: describe(error, entry.library ?? library),
-          });
-        }
+            sourceLanguage: config.sourceLanguage,
+            library: entry.library ?? library,
+            richText: config.richText?.[source.type],
+            brokenSources,
+          }),
+        );
       }
     }
   }
@@ -386,16 +364,7 @@ function validateExec(
   }
   const findings: Finding[] = [];
   const file = `exec:${command}`;
-  for (const [key, entry] of sources)
-    for (const arg of nestedCountsOf(entry.source, libraryOf(entry)))
-      findings.push({
-        file,
-        key,
-        language: sourceLanguage,
-        code: "nested-count",
-        severity: "warning",
-        message: nestedCountMessage(arg),
-      });
+  findings.push(...nestedCounts(file, sourceLanguage, sources, libraryOf));
   const brokenSources = new Set<string>();
   for (const [language, texts] of Object.entries(parsed.data)) {
     if (!targets.includes(language)) continue;
@@ -414,43 +383,85 @@ function validateExec(
         });
         continue;
       }
-      const library = libraryOf(entry);
-      const result = validateTranslation(
-        entry.source,
-        target,
-        language,
-        library,
-        {
-          richText: richText[entry.type],
-          ...(entry.arguments && { arguments: entry.arguments }),
-        },
-      );
-      for (const error of result.incomplete ?? []) {
-        findings.push({
+      findings.push(
+        ...checkTranslation(entry, target, {
           file,
+          sourceFile: file,
           key,
           language,
-          code: error.code,
-          severity: "incomplete",
-          message: describe(error, library),
-        });
-      }
-      if (result.ok) continue;
-      for (const error of result.errors) {
-        const inSource =
-          error.code === "invalid-icu" && error.where === "source";
-        if (inSource && brokenSources.has(key)) continue;
-        if (inSource) brokenSources.add(key);
-        findings.push({
-          file,
-          key,
-          language: inSource ? sourceLanguage : language,
-          code: error.code,
-          severity: "invalid",
-          message: describe(error, library),
-        });
-      }
+          sourceLanguage,
+          library: libraryOf(entry),
+          richText: richText[entry.type],
+          brokenSources,
+        }),
+      );
     }
   }
   return { findings, validated: true };
+}
+
+// A source's nested counts, a warning on each string where it is.
+function nestedCounts(
+  file: string,
+  language: string,
+  sources: Map<string, StringEntry>,
+  libraryFor: (entry: StringEntry) => Library,
+): Finding[] {
+  return [...sources].flatMap(([key, entry]) =>
+    nestedCountsOf(entry.source, libraryFor(entry)).map((arg) => ({
+      file,
+      key,
+      language,
+      code: "nested-count",
+      severity: "warning" as const,
+      message: nestedCountMessage(arg),
+    })),
+  );
+}
+
+// One translation against its source string: its incomplete plurals,
+// then its errors, a source that does not parse named once per key, on
+// the source's file in the source language.
+function checkTranslation(
+  entry: StringEntry,
+  target: string,
+  at: {
+    file: string;
+    sourceFile: string;
+    key: string;
+    language: string;
+    sourceLanguage: string;
+    library: Library;
+    richText: RichText | undefined;
+    brokenSources: Set<string>;
+  },
+): Finding[] {
+  const { file, key, language, library } = at;
+  const result = validateTranslation(entry.source, target, language, library, {
+    richText: at.richText,
+    ...(entry.arguments && { arguments: entry.arguments }),
+  });
+  const findings: Finding[] = (result.incomplete ?? []).map((error) => ({
+    file,
+    key,
+    language,
+    code: error.code,
+    severity: "incomplete",
+    message: describe(error, library),
+  }));
+  if (result.ok) return findings;
+  for (const error of result.errors) {
+    const inSource = error.code === "invalid-icu" && error.where === "source";
+    if (inSource && at.brokenSources.has(key)) continue;
+    if (inSource) at.brokenSources.add(key);
+    findings.push({
+      file: inSource ? at.sourceFile : file,
+      key,
+      language: inSource ? at.sourceLanguage : language,
+      code: error.code,
+      severity: "invalid",
+      message: describe(error, library),
+    });
+  }
+  return findings;
 }
