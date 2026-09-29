@@ -148,15 +148,51 @@ export const entityId = () =>
       "letters, digits, dot, underscore, hyphen and colon only",
     );
 
+// A record keyed by data, a placeholder's name (#878): zod builds a
+// record by assignment and so drops a `__proto__` key, which is a name
+// like any other. The record's own checks stand; a record that has one
+// is rebuilt as a null-prototype object holding every own key, in the
+// input's order.
+function dataRecord<V extends z.ZodType>(value: V) {
+  const record = z.record(z.string(), value);
+  return z.unknown().transform((input, ctx) => {
+    const parsed = record.safeParse(input);
+    if (!parsed.success) {
+      for (const issue of parsed.error.issues) ctx.addIssue(issue as never);
+      return z.NEVER;
+    }
+    const read = input as Record<string, unknown>;
+    if (!Object.hasOwn(read, "__proto__")) return parsed.data;
+    const out = Object.create(null) as Record<string, z.output<V>>;
+    for (const key of Object.keys(read)) {
+      if (key !== "__proto__") {
+        out[key] = parsed.data[key]!;
+        continue;
+      }
+      const proto = value.safeParse(read[key]);
+      if (!proto.success) {
+        for (const issue of proto.error.issues)
+          ctx.addIssue({ ...issue, path: [key, ...issue.path] } as never);
+        return z.NEVER;
+      }
+      Object.defineProperty(out, key, {
+        value: proto.data,
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
+    }
+    return out;
+  });
+}
+
 // Slot values in the source language, plus, per target language, the
 // same slots resolved for that language by the client (§7); Corpus
 // derives nothing.
 export const exampleSchema = z.looseObject({
-  values: z.record(z.string(), z.string()),
+  values: dataRecord(z.string()),
   rendered: z.string(),
-  valuesByLanguage: z
-    .record(languageCode(), z.record(z.string(), z.string()))
-    .optional(),
+  valuesByLanguage: z.record(languageCode(), dataRecord(z.string())).optional(),
 });
 
 export const stringEntrySchema = z.looseObject({

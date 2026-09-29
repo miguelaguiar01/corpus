@@ -251,3 +251,19 @@ test("a plural string reads back into its forms; any other text is not one (#662
   expect(pluralBranches("{n, plural, one {a} other {b}}")).toBeUndefined();
   expect(pluralBranches("Rooms")).toBeUndefined();
 });
+
+test("a Chrome placeholder named like an Object.prototype member is a name like any (#878)", () => {
+  const catalogue = JSON.parse(`{
+    "greet": {
+      "message": "$__PROTO__$ met $CONSTRUCTOR$",
+      "placeholders": { "__proto__": { "content": "$1", "example": "Ana" }, "constructor": { "content": "$2" } }
+    }
+  }`);
+  const [entry] = messagesToEntries(catalogue, { type: "ui", chrome: true });
+  const example = entry!.examples![0]!;
+  expect(Object.hasOwn(example.values, "__proto__")).toBe(true);
+  expect(example.values["__proto__"]).toBe("Ana");
+  // A placeholder with no example stays as written, never a prototype's
+  // member rendered.
+  expect(example.rendered).toBe("Ana met $CONSTRUCTOR$");
+});

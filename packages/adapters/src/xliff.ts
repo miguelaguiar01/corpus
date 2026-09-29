@@ -224,7 +224,7 @@ function unit(
   note: string | undefined,
 ): XliffUnit {
   const text = target === undefined ? undefined : inlineText(target);
-  const shown: Record<string, string> = {};
+  const shown = Object.create(null) as Record<string, string>;
   const read = inlineText(source, undefined, shown);
   return {
     id,

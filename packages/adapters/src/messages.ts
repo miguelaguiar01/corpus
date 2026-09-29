@@ -238,7 +238,8 @@ function chromeEntries(data: unknown, type: string): StringEntry[] {
 }
 
 function chromeExamples(placeholders: unknown): Record<string, string> {
-  const values: Record<string, string> = {};
+  // A placeholder's name is data: `__proto__` a name like any (#878).
+  const values = Object.create(null) as Record<string, string>;
   if (placeholders === null || typeof placeholders !== "object") return values;
   for (const [name, spec] of Object.entries(placeholders)) {
     const example = (spec as { example?: unknown } | null)?.example;
