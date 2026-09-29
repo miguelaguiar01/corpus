@@ -114,6 +114,7 @@
   "password.introReset": "A maintainer reset your password. The temporary one you signed in with stops working once you save your own.",
   "password.newLabel": "New password",
   "password.submit": "Save password",
+  "progress.invalid": "{count} invalid",
   "progress.languageColumn": "Language",
   "progress.legend": "Legend",
   "progress.progressColumn": "Progress",

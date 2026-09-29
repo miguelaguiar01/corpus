@@ -176,3 +176,59 @@ test("under the table threshold the blocks keep the order the counts came in", (
     screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent),
   ).toEqual(["fr", "en", "pt-PT"]);
 });
+
+test("a language's invalid rows are counted beside its states, in blocks and in the table, and nowhere when there are none (#911)", async () => {
+  const user = userEvent.setup();
+  const withInvalid = (p: ReturnType<typeof counts>, invalid: number) => ({
+    ...p,
+    invalid,
+  });
+  render(
+    <ProgressByType
+      progress={{
+        perLanguage: {
+          "pt-PT": counts(1, 2, 3),
+          en: withInvalid(counts(0, 2, 3), 2),
+        },
+        perType: {
+          "clue-skin": {
+            "pt-PT": counts(1, 1, 2),
+            en: withInvalid(counts(0, 1, 2), 1),
+          },
+          chrome: {
+            "pt-PT": counts(0, 1, 1),
+            en: withInvalid(counts(0, 1, 1), 1),
+          },
+        },
+      }}
+      sourceLanguage="pt-PT"
+    />,
+  );
+  // The language's count and each type's.
+  expect(screen.getByText("2 invalid")).toBeTruthy();
+  expect(screen.getAllByText("1 invalid")).toHaveLength(2);
+  expect(screen.queryByText("0 invalid")).toBeNull();
+  cleanup();
+
+  const languages = ["a", "b", "c", "d", "e", "f", "g", "h", "i"];
+  const perLanguage = Object.fromEntries(
+    languages.map((l) => [
+      l,
+      l === "c" ? withInvalid(counts(1, 1, 4), 3) : counts(1, 1, 4),
+    ]),
+  );
+  render(
+    <ProgressByType
+      progress={{
+        perLanguage,
+        perType: { chrome: perLanguage, ui: perLanguage },
+      }}
+      sourceLanguage="pt-PT"
+    />,
+  );
+  // Beside the counts, and under the bar where the counts column is hidden.
+  expect(screen.getAllByText("3 invalid")).toHaveLength(2);
+  const toggles = screen.getAllByRole("button", { expanded: false });
+  await user.click(toggles.find((t) => t.textContent?.includes("c"))!);
+  expect(screen.getAllByText("3 invalid")).toHaveLength(4);
+});

@@ -1,4 +1,5 @@
 import type { LanguageProgress } from "@/catalogue/progress";
+import { t } from "@/i18n";
 
 // One bar for both progress views: verified in the state colour,
 // translated in the achromatic tone, the remainder the track. The
@@ -37,5 +38,23 @@ export function ProgressBar({
         style={{ width: `${pct(p.translated)}%` }}
       />
     </div>
+  );
+}
+
+// The translated rows that fail validation (#646), beside the counts
+// where there are any (§9.1, #911): part of translated, so a number and
+// not a share of the bar.
+export function InvalidCount({
+  n,
+  className = "",
+}: {
+  n: number;
+  className?: string;
+}) {
+  if (n === 0) return null;
+  return (
+    <span className={`text-xs text-destructive ${className}`}>
+      {t("progress.invalid", { count: n })}
+    </span>
   );
 }

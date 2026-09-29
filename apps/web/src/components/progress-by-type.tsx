@@ -1,6 +1,6 @@
 import type { Progress } from "@/catalogue/progress";
 import { t } from "@/i18n";
-import { ProgressBar } from "./progress-bar";
+import { InvalidCount, ProgressBar } from "./progress-bar";
 import { ProgressLegend } from "./progress-legend";
 import { ProgressRow } from "./progress-row";
 
@@ -73,12 +73,15 @@ export function ProgressByType({
           <section key={language} className="space-y-2">
             <div className="flex items-baseline justify-between">
               <h3 className="text-base font-medium">{language}</h3>
-              <span className="text-xs text-muted-foreground">
-                {t("progress.summary", {
-                  verified: p.verified,
-                  translated: p.translated,
-                  total: p.total,
-                })}
+              <span className="flex gap-2">
+                <InvalidCount n={p.invalid} />
+                <span className="text-xs text-muted-foreground">
+                  {t("progress.summary", {
+                    verified: p.verified,
+                    translated: p.translated,
+                    total: p.total,
+                  })}
+                </span>
               </span>
             </div>
             {types.map((type) => {
@@ -89,6 +92,7 @@ export function ProgressByType({
                     {type}
                   </span>
                   <ProgressBar p={tp} label={type} className="h-1.5 flex-1" />
+                  <InvalidCount n={tp.invalid} className="shrink-0" />
                 </div>
               ) : null;
             })}

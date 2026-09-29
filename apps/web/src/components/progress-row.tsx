@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { LanguageProgress } from "@/catalogue/progress";
 import { t } from "@/i18n";
-import { ProgressBar } from "./progress-bar";
+import { InvalidCount, ProgressBar } from "./progress-bar";
 
 // A dashboard table row (§9.1): the language's bar, and, behind a
 // disclosure when the project has more than one string type, a bar per
@@ -48,8 +48,11 @@ export function ProgressRow({
         </th>
         <td className="py-1.5 pr-3">
           <ProgressBar p={p} label={language} className="h-1.5" />
+          {/* Where the counts column is hidden. */}
+          <InvalidCount n={p.invalid} className="sm:hidden" />
         </td>
-        <td className="hidden w-48 py-1.5 text-right text-xs text-muted-foreground sm:table-cell">
+        <td className="hidden w-56 py-1.5 text-right text-xs text-muted-foreground sm:table-cell">
+          <InvalidCount n={p.invalid} className="mr-2" />
           {summary}
         </td>
       </tr>
@@ -62,8 +65,9 @@ export function ProgressRow({
                   <dt className="w-28 shrink-0 truncate text-muted-foreground">
                     {type}
                   </dt>
-                  <dd className="flex-1">
-                    <ProgressBar p={tp} label={type} className="h-1.5" />
+                  <dd className="flex flex-1 items-center gap-3">
+                    <ProgressBar p={tp} label={type} className="h-1.5 flex-1" />
+                    <InvalidCount n={tp.invalid} className="shrink-0" />
                   </dd>
                 </div>
               ))}
