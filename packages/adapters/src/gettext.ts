@@ -237,7 +237,7 @@ function poHeader(entries: PoEntry[]): Record<string, string> {
   return out;
 }
 
-export function poId(entry: Pick<PoEntry, "msgctxt" | "msgid">): string {
+function poId(entry: Pick<PoEntry, "msgctxt" | "msgid">): string {
   return entry.msgctxt === undefined
     ? entry.msgid
     : `${entry.msgctxt}${CONTEXT_SEPARATOR}${entry.msgid}`;

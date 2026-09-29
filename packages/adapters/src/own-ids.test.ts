@@ -6,7 +6,7 @@ import { entriesToQtTs } from "./qtts";
 import { entriesToMessages, entriesToTable } from "./write";
 import { entriesToXcstrings, serializeXcstrings } from "./xcstrings";
 import { entriesToXliff } from "./xliff";
-import { entriesToYaml } from "./yaml";
+import { applyYamlOps, entriesToYaml } from "./yaml";
 
 // An id named like an Object.prototype member is an id like any other: a
 // map without it has no translation for it, and one with it has (#845).
@@ -124,4 +124,23 @@ test("xcstrings writer", () => {
       version: "1.0",
     })}\n`;
   each((name, t) => entriesToXcstrings(catalog(name), t, "fr"));
+});
+
+test("yaml's source ops add and edit a prototype-named key as any key (#928)", () => {
+  for (const name of NAMES) {
+    const added = applyYamlOps(
+      "en:\n  a: A\n",
+      [{ kind: "add", id: name, text: "Fait" }],
+      "en",
+    );
+    expect(added).toContain("Fait");
+    expect(added).not.toContain("undefined");
+    const edited = applyYamlOps(
+      added,
+      [{ kind: "edit", id: name, text: "Refait" }],
+      "en",
+    );
+    expect(edited).toContain("Refait");
+    expect(edited).not.toContain("Fait\n");
+  }
 });

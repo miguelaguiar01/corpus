@@ -2,6 +2,7 @@
 // escapes undone on read and written back on change; a file is patched
 // element by element, so an unchanged pull writes the same bytes.
 import { PLURAL_CATEGORIES, type StringEntry } from "@corpus/contract";
+import { pluralFrom } from "./messages";
 import type { SourceOp } from "./write";
 
 type Span = { start: number; end: number };
@@ -191,11 +192,16 @@ function escape(text: string, cdata: boolean): string {
 const slice = (xml: string, span: Span) => xml.slice(span.start, span.end);
 const isCdata = (raw: string) => CDATA_RE.test(raw.trim());
 
-function pluralText(xml: string, element: Element): string {
-  const branches = items(xml, element).map(
-    (item) => `${item.quantity} {${decode(slice(xml, item.raw))}}`,
+// A `<plurals>` as one ICU plural on `quantity`, its items as the file
+// writes them.
+function pluralOf(xml: string, element: Element): string {
+  return pluralFrom(
+    "quantity",
+    items(xml, element).map((item) => [
+      item.quantity,
+      decode(slice(xml, item.raw)),
+    ]),
   );
-  return `{quantity, plural, ${branches.join(" ")}}`;
 }
 
 const PLURAL_HEAD_RE = /^\{\s*[A-Za-z_]\w*\s*,\s*plural\s*,/;
@@ -231,7 +237,7 @@ export function androidToEntries(
     type: options.type,
     source:
       element.kind === "plurals"
-        ? pluralText(xml, element)
+        ? pluralOf(xml, element)
         : element.inner
           ? decode(slice(xml, element.inner))
           : "",
@@ -311,7 +317,7 @@ function pluralPatches(
   text: string,
   { unit, eol }: Style,
 ): Patch[] {
-  if (pluralText(xml, element) === text) return [];
+  if (pluralOf(xml, element) === text) return [];
   const old = items(xml, element);
   const wanted = pluralBranches(text);
   const cdata = old.some((item) => isCdata(slice(xml, item.raw)));
