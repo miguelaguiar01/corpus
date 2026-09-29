@@ -204,10 +204,18 @@ test("a language's invalid rows are counted beside its states, in blocks and in 
       sourceLanguage="pt-PT"
     />,
   );
-  // The language's count and each type's.
-  expect(screen.getByText("2 invalid")).toBeTruthy();
+  // The language's count, read apart from the states, and each type's.
+  expect(screen.getByText("2 invalid").parentElement?.textContent).toBe(
+    "0 verified, 2 translated of 3 · 2 invalid",
+  );
   expect(screen.getAllByText("1 invalid")).toHaveLength(2);
   expect(screen.queryByText("0 invalid")).toBeNull();
+  // Every type's bar keeps a slot for the count, so the bars end
+  // together: pt-PT's two bars have empty ones.
+  const bars = screen.getAllByRole("meter");
+  expect(bars).toHaveLength(4);
+  for (const bar of bars)
+    expect(bar.nextElementSibling?.className).toContain("w-20");
   cleanup();
 
   const languages = ["a", "b", "c", "d", "e", "f", "g", "h", "i"];
@@ -228,6 +236,9 @@ test("a language's invalid rows are counted beside its states, in blocks and in 
   );
   // Beside the counts, and under the bar where the counts column is hidden.
   expect(screen.getAllByText("3 invalid")).toHaveLength(2);
+  expect(screen.getAllByText("3 invalid")[1]?.closest("td")?.textContent).toBe(
+    "1 verified, 1 translated of 4 · 3 invalid",
+  );
   const toggles = screen.getAllByRole("button", { expanded: false });
   await user.click(toggles.find((t) => t.textContent?.includes("c"))!);
   expect(screen.getAllByText("3 invalid")).toHaveLength(4);

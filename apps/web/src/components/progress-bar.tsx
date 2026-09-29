@@ -41,7 +41,7 @@ export function ProgressBar({
   );
 }
 
-// The translated rows that fail validation (#646), beside the counts
+// The translated rows that fail validation (#646), after the counts
 // where there are any (§9.1, #911): part of translated, so a number and
 // not a share of the bar.
 export function InvalidCount({
@@ -55,6 +55,37 @@ export function InvalidCount({
   return (
     <span className={`text-xs text-destructive ${className}`}>
       {t("progress.invalid", { count: n })}
+    </span>
+  );
+}
+
+// A language's counts, and its invalid rows after a real space, so a
+// screen reader and a copy read them apart.
+export function ProgressSummary({ p }: { p: LanguageProgress }) {
+  return (
+    <span className="text-xs whitespace-nowrap text-muted-foreground">
+      {t("progress.summary", {
+        verified: p.verified,
+        translated: p.translated,
+        total: p.total,
+      })}
+      {p.invalid > 0 && (
+        <>
+          {" · "}
+          <InvalidCount n={p.invalid} />
+        </>
+      )}
+    </span>
+  );
+}
+
+// A per-type bar's invalid count, in a slot every such bar has once any
+// has a count, so the bars still end together.
+export function InvalidSlot({ n, reserve }: { n: number; reserve: boolean }) {
+  if (!reserve) return null;
+  return (
+    <span className="w-20 shrink-0 text-right">
+      <InvalidCount n={n} />
     </span>
   );
 }
