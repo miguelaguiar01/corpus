@@ -950,6 +950,16 @@ export function applyYamlOps(
       } else if (isMap(pair.value)) walk(pair.value, [...path, key]);
     }
   };
-  if (root && isMap(root.value)) walk(root.value, []);
+  if (root && isMap(root.value) && root.value.flow) {
+    // A root written inline cannot lose a line either (#865).
+    const keys = root.value.items.flatMap((pair) => keyOf(pair, out) ?? []);
+    const inside = removals.find((r) =>
+      keys.some((k) => r === k || r.startsWith(`${k}.`)),
+    );
+    if (inside)
+      throw new Error(
+        `${inside}: its parent in the file is a hash written inline, which a removal cannot edit line by line`,
+      );
+  } else if (root && isMap(root.value)) walk(root.value, []);
   return applied(out, spans);
 }

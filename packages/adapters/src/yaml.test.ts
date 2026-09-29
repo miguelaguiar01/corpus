@@ -345,6 +345,28 @@ test("a root written as a flow hash is edited in place as any flow hash is, and 
   expect(refused).toEqual(["c"]);
 });
 
+test("a removal under a root written inline is refused by name, never a lost root (#865)", () => {
+  const src = "# head\nen: {a: A, b: B}\nzz: 1\n";
+  expect(() => applyYamlOps(src, [{ kind: "delete", id: "a" }], "en")).toThrow(
+    "a: its parent in the file is a hash written inline",
+  );
+  expect(() =>
+    applyYamlOps(
+      src,
+      [
+        { kind: "edit", id: "b", text: "BB" },
+        { kind: "delete", id: "a" },
+      ],
+      "en",
+    ),
+  ).toThrow("a: its parent in the file is a hash written inline");
+  // A key it no longer holds is nothing to remove; an edit goes in place.
+  expect(applyYamlOps(src, [{ kind: "delete", id: "c" }], "en")).toBe(src);
+  expect(applyYamlOps(src, [{ kind: "edit", id: "b", text: "BB" }], "en")).toBe(
+    src.replace("b: B", "b: BB"),
+  );
+});
+
 test("a key the file lacks is written as the source writes it under its last root key, as Rails reads it (#865)", () => {
   const en = "en:\n  a: A\nen:\n  01: One\n";
   expect(
