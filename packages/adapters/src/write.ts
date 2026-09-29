@@ -411,9 +411,11 @@ function renderRecords(
   inline: boolean,
   like: string,
 ): string {
-  const body = inline
-    ? `[\n${records.map((r) => style.indent + inlineRecord(r)).join(",\n")}\n]`
-    : JSON.stringify(records, null, style.indent);
+  // No records is `[]`, whose layout no pull could tell again.
+  const body =
+    inline && records.length > 0
+      ? `[\n${records.map((r) => style.indent + inlineRecord(r)).join(",\n")}\n]`
+      : JSON.stringify(records, null, style.indent);
   const bom = like.startsWith("\uFEFF") ? "\uFEFF" : "";
   return (
     bom +

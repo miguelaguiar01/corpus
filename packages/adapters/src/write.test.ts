@@ -955,6 +955,11 @@ test("a table keeps its file's line endings and BOM, and a new one takes the tem
 ]
 `),
   );
+  // A blank file with nothing translated yet settles at once: a second
+  // pull leaves what the first wrote.
+  const first = entriesToTable(target, {}, MAP, "");
+  expect(first).toBe("\uFEFF[]\r\n");
+  expect(entriesToTable(target, {}, MAP, first)).toBe(first);
   // An LF file stays LF with no BOM.
   expect(entriesToTable(TABLE, texts, MAP, TABLE)).toBe(TABLE);
 });
