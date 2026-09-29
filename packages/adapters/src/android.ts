@@ -2,7 +2,7 @@
 // escapes undone on read and written back on change; a file is patched
 // element by element, so an unchanged pull writes the same bytes.
 import { PLURAL_CATEGORIES, type StringEntry } from "@corpus/contract";
-import { pluralText } from "./messages";
+import { pluralFrom } from "./messages";
 import type { SourceOp } from "./write";
 
 type Span = { start: number; end: number };
@@ -192,13 +192,16 @@ function escape(text: string, cdata: boolean): string {
 const slice = (xml: string, span: Span) => xml.slice(span.start, span.end);
 const isCdata = (raw: string) => CDATA_RE.test(raw.trim());
 
-// A `<plurals>` as one ICU plural on `quantity`, its items in the order
-// the file writes them.
+// A `<plurals>` as one ICU plural on `quantity`, its items as the file
+// writes them.
 function pluralOf(xml: string, element: Element): string {
-  const forms = Object.create(null) as Record<string, string>;
-  for (const item of items(xml, element))
-    forms[item.quantity] = decode(slice(xml, item.raw));
-  return pluralText("quantity", forms, "written");
+  return pluralFrom(
+    "quantity",
+    items(xml, element).map((item) => [
+      item.quantity,
+      decode(slice(xml, item.raw)),
+    ]),
+  );
 }
 
 const PLURAL_HEAD_RE = /^\{\s*[A-Za-z_]\w*\s*,\s*plural\s*,/;

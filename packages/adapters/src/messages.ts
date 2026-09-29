@@ -103,7 +103,16 @@ export function pluralText(
           ),
         ]
       : Object.keys(forms);
-  return `{${arg}, plural, ${keys.map((k) => `${k} {${forms[k]}}`).join(" ")}}`;
+  return pluralFrom(
+    arg,
+    keys.map((k) => [k, forms[k]!]),
+  );
+}
+
+// The plural text of branches as given, in order, a key repeated
+// included: what a file writes, read as it is.
+export function pluralFrom(arg: string, branches: [string, string][]): string {
+  return `{${arg}, plural, ${branches.map(([k, text]) => `${k} {${text}}`).join(" ")}}`;
 }
 
 // A key that is a sentence rather than a path: whitespace, or anything
