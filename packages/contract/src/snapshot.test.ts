@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import { moonlightManor } from "./fixtures/moonlight-manor";
 import { entitySchema, snapshotSchema, seedDigest } from "./snapshot";
+import { previewsFor } from "./preview";
 
 const MINIMAL = {
   contract: "corpus/1",
@@ -194,4 +195,42 @@ test("seedSuggestions is optional, per language id to text (#721)", () => {
     snapshotSchema.safeParse({ ...base, seedSuggestions: { de: ["x"] } })
       .success,
   ).toBe(false);
+});
+
+test("an example value keyed __proto__ survives parsing, as any placeholder name does (#878)", () => {
+  const snapshot = JSON.parse(`{
+    "contract": "corpus/1", "project": "p", "sourceLanguage": "en",
+    "strings": [{ "id": "a", "type": "ui", "source": "{__proto__} and {x}",
+      "examples": [{ "values": { "x": "X", "__proto__": "P" },
+        "rendered": "P and X",
+        "valuesByLanguage": { "pt-PT": { "__proto__": "Q", "x": "Y" } } }] }]
+  }`);
+  const example = snapshotSchema.parse(snapshot).strings[0]!.examples![0]!;
+  expect(Object.keys(example.values)).toEqual(["x", "__proto__"]);
+  expect(Object.hasOwn(example.values, "__proto__")).toBe(true);
+  expect(example.values["__proto__"]).toBe("P");
+  expect(example.valuesByLanguage?.["pt-PT"]?.["__proto__"]).toBe("Q");
+  // Stored as JSON and read back, it is still an own key a preview reads.
+  const stored = JSON.parse(JSON.stringify(example));
+  expect(
+    previewsFor("{__proto__} and {x}", [stored], {
+      target: "pt-PT",
+      source: "en",
+    })[0],
+  ).toEqual({ ok: true, text: "Q and Y" });
+  // What a record refused, it still refuses.
+  const bad = structuredClone(snapshot);
+  bad.strings[0].examples[0].values = { x: 1 };
+  expect(snapshotSchema.safeParse(bad).success).toBe(false);
+  const badProto = JSON.parse(
+    JSON.stringify(snapshot).replace('"__proto__":"P"', '"__proto__":7'),
+  );
+  expect(snapshotSchema.safeParse(badProto).error?.issues[0]?.path).toEqual([
+    "strings",
+    0,
+    "examples",
+    0,
+    "values",
+    "__proto__",
+  ]);
 });

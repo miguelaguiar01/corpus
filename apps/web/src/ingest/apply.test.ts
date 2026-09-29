@@ -1,4 +1,8 @@
-import { moonlightManor, type Snapshot } from "@corpus/contract";
+import {
+  moonlightManor,
+  snapshotSchema,
+  type Snapshot,
+} from "@corpus/contract";
 import type { Database as BetterSqlite } from "better-sqlite3";
 import { and, eq } from "drizzle-orm";
 import { expect, test } from "vitest";
@@ -1124,4 +1128,24 @@ test("a push that changes a string's arguments, library or type's richText re-ch
   expect(translationOf(db, id, "en")?.invalid).toBe(true);
   push(bold, {}, { chrome: "html" });
   expect(translationOf(db, id, "en")?.invalid).toBe(false);
+});
+
+test("an example value keyed __proto__ is stored with the string as any placeholder's is (#878)", () => {
+  const { db, project } = seed();
+  // JSON.parse keeps `__proto__` an own key, as a pushed body does.
+  const examples = JSON.parse('[{"values":{"__proto__":"P"},"rendered":"P"}]');
+  const snapshot = snapshotSchema.parse(
+    JSON.parse(
+      JSON.stringify({
+        ...FIXTURE,
+        strings: [{ ...FIXTURE.strings[0]!, examples }],
+      }),
+    ),
+  );
+  applySnapshot(db, project.id, snapshot);
+  const stored = stringRow(db, FIXTURE.strings[0]!.id)?.examples as {
+    values: Record<string, string>;
+  }[];
+  expect(Object.hasOwn(stored[0]!.values, "__proto__")).toBe(true);
+  expect(stored[0]!.values["__proto__"]).toBe("P");
 });
