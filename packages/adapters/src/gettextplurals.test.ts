@@ -1,8 +1,11 @@
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
-import { pluralCategoryIndexes } from "./gettext";
+import { pluralTable } from "./gettext";
 import { GETTEXT_PLURALS } from "./gettextplurals";
+
+const indexesOf = (language: string, forms: string | undefined) =>
+  pluralTable(language, forms).indexes;
 
 const INTEGERS = [
   ...Array.from({ length: 2001 }, (_, i) => i),
@@ -35,7 +38,7 @@ test("every compiled expression picks, for each integer, the form of the categor
     }
     // The adapter's own reading of the header gives each form its index.
     const header = `nplurals=${nplurals}; plural=${plural};`;
-    const indexes = pluralCategoryIndexes(locale, header);
+    const indexes = indexesOf(locale, header);
     forms.forEach((c, i) => {
       if (indexes.get(c) !== i) disagree.push(`${locale} ${c}`);
     });

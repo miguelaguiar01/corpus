@@ -33,7 +33,9 @@ export function isPluralObject(node: unknown): node is Record<string, string> {
     return false;
   // Only forms that come back as they went: a form with a stray brace
   // could not be split out of the plural again, so its keys stay keys.
-  const back = pluralBranches(pluralObjectText(node as Record<string, string>));
+  const back = pluralBranches(
+    pluralText("count", node as Record<string, string>, "written"),
+  );
   return (
     back !== undefined &&
     entries.every(([key, value]) => back[key] === value) &&
@@ -83,13 +85,19 @@ export function pluralBranches(
   }
 }
 
-// The plural string a plural object reads as: an ICU plural on `count`,
-// each branch the form as written.
-export function pluralObjectText(forms: Record<string, string>): string {
-  const branches = Object.entries(forms).map(
-    ([key, text]) => `${key} {${text}}`,
-  );
-  return `{count, plural, ${branches.join(" ")}}`;
+// A plural's text, `{arg, plural, …}`: its forms in CLDR's order, or in
+// the order written where that order is the text's own, a JSON object's
+// becoming the string's source.
+export function pluralText(
+  arg: string,
+  forms: Record<string, string>,
+  order: "cldr" | "written" = "cldr",
+): string {
+  const keys =
+    order === "cldr"
+      ? PLURAL_CATEGORIES.filter((c) => Object.hasOwn(forms, c))
+      : Object.keys(forms);
+  return `{${arg}, plural, ${keys.map((k) => `${k} {${forms[k]}}`).join(" ")}}`;
 }
 
 // A key that is a sentence rather than a path: whitespace, or anything
@@ -252,7 +260,7 @@ function walk(
 ): void {
   const type = options.type;
   if (options.plurals && path.length > 0 && isPluralObject(node))
-    node = pluralObjectText(node);
+    node = pluralText("count", node, "written");
   if (typeof node === "string") {
     const id = path.join(".");
     const first = paths.get(id);

@@ -7,8 +7,11 @@ import {
   gettextSuggestions,
   gettextTranslations,
   parsePo,
-  pluralCategoryIndexes,
+  pluralTable,
 } from "./gettext";
+
+const indexesOf = (language: string, forms: string | undefined) =>
+  pluralTable(language, forms).indexes;
 
 // Joplin's shape: a .pot beside a .po per language.
 const POT = `# Joplin translation template
@@ -120,7 +123,7 @@ test("a .po's translations skip fuzzy rows; plural forms map through Plural-Form
   // Russian's three forms are one, few and many; other, only decimals'
   // in CLDR, is the last form.
   expect([
-    ...pluralCategoryIndexes(
+    ...indexesOf(
       "ru",
       "nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);",
     ),
@@ -141,13 +144,11 @@ test("a .po's translations skip fuzzy rows; plural forms map through Plural-Form
 });
 
 test("an expression that is not arithmetic, or leaves the range, is not run; CLDR stands in (#718)", () => {
-  expect([
-    ...pluralCategoryIndexes("de", "nplurals=2; plural=process.exit(1);"),
-  ]).toEqual([
+  expect([...indexesOf("de", "nplurals=2; plural=process.exit(1);")]).toEqual([
     ["one", 0],
     ["other", 1],
   ]);
-  expect([...pluralCategoryIndexes("de", "nplurals=2; plural=n+5;")]).toEqual([
+  expect([...indexesOf("de", "nplurals=2; plural=n+5;")]).toEqual([
     ["one", 0],
     ["other", 1],
   ]);

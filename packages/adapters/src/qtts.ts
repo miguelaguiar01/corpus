@@ -3,12 +3,7 @@
 // disambiguating `<comment>`; its `<translation>` is finished, or marked
 // `unfinished`, `vanished` or `obsolete`.
 import type { StringEntry } from "@corpus/contract";
-import {
-  pluralCategoryIndexes,
-  pluralIndexCategories,
-  pluralIndexMajority,
-  poPluralText,
-} from "./gettext";
+import { pluralTable, poPluralText } from "./gettext";
 import { formOf, pluralBranches } from "./messages";
 import { qtPluralForms } from "./qtnumerus";
 import {
@@ -159,7 +154,6 @@ function numerusForms(inside: string): { forms: string[]; formsRaw: string[] } {
   };
 }
 
-// What is read: every message but a vanished or obsolete one.
 function live(xml: string): QtMessage[] {
   return qtMessages(xml).filter(
     (m) => m.state !== "vanished" && m.state !== "obsolete",
@@ -211,8 +205,10 @@ export function qtTsTranslations(
   language = "en",
   onUnread?: (id: string) => void,
 ): StringEntry[] {
-  const indexes = pluralCategoryIndexes(language, qtPluralForms(language));
-  const categories = pluralIndexCategories(language, qtPluralForms(language));
+  const { indexes, categories } = pluralTable(
+    language,
+    qtPluralForms(language),
+  );
   return live(xml).flatMap((m) => {
     if (m.state !== undefined) return [];
     if (m.numerus) {
@@ -335,8 +331,7 @@ export function entriesToQtTs(
   const ctx: WriteContext = {
     escape,
     eol,
-    categories: pluralIndexCategories(language.tag, forms),
-    majority: pluralIndexMajority(language.tag, forms),
+    ...pluralTable(language.tag, forms),
     ...(onRefused && { onRefused }),
   };
   const patches: Patch[] = [];

@@ -5,6 +5,7 @@
 // plurals of their own.
 import type { StringEntry } from "@corpus/contract";
 import { parseTree } from "jsonc-parser";
+import { pluralText } from "./messages";
 import { ownRecord } from "./text";
 
 type StringUnit = { state?: string; value?: string };
@@ -70,13 +71,18 @@ type Read = { suffix: string; text: string; done: boolean };
 
 const done = (unit: StringUnit | undefined) => unit?.state === "translated";
 
-function pluralText(arg: string, forms: Record<string, XcUnit>): Read {
-  const branches = Object.entries(forms).map(
-    ([category, unit]) => `${category} {${unit.stringUnit?.value ?? ""}}`,
-  );
+function pluralRead(arg: string, forms: Record<string, XcUnit>): Read {
   return {
     suffix: "",
-    text: `{${arg}, plural, ${branches.join(" ")}}`,
+    text: pluralText(
+      arg,
+      Object.fromEntries(
+        Object.entries(forms).map(([c, unit]) => [
+          c,
+          unit.stringUnit?.value ?? "",
+        ]),
+      ),
+    ),
     done: Object.values(forms).every((unit) => done(unit.stringUnit)),
   };
 }
@@ -117,7 +123,7 @@ function substituted(unit: XcUnit): Read {
     (whole, name: string) => {
       const plural = subs[name]?.variations?.plural;
       if (!plural) return whole;
-      const read = pluralText(`arg${argOf.get(name) ?? 1}`, plural);
+      const read = pluralRead(`arg${argOf.get(name) ?? 1}`, plural);
       complete &&= read.done;
       return read.text;
     },
@@ -139,7 +145,7 @@ function unitTexts(unit: XcUnit): Read[] {
         })),
       );
   }
-  if (variations.plural) return [pluralText("count", variations.plural)];
+  if (variations.plural) return [pluralRead("count", variations.plural)];
   if (unit.substitutions) return [substituted(unit)];
   if (unit.stringUnit)
     return [

@@ -3,7 +3,7 @@
 // pull or a proposal reads as the lines it changes. jsonc-parser gives
 // the node offsets; the text is spliced here.
 import { findNodeAtLocation, parseTree, type Node } from "jsonc-parser";
-import { eolOf } from "./text";
+import { eolOf, lineIndent } from "./text";
 
 const UNSAFE_SEGMENTS = new Set(["__proto__", "constructor", "prototype"]);
 
@@ -52,12 +52,6 @@ export function keyOrder(
 
 function isInline(text: string, node: Node): boolean {
   return !text.slice(node.offset, node.offset + node.length).includes("\n");
-}
-
-// The leading whitespace of the line a node starts on.
-function indentOf(text: string, node: Node): string {
-  const lineStart = text.lastIndexOf("\n", node.offset) + 1;
-  return /^[ \t]*/.exec(text.slice(lineStart, node.offset))?.[0] ?? "";
 }
 
 // The nested object a run of path segments becomes, in the parent's
@@ -191,7 +185,9 @@ export function addLeaf(
     path.slice(depth + 1),
     value,
     isInline(text, parent),
-    last ? indentOf(text, last) : indentOf(text, parent) + unit,
+    last
+      ? lineIndent(text, last.offset)
+      : lineIndent(text, parent.offset) + unit,
     unit,
     eol,
   );
@@ -224,12 +220,12 @@ function insert(
     const inline = isInline(text, object);
     const body = inline
       ? ` ${entry} `
-      : `${eol}${indentOf(text, object)}${unit}${entry}${eol}${indentOf(text, object)}`;
+      : `${eol}${lineIndent(text, object.offset)}${unit}${entry}${eol}${lineIndent(text, object.offset)}`;
     return text.slice(0, open) + body + text.slice(close);
   }
   const inline = isInline(text, object);
   const separatorBefore = (property: Node) =>
-    inline ? ", " : `,${eol}${indentOf(text, property)}`;
+    inline ? ", " : `,${eol}${lineIndent(text, property.offset)}`;
   const neighbour = order && neighbourOf(properties, key, order);
   if (neighbour?.before) {
     const at = neighbour.before.offset;
