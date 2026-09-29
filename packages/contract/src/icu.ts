@@ -8,7 +8,9 @@
 import { localeOf, type Library } from "./strings";
 
 export type IcuNode =
-  | { kind: "literal"; text: string }
+  // `attrPlaceholders`: those written in the attributes of a tag the
+  // text holds as prose, an unclosed one in a type read as HTML (#948).
+  | { kind: "literal"; text: string; attrPlaceholders?: IcuNode[] }
   // A formatted placeholder, `{n, number}`, `{d, date, short}`, `{t,
   // time}`, keeps its type and its style (#555): a translation keeps
   // the name and the type and may change the style.
@@ -27,7 +29,16 @@ export type IcuNode =
   // <name>children</name>, or <name/> with none.
   // `attrs` is an opening tag's attribute text as written (`href="%s"`),
   // part of the tag's identity: a translation keeps it verbatim (#590).
-  | { kind: "tag"; name: string; attrs?: string; children: IcuNode[] }
+  // `attrPlaceholders` are the placeholders written in it, which a type
+  // read as HTML, whose tags a translation writes its own way, still
+  // keeps apart from the text's own (#948).
+  | {
+      kind: "tag";
+      name: string;
+      attrs?: string;
+      attrPlaceholders?: IcuNode[];
+      children: IcuNode[];
+    }
   // vue-i18n's pipe plural: `one | other`, positional, with no argument
   // because the count is passed at render time rather than named in the
   // string. Branches are in the order they were written.
@@ -67,6 +78,18 @@ const PLURAL_KEY_RE = /^(?:zero|one|two|few|many|other|=[0-9]+)$/;
 // close, with nothing else matching spaces, so a name followed by a run
 // of whitespace and no `>` is linear, not cubic; readTag trims it.
 const TAG_RE = /^<(\/?)([A-Za-z][A-Za-z0-9_-]*|[0-9]+)((?:\s[^<>]*?)?)(\/?)>/;
+// The libraries that read tags and whose placeholders are named or
+// numbered, so one in a tag's attribute is read as a placeholder (#948).
+// Android's printf verbs count by position, which a verb read inside an
+// attribute would renumber, so there an attribute stays text.
+const ATTR_PLACEHOLDER_LIBRARIES: ReadonlySet<Library> = new Set([
+  "icu",
+  "i18next",
+  "rails",
+  "counterpart",
+  "chrome",
+  "qt",
+]);
 // Every closing tag of a text, by TAG_RE's names.
 const CLOSE_RE = /<\/([A-Za-z][A-Za-z0-9_-]*|[0-9]+)>/g;
 // HTML's void elements, read so only where the text's tags are HTML or
@@ -240,7 +263,12 @@ function readPrintfPlural(
 
 // What a sequence has read so far: its nodes, the text not yet a node,
 // and where that text starts.
-type Sequence = { nodes: IcuNode[]; literal: string; literalStart: number };
+type Sequence = {
+  nodes: IcuNode[];
+  literal: string;
+  literalStart: number;
+  attrPlaceholders: IcuNode[];
+};
 
 const MAX_DEPTH = 200;
 
@@ -304,7 +332,12 @@ class Parser {
     pluralArg?: string,
     closing?: string,
   ): IcuNode[] {
-    const seq: Sequence = { nodes: [], literal: "", literalStart: this.pos };
+    const seq: Sequence = {
+      nodes: [],
+      literal: "",
+      literalStart: this.pos,
+      attrPlaceholders: [],
+    };
 
     while (this.pos < this.source.length) {
       if (++this.steps > 4 * this.source.length + 10_000)
@@ -348,7 +381,7 @@ class Parser {
             (tag.kind === "close" &&
               (closing === undefined || tag.name !== closing)))
         ) {
-          seq.literal += raw;
+          this.proseTag(seq, raw, tag.attrs, tag.start);
           continue;
         }
         this.flush(seq);
@@ -365,7 +398,7 @@ class Parser {
             seq.nodes.push({
               kind: "tag",
               name: tag.name,
-              ...(tag.attrs ? { attrs: tag.attrs } : {}),
+              ...this.tagAttrs(tag.attrs, tag.start),
               children,
             });
           } catch (error) {
@@ -377,7 +410,7 @@ class Parser {
             this.pos = after;
             [this.printfNext, this.ownFree, this.positional] = counters;
             this.unclosed.add(tag.start);
-            seq.literal += raw;
+            this.proseTag(seq, raw, tag.attrs, tag.start);
           }
           seq.literalStart = this.pos;
           continue;
@@ -396,7 +429,7 @@ class Parser {
         seq.nodes.push({
           kind: "tag",
           name: tag.name,
-          ...(tag.attrs ? { attrs: tag.attrs } : {}),
+          ...this.tagAttrs(tag.attrs, tag.start),
           children:
             tag.kind === "self"
               ? []
@@ -448,8 +481,15 @@ class Parser {
 
   private flush(seq: Sequence): void {
     if (seq.literal !== "") {
-      seq.nodes.push({ kind: "literal", text: seq.literal });
+      seq.nodes.push({
+        kind: "literal",
+        text: seq.literal,
+        ...(seq.attrPlaceholders.length > 0
+          ? { attrPlaceholders: seq.attrPlaceholders }
+          : {}),
+      });
       seq.literal = "";
+      seq.attrPlaceholders = [];
     }
   }
 
@@ -553,6 +593,13 @@ class Parser {
     if (rest.startsWith("%%")) return this.text(seq, "%%");
     const match = ch === "%" ? RAILS_PLACEHOLDER_RE.exec(rest) : null;
     if (match) return this.placeholder(seq, (match[1] ?? match[2])!, match[0]);
+    // A `%{` no name closes is a placeholder mistyped, which Rails prints
+    // as it is (`%{dana]`); `%%{` writes the text (#948).
+    if (rest.startsWith("%{"))
+      throw new ParseFailure(
+        "%{ opens no placeholder here: one is a name without spaces and a closing }; write %%{ for the text itself",
+        this.pos,
+      );
     if (ch === "#" || (ch === "{" && !opensPlural)) return this.text(seq, ch);
     return false;
   }
@@ -791,6 +838,49 @@ class Parser {
     )
       this.pos += close.length;
     return { kind, name, ...(attrs ? { attrs } : {}), start };
+  }
+
+  // A tag's attribute text, and the placeholders written in it where the
+  // library names or numbers its placeholders: a positional one (printf's
+  // `%s`, easy_localization's `{}`) in an attribute would move every
+  // position after it (#948).
+  private tagAttrs(
+    attrs: string | undefined,
+    start: number,
+  ): {
+    attrs?: string;
+    attrPlaceholders?: IcuNode[];
+  } {
+    if (!attrs) return {};
+    if (!ATTR_PLACEHOLDER_LIBRARIES.has(this.syntax)) return { attrs };
+    let nodes: IcuNode[];
+    try {
+      nodes = new Parser(attrs, this.syntax, false).parseSequence(false);
+    } catch (error) {
+      // Brace CSS in an ICU attribute is text; Rails reads only `%{`, so
+      // a mistyped one there is refused as it is in the text.
+      if (!(error instanceof ParseFailure)) throw error;
+      if (this.syntax === "rails") throw new ParseFailure(error.message, start);
+      return { attrs };
+    }
+    const placeholders = nodes.filter((node) => node.kind === "placeholder");
+    return placeholders.length > 0
+      ? { attrs, attrPlaceholders: placeholders }
+      : { attrs };
+  }
+
+  // A tag read as prose: its text, and the placeholders its attributes
+  // write, which the runtime fills whether the tag closes or not.
+  private proseTag(
+    seq: Sequence,
+    raw: string,
+    attrs: string | undefined,
+    start: number,
+  ): void {
+    seq.literal += raw;
+    seq.attrPlaceholders.push(
+      ...(this.tagAttrs(attrs, start).attrPlaceholders ?? []),
+    );
   }
 
   // Where the argument at `at` ends.
@@ -1170,6 +1260,9 @@ export type Shape = {
   selects: Map<string, Set<string>>;
   plurals: Map<string, Set<string>>;
   tags: Set<string>;
+  // The placeholders written in tags' attributes, each as written where
+  // the library writes it (#948).
+  attrPlaceholders: Map<string, string | undefined>;
   // printf: each verb as written, by position (#594).
   written: Map<string, string>;
   // Every verb as written, a position repeated in each plural branch
@@ -1188,6 +1281,7 @@ export function shapeOf(
     selects: new Map(),
     plurals: new Map(),
     tags: new Set(),
+    attrPlaceholders: new Map(),
     written: new Map(),
     verbs: [],
     count: 0,
@@ -1206,6 +1300,13 @@ export function shapeOf(
         shape.formats.set(node.name, node.format);
       }
     }
+    if (node.kind === "tag" || node.kind === "literal")
+      for (const attr of node.attrPlaceholders ?? [])
+        if (
+          attr.kind === "placeholder" &&
+          !shape.attrPlaceholders.has(attr.name)
+        )
+          shape.attrPlaceholders.set(attr.name, attr.written);
     if (node.kind === "tag") {
       shape.tags.add(tagIdentity(node));
       shapeOf(node.children, shape);

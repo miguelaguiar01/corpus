@@ -1590,3 +1590,81 @@ test("a branch named __proto__ is a branch a translation must keep (#846)", () =
     key: "__proto__",
   });
 });
+
+test("in a type read as HTML a tag's attribute placeholders are kept apart from the text's (#948)", () => {
+  const html = { richText: "html" as const };
+  const source =
+    "<a href='%{userUrl}'>%{user}</a> posted <a href='%{topicUrl}'>the topic</a>";
+  const pt = (target: string, lib: Library = "rails", src = source) =>
+    validateTranslation(src, target, "pt", lib, html);
+  expect(
+    pt("<a href='%{userUrl}'>%{user}</a> publicou <a href='#'>o tópico</a>"),
+  ).toMatchObject({
+    ok: false,
+    errors: [
+      { code: "missing-placeholder", name: "topicUrl", written: "%{topicUrl}" },
+    ],
+  });
+  expect(
+    pt(
+      "<a href='%{userUrl}'>%{user}</a> publicou <a href='%{topicUrl}'>o tópico</a>",
+    ),
+  ).toEqual({ ok: true });
+  // A name in both places stays in both.
+  const both = "<a href='/u/%{username}'>%{username}</a> replied";
+  expect(
+    pt("<a href='/u/%{username}'>alguém</a> respondeu", "rails", both),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "username" }],
+  });
+  expect(
+    pt(
+      "<1 href='{{u}}'>alguém</1> entrou",
+      "i18next",
+      "<1 href='{{u}}'>{{u}}</1> joined",
+    ),
+  ).toMatchObject({ ok: false });
+  // A tag read as prose, unclosed, still carries its attribute's.
+  const open = "<a href='%{u}'>link</a> %{n}";
+  expect(pt("<a href='%{u}'>ligação %{n}", "rails", open)).toEqual({
+    ok: true,
+  });
+  expect(pt("ligação %{n}", "rails", "<a href='%{u}'>link %{n}")).toMatchObject(
+    { ok: false, errors: [{ code: "missing-placeholder", name: "u" }] },
+  );
+  expect(pt("<a href='%{v}'>ligação</a> %{n}", "rails", open)).toMatchObject({
+    ok: false,
+  });
+  // Elsewhere the attribute text is the tag's identity: one error, the tag.
+  expect(
+    validateTranslation(
+      "<a href='{url}'>{name}</a>",
+      "<a href='#'>{name}</a>",
+      "pt",
+      "icu",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-tag" }, { code: "unexpected-tag" }],
+  });
+  expect(partsOf(source, "rails").placeholders).toEqual(new Set(["user"]));
+});
+
+test("a rails %{ that closes no placeholder is refused, %%{ is text (#948)", () => {
+  for (const broken of [
+    "Baada ya %{dana] siku",
+    "Imechapishwa na %{jina la mtumiaji}",
+    "Đăng bởi %{{username} ngày %{post_date}",
+    "<a title='%{jina la}'>x</a>",
+  ]) {
+    expect(parseIcu(broken, "rails").ok, broken).toBe(false);
+  }
+  expect(parseIcu("Escrever %%{nome} à letra", "rails")).toMatchObject({
+    ok: true,
+    nodes: [{ kind: "literal" }],
+  });
+  expect(partsOf("Olá %{name}", "rails").placeholders).toEqual(
+    new Set(["name"]),
+  );
+});
