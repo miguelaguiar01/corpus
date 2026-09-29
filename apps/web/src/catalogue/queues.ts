@@ -104,7 +104,14 @@ function where(
   scope: Scope,
   filter: Filter,
 ) {
+  // The invalid rows are few and indexed apart (translations_invalid), so
+  // that queue starts from them: its CROSS JOIN keeps SQLite from walking
+  // the project's strings first, as it would on a database without
+  // statistics (#858).
   return and(
+    kind === "invalid"
+      ? eq(strings.id, stringTranslations.stringId)
+      : undefined,
     eq(strings.projectId, projectId),
     eq(strings.archived, false),
     condition(kind, scope),
@@ -123,7 +130,7 @@ function select(
   filter: Filter,
   limit?: number,
 ): QueueItem[] {
-  const query = db
+  const from = db
     .select({
       stringId: stringTranslations.stringId,
       key: strings.stringId,
@@ -132,8 +139,12 @@ function select(
       source: strings.source,
       text: stringTranslations.text,
     })
-    .from(stringTranslations)
-    .innerJoin(strings, eq(strings.id, stringTranslations.stringId))
+    .from(stringTranslations);
+  const query = (
+    kind === "invalid"
+      ? from.crossJoin(strings)
+      : from.innerJoin(strings, eq(strings.id, stringTranslations.stringId))
+  )
     .where(where(projectId, kind, scope, filter))
     .orderBy(asc(strings.id), asc(stringTranslations.language));
   return limit === undefined ? query.all() : query.limit(limit).all();
@@ -145,11 +156,14 @@ function count(
   kind: QueueKind,
   scope: Scope,
 ): number {
+  const from = db
+    .select({ count: sql<number>`count(*)` })
+    .from(stringTranslations);
   return (
-    db
-      .select({ count: sql<number>`count(*)` })
-      .from(stringTranslations)
-      .innerJoin(strings, eq(strings.id, stringTranslations.stringId))
+    (kind === "invalid"
+      ? from.crossJoin(strings)
+      : from.innerJoin(strings, eq(strings.id, stringTranslations.stringId))
+    )
       .where(where(projectId, kind, scope, {}))
       .get()?.count ?? 0
   );

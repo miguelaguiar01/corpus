@@ -317,3 +317,57 @@ test("the Invalid queue lists a seeded translation that fails validation, and a 
   });
   expect(queueCounts(db, p.id).invalid).toBe(0);
 });
+
+test("the Invalid queue's count and items start from its partial index, never the project's strings (#858)", () => {
+  const { db, p } = pushed();
+  db.update(stringTranslations)
+    .set({ invalid: true })
+    .where(
+      and(
+        eq(stringTranslations.stringId, dbId(db, "ui.continue")),
+        eq(stringTranslations.language, "en"),
+      ),
+    )
+    .run();
+  // Every statement the queue runs, with its parameters, to ask SQLite
+  // how it would run each.
+  type Client = {
+    prepare: (source: string) => {
+      all: (...params: unknown[]) => unknown[];
+      get: (...params: unknown[]) => unknown;
+    };
+  };
+  const client = (db as unknown as { $client: Client }).$client;
+  const ran: { source: string; params: unknown[] }[] = [];
+  const prepare = client.prepare.bind(client);
+  client.prepare = (source) => {
+    const statement = prepare(source);
+    for (const method of ["all", "get"] as const) {
+      const run = statement[method].bind(statement);
+      statement[method] = ((...params: unknown[]) => {
+        ran.push({ source, params });
+        return run(...params);
+      }) as never;
+    }
+    return statement;
+  };
+  try {
+    expect(queueItems(db, p.id, "invalid").items.map((i) => i.key)).toEqual([
+      "ui.continue",
+    ]);
+    expect(queueCounts(db, p.id).invalid).toBe(1);
+    expect(queueSummaries(db, p.id).invalid.first?.key).toBe("ui.continue");
+  } finally {
+    client.prepare = prepare;
+  }
+  const invalid = ran.filter((r) => /"invalid" = /.test(r.source));
+  expect(invalid.length).toBeGreaterThan(0);
+  for (const { source, params } of invalid) {
+    const plan = (
+      client.prepare(`explain query plan ${source}`).all(...params) as {
+        detail: string;
+      }[]
+    ).map((row) => row.detail);
+    expect(plan[0]).toMatch(/translations_invalid/);
+  }
+});
