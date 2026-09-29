@@ -18,6 +18,7 @@ import {
   applyTableOps,
   entriesToMessages,
   entriesToTable,
+  isBlank,
   type SourceOp,
 } from "@corpus/adapters";
 import { printable } from "./printable";
@@ -126,7 +127,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
   const textIn = (member: FileSource, language: string, id: string) =>
     targetTexts.get(fileOf(member, language, config.sourceLanguage))?.get(id);
   const holds = (member: FileSource, language: string, id: string) =>
-    (textIn(member, language, id)?.trim() ?? "") !== "";
+    !isBlank(textIn(member, language, id) ?? "");
   const sharedFor = (
     translations: Record<string, string>,
     source: FileSource,
@@ -152,10 +153,16 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
               textIn(source, language, id) === textIn(winner, language, id))
           );
         }
-        if (holds(source, language, id)) return true;
-        return (
-          holders[0] === source && !holders.some((m) => holds(m, language, id))
+        // Where none holds a translation, each file that has the key
+        // takes it, `""` left by an extraction tool included, since the
+        // app may read any of them; where none has it, the first.
+        const filled = holders.filter((m) => holds(m, language, id));
+        if (filled.length > 0) return filled.includes(source);
+        const keyed = holders.filter(
+          (m) => textIn(m, language, id) !== undefined,
         );
+        if (keyed.length > 0) return keyed.includes(source);
+        return holders[0] === source;
       }),
     );
   };
@@ -647,7 +654,7 @@ async function ownIds(
   file: string,
   source: FileSource,
 ): Promise<Set<string> | undefined> {
-  if (source.adapter === "table" || !sourceWritesBack(source)) return undefined;
+  if (!sourceWritesBack(source)) return undefined;
   try {
     const entries = await readEntries(jiti, cwd, file, source, true);
     return new Set(entries.map((e) => e.id));
@@ -666,7 +673,7 @@ async function ownTexts(
   language: string,
   pluralIds?: ReadonlySet<string>,
 ): Promise<Map<string, string> | undefined> {
-  if (source.adapter === "table" || !sourceWritesBack(source)) return undefined;
+  if (!sourceWritesBack(source)) return undefined;
   try {
     const entries = await readEntries(
       jiti,
