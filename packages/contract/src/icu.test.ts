@@ -745,12 +745,18 @@ test("hostile input is read in bounded time and fails cleanly, never with a thro
 
 test("the text after a whole plural is placed after the plural as the parser reads it (#861)", () => {
   expect(
-    printfPluralError("{n, plural, one {%d a} other {%d b}} and {x}")?.position,
+    printfPluralError(
+      "{n, plural, one {%d a} other {%d b}} and {x}",
+      false,
+      "printf",
+    )?.position,
   ).toBe(37);
   // A branch's brace is text there: only its close ends the branch.
   for (const text of [
     "{n, plural, one {a { b} other {c}} tail",
     "{n, plural, one {'{' a} other {b}} tail",
   ])
-    expect(printfPluralError(text)?.position).toBe(text.indexOf("tail"));
+    expect(printfPluralError(text, false, "printf")?.position).toBe(
+      text.indexOf("tail"),
+    );
 });

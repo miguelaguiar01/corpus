@@ -1,11 +1,9 @@
-// ICU MessageFormat subset (§5): {name} placeholders, single-level
-// {arg, select, key {…} …} and single-level {n, plural, one {…} other {…}}
-// with =N exact branches and # for the number, and rich-text tags,
-// <name>…</name> or <name/>, which the client renders with a component
-// and a translation must keep. Everything else — nesting of select and
-// plural, other argument types — is rejected at push time. Braces are
-// always structural; the subset has no quote-escaping; a < that opens
-// no tag is text.
+// ICU MessageFormat subset (§5): {name} placeholders, formatted ones
+// ({n, number}), {arg, select, …} and {n, plural, …} with =N branches and
+// # for the number, one nested in the other's branch at most (#674), and
+// rich-text tags, <name>…</name> or <name/>, which the client renders
+// and a translation must keep. Each library reads its own placeholder
+// syntax into the same nodes; a < that opens no tag is text.
 
 import { localeOf, type Library } from "./strings";
 
@@ -159,40 +157,35 @@ const PRINTF_PLURAL_RE = new RegExp(
 
 // A String Catalog's substitutions (#726): plurals on `argN`, the Nth
 // printf argument, among printf text, `%arg` in a branch that argument.
-const ARG_PLURAL_RE = /\{\s*arg\d+\s*,\s*plural\s*,/;
+const ARG_PLURAL_RE = /^\{\s*arg(\d+)\s*,\s*plural\s*,/;
+
+// The position a substitution's `argN` names, or undefined for any
+// other argument.
+export function argIndexOf(name: string): string | undefined {
+  return /^arg(\d+)$/.exec(name)?.[1];
+}
 
 function argPlurals(
   source: string,
   html: boolean | "markup",
   syntax: Library,
 ): IcuNode[] | undefined {
-  if (syntax !== "printf" || !ARG_PLURAL_RE.test(source)) return undefined;
+  if (syntax !== "printf" || !/\{\s*arg\d+\s*,\s*plural\s*,/.test(source))
+    return undefined;
   try {
-    return new Parser(source, syntax, html, false, true).parseSequence(false);
+    return new Parser(source, syntax, html, "argPlurals").parseSequence(false);
   } catch (error) {
     if (error instanceof ParseFailure) return undefined;
     throw error;
   }
 }
 
-// The printf text read as one plural, or undefined where it is not one
-// from end to end, or does not parse as one: then it is printf text as
-// before (#652).
-function printfPlural(
-  source: string,
-  html: boolean | "markup",
-  syntax: Library,
-): IcuNode[] | undefined {
-  const read = readPrintfPlural(source, html, syntax);
-  return "nodes" in read ? read.nodes : undefined;
-}
-
 // Why a printf text that opens as a plural is not one (#652), for a
 // translation of a plural, where falling back to text would hide it.
 export function printfPluralError(
   text: string,
-  html: boolean | "markup" = false,
-  syntax: Library = "printf",
+  html: boolean | "markup",
+  syntax: Library,
 ): IcuError | undefined {
   if (!PRINTF_PLURAL_OPENS_RE.test(text)) return undefined;
   if (argPlurals(text, html, syntax)) return undefined;
@@ -210,7 +203,9 @@ function pluralEnd(
 ): number {
   const start = source.search(/\S/);
   if (source[start] !== "{") return 0;
-  const end = new Parser(source, syntax, html, true).argumentEnd(start);
+  const end = new Parser(source, syntax, html, "wholePlural").argumentEnd(
+    start,
+  );
   return end + (/^\s*/.exec(source.slice(end))?.[0].length ?? 0);
 }
 
@@ -220,7 +215,9 @@ function readPrintfPlural(
   syntax: Library,
 ): { nodes: IcuNode[] } | { error: IcuError } {
   try {
-    const nodes = new Parser(source, syntax, html, true).parseSequence(false);
+    const nodes = new Parser(source, syntax, html, "wholePlural").parseSequence(
+      false,
+    );
     const kept = nodes.filter(
       (node) => !(node.kind === "literal" && node.text.trim() === ""),
     );
@@ -275,12 +272,11 @@ class Parser {
     // also reads a tag that never closes, or a stray closing tag, as text,
     // as a browser does.
     private readonly html: boolean | "markup",
-    // printf text that is wholly one ICU plural, as a gettext or String
-    // Catalog converter writes it (#652): its braces are the plural's,
-    // its branches printf.
-    private readonly printfPlural = false,
-    // printf text with plurals on `argN` in it (#726).
-    private readonly argPlurals = false,
+    // "wholePlural": printf text that is wholly one ICU plural, as a
+    // gettext or String Catalog converter writes it (#652), its braces
+    // the plural's, its branches printf. "argPlurals": printf text with
+    // plurals on `argN` in it (#726).
+    private readonly mode: "text" | "wholePlural" | "argPlurals" = "text",
   ) {}
 
   // Inside a plural's branch, `#` is the number; anywhere else it is text.
@@ -317,7 +313,7 @@ class Parser {
         ch === "}" &&
         (this.syntax === "icu" ||
           this.syntax === "android" ||
-          ((this.printfPlural || this.argPlurals) && inBranch))
+          (this.mode !== "text" && inBranch))
       ) {
         if (!inBranch) {
           throw new ParseFailure("unmatched '}'", this.pos);
@@ -329,7 +325,8 @@ class Parser {
         return seq.nodes;
       }
       // A plural read whole opens with the text's first brace.
-      const opensPlural = this.printfPlural && !inBranch && ch === "{";
+      const opensPlural =
+        this.mode === "wholePlural" && !inBranch && ch === "{";
       if (this.lexLibrary(seq, ch, inBranch, opensPlural, pluralArg)) continue;
       // vue-i18n has no tag syntax: a `<` is text (#644).
       if (ch === "<" && this.syntax !== "vue") {
@@ -601,9 +598,9 @@ class Parser {
   ): boolean {
     // A substitution's own value, its argument's verb whatever type the
     // catalogue formats it with.
-    const own = /^arg(\d+)$/.exec(pluralArg ?? "")?.[1];
+    const own = argIndexOf(pluralArg ?? "");
     if (
-      this.argPlurals &&
+      this.mode === "argPlurals" &&
       own !== undefined &&
       this.source.startsWith("%arg", this.pos)
     ) {
@@ -611,10 +608,10 @@ class Parser {
       return this.placeholder(seq, own, "%arg");
     }
     const argPlural =
-      this.argPlurals &&
+      this.mode === "argPlurals" &&
       !inBranch &&
       ch === "{" &&
-      /^\{\s*arg(\d+)\s*,\s*plural\s*,/.exec(this.source.slice(this.pos));
+      ARG_PLURAL_RE.exec(this.source.slice(this.pos));
     if (argPlural) {
       const node = this.parseArgument(inBranch);
       // Named by its position, as the verb it stands for is.
@@ -630,7 +627,10 @@ class Parser {
         // In a substitution's branch the first unindexed verb is its
         // argument, as `%arg` is, and the rest count on after it (#726).
         const substituted =
-          this.argPlurals && own !== undefined && !explicit && this.ownFree;
+          this.mode === "argPlurals" &&
+          own !== undefined &&
+          !explicit &&
+          this.ownFree;
         if (substituted) this.ownFree = false;
         const position = explicit
           ? Number(explicit)
@@ -780,7 +780,7 @@ class Parser {
 
   private parseArgument(inBranch: boolean): IcuNode {
     const start = this.pos;
-    this.pos += 1; // consume '{'
+    this.pos += 1;
     const body = this.readUntil(["}", ","]);
     const next = this.source[this.pos];
     if (next === undefined) {
@@ -802,7 +802,7 @@ class Parser {
     }
 
     // '{arg, type, ...}'
-    this.pos += 1; // consume ','
+    this.pos += 1;
     const type = this.readUntil([",", "}"]).trim();
     if (type === "number" || type === "date" || type === "time") {
       checkName("placeholder");
@@ -835,7 +835,7 @@ class Parser {
     if (this.source[this.pos] !== ",") {
       throw new ParseFailure(`${type} needs branches`, start);
     }
-    this.pos += 1; // consume ','
+    this.pos += 1;
     return this.parseBranches(type, name, start);
   }
 
@@ -845,8 +845,7 @@ class Parser {
   private checkNesting(type: "select" | "plural", start: number): void {
     const outer = this.within.at(-1);
     if (
-      this.printfPlural ||
-      this.argPlurals ||
+      this.mode !== "text" ||
       this.syntax === "android" ||
       outer === undefined
     )
@@ -875,7 +874,7 @@ class Parser {
   ): IcuNode {
     // A branch key is data: `__proto__` is a key like any other (#846).
     const branches = Object.create(null) as Record<string, IcuNode[]>;
-    const own = this.argPlurals ? /^arg(\d+)$/.exec(name)?.[1] : undefined;
+    const own = this.mode === "argPlurals" ? argIndexOf(name) : undefined;
     for (;;) {
       this.skipWhitespace();
       const ch = this.source[this.pos];
@@ -904,10 +903,11 @@ class Parser {
           this.pos,
         );
       }
-      this.pos += 1; // consume '{'
+      this.pos += 1;
       // Each Android plural item is a string of its own: its verbs count
       // from 1.
-      if (this.syntax === "android" || this.printfPlural) this.printfNext = 1;
+      if (this.syntax === "android" || this.mode === "wholePlural")
+        this.printfNext = 1;
       if (own !== undefined) {
         this.printfNext = Number(own) + 1;
         this.ownFree = true;
@@ -921,7 +921,7 @@ class Parser {
       } finally {
         this.within.pop();
       }
-      this.pos += 1; // consume '}'
+      this.pos += 1;
     }
   }
 
@@ -1022,8 +1022,9 @@ function parseWith(
     const substituted = argPlurals(source, html, syntax);
     if (substituted) return { ok: true, nodes: substituted };
     if (WHOLE_PLURAL_LIBRARIES.has(syntax) && PRINTF_PLURAL_RE.test(source)) {
-      const plural = printfPlural(source, html, syntax);
-      if (plural) return { ok: true, nodes: plural };
+      // Where it does not parse as one plural it is text as before (#652).
+      const plural = readPrintfPlural(source, html, syntax);
+      if ("nodes" in plural) return { ok: true, nodes: plural.nodes };
     }
     return {
       ok: true,
@@ -1121,8 +1122,7 @@ export type Shape = {
   selects: Map<string, Set<string>>;
   plurals: Map<string, Set<string>>;
   tags: Set<string>;
-  // printf: each verb as written, by position, and the positions in
-  // the order they appear (#594).
+  // printf: each verb as written, by position (#594).
   written: Map<string, string>;
   // Every verb as written, a position repeated in each plural branch
   // included (#596).
@@ -1462,7 +1462,7 @@ export function argPositions(nodes: IcuNode[]): IcuNode[] {
     const branches = Object.fromEntries(
       Object.entries(node.branches).map(([k, b]) => [k, argPositions(b)]),
     );
-    const n = /^arg(\d+)$/.exec(node.arg)?.[1];
+    const n = argIndexOf(node.arg);
     return node.kind === "plural" && n !== undefined
       ? { ...node, arg: n, branches }
       : { ...node, branches };
