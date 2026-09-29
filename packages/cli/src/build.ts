@@ -878,19 +878,22 @@ export function pushOnlyNotes(config: CorpusConfig): string[] {
           `exec "${source.command}" is push-only: add importCommand to write translations back`,
         );
       }
-    } else if (OWN_FORMAT.has(source.adapter)) {
-      continue;
-    } else if (!source.path.includes("{lang}")) {
-      notes.push(
-        `${source.path} has no {lang}: its translations cannot be written back`,
-      );
-    } else if (!writesBack(source.path)) {
-      notes.push(
-        `${source.path} is not JSON: pull writes JSON only, so its translations cannot be written back`,
-      );
+    } else {
+      const note = writeBackRefusal(source);
+      if (note) notes.push(note);
     }
   }
   return notes;
+}
+
+// Why pull cannot write a source's translations back (§8), which push
+// says too; undefined where it can.
+export function writeBackRefusal(source: FileSource): string | undefined {
+  if (!hasLanguages(source))
+    return `${source.path} has no {lang}: its translations cannot be written back`;
+  if (!sourceWritesBack(source))
+    return `${source.path} is not JSON: pull writes JSON only, so its translations cannot be written back`;
+  return undefined;
 }
 
 // Pull rewrites a catalogue in place and only knows JSON (§8); a .ts or

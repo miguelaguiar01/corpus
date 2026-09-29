@@ -1,32 +1,23 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { createJiti } from "jiti";
 import {
-  androidToEntries,
   applyAndroidOps,
   applyFluentOps,
   entriesToAndroid,
   entriesToFluent,
-  fluentToEntries,
   applyXliffOps,
   entriesToGettext,
   entriesToXcstrings,
   entriesToQtTs,
   entriesToYaml,
   applyYamlOps,
-  yamlToEntries,
-  qtMessages,
-  xcstringsToEntries,
   entriesToXliff,
-  parsePo,
-  poId,
-  xliffUnits,
   applyMessagesOps,
   applyTableOps,
   entriesToMessages,
   entriesToTable,
-  messagesToEntries,
-  stripBom,
   type SourceOp,
 } from "@corpus/adapters";
 import { printable } from "./printable";
@@ -47,9 +38,11 @@ import {
   type FileSource,
   hasLanguages,
   isArb,
+  readEntries,
   readsPluralObjects,
   sourceWritesBack,
   takesProposals,
+  writeBackRefusal,
 } from "./build";
 import { CliError, fileCodeOf, loadConfig, requireToken } from "./config";
 import { request, serverMessage, UNAUTHORIZED } from "./server";
@@ -59,8 +52,8 @@ import { request, serverMessage, UNAUTHORIZED } from "./server";
 // their content changes, and every changed path is printed. `exec`
 // sources get, on stdin, whatever the file adapters did not claim.
 // `--lang` (repeatable) narrows both to those languages; `--check`
-// writes nothing, runs nothing, and exits 1 when a pull would change a
-// file.
+// writes nothing and exits 1 when a pull would change a file; an exec
+// importer runs only where importCheck says it honours the check.
 export async function pull(args: string[], ctx: RunContext): Promise<number> {
   const minState = option(args, "--min-state") ?? "verified";
   if (!(MIN_STATES as readonly string[]).includes(minState)) {
@@ -89,6 +82,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
   const targets = langs.length > 0 ? langs : allTargets;
   const token = requireToken(ctx.env, ctx.cwd);
 
+  const jiti = createJiti(import.meta.url);
   const payload = await download(
     config,
     token,
@@ -107,14 +101,14 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     const group = "group" in source ? source.group : undefined;
     if (typeof group !== "number") continue;
     groups.set(group, [...(groups.get(group) ?? []), source]);
-    const template = readRepoFile(
-      ctx.cwd,
-      fileOf(source, config.sourceLanguage, config.sourceLanguage),
-    );
     sourceIds.set(
       source,
-      (template && ownIds(template, source, config.sourceLanguage)) ||
-        new Set<string>(),
+      (await ownIds(
+        jiti,
+        ctx.cwd,
+        fileOf(source, config.sourceLanguage, config.sourceLanguage),
+        source,
+      )) ?? new Set<string>(),
     );
   }
   const membersOf = (source: FileSource) => {
@@ -126,18 +120,9 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
   // file that holds it, and into the first file's when none does, so a
   // push and a pull leave the files as they were (#661).
   const targetIds = new Map<string, Set<string>>();
-  const idsInTarget = (member: FileSource, language: string) => {
-    const file = fileOf(member, language, config.sourceLanguage);
-    let ids = targetIds.get(file);
-    if (!ids) {
-      const text = readRepoFile(ctx.cwd, file);
-      ids =
-        (text !== undefined && ownIds(text, member, config.sourceLanguage)) ||
-        new Set<string>();
-      targetIds.set(file, ids);
-    }
-    return ids;
-  };
+  const idsInTarget = (member: FileSource, language: string) =>
+    targetIds.get(fileOf(member, language, config.sourceLanguage)) ??
+    new Set<string>();
   const sharedFor = (
     translations: Record<string, string>,
     source: FileSource,
@@ -162,7 +147,14 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
   // began decides where a shared string goes.
   for (const members of groups.values())
     for (const member of members)
-      for (const language of targets) idsInTarget(member, language);
+      for (const language of targets) {
+        const file = fileOf(member, language, config.sourceLanguage);
+        if (targetIds.has(file)) continue;
+        targetIds.set(
+          file,
+          (await ownIds(jiti, ctx.cwd, file, member)) ?? new Set<string>(),
+        );
+      }
 
   const changed: string[] = [];
   const pending = new Map<string, string>();
@@ -175,31 +167,24 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
   const heldByType = new Map<string, Set<string>>();
   for (const source of config.sources) {
     if (source.adapter === "table" || source.adapter === "exec") continue;
-    if (!hasLanguages(source) || !sourceWritesBack(source)) continue;
-    const template = readRepoFile(
-      ctx.cwd,
-      fileOf(source, config.sourceLanguage, config.sourceLanguage),
+    if (writeBackRefusal(source)) continue;
+    const templatePath = fileOf(
+      source,
+      config.sourceLanguage,
+      config.sourceLanguage,
     );
-    if (template === undefined) continue;
+    if (!existsSync(path.join(ctx.cwd, templatePath))) continue;
     const held = heldByType.get(source.type) ?? new Set<string>();
-    for (const id of ownIds(template, source, config.sourceLanguage) ?? [])
-      held.add(id);
+    const own = await ownIds(jiti, ctx.cwd, templatePath, source);
+    for (const id of own ?? []) held.add(id);
     heldByType.set(source.type, held);
   }
   for (const source of config.sources) {
     if (source.adapter === "exec") continue;
-    if (!hasLanguages(source)) {
-      // Source-only: nothing to write back, and its ids stay available to
-      // an exec importer rather than vanishing.
-      ctx.err(
-        `corpus: ${source.path} has no {lang}: its translations cannot be written back`,
-      );
-      continue;
-    }
-    if (!sourceWritesBack(source)) {
-      ctx.err(
-        `corpus: ${source.path} is not JSON: pull writes JSON only, so its translations cannot be written back`,
-      );
+    // Its ids stay available to an exec importer rather than vanishing.
+    const refusal = writeBackRefusal(source);
+    if (refusal) {
+      ctx.err(`corpus: ${refusal}`);
       continue;
     }
     claimedTypes.add(source.type);
@@ -215,7 +200,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     // A target file takes the ids its source-language file holds, under
     // the source's namespace when it has one, stripped for writing: two
     // sources of one type each write their own strings (#513).
-    const own = ownIds(template, source, config.sourceLanguage);
+    const own = await ownIds(jiti, ctx.cwd, templatePath, source);
     const members = membersOf(source);
     for (const language of targets) {
       const file = fileOf(source, language, config.sourceLanguage);
@@ -626,75 +611,19 @@ async function download(
   return parsed.data;
 }
 
-// The ids a source-language file holds, as the snapshot names them.
-function ownIds(
-  template: string,
+// The ids a catalogue file holds, read as a source-language file, as
+// the snapshot names them; unknown for a table, a file pull does not
+// write back, or one that does not parse.
+async function ownIds(
+  jiti: ReturnType<typeof createJiti>,
+  cwd: string,
+  file: string,
   source: FileSource,
-  sourceLanguage: string,
-): Set<string> | undefined {
-  if (source.adapter === "android") {
-    return new Set(
-      androidToEntries(template, { type: source.type }).map((e) => e.id),
-    );
-  }
-  if (source.adapter === "fluent") {
-    const prefix = source.namespace ? `${source.namespace}:` : "";
-    try {
-      return new Set(
-        fluentToEntries(template, { type: source.type }).map(
-          (e) => `${prefix}${e.id}`,
-        ),
-      );
-    } catch {
-      return undefined;
-    }
-  }
-  if (source.adapter === "xliff") {
-    try {
-      return new Set(xliffUnits(template).map((u) => u.id));
-    } catch {
-      return undefined;
-    }
-  }
-  if (source.adapter === "yaml")
-    try {
-      return new Set(
-        yamlToEntries(template, {
-          type: source.type,
-          root: sourceLanguage,
-        }).map((e) => e.id),
-      );
-    } catch {
-      return undefined;
-    }
-  if (source.adapter === "qt-ts")
-    return new Set(
-      qtMessages(template).flatMap((m) =>
-        m.state === "vanished" || m.state === "obsolete" ? [] : [m.id],
-      ),
-    );
-  if (source.adapter === "xcstrings")
-    try {
-      return new Set(
-        xcstringsToEntries(template, { type: source.type }).map((e) => e.id),
-      );
-    } catch {
-      return undefined;
-    }
-  if (source.adapter === "gettext")
-    return new Set(
-      parsePo(template).flatMap((e) => (e.msgid === "" ? [] : [poId(e)])),
-    );
-  if (source.adapter !== "messages") return undefined;
+): Promise<Set<string> | undefined> {
+  if (source.adapter === "table" || !sourceWritesBack(source)) return undefined;
   try {
-    const entries = messagesToEntries(JSON.parse(stripBom(template)), {
-      type: source.type,
-      arb: isArb(source.path),
-      chrome: libraryOf(source) === "chrome",
-      plurals: readsPluralObjects(source),
-    });
-    const prefix = source.namespace ? `${source.namespace}:` : "";
-    return new Set(entries.map((e) => `${prefix}${e.id}`));
+    const entries = await readEntries(jiti, cwd, file, source, true);
+    return new Set(entries.map((e) => e.id));
   } catch {
     return undefined;
   }
