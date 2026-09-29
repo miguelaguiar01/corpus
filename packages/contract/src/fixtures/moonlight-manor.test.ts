@@ -1,11 +1,5 @@
 import { expect, test } from "vitest";
-import {
-  branchingNodes,
-  parseIcu,
-  pluralArgsOf,
-  pluralBranch,
-  selectArgsOf,
-} from "../icu";
+import { branchingNodes, parseIcu, pluralBranch, partsOf } from "../icu";
 import { snapshotSchema } from "../snapshot";
 import { moonlightManor } from "./moonlight-manor";
 
@@ -40,7 +34,7 @@ test("every source string parses under the ICU subset", () => {
 
 test("examples cover both branches of every select", () => {
   for (const entry of moonlightManor.strings) {
-    for (const arg of selectArgsOf(entry.source)) {
+    for (const arg of partsOf(entry.source).selects) {
       const covered = new Set(
         (entry.examples ?? []).map(
           (example) => (example.values as Record<string, string>)[arg],
@@ -56,7 +50,7 @@ test("examples reach every branch of every plural", () => {
   // since the fixture was written; the plural got its coverage by
   // accident of how it was authored (#490).
   for (const entry of moonlightManor.strings) {
-    for (const arg of pluralArgsOf(entry.source)) {
+    for (const arg of partsOf(entry.source).plurals) {
       const parsed = parseIcu(entry.source);
       expect(parsed.ok, entry.id).toBe(true);
       if (!parsed.ok) continue;

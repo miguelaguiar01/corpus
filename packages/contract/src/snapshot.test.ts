@@ -222,6 +222,8 @@ test("an example value keyed __proto__ survives parsing, as any placeholder name
   const bad = structuredClone(snapshot);
   bad.strings[0].examples[0].values = { x: 1 };
   expect(snapshotSchema.safeParse(bad).success).toBe(false);
+  // A `__proto__` value is checked as any key's is: a number is now
+  // refused by name, where the old parse dropped it without a word.
   const badProto = JSON.parse(
     JSON.stringify(snapshot).replace('"__proto__":"P"', '"__proto__":7'),
   );

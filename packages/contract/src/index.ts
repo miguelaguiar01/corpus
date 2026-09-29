@@ -16,7 +16,6 @@ export {
   readIcu,
   refusalAdvice,
   refusalCause,
-  tagsOf,
   WHOLE_PLURAL_LIBRARIES,
   type IcuError,
   type IcuNode,

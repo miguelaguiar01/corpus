@@ -9,12 +9,12 @@ import {
   renderPreviewSegments,
   hasVoidTags,
   isVoidTag,
-  tagsOf,
   validateTranslation,
   type Example,
   type PreviewSegment,
   type Library,
   type RichText,
+  partsOf,
 } from "@corpus/contract";
 import { chipText } from "@/components/source-view";
 import { sourceStamp } from "@/translations/stamp";
@@ -222,7 +222,7 @@ export function TargetPane({
   const incomplete = validation.incomplete ?? [];
   const selects = branchingOf(source, language, syntax);
   const byId = new Map(selects.map((entry) => [idOf(entry), entry]));
-  const tags = [...tagsOf(source, syntax)];
+  const tags = [...partsOf(source, syntax).tags];
 
   const insert = (token: string, caretOffset?: number) => {
     const el = ref.current;

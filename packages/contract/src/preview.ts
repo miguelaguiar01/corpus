@@ -52,7 +52,8 @@ function own<T>(record: Record<string, T>, key: string): T | undefined {
 // A placeholder with no value, as the text writes it.
 type Unset = (name: string) => string;
 const icuUnset: Unset = (name) => `{${name}}`;
-// i18next's own form (#859); a leading `-` is its unescaped `{{- name}}`.
+// In i18next's form, not as the source spelled it (#859): `{{ count }}`
+// shows `{{count}}`; a leading `-` is its unescaped `{{- name}}`.
 const i18nextUnset: Unset = (name) =>
   name.startsWith("-") ? `{{- ${name.slice(1)}}}` : `{{${name}}}`;
 

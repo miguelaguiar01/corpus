@@ -1,7 +1,7 @@
 // vue-i18n's two departures from plain ICU (#495, #496): a top-level
 // pipe separates positional plural forms, and `{'…'}` is a literal.
 import { expect, test } from "vitest";
-import { formsOf, parseIcu } from "./icu";
+import { parseIcu, partsOf } from "./icu";
 import { validateTranslation } from "./validate";
 
 const nodes = (source: string, library: "vue" | "icu" = "vue") => {
@@ -155,12 +155,12 @@ test("an escaped quote stays inside the literal", () => {
   expect(nodes("{'it\\'s'}")).toEqual([{ kind: "literal", text: "it's" }]);
 });
 
-test("formsOf counts a vue source's pipe forms, and nothing else (#660)", () => {
-  expect(formsOf("no posts | one post | {n} posts", "vue")).toBe(3);
-  expect(formsOf("{count} script | {count} scripts", "vue")).toBe(2);
-  expect(formsOf("Pipe (|)", "vue")).toBe(0);
-  expect(formsOf("a {'|'} b", "vue")).toBe(0);
+test("a vue source's pipe forms are counted, and nothing else (#660)", () => {
+  expect(partsOf("no posts | one post | {n} posts", "vue").forms).toBe(3);
+  expect(partsOf("{count} script | {count} scripts", "vue").forms).toBe(2);
+  expect(partsOf("Pipe (|)", "vue").forms).toBe(0);
+  expect(partsOf("a {'|'} b", "vue").forms).toBe(0);
   // A source that does not parse has no forms to count.
-  expect(formsOf("a | {b", "vue")).toBe(0);
-  expect(formsOf("{n, plural, one {a} other {b}}", "icu")).toBe(0);
+  expect(partsOf("a | {b", "vue").forms).toBe(0);
+  expect(partsOf("{n, plural, one {a} other {b}}", "icu").forms).toBe(0);
 });
