@@ -27,7 +27,7 @@ export default async function ProjectHome({
   const project = getProjectBySlug(db, slug);
   if (!project) notFound();
   const queues = queueSummaries(db, project.id);
-  const progress = progressCounts(db, project.id, { invalid: false });
+  const progress = progressCounts(db, project.id);
   const pending = pendingCount(db, project.id);
 
   return (

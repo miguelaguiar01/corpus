@@ -1,6 +1,6 @@
 import type { Progress } from "@/catalogue/progress";
 import { t } from "@/i18n";
-import { ProgressBar } from "./progress-bar";
+import { InvalidSlot, ProgressBar, ProgressSummary } from "./progress-bar";
 import { ProgressLegend } from "./progress-legend";
 import { ProgressRow } from "./progress-row";
 
@@ -22,6 +22,9 @@ export function ProgressByType({
   const languages = Object.keys(progress.perLanguage);
   if (languages.length === 0) return null;
   const types = Object.keys(progress.perType);
+  const anyInvalid = Object.values(progress.perType).some((byLanguage) =>
+    Object.values(byLanguage).some((p) => p.invalid > 0),
+  );
   if (languages.length >= TABLE_FROM_LANGUAGES) {
     // The table answers "what needs a translator" (§9.1), so it leads
     // with the language that has the most untranslated rows; the source
@@ -52,6 +55,7 @@ export function ProgressByType({
               <ProgressRow
                 key={language}
                 language={language}
+                anyInvalid={anyInvalid}
                 p={progress.perLanguage[language]!}
                 types={types.flatMap((type) => {
                   const tp = progress.perType[type]?.[language];
@@ -73,13 +77,7 @@ export function ProgressByType({
           <section key={language} className="space-y-2">
             <div className="flex items-baseline justify-between">
               <h3 className="text-base font-medium">{language}</h3>
-              <span className="text-xs text-muted-foreground">
-                {t("progress.summary", {
-                  verified: p.verified,
-                  translated: p.translated,
-                  total: p.total,
-                })}
-              </span>
+              <ProgressSummary p={p} />
             </div>
             {types.map((type) => {
               const tp = progress.perType[type]?.[language];
@@ -89,6 +87,7 @@ export function ProgressByType({
                     {type}
                   </span>
                   <ProgressBar p={tp} label={type} className="h-1.5 flex-1" />
+                  <InvalidSlot n={tp.invalid} reserve={anyInvalid} />
                 </div>
               ) : null;
             })}

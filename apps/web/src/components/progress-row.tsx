@@ -2,8 +2,12 @@
 
 import { useState } from "react";
 import type { LanguageProgress } from "@/catalogue/progress";
-import { t } from "@/i18n";
-import { ProgressBar } from "./progress-bar";
+import {
+  InvalidCount,
+  InvalidSlot,
+  ProgressBar,
+  ProgressSummary,
+} from "./progress-bar";
 
 // A dashboard table row (§9.1): the language's bar, and, behind a
 // disclosure when the project has more than one string type, a bar per
@@ -12,17 +16,14 @@ export function ProgressRow({
   language,
   p,
   types,
+  anyInvalid,
 }: {
   language: string;
   p: LanguageProgress;
   types: { type: string; p: LanguageProgress }[];
+  anyInvalid: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const summary = t("progress.summary", {
-    verified: p.verified,
-    translated: p.translated,
-    total: p.total,
-  });
   return (
     <>
       <tr className="border-t border-border">
@@ -48,9 +49,11 @@ export function ProgressRow({
         </th>
         <td className="py-1.5 pr-3">
           <ProgressBar p={p} label={language} className="h-1.5" />
+          {/* Where the counts column is hidden. */}
+          <InvalidCount n={p.invalid} className="mt-0.5 block sm:hidden" />
         </td>
-        <td className="hidden w-48 py-1.5 text-right text-xs text-muted-foreground sm:table-cell">
-          {summary}
+        <td className="hidden w-48 py-1.5 text-right sm:table-cell">
+          <ProgressSummary p={p} />
         </td>
       </tr>
       {open && (
@@ -62,8 +65,9 @@ export function ProgressRow({
                   <dt className="w-28 shrink-0 truncate text-muted-foreground">
                     {type}
                   </dt>
-                  <dd className="flex-1">
-                    <ProgressBar p={tp} label={type} className="h-1.5" />
+                  <dd className="flex flex-1 items-center gap-3">
+                    <ProgressBar p={tp} label={type} className="h-1.5 flex-1" />
+                    <InvalidSlot n={tp.invalid} reserve={anyInvalid} />
                   </dd>
                 </div>
               ))}
