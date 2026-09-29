@@ -22,6 +22,8 @@ Open a queue and you are in the editor, on the first string, with **Next** and *
 
 The source text and your translation sit side by side on a wide screen, and one above the other on a narrow one. **Save translation** commits it; there is no autosave, and nothing is lost when you move away, because a string you have not saved is simply not saved.
 
+Where the repository already holds a guess for an untranslated string, such as a gettext file's fuzzy row, it sits above the box as *the repository's fuzzy guess, not yet a translation*. **Use as draft** puts it in the box, where the editor checks it like anything you type; it counts as translated only once you save it. Once the string is translated the guess is no longer offered.
+
 Some strings have more than plain text in them, and those parts must survive into your translation. You never type them by hand.
 
 **Placeholders** are values the application drops in — a name, a count, a date. They appear as chips below the box; click one to insert it. The same placeholders shown in the source text carry a tooltip saying what each one holds, and sometimes a grammatical hint about what arrives.

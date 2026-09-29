@@ -69,4 +69,4 @@ Accounts, projects, translations and history are all in the database. The secret
 
 ## Upgrading
 
-`npm update @corpus-tool/cli @corpus-tool/workbench` and start it again. Migrations run at startup, and the boot log names the database it opened. Nothing stops you putting an older version back and nothing makes it work: the migrations only go forward, and there is no check that would tell you.
+`npm update @corpus-tool/cli @corpus-tool/workbench` and start it again. Upgrade the two together, and a team instance's image with the CLI that pushes to it: from 0.21.0 a push asks the instance what it accepts and refuses, naming it, an adapter or library the instance predates (`the server at … predates the yaml adapter this project uses; upgrade it to 0.21.0 …`), and a 0.20 instance ignores a snapshot's `sourceVariants`, `seedTranslated` and `seedSuggestions` without saying so. Migrations run at startup, and the boot log names the database it opened. Nothing stops you putting an older version back and nothing makes it work: the migrations only go forward, and there is no check that would tell you.

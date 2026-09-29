@@ -19,7 +19,7 @@ export default async function Home() {
     slug: project.slug,
     name: project.name,
     languages: project.languages,
-    progress: progressCounts(db, project.id).perLanguage,
+    progress: progressCounts(db, project.id, { invalid: false }).perLanguage,
     counts: queueCounts(db, project.id),
     pending: pendingCount(db, project.id),
   }));
