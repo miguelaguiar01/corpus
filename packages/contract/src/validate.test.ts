@@ -1601,7 +1601,9 @@ test("in a type read as HTML a tag's attribute placeholders are kept apart from 
     pt("<a href='%{userUrl}'>%{user}</a> publicou <a href='#'>o tópico</a>"),
   ).toMatchObject({
     ok: false,
-    errors: [{ code: "missing-placeholder", name: "topicUrl" }],
+    errors: [
+      { code: "missing-placeholder", name: "topicUrl", written: "%{topicUrl}" },
+    ],
   });
   expect(
     pt(

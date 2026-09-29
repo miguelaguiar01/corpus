@@ -336,16 +336,24 @@ export function validateTranslation(
     const missing = new Set(
       errors.flatMap((e) => (e.code === "missing-placeholder" ? [e.name] : [])),
     );
-    for (const name of expected.attrPlaceholders)
+    for (const [name, written] of expected.attrPlaceholders)
       if (!actual.attrPlaceholders.has(name) && !missing.has(name))
-        errors.push({ code: "missing-placeholder", name });
-    for (const name of actual.attrPlaceholders)
+        errors.push({
+          code: "missing-placeholder",
+          name,
+          ...(written ? { written } : {}),
+        });
+    for (const [name, written] of actual.attrPlaceholders)
       if (
         !expected.attrPlaceholders.has(name) &&
         !expectedValues.has(name) &&
         !passed.has(name)
       )
-        errors.push({ code: "unexpected-placeholder", name });
+        errors.push({
+          code: "unexpected-placeholder",
+          name,
+          ...(written ? { written } : {}),
+        });
   } else {
     for (const name of expected.tags) {
       if (!actual.tags.has(name)) errors.push({ code: "missing-tag", name });

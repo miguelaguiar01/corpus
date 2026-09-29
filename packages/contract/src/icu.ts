@@ -1260,8 +1260,9 @@ export type Shape = {
   selects: Map<string, Set<string>>;
   plurals: Map<string, Set<string>>;
   tags: Set<string>;
-  // The placeholders written in tags' attributes (#948).
-  attrPlaceholders: Set<string>;
+  // The placeholders written in tags' attributes, each as written where
+  // the library writes it (#948).
+  attrPlaceholders: Map<string, string | undefined>;
   // printf: each verb as written, by position (#594).
   written: Map<string, string>;
   // Every verb as written, a position repeated in each plural branch
@@ -1280,7 +1281,7 @@ export function shapeOf(
     selects: new Map(),
     plurals: new Map(),
     tags: new Set(),
-    attrPlaceholders: new Set(),
+    attrPlaceholders: new Map(),
     written: new Map(),
     verbs: [],
     count: 0,
@@ -1301,7 +1302,11 @@ export function shapeOf(
     }
     if (node.kind === "tag" || node.kind === "literal")
       for (const attr of node.attrPlaceholders ?? [])
-        if (attr.kind === "placeholder") shape.attrPlaceholders.add(attr.name);
+        if (
+          attr.kind === "placeholder" &&
+          !shape.attrPlaceholders.has(attr.name)
+        )
+          shape.attrPlaceholders.set(attr.name, attr.written);
     if (node.kind === "tag") {
       shape.tags.add(tagIdentity(node));
       shapeOf(node.children, shape);
