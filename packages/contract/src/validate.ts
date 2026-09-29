@@ -290,6 +290,17 @@ export function validateTranslation(
         ...writtenAs(expected, name),
       });
   }
+  // Outside ICU, whose `#` prints it, a plural on a value prints nothing:
+  // a count the source writes is shown only where a form writes it too
+  // (#949).
+  if (syntax !== "icu")
+    for (const name of expected.placeholders)
+      if (!actual.placeholders.has(name) && actualValues.has(name))
+        errors.push({
+          code: "missing-placeholder",
+          name,
+          ...writtenAs(expected, name),
+        });
   const passed = new Map<string, string>();
   if (syntax === "printf")
     (options.arguments ?? []).forEach((written, i) => {

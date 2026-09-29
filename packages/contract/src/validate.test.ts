@@ -1668,3 +1668,54 @@ test("a rails %{ that closes no placeholder is refused, %%{ is text (#948)", () 
     new Set(["name"]),
   );
 });
+
+test("outside ICU a count the source prints is printed by some form of the translation (#949)", () => {
+  const element =
+    "{count, plural, one {Fetched %(count)s event out of %(total)s} other {Fetched %(count)s events out of %(total)s}}";
+  expect(
+    validateTranslation(
+      element,
+      "{count, plural, one {Pobrano zdarzenie z %(total)s} few {Pobrano zdarzenia z %(total)s} many {Pobrano zdarzeń z %(total)s} other {Pobrano zdarzeń z %(total)s}}",
+      "pl",
+      "counterpart",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [
+      { code: "missing-placeholder", name: "count", written: "%(count)s" },
+    ],
+  });
+  expect(
+    validateTranslation(
+      element,
+      "{count, plural, one {Pobrano zdarzenie z %(total)s} few {Pobrano %(count)s zdarzenia z %(total)s} many {Pobrano %(count)s zdarzeń z %(total)s} other {Pobrano %(count)s zdarzeń z %(total)s}}",
+      "pl",
+      "counterpart",
+    ),
+  ).toMatchObject({ ok: true });
+  // Discourse's Hebrew: every form a fixed word.
+  expect(
+    validateTranslation(
+      "{count, plural, one {%{count} reply} other {%{count} replies}}",
+      "{count, plural, one {תגובה} two {שתי תגובות} other {שתי תגובות}}",
+      "he",
+      "rails",
+    ),
+  ).toMatchObject({ ok: false });
+  expect(
+    validateTranslation(
+      "{count, plural, one {{{count}} item} other {{{count}} items}}",
+      "{count, plural, other {アイテム}}",
+      "ja",
+      "i18next",
+    ),
+  ).toMatchObject({ ok: false });
+  // ICU's `#` prints the count, so a form may leave it out.
+  expect(
+    validateTranslation(
+      "{count, plural, one {{count} item} other {{count} items}}",
+      "{count, plural, one {um item} other {# itens}}",
+      "pt",
+    ),
+  ).toMatchObject({ ok: true });
+});
