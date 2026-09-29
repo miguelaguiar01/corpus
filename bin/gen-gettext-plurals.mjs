@@ -8,8 +8,8 @@ import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const root = path.resolve(import.meta.dirname, "..");
-// The generated header names the release the package pins, 48.0.0 as
-// CLDR's own 48.0.
+// The generated header names the CLDR release the package pins, as
+// CLDR numbers it: major and minor.
 const cldrVersion = JSON.parse(
   readFileSync(path.join(root, "node_modules/cldr-core/package.json"), "utf8"),
 )
