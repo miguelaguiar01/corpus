@@ -1,8 +1,9 @@
 import { moonlightManor, type Snapshot } from "@corpus/contract";
+import { eq } from "drizzle-orm";
 import { expect, test } from "vitest";
 import { applySnapshot } from "@/ingest/apply";
 import { searchStringIds } from "@/db/search";
-import { projects } from "@/db/schema";
+import { projects, stringTranslations } from "@/db/schema";
 import { memoryDb } from "@/db/test-helpers";
 import { listCatalogue } from "./query";
 import { progressCounts } from "./progress";
@@ -159,4 +160,25 @@ test("a project of one type counts as a project of several does, archived and st
   expect(one.perLanguage).toEqual(several.perLanguage);
   expect(one.perType.chrome).toEqual(one.perLanguage);
   expect(one.perLanguage.en).toMatchObject({ stale: 1, total: 3 });
+});
+
+test("an invalid row counts in its language and type, and a page that shows no count skips it (#874)", () => {
+  const { db, p } = pushed();
+  db.update(stringTranslations)
+    .set({ invalid: true })
+    .where(eq(stringTranslations.language, "pt-PT"))
+    .run();
+  const counted = progressCounts(db, p.id);
+  expect(counted.perLanguage["pt-PT"]?.invalid).toBe(4);
+  expect(
+    Object.values(counted.perType).reduce(
+      (sum, byLanguage) => sum + (byLanguage["pt-PT"]?.invalid ?? 0),
+      0,
+    ),
+  ).toBe(4);
+  const skipped = progressCounts(db, p.id, { invalid: false });
+  expect(skipped.perLanguage["pt-PT"]?.invalid).toBe(0);
+  expect(skipped.perLanguage["pt-PT"]?.total).toBe(
+    counted.perLanguage["pt-PT"]?.total,
+  );
 });
