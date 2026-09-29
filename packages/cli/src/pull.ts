@@ -108,7 +108,6 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
         ctx.cwd,
         fileOf(source, config.sourceLanguage, config.sourceLanguage),
         source,
-        config.sourceLanguage,
       )) ?? new Set<string>(),
     );
   }
@@ -153,8 +152,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
         if (targetIds.has(file)) continue;
         targetIds.set(
           file,
-          (await ownIds(jiti, ctx.cwd, file, member, config.sourceLanguage)) ??
-            new Set<string>(),
+          (await ownIds(jiti, ctx.cwd, file, member)) ?? new Set<string>(),
         );
       }
 
@@ -175,15 +173,9 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
       config.sourceLanguage,
       config.sourceLanguage,
     );
-    if (readRepoFile(ctx.cwd, templatePath) === undefined) continue;
+    if (!existsSync(path.join(ctx.cwd, templatePath))) continue;
     const held = heldByType.get(source.type) ?? new Set<string>();
-    const own = await ownIds(
-      jiti,
-      ctx.cwd,
-      templatePath,
-      source,
-      config.sourceLanguage,
-    );
+    const own = await ownIds(jiti, ctx.cwd, templatePath, source);
     for (const id of own ?? []) held.add(id);
     heldByType.set(source.type, held);
   }
@@ -208,13 +200,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     // A target file takes the ids its source-language file holds, under
     // the source's namespace when it has one, stripped for writing: two
     // sources of one type each write their own strings (#513).
-    const own = await ownIds(
-      jiti,
-      ctx.cwd,
-      templatePath,
-      source,
-      config.sourceLanguage,
-    );
+    const own = await ownIds(jiti, ctx.cwd, templatePath, source);
     const members = membersOf(source);
     for (const language of targets) {
       const file = fileOf(source, language, config.sourceLanguage);
@@ -633,18 +619,10 @@ async function ownIds(
   cwd: string,
   file: string,
   source: FileSource,
-  sourceLanguage: string,
 ): Promise<Set<string> | undefined> {
   if (source.adapter === "table" || !sourceWritesBack(source)) return undefined;
   try {
-    const entries = await readEntries(
-      jiti,
-      cwd,
-      file,
-      source,
-      true,
-      sourceLanguage,
-    );
+    const entries = await readEntries(jiti, cwd, file, source, true);
     return new Set(entries.map((e) => e.id));
   } catch {
     return undefined;

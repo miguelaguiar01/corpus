@@ -1128,3 +1128,25 @@ export default defineCorpus({
     "{{count}} pokoju!",
   );
 });
+
+test("a String Catalog naming another source language than the config's still reads its ids, and names no orphan (#868 review)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    read("corpus.config.ts").replace(
+      '{ adapter: "messages", type: "chrome", path: "i18n/{lang}.json" },',
+      '{ adapter: "xcstrings", type: "chrome", path: "L.xcstrings" },',
+    ),
+  );
+  writeFileSync(
+    path.join(repo, "L.xcstrings"),
+    '{\n  "sourceLanguage" : "de",\n  "strings" : {\n    "greeting" : {\n\n    }\n  },\n  "version" : "1.0"\n}\n',
+  );
+  await serve(200, {
+    ...PAYLOAD,
+    types: { greeting: "chrome" },
+    translations: { pt: { greeting: "Olá {name}" } },
+  });
+  const c = ctx();
+  await run(["pull"], c);
+  expect(c.output.join("\n")).not.toMatch(/no source-language file holds/);
+});
