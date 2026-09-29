@@ -411,11 +411,17 @@ function majorityOf(found: Tally, order: string[]): (string | undefined)[] {
 
 // A plural entry's forms as one ICU plural on `count`, a branch for
 // every category the language has, each the form its index names.
+// `picked`, a target file's: the categories its `Plural-Forms` reads a
+// form for, and `other`, which a plural needs. One it reads none for,
+// French's `many`, would show a form the file cannot hold (#973).
 export function poPluralText(
   forms: string[],
   indexes: Map<string, number>,
+  picked?: readonly (string | undefined)[],
 ): string {
-  const ordered = PLURAL_CATEGORIES.filter((c) => indexes.has(c));
+  const ordered = PLURAL_CATEGORIES.filter(
+    (c) => indexes.has(c) && (!picked || c === "other" || picked.includes(c)),
+  );
   const branch = (c: string) =>
     forms[indexes.get(c)!] ?? forms[forms.length - 1] ?? "";
   return `{count, plural, ${ordered.map((c) => `${c} {${branch(c)}}`).join(" ")}}`;
@@ -468,18 +474,19 @@ export function gettextTranslations(
 
 // The categories a target file's `Plural-Forms` can pick, one for each
 // `msgstr[n]` a category reads, in CLDR's order: what a translation of
-// it holds, whatever more the language has (#951). A file whose header
-// is missing or names no rule is the language's own table.
+// it holds, whatever more the language has (#951). A file there is read
+// by its own header, one with no rule as CLDR's order, as the reader and
+// the writer read it (#973); a missing or empty file is the one pull
+// writes, with the language's table.
 export function gettextPluralCategories(
   text: string | undefined,
   language: string,
 ): PluralCategory[] {
   const rule = pluralRuleOf(language);
   const forms =
-    (text === undefined
-      ? undefined
-      : poHeader(parsePo(text))["Plural-Forms"]) ??
-    (rule && `nplurals=${rule.nplurals}; plural=${rule.plural};`);
+    text !== undefined && text.trim() !== ""
+      ? poHeader(parsePo(text))["Plural-Forms"]
+      : rule && `nplurals=${rule.nplurals}; plural=${rule.plural};`;
   const written = pluralTable(language, forms).categories;
   return PLURAL_CATEGORIES.filter((c) => written.includes(c));
 }
@@ -501,7 +508,10 @@ function poTexts(
   const entries = parsePo(text);
   // The config's tag says the language; the header's code may be one
   // the runtime cannot read (`sr@latin`).
-  const { indexes } = pluralTable(language, poHeader(entries)["Plural-Forms"]);
+  const { indexes, categories } = pluralTable(
+    language,
+    poHeader(entries)["Plural-Forms"],
+  );
   return entries
     .filter((e) => e.msgid !== "" && e.flags.includes("fuzzy") === fuzzy)
     .flatMap((e) => {
@@ -517,6 +527,7 @@ function poTexts(
           source: poPluralText(
             e.msgstr.map((t) => t ?? ""),
             indexes,
+            categories,
           ),
         },
       ];

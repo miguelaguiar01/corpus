@@ -1435,6 +1435,11 @@ test("a gettext plural string carries the categories each target file's Plural-F
     path.join(dir, "locales", "de.po"),
     `msgid ""\nmsgstr ""\n"Plural-Forms: nplurals=2; plural=(n != 1);\\n"\n`,
   );
+  // A Czech file with no Plural-Forms is read in CLDR's order.
+  writeFileSync(
+    path.join(dir, "locales", "cs.po"),
+    `msgid ""\nmsgstr ""\n"Content-Type: text/plain; charset=UTF-8\\n"\n\nmsgid "%d note"\nmsgid_plural "%d notes"\nmsgstr[0] "%d poznámka"\nmsgstr[1] "%d poznámky"\nmsgstr[2] "%d poznámky"\nmsgstr[3] "%d poznámek"\n`,
+  );
   writeFileSync(
     path.join(dir, "locales", "oc.po"),
     `msgid ""\nmsgstr ""\n"Plural-Forms: nplurals=2; plural=(n > 1);\\n"\n`,
@@ -1442,7 +1447,7 @@ test("a gettext plural string carries the categories each target file's Plural-F
   const report = await buildSnapshotReport(
     config({
       sourceLanguage: "en",
-      languages: ["en", "it", "de", "fr", "oc"],
+      languages: ["en", "it", "de", "fr", "oc", "cs"],
       sources: [
         {
           adapter: "gettext",

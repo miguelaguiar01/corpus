@@ -156,10 +156,11 @@ test("an expression that is not arithmetic, or leaves the range, is not run; CLD
 });
 
 test("a category gettext cannot name reads the form its integers take, or other's (#718)", () => {
-  // French many is a million: the expression gives it index 1.
+  // French many is a million, which nplurals=2 holds no form of: it is
+  // not read, or an edit to it alone would be lost (#973).
   const fr = `msgid ""\nmsgstr ""\n"Plural-Forms: nplurals=2; plural=(n > 1);\\n"\n\nmsgid "%d note"\nmsgid_plural "%d notes"\nmsgstr[0] "%d note"\nmsgstr[1] "%d notes"\n`;
   expect(gettextTranslations(fr, "fr")[0]?.source).toBe(
-    "{count, plural, one {%d note} many {%d notes} other {%d notes}}",
+    "{count, plural, one {%d note} other {%d notes}}",
   );
   // A tag the config maps from `sr@latin` reads Serbian's rules.
   const sr = fr
@@ -772,4 +773,16 @@ test("a target file's categories are the ones its Plural-Forms picks, or its lan
   expect(gettextPluralCategories('msgid ""\nmsgstr ""\n', "ja")).toEqual([
     "other",
   ]);
+  // A file with no rule is read in CLDR's order, as the reader and the
+  // writer read it; the table is for a file not there yet (#973).
+  expect(gettextPluralCategories('msgid ""\nmsgstr ""\n', "cs")).toEqual([
+    "one",
+    "few",
+    "many",
+    "other",
+  ]);
+  for (const missing of [undefined, "", "\n"])
+    expect(gettextPluralCategories(missing, "cs")).toEqual(
+      GETTEXT_PLURALS.cs!.forms,
+    );
 });
