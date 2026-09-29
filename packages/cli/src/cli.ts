@@ -9,7 +9,13 @@ import {
   pushOnlyNotes,
   type Refused,
 } from "./build";
-import { type CorpusConfig, seedDigest, type Snapshot } from "@corpus/contract";
+import {
+  type Accepts,
+  BEFORE_ACCEPTS,
+  type CorpusConfig,
+  seedDigest,
+  type Snapshot,
+} from "@corpus/contract";
 import { option, refuseUnknown } from "./args";
 import { COMMAND_WORDS, KNOWN_FLAGS, USAGE } from "./commands";
 import { CliError, configFileName, loadConfig, requireToken } from "./config";
@@ -94,6 +100,56 @@ type PushReport = {
   fromEmpty?: number;
 };
 
+// What the snapshot uses that the server cannot take, named (#875): a
+// server refuses a whole snapshot over one closed value it does not
+// know. Values every server since 0.20.0 takes need no asking; a server
+// that cannot say, or reports no `accepts`, is judged by its age.
+async function serverLacks(
+  base: string,
+  token: string,
+  snapshot: Snapshot,
+): Promise<string[]> {
+  const used: { kind: "adapter" | "library"; value: string }[] = [
+    ...new Set((snapshot.sources ?? []).map((s) => s.adapter)),
+  ].map((value) => ({ kind: "adapter" as const, value }));
+  const libraries = new Set(
+    [...snapshot.strings, ...(snapshot.sources ?? [])].flatMap((item) => {
+      const library = item.library ?? item.syntax;
+      return library === undefined ? [] : [library];
+    }),
+  );
+  for (const value of libraries) used.push({ kind: "library", value });
+  const known = (accepts: Accepts, v: (typeof used)[number]) =>
+    (v.kind === "adapter" ? accepts.adapters : accepts.libraries).includes(
+      v.value,
+    );
+  const newer = used.filter((v) => !known(BEFORE_ACCEPTS, v));
+  if (newer.length === 0) return [];
+  const accepts = await serverAccepts(base, token);
+  if (accepts === undefined) return [];
+  return newer
+    .filter((v) => !known(accepts ?? BEFORE_ACCEPTS, v))
+    .map((v) => `the ${v.value} ${v.kind}`);
+}
+
+// What the server says it accepts: null where it reports nothing, a
+// server from before 0.21.0; undefined where it cannot be asked.
+async function serverAccepts(
+  base: string,
+  token: string,
+): Promise<Accepts | null | undefined> {
+  try {
+    const response = await request(`${base}/api/health`, token);
+    if (!response.ok) return undefined;
+    const { accepts } = (await response.json()) as { accepts?: Accepts };
+    return Array.isArray(accepts?.adapters) && Array.isArray(accepts?.libraries)
+      ? accepts
+      : null;
+  } catch {
+    return undefined;
+  }
+}
+
 // The snapshot is built and validated before the token is needed, so a
 // config or an exporter can be fixed without a server in sight.
 async function push(args: string[], ctx: RunContext): Promise<number> {
@@ -111,6 +167,13 @@ async function push(args: string[], ctx: RunContext): Promise<number> {
   const token = requireToken(ctx.env, ctx.cwd);
 
   const base = config.server.replace(/\/$/, "");
+  const lacking = await serverLacks(base, token, snapshot);
+  if (lacking.length > 0) {
+    ctx.err(
+      `corpus: the server at ${base} predates ${lacking.join(" and ")} this project uses; upgrade it to ${cliVersion()} (@corpus-tool/workbench or the image), then push again`,
+    );
+    return 1;
+  }
   const { body: payload, unchanged } = await withoutUnchangedSeeds(
     snapshot,
     config,
@@ -135,6 +198,12 @@ async function push(args: string[], ctx: RunContext): Promise<number> {
     for (const error of body.errors ?? []) {
       ctx.err(`  ${printable(error.id)}: ${error.message}`);
     }
+    // A server before 0.21.0 also reads with an older parser, which
+    // refuses texts this CLI takes (#875).
+    if ((await serverAccepts(base, token)) === null)
+      ctx.err(
+        `corpus: the server at ${base} predates 0.21.0 and may refuse what this CLI reads; upgrade it to ${cliVersion()} (@corpus-tool/workbench or the image), then push again`,
+      );
     return 1;
   }
   if (!response.ok) {

@@ -29,6 +29,7 @@ vi.mock("@/db", async (importActual) => ({
 }));
 const push = await import("@/app/api/push/route");
 const pull = await import("@/app/api/pull/route");
+const health = await import("@/app/api/health/route");
 
 const FIXTURE = fileURLToPath(
   new URL(
@@ -68,7 +69,9 @@ function serve(): Promise<{ server: Server; url: string }> {
       const response =
         req.method === "POST"
           ? await push.POST(request)
-          : await pull.GET(request);
+          : req.url === "/api/health"
+            ? health.GET()
+            : await pull.GET(request);
       // The body goes through as bytes with its encoding: a pull over
       // the gzip threshold is inflated by the CLI's fetch, not here (#602).
       const encoding = response.headers.get("content-encoding");
