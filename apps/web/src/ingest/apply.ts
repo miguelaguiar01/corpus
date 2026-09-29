@@ -411,6 +411,10 @@ export function applySnapshot(
       }
 
       const entityResult = applyEntities(tx, projectId, snapshot);
+      // The project's strings once the inserts are in, read at most once
+      // for the seeds and the suggestions both.
+      let projectRows: ProjectString[] | undefined;
+      const rows = () => (projectRows ??= projectStrings(tx, projectId));
       const seedResult = applySeeds(
         tx,
         projectId,
@@ -419,8 +423,9 @@ export function applySnapshot(
         richText,
         counts,
         new Set(plan.insert),
+        rows,
       );
-      applySuggestions(tx, projectId, targetLanguages, snapshot);
+      applySuggestions(tx, projectId, targetLanguages, snapshot, rows);
       remarkSeeds(
         tx,
         targetLanguages,
@@ -473,18 +478,24 @@ function loadCurrent(
     .from(strings)
     .where(eq(strings.projectId, projectId))
     .all();
+  // This project's translated targets alone, not the instance's (#858).
   const translations = db
     .select({
       stringId: stringTranslations.stringId,
       language: stringTranslations.language,
-      state: stringTranslations.state,
     })
     .from(stringTranslations)
+    .innerJoin(strings, eq(strings.id, stringTranslations.stringId))
+    .where(
+      and(
+        eq(strings.projectId, projectId),
+        ne(stringTranslations.language, sourceLanguage),
+        inArray(stringTranslations.state, [...STALE_STATES]),
+      ),
+    )
     .all();
   const targetsByString = new Map<number, string[]>();
   for (const t of translations) {
-    if (t.language === sourceLanguage) continue;
-    if (!(STALE_STATES as readonly string[]).includes(t.state)) continue;
     const list = targetsByString.get(t.stringId) ?? [];
     list.push(t.language);
     targetsByString.set(t.stringId, list);
@@ -575,23 +586,34 @@ export function suggestionClear(db: Db, projectId: number) {
 // start from, a gettext fuzzy row. Each push replaces them whole, a push
 // without them clearing them; they never touch a row's text or state.
 // An id or a language the project lacks is skipped.
+type ProjectString = ReturnType<typeof projectStrings>[number];
+
+function projectStrings(db: Db, projectId: number) {
+  return db
+    .select({
+      id: strings.id,
+      stringId: strings.stringId,
+      source: strings.source,
+      type: strings.type,
+      syntax: strings.syntax,
+      arguments: strings.arguments,
+    })
+    .from(strings)
+    .where(eq(strings.projectId, projectId))
+    .all();
+}
+
 function applySuggestions(
   db: Db,
   projectId: number,
   targetLanguages: string[],
   snapshot: Snapshot,
+  rows: () => ProjectString[],
 ): void {
   suggestionClear(db, projectId).run();
   const suggestions = snapshot.seedSuggestions ?? {};
   if (Object.keys(suggestions).length === 0) return;
-  const rowOf = new Map(
-    db
-      .select({ id: strings.id, stringId: strings.stringId })
-      .from(strings)
-      .where(eq(strings.projectId, projectId))
-      .all()
-      .map((row) => [row.stringId, row.id]),
-  );
+  const rowOf = new Map(rows().map((row) => [row.stringId, row.id]));
   const set = db
     .update(stringTranslations)
     .set({ suggestion: sql`${sql.placeholder("text")}` })
@@ -625,30 +647,17 @@ function applySeeds(
   richText: NonNullable<Snapshot["richText"]>,
   counts: (language: string, id: string) => boolean,
   created: Set<string>,
+  rows: () => ProjectString[],
 ): { seeded: number; seedsIgnored: number; seedsIdentical: number } {
   const seeds = snapshot.seedTranslations ?? {};
   let seeded = 0;
   let seedsIgnored = 0;
   let seedsIdentical = 0;
-  const byStringId = new Map(
-    db
-      .select({
-        id: strings.id,
-        stringId: strings.stringId,
-        source: strings.source,
-        type: strings.type,
-        syntax: strings.syntax,
-        arguments: strings.arguments,
-      })
-      .from(strings)
-      .where(eq(strings.projectId, projectId))
-      .all()
-      .map((row) => [row.stringId, row]),
-  );
   // No seeds, nothing to compare: a push whose every language's digest
   // the server held (#601) skips the read of the project's rows.
   if (Object.keys(seeds).length === 0)
     return { seeded: 0, seedsIgnored: 0, seedsIdentical: 0 };
+  const byStringId = new Map(rows().map((row) => [row.stringId, row]));
   const rowKey = (rowId: number, language: string) =>
     `${rowId}\u0000${language}`;
   const edited = new Set(
