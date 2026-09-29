@@ -77,7 +77,7 @@ export function isVoidTag(name: string): boolean {
 
 // A tag's identity for a chip and for the check that a translation
 // keeps it: the name, with its attribute text when it has one.
-export function tagIdentity(tag: { name: string; attrs?: string }): string {
+function tagIdentity(tag: { name: string; attrs?: string }): string {
   return tag.attrs ? `${tag.name} ${tag.attrs}` : tag.name;
 }
 // i18next's interpolation name: an identifier, dotted into an object

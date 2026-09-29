@@ -2,7 +2,7 @@
 // schemas are loose: consumers must ignore unknown fields (§4).
 import { z } from "zod";
 
-export const metadataValueSchema = z.union([
+const metadataValueSchema = z.union([
   z.string(),
   z.boolean(),
   z.array(z.string()),
@@ -14,7 +14,7 @@ export const metadataValueSchema = z.union([
 // the same with underscores as i18next and Crowdin write it (en_US),
 // kept as written everywhere but where the runtime's locale data is
 // asked.
-export const IDENTIFIER_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const IDENTIFIER_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 export const LANGUAGE_RE = /^[A-Za-z]{2,3}([-_][A-Za-z0-9]{2,8})*$/;
 
 // The BCP 47 form of a code for `Intl`, which refuses an underscore.
@@ -30,8 +30,8 @@ export const identifier = () =>
 // or a tab aside: a dotted identifier, or, as i18next's natural keys,
 // the sentence itself, which may run over lines. It travels in URLs
 // and tool arguments, which encode; only its length is bounded.
-export const STRING_ID_RE = /^(?:[^\p{Cc}]|[\t\n\r])+$/u;
-export const MAX_STRING_ID_LENGTH = 1000;
+const STRING_ID_RE = /^(?:[^\p{Cc}]|[\t\n\r])+$/u;
+const MAX_STRING_ID_LENGTH = 1000;
 export const stringId = () =>
   z
     .string()
@@ -74,7 +74,7 @@ export function posixTag(code: string): string | undefined {
 
 // Why a code is not a tag, naming it (#657), and for a POSIX code the
 // tag to write and the mapping that keeps its files' names.
-export function notALanguageTag(code: string): string {
+function notALanguageTag(code: string): string {
   const tag = posixTag(code);
   if (tag) {
     return `${JSON.stringify(code)} is not a language tag; write ${tag}, and map its files with languageFiles: { ${JSON.stringify(tag)}: ${JSON.stringify(code)} } on the source`;
@@ -138,7 +138,7 @@ export function libraryOf(
 }
 
 // Entity ids carry their type: character:condessa-rosa (§6).
-export const ENTITY_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
+const ENTITY_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 export const entityId = () =>
   z
     .string()
@@ -191,7 +191,7 @@ export const stringEntrySchema = z.looseObject({
 // field's tooltip (§5).
 const declarationBase = { description: z.string().min(1) };
 
-export const placeholderSlotSchema = z.looseObject({
+const placeholderSlotSchema = z.looseObject({
   description: z.string().min(1),
   role: z.string().optional(),
 });
@@ -225,4 +225,3 @@ export type MetadataValue = z.infer<typeof metadataValueSchema>;
 export type Example = z.infer<typeof exampleSchema>;
 export type StringEntry = z.infer<typeof stringEntrySchema>;
 export type FieldDeclaration = z.infer<typeof fieldDeclarationSchema>;
-export type PlaceholderSlot = z.infer<typeof placeholderSlotSchema>;

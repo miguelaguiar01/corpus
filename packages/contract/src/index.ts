@@ -3,7 +3,28 @@ export * from "./strings";
 export * from "./snapshot";
 export * from "./pull";
 export * from "./config";
-export * from "./icu";
+// The ICU module's own helpers stay inside the contract.
+export {
+  argIndexOf,
+  branchingNodes,
+  isVoidTag,
+  parseIcu,
+  partsOf,
+  placeholderFormatText,
+  PLURAL_CATEGORIES,
+  pluralCategoriesOf,
+  readIcu,
+  refusalAdvice,
+  refusalCause,
+  tagsOf,
+  WHOLE_PLURAL_LIBRARIES,
+  type IcuError,
+  type IcuNode,
+  type IcuParseResult,
+  type Parts,
+  type PlaceholderFormat,
+  type RefusalCause,
+} from "./icu";
 export * from "./validate";
 export * from "./preview";
 export * from "./agent";

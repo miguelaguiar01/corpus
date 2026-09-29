@@ -10,12 +10,11 @@ import { identifier, stringId } from "./strings";
 export const MIN_STATES = ["untranslated", "translated", "verified"] as const;
 export type MinState = (typeof MIN_STATES)[number];
 
-export const SOURCE_CHANGE_KINDS = ["edit", "add", "delete"] as const;
-export type SourceChangeKind = (typeof SOURCE_CHANGE_KINDS)[number];
+const SOURCE_CHANGE_KINDS = ["edit", "add", "delete"] as const;
 
 // A pending proposal (§11) for pull to write into a source file (§8):
 // `text` for an edit or an add, none for a delete.
-export const sourceChangeSchema = z
+const sourceChangeSchema = z
   .looseObject({
     kind: z.enum(SOURCE_CHANGE_KINDS),
     id: stringId(),
