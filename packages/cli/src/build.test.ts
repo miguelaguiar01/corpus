@@ -1382,3 +1382,40 @@ test("a target object or hash without other is a plural only where the source fi
   });
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("a source file that will not read is named once, never thrown from the seeds' read (#950 review)", async () => {
+  for (const [adapter, file, body] of [
+    ["messages", "en.json", '{\n  "r": {\n'],
+    ["yaml", "en.yml", "en:\n  r: [\n"],
+  ] as const) {
+    const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-950b-"));
+    writeFileSync(path.join(dir, file), body);
+    writeFileSync(
+      path.join(dir, file.replace("en", "pl")),
+      adapter === "yaml" ? "pl:\n  r: R\n" : '{ "r": "R" }\n',
+    );
+    await expect(
+      buildSnapshotReport(
+        config({
+          sourceLanguage: "en",
+          languages: ["en", "pl"],
+          sources: [
+            adapter === "yaml"
+              ? { adapter, type: "ui", path: "{lang}.yml" }
+              : {
+                  adapter,
+                  type: "ui",
+                  library: "counterpart",
+                  path: "{lang}.json",
+                },
+          ],
+        }),
+        dir,
+      ),
+      adapter,
+    ).rejects.toThrow(
+      new RegExp(`^snapshot build failed:\n  ${file.replace(".", "\\.")}: `),
+    );
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

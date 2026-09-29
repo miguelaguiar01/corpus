@@ -1074,12 +1074,13 @@ async function readSeeds(
   for (const source of config.sources) {
     if (source.adapter === "exec" || !hasLanguages(source)) continue;
     if (!sourceWritesBack(source)) continue;
+    // A source file that will not read is named once, where it is read.
     const pluralIds = await sourcePluralIds(
       jiti,
       cwd,
       source,
       config.sourceLanguage,
-    );
+    ).catch(() => undefined);
     for (const lang of config.languages) {
       if (lang === config.sourceLanguage) continue;
       const file = fileOf(source, lang, config.sourceLanguage);
