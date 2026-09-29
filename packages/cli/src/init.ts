@@ -86,7 +86,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     ctx,
     messages,
     sourceLanguage,
-    catalog,
+    catalog !== undefined,
   );
   // An XLIFF unit's text is ICU, and a flag that cannot apply is refused
   // rather than dropped.
@@ -140,8 +140,8 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       );
     }
   }
-  // Every format but JSON's has its library's default, which only the
-  // flag changes; xliff's is fixed.
+  // Only the messages adapter's library is detected; every other format
+  // has its default, which only the flag changes, and xliff's is fixed.
   const detected =
     adapter === "xliff" ||
     (adapter !== "messages" &&
@@ -265,15 +265,15 @@ function formatOf(
   ctx: RunContext,
   messages: string,
   sourceLanguage: string,
-  catalog: { sourceLanguage: string } | undefined,
+  catalogued: boolean,
 ): { adapter: InitSource["adapter"]; sourcePath?: string } {
+  if (catalogued) return { adapter: "xcstrings" };
   const sourceFile = path.join(
     ctx.cwd,
     messages.replaceAll("{lang}", sourceLanguage),
   );
   const missing = !existsSync(sourceFile);
   const relative = path.relative(ctx.cwd, sourceFile);
-  if (catalog) return { adapter: "xcstrings" };
   // XLIFF has its own adapter (#712); Angular names the source-language
   // file with no language in it, `messages.xlf` beside `messages.de.xlf`.
   if (/\.(?:xlf|xliff)$/i.test(messages)) {
@@ -281,7 +281,6 @@ function formatOf(
     const bare = path.posix.normalize(messages.replace(/[._-]?\{lang\}/, ""));
     const sourcePath =
       missing && existsSync(path.join(ctx.cwd, bare)) ? bare : undefined;
-    // Every format's build reads the source language's file (#856).
     if (!sourcePath && missing)
       ctx.err(
         `corpus: no ${relative} and no ${bare}; set the xliff source's sourcePath to the file Angular extracts`,
@@ -348,6 +347,7 @@ function formatOf(
       );
     return { adapter: "qt-ts", ...(sourcePath && { sourcePath }) };
   }
+  // Every format's build reads the source language's file (#856).
   if (
     messages.includes("{ns}")
       ? matchPattern(ctx.cwd, messages, sourceLanguage).length === 0
