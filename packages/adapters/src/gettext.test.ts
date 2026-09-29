@@ -781,7 +781,8 @@ test("a target file's categories are the ones its Plural-Forms picks, or its lan
     "many",
     "other",
   ]);
-  expect(gettextPluralCategories(undefined, "cs")).toEqual(
-    GETTEXT_PLURALS.cs!.forms,
-  );
+  for (const missing of [undefined, "", "\n"])
+    expect(gettextPluralCategories(missing, "cs")).toEqual(
+      GETTEXT_PLURALS.cs!.forms,
+    );
 });
