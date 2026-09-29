@@ -239,8 +239,8 @@ function unit(
   };
 }
 
-// Every unit of a file, 1.2's `<trans-unit>` or 2.0's `<unit>`, in
-// document order.
+// Every unit of a file, 1.2's `<trans-unit>` then 2.0's `<unit>`, each
+// in document order.
 export function xliffUnits(xml: string): XliffUnit[] {
   const text = masked(xml);
   // A namespace prefix (`<xlf:trans-unit>`) would read as no unit at all.
