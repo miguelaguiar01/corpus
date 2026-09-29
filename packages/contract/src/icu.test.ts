@@ -704,12 +704,13 @@ test("a nested argument is listed once, and branchingNodes reaches it unless tol
   expect(branchingNodes(parsed.nodes, false).map((n) => n.arg)).toEqual(["g"]);
 });
 
+function within(ms: number, f: () => unknown) {
+  const start = performance.now();
+  f();
+  expect(performance.now() - start).toBeLessThan(ms);
+}
+
 test("hostile input is read in bounded time and fails cleanly, never with a thrown error (#861)", () => {
-  const within = (ms: number, f: () => unknown) => {
-    const start = performance.now();
-    f();
-    expect(performance.now() - start).toBeLessThan(ms);
-  };
   // The markup retry, once quadratic.
   const retried = "<b>{g, select, a {</b>} other {x}} ".repeat(3000);
   within(1000, () => parseIcu(retried, "icu", { html: "markup" }));
@@ -746,12 +747,9 @@ test("hostile input is read in bounded time and fails cleanly, never with a thro
 });
 
 test("counterpart's tags and vue's unclosed braces are read in linear time (#896)", () => {
-  const within = (ms: number, f: () => unknown) => {
-    const start = performance.now();
-    f();
-    expect(performance.now() - start).toBeLessThan(ms);
-  };
+  const names = Array.from({ length: 6000 }, (_, i) => `<t${i}>`).join("");
   for (const [text, library] of [
+    [names + names, "counterpart"],
     ["<b>".repeat(30000), "counterpart"],
     ["<b>x".repeat(20000), "counterpart"],
     ["{".repeat(30000), "vue"],
