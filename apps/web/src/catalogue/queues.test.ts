@@ -351,11 +351,15 @@ test("the Invalid queue's count and items start from its partial index, never th
     }
     return statement;
   };
-  expect(queueItems(db, p.id, "invalid").items.map((i) => i.key)).toEqual([
-    "ui.continue",
-  ]);
-  expect(queueCounts(db, p.id).invalid).toBe(1);
-  client.prepare = prepare;
+  try {
+    expect(queueItems(db, p.id, "invalid").items.map((i) => i.key)).toEqual([
+      "ui.continue",
+    ]);
+    expect(queueCounts(db, p.id).invalid).toBe(1);
+    expect(queueSummaries(db, p.id).invalid.first?.key).toBe("ui.continue");
+  } finally {
+    client.prepare = prepare;
+  }
   const invalid = ran.filter((r) => /"invalid" = /.test(r.source));
   expect(invalid.length).toBeGreaterThan(0);
   for (const { source, params } of invalid) {

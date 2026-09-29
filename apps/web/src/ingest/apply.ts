@@ -567,7 +567,7 @@ function applyEntities(
 // The clear of a project's suggestions every push runs: through the
 // partial index on the rows that hold one (#810), not every row.
 export function suggestionClear(db: Db, projectId: number) {
-  const projectStrings = db
+  const ofProject = db
     .select({ id: strings.id })
     .from(strings)
     .where(eq(strings.projectId, projectId));
@@ -577,15 +577,11 @@ export function suggestionClear(db: Db, projectId: number) {
     .where(
       and(
         isNotNull(stringTranslations.suggestion),
-        inArray(stringTranslations.stringId, projectStrings),
+        inArray(stringTranslations.stringId, ofProject),
       ),
     );
 }
 
-// seedSuggestions (§8, #773): what the repository offers a translator to
-// start from, a gettext fuzzy row. Each push replaces them whole, a push
-// without them clearing them; they never touch a row's text or state.
-// An id or a language the project lacks is skipped.
 type ProjectString = ReturnType<typeof projectStrings>[number];
 
 function projectStrings(db: Db, projectId: number) {
@@ -603,6 +599,10 @@ function projectStrings(db: Db, projectId: number) {
     .all();
 }
 
+// seedSuggestions (§8, #773): what the repository offers a translator to
+// start from, a gettext fuzzy row. Each push replaces them whole, a push
+// without them clearing them; they never touch a row's text or state.
+// An id or a language the project lacks is skipped.
 function applySuggestions(
   db: Db,
   projectId: number,
