@@ -1010,3 +1010,67 @@ test("a push's suggestion clear reads the rows that hold one through their parti
     "translations_suggestion",
   );
 });
+
+test("a source change re-checks the marks of the seeds the push leaves out, never a row a translator edited (#857)", () => {
+  const { db, project } = seed();
+  const withSource = (source: string) =>
+    FIXTURE.strings.map((s) => (s.id === "ui.continue" ? { ...s, source } : s));
+  applySnapshot(
+    db,
+    project.id,
+    withSeeds({ en: { "ui.continue": "Continue {name}" } }),
+  );
+  expect(translationOf(db, "ui.continue", "en")?.invalid).toBe(true);
+  // The source gains {name}; the seed is unchanged, so the CLI's digest
+  // leaves it out of the push.
+  applySnapshot(db, project.id, withSeeds({}, withSource("Continuar {name}")));
+  expect(translationOf(db, "ui.continue", "en")?.invalid).toBe(false);
+  expect(
+    queueItems(db, project.id, "invalid").items.map((i) => i.key),
+  ).not.toContain("ui.continue");
+  // It loses it again: the unchanged seed is broken by the new source.
+  applySnapshot(db, project.id, withSeeds({}, withSource("Continuar")));
+  expect(translationOf(db, "ui.continue", "en")?.invalid).toBe(true);
+  // A row a translator saved is theirs: a source change leaves its mark.
+  const [ana] = db
+    .insert(users)
+    .values({ name: "ana", maintainer: true })
+    .returning()
+    .all();
+  applyTransition(db, {
+    stringId: stringRow(db, "ui.continue")!.id,
+    language: "en",
+    action: { type: "save", text: "Continue {name}" },
+    actor: ana!,
+  });
+  applySnapshot(db, project.id, withSeeds({}, withSource("Continuar!")));
+  expect(translationOf(db, "ui.continue", "en")?.invalid).toBe(false);
+});
+
+test("a verified seed is still the repository's: a source change re-checks its mark (#857)", () => {
+  const { db, project } = seed();
+  const withSource = (source: string) =>
+    FIXTURE.strings.map((s) => (s.id === "ui.continue" ? { ...s, source } : s));
+  applySnapshot(
+    db,
+    project.id,
+    withSeeds({ en: { "ui.continue": "Continue {name}" } }),
+  );
+  const [ana] = db
+    .insert(users)
+    .values({ name: "ana", maintainer: true })
+    .returning()
+    .all();
+  applyTransition(db, {
+    stringId: stringRow(db, "ui.continue")!.id,
+    language: "en",
+    action: { type: "verify" },
+    actor: ana!,
+  });
+  expect(translationOf(db, "ui.continue", "en")).toMatchObject({
+    state: "verified",
+    invalid: true,
+  });
+  applySnapshot(db, project.id, withSeeds({}, withSource("Continuar {name}")));
+  expect(translationOf(db, "ui.continue", "en")?.invalid).toBe(false);
+});
