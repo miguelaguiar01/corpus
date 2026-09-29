@@ -31,7 +31,7 @@ By default a tag in a string is a component the code renders, `<link>` or `<b>`,
 richText: { email: "html" },
 ```
 
-Under it a translation's tags are not compared with the source's: a Breton translation that sets the user's name in `<i>` and breaks lines with `<br/>` where English has neither is fine. Placeholders, plurals and selects are checked as before, and a tag that does not close is still refused. The string page says the type is read as HTML, and an agent reads `richText` on the string. Set it only for types that really are rendered as HTML; where a tag names a component, the check is what catches a dropped link.
+Under it a translation's tags are not compared with the source's: a Breton translation that sets the user's name in `<i>` and breaks lines with `<br/>` where English has neither is fine. Placeholders, plurals and selects are checked as before, a placeholder inside a tag's attribute included, and a tag that does not close, or a stray closing tag, is text, as a browser reads it: `HTML to insert at the end of the <head>` and an unclosed `<p>` are prose. The string page says the type is read as HTML, and an agent reads `richText` on the string. Set it only for types that really are rendered as HTML; where a tag names a component, the check is what catches a dropped link.
 
 A push replaces the map whole, like the type notes.
 
