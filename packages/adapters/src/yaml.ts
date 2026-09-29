@@ -78,11 +78,7 @@ export function yamlStrings(
     : [];
   const rootPair = rootPairOf(document, body, root);
   const empty =
-    !isMap(top) ||
-    (rootPair !== undefined &&
-      (rootPair.value === null ||
-        (isScalar(rootPair.value) && rootPair.value.value === null) ||
-        (isMap(rootPair.value) && rootPair.value.items.length === 0)));
+    !isMap(top) || (rootPair !== undefined && isEmptyValue(rootPair.value));
   if (options.source && (empty || !rootPair || !isMap(rootPair.value)))
     throw new Error(
       roots.length > 0 && !roots.includes(root)
@@ -211,18 +207,20 @@ function doubleQuoted(text: string): string {
   return `"${out}"`;
 }
 
-// Whether a scalar written `rendered` reads back as `text` inside a flow
-// hash, where a comma or a bracket ends a plain one (#806).
-function readsInFlow(rendered: string, text: string): boolean {
-  if (/[\n\r]/.test(rendered)) return false;
+// Whether a scalar reads back as `text` from `document`, the node
+// `pick` takes, both as YAML 1.2 reads it and as Rails' YAML 1.1 does,
+// where `yes`, `on` or `1_000` are no strings.
+function readsBack(
+  document: string,
+  pick: (map: YAMLMap) => unknown,
+  text: string,
+): boolean {
   return (["1.1", "1.2"] as const).every((version) => {
     try {
-      const document = parseDocument(`k: {v: ${rendered}, w: x}`, { version });
-      const map = document.contents;
-      if (document.errors.length > 0 || !isMap(map)) return false;
-      const flow = map.items[0]?.value;
-      if (!isMap(flow) || flow.items.length !== 2) return false;
-      const value = flow.items[0]?.value;
+      const read = parseDocument(document, { version });
+      const map = read.contents;
+      if (read.errors.length > 0 || !isMap(map)) return false;
+      const value = pick(map);
       return isScalar(value) && value.value === text;
     } catch {
       return false;
@@ -230,21 +228,37 @@ function readsInFlow(rendered: string, text: string): boolean {
   });
 }
 
-// Whether a scalar written `rendered` at `indent` reads back as `text`,
-// both as YAML 1.2 reads it and as Rails' YAML 1.1 does, where `yes`,
-// `on` or `1_000` are no strings.
+// Whether `rendered` reads back as `text` inside a flow hash, where a
+// comma or a bracket ends a plain scalar (#806).
+function readsInFlow(rendered: string, text: string): boolean {
+  if (/[\n\r]/.test(rendered)) return false;
+  return readsBack(
+    `k: {v: ${rendered}, w: x}`,
+    (map) => {
+      const flow = map.items[0]?.value;
+      return isMap(flow) && flow.items.length === 2
+        ? flow.items[0]?.value
+        : undefined;
+    },
+    text,
+  );
+}
+
 function readsAs(rendered: string, indent: string, text: string): boolean {
-  return (["1.1", "1.2"] as const).every((version) => {
-    try {
-      const document = parseDocument(`${indent}k: ${rendered}`, { version });
-      const map = document.contents;
-      if (document.errors.length > 0 || !isMap(map)) return false;
-      const value = map.items[0]?.value;
-      return isScalar(value) && value.value === text;
-    } catch {
-      return false;
-    }
-  });
+  return readsBack(
+    `${indent}k: ${rendered}`,
+    (map) => map.items[0]?.value,
+    text,
+  );
+}
+
+// A value with nothing in it: none, `~`, null or `{}`.
+function isEmptyValue(node: unknown): boolean {
+  return (
+    !node ||
+    (isScalar(node) && node.value === null) ||
+    (isMap(node) && node.items.length === 0)
+  );
 }
 
 function isBlock(rendered: string): boolean {
@@ -310,7 +324,6 @@ function keyText(key: string): string {
 function writtenKeys(text: string, root: string): Map<string, string> {
   const out = new Map<string, string>();
   const body = text.replace(/^\uFEFF/, "");
-  const document = parseDocument(body, { uniqueKeys: false });
   const walk = (map: YAMLMap, path: string[]) => {
     for (const pair of map.items) {
       const key = keyOf(pair, body);
@@ -321,10 +334,12 @@ function writtenKeys(text: string, root: string): Map<string, string> {
       if (isMap(pair.value)) walk(pair.value, id);
     }
   };
-  if (isMap(document.contents)) {
-    const top = document.contents.items.find((p) => keyOf(p, body) === root);
-    if (top && isMap(top.value)) walk(top.value, []);
-  }
+  const top = rootPairOf(
+    parseDocument(body, { uniqueKeys: false }),
+    body,
+    root,
+  );
+  if (top && isMap(top.value)) walk(top.value, []);
   return out;
 }
 
@@ -472,24 +487,14 @@ function indexYaml(base: string, code: string, plural: Set<string>): YamlFile {
       else if (flow) continue;
       else if (isMap(value) && !value.flow && !plural.has(id))
         walk(value, [...path, key]);
-      else if (
-        !value ||
-        (isScalar(value) && value.value === null) ||
-        (isMap(value) && value.flow && value.items.length === 0)
-      )
-        containers.set(id, pair);
+      else if (isEmptyValue(value)) containers.set(id, pair);
     }
   };
   const rootValue = rootPair.value as Node | null;
-  if (isMap(rootValue) && !rootValue.flow) walk(rootValue, []);
   // A null or `{}` root takes its keys as a block; a root written as a
-  // flow hash with keys takes nothing, every write refused.
-  else if (
-    !rootValue ||
-    (isScalar(rootValue) && rootValue.value === null) ||
-    (isMap(rootValue) && rootValue.items.length === 0)
-  )
-    containers.set("", rootPair);
+  // flow hash is read as one: its scalars edited in place, no key added.
+  if (isEmptyValue(rootValue)) containers.set("", rootPair);
+  else if (isMap(rootValue)) walk(rootValue, [], rootValue.flow);
   return {
     text: base,
     eol: eolOf(base),
@@ -945,6 +950,16 @@ export function applyYamlOps(
       } else if (isMap(pair.value)) walk(pair.value, [...path, key]);
     }
   };
-  if (root && isMap(root.value)) walk(root.value, []);
+  if (root && isMap(root.value) && root.value.flow) {
+    // A root written inline cannot lose a line either (#865).
+    const keys = root.value.items.flatMap((pair) => keyOf(pair, out) ?? []);
+    const inside = removals.find((r) =>
+      keys.some((k) => r === k || r.startsWith(`${k}.`)),
+    );
+    if (inside)
+      throw new Error(
+        `${inside}: its parent in the file is a hash written inline, which a removal cannot edit line by line`,
+      );
+  } else if (root && isMap(root.value)) walk(root.value, []);
   return applied(out, spans);
 }

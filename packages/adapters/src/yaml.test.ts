@@ -334,15 +334,44 @@ test("a key under a flow hash that holds keys is refused, the file left as it is
   expect(refused).toEqual(["g.h"]);
 });
 
-test("a root written as a flow hash with keys takes no write, its keys kept (#753)", () => {
+test("a root written as a flow hash is edited in place as any flow hash is, and takes no new key (#753, #865)", () => {
   const en = 'en:\n  a: "A"\n  b: "B"\n  c: "C"\n';
   const flow = "fr: {a: A, b: B}\n";
   const refused: string[] = [];
   const L = { source: "en", code: "fr" };
   expect(
     entriesToYaml(en, { c: "C", a: "AA" }, flow, L, (id) => refused.push(id)),
-  ).toBe(flow);
-  expect(refused.sort()).toEqual(["a", "c"]);
+  ).toBe("fr: {a: AA, b: B}\n");
+  expect(refused).toEqual(["c"]);
+});
+
+test("a removal under a root written inline is refused by name, never a lost root (#865)", () => {
+  const src = "# head\nen: {a: A, b: B}\nzz: 1\n";
+  expect(() => applyYamlOps(src, [{ kind: "delete", id: "a" }], "en")).toThrow(
+    "a: its parent in the file is a hash written inline",
+  );
+  expect(() =>
+    applyYamlOps(
+      src,
+      [
+        { kind: "edit", id: "b", text: "BB" },
+        { kind: "delete", id: "a" },
+      ],
+      "en",
+    ),
+  ).toThrow("a: its parent in the file is a hash written inline");
+  // A key it no longer holds is nothing to remove; an edit goes in place.
+  expect(applyYamlOps(src, [{ kind: "delete", id: "c" }], "en")).toBe(src);
+  expect(applyYamlOps(src, [{ kind: "edit", id: "b", text: "BB" }], "en")).toBe(
+    src.replace("b: B", "b: BB"),
+  );
+});
+
+test("a key the file lacks is written as the source writes it under its last root key, as Rails reads it (#865)", () => {
+  const en = "en:\n  a: A\nen:\n  01: One\n";
+  expect(
+    entriesToYaml(en, { "01": "Un" }, "fr:\n", { source: "en", code: "fr" }),
+  ).toBe('fr:\n  01: "Un"\n');
 });
 
 test("a proposal edits a key in its own style, adds one after its parent's last, removes one with its comment (#757)", () => {
