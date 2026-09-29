@@ -1,8 +1,4 @@
-import {
-  placeholderFormatsOf,
-  placeholderWrittenOf,
-  placeholdersOf,
-} from "@corpus/contract";
+import { partsOf } from "@corpus/contract";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/auth/session";
 import { isQueueKind, queueItems } from "@/catalogue/queues";
@@ -136,19 +132,20 @@ export default async function StringPage({
       described.set(name, spec.description);
     }
   }
-  const formats = placeholderFormatsOf(string.source, string.syntax);
   // printf's verb as the source writes it, so a chip inserts `%[2]s`
   // and not `{2}` (#594).
-  const written = placeholderWrittenOf(string.source, string.syntax);
-  const slots: Slot[] = inPositionOrder(
-    [...placeholdersOf(string.source, string.syntax)],
+  const { placeholders, formats, written } = partsOf(
+    string.source,
     string.syntax,
-  ).map((name) => ({
-    name,
-    description: described.get(name),
-    format: formats.get(name),
-    written: written.get(name) ?? null,
-  }));
+  );
+  const slots: Slot[] = inPositionOrder([...placeholders], string.syntax).map(
+    (name) => ({
+      name,
+      description: described.get(name),
+      format: formats.get(name),
+      written: written.get(name) ?? null,
+    }),
+  );
   // A draft rides back only beside the refusal or warning that carried
   // it, and only as one string: a bare link with ?draft= is ignored.
   const carriedDraft =

@@ -1,8 +1,5 @@
 import {
-  placeholderFormatsOf,
-  placeholderWrittenOf,
-  placeholdersOf,
-  pluralArgsOf,
+  partsOf,
   type Example,
   type FieldDeclaration,
   type StringResponse,
@@ -40,11 +37,10 @@ export function slotsOf(
       Object.assign(declared, declaration.slots);
   }
   const example = examples?.[0];
-  const names = [...placeholdersOf(source, syntax)];
-  const formats = placeholderFormatsOf(source, syntax);
-  const written = placeholderWrittenOf(source, syntax);
+  const { placeholders, formats, written, plurals } = partsOf(source, syntax);
+  const names = [...placeholders];
   // A printf plural on `argN` is the Nth argument, one slot (#735).
-  for (const plural of pluralArgsOf(source, syntax)) {
+  for (const plural of plurals) {
     const arg =
       syntax === "printf" ? (/^arg(\d+)$/.exec(plural)?.[1] ?? plural) : plural;
     if (!names.includes(arg)) names.push(arg);

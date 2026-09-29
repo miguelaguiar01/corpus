@@ -1,11 +1,4 @@
-import {
-  placeholdersOf,
-  selectArgsOf,
-  formsOf,
-  pluralArgsOf,
-  tagsOf,
-  type StringResponse,
-} from "@corpus/contract";
+import { partsOf, type StringResponse } from "@corpus/contract";
 import { getDb } from "@/db";
 import { authenticateProject } from "@/api/bearer";
 import { apiError } from "@/api/body";
@@ -58,6 +51,7 @@ export async function GET(
       ...(row.suggestion !== null && { suggestion: row.suggestion }),
     };
   }
+  const parts = partsOf(detail.string.source, detail.string.syntax);
   const body: StringResponse = {
     key: detail.string.key,
     type: detail.string.type,
@@ -65,13 +59,11 @@ export async function GET(
     sourceLanguage: project.sourceLanguage,
     file: detail.string.file,
     archived: detail.string.archived,
-    placeholders: [
-      ...placeholdersOf(detail.string.source, detail.string.syntax),
-    ],
-    selects: [...selectArgsOf(detail.string.source, detail.string.syntax)],
-    plurals: [...pluralArgsOf(detail.string.source, detail.string.syntax)],
-    forms: formsOf(detail.string.source, detail.string.syntax),
-    tags: [...tagsOf(detail.string.source, detail.string.syntax)],
+    placeholders: [...parts.placeholders],
+    selects: [...parts.selects],
+    plurals: [...parts.plurals],
+    forms: parts.forms,
+    tags: [...parts.tags],
     richText: detail.string.richText,
     library: detail.string.syntax,
     syntax: detail.string.syntax,
