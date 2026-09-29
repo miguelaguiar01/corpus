@@ -663,6 +663,22 @@ test("an element whose name only begins like one of XLIFF's is none of them, at 
       note: "Yes",
     },
   ]);
+  // A self-closing note is empty and ends where it stands.
+  expect(
+    xliffUnits(
+      file12(
+        `<trans-unit id="a"><source>A</source><note/><note from="description">N2</note></trans-unit>`,
+      ),
+    )[0]?.note,
+  ).toBe("N2");
+  // A missing target file starts from the template, its language on the
+  // real <file> and <xliff>, never on an element that only begins so.
+  const template = `<?xml version="1.0"?>\n<xliff-x version="2.0"/>\n<xliff version="1.2"><file-x/><file source-language="en" datatype="plaintext" original="x"><body>\n<trans-unit id="a"><source>A</source></trans-unit>\n</body></file></xliff>\n`;
+  const started = entriesToXliff(template, { a: "Ah" }, undefined, "fr");
+  expect(started).toContain(`<xliff-x version="2.0"/>`);
+  expect(started).toContain(`<file-x/>`);
+  expect(started).toContain(`<file target-language="fr" source-language="en"`);
+  expect(started).toContain(`<target state="translated">Ah</target>`);
   // A prefixed element that only begins like a unit is not refused.
   expect(() =>
     xliffUnits(

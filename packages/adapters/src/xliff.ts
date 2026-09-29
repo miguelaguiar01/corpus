@@ -231,10 +231,14 @@ function notes(block: string, key: "from" | "category"): string | undefined {
   // Where Angular found the text, as the gettext and qt-ts sources say
   // theirs (#772): 2.0's location notes, 1.2's context groups.
   const used: string[] = [];
-  const re = new RegExp(`<note${NAME_END}([^>]*)>([\\s\\S]*?)</note>`, "g");
+  // A `<note/>` is empty, and ends where it stands.
+  const re = new RegExp(
+    `<note${NAME_END}${ATTRS}(?:/>|>([\\s\\S]*?)</note>)`,
+    "g",
+  );
   for (let m = re.exec(block); m; m = re.exec(block)) {
     const kind = attr(m[1] ?? "", key);
-    const text = decodeEntities(m[2]!.trim());
+    const text = decodeEntities((m[2] ?? "").trim());
     if (!text) continue;
     if (kind === "description" || kind === "meaning") out.push(text);
     else if (key === "category" && kind === "location") used.push(text);
