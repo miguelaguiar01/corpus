@@ -719,12 +719,38 @@ test("hostile input is read in bounded time and fails cleanly, never with a thro
   const read = parseIcu(deep);
   expect(read.ok).toBe(false);
   expect(validateTranslation(deep, deep).ok).toBe(false);
+  // Retries the depth limit never meets: the chain inside plural
+  // branches, which the step budget alone stops.
+  const shallow =
+    `{n, plural, other {${"<b>{g, select, a {</b>} other {x}} ".repeat(150)}}} `.repeat(
+      20,
+    );
+  within(500, () => {
+    const result = parseIcu(shallow, "icu", { html: "markup" });
+    expect(!result.ok && result.errors[0]?.message).toMatch(/too many tags/);
+  });
+  // A real text never nears it: one such block parses.
+  expect(
+    parseIcu(
+      `{n, plural, other {${"<b>{g, select, a {</b>} other {x}} ".repeat(30)}}}`,
+      "icu",
+      {
+        html: "markup",
+      },
+    ).ok,
+  ).toBe(true);
   // The refusal's advice regex, once backtracking on long runs of spaces.
   within(500, () => parseIcu(`{{a b}} {x${" ".repeat(32000)}`, "vue"));
 });
 
-test("the text after a whole plural is placed after its closing brace (#861)", () => {
+test("the text after a whole plural is placed after the plural as the parser reads it (#861)", () => {
   expect(
     printfPluralError("{n, plural, one {%d a} other {%d b}} and {x}")?.position,
   ).toBe(37);
+  // A branch's brace is text there: only its close ends the branch.
+  for (const text of [
+    "{n, plural, one {a { b} other {c}} tail",
+    "{n, plural, one {'{' a} other {b}} tail",
+  ])
+    expect(printfPluralError(text)?.position).toBe(text.indexOf("tail"));
 });

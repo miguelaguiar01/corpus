@@ -200,18 +200,18 @@ export function printfPluralError(
   return "error" in read ? read.error : undefined;
 }
 
-// Where the text after a whole plural starts: its first character past
-// the brace that closes the plural, or 0 where text comes before it.
-function pluralEnd(source: string): number {
+// Where the text after a whole plural starts, as the parser reads the
+// plural: its first character past the plural, whitespace skipped, or
+// 0 where text comes before it.
+function pluralEnd(
+  source: string,
+  html: boolean | "markup",
+  syntax: Library,
+): number {
   const start = source.search(/\S/);
   if (source[start] !== "{") return 0;
-  let depth = 0;
-  for (let i = start; i < source.length; i++) {
-    if (source[i] === "{") depth++;
-    else if (source[i] === "}" && --depth === 0)
-      return i + 1 + (/^\s*/.exec(source.slice(i + 1))?.[0].length ?? 0);
-  }
-  return source.length;
+  const end = new Parser(source, syntax, html, true).argumentEnd(start);
+  return end + (/^\s*/.exec(source.slice(end))?.[0].length ?? 0);
 }
 
 function readPrintfPlural(
@@ -225,7 +225,7 @@ function readPrintfPlural(
       (node) => !(node.kind === "literal" && node.text.trim() === ""),
     );
     if (kept.length === 1 && kept[0]!.kind === "plural") return { nodes };
-    const after = pluralEnd(source);
+    const after = pluralEnd(source, html, syntax);
     return {
       error: {
         message: "text after the plural: a plural read whole is the whole text",
@@ -307,7 +307,7 @@ class Parser {
     const seq: Sequence = { nodes: [], literal: "", literalStart: this.pos };
 
     while (this.pos < this.source.length) {
-      if (++this.steps > 16 * this.source.length + 10_000)
+      if (++this.steps > 4 * this.source.length + 10_000)
         throw new ParseFailure(
           "too many tags left open to read the text",
           this.pos,
@@ -769,6 +769,13 @@ class Parser {
     )
       this.pos += close.length;
     return { kind, name, ...(attrs ? { attrs } : {}), start };
+  }
+
+  // Where the argument at `at` ends.
+  argumentEnd(at: number): number {
+    this.pos = at;
+    this.parseArgument(false);
+    return this.pos;
   }
 
   private parseArgument(inBranch: boolean): IcuNode {
