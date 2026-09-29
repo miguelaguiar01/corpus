@@ -153,7 +153,7 @@ const xcstringsSchema = z.looseObject({
 });
 
 // What a config file declares.
-export const sourceInputSchema = z.discriminatedUnion("adapter", [
+const sourceInputSchema = z.discriminatedUnion("adapter", [
   z.looseObject({ ...messagesFields, path: patterns(langPattern) }),
   z.looseObject({ ...tableFields, path: patterns(z.string().min(1)) }),
   z.looseObject({ ...fluentFields, path: patterns(langPattern) }),
@@ -168,28 +168,15 @@ export const sourceInputSchema = z.discriminatedUnion("adapter", [
 
 // What the CLI works on once the patterns are expanded: one path per
 // source, and the namespace a `{ns}` pattern captured, if any.
-export const sourceSchema = z.discriminatedUnion("adapter", [
-  z.looseObject({
-    ...messagesFields,
-    path: langPattern,
-    namespace: z.string().min(1).optional(),
-    // The patterns of one source share it: one catalogue (#661).
-    group: z.number().int().optional(),
-  }),
-  z.looseObject({
-    ...tableFields,
-    path: z.string().min(1),
-    namespace: z.string().min(1).optional(),
-    // The patterns of one source share it: one catalogue (#661).
-    group: z.number().int().optional(),
-  }),
-  z.looseObject({
-    ...fluentFields,
-    path: langPattern,
-    namespace: z.string().min(1).optional(),
-    // The patterns of one source share it: one catalogue (#661).
-    group: z.number().int().optional(),
-  }),
+const expanded = {
+  namespace: z.string().min(1).optional(),
+  // The patterns of one source share it: one catalogue (#661).
+  group: z.number().int().optional(),
+};
+const sourceSchema = z.discriminatedUnion("adapter", [
+  z.looseObject({ ...messagesFields, path: langPattern, ...expanded }),
+  z.looseObject({ ...tableFields, path: z.string().min(1), ...expanded }),
+  z.looseObject({ ...fluentFields, path: langPattern, ...expanded }),
   androidSchema,
   xliffSchema,
   gettextSchema,
@@ -198,6 +185,12 @@ export const sourceSchema = z.discriminatedUnion("adapter", [
   yamlSchema,
   execSchema,
 ]);
+
+// The adapters whose sources map a language to its file's code.
+const MAPS_LANGUAGE_FILES: string[] = sourceInputSchema.options.flatMap(
+  (option) =>
+    "languageFiles" in option.shape ? [option.shape.adapter.value] : [],
+);
 
 const configFields = {
   project: identifier(),
@@ -317,16 +310,9 @@ export const corpusConfigSchema = z
       const path = ["sources", index, "languageFiles"];
       const issue = (message: string) =>
         ctx.addIssue({ code: "custom", message, path });
-      if (
-        source.adapter !== "messages" &&
-        source.adapter !== "fluent" &&
-        source.adapter !== "xliff" &&
-        source.adapter !== "gettext" &&
-        source.adapter !== "qt-ts" &&
-        source.adapter !== "yaml"
-      ) {
+      if (!MAPS_LANGUAGE_FILES.includes(source.adapter)) {
         issue(
-          `languageFiles is for messages, fluent, xliff, gettext, qt-ts and yaml sources`,
+          `languageFiles is for ${MAPS_LANGUAGE_FILES.slice(0, -1).join(", ")} and ${MAPS_LANGUAGE_FILES.at(-1)} sources`,
         );
         return;
       }

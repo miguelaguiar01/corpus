@@ -16,7 +16,7 @@ import {
   type IcuNode,
   type PlaceholderFormat,
 } from "./icu";
-import type { Library } from "./strings";
+import type { Example, Library } from "./strings";
 
 export type PreviewResult =
   { ok: true; text: string } | { ok: false; errors: IcuError[] };
@@ -27,10 +27,7 @@ export type PreviewSegment = { text: string; value: boolean };
 export type PreviewSegmentsResult =
   { ok: true; segments: PreviewSegment[] } | { ok: false; errors: IcuError[] };
 
-export type PreviewExample = {
-  values: Record<string, string>;
-  valuesByLanguage?: Record<string, Record<string, string>>;
-};
+export type PreviewExample = Pick<Example, "values" | "valuesByLanguage">;
 
 // The values a preview for `language` should use (§7): that language's
 // when the example carries them, the source language's otherwise; the
