@@ -725,4 +725,9 @@ test("a source's comments are no part of the inline elements an edit copies (#93
   expect(
     applyXliffOps(src, [{ kind: "edit", id: "a", text: "Hello {ph1}" }]),
   ).toContain(`<source>Hello <ph id="1">&lt;b&gt;</ph></source>`);
+  // And a unit appended to a file that lacks it.
+  const lacking = src.replace(/<trans-unit[^]*<\/trans-unit>\n/, "");
+  expect(entriesToXliff(src, { a: "Neu {ph1}" }, lacking, "de")).toContain(
+    `<target state="translated">Neu <ph id="1">&lt;b&gt;</ph></target>`,
+  );
 });
