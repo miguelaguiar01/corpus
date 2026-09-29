@@ -27,7 +27,16 @@ export type IcuNode =
   // <name>children</name>, or <name/> with none.
   // `attrs` is an opening tag's attribute text as written (`href="%s"`),
   // part of the tag's identity: a translation keeps it verbatim (#590).
-  | { kind: "tag"; name: string; attrs?: string; children: IcuNode[] }
+  // `attrPlaceholders` are the placeholders written in it, which a type
+  // read as HTML, whose tags a translation writes its own way, still
+  // keeps (#948).
+  | {
+      kind: "tag";
+      name: string;
+      attrs?: string;
+      attrPlaceholders?: IcuNode[];
+      children: IcuNode[];
+    }
   // vue-i18n's pipe plural: `one | other`, positional, with no argument
   // because the count is passed at render time rather than named in the
   // string. Branches are in the order they were written.
@@ -67,6 +76,18 @@ const PLURAL_KEY_RE = /^(?:zero|one|two|few|many|other|=[0-9]+)$/;
 // close, with nothing else matching spaces, so a name followed by a run
 // of whitespace and no `>` is linear, not cubic; readTag trims it.
 const TAG_RE = /^<(\/?)([A-Za-z][A-Za-z0-9_-]*|[0-9]+)((?:\s[^<>]*?)?)(\/?)>/;
+// The libraries that read tags and whose placeholders are named or
+// numbered, so one in a tag's attribute is read as a placeholder (#948).
+// Android's printf verbs count by position, which a verb read inside an
+// attribute would renumber, so there an attribute stays text.
+const ATTR_PLACEHOLDER_LIBRARIES: ReadonlySet<Library> = new Set([
+  "icu",
+  "i18next",
+  "rails",
+  "counterpart",
+  "chrome",
+  "qt",
+]);
 // Every closing tag of a text, by TAG_RE's names.
 const CLOSE_RE = /<\/([A-Za-z][A-Za-z0-9_-]*|[0-9]+)>/g;
 // HTML's void elements, read so only where the text's tags are HTML or
@@ -365,7 +386,7 @@ class Parser {
             seq.nodes.push({
               kind: "tag",
               name: tag.name,
-              ...(tag.attrs ? { attrs: tag.attrs } : {}),
+              ...this.tagAttrs(tag.attrs),
               children,
             });
           } catch (error) {
@@ -396,7 +417,7 @@ class Parser {
         seq.nodes.push({
           kind: "tag",
           name: tag.name,
-          ...(tag.attrs ? { attrs: tag.attrs } : {}),
+          ...this.tagAttrs(tag.attrs),
           children:
             tag.kind === "self"
               ? []
@@ -553,6 +574,13 @@ class Parser {
     if (rest.startsWith("%%")) return this.text(seq, "%%");
     const match = ch === "%" ? RAILS_PLACEHOLDER_RE.exec(rest) : null;
     if (match) return this.placeholder(seq, (match[1] ?? match[2])!, match[0]);
+    // A `%{` no name closes is a placeholder mistyped, which Rails prints
+    // as it is (`%{dana]`); `%%{` writes the text (#948).
+    if (rest.startsWith("%{"))
+      throw new ParseFailure(
+        "%{ opens no placeholder here: one is a name without spaces and a closing }; write %%{ for the text itself",
+        this.pos,
+      );
     if (ch === "#" || (ch === "{" && !opensPlural)) return this.text(seq, ch);
     return false;
   }
@@ -791,6 +819,29 @@ class Parser {
     )
       this.pos += close.length;
     return { kind, name, ...(attrs ? { attrs } : {}), start };
+  }
+
+  // A tag's attribute text, and the placeholders written in it where the
+  // library names or numbers its placeholders: a positional one (printf's
+  // `%s`, easy_localization's `{}`) in an attribute would move every
+  // position after it (#948).
+  private tagAttrs(attrs: string | undefined): {
+    attrs?: string;
+    attrPlaceholders?: IcuNode[];
+  } {
+    if (!attrs) return {};
+    if (!ATTR_PLACEHOLDER_LIBRARIES.has(this.syntax)) return { attrs };
+    let nodes: IcuNode[];
+    try {
+      nodes = new Parser(attrs, this.syntax, false).parseSequence(false);
+    } catch (error) {
+      if (error instanceof ParseFailure) return { attrs };
+      throw error;
+    }
+    const placeholders = nodes.filter((node) => node.kind === "placeholder");
+    return placeholders.length > 0
+      ? { attrs, attrPlaceholders: placeholders }
+      : { attrs };
   }
 
   // Where the argument at `at` ends.
@@ -1208,6 +1259,7 @@ export function shapeOf(
     }
     if (node.kind === "tag") {
       shape.tags.add(tagIdentity(node));
+      if (node.attrPlaceholders) shapeOf(node.attrPlaceholders, shape);
       shapeOf(node.children, shape);
     }
     // A form's placeholders are the message's; how many forms there are

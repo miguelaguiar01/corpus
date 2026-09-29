@@ -1590,3 +1590,53 @@ test("a branch named __proto__ is a branch a translation must keep (#846)", () =
     key: "__proto__",
   });
 });
+
+test("a placeholder inside a tag's attribute is one of the message's placeholders (#948)", () => {
+  const source =
+    "<a href='%{userUrl}'>%{user}</a> posted <a href='%{topicUrl}'>the topic</a>";
+  expect(partsOf(source, "rails").placeholders).toEqual(
+    new Set(["userUrl", "user", "topicUrl"]),
+  );
+  expect(
+    validateTranslation(
+      source,
+      "<a href='%{userUrl}'>%{user}</a> publicou <a href='#'>o tópico</a>",
+      "pt",
+      "rails",
+      { richText: "html" },
+    ),
+  ).toMatchObject({ ok: false });
+  expect(
+    validateTranslation(
+      source,
+      "<a href='%{userUrl}'>%{user}</a> publicou <a href='%{topicUrl}'>o tópico</a>",
+      "pt",
+      "rails",
+      { richText: "html" },
+    ),
+  ).toEqual({ ok: true });
+  expect(partsOf("<a href='{url}'>{name}</a>", "icu").placeholders).toEqual(
+    new Set(["url", "name"]),
+  );
+  // Android keeps an attribute as text.
+  expect(
+    partsOf('<a href="%1$s">link</a> %2$s', "android").placeholders,
+  ).toEqual(partsOf("<a>link</a> %2$s", "android").placeholders);
+});
+
+test("a rails %{ that closes no placeholder is refused, %%{ is text (#948)", () => {
+  for (const broken of [
+    "Baada ya %{dana] siku",
+    "Imechapishwa na %{jina la mtumiaji}",
+    "Đăng bởi %{{username} ngày %{post_date}",
+  ]) {
+    expect(parseIcu(broken, "rails").ok, broken).toBe(false);
+  }
+  expect(parseIcu("Escrever %%{nome} à letra", "rails")).toMatchObject({
+    ok: true,
+    nodes: [{ kind: "literal" }],
+  });
+  expect(partsOf("Olá %{name}", "rails").placeholders).toEqual(
+    new Set(["name"]),
+  );
+});
