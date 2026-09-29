@@ -773,4 +773,15 @@ test("a target file's categories are the ones its Plural-Forms picks, or its lan
   expect(gettextPluralCategories('msgid ""\nmsgstr ""\n', "ja")).toEqual([
     "other",
   ]);
+  // A file with no rule is read in CLDR's order, as the reader and the
+  // writer read it; the table is for a file not there yet (#973).
+  expect(gettextPluralCategories('msgid ""\nmsgstr ""\n', "cs")).toEqual([
+    "one",
+    "few",
+    "many",
+    "other",
+  ]);
+  expect(gettextPluralCategories(undefined, "cs")).toEqual(
+    GETTEXT_PLURALS.cs!.forms,
+  );
 });

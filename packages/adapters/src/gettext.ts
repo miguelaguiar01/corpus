@@ -474,18 +474,19 @@ export function gettextTranslations(
 
 // The categories a target file's `Plural-Forms` can pick, one for each
 // `msgstr[n]` a category reads, in CLDR's order: what a translation of
-// it holds, whatever more the language has (#951). A file whose header
-// is missing or names no rule is the language's own table.
+// it holds, whatever more the language has (#951). A file there is read
+// by its own header, one with no rule as CLDR's order, as the reader and
+// the writer read it (#973); a missing file is the one pull writes, with
+// the language's table.
 export function gettextPluralCategories(
   text: string | undefined,
   language: string,
 ): PluralCategory[] {
   const rule = pluralRuleOf(language);
   const forms =
-    (text === undefined
-      ? undefined
-      : poHeader(parsePo(text))["Plural-Forms"]) ??
-    (rule && `nplurals=${rule.nplurals}; plural=${rule.plural};`);
+    text !== undefined
+      ? poHeader(parsePo(text))["Plural-Forms"]
+      : rule && `nplurals=${rule.nplurals}; plural=${rule.plural};`;
   const written = pluralTable(language, forms).categories;
   return PLURAL_CATEGORIES.filter((c) => written.includes(c));
 }
