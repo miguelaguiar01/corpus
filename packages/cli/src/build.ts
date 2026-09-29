@@ -20,6 +20,7 @@ import {
   gettextTranslations,
   xliffToEntries,
   xliffTranslations,
+  isBlank,
   messagesToEntries,
   pluralBranches,
   pluralObjectIds,
@@ -1180,7 +1181,7 @@ async function readSeeds(
         )) {
           // A key the source no longer has, or an empty value an
           // extraction tool left, is not a translation.
-          if (!ids.has(entry.id) || entry.source.trim() === "") continue;
+          if (!ids.has(entry.id) || isBlank(entry.source)) continue;
           // A string two files of one source share has one translation:
           // two that differ could not both survive a pull (#661).
           const seeded = (seeds[lang] ??= {})[entry.id];

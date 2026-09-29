@@ -14,7 +14,7 @@ import {
   stringEntrySchema,
   type StringEntry,
 } from "@corpus/contract";
-import { pluralBranches } from "@corpus/adapters";
+import { isBlank, pluralBranches } from "@corpus/adapters";
 import { printable } from "./printable";
 import type { RunContext } from "./cli";
 import {
@@ -245,7 +245,7 @@ export async function validateRepo(
           new Map<string, { file: string; text: string }>();
         for (const [key, { source: text }] of translations) {
           // An empty value is a key the file lacks, never a finding.
-          if (text.trim() === "") continue;
+          if (isBlank(text)) continue;
           const held = earlier.get(key);
           if (held !== undefined && held.text !== text)
             findings.push({
@@ -264,7 +264,7 @@ export async function validateRepo(
         // An empty value is a key the target lacks: what an extraction
         // tool leaves for an untranslated row, and what push seeds as
         // untranslated (§8), never a dropped placeholder.
-        if (target.trim() === "") continue;
+        if (isBlank(target)) continue;
         const entry = sources.get(key);
         if (entry === undefined) {
           findings.push({

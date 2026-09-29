@@ -1326,3 +1326,139 @@ export default defineCorpus({
     other: "%(count)s itens",
   });
 });
+
+test("a shared string's empty value in one target file is a key it lacks: a pull of what was pushed changes nothing (#970)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "pt"],
+  sources: [
+    { adapter: "messages", type: "chrome", path: ["i18n/{lang}.json", "shared/{lang}.json"] },
+  ],
+});
+`,
+  );
+  mkdirSync(path.join(repo, "shared"));
+  writeFileSync(
+    path.join(repo, "shared", "en.json"),
+    `{\n  "greeting": "Hello {name}"\n}\n`,
+  );
+  const files = {
+    "i18n/pt.json": `{\n  "greeting": ""\n}\n`,
+    "shared/pt.json": `{\n  "greeting": "Olá {name}"\n}\n`,
+  };
+  for (const [file, text] of Object.entries(files))
+    writeFileSync(path.join(repo, file), text);
+  const { buildSnapshot } = await import("./build");
+  const { loadConfig } = await import("./config");
+  const snapshot = await buildSnapshot(await loadConfig(repo), repo);
+  expect(snapshot.seedTranslations?.pt).toEqual({ greeting: "Olá {name}" });
+  await serve(200, {
+    ...PAYLOAD,
+    types: { "app.title": "chrome", greeting: "chrome" },
+    translations: {
+      en: { "app.title": "Corpus", greeting: "Hello {name}" },
+      ...snapshot.seedTranslations,
+    },
+  });
+  expect(await run(["pull", "--check"], ctx())).toBe(0);
+  expect(await run(["pull"], ctx())).toBe(0);
+  for (const [file, text] of Object.entries(files))
+    expect(read(file), file).toBe(text);
+});
+
+test("a shared string no target file translates goes into each that has its key, a table's and an all-empty plural's included (#970 review)", async () => {
+  const { buildSnapshot } = await import("./build");
+  const { loadConfig } = await import("./config");
+  const configure = (sources: string, languages = '["en", "pt"]') =>
+    writeFileSync(
+      path.join(repo, "corpus.config.ts"),
+      `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ${languages},
+  sources: [${sources}],
+});
+`,
+    );
+  const write = (files: Record<string, string>) => {
+    for (const [file, text] of Object.entries(files)) {
+      mkdirSync(path.dirname(path.join(repo, file)), { recursive: true });
+      writeFileSync(path.join(repo, file), text);
+    }
+  };
+  const pullWith = async (
+    translations: Record<string, Record<string, string>>,
+  ) => {
+    active?.close();
+    await serve(200, {
+      ...PAYLOAD,
+      types: {
+        "app.title": "chrome",
+        greeting: "chrome",
+        save: "chrome",
+        n: "chrome",
+      },
+      translations: { en: {}, ...translations },
+    });
+    expect(await run(["pull"], ctx())).toBe(0);
+  };
+  // Both targets hold "" under strict: the app may read either.
+  configure(
+    `{ adapter: "messages", type: "chrome", path: ["i18n/{lang}.json", "shared/{lang}.json"] }`,
+  );
+  write({
+    "shared/en.json": `{\n  "greeting": "Hello {name}"\n}\n`,
+    "i18n/pt.json": `{\n  "greeting": ""\n}\n`,
+    "shared/pt.json": `{\n  "greeting": ""\n}\n`,
+  });
+  await pullWith({ pt: { greeting: "Olá {name}" } });
+  expect(JSON.parse(read("i18n/pt.json")).greeting).toBe("Olá {name}");
+  expect(JSON.parse(read("shared/pt.json")).greeting).toBe("Olá {name}");
+
+  // A table list: an empty text is a key the file lacks.
+  configure(
+    `{ adapter: "table", type: "chrome", path: ["t/a/{lang}.json", "t/b/{lang}.json"], map: { id: "id", text: "text" } }`,
+  );
+  const row = (text: string) =>
+    `${JSON.stringify([{ id: "save", text }], null, 2)}\n`;
+  const table = {
+    "t/a/en.json": row("Save"),
+    "t/b/en.json": row("Save"),
+    "t/a/pt.json": row(""),
+    "t/b/pt.json": row("Salvar"),
+  };
+  write(table);
+  const tableSeeds = (await buildSnapshot(await loadConfig(repo), repo))
+    .seedTranslations;
+  await pullWith(tableSeeds ?? {});
+  for (const [file, text] of Object.entries(table))
+    expect(read(file), file).toBe(text);
+
+  // A plural object whose every form is empty holds nothing: no build
+  // error beside a translated one, and nothing rewritten.
+  configure(
+    `{ adapter: "messages", type: "chrome", library: "counterpart", path: ["p/a/{lang}.json", "p/b/{lang}.json"] }`,
+  );
+  const plural = {
+    "p/a/en.json": `{\n  "n": { "one": "%(count)s item", "other": "%(count)s items" }\n}\n`,
+    "p/b/en.json": `{\n  "n": { "one": "%(count)s item", "other": "%(count)s items" }\n}\n`,
+    "p/a/pt.json": `{\n  "n": { "one": "", "other": "" }\n}\n`,
+    "p/b/pt.json": `{\n  "n": { "one": "%(count)s item", "other": "%(count)s itens" }\n}\n`,
+  };
+  write(plural);
+  const pluralSeeds = (await buildSnapshot(await loadConfig(repo), repo))
+    .seedTranslations;
+  expect(pluralSeeds?.pt?.n).toBe(
+    "{count, plural, one {%(count)s item} other {%(count)s itens}}",
+  );
+  await pullWith(pluralSeeds ?? {});
+  for (const [file, text] of Object.entries(plural))
+    expect(read(file), file).toBe(text);
+});

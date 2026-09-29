@@ -66,6 +66,16 @@ export function pluralObjectIds(
   return out;
 }
 
+// A value that holds no translation: blank, or a plural whose every form
+// is, as a plural object of empty strings reads (#970).
+export function isBlank(text: string): boolean {
+  if (text.trim() === "") return true;
+  const forms = pluralBranches(text, false);
+  return (
+    forms !== undefined && Object.values(forms).every((f) => f.trim() === "")
+  );
+}
+
 // A plural's form for a category: its own branch, or `other`'s, which
 // every runtime falls back to.
 export function formOf(
