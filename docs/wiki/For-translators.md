@@ -30,7 +30,7 @@ Some strings have more than plain text in them, and those parts must survive int
 
 You cannot save a translation that has lost one, and if the source changed under your draft while you wrote it, the page says so and keeps the draft for you to read against the new source. The editor checks as you type, lists what is wrong under the box, and **Save translation** stays disabled until it is right — so the mistake is caught where you made it rather than after you moved on.
 
-**Selects and plurals** are a choice of wording. A plural is not always two branches: the editor offers the branches *your* language uses, which is anything from one (Japanese, Chinese) to four (Russian, Polish, Czech), five (Irish) or six (Arabic, Welsh). Most languages have two, as English does; the ones that do not are where the mistakes happen. Use the chip, fill each branch, and let the editor tell you if one is missing.
+**Selects and plurals** are a choice of wording. A plural is not always two branches: the editor offers the branches the application picks in *your* language, which is anything from one (Japanese, Chinese) to four (Russian, Polish, Czech), five (Irish) or six (Arabic, Welsh). Most languages have two, as English does; the ones that do not are where the mistakes happen. Some applications pick a branch by a simpler rule than the language's own, one and other whatever the language, and then the editor offers those. Use the chip, fill each branch, and let the editor tell you if one is missing.
 
 **Tags** are formatting — bold, a link — that the application fills in. Keep them, keep them in a sensible place for your language, and do not invent new ones.
 
