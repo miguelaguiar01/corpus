@@ -155,7 +155,7 @@ test("an escaped quote stays inside the literal", () => {
   expect(nodes("{'it\\'s'}")).toEqual([{ kind: "literal", text: "it's" }]);
 });
 
-test("formsOf counts a vue source's pipe forms, and nothing else (#660)", () => {
+test("a vue source's pipe forms are counted, and nothing else (#660)", () => {
   expect(partsOf("no posts | one post | {n} posts", "vue").forms).toBe(3);
   expect(partsOf("{count} script | {count} scripts", "vue").forms).toBe(2);
   expect(partsOf("Pipe (|)", "vue").forms).toBe(0);

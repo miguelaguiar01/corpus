@@ -344,6 +344,12 @@ test("preview: a number is a date's epoch milliseconds, a value i18next's exampl
       syntax: "i18next",
     }),
   ).toEqual({ ok: true, text: "Hello {{name}} and {{- raw}}" });
+  // In i18next's form, not as the source spaced or formatted it.
+  expect(
+    renderPreview("{{ count }} of {{val, number}}", {}, "en", {
+      syntax: "i18next",
+    }),
+  ).toEqual({ ok: true, text: "{{count}} of {{val}}" });
   expect(
     renderPreview(
       "{n, plural, one {# x} many {# m} other {# o}}",

@@ -81,7 +81,7 @@ test("error positions point at the offending syntax", () => {
   expect(result.errors[0]?.position).toBe(4);
 });
 
-test("placeholdersOf collects placeholder names, including inside branches", () => {
+test("a text's placeholders are collected, including inside branches", () => {
   expect(partsOf(SIGHTING).placeholders).toEqual(
     new Set(["person", "room_de", "hour"]),
   );
@@ -90,7 +90,7 @@ test("placeholdersOf collects placeholder names, including inside branches", () 
   ).toEqual(new Set(["item", "coisa"]));
 });
 
-test("selectArgsOf collects select argument names", () => {
+test("a text's select arguments are collected", () => {
   expect(partsOf(SIGHTING).selects).toEqual(new Set(["person_gender"]));
   expect(partsOf("plain").selects).toEqual(new Set());
 });
