@@ -595,3 +595,44 @@ test("a malformed unit is refused by name, never dropped without a word (#900)",
     xliffUnits(file12(`<trans-unit id="a"><target>A</target></trans-unit>`)),
   ).toEqual([]);
 });
+
+test("a 2.0 unit's translation candidates, a comment in CDATA, and a note past a CDATA's tag are read as they are (#917)", () => {
+  const file20 = (inner: string) =>
+    `<?xml version="1.0"?>\n<xliff version="2.0" xmlns:mtc="urn:oasis:names:tc:xliff:matches:2.0" srcLang="en" trgLang="de"><file id="f"><unit id="u">${inner}</unit></file></xliff>\n`;
+  const candidates = file20(
+    `<mtc:matches><mtc:match ref="#s"><source>Candidate</source><target>Kandidat</target></mtc:match></mtc:matches><segment id="s" state="translated"><source>Own</source><target>Eigen</target></segment>`,
+  );
+  expect(xliffUnits(candidates)).toMatchObject([
+    { id: "u", source: "Own", target: "Eigen" },
+  ]);
+  // A pull writes into the segment, the candidate left as it was.
+  const pulled = entriesToXliff(candidates, { u: "Neu" }, candidates, "de");
+  expect(pulled).toContain("<target>Kandidat</target>");
+  expect(pulled).toContain("<target>Neu</target>");
+  // One left open is refused like an alt-trans.
+  expect(() =>
+    xliffUnits(file20(`<mtc:matches><segment><source>a</source></segment>`)),
+  ).toThrow("xliff: unit u: its <mtc:matches> does not close");
+  // A CDATA that spells `<!--` hides nothing past it.
+  const file12 = (units: string) =>
+    `<?xml version="1.0"?>\n<xliff version="1.2"><file source-language="en" datatype="plaintext" original="x"><body>\n${units}\n</body></file></xliff>\n`;
+  expect(
+    xliffUnits(
+      file12(
+        `<trans-unit id="a"><source><![CDATA[a <!-- b]]></source></trans-unit>\n<trans-unit id="b"><source>B</source></trans-unit>\n<!-- c -->`,
+      ),
+    ).map((u) => [u.id, u.source]),
+  ).toEqual([
+    ["a", "a <!-- b"],
+    ["b", "B"],
+  ]);
+  // A note between a CDATA that spells `<alt-trans>` and a real one is
+  // the unit's.
+  expect(
+    xliffUnits(
+      file12(
+        `<trans-unit id="a"><source><![CDATA[x <alt-trans> y]]></source><note from="description">Kept</note><alt-trans><target>F</target></alt-trans></trans-unit>`,
+      ),
+    )[0]?.note,
+  ).toBe("Kept");
+});
