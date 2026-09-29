@@ -511,7 +511,7 @@ test("merge takes a list of patterns, strict or last-wins (#953)", () => {
   });
   expect(single.success).toBe(false);
   expect(JSON.stringify(single.error?.issues)).toMatch(
-    /a single path has nothing to merge/,
+    /merge applies to a source whose path is a list of patterns/,
   );
   expect(
     parse({

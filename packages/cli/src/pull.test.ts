@@ -1264,3 +1264,65 @@ export default defineCorpus({
   expect(JSON.parse(read("shared/fr.json")).greeting).toBe("Salut {name}");
   expect(existsSync(path.join(repo, "i18n", "fr.json"))).toBe(false);
 });
+
+test("under merge: last-wins a later file's plural object without other is the one that holds it, and an empty value is no disagreement (#953 review)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "pt"],
+  sources: [
+    { adapter: "messages", type: "chrome", library: "counterpart", path: ["a/{lang}.json", "c/{lang}.json"], merge: "last-wins" },
+  ],
+});
+`,
+  );
+  const en = `{\n  "n": {\n    "one": "%(count)s item",\n    "other": "%(count)s items"\n  },\n  "e": "Empty"\n}\n`;
+  const files = {
+    "a/en.json": en,
+    "c/en.json": en,
+    "a/pt.json": `{\n  "n": {\n    "one": "%(count)s item A",\n    "other": "%(count)s itens A"\n  },\n  "e": "Vazio"\n}\n`,
+    "c/pt.json": `{\n  "n": {\n    "zero": "nada C",\n    "one": "%(count)s item C"\n  },\n  "e": ""\n}\n`,
+  };
+  for (const dir of ["a", "c"]) mkdirSync(path.join(repo, dir));
+  for (const [file, text] of Object.entries(files))
+    writeFileSync(path.join(repo, file), text);
+  const { buildSnapshot } = await import("./build");
+  const { loadConfig } = await import("./config");
+  const snapshot = await buildSnapshot(await loadConfig(repo), repo);
+  expect(snapshot.seedTranslations?.pt?.n).toBe(
+    "{count, plural, zero {nada C} one {%(count)s item C}}",
+  );
+  const v = ctx();
+  await run(["validate"], v);
+  expect(v.output.join("\n")).toMatch(/c\/pt\.json:n: reads otherwise/);
+  expect(v.output.join("\n")).not.toMatch(/:e: reads otherwise/);
+  const payload = {
+    ...PAYLOAD,
+    types: { n: "chrome", e: "chrome" },
+    translations: { en: {}, ...snapshot.seedTranslations },
+  };
+  await serve(200, payload);
+  const check = ctx();
+  expect(await run(["pull", "--check"], check)).toBe(0);
+  expect(check.output.join("\n")).not.toMatch(/not written/);
+  active?.close();
+  await serve(200, {
+    ...payload,
+    translations: {
+      en: {},
+      pt: {
+        n: "{count, plural, one {%(count)s item} other {%(count)s itens}}",
+      },
+    },
+  });
+  expect(await run(["pull"], ctx())).toBe(0);
+  expect(read("a/pt.json")).toBe(files["a/pt.json"]);
+  expect(JSON.parse(read("c/pt.json")).n).toEqual({
+    one: "%(count)s item",
+    other: "%(count)s itens",
+  });
+});

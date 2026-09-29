@@ -40,6 +40,7 @@ import {
   isArb,
   lastWins,
   readEntries,
+  sourcePluralIds,
   readsPluralObjects,
   sourceWritesBack,
   takesProposals,
@@ -143,8 +144,9 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
         // text, so a file that disagrees keeps what the app never shows
         // and a pull of what was pushed leaves every byte.
         if (lastWins(source)) {
-          const inTarget = holders.filter((m) =>
-            idsInTarget(m, language).has(id),
+          // An empty value is a key the file lacks, as build seeds it.
+          const inTarget = holders.filter(
+            (m) => (textIn(m, language, id)?.trim() ?? "") !== "",
           );
           const winner = inTarget.at(-1);
           if (!winner) return holders.at(-1) === source;
@@ -165,22 +167,38 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
 
   // Read before anything is written: what the files held when the pull
   // began decides where a shared string goes.
+  // A target's plural object without `other` is read as build reads it
+  // (#950), or the file that holds it would seem not to.
   for (const members of groups.values())
-    for (const member of members)
+    for (const member of members) {
+      const pluralIds = await sourcePluralIds(
+        jiti,
+        ctx.cwd,
+        member,
+        config.sourceLanguage,
+      ).catch(() => undefined);
       for (const language of targets) {
         const file = fileOf(member, language, config.sourceLanguage);
         if (targetIds.has(file)) continue;
         targetIds.set(
           file,
-          (await ownIds(jiti, ctx.cwd, file, member)) ?? new Set<string>(),
+          (await ownIds(jiti, ctx.cwd, file, member, pluralIds)) ??
+            new Set<string>(),
         );
         if (lastWins(member))
           targetTexts.set(
             file,
-            (await ownTexts(jiti, ctx.cwd, file, member, language)) ??
-              new Map<string, string>(),
+            (await ownTexts(
+              jiti,
+              ctx.cwd,
+              file,
+              member,
+              language,
+              pluralIds,
+            )) ?? new Map<string, string>(),
           );
       }
+    }
 
   const changed: string[] = [];
   const pending = new Map<string, string>();
@@ -645,10 +663,20 @@ async function ownIds(
   cwd: string,
   file: string,
   source: FileSource,
+  pluralIds?: ReadonlySet<string>,
 ): Promise<Set<string> | undefined> {
   if (source.adapter === "table" || !sourceWritesBack(source)) return undefined;
   try {
-    const entries = await readEntries(jiti, cwd, file, source, true);
+    const entries = await readEntries(
+      jiti,
+      cwd,
+      file,
+      source,
+      true,
+      undefined,
+      undefined,
+      pluralIds,
+    );
     return new Set(entries.map((e) => e.id));
   } catch {
     return undefined;
@@ -662,9 +690,19 @@ async function ownTexts(
   file: string,
   source: FileSource,
   language: string,
+  pluralIds?: ReadonlySet<string>,
 ): Promise<Map<string, string> | undefined> {
   try {
-    const entries = await readEntries(jiti, cwd, file, source, false, language);
+    const entries = await readEntries(
+      jiti,
+      cwd,
+      file,
+      source,
+      false,
+      language,
+      undefined,
+      pluralIds,
+    );
     return new Map(entries.map((e) => [e.id, e.source]));
   } catch {
     return undefined;

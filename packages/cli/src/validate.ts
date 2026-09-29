@@ -244,6 +244,8 @@ export async function validateRepo(
           shared.get(`${group} ${language}`) ??
           new Map<string, { file: string; text: string }>();
         for (const [key, { source: text }] of translations) {
+          // An empty value is a key the file lacks, never a finding.
+          if (text.trim() === "") continue;
           const held = earlier.get(key);
           if (held !== undefined && held.text !== text)
             findings.push({

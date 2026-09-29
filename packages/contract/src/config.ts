@@ -152,13 +152,14 @@ const xcstringsSchema = z.looseObject({
   library: librarySchema.optional(),
 });
 
-// What a config file declares.
 // How the patterns of one source merge an id two of them hold (#953):
 // "strict", one text in every file, or "last-wins", the later pattern's,
 // as an app that merges its catalogues in order reads them.
 const mergeField = {
   merge: z.enum(["strict", "last-wins"]).optional(),
 };
+
+// What a config file declares.
 const sourceInputSchema = z.discriminatedUnion("adapter", [
   z.looseObject({
     ...messagesFields,
@@ -310,7 +311,7 @@ export const corpusConfigSchema = z
         ctx.addIssue({
           code: "custom",
           message:
-            "merge says how a list of patterns shares an id; a single path has nothing to merge",
+            "merge applies to a source whose path is a list of patterns; this one has a single path, or none",
           path: ["sources", index, "merge"],
         });
       // A library field the build does not read is refused, not ignored
