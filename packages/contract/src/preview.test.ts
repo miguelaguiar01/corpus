@@ -327,3 +327,28 @@ test("a value, branch or placeholder named like an Object.prototype member is on
     text: "Hi you",
   });
 });
+
+test("preview: a number is a date's epoch milliseconds, i18next's placeholders keep their own form, and an empty count is no count (#859)", () => {
+  const at = Date.UTC(2023, 10, 14, 12);
+  const long = new Intl.DateTimeFormat("en", { dateStyle: "long" }).format(at);
+  expect(renderPreview("{d, date, long}", { d: String(at) }, "en")).toEqual({
+    ok: true,
+    text: long,
+  });
+  expect(renderPreview("{d, date, long}", { d: "5" }, "en")).toEqual({
+    ok: true,
+    text: new Intl.DateTimeFormat("en", { dateStyle: "long" }).format(5),
+  });
+  expect(
+    renderPreview("Hello {{name}} and {{- raw}}", {}, "en", {
+      syntax: "i18next",
+    }),
+  ).toEqual({ ok: true, text: "Hello {{name}} and {{- raw}}" });
+  expect(
+    renderPreview(
+      "{n, plural, one {# x} many {# m} other {# o}}",
+      { n: "" },
+      "ru",
+    ),
+  ).toEqual({ ok: true, text: " o" });
+});

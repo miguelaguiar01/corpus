@@ -1283,6 +1283,8 @@ export function pluralBranch(
   value: string,
   language?: string,
 ): string {
+  // An empty value is no count at all, not zero (#859).
+  if (value.trim() === "") return "other";
   const exact = `=${value.trim()}`;
   if (Object.hasOwn(branches, exact)) return exact;
   const n = Number(value);

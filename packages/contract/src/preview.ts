@@ -52,11 +52,19 @@ function own<T>(record: Record<string, T>, key: string): T | undefined {
   return Object.hasOwn(record, key) ? record[key] : undefined;
 }
 
+// A placeholder with no value, as the text writes it.
+type Unset = (name: string) => string;
+const icuUnset: Unset = (name) => `{${name}}`;
+// i18next's own form (#859); a leading `-` is its unescaped `{{- name}}`.
+const i18nextUnset: Unset = (name) =>
+  name.startsWith("-") ? `{{- ${name.slice(1)}}}` : `{{${name}}}`;
+
 function render(
   nodes: IcuNode[],
   values: Record<string, string>,
   out: PreviewSegment[],
-  language?: string,
+  language: string | undefined,
+  unset: Unset,
 ): void {
   for (const node of nodes) {
     if (node.kind === "literal") out.push({ text: node.text, value: false });
@@ -66,7 +74,7 @@ function render(
       out.push(
         value === undefined
           ? {
-              text: node.kind === "count" ? "#" : (node.written ?? `{${name}}`),
+              text: node.kind === "count" ? "#" : (node.written ?? unset(name)),
               value: false,
             }
           : {
@@ -79,7 +87,7 @@ function render(
       );
     } else if (node.kind === "tag") {
       // The component is the client's; the preview shows what it wraps.
-      render(node.children, values, out, language);
+      render(node.children, values, out, language, unset);
     } else if (node.kind === "forms") {
       // vue-i18n picks a form by the count passed at render time, by
       // position. A preview has no count, so it shows the last form,
@@ -89,6 +97,7 @@ function render(
         values,
         out,
         language,
+        unset,
       );
     } else if (node.kind === "plural") {
       const value = own(values, node.arg);
@@ -96,7 +105,7 @@ function render(
         value === undefined
           ? "other"
           : pluralBranch(node.branches, value, language);
-      render(own(node.branches, key) ?? [], values, out, language);
+      render(own(node.branches, key) ?? [], values, out, language, unset);
     } else {
       const value = own(values, node.arg);
       const branch =
@@ -104,7 +113,7 @@ function render(
         node.branches.other ??
         Object.values(node.branches)[0] ??
         [];
-      render(branch, values, out, language);
+      render(branch, values, out, language, unset);
     }
   }
 }
@@ -146,7 +155,13 @@ export function renderPreviewSegments(
   // A printf plural on `argN` takes the Nth argument's value (#735).
   const nodes =
     options.syntax === "printf" ? argPositions(parsed.nodes) : parsed.nodes;
-  render(nodes, withCount(nodes, values, options.syntax), segments, language);
+  render(
+    nodes,
+    withCount(nodes, values, options.syntax),
+    segments,
+    language,
+    options.syntax === "i18next" ? i18nextUnset : icuUnset,
+  );
   // Capitalise the first character of the whole render, wherever it
   // falls: an empty leading value must not stop it.
   const first = segments.find((segment) => segment.text.length > 0);
@@ -209,7 +224,8 @@ function formatValue(
             : {};
       return new Intl.NumberFormat(language, options).format(Number(value));
     }
-    const date = new Date(value);
+    // A number is epoch milliseconds, as FormatJS takes a date (#859).
+    const date = new Date(/^-?\d+$/.test(value.trim()) ? Number(value) : value);
     if (Number.isNaN(date.getTime())) return value;
     const style = format.style?.replace(/^::/, "");
     const named =
