@@ -67,6 +67,8 @@ const PLURAL_KEY_RE = /^(?:zero|one|two|few|many|other|=[0-9]+)$/;
 // close, with nothing else matching spaces, so a name followed by a run
 // of whitespace and no `>` is linear, not cubic; readTag trims it.
 const TAG_RE = /^<(\/?)([A-Za-z][A-Za-z0-9_-]*|[0-9]+)((?:\s[^<>]*?)?)(\/?)>/;
+// Every closing tag of a text, by TAG_RE's names.
+const CLOSE_RE = /<\/([A-Za-z][A-Za-z0-9_-]*|[0-9]+)>/g;
 // HTML's void elements, read so only where the text's tags are HTML or
 // its library treats them so (#643); HTML ignores their case.
 const VOID_TAGS = new Set(["br", "hr", "wbr", "img"]);
@@ -254,6 +256,8 @@ class Parser {
   // no closing tag matches and a closing tag with no open tag, found in
   // one pass over the text (#755).
   private proseTags?: Set<number>;
+  // Where each tag name's last `</name>` is, found in one pass (#896).
+  private closes?: Map<string, number>;
   // Open tags already found not to close, where the one pass could not
   // tell (a close in another branch): tried once, so never exponential.
   private readonly unclosed = new Set<number>();
@@ -669,6 +673,15 @@ class Parser {
     return { kind: "placeholder", name: unescaped ? `-${key}` : key };
   }
 
+  private lastClose(name: string): number {
+    if (!this.closes) {
+      this.closes = new Map();
+      for (const m of this.source.matchAll(CLOSE_RE))
+        this.closes.set(m[1]!, m.index);
+    }
+    return this.closes.get(name) ?? -1;
+  }
+
   // vue-i18n's braces: `{name}` names a value, `{'…'}` is a literal
   // whose quoted text is kept as text (#496), which is how a catalogue
   // writes an `@`, a `|` or a brace that the language reads as syntax.
@@ -751,7 +764,7 @@ class Parser {
       this.syntax === "counterpart" &&
       match[1] !== "/" &&
       match[4] !== "/" &&
-      !this.source.slice(this.pos).includes(`</${name}>`);
+      this.lastClose(name) < this.pos;
     const kind =
       match[1] === "/"
         ? "close"
@@ -1057,17 +1070,43 @@ function closingBrace(source: string, at: number): number {
   return -1;
 }
 
+// `closingBrace` for every position at once, in one pass from the end
+// (#896): the brace that closes a `{` at i is the entry at i + 1, and a
+// text of unclosed braces is linear, not quadratic. Each position has
+// two answers, outside quotes and in them.
+function braceClosers(source: string): Int32Array {
+  const n = source.length;
+  const plain = new Int32Array(n + 2).fill(-1);
+  const quoted = new Int32Array(n + 2).fill(-1);
+  for (let i = n - 1; i >= 0; i--) {
+    const ch = source[i];
+    if (ch === "'") {
+      const outside = quoted[i + 1]!;
+      quoted[i] = plain[i + 1]!;
+      plain[i] = outside;
+    } else if (ch === "}") {
+      plain[i] = i;
+      quoted[i] = quoted[i + 1]!;
+    } else {
+      plain[i] = plain[i + 1]!;
+      quoted[i] = ch === "\\" ? quoted[i + 2]! : quoted[i + 1]!;
+    }
+  }
+  return plain;
+}
+
 // vue-i18n separates plural forms with a top-level `|`. The source is
 // split before it is parsed, so a pipe inside a `{'…'}` literal is
 // text: that escape is exactly how a catalogue writes one (#496).
 function splitVueSource(source: string): string[] {
+  const closer = braceClosers(source);
   const parts: string[] = [];
   let current = "";
   let at = 0;
   while (at < source.length) {
     const ch = source[at]!;
     if (ch === "{") {
-      const end = closingBrace(source, at);
+      const end = closer[at + 1]!;
       if (end >= 0) {
         current += source.slice(at, end + 1);
         at = end + 1;
