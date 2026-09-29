@@ -56,7 +56,8 @@ type Entry = Snapshot["strings"][number];
 // Invalid queue rather than counted as done (#646); a missing plural
 // category is only incomplete. Text free of every library's syntax
 // characters always validates, and a first push can hold half a million
-// seeds.
+// seeds. A text that is its source is never invalid, whichever push
+// writes it (#923): the source is the repository's own, and only warned.
 const PLAIN = /^[^{}<>%$@|'"#&\\[\]]*$/;
 function seedInvalid(
   source: string,
@@ -66,7 +67,7 @@ function seedInvalid(
   richText?: RichText,
   passed?: string[],
 ): boolean {
-  if (PLAIN.test(source) && PLAIN.test(text)) return false;
+  if (text === source || (PLAIN.test(source) && PLAIN.test(text))) return false;
   return !validateTranslation(source, text, language, library, {
     richText,
     ...(passed && { arguments: passed }),
@@ -200,16 +201,13 @@ function stringWrites(
       const texts = seeds[language];
       if (!texts || !Object.hasOwn(texts, entry.id)) return false;
       const text = texts[entry.id]!;
-      return (
-        text !== entry.source &&
-        seedInvalid(
-          entry.source,
-          text,
-          language,
-          libraryOf(entry),
-          richText[entry.type],
-          entry.arguments,
-        )
+      return seedInvalid(
+        entry.source,
+        text,
+        language,
+        libraryOf(entry),
+        richText[entry.type],
+        entry.arguments,
       );
     });
   const refresh = tx
