@@ -82,114 +82,28 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       `--messages must contain {lang}, such as src/i18n/{lang}.json`,
     );
   }
-  const sourceFile = path.join(
-    ctx.cwd,
-    messages.replaceAll("{lang}", sourceLanguage),
+  const { adapter, sourcePath } = formatOf(
+    ctx,
+    messages,
+    sourceLanguage,
+    catalog !== undefined,
   );
-  // XLIFF has its own adapter (#712); Angular names the source-language
-  // file with no language in it, `messages.xlf` beside `messages.de.xlf`.
-  const xliff = /\.(?:xlf|xliff)$/i.test(messages);
-  const bare = path.posix.normalize(messages.replace(/[._-]?\{lang\}/, ""));
-  // gettext too (#720): xgettext's `.pot` beside the `.po` files is the
-  // source, when there is one.
-  const gettext = /\.po$/i.test(messages);
-  const xcstrings = catalog !== undefined;
-  // Rails I18n's YAML (#754): one file per language, rooted at its code.
-  // Any other YAML (Symfony's, Hugo's) is refused here, by what it holds,
-  // rather than written into a config that cannot build.
-  const yaml = /\.ya?ml$/i.test(messages);
-  const catalogueFormat = xliff
-    ? "xliff"
-    : gettext
-      ? "gettext"
-      : yaml
-        ? "yaml"
-        : undefined;
-  if (catalogueFormat) refuseNamespace(messages, catalogueFormat);
-  if (yaml) {
-    if (!existsSync(sourceFile))
-      throw new CliError(
-        `--messages ${messages}: no ${path.relative(ctx.cwd, sourceFile)} to read the source language's strings from`,
-      );
-    try {
-      yamlStrings(readFileSync(sourceFile, "utf8"), sourceLanguage, {
-        source: true,
-      });
-    } catch (error) {
-      throw new CliError(
-        `--messages ${messages}: a YAML catalogue the yaml source cannot read (${(error as Error).message}); it reads Rails I18n's layout, rooted at the language, and an exec source converts any other`,
-      );
-    }
-  }
-  // Qt Linguist's XML under a `.ts` name (#742), told from TypeScript by
-  // its first bytes.
-  // Only the files the pattern names decide, never a TypeScript file
-  // beside them (#749).
-  const qt =
-    /\.ts$/i.test(messages) &&
-    (existsSync(sourceFile)
-      ? isQtLinguist(headOf(sourceFile))
-      : (messages.includes("{ns}")
-          ? matchPattern(ctx.cwd, messages).map((m) => m.file)
-          : patternFiles(ctx.cwd, messages)
-        ).some((file) => isQtLinguist(headOf(path.join(ctx.cwd, file)))));
-  if (qt) refuseNamespace(messages, "qt-ts");
-  // lupdate's template, `app.ts` beside `app_de.ts`, is the source where
-  // the source language has no file of its own (#749).
-  const qtTemplate =
-    qt && !existsSync(sourceFile) ? qtTemplateOf(ctx.cwd, messages) : undefined;
-  if (qt && !existsSync(sourceFile) && !qtTemplate)
-    ctx.err(
-      `corpus: no ${path.relative(ctx.cwd, sourceFile)}; set the qt-ts source's sourcePath to the template lupdate writes`,
-    );
-  const templates = gettext ? potsBeside(ctx.cwd, messages) : [];
-  const sourcePath = xliff
-    ? !existsSync(sourceFile) && existsSync(path.join(ctx.cwd, bare))
-      ? bare
-      : undefined
-    : templates.length === 1
-      ? templates[0]
-      : undefined;
-  if (templates.length > 1)
-    ctx.err(
-      `corpus: ${templates.join(", ")} sit beside the catalogues; set the gettext source's sourcePath to the one xgettext writes`,
-    );
-  else if (gettext && templates.length === 0 && !existsSync(sourceFile))
-    ctx.err(
-      `corpus: no .pot beside the catalogues and no ${path.relative(ctx.cwd, sourceFile)}; set the gettext source's sourcePath to the template xgettext writes`,
-    );
-  // Every format's build reads the source language's file (#856).
-  if (xliff && !sourcePath && !existsSync(sourceFile))
-    ctx.err(
-      `corpus: no ${path.relative(ctx.cwd, sourceFile)} and no ${bare}; set the xliff source's sourcePath to the file Angular extracts`,
-    );
-  else if (
-    !(xliff || gettext || xcstrings || qt || yaml) &&
-    (messages.includes("{ns}")
-      ? matchPattern(ctx.cwd, messages, sourceLanguage).length === 0
-      : !existsSync(sourceFile))
-  )
-    ctx.err(
-      `corpus: no ${path.relative(ctx.cwd, sourceFile)}: build reads the source language's strings from it`,
-    );
   // An XLIFF unit's text is ICU, and a flag that cannot apply is refused
   // rather than dropped.
-  if (xliff && (args.includes("--library") || args.includes("--syntax")))
+  if (
+    adapter === "xliff" &&
+    (args.includes("--library") || args.includes("--syntax"))
+  )
     throw new CliError(
       `--library does not apply to an xliff source: its text is ICU\nusage: ${INIT_USAGE}`,
     );
-  const unreadable =
-    xliff || gettext || xcstrings || qt || yaml
-      ? undefined
-      : unreadableFile(sourceFile);
-  if (unreadable) throw new CliError(`--messages ${messages}: ${unreadable}`);
   const files =
     catalog || messages.includes("{ns}")
       ? { languages: [], languageFiles: {}, skipped: [] }
       : catalogueLanguages(ctx.cwd, messages, sourceLanguage);
   // Beside a JSON catalogue a file that names no language is a glossary
   // or a fixture, not a catalogue left out.
-  if (files.skipped.length > 0 && (catalogueFormat || qt))
+  if (files.skipped.length > 0 && adapter !== "messages")
     ctx.err(
       `corpus: ${files.skipped.join(", ")} ${files.skipped.length === 1 ? "names" : "name"} no language tag and no script; left out, or map ${files.skipped.length === 1 ? "it" : "each"} with languageFiles`,
     );
@@ -226,10 +140,11 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       );
     }
   }
-  // gettext's library is printf unless the flag names another.
+  // Only the messages adapter's library is detected; every other format
+  // has its default, which only the flag changes, and xliff's is fixed.
   const detected =
-    xliff ||
-    ((gettext || xcstrings || qt || yaml) &&
+    adapter === "xliff" ||
+    (adapter !== "messages" &&
       !args.includes("--library") &&
       !args.includes("--syntax"))
       ? {}
@@ -237,63 +152,32 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   const library = detected.library;
   const components = checkIncludeFor(ctx.cwd, messages);
   const include = components.include;
+  // The mappings of the languages the config lists, given or read.
   const kept = Object.fromEntries(
     Object.entries(files.languageFiles).filter(([tag]) =>
       languages.includes(tag),
     ),
   );
-  // The mappings of the languages the config lists, given or read.
-  const mapped = Object.keys(kept).length > 0 ? { languageFiles: kept } : {};
-  const source = yaml
-    ? {
-        adapter: "yaml" as const,
-        type,
-        path: messages,
-        ...(library && { library: library.value }),
-        ...mapped,
-      }
-    : qt
-      ? {
-          adapter: "qt-ts" as const,
-          type,
-          path: messages,
-          ...(qtTemplate && { sourcePath: qtTemplate }),
-          ...(library && { library: library.value }),
-          ...mapped,
-        }
-      : xcstrings
-        ? {
-            adapter: "xcstrings" as const,
-            type,
-            path: messages,
-            ...(library && { library: library.value }),
-          }
-        : xliff || gettext
-          ? {
-              adapter: xliff ? ("xliff" as const) : ("gettext" as const),
-              type,
-              path: messages,
-              ...(sourcePath && { sourcePath }),
-              ...(library && { library: library.value }),
-              ...mapped,
-            }
-          : {
-              adapter: "messages" as const,
-              type,
-              path: messages,
-              ...(library && library.value !== "icu"
-                ? { library: library.value }
-                : {}),
-              ...mapped,
-            };
-  const parsed = corpusConfigSchema.safeParse({
+  const source: InitSource = {
+    adapter,
+    type,
+    path: messages,
+    ...(sourcePath && { sourcePath }),
+    ...(library &&
+      (adapter !== "messages" || library.value !== "icu") && {
+        library: library.value,
+      }),
+    ...(Object.keys(kept).length > 0 && { languageFiles: kept }),
+  };
+  const config: InitConfig = {
     project,
     server,
     sourceLanguage,
     languages,
     sources: [source],
-    ...(include ? { check: { include } } : {}),
-  });
+    ...(include && { check: { include } }),
+  };
+  const parsed = corpusConfigSchema.safeParse(config);
   if (!parsed.success) {
     const issues = parsed.error.issues
       .map((issue) => `${issue.path.join(".") || "config"}: ${issue.message}`)
@@ -305,48 +189,22 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   // could not load it, so a plain module is written instead.
   const plain = !cliResolvesFrom(ctx.cwd);
   const filename = plain ? "corpus.config.mjs" : CONFIG_FILENAMES[0];
-  const file = path.join(ctx.cwd, filename);
   // The pattern is written as given: `{ns}` stays `{ns}` in the file.
-  writeFileSync(
-    file,
-    render(plain, {
-      project,
-      server,
-      sourceLanguage,
-      languages,
-      sources: [source],
-      ...(include ? { check: { include } } : {}),
-    }),
-  );
+  writeFileSync(path.join(ctx.cwd, filename), render(plain, config));
   ctx.out(
     plain
       ? `wrote ${filename} (a plain object: @corpus-tool/cli is not installed in this repository)`
       : `wrote ${filename}`,
   );
-  if (
-    library &&
-    (library.value !== "icu" || gettext || xcstrings || qt || yaml)
-  ) {
-    const why =
-      library.value === "i18next"
-        ? "{{ }}"
-        : library.value === "printf"
-          ? "printf verbs"
-          : library.value === "chrome"
-            ? "the Chrome i18n shape"
-            : library.value === "counterpart"
-              ? "%(name)s placeholders"
-              : library.value === "easy_localization"
-                ? "{} placeholders or @:key links"
-                : library.value === "rails"
-                  ? "%{name} placeholders"
-                  : "a pipe or a quoted literal";
+  if (library && (library.value !== "icu" || adapter !== "messages")) {
+    const why = library.detected && DETECTED_BY[library.value];
     ctx.out(
-      `library: ${library.value}${library.detected ? `, from ${why} in ${library.detected}` : ""}`,
+      `library: ${library.value}${why ? `, from ${why} in ${library.detected}` : ""}`,
     );
   }
   if (detected.note) ctx.out(detected.note);
-  if (yaml && !library) ctx.out("library: rails (the yaml source's default)");
+  if (adapter === "yaml" && !library)
+    ctx.out("library: rails (the yaml source's default)");
   if (include) {
     ctx.out(
       `check.include: ${include.join(", ")} (the directories holding components, which corpus check scans)`,
@@ -357,9 +215,9 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     );
   }
   const siblings =
-    xliff || gettext || xcstrings || qt || yaml
-      ? []
-      : siblingCatalogues(ctx.cwd, messages, sourceLanguage);
+    adapter === "messages"
+      ? siblingCatalogues(ctx.cwd, messages, sourceLanguage)
+      : [];
   if (siblings.length > 0) {
     ctx.out(
       `corpus: ${messages.replaceAll("{lang}", sourceLanguage)} has ${siblings.length} sibling catalogue(s) the pattern does not name (${siblings.slice(0, 3).join(", ")}${siblings.length > 3 ? ", …" : ""}); a {ns} pattern or an array of paths names them all`,
@@ -367,12 +225,154 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   }
   const ignored = ignoreCorpusDir(ctx.cwd);
   if (ignored) ctx.out(ignored);
+  nextSteps(ctx, project, server, option(args, "--server") === undefined);
+  return 0;
+}
+
+type InitSource = {
+  adapter: "messages" | "xliff" | "gettext" | "xcstrings" | "qt-ts" | "yaml";
+  type: string;
+  path: string;
+  sourcePath?: string;
+  library?: Library;
+  languageFiles?: Record<string, string>;
+};
+
+type InitConfig = {
+  project: string;
+  server: string;
+  sourceLanguage: string;
+  languages: string[];
+  sources: [InitSource];
+  check?: { include: string[] };
+};
+
+// What each library init detects is told by, for the line that says so.
+const DETECTED_BY: Partial<Record<Library, string>> = {
+  i18next: "{{ }}",
+  printf: "printf verbs",
+  chrome: "the Chrome i18n shape",
+  counterpart: "%(name)s placeholders",
+  easy_localization: "{} placeholders or @:key links",
+  rails: "%{name} placeholders",
+  vue: "a pipe or a quoted literal",
+};
+
+// The adapter the pattern's files take, told by their extension and,
+// for a `.ts`, their first bytes; a file the format needs and cannot
+// find is warned of, and one its adapter cannot read refused.
+function formatOf(
+  ctx: RunContext,
+  messages: string,
+  sourceLanguage: string,
+  catalogued: boolean,
+): { adapter: InitSource["adapter"]; sourcePath?: string } {
+  if (catalogued) return { adapter: "xcstrings" };
+  const sourceFile = path.join(
+    ctx.cwd,
+    messages.replaceAll("{lang}", sourceLanguage),
+  );
+  const missing = !existsSync(sourceFile);
+  const relative = path.relative(ctx.cwd, sourceFile);
+  // XLIFF has its own adapter (#712); Angular names the source-language
+  // file with no language in it, `messages.xlf` beside `messages.de.xlf`.
+  if (/\.(?:xlf|xliff)$/i.test(messages)) {
+    refuseNamespace(messages, "xliff");
+    const bare = path.posix.normalize(messages.replace(/[._-]?\{lang\}/, ""));
+    const sourcePath =
+      missing && existsSync(path.join(ctx.cwd, bare)) ? bare : undefined;
+    if (!sourcePath && missing)
+      ctx.err(
+        `corpus: no ${relative} and no ${bare}; set the xliff source's sourcePath to the file Angular extracts`,
+      );
+    return { adapter: "xliff", ...(sourcePath && { sourcePath }) };
+  }
+  // gettext too (#720): xgettext's `.pot` beside the `.po` files is the
+  // source, when there is one.
+  if (/\.po$/i.test(messages)) {
+    refuseNamespace(messages, "gettext");
+    const templates = potsBeside(ctx.cwd, messages);
+    if (templates.length > 1)
+      ctx.err(
+        `corpus: ${templates.join(", ")} sit beside the catalogues; set the gettext source's sourcePath to the one xgettext writes`,
+      );
+    else if (templates.length === 0 && missing)
+      ctx.err(
+        `corpus: no .pot beside the catalogues and no ${relative}; set the gettext source's sourcePath to the template xgettext writes`,
+      );
+    return {
+      adapter: "gettext",
+      ...(templates.length === 1 && { sourcePath: templates[0] }),
+    };
+  }
+  // Rails I18n's YAML (#754): one file per language, rooted at its code.
+  // Any other YAML (Symfony's, Hugo's) is refused here, by what it holds,
+  // rather than written into a config that cannot build.
+  if (/\.ya?ml$/i.test(messages)) {
+    refuseNamespace(messages, "yaml");
+    if (missing)
+      throw new CliError(
+        `--messages ${messages}: no ${relative} to read the source language's strings from`,
+      );
+    try {
+      yamlStrings(readFileSync(sourceFile, "utf8"), sourceLanguage, {
+        source: true,
+      });
+    } catch (error) {
+      throw new CliError(
+        `--messages ${messages}: a YAML catalogue the yaml source cannot read (${(error as Error).message}); it reads Rails I18n's layout, rooted at the language, and an exec source converts any other`,
+      );
+    }
+    return { adapter: "yaml" };
+  }
+  // Qt Linguist's XML under a `.ts` name (#742), told from TypeScript by
+  // its first bytes, of the files the pattern names alone, never a
+  // TypeScript file beside them (#749).
+  const qt =
+    /\.ts$/i.test(messages) &&
+    (!missing
+      ? isQtLinguist(headOf(sourceFile))
+      : (messages.includes("{ns}")
+          ? matchPattern(ctx.cwd, messages).map((m) => m.file)
+          : patternFiles(ctx.cwd, messages)
+        ).some((file) => isQtLinguist(headOf(path.join(ctx.cwd, file)))));
+  if (qt) {
+    refuseNamespace(messages, "qt-ts");
+    // lupdate's template, `app.ts` beside `app_de.ts`, is the source where
+    // the source language has no file of its own (#749).
+    const sourcePath = missing ? qtTemplateOf(ctx.cwd, messages) : undefined;
+    if (missing && !sourcePath)
+      ctx.err(
+        `corpus: no ${relative}; set the qt-ts source's sourcePath to the template lupdate writes`,
+      );
+    return { adapter: "qt-ts", ...(sourcePath && { sourcePath }) };
+  }
+  // Every format's build reads the source language's file (#856).
+  if (
+    messages.includes("{ns}")
+      ? matchPattern(ctx.cwd, messages, sourceLanguage).length === 0
+      : missing
+  )
+    ctx.err(
+      `corpus: no ${relative}: build reads the source language's strings from it`,
+    );
+  const unreadable = unreadableFile(sourceFile);
+  if (unreadable) throw new CliError(`--messages ${messages}: ${unreadable}`);
+  return { adapter: "messages" };
+}
+
+function nextSteps(
+  ctx: RunContext,
+  project: string,
+  server: string,
+  defaultServer: boolean,
+) {
   ctx.out("");
   ctx.out("Next:");
   ctx.out(
     `  1. corpus workbench (needs @corpus-tool/workbench) starts an instance, creates the project "${project}" and writes its token to .corpus/token.`,
   );
-  if (option(args, "--server") === undefined) {
+  if (defaultServer) {
     ctx.out(
       `     The config's server is ${server}: corpus workbench listens there by default; for another port, edit the config or run init with --server.`,
     );
@@ -381,7 +381,6 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     `     For another instance at ${server}: CORPUS_INVITE_SECRET=<its secret> corpus project create prints the token, for CORPUS_TOKEN or .corpus/token.`,
   );
   ctx.out("  2. corpus push");
-  return 0;
 }
 
 // Node's own walk: a node_modules holding the package in the repository
@@ -399,28 +398,11 @@ function cliResolvesFrom(cwd: string): boolean {
   }
 }
 
-function render(
-  plain: boolean,
-  config: {
-    project: string;
-    server: string;
-    sourceLanguage: string;
-    languages: string[];
-    sources: {
-      adapter: string;
-      type?: string;
-      path?: string;
-      library?: Library;
-      sourcePath?: string;
-      languageFiles?: Record<string, string>;
-    }[];
-    check?: { include?: string[] };
-  },
-): string {
+function render(plain: boolean, config: InitConfig): string {
   const q = (value: string) => JSON.stringify(value);
-  const source = config.sources[0]!;
+  const [source] = config.sources;
   const library = source.library ? `, library: ${q(source.library)}` : "";
-  const check = config.check?.include
+  const check = config.check
     ? `  check: { include: [${config.check.include.map(q).join(", ")}] },\n`
     : "";
   const body = `  project: ${q(config.project)},
@@ -428,7 +410,7 @@ function render(
   sourceLanguage: ${q(config.sourceLanguage)},
   languages: [${config.languages.map(q).join(", ")}],
   sources: [
-    { adapter: ${q(source.adapter)}, type: ${q(source.type ?? "ui")}, path: ${q(source.path ?? "")}${source.sourcePath ? `, sourcePath: ${q(source.sourcePath)}` : ""}${library}${
+    { adapter: ${q(source.adapter)}, type: ${q(source.type)}, path: ${q(source.path)}${source.sourcePath ? `, sourcePath: ${q(source.sourcePath)}` : ""}${library}${
       source.languageFiles
         ? `, languageFiles: { ${Object.entries(source.languageFiles)
             .map(([tag, code]) => `${q(tag)}: ${q(code)}`)
@@ -630,15 +612,17 @@ async function libraryFor(
   if (chrome) return { library: { value: "chrome", detected: file } };
   // Flutter's easy_localization (#664), counted like every shape: `{}`
   // is its positional placeholder, and `@:key` its link, which vue-i18n
-  // writes too, so a link counts only where no vue sign is there.
-  const vueSigns = texts.some(
-    (text) => /\{'[^']*'\}/.test(text) || text.includes("|"),
-  );
+  // writes too, so a link counts only where no vue sign, a quoted
+  // literal or a pipe, is there.
+  const escapes = texts.some((text) => /\{'[^']*'\}/.test(text));
+  const pipes = texts.some((text) => text.includes("|"));
   const easy =
     texts.filter((text) => text.includes("{}")).length +
-    (vueSigns
+    (escapes || pipes
       ? 0
       : texts.filter((text) => /@(?:\.[a-z]+)?:[\w(]/.test(text)).length);
+  const doubles = texts.filter((text) => DOUBLE_BRACE_RE.test(text)).length;
+  const printf = texts.filter((text) => PRINTF_RE.test(text)).length;
   const argued = texts.filter(
     (text) =>
       SINGLE_BRACE_RE.test(text) ||
@@ -646,16 +630,8 @@ async function libraryFor(
       COUNTERPART_RE.test(text) ||
       (ICU_ARGUMENT_RE.test(text) && !text.includes("{}")),
   ).length;
-  if (
-    easy >= 2 &&
-    easy > argued &&
-    !texts.some((text) => DOUBLE_BRACE_RE.test(text))
-  )
+  if (easy >= 2 && easy > argued && doubles === 0)
     return { library: { value: "easy_localization", detected: file } };
-  // Shapes are counted, not spotted: {{ }} names i18next when it
-  // outnumbers the single-brace and the printf strings; one {{ }} among
-  // four thousand printf strings is a template, not the library (#591).
-  const doubles = texts.filter((text) => DOUBLE_BRACE_RE.test(text)).length;
   // Rails I18n (#665): `%{name}`, whose braces would count as ICU's.
   const rails = texts.filter((text) => RAILS_RE.test(text)).length;
   const bare = texts.filter(
@@ -664,17 +640,15 @@ async function libraryFor(
       !DOUBLE_BRACE_RE.test(text) &&
       SINGLE_BRACE_RE.test(text),
   ).length;
-  if (
-    rails >= 2 &&
-    rails > doubles + bare &&
-    rails > texts.filter((text) => PRINTF_RE.test(text)).length
-  )
+  if (rails >= 2 && rails > doubles + bare && rails > printf)
     return { library: { value: "rails", detected: file } };
   const singles = texts.filter(
     (text) => !DOUBLE_BRACE_RE.test(text) && SINGLE_BRACE_RE.test(text),
   ).length;
-  const printf = texts.filter((text) => PRINTF_RE.test(text)).length;
   const icu = texts.some((text) => ICU_ARGUMENT_RE.test(text));
+  // Shapes are counted, not spotted: {{ }} names i18next when it
+  // outnumbers the single-brace and the printf strings; one {{ }} among
+  // four thousand printf strings is a template, not the library (#591).
   if (doubles > singles && doubles > printf && !icu)
     return { library: { value: "i18next", detected: file } };
   const noted = (note: string) => `${note} in ${file}`;
@@ -704,16 +678,10 @@ async function libraryFor(
       ),
     };
   }
-  const braces = doubles > 0;
-  // vue-i18n: a top-level pipe separates plural forms and `{'…'}` is a
-  // literal. Either is enough, and neither appears in plain ICU.
-  // A quoted literal is vue-i18n's alone. A pipe is only evidence when
-  // nothing else in the catalogue reads as ICU, since a pipe is
-  // ordinary punctuation.
-  const escapes = texts.some((text) => /\{'[^']*'\}/.test(text));
-  const pipes = texts.some((text) => text.includes("|"));
+  // vue-i18n: a quoted literal is enough; a pipe only where nothing else
+  // in the catalogue reads as ICU.
   const anyIcu = texts.some((text) => ICU_ANY_ARGUMENT_RE.test(text));
-  if (!braces && !icu && (escapes || (pipes && !anyIcu))) {
+  if (doubles === 0 && !icu && (escapes || (pipes && !anyIcu))) {
     return { library: { value: "vue", detected: file } };
   }
   return {};
