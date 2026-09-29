@@ -1669,4 +1669,32 @@ test("init reads a Rails type as HTML where its tags are only HTML's, and names 
     /1 source string\(s\) hold tags only HTML takes as text.*add richText: \{ ui: "html" \}/,
   );
   expect((await loadConfig(react.dir)).richText).toBeUndefined();
+
+  // A yaml source of another library is not Rails': its tags may be
+  // components, as react-i18next's <1> is, so init only says it.
+  const i18next = project();
+  stubCli(i18next.dir);
+  mkdirSync(path.join(i18next.dir, "config", "locales"), { recursive: true });
+  writeFileSync(
+    path.join(i18next.dir, "config", "locales", "client.en.yml"),
+    'en:\n  cta: "Click <1>here to continue"\n  br: "One<br>two"\n',
+  );
+  expect(
+    await run(
+      [
+        ...args("config/locales/client.{lang}.yml"),
+        "--library",
+        "i18next",
+        "--type",
+        "ui-text",
+        "--languages",
+        "en,pt",
+      ],
+      i18next.ctx,
+    ),
+  ).toBe(0);
+  expect(i18next.out.join("\n")).toMatch(
+    /add richText: \{ "ui-text": "html" \}/,
+  );
+  expect((await loadConfig(i18next.dir)).richText).toBeUndefined();
 });

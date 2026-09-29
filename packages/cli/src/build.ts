@@ -436,6 +436,11 @@ export async function buildSnapshotReport(
   };
 }
 
+// A type as a config object's key: bare where it can be.
+export function configKey(type: string): string {
+  return /^[A-Za-z_$][\w$]*$/.test(type) ? type : JSON.stringify(type);
+}
+
 // One line per type whose refused strings its reading as HTML would
 // take (#952), naming the declaration that does.
 export function richTextAdvice(refused: Refused[]): string[] {
@@ -444,7 +449,7 @@ export function richTextAdvice(refused: Refused[]): string[] {
     if (htmlType) byType.set(htmlType, (byType.get(htmlType) ?? 0) + 1);
   return [...byType].map(
     ([type, count]) =>
-      `${count} refused ${type} string(s) hold tags a type read as HTML takes as text, an unclosed tag or a lone <br>: if the app renders ${type} as HTML, declare richText: { ${/^[A-Za-z_$][\w$]*$/.test(type) ? type : JSON.stringify(type)}: "html" } in the config`,
+      `${count} refused ${type} string(s) hold tags a type read as HTML takes as text, an unclosed tag or a lone <br>: if the app renders ${type} as HTML, declare richText: { ${configKey(type)}: "html" } in the config`,
   );
 }
 

@@ -20,7 +20,13 @@ import {
 } from "@corpus/contract";
 import { headOf, isQtLinguist, unreadableFile } from "./catalogue-format";
 import { option } from "./args";
-import { fileOf, readEntries, sourceLibrary, type FileSource } from "./build";
+import {
+  configKey,
+  fileOf,
+  readEntries,
+  sourceLibrary,
+  type FileSource,
+} from "./build";
 import { DEFAULT_INCLUDE, EXTENSIONS, SKIP_DIRS } from "./check";
 import type { RunContext } from "./cli";
 import {
@@ -180,7 +186,8 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   // tags only HTML reads builds with its type read so; any other
   // library's tags may be components, and init only says it (#952).
   const htmlTags = await htmlOnlyTags(ctx.cwd, source, sourceLanguage);
-  const readAsHtml = htmlTags > 0 && adapter === "yaml";
+  const readAsHtml =
+    htmlTags > 0 && sourceLibrary(source as FileSource) === "rails";
   const config: InitConfig = {
     project,
     server,
@@ -224,7 +231,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     );
   else if (htmlTags > 0)
     ctx.out(
-      `corpus: ${htmlTags} source string(s) hold tags only HTML takes as text, an unclosed tag or a lone <br>, and are refused as they are: if the app renders ${type} as HTML, add richText: { ${type}: "html" } to ${filename}`,
+      `corpus: ${htmlTags} source string(s) hold tags only HTML takes as text, an unclosed tag or a lone <br>, and are refused as they are: if the app renders ${type} as HTML, add richText: { ${configKey(type)}: "html" } to ${filename}`,
     );
   if (include) {
     ctx.out(
@@ -472,7 +479,7 @@ function render(plain: boolean, config: InitConfig): string {
     : "";
   const richText = config.richText
     ? `  richText: { ${Object.entries(config.richText)
-        .map(([type, value]) => `${q(type)}: ${q(value)}`)
+        .map(([type, value]) => `${configKey(type)}: ${q(value)}`)
         .join(", ")} },\n`
     : "";
   const body = `  project: ${q(config.project)},
