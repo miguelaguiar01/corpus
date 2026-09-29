@@ -733,3 +733,18 @@ test("surplus msgstrs go cleanly, every one of them, whatever the template's las
     entriesToGettext(bare, {}, undefined, ja).endsWith('msgstr[0] ""'),
   ).toBe(true);
 });
+
+test("a character's escaped bytes split across continuation lines read as one, as msgfmt reads them (#926)", () => {
+  const file = (msgstr: string) =>
+    `msgid ""\nmsgstr "Content-Type: text/plain; charset=UTF-8\\n"\n\nmsgid "x"\n${msgstr}\n`;
+  const read = (msgstr: string) =>
+    gettextTranslations(file(msgstr), "de").map((e) => e.source);
+  // msgfmt reads each as "café".
+  expect(read('msgstr ""\n"caf\\303"\n"\\251"')).toEqual(["café"]);
+  expect(read('msgstr "caf\\303\\251"')).toEqual(["café"]);
+  // Each string's escapes are its own: a short one never takes the next
+  // line's digits.
+  expect(read('msgstr ""\n"\\30"\n"3"')).toEqual(["\x183"]);
+  expect(read('msgstr ""\n"\\x4"\n"1"')).toEqual(["\x041"]);
+  expect(read('msgstr ""\n"\\1"\n"01\\102"')).toEqual(["\x0101B"]);
+});
