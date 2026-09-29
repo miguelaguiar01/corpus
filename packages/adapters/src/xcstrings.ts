@@ -92,19 +92,30 @@ function pluralRead(arg: string, forms: Record<string, XcUnit>): Read {
 const VERB =
   /%(?:(\d+)\$)?(?:#@([^@\s]+)@|[-+0# ]*\d*(?:\.\d+)?(?:hh|h|ll|l|z|j|t|q|L)?[a-zA-Z@])|%%/g;
 
+// Each verb of a printf text with the argument position it takes, its
+// own `%n$` or the one after the verb before it, counting from `start`;
+// `%%` is text.
+function* verbs(
+  text: string,
+  start = 1,
+): Generator<{ position: number; sub?: string; verb: string }> {
+  let next = start;
+  for (const m of text.matchAll(VERB)) {
+    if (m[0] === "%%") continue;
+    const position = m[1] ? Number(m[1]) : next;
+    next = position + 1;
+    yield { position, verb: m[0], ...(m[2] && { sub: m[2] }) };
+  }
+}
+
 // Each substitution a unit's text names, `%#@name@`, with the argument
 // it formats: its `argNum`, or the position its verb stands at.
 function* substitutionArgs(
   value: string,
   subs: NonNullable<XcUnit["substitutions"]>,
 ): Generator<[string, number]> {
-  let next = 1;
-  for (const m of value.matchAll(VERB)) {
-    if (m[0] === "%%") continue;
-    const position = m[1] ? Number(m[1]) : next;
-    next = position + 1;
-    if (m[2]) yield [m[2], subs[m[2]]?.argNum ?? position];
-  }
+  for (const { position, sub } of verbs(value))
+    if (sub) yield [sub, subs[sub]?.argNum ?? position];
 }
 
 // A substitution's name is the unit's own (`arg1` in English,
@@ -173,15 +184,9 @@ function live(catalog: XcCatalog) {
 // writes each interpolation into the key as the verb the code passes.
 function keyArguments(key: string): string[] | undefined {
   const out: string[] = [];
-  let next = 1;
-  for (const m of key.matchAll(VERB)) {
-    if (m[0] === "%%") continue;
-    const position = m[1] ? Number(m[1]) : next;
-    next = position + 1;
-    // A substitution in the key takes its position, its type the value's.
-    if (m[2]) continue;
-    out[position - 1] ??= m[0].replace(/^%\d+\$/, "%");
-  }
+  // A substitution in the key takes its position, its type the value's.
+  for (const { position, sub, verb } of verbs(key))
+    if (!sub) out[position - 1] ??= verb.replace(/^%\d+\$/, "%");
   return out.length > 0 ? Array.from(out, (w) => w ?? "") : undefined;
 }
 
@@ -426,11 +431,7 @@ function unitOf(
       next += 1;
       continue;
     }
-    for (const m of part.matchAll(VERB)) {
-      if (m[0] === "%%") continue;
-      const position = m[1] ? Number(m[1]) : next;
-      next = position + 1;
-    }
+    for (const { position } of verbs(part, next)) next = position + 1;
   }
   const substitutions: NonNullable<XcUnit["substitutions"]> = {};
   for (const plural of plurals) {
@@ -457,6 +458,42 @@ function unitOf(
     },
     substitutions: sorted(substitutions),
   };
+}
+
+function variantsOf(unit: XcUnit | undefined) {
+  return unit?.variations?.device ?? unit?.variations?.width;
+}
+
+// A unit whose texts are device or width variants, written back: each
+// changed variant in its own unit, or the one text where every variant
+// reads the same and the file held a plain unit. `changed` holds the
+// texts to write, `held` every variant's text as the server holds it.
+function variantUnit(
+  had: XcUnit | undefined,
+  source: XcUnit | undefined,
+  wanted: Read[],
+  changed: Map<string, string>,
+  held: (suffix: string) => string | undefined,
+): XcUnit {
+  const kind = wanted[0]!.suffix.startsWith(" [width:") ? "width" : "device";
+  const mine = variantsOf(had);
+  const all = wanted.map((r) => changed.get(r.suffix) ?? held(r.suffix));
+  const one = all.every((t) => t !== undefined && t === all[0]);
+  if (!mine && had && one) return unitOf(all[0]!, had, source);
+  const variantOf = (suffix: string) => /:(.*)\]$/.exec(suffix)![1]!;
+  // A plain unit becoming variants keeps its text on each.
+  const out: Record<string, XcUnit> = mine
+    ? { ...mine }
+    : had
+      ? Object.fromEntries(wanted.map((r) => [variantOf(r.suffix), had]))
+      : {};
+  for (const read of wanted) {
+    const t = changed.get(read.suffix);
+    if (t === undefined) continue;
+    const name = variantOf(read.suffix);
+    out[name] = unitOf(t, out[name], variantsOf(source)?.[name]);
+  }
+  return { ...(had && mine ? had : {}), variations: { [kind]: sorted(out) } };
 }
 
 // Pull's write into a String Catalog (§8): each changed text into its
@@ -493,8 +530,6 @@ export function entriesToXcstrings(
     const source = entry.localizations?.[catalog.sourceLanguage];
     const localizations = (entry.localizations ??= {});
     const had = localizations[language];
-    const variants = (unit: XcUnit | undefined) =>
-      unit?.variations?.device ?? unit?.variations?.width;
     let next: XcUnit;
     if (wanted.length === 1 && wanted[0]!.suffix === "") {
       const t = texts.get("")!;
@@ -508,36 +543,14 @@ export function entriesToXcstrings(
             },
           }
         : unitOf(t, had, source);
-    } else {
-      const kind = wanted[0]!.suffix.startsWith(" [width:")
-        ? "width"
-        : "device";
-      const mine = variants(had);
-      const all = wanted.map(
-        (r) => texts.get(r.suffix) ?? translations[key + r.suffix],
+    } else
+      next = variantUnit(
+        had,
+        source,
+        wanted,
+        texts,
+        (suffix) => translations[key + suffix],
       );
-      const one = all.every((t) => t !== undefined && t === all[0]);
-      if (!mine && had && one) next = unitOf(all[0]!, had, source);
-      else {
-        const variantOf = (suffix: string) => /:(.*)\]$/.exec(suffix)![1]!;
-        // A plain unit becoming variants keeps its text on each.
-        const out: Record<string, XcUnit> = mine
-          ? { ...mine }
-          : had
-            ? Object.fromEntries(wanted.map((r) => [variantOf(r.suffix), had]))
-            : {};
-        for (const read of wanted) {
-          const t = texts.get(read.suffix);
-          if (t === undefined) continue;
-          const name = variantOf(read.suffix);
-          out[name] = unitOf(t, out[name], variants(source)?.[name]);
-        }
-        next = {
-          ...(had && mine ? had : {}),
-          variations: { [kind]: sorted(out) },
-        };
-      }
-    }
     localizations[language] = next;
     const others = Object.keys(localizations).filter((k) => k !== language);
     const wasSorted = others.every((k, i) => i === 0 || others[i - 1]! <= k);

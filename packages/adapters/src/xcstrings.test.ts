@@ -324,6 +324,17 @@ test("a language keeps its own device shape when written (#728)", () => {
   expect(de.platform.localizations.de).toEqual({
     variations: { device: { ipad: u("Tablet"), iphone: u("Gerät") } },
   });
+  // A variant pull leaves empty keeps its text too (#866).
+  de = JSON.parse(
+    entriesToXcstrings(
+      file,
+      { "platform [device:ipad]": "Tablet", "platform [device:iphone]": "" },
+      "de",
+    ),
+  ).strings;
+  expect(de.platform.localizations.de).toEqual({
+    variations: { device: { ipad: u("Tablet"), iphone: u("Gerät") } },
+  });
   // A plain source's text goes to German's `other`, `mac` kept.
   de = JSON.parse(entriesToXcstrings(file, { done: "Erledigt" }, "de")).strings;
   expect(de.done.localizations.de).toEqual({
