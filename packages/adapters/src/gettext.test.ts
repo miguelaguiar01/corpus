@@ -4,6 +4,7 @@ import {
   CONTEXT_SEPARATOR,
   entriesToGettext,
   gettextToEntries,
+  gettextPluralCategories,
   gettextSuggestions,
   gettextTranslations,
   parsePo,
@@ -747,4 +748,28 @@ test("a character's escaped bytes split across continuation lines read as one, a
   expect(read('msgstr ""\n"\\30"\n"3"')).toEqual(["\x183"]);
   expect(read('msgstr ""\n"\\x4"\n"1"')).toEqual(["\x041"]);
   expect(read('msgstr ""\n"\\1"\n"01\\102"')).toEqual(["\x0101B"]);
+});
+
+test("a target file's categories are the ones its Plural-Forms picks, or its language's table without one (#951)", () => {
+  const po = (forms: string) =>
+    `msgid ""\nmsgstr ""\n"Content-Type: text/plain; charset=UTF-8\\n"\n"Plural-Forms: ${forms}\\n"\n`;
+  // Italian's files write nplurals=2, where CLDR adds many.
+  expect(
+    gettextPluralCategories(po("nplurals=2; plural=(n != 1);"), "it"),
+  ).toEqual(["one", "other"]);
+  expect(gettextPluralCategories(undefined, "it")).toEqual(
+    GETTEXT_PLURALS.it!.forms,
+  );
+  // Polish reads no form for other, which only fractions reach.
+  expect(
+    gettextPluralCategories(
+      po(
+        "nplurals=3; plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);",
+      ),
+      "pl",
+    ),
+  ).toEqual(["one", "few", "many"]);
+  expect(gettextPluralCategories('msgid ""\nmsgstr ""\n', "ja")).toEqual([
+    "other",
+  ]);
 });

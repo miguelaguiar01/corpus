@@ -60,6 +60,7 @@ function branchingOf(
   source: string,
   language: string,
   syntax: Library,
+  pluralForms?: string[] | null,
 ): Branching[] {
   const parsed = readIcu(source, syntax);
   if (!parsed.ok) return [];
@@ -74,7 +75,8 @@ function branchingOf(
       arg: node.arg,
       keys:
         node.kind === "plural"
-          ? pluralCategoriesFor(language, syntax).required
+          ? pluralCategoriesFor(language, syntax, pluralForms ?? undefined)
+              .required
           : [],
       inner: new Map<string, string[]>(),
     };
@@ -168,6 +170,7 @@ export function TargetPane({
   syntax = "icu",
   richText = null,
   passed,
+  pluralForms,
   slots,
   language,
   initialText,
@@ -185,6 +188,9 @@ export function TargetPane({
   richText?: RichText | null;
   // The verbs the code passes where the key carries them (#731).
   passed?: string[] | null;
+  // The plural categories the target language's gettext file picks,
+  // where they are not CLDR's (#951).
+  pluralForms?: string[] | null;
   slots: Slot[];
   language: string;
   initialText: string;
@@ -219,12 +225,13 @@ export function TargetPane({
     : validateTranslation(source, text, language, syntax, {
         richText: richText ?? undefined,
         ...(passed && { arguments: passed }),
+        ...(pluralForms && { pluralForms }),
       });
   const errors = validation.ok ? [] : validation.errors;
   // A plural missing a category the runtime picks saves with a warning
   // (#556); the chip for the category is still offered.
   const incomplete = validation.incomplete ?? [];
-  const selects = branchingOf(source, language, syntax);
+  const selects = branchingOf(source, language, syntax, pluralForms);
   const byId = new Map(selects.map((entry) => [idOf(entry), entry]));
   const tags = [...partsOf(source, syntax).tags];
 

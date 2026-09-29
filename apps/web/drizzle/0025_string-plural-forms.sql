@@ -1,0 +1,1 @@
+ALTER TABLE `strings` ADD `plural_forms` text;

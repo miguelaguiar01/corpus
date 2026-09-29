@@ -60,6 +60,9 @@ export function agentDraft(
     {
       richText: detail.string.richText ?? undefined,
       ...(detail.string.arguments && { arguments: detail.string.arguments }),
+      ...(detail.string.pluralForms?.[language] && {
+        pluralForms: detail.string.pluralForms[language],
+      }),
     },
   );
   if (!validation.ok) {

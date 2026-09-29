@@ -19,6 +19,7 @@ import {
 import { memoryDb } from "@/db/test-helpers";
 import { applyTransition } from "@/translations/service";
 import { queueItems } from "@/catalogue/queues";
+import { stringDetail } from "@/strings/detail";
 import { applySnapshot, suggestionClear } from "./apply";
 
 const FIXTURE = moonlightManor as Snapshot;
@@ -1217,4 +1218,32 @@ test("a row a push resets to untranslated is no longer stale (#934)", () => {
     stale: false,
   });
   expect(queueItems(db, project.id, "stale").items).toEqual([]);
+});
+
+test("a gettext plural's categories per language are kept on the row and reach the string's detail (#951)", () => {
+  const { db, project } = seed();
+  const snapshot: Snapshot = {
+    ...structuredClone(FIXTURE),
+    strings: [
+      {
+        id: "%d note",
+        type: FIXTURE.strings[0]!.type,
+        source: "{count, plural, one {%d note} other {%d notes}}",
+        library: "printf",
+        pluralForms: { it: ["one", "other"] },
+      },
+    ],
+  };
+  applySnapshot(db, project.id, snapshot);
+  expect(stringRow(db, "%d note")?.pluralForms).toEqual({
+    it: ["one", "other"],
+  });
+  expect(stringDetail(db, project.id, "%d note")?.string.pluralForms).toEqual({
+    it: ["one", "other"],
+  });
+  // A push without the field clears it: the file now picks CLDR's.
+  const bare = structuredClone(snapshot);
+  delete bare.strings[0]!.pluralForms;
+  applySnapshot(db, project.id, bare);
+  expect(stringRow(db, "%d note")?.pluralForms).toBeNull();
 });

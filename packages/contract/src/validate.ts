@@ -221,7 +221,13 @@ export function validateTranslation(
   // carries them (a String Catalog's `%lld`, #731): values a translation
   // may pluralise on or print, of their type, though the source text
   // prints none of them.
-  options: { richText?: RichText; arguments?: string[] } = {},
+  // `pluralForms`: the categories a gettext target file's `Plural-Forms`
+  // picks, where they are not the language's CLDR ones (#951).
+  options: {
+    richText?: RichText;
+    arguments?: string[];
+    pluralForms?: readonly string[];
+  } = {},
 ): ValidationResult {
   const html = tagMode(syntax, options.richText);
   const parsedSource = parseIcu(source, syntax, { html });
@@ -382,7 +388,7 @@ export function validateTranslation(
       passed,
       language === undefined
         ? { required: [], allowed: [] }
-        : pluralCategoriesFor(language, syntax),
+        : pluralCategoriesFor(language, syntax, options.pluralForms),
       language,
     ),
   );

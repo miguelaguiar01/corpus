@@ -210,6 +210,22 @@ test("a plural missing a category the language uses saves, and the agent is told
   });
 });
 
+test("a gettext file's Plural-Forms are the categories an agent's draft needs (#951)", () => {
+  const { db, project } = pushedProject();
+  db.update(strings)
+    .set({ pluralForms: { en: ["other"] } })
+    .where(eq(strings.stringId, "ui.marks-left"))
+    .run();
+  const result = agentDraft(db, {
+    project,
+    key: "ui.marks-left",
+    language: "en",
+    text: "{n, plural, other {# marks left.}}",
+  });
+  expect(result).toMatchObject({ ok: true, state: "translated" });
+  expect(result).not.toHaveProperty("incomplete.0");
+});
+
 test("an agent may redraft a seeded translation that fails validation (#646)", () => {
   const { db, project } = pushedProject();
   applySnapshot(db, project.id, {

@@ -70,6 +70,9 @@ export function transitionFlow(db: Db, input: TransitionFlowInput): FlowResult {
         ...(detail.string.arguments && {
           arguments: detail.string.arguments,
         }),
+        ...(detail.string.pluralForms?.[language] && {
+          pluralForms: detail.string.pluralForms[language],
+        }),
       },
     );
     if (!validation.ok) {

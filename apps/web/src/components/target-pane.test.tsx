@@ -784,3 +784,29 @@ test("a plural chip offers the branches the library's runtime picks: counterpart
     cleanup();
   }
 });
+
+test("a gettext file's Plural-Forms, where given, are the branches the chip offers and the draft needs (#951)", () => {
+  render(
+    <TargetPane
+      action={vi.fn()}
+      source="{count, plural, one {%d note} other {%d notes}}"
+      syntax="printf"
+      pluralForms={["one", "other"]}
+      slots={[]}
+      language="it"
+      initialText=""
+      slug="mm"
+      stringKey="k"
+      openedVersion={1}
+      examples={[]}
+      sourceLanguage="en"
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: /\{count, plural\}/ }));
+  const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
+  expect(textarea.value).toBe("{count, plural, one {} other {}}");
+  fireEvent.change(textarea, {
+    target: { value: "{count, plural, one {%d nota} other {%d note}}" },
+  });
+  expect(screen.queryByText(/many branch/)).toBeNull();
+});

@@ -213,6 +213,10 @@ export const stringEntrySchema = z.looseObject({
   // `notifications.favorite %lld` reading "starred", #731): values a
   // translation may pluralise on or print, of their type. Additive.
   arguments: z.array(z.string()).optional(),
+  // Per target language, the plural categories a gettext target file's
+  // `Plural-Forms` picks, where they are not the language's CLDR ones
+  // (#951): Italian's one and other under `nplurals=2`. Additive.
+  pluralForms: z.record(z.string(), z.array(z.string())).optional(),
   // What the repository says about this one string, for a translator:
   // an ARB's @key.description (§4, #567). Never written back.
   note: z.string().min(1).optional(),

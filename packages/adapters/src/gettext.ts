@@ -462,6 +462,24 @@ export function gettextTranslations(
   return poTexts(text, language, false);
 }
 
+// The categories a target file's `Plural-Forms` can pick, one for each
+// `msgstr[n]` a category reads, in CLDR's order: what a translation of
+// it holds, whatever more the language has (#951). A file whose header
+// is missing or names no rule is the language's own table.
+export function gettextPluralCategories(
+  text: string | undefined,
+  language: string,
+): string[] {
+  const rule = pluralRuleOf(language);
+  const forms =
+    (text === undefined
+      ? undefined
+      : poHeader(parsePo(text))["Plural-Forms"]) ??
+    (rule && `nplurals=${rule.nplurals}; plural=${rule.plural};`);
+  const written = pluralTable(language, forms).categories;
+  return PLURAL_CATEGORIES.filter((c) => written.includes(c));
+}
+
 // A target file's fuzzy entries, msgmerge's guesses: not translations,
 // but what a translator may start from (#721).
 export function gettextSuggestions(
