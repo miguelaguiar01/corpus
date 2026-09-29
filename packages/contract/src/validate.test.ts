@@ -1853,3 +1853,34 @@ test("a plural's categories are its library's rule: counterpart's English one, e
     ],
   });
 });
+
+test("a gettext file's Plural-Forms, where given, are the categories a plural needs; CLDR's others are allowed (#951)", () => {
+  const source = "{count, plural, one {%d file} other {%d files}}";
+  const it = "{count, plural, one {%d file} other {%d file}}";
+  expect(validateTranslation(source, it, "it", "printf")).toMatchObject({
+    ok: true,
+    incomplete: [{ code: "missing-category", key: "many" }],
+  });
+  expect(
+    validateTranslation(source, it, "it", "printf", {
+      pluralForms: ["one", "other"],
+    }),
+  ).toEqual({ ok: true });
+  // A tag the runtime has no plural data for enforces nothing, whatever
+  // categories came with it.
+  expect(
+    validateTranslation(source, it, "oc", "printf", {
+      pluralForms: ["one", "many"],
+    }),
+  ).toEqual({ ok: true });
+  // The reader writes every CLDR category, a form the file lacks as other.
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, one {%d file} many {%d file} other {%d file}}",
+      "it",
+      "printf",
+      { pluralForms: ["one", "other"] },
+    ),
+  ).toEqual({ ok: true });
+});

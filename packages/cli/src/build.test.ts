@@ -1419,3 +1419,47 @@ test("a source file that will not read is named once, never thrown from the seed
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("a gettext plural string carries the categories each target file's Plural-Forms picks, where they are not CLDR's (#951)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-951-"));
+  mkdirSync(path.join(dir, "locales"));
+  writeFileSync(
+    path.join(dir, "locales", "app.pot"),
+    `msgid ""\nmsgstr ""\n\nmsgid "Joplin"\nmsgstr ""\n\nmsgid "%d note"\nmsgid_plural "%d notes"\nmsgstr[0] ""\nmsgstr[1] ""\n`,
+  );
+  writeFileSync(
+    path.join(dir, "locales", "it.po"),
+    `msgid ""\nmsgstr ""\n"Plural-Forms: nplurals=2; plural=(n != 1);\\n"\n\nmsgid "%d note"\nmsgid_plural "%d notes"\nmsgstr[0] "%d nota"\nmsgstr[1] "%d note"\n`,
+  );
+  writeFileSync(
+    path.join(dir, "locales", "de.po"),
+    `msgid ""\nmsgstr ""\n"Plural-Forms: nplurals=2; plural=(n != 1);\\n"\n`,
+  );
+  writeFileSync(
+    path.join(dir, "locales", "oc.po"),
+    `msgid ""\nmsgstr ""\n"Plural-Forms: nplurals=2; plural=(n > 1);\\n"\n`,
+  );
+  const report = await buildSnapshotReport(
+    config({
+      sourceLanguage: "en",
+      languages: ["en", "it", "de", "fr", "oc"],
+      sources: [
+        {
+          adapter: "gettext",
+          type: "ui",
+          path: "locales/{lang}.po",
+          sourcePath: "locales/app.pot",
+        },
+      ],
+    }),
+    dir,
+  );
+  // German's file is CLDR's; French has none yet, and pull writes its
+  // table's, CLDR's too; Occitan has no plural data in the runtime, so
+  // nothing is enforced; Italian's leaves out many.
+  expect(report.snapshot.strings.map((s) => [s.id, s.pluralForms])).toEqual([
+    ["Joplin", undefined],
+    ["%d note", { it: ["one", "other"] }],
+  ]);
+  rmSync(dir, { recursive: true, force: true });
+});

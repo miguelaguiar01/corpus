@@ -39,6 +39,8 @@ export type StringDetail = {
     syntax: Library;
     // The verbs the code passes where the key carries them (#731).
     arguments: string[] | null;
+    // Per target language, a gettext file's plural categories (#951).
+    pluralForms: Record<string, string[]> | null;
     richText: RichText | null;
     metadata: Record<string, MetadataValue> | null;
     examples: Example[] | null;
@@ -156,6 +158,7 @@ export function stringDetail(
       keyIsText: string.keyIsText,
       syntax: string.syntax ?? "icu",
       arguments: string.arguments ?? null,
+      pluralForms: string.pluralForms ?? null,
       richText: project.richText?.[string.type] ?? null,
       metadata,
       examples: string.examples ?? null,

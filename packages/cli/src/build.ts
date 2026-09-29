@@ -15,11 +15,13 @@ import {
   yamlToEntries,
   yamlTranslations,
   yamlPluralIds,
+  gettextPluralCategories,
   gettextSuggestions,
   gettextTranslations,
   xliffToEntries,
   xliffTranslations,
   messagesToEntries,
+  pluralBranches,
   pluralObjectIds,
   stripBom,
   tableToEntries,
@@ -32,6 +34,7 @@ import {
   messageKind,
   nestedCountsOf,
   parseIcu,
+  pluralCategoriesOf,
   snapshotSchema,
   stringEntrySchema,
   glossaryFileSchema,
@@ -40,6 +43,7 @@ import {
   type Glossary,
   type Snapshot,
   type Library,
+  type PluralCategory,
   type Source,
   type StringEntry,
   type WritableSource,
@@ -257,10 +261,15 @@ export async function buildSnapshotReport(
         `${file}: ${keyed} string(s) have an empty value and take the key as the text; a proposal on them is refused, since the text is the key`,
       );
     }
+    const pluralForms =
+      source.adapter === "gettext"
+        ? gettextPluralForms(cwd, source, config)
+        : undefined;
     for (const entry of entries) {
       validateEntry(
         {
           ...entry,
+          ...(pluralForms && pluralBranches(entry.source) && { pluralForms }),
           // A key-is-text entry carries no file: a proposal would rewrite
           // the key, which is the code's, not the catalogue's.
           ...(writable && !entry.keyIsText ? { file } : {}),
@@ -798,6 +807,37 @@ export async function readEntries(
         id: `${source.namespace}:${entry.id}`,
       }))
     : entries;
+}
+
+// Per target language, the plural categories a gettext source's target
+// file picks, where they are not the language's CLDR ones (#951): a
+// missing file is the one pull would write, from the language's table,
+// and one that will not read is named where its seeds are read. A tag
+// the runtime has no plural data for has none: its rules would be the
+// pushing machine's locale, and nothing is enforced for it.
+export function gettextPluralForms(
+  cwd: string,
+  source: FileSource,
+  config: CorpusConfig,
+): Record<string, PluralCategory[]> | undefined {
+  const out: Record<string, PluralCategory[]> = {};
+  for (const lang of config.languages) {
+    if (lang === config.sourceLanguage) continue;
+    const rel = fileOf(source, lang, config.sourceLanguage);
+    const file = path.join(cwd, rel);
+    const tag = languageOfFile(rel, source);
+    const cldr = pluralCategoriesOf(tag);
+    if (cldr.length === 0) continue;
+    let text: string | undefined;
+    try {
+      text = existsSync(file) ? readFileSync(file, "utf8") : undefined;
+    } catch {
+      continue;
+    }
+    const picked = gettextPluralCategories(text, tag);
+    if (picked.join() !== cldr.join()) out[lang] = picked;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 // The ids a source's own file holds as a plural object or hash, which

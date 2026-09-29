@@ -14,6 +14,7 @@ import {
   stringEntrySchema,
   type StringEntry,
 } from "@corpus/contract";
+import { pluralBranches } from "@corpus/adapters";
 import { printable } from "./printable";
 import type { RunContext } from "./cli";
 import {
@@ -23,6 +24,7 @@ import {
   type FileSource,
   hasLanguages,
   nestedCountMessage,
+  gettextPluralForms,
   sourcePluralIds,
   readEntries,
   sourceWritesBack,
@@ -199,6 +201,10 @@ export async function validateRepo(
     );
     // A source that does not parse is the source file's finding, once.
     const brokenSources = new Set<string>();
+    const pluralForms =
+      source.adapter === "gettext"
+        ? gettextPluralForms(cwd, source, config)
+        : undefined;
     const pluralIds = await sourcePluralIds(
       jiti,
       cwd,
@@ -247,16 +253,22 @@ export async function validateRepo(
           continue;
         }
         findings.push(
-          ...checkTranslation(entry, target, {
-            file,
-            sourceFile,
-            key,
-            language,
-            sourceLanguage: config.sourceLanguage,
-            library: entry.library ?? library,
-            richText: config.richText?.[source.type],
-            brokenSources,
-          }),
+          ...checkTranslation(
+            pluralForms && pluralBranches(entry.source)
+              ? { ...entry, pluralForms }
+              : entry,
+            target,
+            {
+              file,
+              sourceFile,
+              key,
+              language,
+              sourceLanguage: config.sourceLanguage,
+              library: entry.library ?? library,
+              richText: config.richText?.[source.type],
+              brokenSources,
+            },
+          ),
         );
       }
     }
@@ -450,6 +462,9 @@ function checkTranslation(
   const result = validateTranslation(entry.source, target, language, library, {
     richText: at.richText,
     ...(entry.arguments && { arguments: entry.arguments }),
+    ...(entry.pluralForms?.[language] && {
+      pluralForms: entry.pluralForms[language],
+    }),
   });
   const findings: Finding[] = (result.incomplete ?? []).map((error) => ({
     file,

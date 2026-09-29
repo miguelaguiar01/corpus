@@ -93,6 +93,7 @@ function stringWrites(
     file: p("file"),
     keyIsText: p("keyIsText"),
     arguments: p("arguments"),
+    pluralForms: p("pluralForms"),
     note: p("note"),
     syntax: p("syntax"),
   };
@@ -115,6 +116,7 @@ function stringWrites(
     keyIsText: entry.keyIsText ? 1 : 0,
     // What the push says, as keyIsText: a push without it clears it.
     arguments: entry.arguments ? JSON.stringify(entry.arguments) : null,
+    pluralForms: entry.pluralForms ? JSON.stringify(entry.pluralForms) : null,
     note: entry.note ?? null,
     syntax: entryLibrary(entry),
   });

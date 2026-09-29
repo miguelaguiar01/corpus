@@ -1,7 +1,11 @@
 // gettext `.po` and `.pot` (#668): the msgid is the text and the key, a
 // `msgid_plural` with its `msgstr[n]` one plural, mapped to CLDR's
 // categories through the file's `Plural-Forms`.
-import { PLURAL_CATEGORIES, type StringEntry } from "@corpus/contract";
+import {
+  PLURAL_CATEGORIES,
+  type PluralCategory,
+  type StringEntry,
+} from "@corpus/contract";
 import { GETTEXT_PLURALS } from "./gettextplurals";
 import { formOf, pluralBranches } from "./messages";
 import {
@@ -460,6 +464,24 @@ export function gettextTranslations(
   language: string,
 ): StringEntry[] {
   return poTexts(text, language, false);
+}
+
+// The categories a target file's `Plural-Forms` can pick, one for each
+// `msgstr[n]` a category reads, in CLDR's order: what a translation of
+// it holds, whatever more the language has (#951). A file whose header
+// is missing or names no rule is the language's own table.
+export function gettextPluralCategories(
+  text: string | undefined,
+  language: string,
+): PluralCategory[] {
+  const rule = pluralRuleOf(language);
+  const forms =
+    (text === undefined
+      ? undefined
+      : poHeader(parsePo(text))["Plural-Forms"]) ??
+    (rule && `nplurals=${rule.nplurals}; plural=${rule.plural};`);
+  const written = pluralTable(language, forms).categories;
+  return PLURAL_CATEGORIES.filter((c) => written.includes(c));
 }
 
 // A target file's fuzzy entries, msgmerge's guesses: not translations,
