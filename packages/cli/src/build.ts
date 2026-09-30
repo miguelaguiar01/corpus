@@ -24,6 +24,7 @@ import {
   messagesToEntries,
   pluralBranches,
   pluralObjectIds,
+  suffixPluralIds,
   type PluralObjects,
   RAILS_I18N_VERSION,
   RAILS_PLURALS,
@@ -266,6 +267,18 @@ export async function buildSnapshotReport(
       notes.push(
         `${file}: ${keyed} string(s) have an empty value and take the key as the text; a proposal on them is refused, since the text is the key`,
       );
+    }
+    // A family's keys were strings of their own before 0.22 (#985).
+    if (readsSuffixPlurals(source)) {
+      const families = suffixPluralIds(
+        await readModule(jiti, path.join(cwd, file)),
+      );
+      if (families.size > 0) {
+        const [first] = families;
+        notes.push(
+          `${file}: ${families.size} i18next plural famil${families.size === 1 ? "y" : "ies"} read as one string each (${printable(first!)}_one, ${printable(first!)}_other → ${printable(first!)})`,
+        );
+      }
     }
     const pluralForms = pluralFormsOf(cwd, source, config, (note) => {
       if (!notes.includes(note)) notes.push(note);
@@ -693,6 +706,12 @@ export function readsPluralObjects(source: FileSource): PluralObjects {
   return library === "icu" || WHOLE_PLURAL_LIBRARIES.has(library);
 }
 
+// i18next's plural keys, `item_one` beside `item_other`, are one plural
+// string `item`, as `t("item", { count })` reads them (#985).
+export function readsSuffixPlurals(source: FileSource): boolean {
+  return source.adapter === "messages" && libraryOf(source) === "i18next";
+}
+
 // The language a gettext target file is for, as the config names it:
 // its {lang} read back from the path, a `languageFiles` code (#657)
 // turned back into its tag, for the plural rules (`sr@latin` is sr-Latn).
@@ -842,6 +861,7 @@ export async function readEntries(
           chrome: libraryOf(source) === "chrome",
           keyIsText: sourceFile,
           plurals: readsPluralObjects(source),
+          suffixPlurals: readsSuffixPlurals(source),
           ...(pluralIds && { pluralIds }),
         })
       : tableToEntries(data, { type: source.type, map: source.map });
@@ -1014,11 +1034,13 @@ export async function sourcePluralIds(
       readFileSync(abs, "utf8"),
       fileCodeOf(source, sourceLanguage),
     );
-  if (source.adapter === "messages" && readsPluralObjects(source))
-    return pluralObjectIds(
-      await readModule(jiti, abs),
-      readsPluralObjects(source),
-    );
+  if (source.adapter === "messages" && readsPluralObjects(source)) {
+    const data = await readModule(jiti, abs);
+    const ids = pluralObjectIds(data, readsPluralObjects(source));
+    if (readsSuffixPlurals(source))
+      for (const id of suffixPluralIds(data)) ids.add(id);
+    return ids;
+  }
   return undefined;
 }
 

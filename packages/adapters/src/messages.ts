@@ -19,9 +19,84 @@ export type MessagesOptions = {
   plurals?: PluralObjects;
   // The ids the source reads as plurals: in a target file an object of
   // categories is a plural exactly at one of them, `other` or not (#950,
-  // #984).
+  // #984), and so is a family of suffix keys.
   pluralIds?: ReadonlySet<string>;
+  // i18next's plural keys, `item_one` and `item_other`, are one plural
+  // string `item` (#985).
+  suffixPlurals?: boolean;
 };
+
+const SUFFIX = /^(.+)_(zero|one|two|few|many|other)$/;
+
+// An object's i18next plural families (#985): base to its forms' keys,
+// each category's. In a source, keys `base_<category>` beside each other,
+// `other` and one more among them, with no key `base` and no
+// `_ordinal` in the base, which i18next picks by ordinal rules; in a
+// target, the families the source has, `known`, whatever forms the
+// target holds. A family whose forms could not come back out of one
+// plural text stays keys.
+export function suffixFamilies(
+  node: Record<string, unknown>,
+  path: string[],
+  known?: ReadonlySet<string>,
+): Map<string, Map<string, string>> {
+  const groups = new Map<string, Map<string, string>>();
+  for (const [key, value] of Object.entries(node)) {
+    const m = SUFFIX.exec(key);
+    if (!m || typeof value !== "string" || m[1]!.endsWith("_ordinal")) continue;
+    const forms = groups.get(m[1]!) ?? new Map<string, string>();
+    forms.set(m[2]!, key);
+    groups.set(m[1]!, forms);
+  }
+  for (const [base, forms] of groups) {
+    const id = [...path, base].join(".");
+    const kept =
+      !Object.hasOwn(node, base) &&
+      (known ? known.has(id) : forms.has("other") && forms.size >= 2) &&
+      (() => {
+        const text = Object.fromEntries(
+          [...forms].map(([c, key]) => [c, node[key] as string]),
+        );
+        const back = pluralBranches(pluralText("count", text), false);
+        return (
+          back !== undefined &&
+          [...forms].every(([c, key]) => back[c] === node[key])
+        );
+      })();
+    if (!kept) groups.delete(base);
+  }
+  return groups;
+}
+
+// A family's text: its forms as one plural in CLDR's order, a blank form,
+// which Crowdin writes for an untranslated one, none.
+export function suffixText(
+  node: Record<string, unknown>,
+  forms: Map<string, string>,
+): string | undefined {
+  const text: Record<string, string> = {};
+  for (const [c, key] of forms) {
+    const value = node[key] as string;
+    if (value.trim() !== "") text[c] = value;
+  }
+  return Object.keys(text).length > 0 ? pluralText("count", text) : undefined;
+}
+
+// The ids of a source catalogue's i18next plural families (#985).
+export function suffixPluralIds(
+  node: unknown,
+  path: string[] = [],
+  out = new Set<string>(),
+): Set<string> {
+  if (node === null || typeof node !== "object" || Array.isArray(node))
+    return out;
+  const record = node as Record<string, unknown>;
+  for (const base of suffixFamilies(record, path).keys())
+    out.add([...path, base].join("."));
+  for (const [key, child] of Object.entries(record))
+    suffixPluralIds(child, [...path, key], out);
+  return out;
+}
 
 // How a library reads an object of plural categories: as nesting, as one
 // plural, or, under i18next, as one only with two forms or more, since
@@ -370,8 +445,24 @@ function walk(
       `messages: value at ${path.join(".") || "<root>"} must be a string or nested object, got ${describe(node)}`,
     );
   }
-  for (const [key, child] of Object.entries(node)) {
-    walk(child, [...path, key], options, out, paths);
+  const record = node as Record<string, unknown>;
+  const families = options.suffixPlurals
+    ? suffixFamilies(record, path, options.pluralIds)
+    : new Map<string, Map<string, string>>();
+  const member = new Map<string, string>();
+  for (const [base, forms] of families)
+    for (const key of forms.values()) member.set(key, base);
+  for (const [key, child] of Object.entries(record)) {
+    const base = member.get(key);
+    if (base === undefined) {
+      walk(child, [...path, key], options, out, paths);
+      continue;
+    }
+    // The family reads where its first form is written.
+    const forms = families.get(base)!;
+    if ([...forms.values()][0] !== key) continue;
+    const text = suffixText(record, forms);
+    if (text !== undefined) walk(text, [...path, base], options, out, paths);
   }
 }
 

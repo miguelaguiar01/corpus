@@ -290,7 +290,21 @@ export function validateTranslation(
     const written = shape.written.get(name);
     return written ? { written } : {};
   };
-  for (const name of expectedValues) {
+  // In such a language a plural shows its `other` branch whatever it
+  // holds, so a value only another source branch prints, English's
+  // `one {Delete "{{name}}"?}`, is not missed (#985).
+  const required =
+    categories.length === 1 && syntax !== "android"
+      ? valuesOf(
+          shapeOf(
+            otherBranch(
+              sourceNodes,
+              new Set(shapeOf(sourceNodes).plurals.keys()),
+            ),
+          ),
+        )
+      : expectedValues;
+  for (const name of required) {
     if (!actualValues.has(name))
       errors.push({
         code: "missing-placeholder",

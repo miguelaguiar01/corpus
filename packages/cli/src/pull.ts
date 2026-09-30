@@ -43,6 +43,7 @@ import {
   readEntries,
   sourcePluralIds,
   readsPluralObjects,
+  readsSuffixPlurals,
   sourceWritesBack,
   takesProposals,
   writeBackRefusal,
@@ -501,6 +502,7 @@ function writeTarget(
         ...(isArb(file) && { locale: language }),
         chrome: libraryOf(source) === "chrome",
         plurals: readsPluralObjects(source),
+        suffixPlurals: readsSuffixPlurals(source),
         onRefused: (id) =>
           refused(
             id,
@@ -579,6 +581,7 @@ function applyOps(
       return applyMessagesOps(existing, ops, {
         chrome: libraryOf(source) === "chrome",
         plurals: readsPluralObjects(source),
+        suffixPlurals: readsSuffixPlurals(source),
         ...(pluralIds && { pluralIds }),
       });
     case "xliff":

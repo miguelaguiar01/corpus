@@ -2002,3 +2002,60 @@ test("under rails, zero is never a branch the runtime does not pick; rails-i18n'
     incomplete: [{ code: "unexpected-category", key: "zero" }],
   });
 });
+
+test("under i18next, zero is a branch in every language, as i18next picks _zero for 0 (#985)", () => {
+  const source =
+    "{count, plural, one {{{count}} call} other {{{count}} calls}}";
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, zero {Keine} one {{{count}} Anruf} other {{{count}} Anrufe}}",
+      "de",
+      "i18next",
+    ),
+  ).toEqual({ ok: true });
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, one {{{count}} x} few {{{count}} y} other {{{count}} z}}",
+      "pl",
+      "i18next",
+    ),
+  ).toMatchObject({ incomplete: [{ code: "missing-category", key: "many" }] });
+});
+
+test("in a language whose only category is other, a value only another source branch prints is not missed (#985)", () => {
+  const source =
+    '{count, plural, one {Delete "{{name}}"?} other {Delete {{count}} variables?}}';
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, other {{{count}}件の変数を削除しますか？}}",
+      "ja",
+      "i18next",
+    ),
+  ).toEqual({ ok: true });
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, other {削除しますか？}}",
+      "ja",
+      "i18next",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "count" }],
+  });
+  // German has one: there it is needed.
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, one {Löschen?} other {{{count}} löschen?}}",
+      "de",
+      "i18next",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "name" }],
+  });
+});
