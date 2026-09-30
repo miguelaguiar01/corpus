@@ -167,8 +167,13 @@ export default defineCorpus({
     //    ICU's fallback, and a changed message is written with `*[other]`.
     //    Attributes, terms, function calls, string literals other than
     //    `{""}` and `{"."}`-style line escapes, and a `#` in a plural
-    //    variant are refused by name, the file's refusals listed at
-    //    once. A pull rewrites a changed message in its own layout
+    //    variant are refused by name, a message at a time, as is a
+    //    message Fluent's own parser reads as Junk (a variant or a
+    //    select's `}` not on a line of its own, no `*` default or two):
+    //    a source's refused message is left out of the snapshot as a
+    //    string that does not parse is, a target's is not seeded, named
+    //    by `build` and as a `validate` warning, and left by a pull as
+    //    the file has it, the file's other messages read (#991). A pull rewrites a changed message in its own layout
     //    (placeable spacing, a value on its own line, the variants' and
     //    the closing brace's indentation, the file's line endings),
     //    writes an empty pattern as `{""}` and escapes a line that starts

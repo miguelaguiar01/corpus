@@ -47,7 +47,12 @@ export type Finding = {
   // the source language. A file source's path names it, an exec
   // source's command does not (#592).
   language: string;
-  code: ValidationError["code"] | "orphan" | "unread-plural" | "shared-differs";
+  code:
+    | ValidationError["code"]
+    | "orphan"
+    | "unread-plural"
+    | "unread-message"
+    | "shared-differs";
   // A plural missing a category the runtime picks, or with one it never
   // selects, is incomplete, not invalid (#556, #651): printed apart, and
   // never the reason for exit 1. A source's warning (#767) is the same.
@@ -187,6 +192,9 @@ export async function validateRepo(
     }
     if (!sourceWritesBack(source)) continue;
     const library = sourceLibrary(source);
+    // A source message Corpus cannot read is refused by itself (#991): a
+    // finding once, and its translations are no orphans.
+    const refusedSource = new Set<string>();
     const sources = await texts(
       jiti,
       cwd,
@@ -194,6 +202,17 @@ export async function validateRepo(
       source,
       true,
       config.sourceLanguage,
+      (key, reason) => {
+        refusedSource.add(key);
+        findings.push({
+          file: sourceFile,
+          key,
+          language: config.sourceLanguage,
+          code: "invalid-icu",
+          severity: "invalid",
+          message: `invalid Fluent message: ${reason ?? "not read"}`,
+        });
+      },
     );
     if (sources === undefined) {
       throw new CliError(`source file ${sourceFile} does not exist`);
@@ -224,17 +243,29 @@ export async function validateRepo(
         source,
         false,
         language,
-        // Qt reads such forms; Corpus cannot, so it says so, once (#751).
-        (key) =>
-          findings.push({
-            file,
-            key,
-            language,
-            code: "unread-plural",
-            severity: "warning",
-            message:
-              "a numerus form Corpus cannot read as one plural; it is not seeded, and pull leaves it as the file has it",
-          }),
+        // Qt reads such forms, as Fluent does such messages; Corpus
+        // cannot, so it says so, once (#751, #991).
+        (key, reason) =>
+          findings.push(
+            source.adapter === "fluent"
+              ? {
+                  file,
+                  key,
+                  language,
+                  code: "unread-message",
+                  severity: "warning",
+                  message: `Corpus cannot read this message (${reason ?? "not read"}); it is not seeded, and pull leaves it as the file has it`,
+                }
+              : {
+                  file,
+                  key,
+                  language,
+                  code: "unread-plural",
+                  severity: "warning",
+                  message:
+                    "a numerus form Corpus cannot read as one plural; it is not seeded, and pull leaves it as the file has it",
+                },
+          ),
         pluralIds,
       );
       if (translations === undefined) continue;
@@ -266,6 +297,7 @@ export async function validateRepo(
         // untranslated (§8), never a dropped placeholder.
         if (isBlank(target)) continue;
         const entry = sources.get(key);
+        if (entry === undefined && refusedSource.has(key)) continue;
         if (entry === undefined) {
           findings.push({
             file,
@@ -317,7 +349,7 @@ async function texts(
   source: FileSource,
   sourceFile = false,
   language?: string,
-  onUnread?: (id: string) => void,
+  onUnread?: (id: string, reason?: string) => void,
   pluralIds?: ReadonlySet<string>,
 ): Promise<Map<string, StringEntry> | undefined> {
   if (!existsSync(path.join(cwd, rel))) return undefined;

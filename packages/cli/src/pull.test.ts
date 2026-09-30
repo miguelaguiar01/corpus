@@ -905,8 +905,63 @@ copied = Copiado {$items} {$items ->
   const refused = ctx();
   expect(await run(["build", "--out", out], refused)).toBe(1);
   expect(refused.output.join("\n")).toContain(
-    "i18n/en/app.ftl: fluent: login has an attribute (.title)",
+    "i18n/en/app.ftl [login]: invalid Fluent message: login has an attribute (.title)",
   );
+});
+
+test("a Fluent message Corpus cannot read is refused by itself: the rest build and seed, and a target's is a warning that a pull leaves alone (#991)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "uz"],
+  sources: [{ adapter: "fluent", type: "ui", path: "i18n/{lang}/app.ftl" }],
+});
+`,
+  );
+  mkdirSync(path.join(repo, "i18n", "en"), { recursive: true });
+  mkdirSync(path.join(repo, "i18n", "uz"), { recursive: true });
+  writeFileSync(
+    path.join(repo, "i18n", "en", "app.ftl"),
+    "size = { PLATFORM() } files\nhello = Hello\nbye = Bye\n",
+  );
+  const uz = 'hello = Salom { "<=" } 2\nbye = Xayr\n';
+  writeFileSync(path.join(repo, "i18n", "uz", "app.ftl"), uz);
+  const out = path.join(repo, "snapshot.json");
+  const built = ctx();
+  expect(await run(["build", "--out", out], built)).toBe(1);
+  const said = built.output.join("\n");
+  expect(said).toContain(
+    "i18n/en/app.ftl [size]: invalid Fluent message: size calls a function",
+  );
+  expect(said).toContain(
+    "i18n/uz/app.ftl: 1 translation(s) not seeded: a message Corpus cannot read, left as the file has it (hello)",
+  );
+  const snapshot = JSON.parse(readFileSync(out, "utf8")) as {
+    strings: { id: string }[];
+    seedTranslations: Record<string, Record<string, string>>;
+  };
+  expect(snapshot.strings.map((s) => s.id)).toEqual(["hello", "bye"]);
+  expect(snapshot.seedTranslations).toEqual({ uz: { bye: "Xayr" } });
+  const checked = ctx();
+  await run(["validate"], checked);
+  const found = checked.output.join("\n");
+  expect(found).toContain("i18n/en/app.ftl:size: invalid Fluent message");
+  expect(found).toContain(
+    "i18n/uz/app.ftl:hello: Corpus cannot read this message",
+  );
+  await serve(200, {
+    ...PAYLOAD,
+    types: { hello: "ui", bye: "ui" },
+    translations: { uz: { bye: "Xayr" } },
+    minState: "untranslated",
+  });
+  expect(await run(["pull"], ctx())).toBe(0);
+  expect(read("i18n/uz/app.ftl")).toBe(uz);
 });
 
 test("a language whose files use another code is pulled into that file, and seeded from it (#657)", async () => {

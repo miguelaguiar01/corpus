@@ -1,8 +1,9 @@
 // Fluent `.ftl` (§3, #597): messages with a value, `{$var}` and message
 // references as placeholders, a select on a variable as an ICU plural or
 // select. Attributes, terms, functions and string literals are refused
-// by name. A file is patched message by message, so an unchanged pull
-// writes the same bytes and a changed message keeps its layout.
+// by name, a message at a time (#991). A file is patched message by
+// message, so an unchanged pull writes the same bytes and a changed
+// message keeps its layout.
 import { PLURAL_CATEGORIES, type StringEntry } from "@corpus/contract";
 import type { SourceOp } from "./write";
 
@@ -48,8 +49,11 @@ function messages(text: string): Message[] {
     at += line.length + 1;
   }
   const bom = text.startsWith("\uFEFF") ? 1 : 0;
-  const braces = (line: string) =>
-    (line.match(/\{/g)?.length ?? 0) - (line.match(/\}/g)?.length ?? 0);
+  // A brace inside a string literal, `{"{"}`, opens nothing.
+  const braces = (line: string) => {
+    const bare = line.replace(/"(?:[^"\\\n]|\\.)*"/g, "");
+    return (bare.match(/\{/g)?.length ?? 0) - (bare.match(/\}/g)?.length ?? 0);
+  };
   for (let i = 0; i < lines.length; i++) {
     const skip = i === 0 ? bom : 0;
     const head = /^(-?[A-Za-z][\w-]*)[ \t]*=/.exec(lines[i]!.slice(skip));
@@ -147,8 +151,15 @@ function parsePlaceable(s: string, i: number, id: string): [string, number] {
   j += 2;
   const variants: { key: string; fallback: boolean; text: string }[] = [];
   for (;;) {
+    // Fluent puts each variant, and the select's close, on a line of
+    // its own; one that does not is Junk to Fluent's own parser (#991).
+    const before = j;
     j = skipSpace(s, j);
     if (j >= s.length) throw new Refusal(`${id} has an unclosed select`);
+    if (!s.slice(before, j).includes("\n"))
+      throw new Refusal(
+        `${id} is not valid Fluent (a variant, and a select's closing }, starts its own line)`,
+      );
     if (s[j] === "}") {
       j++;
       break;
@@ -166,6 +177,11 @@ function parsePlaceable(s: string, i: number, id: string): [string, number] {
     variants.push({ key, fallback, text: text.trimEnd() });
     j = next;
   }
+  const defaults = variants.filter((v) => v.fallback).length;
+  if (defaults !== 1)
+    throw new Refusal(
+      `${id} is not valid Fluent (a select has ${defaults === 0 ? "no" : "more than one"} * default variant)`,
+    );
   const plural = variants.every(
     (v) => CATEGORIES.has(v.key) || /^\d+$/.test(v.key),
   );
@@ -197,19 +213,28 @@ function toIcu(text: string, message: Message): string {
   )[0];
 }
 
+// A file's messages; one Corpus cannot read is left out and named
+// through `onRefused`, with the reason, and the rest are read (#991).
 export function fluentToEntries(
   text: string,
-  options: { type: string },
+  options: { type: string; onRefused?: (id: string, reason: string) => void },
 ): StringEntry[] {
-  const refusals: string[] = [];
   const entries: StringEntry[] = [];
+  const refuse = (id: string, reason: string) =>
+    options.onRefused?.(
+      id,
+      `${reason}; Corpus reads messages with a value, variables, message references and selects on a variable`,
+    );
   for (const message of messages(text)) {
     if (message.id.startsWith("-")) {
-      refusals.push(`${message.id} is a term`);
+      refuse(message.id, `${message.id} is a term`);
       continue;
     }
     if (message.attribute) {
-      refusals.push(`${message.id} has an attribute (.${message.attribute})`);
+      refuse(
+        message.id,
+        `${message.id} has an attribute (.${message.attribute})`,
+      );
       continue;
     }
     try {
@@ -220,13 +245,8 @@ export function fluentToEntries(
       });
     } catch (error) {
       if (!(error instanceof Refusal)) throw error;
-      refusals.push(error.message);
+      refuse(message.id, error.message);
     }
-  }
-  if (refusals.length > 0) {
-    throw new Error(
-      `fluent: ${refusals.join("; ")}; Corpus reads messages with a value, variables, message references and selects on a variable`,
-    );
   }
   return entries;
 }

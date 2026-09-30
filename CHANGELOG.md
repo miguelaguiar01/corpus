@@ -19,6 +19,7 @@ contract (`corpus/1`) is the only one.
 - Android strings with an escaped `&lt;…&gt;` or an inline CDATA read as text and build; a pull writes such text escaped (#987).
 - Rails keys ending in `_html` are read as HTML: a translation's own tags are accepted, and broken markup in them is still caught (#988).
 - An Android app's modules are one project: an `android` source's `path` may list its `res` directories, with `merge`, and a `{ns}` captures a Compose Multiplatform module (#989).
+- A Fluent message Corpus cannot read is refused on its own instead of failing its whole file, and the build goes on (#991).
 
 ## [0.21.0] - 2026-09-29
 
