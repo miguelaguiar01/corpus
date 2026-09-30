@@ -1770,3 +1770,39 @@ test("init offers no richText for an i18next catalogue whose tags are only unpai
   expect(config.richText).toBeUndefined();
   expect(p.out.join("\n")).not.toMatch(/richText/);
 });
+
+test("init writes no richText for tags only an _html key holds, which Rails reads as HTML already, and names the keys that need it (#988)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "config", "locales"), { recursive: true });
+  writeFileSync(
+    path.join(p.dir, "config", "locales", "en.yml"),
+    'en:\n  hint_html: "One<br>two %{n}"\n  plain: "Hi %{n}"\n',
+  );
+  writeFileSync(path.join(p.dir, "config", "locales", "pt.yml"), "pt:\n");
+  const args = [
+    "init",
+    "--project",
+    "x",
+    "--source",
+    "en",
+    "--messages",
+    "config/locales/{lang}.yml",
+  ];
+  expect(await run(args, p.ctx)).toBe(0);
+  expect((await loadConfig(p.dir)).richText).toBeUndefined();
+
+  const q = project();
+  stubCli(q.dir);
+  mkdirSync(path.join(q.dir, "config", "locales"), { recursive: true });
+  writeFileSync(
+    path.join(q.dir, "config", "locales", "en.yml"),
+    'en:\n  hint_html: "One<br>two %{n}"\n  plain: "One<br>two %{n}"\n',
+  );
+  writeFileSync(path.join(q.dir, "config", "locales", "pt.yml"), "pt:\n");
+  expect(await run(args, q.ctx)).toBe(0);
+  expect((await loadConfig(q.dir)).richText).toEqual({ ui: "html" });
+  expect(q.out.join("\n")).toMatch(
+    /1 source string\(s\) hold tags only HTML takes as text.*\(plain\)/,
+  );
+});

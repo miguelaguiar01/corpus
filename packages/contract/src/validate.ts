@@ -217,9 +217,10 @@ export function hasVoidTags(syntax: Library, richText?: TextReading): boolean {
 }
 
 // How a string's text is read: its type's `richText` (#622), or, for a
-// Rails key whose last segment ends `_html` or is `html`, which Rails
-// marks html_safe whatever the type, "html-key": HTML whose tags a
-// translation writes its own way, but closes, as the source does (#988).
+// Rails key ending `_html` or `.html`, which Rails marks html_safe
+// whatever the type, "html-key", its type's `richText` too: HTML whose
+// tags a translation writes its own way, but closes, as the source does
+// (#988).
 export type TextReading = RichText | "html-key";
 
 export function isHtml(reading: TextReading | undefined): boolean {
@@ -232,8 +233,8 @@ export function richTextFor(
   library: Library,
   richText: Readonly<Record<string, RichText>> | null | undefined,
 ): TextReading | undefined {
-  if (library === "rails" && /(?:^|_)html$/.test(id.split(".").at(-1)!))
-    return richText?.[type] ?? "html-key";
+  // Rails' own test, `html_safe_translation_key?`, on the whole key.
+  if (library === "rails" && /(?:_|\b)html$/.test(id)) return "html-key";
   return richText?.[type] ?? undefined;
 }
 
@@ -471,7 +472,10 @@ export function validateTranslation(
     attrErrors(
       new Map(
         [...expected.attrPlaceholders].filter(
-          ([name]) => !actual.placeholders.has(name),
+          ([name]) =>
+            !(
+              actual.placeholders.has(name) && !expected.placeholders.has(name)
+            ),
         ),
       ),
       actual.attrPlaceholders,
@@ -605,9 +609,11 @@ export function validateTranslation(
     // An attribute whose quote never closes swallows the text after it,
     // where the source's tags close theirs: ia's `<a href="%{path}>`
     // (#988).
+    // Attribute text with its quoted values taken out: a quote left is
+    // one no value closes, `title="l'été"` none; only text shaped as
+    // attributes, so `<nom d'utilisateur>` is prose.
     const openQuote = (attrs: string) =>
-      (attrs.match(/"/g)?.length ?? 0) % 2 === 1 ||
-      (attrs.match(/'/g)?.length ?? 0) % 2 === 1;
+      attrs.includes("=") && /["']/.test(attrs.replace(/"[^"]*"|'[^']*'/g, ""));
     const attrsOf = (shape: Shape, prose: ProseTag[]) => [
       ...[...shape.tags].flatMap((identity) => {
         const at = identity.indexOf(" ");

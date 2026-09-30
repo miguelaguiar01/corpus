@@ -2405,7 +2405,12 @@ test("a Rails key ending _html is read as HTML: its tags the translation's own, 
   );
   expect(
     richTextFor("server", "about.hint_html", "rails", { server: "html" }),
-  ).toBe("html");
+  ).toBe("html-key");
+  expect(richTextFor("server", "ns:html", "rails", undefined)).toBe("html-key");
+  expect(richTextFor("server", "foo-html", "rails", undefined)).toBe(
+    "html-key",
+  );
+  expect(richTextFor("server", "foohtml", "rails", undefined)).toBeUndefined();
   const key = { richText: "html-key" as const };
   const source = 'Read <strong>this</strong> and <a href="%{path}">that</a>.';
   const v = (target: string) =>
@@ -2453,5 +2458,36 @@ test("a Rails key ending _html is read as HTML: its tags the translation's own, 
   ).toMatchObject({
     ok: false,
     errors: [{ code: "missing-tag", name: "strong" }],
+  });
+});
+
+test("in an _html key a quote inside a quoted value is no open quote, and #948's attribute placeholder still counts (#988 review)", () => {
+  const key = { richText: "html-key" as const };
+  expect(
+    validateTranslation(
+      'See <abbr title="summer">it</abbr> <a href="%{path}">help</a>',
+      '<abbr title="l\'été">ça</abbr> <a href="%{path}" title="l\'aide">aide</a>',
+      "fr",
+      "rails",
+      key,
+    ),
+  ).toEqual({ ok: true });
+  expect(
+    validateTranslation(
+      "<nom d'utilisateur>",
+      "<nom d'utilisateur> ici",
+      "fr",
+      "rails",
+      key,
+    ),
+  ).toEqual({ ok: true });
+  // #948: an attribute's value printed only in the text is still missing from the attribute.
+  expect(
+    validateTranslation('<a href="{url}">{url}</a>', "{url}", "fr", "icu", {
+      richText: "html",
+    }),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "url" }],
   });
 });
