@@ -2317,3 +2317,24 @@ test("an i18next plural's branches are read for prose tags each on its own; pros
       expect.arrayContaining(["unpaired-tag", "invalid-icu"]),
     );
 });
+
+test("each target branch may keep the prose tags the source's branches do, however many branches the language has (#986 review 3)", () => {
+  const source =
+    "{count, plural, one {1 file </br> ok} other {{{count}} files </br> ok}}";
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, one {1 plik </br> ok} few {{{count}} pliki </br> ok} many {{{count}} plików </br> ok} other {{{count}} pliku </br> ok}}",
+      "pl",
+      "i18next",
+    ),
+  ).toEqual({ ok: true });
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, one {1 plik </br> x </br> ok} few {{{count}} pliki ok} many {{{count}} plików ok} other {{{count}} pliku ok}}",
+      "pl",
+      "i18next",
+    ),
+  ).toMatchObject({ ok: false });
+});

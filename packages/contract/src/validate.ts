@@ -463,21 +463,41 @@ export function validateTranslation(
     // i18next fills (#986).
     if (syntax === "i18next") {
       const names = new Set(
-        [...expected.tags].map((identity) => identity.split(" ")[0]!),
+        [...expected.tags].map((identity) =>
+          identity.split(" ")[0]!.toLowerCase(),
+        ),
       );
       // A pair closed on itself is said once, as that: its first
       // unclosed open is that pair's, any more are broken besides.
       const unpaired = new Map<string, number>();
       for (const e of errors)
         if (e.code === "unpaired-tag") {
-          const name = e.name.split(" ")[0]!;
+          const name = e.name.split(" ")[0]!.toLowerCase();
           unpaired.set(name, (unpaired.get(name) ?? 0) + 1);
         }
       const keyOf = (t: ProseTag) =>
         `${t.close ? "/" : ""}${t.name.toLowerCase()}`;
+      // Counted per branch, a branch's allowance the most any branch of
+      // the same argument has in the source: Polish's four branches may
+      // each keep the `</br>` English's two do; outside every branch, the
+      // text's own count.
+      const scopeOf = (t: ProseTag) =>
+        t.branch.length === 0
+          ? ""
+          : [
+              ...t.branch.slice(0, -1),
+              t.branch[t.branch.length - 1]!.split(":")[0]!,
+            ].join("\u0000");
+      const branchOf = (t: ProseTag) => t.branch.join("\u0000");
+      const perBranch = new Map<string, number>();
       const allowed = new Map<string, number>();
-      for (const t of proseTagsOf(source, syntax))
-        allowed.set(keyOf(t), (allowed.get(keyOf(t)) ?? 0) + 1);
+      for (const t of proseTagsOf(source, syntax)) {
+        const at = `${branchOf(t)}\u0001${keyOf(t)}`;
+        const n = (perBranch.get(at) ?? 0) + 1;
+        perBranch.set(at, n);
+        const scope = `${scopeOf(t)}\u0001${keyOf(t)}`;
+        allowed.set(scope, Math.max(allowed.get(scope) ?? 0, n));
+      }
       // An element as markup writes one: bare, or with attributes, where
       // `<em andamento>` is Portuguese for "in progress".
       const markup = (t: ProseTag) =>
@@ -485,10 +505,11 @@ export function validateTranslation(
         (t.attrs === undefined || /^(?:\/|[\w:-]+\s*=)/.test(t.attrs));
       const seen = new Map<string, number>();
       for (const tag of proseTagsOf(target, syntax)) {
-        const key = keyOf(tag);
-        const n = (seen.get(key) ?? 0) + 1;
-        seen.set(key, n);
-        if (n <= (allowed.get(key) ?? 0)) continue;
+        const at = `${branchOf(tag)}\u0001${keyOf(tag)}`;
+        const n = (seen.get(at) ?? 0) + 1;
+        seen.set(at, n);
+        if (n <= (allowed.get(`${scopeOf(tag)}\u0001${keyOf(tag)}`) ?? 0))
+          continue;
         if (tag.close)
           errors.push({
             code: "invalid-icu",
@@ -496,10 +517,11 @@ export function validateTranslation(
             message: `unexpected </${tag.name}>`,
             position: tag.at,
           });
-        else if (names.has(tag.name) || markup(tag)) {
-          const left = unpaired.get(tag.name) ?? 0;
+        else if (names.has(tag.name.toLowerCase()) || markup(tag)) {
+          const name = tag.name.toLowerCase();
+          const left = unpaired.get(name) ?? 0;
           if (left > 0) {
-            unpaired.set(tag.name, left - 1);
+            unpaired.set(name, left - 1);
             continue;
           }
           errors.push({

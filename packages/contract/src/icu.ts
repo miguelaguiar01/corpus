@@ -55,11 +55,14 @@ export type IcuError = { message: string; position: number };
 
 // A tag a text writes that the parser reads as text: an open tag no
 // close matches, or a close no open tag does.
+// `branch` is the plural or select branch it is in, each level's
+// argument and key (`count:one`), outermost first; none at the top.
 export type ProseTag = {
   name: string;
   close: boolean;
   attrs?: string;
   at: number;
+  branch: string[];
 };
 
 // The tags `text` writes that i18next reads as text, as the parse in
@@ -321,6 +324,8 @@ class Parser {
   private readonly unclosed = new Set<number>();
   // The select and plural whose branches the cursor is in, outermost first.
   private readonly within: ("select" | "plural")[] = [];
+  // Those branches, each its argument and key (#986).
+  private readonly branchPath: string[] = [];
   // Hostile input stays bounded (#861): nesting past any catalogue, and
   // markup retries past a budget of the text's length, fail the parse
   // rather than the stack or the clock.
@@ -926,6 +931,7 @@ class Parser {
       close: tag.kind === "close",
       ...(tag.attrs && { attrs: tag.attrs }),
       at: start,
+      branch: [...this.branchPath],
     });
   }
 
@@ -1071,6 +1077,7 @@ class Parser {
         this.ownFree = true;
       }
       this.within.push(type);
+      this.branchPath.push(`${name}:${key}`);
       try {
         branches[key] = this.parseSequence(
           true,
@@ -1078,6 +1085,7 @@ class Parser {
         );
       } finally {
         this.within.pop();
+        this.branchPath.pop();
       }
       this.pos += 1;
     }
