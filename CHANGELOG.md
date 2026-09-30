@@ -10,6 +10,7 @@ contract (`corpus/1`) is the only one.
 ### Fixed
 
 - A gettext pull no longer fills in the missing forms of a plural entry nobody edited (#981).
+- Switching language on a string page shows that language's own text; the editor no longer keeps the previous language's draft (#979).
 
 ## [0.21.0] - 2026-09-29
 

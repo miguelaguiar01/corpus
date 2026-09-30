@@ -303,6 +303,7 @@ export default async function StringPage({
                 </Banner>
               )}
               <ProposalPanel
+                key={`${string.id}:${string.source}`}
                 slug={slug}
                 stringKey={string.key}
                 language={target}
@@ -360,7 +361,10 @@ export default async function StringPage({
               {targetRow.stale && (
                 <Banner tone="warning">{t("editor.staleBanner")}</Banner>
               )}
+              {/* The draft is one string's in one language at one version:
+                  a switch of tab or a save starts it afresh (#979). */}
               <TargetPane
+                key={`${string.id}:${target}:${targetRow.version}`}
                 action={saveString}
                 source={string.source}
                 syntax={string.syntax}
