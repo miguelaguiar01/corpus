@@ -144,6 +144,37 @@ function valuesOf(shape: Shape): Set<string> {
 
 // The message as an other-only language renders it: each plural on
 // `args` replaced by its `other` branch, `#` by the count.
+// The nodes with each plural's branches narrowed to those `keep` names.
+function pickedBranches(
+  nodes: IcuNode[],
+  keep: (key: string) => boolean,
+): IcuNode[] {
+  return nodes.map((node): IcuNode => {
+    if (node.kind === "plural")
+      return {
+        ...node,
+        branches: Object.fromEntries(
+          Object.entries(node.branches)
+            .filter(([key]) => keep(key))
+            .map(([key, branch]) => [key, pickedBranches(branch, keep)]),
+        ),
+      };
+    if (node.kind === "select")
+      return {
+        ...node,
+        branches: Object.fromEntries(
+          Object.entries(node.branches).map(([key, branch]) => [
+            key,
+            pickedBranches(branch, keep),
+          ]),
+        ),
+      };
+    if (node.kind === "tag")
+      return { ...node, children: pickedBranches(node.children, keep) };
+    return node;
+  });
+}
+
 function otherBranch(nodes: IcuNode[], args: Set<string>): IcuNode[] {
   return nodes.flatMap((node): IcuNode[] => {
     if (node.kind === "plural" && args.has(node.arg))
@@ -271,17 +302,20 @@ export function validateTranslation(
   const sourceNodes = positioned(parsedSource.nodes);
   const targetNodes = positioned(parsedTarget.nodes);
   const actual = shapeOf(targetNodes);
-  let expected = shapeOf(sourceNodes);
+  const whole = shapeOf(sourceNodes);
   // A language whose only category is `other` renders a plural as its
   // `other` branch, so a translation may write that text plainly (#651);
   // not on Android, where a <string> is another resource than the
   // <plurals> the code asks for.
   const categories = language === undefined ? [] : pluralCategoriesOf(language);
   const flat = new Set(
-    [...expected.plurals.keys()].filter((arg) => !actual.plurals.has(arg)),
+    [...whole.plurals.keys()].filter((arg) => !actual.plurals.has(arg)),
   );
-  if (categories.length === 1 && flat.size > 0 && syntax !== "android")
-    expected = shapeOf(otherBranch(sourceNodes, flat));
+  const flattened =
+    categories.length === 1 && flat.size > 0 && syntax !== "android"
+      ? otherBranch(sourceNodes, flat)
+      : sourceNodes;
+  const expected = flattened === sourceNodes ? whole : shapeOf(flattened);
   let errors: ValidationError[] = [];
   const expectedValues = valuesOf(expected);
   const actualValues = valuesOf(actual);
@@ -290,16 +324,23 @@ export function validateTranslation(
     const written = shape.written.get(name);
     return written ? { written } : {};
   };
-  // In such a language a plural shows its `other` branch whatever it
-  // holds, so a value only another source branch prints, English's
-  // `one {Delete "{{name}}"?}`, is not missed (#985).
+  // A value only a source branch the runtime never picks prints is not
+  // missed: English's `one {Delete "{{name}}"?}` in Japanese, whose
+  // i18next plural shows `other` (#985). The branches kept are `other`,
+  // every `=N` and the categories the library's rule may pick, so
+  // counterpart's Japanese `one` still needs its values.
+  const picks =
+    language === undefined
+      ? []
+      : pluralCategoriesFor(language, syntax, options.pluralForms).allowed;
   const required =
-    categories.length === 1 && syntax !== "android"
+    picks.length > 0
       ? valuesOf(
           shapeOf(
-            otherBranch(
-              sourceNodes,
-              new Set(shapeOf(sourceNodes).plurals.keys()),
+            pickedBranches(
+              flattened,
+              (key) =>
+                key === "other" || key.startsWith("=") || picks.includes(key),
             ),
           ),
         )

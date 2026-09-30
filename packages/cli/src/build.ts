@@ -272,11 +272,12 @@ export async function buildSnapshotReport(
     if (readsSuffixPlurals(source)) {
       const families = suffixPluralIds(
         await readModule(jiti, path.join(cwd, file)),
+        config.sourceLanguage,
       );
       if (families.size > 0) {
         const [first] = families;
         notes.push(
-          `${file}: ${families.size} i18next plural famil${families.size === 1 ? "y" : "ies"} read as one string each (${printable(first!)}_one, ${printable(first!)}_other → ${printable(first!)})`,
+          `${file}: ${families.size} i18next plural famil${families.size === 1 ? "y" : "ies"} read as one string each (${printable(first!)}_<category> → ${printable(first!)})`,
         );
       }
     }
@@ -862,6 +863,8 @@ export async function readEntries(
           keyIsText: sourceFile,
           plurals: readsPluralObjects(source),
           suffixPlurals: readsSuffixPlurals(source),
+          ...(sourceFile &&
+            language !== undefined && { sourceLanguage: language }),
           ...(pluralIds && { pluralIds }),
         })
       : tableToEntries(data, { type: source.type, map: source.map });
@@ -1038,7 +1041,7 @@ export async function sourcePluralIds(
     const data = await readModule(jiti, abs);
     const ids = pluralObjectIds(data, readsPluralObjects(source));
     if (readsSuffixPlurals(source))
-      for (const id of suffixPluralIds(data)) ids.add(id);
+      for (const id of suffixPluralIds(data, sourceLanguage)) ids.add(id);
     return ids;
   }
   return undefined;

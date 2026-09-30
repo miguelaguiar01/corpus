@@ -2059,3 +2059,47 @@ test("in a language whose only category is other, a value only another source br
     errors: [{ code: "missing-placeholder", name: "name" }],
   });
 });
+
+test("a value only a source branch the library never picks prints is not missed, and one it picks is, whatever CLDR says (#985 review)", () => {
+  const icu =
+    '{count, plural, =1 {Delete "{name}"?} one {Delete "{name}"?} other {Delete # items?}}';
+  // ICU in Japanese: =1 is always picked, so its {name} is needed.
+  expect(
+    validateTranslation(
+      icu,
+      "{count, plural, other {#件を削除しますか？}}",
+      "ja",
+      "icu",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "name" }],
+  });
+  // counterpart picks one for 1 in every language, Japanese included.
+  const cp =
+    "{count, plural, one {Delete %(name)s?} other {Delete %(count)s items?}}";
+  expect(
+    validateTranslation(
+      cp,
+      "{count, plural, other {%(count)s件を削除}}",
+      "ja",
+      "counterpart",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "name" }],
+  });
+  // printf under a gettext file that picks one and other.
+  const pf = "{count, plural, one {Delete %s?} other {Delete %d items?}}";
+  expect(
+    validateTranslation(
+      pf,
+      "{count, plural, one {%s?} other {%d件}}",
+      "ja",
+      "printf",
+      {
+        pluralForms: ["one", "other"],
+      },
+    ),
+  ).toEqual({ ok: true });
+});

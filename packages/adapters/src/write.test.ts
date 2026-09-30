@@ -1167,3 +1167,37 @@ describe("i18next's plural keys are written as the family they are (#985)", () =
     });
   });
 });
+
+test("a pull leaves a bare key beside a target's family, and a proposed plural in a file of objects is an object (#985 review)", () => {
+  const source = `{\n  "item_one": "{{count}} item",\n  "item_other": "{{count}} items"\n}\n`;
+  const de = `{\n  "item": "Alt",\n  "item_one": "{{count}} Element",\n  "item_other": "{{count}} Elemente"\n}\n`;
+  expect(
+    entriesToMessages(
+      source,
+      {
+        item: "{count, plural, one {{{count}} Element} other {{{count}} Elemente!}}",
+      },
+      de,
+      { plurals: "several", suffixPlurals: true, sourceLanguage: "en" },
+    ),
+  ).toBe(de.replace('Elemente"', 'Elemente!"'));
+  const objects = `{\n  "calls": {\n    "one": "{{count}} call",\n    "other": "{{count}} calls"\n  }\n}\n`;
+  expect(
+    JSON.parse(
+      applyMessagesOps(
+        objects,
+        [
+          {
+            kind: "add",
+            id: "files",
+            text: "{count, plural, one {{{count}} file} other {{{count}} files}}",
+          },
+        ],
+        { plurals: "several", suffixPlurals: true, sourceLanguage: "en" },
+      ),
+    ),
+  ).toEqual({
+    calls: { one: "{{count}} call", other: "{{count}} calls" },
+    files: { one: "{{count}} file", other: "{{count}} files" },
+  });
+});

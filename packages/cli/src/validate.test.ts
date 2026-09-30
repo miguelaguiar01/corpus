@@ -861,7 +861,7 @@ test("an i18next plural family is one string: a target's _few and _many are its 
   const b = ctx();
   expect(await run(["build", "--out", "snapshot.json"], b)).toBe(0);
   expect(b.stderr.join("\n")).toContain(
-    "loc/en.json: 1 i18next plural family read as one string each (n_one, n_other → n)",
+    "loc/en.json: 1 i18next plural family read as one string each (n_<category> → n)",
   );
   const snapshot = JSON.parse(
     readFileSync(path.join(repo, "snapshot.json"), "utf8"),

@@ -393,3 +393,50 @@ test("under i18next a family of suffix keys is one plural; a lone _other, an _or
     },
   ]);
 });
+
+test("a natural key's family of blanks is one string whose key is its text; a source family's forms are its language's; a bare key beside a target's family is none of its (#985 review)", () => {
+  expect(
+    messagesToEntries(
+      {
+        "You have {{count}} items_one": "",
+        "You have {{count}} items_other": "",
+      },
+      {
+        type: "ui",
+        suffixPlurals: true,
+        keyIsText: true,
+        sourceLanguage: "en",
+      },
+    ),
+  ).toEqual([
+    {
+      id: "You have {{count}} items",
+      type: "ui",
+      source: "You have {{count}} items",
+      keyIsText: true,
+    },
+  ]);
+  expect(
+    messagesToEntries(
+      { reason_one: "a", reason_two: "b", reason_other: "c" },
+      { type: "ui", suffixPlurals: true, sourceLanguage: "en" },
+    ).map((e) => e.id),
+  ).toEqual(["reason_one", "reason_two", "reason_other"]);
+  expect(
+    messagesToEntries(
+      {
+        item: "{{count}} Element",
+        item_one: "{{count}} Element",
+        item_other: "{{count}} Elemente",
+      },
+      { type: "ui", suffixPlurals: true, pluralIds: new Set(["item"]) },
+    ),
+  ).toEqual([
+    {
+      id: "item",
+      type: "ui",
+      source:
+        "{count, plural, one {{{count}} Element} other {{{count}} Elemente}}",
+    },
+  ]);
+});

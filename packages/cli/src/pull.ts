@@ -112,6 +112,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
         ctx.cwd,
         fileOf(source, config.sourceLanguage, config.sourceLanguage),
         source,
+        config.sourceLanguage,
       )) ?? new Set<string>(),
     );
   }
@@ -210,7 +211,13 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     );
     if (!existsSync(path.join(ctx.cwd, templatePath))) continue;
     const held = heldByType.get(source.type) ?? new Set<string>();
-    const own = await ownIds(jiti, ctx.cwd, templatePath, source);
+    const own = await ownIds(
+      jiti,
+      ctx.cwd,
+      templatePath,
+      source,
+      config.sourceLanguage,
+    );
     for (const id of own ?? []) held.add(id);
     heldByType.set(source.type, held);
   }
@@ -235,7 +242,13 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     // A target file takes the ids its source-language file holds, under
     // the source's namespace when it has one, stripped for writing: two
     // sources of one type each write their own strings (#513).
-    const own = await ownIds(jiti, ctx.cwd, templatePath, source);
+    const own = await ownIds(
+      jiti,
+      ctx.cwd,
+      templatePath,
+      source,
+      config.sourceLanguage,
+    );
     const members = membersOf(source);
     for (const language of targets) {
       const file = fileOf(source, language, config.sourceLanguage);
@@ -366,6 +379,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
           existing,
           targetOps,
           code,
+          config.sourceLanguage,
           target === file ? undefined : pluralIds,
         );
       } catch (error) {
@@ -503,6 +517,7 @@ function writeTarget(
         chrome: libraryOf(source) === "chrome",
         plurals: readsPluralObjects(source),
         suffixPlurals: readsSuffixPlurals(source),
+        sourceLanguage: config.sourceLanguage,
         onRefused: (id) =>
           refused(
             id,
@@ -570,6 +585,7 @@ function applyOps(
   existing: string,
   ops: SourceOp[],
   code: string,
+  sourceLanguage: string,
   pluralIds?: ReadonlySet<string>,
 ): string {
   switch (source.adapter) {
@@ -582,6 +598,7 @@ function applyOps(
         chrome: libraryOf(source) === "chrome",
         plurals: readsPluralObjects(source),
         suffixPlurals: readsSuffixPlurals(source),
+        sourceLanguage,
         ...(pluralIds && { pluralIds }),
       });
     case "xliff":
@@ -670,10 +687,20 @@ async function ownIds(
   cwd: string,
   file: string,
   source: FileSource,
+  sourceLanguage: string,
 ): Promise<Set<string> | undefined> {
   if (!sourceWritesBack(source)) return undefined;
   try {
-    const entries = await readEntries(jiti, cwd, file, source, true);
+    // The language picks a messages source's plural families (#985); a
+    // String Catalog names its own.
+    const entries = await readEntries(
+      jiti,
+      cwd,
+      file,
+      source,
+      true,
+      source.adapter === "messages" ? sourceLanguage : undefined,
+    );
     return new Set(entries.map((e) => e.id));
   } catch {
     return undefined;
