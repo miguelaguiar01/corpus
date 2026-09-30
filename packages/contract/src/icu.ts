@@ -1415,14 +1415,9 @@ export function pluralCategoriesFor(
   // Ruby's I18n and I18n.js pick `zero` for 0 wherever a plural writes
   // it, in every language (#983).
   const zero = (c: string) => library === "rails" && c === "zero";
-  // A key rails-i18n's rule, or I18n's own one and other, picks where
-  // CLDR has no such category (Burmese's one) reads as `other` would,
-  // which Ruby falls back to: allowed, not needed.
   if (picked && cldr.length > 0)
     return {
-      required: picked.filter(
-        (c) => library !== "rails" || c === "other" || cldr.includes(c),
-      ),
+      required: [...picked],
       allowed: PLURAL_CATEGORIES.filter(
         (c) => picked.includes(c) || c === "other" || zero(c),
       ),

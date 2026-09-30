@@ -1587,7 +1587,20 @@ test("a Rails catalogue's plurals take rails-i18n's keys where Gemfile.lock list
   const ruled = await formsOf();
   expect(ruled.files?.["zh-CN"]).toBeUndefined();
   expect(ruled.report.notes.join("\n")).toContain(
-    "zh_CN register a rule of their own (config/initializers/i18n_pluralization.rb), which Corpus cannot run, so CLDR's stands in",
+    "zh_CN registers a rule of its own (config/initializers/i18n_pluralization.rb), which Corpus cannot run, so CLDR's stands in",
   );
+  // Without parentheses over several lines, and in config/locales/*.rb.
+  writeFileSync(
+    path.join(dir, "config", "initializers", "i18n_pluralization.rb"),
+    'I18n.backend.store_translations :"pt-BR",\n  i18n: {\n    plural: { rule: ->(n) { :other } }\n  }\n',
+  );
+  writeFileSync(
+    path.join(dir, "config", "locales", "plurals.rb"),
+    "{ :fr => { :i18n => { :plural => { :keys => [:one, :other], :rule => lambda { |n| :other } } } } }\n",
+  );
+  const more = await formsOf();
+  expect(more.files?.["pt-BR"]).toBeUndefined();
+  expect(more.files?.fr).toBeUndefined();
+  expect(more.files?.["zh-CN"]).toEqual(["one", "other"]);
   rmSync(dir, { recursive: true, force: true });
 });

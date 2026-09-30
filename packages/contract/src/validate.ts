@@ -221,8 +221,9 @@ export function validateTranslation(
   // carries them (a String Catalog's `%lld`, #731): values a translation
   // may pluralise on or print, of their type, though the source text
   // prints none of them.
-  // `pluralForms`: the categories a gettext target file's `Plural-Forms`
-  // picks, where they are not the language's CLDR ones (#951).
+  // `pluralForms`: the categories the runtime picks where they are not
+  // the language's CLDR ones: a gettext file's `Plural-Forms`' (#951),
+  // rails-i18n's (#983).
   options: {
     richText?: RichText;
     arguments?: string[];

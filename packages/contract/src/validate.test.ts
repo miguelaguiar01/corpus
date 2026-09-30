@@ -1965,16 +1965,31 @@ test("under rails, zero is never a branch the runtime does not pick; rails-i18n'
     incomplete: [{ code: "unexpected-category", key: "one" }],
   });
   // I18n's own one and other, for a locale rails-i18n has no rule for:
-  // Burmese needs no one, and may write it.
-  for (const target of [
-    "{count, plural, other {%{count} b}}",
-    "{count, plural, one {%{count} a} other {%{count} b}}",
-  ])
-    expect(
-      validateTranslation(source, target, "my", "rails", {
+  // Burmese may write one, and needs it, as I18n without fallbacks
+  // raises for 1 where a hash lacks it.
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, one {%{count} a} other {%{count} b}}",
+      "my",
+      "rails",
+      { pluralForms: ["one", "other"] },
+    ),
+  ).toEqual({ ok: true });
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, other {%{count} b}}",
+      "my",
+      "rails",
+      {
         pluralForms: ["one", "other"],
-      }),
-    ).toEqual({ ok: true });
+      },
+    ),
+  ).toMatchObject({
+    ok: true,
+    incomplete: [{ code: "missing-category", key: "one" }],
+  });
   // Another library's zero stays CLDR's verdict.
   expect(
     validateTranslation(

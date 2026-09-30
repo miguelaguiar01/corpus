@@ -881,12 +881,13 @@ export function takesPluralForms(
 
 // Per target language, the plural keys rails-i18n registers for a Rails
 // catalogue's locale, where the repository's Gemfile.lock lists the gem
-// (#983): the file's root key as Ruby names the locale, else its parent
-// before a `-`, as I18n's fallbacks reach it, else one and other, I18n's
-// own rule. A locale the app gives a rule of its own in
-// config/initializers keeps CLDR's, which Corpus can read, as does every
-// language of a repository without the gem; `zero`, which I18n picks for
-// 0 wherever it is written, is allowed by the library (§5).
+// (#983): the file's root key as Ruby names the locale, else each parent
+// before a `-`, as I18n's fallbacks reach them, else one and other,
+// I18n's own rule. A locale the app gives a rule of its own, in
+// config/initializers or config/locales, keeps CLDR's, which Corpus can
+// read, as does every language of a repository without the gem; `zero`,
+// which I18n picks for 0 wherever it is written, is allowed by the
+// library (§5).
 function railsPluralForms(
   cwd: string,
   source: FileSource,
@@ -902,28 +903,43 @@ function railsPluralForms(
   const version = /^ {4}rails-i18n \(([^)]+)\)$/m.exec(lock)?.[1];
   if (!version) return undefined;
   const own = new Map<string, string>();
-  const initializers = path.join(cwd, "config", "initializers");
-  try {
-    for (const name of readdirSync(initializers).filter((f) =>
-      f.endsWith(".rb"),
-    )) {
-      const ruby = readFileSync(path.join(initializers, name), "utf8");
-      for (const m of ruby.matchAll(
-        /store_translations\(\s*:?["']?([\w-]+)["']?\s*,[^\n]*\bplural\b[^\n]*\brule\b/g,
-      ))
-        own.set(m[1]!, `config/initializers/${name}`);
+  const locale = String.raw`:?["']?([\w-]+)["']?`;
+  const rules = [
+    // I18n.backend.store_translations(:zh_CN, i18n: { plural: { rule: … } })
+    new RegExp(
+      String.raw`store_translations\s*\(?\s*${locale}\s*,[\s\S]{0,200}?\bplural\b[\s\S]{0,100}?\brule\b`,
+      "g",
+    ),
+    // config/locales/zh_CN.rb: { zh_CN: { i18n: { plural: { rule: … } } } }
+    new RegExp(
+      String.raw`${locale}\s*(?:=>|:)\s*\{\s*:?["']?i18n["']?\s*(?:=>|:)\s*\{\s*:?["']?plural\b[\s\S]{0,100}?\brule\b`,
+      "g",
+    ),
+  ];
+  for (const dir of ["config/initializers", "config/locales"]) {
+    let names: string[];
+    try {
+      names = readdirSync(path.join(cwd, dir)).filter((f) => f.endsWith(".rb"));
+    } catch {
+      continue;
     }
-  } catch {
-    // No initializers: no locale has a rule of its own.
+    for (const name of names) {
+      const ruby = readFileSync(path.join(cwd, dir, name), "utf8");
+      for (const rule of rules)
+        for (const m of ruby.matchAll(rule)) own.set(m[1]!, `${dir}/${name}`);
+    }
   }
   const out: Record<string, string[]> = {};
   for (const lang of config.languages) {
     if (lang === config.sourceLanguage) continue;
-    const locale = fileCodeOf(source, lang);
+    const code = fileCodeOf(source, lang);
     const cldr = pluralCategoriesOf(lang);
-    if (cldr.length === 0 || own.has(locale)) continue;
-    const keys = RAILS_PLURALS[locale] ??
-      RAILS_PLURALS[locale.split("-")[0]!] ?? ["one", "other"];
+    if (cldr.length === 0 || own.has(code)) continue;
+    const parts = code.split("-");
+    const found = parts
+      .map((_, i) => RAILS_PLURALS[parts.slice(0, parts.length - i).join("-")])
+      .find((k) => k !== undefined);
+    const keys = found ?? ["one", "other"];
     if (keys.join() !== cldr.join()) out[lang] = keys;
   }
   const kept = [...own.keys()].filter((l) =>
@@ -932,7 +948,7 @@ function railsPluralForms(
   onNote?.(
     `plural rules: rails-i18n ${version} (Gemfile.lock), read from Corpus's table of ${RAILS_I18N_VERSION}` +
       (kept.length > 0
-        ? `; ${kept.join(", ")} register a rule of their own (${[...new Set(kept.map((l) => own.get(l)))].join(", ")}), which Corpus cannot run, so CLDR's stands in`
+        ? `; ${kept.join(", ")} ${kept.length === 1 ? "registers a rule of its" : "register rules of their"} own (${[...new Set(kept.map((l) => own.get(l)))].join(", ")}), which Corpus cannot run, so CLDR's stands in`
         : ""),
   );
   return Object.keys(out).length > 0 ? out : undefined;

@@ -188,8 +188,8 @@ export function TargetPane({
   richText?: RichText | null;
   // The verbs the code passes where the key carries them (#731).
   passed?: string[] | null;
-  // The plural categories the target language's gettext file picks,
-  // where they are not CLDR's (#951).
+  // The plural categories the runtime picks where they are not CLDR's:
+  // a gettext file's `Plural-Forms`' (#951), rails-i18n's (#983).
   pluralForms?: string[] | null;
   slots: Slot[];
   language: string;
