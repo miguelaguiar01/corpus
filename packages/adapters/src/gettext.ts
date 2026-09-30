@@ -876,14 +876,24 @@ export function entriesToGettext(
   );
   // A plural entry the reader reads as the text is left as it is, one
   // short of its nplurals among them: a pull fills in no form (#981).
-  const unchanged = (entry: PoEntry, text: string) =>
-    entry.msgidPlural !== undefined &&
-    !entry.flags.includes("fuzzy") &&
-    poPluralText(
-      entry.msgstr.map((t) => t ?? ""),
-      indexes,
-      categories,
-    ) === text;
+  const unchanged = (entry: PoEntry, text: string) => {
+    if (entry.msgidPlural === undefined || entry.flags.includes("fuzzy"))
+      return false;
+    const read = pluralBranches(
+      poPluralText(
+        entry.msgstr.map((t) => t ?? ""),
+        indexes,
+        categories,
+      ),
+    );
+    const wanted = pluralBranches(text);
+    return (
+      read !== undefined &&
+      wanted !== undefined &&
+      Object.keys(read).length === Object.keys(wanted).length &&
+      Object.entries(read).every(([c, f]) => wanted[c] === f)
+    );
+  };
   const forms = (entry: PoEntry, text: string) => {
     const wanted = wantedForms(entry, text, categories, majority);
     if (!wanted) onRefused?.(poId(entry), text);

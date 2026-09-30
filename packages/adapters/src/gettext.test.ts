@@ -803,6 +803,15 @@ test("a plural entry short of its nplurals is left byte for byte while its readi
     ug,
     lang,
   );
+  expect(parsePo(edited).find((e) => e.msgid === "%d file")!.msgstr).toEqual([
+    "%d A",
+    "%d B",
+  ]);
+  // Its branches in another order are the same reading.
+  const reordered = {
+    "%d file": "{count, plural, other {%d ھۆججەت} one {%d ھۆججەت}}",
+  };
+  expect(entriesToGettext(ug, reordered, ug, lang)).toBe(ug);
   // A fuzzy one taken as it stands is written: its flag goes.
   const fuzzy = ug.replace('msgid "%d file"', '#, fuzzy\nmsgid "%d file"');
   expect(entriesToGettext(fuzzy, read, fuzzy, lang)).toBe(
@@ -811,8 +820,4 @@ test("a plural entry short of its nplurals is left byte for byte while its readi
       'msgstr[0] "%d ھۆججەت"\nmsgstr[1] "%d ھۆججەت"\n',
     ),
   );
-  expect(parsePo(edited).find((e) => e.msgid === "%d file")!.msgstr).toEqual([
-    "%d A",
-    "%d B",
-  ]);
 });
