@@ -55,19 +55,19 @@ export type IcuError = { message: string; position: number };
 
 // A tag a text writes that the parser reads as text: an open tag no
 // close matches, or a close no open tag does.
-export type ProseTag = { name: string; close: boolean; at: number };
+export type ProseTag = {
+  name: string;
+  close: boolean;
+  attrs?: string;
+  at: number;
+};
 
-// The tags `text` writes that i18next reads as text, as the parser finds
-// them in "markup"; none for a text that does not parse (#986).
+// The tags `text` writes that i18next reads as text, as the parse in
+// "markup" reads them, a whole plural's branches each its own; none for
+// a text that does not parse (#986).
 export function proseTagsOf(text: string, syntax: Library): ProseTag[] {
-  const parser = new Parser(text, syntax, "markup");
-  try {
-    parser.parseSequence(false);
-  } catch (error) {
-    if (error instanceof ParseFailure) return [];
-    throw error;
-  }
-  return parser.proseRead;
+  const prose: ProseTag[] = [];
+  return parseIcu(text, syntax, { html: "markup", prose }).ok ? prose : [];
 }
 
 export type IcuParseResult =
@@ -262,11 +262,16 @@ function readPrintfPlural(
   source: string,
   html: boolean | "markup",
   syntax: Library,
+  prose?: ProseTag[],
 ): { nodes: IcuNode[] } | { error: IcuError } {
   try {
-    const nodes = new Parser(source, syntax, html, "wholePlural").parseSequence(
-      false,
-    );
+    const nodes = new Parser(
+      source,
+      syntax,
+      html,
+      "wholePlural",
+      prose,
+    ).parseSequence(false);
     const kept = nodes.filter(
       (node) => !(node.kind === "literal" && node.text.trim() === ""),
     );
@@ -308,9 +313,7 @@ class Parser {
   // no closing tag matches and a closing tag with no open tag, found in
   // one pass over the text (#755).
   private proseTags?: Set<number>;
-  // The tags read as text, in the order read, for a validation that
-  // tells a source's prose from a translation's broken tag (#986).
-  readonly proseRead: ProseTag[] = [];
+
   // Where each tag name's last `</name>` is, found in one pass (#896).
   private closes?: Map<string, number>;
   // Open tags already found not to close, where the one pass could not
@@ -336,6 +339,9 @@ class Parser {
     // the plural's, its branches printf. "argPlurals": printf text with
     // plurals on `argN` in it (#726).
     private readonly mode: "text" | "wholePlural" | "argPlurals" = "text",
+    // Where the tags read as text go, for a validation that tells a
+    // source's prose from a translation's broken tag (#986).
+    private readonly proseOut?: ProseTag[],
   ) {}
 
   // Inside a plural's branch, `#` is the number; anywhere else it is text.
@@ -420,6 +426,7 @@ class Parser {
             this.ownFree,
             this.positional,
           ] as const;
+          const read = this.proseOut?.length ?? 0;
           try {
             const children = this.parseSequence(inBranch, pluralArg, tag.name);
             seq.nodes.push({
@@ -436,6 +443,8 @@ class Parser {
               throw error;
             this.pos = after;
             [this.printfNext, this.ownFree, this.positional] = counters;
+            // What the abandoned child read as text is read again.
+            if (this.proseOut) this.proseOut.length = read;
             this.unclosed.add(tag.start);
             this.proseTag(seq, raw, tag, tag.start);
           }
@@ -912,9 +921,10 @@ class Parser {
     seq.attrPlaceholders.push(
       ...(this.tagAttrs(tag.attrs, start).attrPlaceholders ?? []),
     );
-    this.proseRead.push({
+    this.proseOut?.push({
       name: tag.name,
       close: tag.kind === "close",
+      ...(tag.attrs && { attrs: tag.attrs }),
       at: start,
     });
   }
@@ -1111,7 +1121,8 @@ export function readIcu(
 export function parseIcu(
   source: string,
   syntax: Library = "icu",
-  options: { html?: boolean | "markup" } = {},
+  // `prose`, where the tags read as text go (#986).
+  options: { html?: boolean | "markup"; prose?: ProseTag[] } = {},
 ): IcuParseResult {
   if (options.html === undefined) {
     const lenient = parseWith(source, syntax, true);
@@ -1119,13 +1130,14 @@ export function parseIcu(
     const strict = parseWith(source, syntax, false);
     return strict.ok ? strict : lenient;
   }
-  return parseWith(source, syntax, options.html);
+  return parseWith(source, syntax, options.html, options.prose);
 }
 
 function parseWith(
   source: string,
   syntax: Library,
   html: boolean | "markup",
+  prose?: ProseTag[],
 ): IcuParseResult {
   try {
     if (syntax === "vue") {
@@ -1171,13 +1183,19 @@ function parseWith(
     if (substituted) return { ok: true, nodes: substituted };
     if (WHOLE_PLURAL_LIBRARIES.has(syntax) && PRINTF_PLURAL_RE.test(source)) {
       // Where it does not parse as one plural it is text as before (#652).
-      const plural = readPrintfPlural(source, html, syntax);
-      if ("nodes" in plural) return { ok: true, nodes: plural.nodes };
+      const read: ProseTag[] = [];
+      const plural = readPrintfPlural(source, html, syntax, read);
+      if ("nodes" in plural) {
+        prose?.push(...read);
+        return { ok: true, nodes: plural.nodes };
+      }
     }
-    return {
-      ok: true,
-      nodes: new Parser(source, syntax, html).parseSequence(false),
-    };
+    const read: ProseTag[] = [];
+    const nodes = new Parser(source, syntax, html, "text", read).parseSequence(
+      false,
+    );
+    prose?.push(...read);
+    return { ok: true, nodes };
   } catch (error) {
     if (error instanceof ParseFailure) {
       return {

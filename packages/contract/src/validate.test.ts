@@ -2242,3 +2242,78 @@ test("under i18next a translation's unclosed HTML element is broken markup, howe
     ok: true,
   });
 });
+
+test("an i18next plural's branches are read for prose tags each on its own; prose that starts with an element's name is prose (#986 review 2)", () => {
+  const plural = "{count, plural, one {1 file} other {{{count}} files}}";
+  expect(
+    validateTranslation(
+      plural,
+      "{count, plural, one {1 arquivo </em>} other {{{count}} arquivos <li>}}",
+      "pt",
+      "i18next",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: expect.arrayContaining([
+      expect.objectContaining({ message: "unexpected </em>" }),
+      expect.objectContaining({ message: "unclosed <li>" }),
+    ]),
+  });
+  // The source's own stray </br>, mirrored in each branch.
+  const stray =
+    "{count, plural, one {{{count}} file.</br>} other {{{count}} files.</br>}}";
+  expect(
+    validateTranslation(
+      stray,
+      "{count, plural, one {1 arquivo.</br>} other {{{count}} arquivos.</BR>}}",
+      "pt",
+      "i18next",
+    ),
+  ).toMatchObject({ ok: true });
+  for (const [language, text] of [
+    ["pt", "<em andamento>"],
+    ["es", "<a definir>"],
+    ["cs", "<s přílohami>"],
+  ] as const)
+    expect(
+      validateTranslation("<in progress>", text, language, "i18next"),
+      text,
+    ).toEqual({
+      ok: true,
+    });
+  expect(
+    validateTranslation(
+      "<in progress>",
+      '<a href="x">em andamento',
+      "pt",
+      "i18next",
+    ),
+  ).toMatchObject({ ok: false });
+  expect(
+    validateTranslation("You may use:", "<li / >Можете:", "uk", "i18next"),
+  ).toMatchObject({ ok: false });
+  // A value moved out of a prose attribute into the text is said once.
+  const moved = validateTranslation(
+    'Click <a href="{{url}}">here',
+    "Clique {{url}}",
+    "pt",
+    "i18next",
+  );
+  expect(moved.ok).toBe(false);
+  if (!moved.ok)
+    expect(
+      moved.errors.filter((e) => "name" in e && e.name === "url"),
+    ).toHaveLength(1);
+  // Nine unclosed <p> beside an emptied pair: the pair once, the rest broken.
+  const many = validateTranslation(
+    "<p>Hello</p>",
+    "<p></p><p>a<p>b",
+    "ro",
+    "i18next",
+  );
+  expect(many.ok).toBe(false);
+  if (!many.ok)
+    expect(many.errors.map((e) => e.code)).toEqual(
+      expect.arrayContaining(["unpaired-tag", "invalid-icu"]),
+    );
+});

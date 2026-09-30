@@ -465,23 +465,27 @@ export function validateTranslation(
       const names = new Set(
         [...expected.tags].map((identity) => identity.split(" ")[0]!),
       );
-      const unpaired = new Set(
-        errors.flatMap((e) =>
-          e.code === "unpaired-tag" ? [e.name.split(" ")[0]!] : [],
-        ),
-      );
-      const count = (tags: ProseTag[]) => {
-        const out = new Map<string, number>();
-        for (const t of tags) {
-          const key = `${t.close ? "/" : ""}${t.name}`;
-          out.set(key, (out.get(key) ?? 0) + 1);
+      // A pair closed on itself is said once, as that: its first
+      // unclosed open is that pair's, any more are broken besides.
+      const unpaired = new Map<string, number>();
+      for (const e of errors)
+        if (e.code === "unpaired-tag") {
+          const name = e.name.split(" ")[0]!;
+          unpaired.set(name, (unpaired.get(name) ?? 0) + 1);
         }
-        return out;
-      };
-      const allowed = count(proseTagsOf(source, syntax));
+      const keyOf = (t: ProseTag) =>
+        `${t.close ? "/" : ""}${t.name.toLowerCase()}`;
+      const allowed = new Map<string, number>();
+      for (const t of proseTagsOf(source, syntax))
+        allowed.set(keyOf(t), (allowed.get(keyOf(t)) ?? 0) + 1);
+      // An element as markup writes one: bare, or with attributes, where
+      // `<em andamento>` is Portuguese for "in progress".
+      const markup = (t: ProseTag) =>
+        isHtmlElement(t.name) &&
+        (t.attrs === undefined || /^(?:\/|[\w:-]+\s*=)/.test(t.attrs));
       const seen = new Map<string, number>();
       for (const tag of proseTagsOf(target, syntax)) {
-        const key = `${tag.close ? "/" : ""}${tag.name}`;
+        const key = keyOf(tag);
         const n = (seen.get(key) ?? 0) + 1;
         seen.set(key, n);
         if (n <= (allowed.get(key) ?? 0)) continue;
@@ -492,25 +496,30 @@ export function validateTranslation(
             message: `unexpected </${tag.name}>`,
             position: tag.at,
           });
-        else if (
-          (names.has(tag.name) || isHtmlElement(tag.name)) &&
-          !unpaired.has(tag.name)
-        )
+        else if (names.has(tag.name) || markup(tag)) {
+          const left = unpaired.get(tag.name) ?? 0;
+          if (left > 0) {
+            unpaired.set(tag.name, left - 1);
+            continue;
+          }
           errors.push({
             code: "invalid-icu",
             where: "target",
             message: `unclosed <${tag.name}>`,
             position: tag.at,
           });
+        }
       }
       // A value a real tag's attribute writes in one and a prose tag's
-      // in the other is a tag broken, said above, not a value moved.
+      // in the other is a tag broken, said above, not a value moved; one
+      // moved into the text is said once, where it went.
       const inAttrs = (shape: Shape, name: string) =>
         shape.attrPlaceholders.has(name);
       attrErrors(
         new Map(
           [...expected.proseAttrPlaceholders].filter(
-            ([name]) => !inAttrs(actual, name),
+            ([name]) =>
+              !inAttrs(actual, name) && !actual.placeholders.has(name),
           ),
         ),
         new Map(
