@@ -4,6 +4,7 @@ import { createJiti } from "jiti";
 import {
   isChromeMessages,
   parseXcstrings,
+  pluralBranches,
   yamlStrings,
   stripBom,
   xcstringsLanguages,
@@ -25,6 +26,7 @@ import {
   fileOf,
   readEntries,
   sourceLibrary,
+  sourcePluralIds,
   type FileSource,
 } from "./build";
 import { DEFAULT_INCLUDE, EXTENSIONS, SKIP_DIRS } from "./check";
@@ -671,14 +673,24 @@ async function libraryFor(
     texts = [];
     ids = [];
     for (const concrete of concretes) {
+      const source: FileSource = { adapter: "messages", type, path: concrete };
       const entries = await readEntries(
         jiti,
         cwd,
         concrete.replaceAll("{lang}", sourceLanguage),
-        { adapter: "messages", type, path: concrete },
+        source,
         true,
       );
-      texts.push(...entries.map((entry) => entry.source));
+      // An object's forms are what the file writes: the plural the
+      // reader makes of them is no ICU argument of the catalogue's (#984).
+      const objects = await sourcePluralIds(jiti, cwd, source, sourceLanguage);
+      texts.push(
+        ...entries.flatMap((entry) =>
+          objects?.has(entry.id)
+            ? Object.values(pluralBranches(entry.source) ?? {})
+            : [entry.source],
+        ),
+      );
       ids.push(...entries.map((entry) => entry.id));
       keyed += entries.filter((entry) => entry.keyIsText).length;
     }

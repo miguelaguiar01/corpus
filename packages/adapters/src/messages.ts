@@ -16,11 +16,19 @@ export type MessagesOptions = {
   keyIsText?: boolean;
   // An object of plural categories is one plural string (#662), under a
   // library whose text can hold one: not vue, whose plurals are pipes.
-  plurals?: boolean;
+  plurals?: PluralObjects;
   // The ids the source reads as plurals: in a target file an object of
-  // categories at one of them is that plural, `other` or not (#950).
+  // categories is a plural exactly at one of them, `other` or not (#950,
+  // #984).
   pluralIds?: ReadonlySet<string>;
 };
+
+// How a library reads an object of plural categories: as nesting, as one
+// plural, or, under i18next, as one only with two forms or more, since
+// i18next reads an object as its path and a lone `{ other }` is a key
+// (#984), while a catalogue its build turns into suffix keys writes
+// `{ one, other }` (Rocket.Chat).
+export type PluralObjects = boolean | "several";
 
 // `{ one, other }`, as counterpart, easy_localization and Rails write a
 // plural: every key a category and `other` among them, every value a
@@ -29,12 +37,13 @@ export type MessagesOptions = {
 export function isPluralObject(
   node: unknown,
   needsOther = true,
+  mode: PluralObjects = true,
 ): node is Record<string, string> {
-  if (node === null || typeof node !== "object" || Array.isArray(node))
+  if (!mode || node === null || typeof node !== "object" || Array.isArray(node))
     return false;
   const entries = Object.entries(node);
   if (
-    entries.length === 0 ||
+    entries.length < (mode === "several" ? 2 : 1) ||
     (needsOther && !Object.hasOwn(node, "other")) ||
     !entries.every(
       ([key, value]) =>
@@ -60,14 +69,31 @@ export function isPluralObject(
 // finds them: a target's object at one needs no `other` (#950).
 export function pluralObjectIds(
   node: unknown,
+  mode: PluralObjects = true,
   path: string[] = [],
   out = new Set<string>(),
 ): Set<string> {
-  if (path.length > 0 && isPluralObject(node)) return out.add(path.join("."));
+  if (path.length > 0 && isPluralObject(node, true, mode))
+    return out.add(path.join("."));
   if (node !== null && typeof node === "object" && !Array.isArray(node))
     for (const [key, child] of Object.entries(node))
-      pluralObjectIds(child, [...path, key], out);
+      pluralObjectIds(child, mode, [...path, key], out);
   return out;
+}
+
+// Whether a node at `id` is a plural: in a target whose source's plurals
+// are known, exactly where the source has one, however few its forms (a
+// Japanese `{ other }`); else by its own shape.
+export function isPluralAt(
+  node: unknown,
+  id: string,
+  mode: PluralObjects | undefined,
+  known: ReadonlySet<string> | undefined,
+): node is Record<string, string> {
+  if (!mode) return false;
+  return known
+    ? known.has(id) && isPluralObject(node, false)
+    : isPluralObject(node, true, mode);
 }
 
 // A value that holds no translation: blank, or a plural whose every form
@@ -322,10 +348,8 @@ function walk(
 ): void {
   const type = options.type;
   if (
-    options.plurals &&
     path.length > 0 &&
-    (isPluralObject(node) ||
-      (options.pluralIds?.has(path.join(".")) && isPluralObject(node, false)))
+    isPluralAt(node, path.join("."), options.plurals, options.pluralIds)
   )
     node = pluralText("count", node, "written");
   if (typeof node === "string") {
