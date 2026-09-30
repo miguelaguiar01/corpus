@@ -239,6 +239,41 @@ A `<string>` is a string, and a `<plurals>` is one string whose text is an ICU p
 
 The library is `android`: printf verbs as under `printf` (the index form is `%n$s`), and tags as under ICU, so a translation's `<i>` the source lacks is named. A string the app shows through `Html.fromHtml` may take the translator's own tags; declare its type `richText: { ui: "html" }` ([Types read as HTML](Metadata-types-entities-and-the-glossary#types-read-as-html)).
 
+**A modular app** keeps its strings in many modules' `res` directories, which Gradle merges into one set of resources, a library module's string and the app's of the same name being one entry. List them as one source, `path` an array: an id two modules hold with the same text is one string, a pull writes its translation into every module's file that holds it, and `merge` says what happens where their text differs, `"strict"` (the default) refusing it by name and `"last-wins"` taking the later pattern's, so list lower-priority modules first, the reverse of Gradle's dependency order. Compose Multiplatform's `composeResources` are another matter: each module generates its own `Res` class, so a `{ns}` in the pattern captures the module, and its ids are `module:name`, stripped again when a pull writes them. Build variants (`src/debug/res`, `src/beta/res`) override `main`, so they hold its ids and are left out: in a source of their own they are a duplicate, and in the list they would stand for `main` in every build. A variant whose translatable strings `main` lacks may be a source of its own.
+
+<!-- from: examples/android-modules.config.ts -->
+```ts
+import { defineCorpus } from "@corpus-tool/cli";
+
+export default defineCorpus({
+  project: "acme-mail",
+  server: "http://localhost:3000",
+  sourceLanguage: "en",
+  languages: ["en", "de", "pt-BR"],
+  sources: [
+    // The modules' res directories, which Gradle merges into one set of
+    // resources: lower-priority modules first, so the later one wins.
+    {
+      adapter: "android",
+      type: "ui",
+      path: [
+        "core/ui/src/main/res",
+        "feature/settings/src/main/res",
+        "app/src/main/res",
+      ],
+      merge: "last-wins",
+    },
+    // Compose Multiplatform's own resources, one Res class per module:
+    // their ids are `<module>:<name>`.
+    {
+      adapter: "android",
+      type: "ui",
+      path: "feature/{ns}/src/commonMain/composeResources",
+    },
+  ],
+});
+```
+
 ## Fluent
 
 <!-- from: examples/fluent.config.ts -->

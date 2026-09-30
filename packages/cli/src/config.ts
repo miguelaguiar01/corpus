@@ -130,9 +130,13 @@ export function expandSources(input: CorpusInput, cwd: string): CorpusConfig {
     return patterns.flatMap((pattern): Source[] => {
       if (!pattern.includes("{ns}"))
         return [{ ...source, path: pattern, ...group }];
+      // An Android pattern names a `res` directory, whose source is its
+      // `values/strings.xml` (#989).
       const names = namespacesOf(
         cwd,
-        pattern,
+        source.adapter === "android"
+          ? `${pattern.replace(/\/+$/, "")}/values/strings.xml`
+          : pattern,
         fileCodeOf(source, input.sourceLanguage),
       );
       if (names.length === 0) {
@@ -152,10 +156,9 @@ export function expandSources(input: CorpusInput, cwd: string): CorpusConfig {
   const seen = new Map<string, string>();
   for (const source of sources) {
     if (source.adapter === "exec") continue;
-    const file = source.path.replaceAll(
-      "{lang}",
-      fileCodeOf(source, input.sourceLanguage),
-    );
+    const file = source.path
+      .replaceAll("{lang}", fileCodeOf(source, input.sourceLanguage))
+      .replace(/\/+$/, "");
     const first = seen.get(file);
     if (first !== undefined) {
       throw new CliError(

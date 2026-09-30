@@ -376,4 +376,4 @@ export default defineCorpus({
 });
 ```
 
-Ids must be unique across all of them. Two sources holding the same id is a build error naming both files, which is what you want: it means one string has two homes and a pull would have to guess.
+Ids must be unique across all of them. Two sources holding the same id is a build error naming both files, which is what you want: it means one string has two homes and a pull would have to guess. Files the app merges into one catalogue are not two sources but one whose `path` is a list, as an Android app's modules' `res` directories are ([Your i18n library](Your-i18n-library#android-string-resources)): there an id two files hold is one string, and `merge` says which text wins where they differ.

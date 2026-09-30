@@ -788,11 +788,11 @@ async function libraryFor(
   return {};
 }
 
-// Only messages, table and fluent read `{ns}` (#854).
+// Only messages, table, fluent and android read `{ns}` (#854, #989).
 function refuseNamespace(messages: string, adapter: string): void {
   if (messages.includes("{ns}"))
     throw new CliError(
-      `--messages ${messages}: ${adapter} does not read {ns}: only messages, table and fluent do`,
+      `--messages ${messages}: ${adapter} does not read {ns}: only messages, table, fluent and android do`,
     );
 }
 

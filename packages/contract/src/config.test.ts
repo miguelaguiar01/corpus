@@ -396,6 +396,12 @@ test("{ns} is refused by name on an adapter that does not read it (#854)", () =>
       map: { id: "id", text: "text" },
     },
     { adapter: "fluent", type: "ui", path: "i18n/{lang}/{ns}.ftl" },
+    // A Compose Multiplatform module's resources (#989).
+    {
+      adapter: "android",
+      type: "ui",
+      path: "feature/{ns}/src/commonMain/composeResources",
+    },
   ])
     expect(config(source).success).toBe(true);
   for (const source of [
@@ -404,7 +410,6 @@ test("{ns} is refused by name on an adapter that does not read it (#854)", () =>
     { adapter: "xliff", type: "ui", path: "locale/{ns}.{lang}.xlf" },
     { adapter: "qt-ts", type: "ui", path: "lang/{ns}_{lang}.ts" },
     { adapter: "xcstrings", type: "ui", path: "{ns}/Localizable.xcstrings" },
-    { adapter: "android", type: "ui", path: "{ns}/src/main/res" },
     {
       adapter: "gettext",
       type: "ui",
@@ -415,7 +420,7 @@ test("{ns} is refused by name on an adapter that does not read it (#854)", () =>
     const result = config(source);
     expect(result.success).toBe(false);
     expect(JSON.stringify(result.error?.issues)).toContain(
-      `${source.adapter} does not read {ns}: only messages, table and fluent do`,
+      `${source.adapter} does not read {ns}: only messages, table, fluent and android do`,
     );
   }
 });
@@ -519,6 +524,33 @@ test("merge takes a list of patterns, strict or last-wins (#953)", () => {
       type: "ui",
       path: "c/{lang}.yml",
       merge: "last-wins",
+    }).success,
+  ).toBe(false);
+});
+
+test("an android source takes a list of res directories and merge, as messages does; merge on one path is refused (#989)", () => {
+  const config = (source: Record<string, unknown>) =>
+    corpusConfigSchema.safeParse({
+      project: "demo",
+      server: "http://localhost:3000",
+      sourceLanguage: "en",
+      languages: ["en", "de"],
+      sources: [source],
+    });
+  expect(
+    config({
+      adapter: "android",
+      type: "ui",
+      path: ["core/src/main/res", "app/src/main/res"],
+      merge: "last-wins",
+    }).success,
+  ).toBe(true);
+  expect(
+    config({
+      adapter: "android",
+      type: "ui",
+      path: "app/src/main/res",
+      merge: "strict",
     }).success,
   ).toBe(false);
 });

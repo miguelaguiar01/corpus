@@ -1462,7 +1462,7 @@ test("init refuses {ns} for a format whose adapter does not read it, Qt's .ts to
   );
   expect(code).not.toBe(0);
   expect(p.err.join("\n")).toMatch(
-    /qt-ts does not read \{ns\}: only messages, table and fluent do/,
+    /qt-ts does not read \{ns\}: only messages, table, fluent and android do/,
   );
 });
 
