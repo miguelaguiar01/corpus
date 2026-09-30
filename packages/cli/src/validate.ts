@@ -14,7 +14,7 @@ import {
   stringEntrySchema,
   type StringEntry,
 } from "@corpus/contract";
-import { isBlank, pluralBranches } from "@corpus/adapters";
+import { isBlank } from "@corpus/adapters";
 import { printable } from "./printable";
 import type { RunContext } from "./cli";
 import {
@@ -24,7 +24,8 @@ import {
   type FileSource,
   hasLanguages,
   nestedCountMessage,
-  gettextPluralForms,
+  pluralFormsOf,
+  takesPluralForms,
   lastWins,
   sourcePluralIds,
   readEntries,
@@ -205,10 +206,7 @@ export async function validateRepo(
     );
     // A source that does not parse is the source file's finding, once.
     const brokenSources = new Set<string>();
-    const pluralForms =
-      source.adapter === "gettext"
-        ? gettextPluralForms(cwd, source, config)
-        : undefined;
+    const pluralForms = pluralFormsOf(cwd, source, config);
     const pluralIds = await sourcePluralIds(
       jiti,
       cwd,
@@ -280,7 +278,7 @@ export async function validateRepo(
         }
         findings.push(
           ...checkTranslation(
-            pluralForms && pluralBranches(entry.source)
+            pluralForms && takesPluralForms(entry, source)
               ? { ...entry, pluralForms }
               : entry,
             target,

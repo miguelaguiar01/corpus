@@ -1926,3 +1926,79 @@ test("a gettext file's own =N keys are its plural's branches; a category it hold
     ),
   ).toEqual({ ok: true });
 });
+
+test("under rails, zero is never a branch the runtime does not pick; rails-i18n's keys, where given, are the ones needed (#983)", () => {
+  const source = "{count, plural, one {%{count} file} other {%{count} files}}";
+  for (const language of ["pt-BR", "de", "ja"])
+    expect(
+      validateTranslation(
+        source,
+        "{count, plural, zero {none} one {%{count} x} other {%{count} y}}",
+        language,
+        "rails",
+      ).incomplete?.filter(
+        (e) => e.code === "unexpected-category" && e.key === "zero",
+      ) ?? [],
+      language,
+    ).toEqual([]);
+  // fr under rails-i18n's OneUptoTwoOther: no many needed.
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, one {%{count} f} other {%{count} fs}}",
+      "fr",
+      "rails",
+      { pluralForms: ["one", "other"] },
+    ),
+  ).toEqual({ ok: true });
+  // ja under Other: one is dead.
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, one {%{count} a} other {%{count} b}}",
+      "ja",
+      "rails",
+      { pluralForms: ["other"] },
+    ),
+  ).toMatchObject({
+    ok: true,
+    incomplete: [{ code: "unexpected-category", key: "one" }],
+  });
+  // I18n's own one and other, for a locale rails-i18n has no rule for:
+  // Burmese may write one, and needs it, as I18n without fallbacks
+  // raises for 1 where a hash lacks it.
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, one {%{count} a} other {%{count} b}}",
+      "my",
+      "rails",
+      { pluralForms: ["one", "other"] },
+    ),
+  ).toEqual({ ok: true });
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, other {%{count} b}}",
+      "my",
+      "rails",
+      {
+        pluralForms: ["one", "other"],
+      },
+    ),
+  ).toMatchObject({
+    ok: true,
+    incomplete: [{ code: "missing-category", key: "one" }],
+  });
+  // Another library's zero stays CLDR's verdict.
+  expect(
+    validateTranslation(
+      "{count, plural, one {# file} other {# files}}",
+      "{count, plural, zero {none} one {# x} other {# y}}",
+      "de",
+      "icu",
+    ),
+  ).toMatchObject({
+    incomplete: [{ code: "unexpected-category", key: "zero" }],
+  });
+});

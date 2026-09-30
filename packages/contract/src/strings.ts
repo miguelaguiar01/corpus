@@ -238,10 +238,11 @@ export const stringEntrySchema = z.looseObject({
   // `notifications.favorite %lld` reading "starred", #731): values a
   // translation may pluralise on or print, of their type. Additive.
   arguments: z.array(z.string()).optional(),
-  // Per target language, the plural categories a gettext target file's
-  // `Plural-Forms` picks, where they are not the language's CLDR ones
-  // (#951): Italian's one and other under `nplurals=2`; and a file's own
-  // `=N` keys, where no category reads a form (#982). Additive.
+  // Per target language, the plural categories the runtime picks, where
+  // they are not the language's CLDR ones: a gettext target file's
+  // `Plural-Forms`' (#951), Italian's one and other under `nplurals=2`,
+  // and its own `=N` keys where no category reads a form (#982);
+  // rails-i18n's for a Rails catalogue's locale (#983). Additive.
   pluralForms: z
     .record(
       z.string(),

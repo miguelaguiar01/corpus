@@ -1399,10 +1399,11 @@ export function pluralCategoriesOf(language: string): string[] {
 // English's in every language, `zero` when written; easy_localization's,
 // by default, the value itself, 0, 1 and 2 reading `zero`, `one` and
 // `two` where written and anything else `other`, so `few` and `many`
-// are never read. Every other library picks by CLDR's rule, or, for a
-// gettext file, by its `Plural-Forms`: `picked`, the categories it reads
-// a form for, and `other`; a form for any other category is one the file
-// cannot hold (#973).
+// are never read. Every other library picks by CLDR's rule, or by
+// `picked`, the source's own: a gettext file's `Plural-Forms`, the
+// categories it reads a form for, and `other`, a form for any other
+// being one the file cannot hold (#973); rails-i18n's rule for a Rails
+// catalogue's locale (#983), beside `zero`.
 export function pluralCategoriesFor(
   language: string,
   library: Library,
@@ -1411,11 +1412,14 @@ export function pluralCategoriesFor(
   if (library === "counterpart")
     return { required: ["one", "other"], allowed: ["zero", "one", "other"] };
   const cldr = pluralCategoriesOf(language);
+  // Ruby's I18n and I18n.js pick `zero` for 0 wherever a plural writes
+  // it, in every language (#983).
+  const zero = (c: string) => library === "rails" && c === "zero";
   if (picked && cldr.length > 0)
     return {
       required: [...picked],
       allowed: PLURAL_CATEGORIES.filter(
-        (c) => picked.includes(c) || c === "other",
+        (c) => picked.includes(c) || c === "other" || zero(c),
       ),
     };
   if (library === "easy_localization" && cldr.length > 0)
@@ -1423,7 +1427,10 @@ export function pluralCategoriesFor(
       required: cldr.filter((c) => c !== "few" && c !== "many"),
       allowed: ["zero", "one", "two", "other"],
     };
-  return { required: cldr, allowed: cldr };
+  return {
+    required: cldr,
+    allowed: PLURAL_CATEGORIES.filter((c) => cldr.includes(c) || zero(c)),
+  };
 }
 
 // The values a category is tried on: integers to a thousand, millions

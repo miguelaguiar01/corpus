@@ -12,6 +12,7 @@ contract (`corpus/1`) is the only one.
 - A gettext pull no longer fills in the missing forms of a plural entry nobody edited (#981).
 - Switching language on a string page shows that language's own text; the editor no longer keeps the previous language's draft (#979).
 - Gettext files in Cebuano, Manx, Welsh, Filipino, Hebrew and Latvian (older rule), whose `Plural-Forms` cut across CLDR's categories, now show and write every plural form (#982).
+- Rails plurals are checked by the runtime's rule: `zero` is always allowed, and rails-i18n's per-locale rule applies where `Gemfile.lock` lists the gem (#983).
 
 ## [0.21.0] - 2026-09-29
 
