@@ -2103,3 +2103,24 @@ test("a value only a source branch the library never picks prints is not missed,
     ),
   ).toEqual({ ok: true });
 });
+
+test("a tag with no plural data needs every branch's values, under i18next and rails too (#985 review)", () => {
+  for (const [library, name] of [
+    ["i18next", "{{name}}"],
+    ["rails", "%{name}"],
+  ] as const) {
+    const source =
+      `{count, plural, one {Delete ${name}?} other {Delete {count} items?}}`.replace(
+        "{count} items",
+        library === "i18next" ? "{{count}} items" : "%{count} items",
+      );
+    const target = `{count, plural, one {x} other {${library === "i18next" ? "{{count}}" : "%{count}"} y}}`;
+    expect(
+      validateTranslation(source, target, "kz", library),
+      library,
+    ).toMatchObject({
+      ok: false,
+      errors: [{ code: "missing-placeholder" }],
+    });
+  }
+});

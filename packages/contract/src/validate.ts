@@ -142,8 +142,6 @@ function valuesOf(shape: Shape): Set<string> {
   return new Set([...shape.placeholders, ...shape.plurals.keys()]);
 }
 
-// The message as an other-only language renders it: each plural on
-// `args` replaced by its `other` branch, `#` by the count.
 // The nodes with each plural's branches narrowed to those `keep` names.
 function pickedBranches(
   nodes: IcuNode[],
@@ -175,6 +173,8 @@ function pickedBranches(
   });
 }
 
+// The message as an other-only language renders it: each plural on
+// `args` replaced by its `other` branch, `#` by the count.
 function otherBranch(nodes: IcuNode[], args: Set<string>): IcuNode[] {
   return nodes.flatMap((node): IcuNode[] => {
     if (node.kind === "plural" && args.has(node.arg))
@@ -329,8 +329,12 @@ export function validateTranslation(
   // i18next plural shows `other` (#985). The branches kept are `other`,
   // every `=N` and the categories the library's rule may pick, so
   // counterpart's Japanese `one` still needs its values.
+  // A tag with no plural data is checked for its shape alone, every
+  // branch's values needed: its runtime falls back to another locale's
+  // rule; counterpart's English rule holds for every tag.
   const picks =
-    language === undefined
+    language === undefined ||
+    (categories.length === 0 && syntax !== "counterpart")
       ? []
       : pluralCategoriesFor(language, syntax, options.pluralForms).allowed;
   const required =
