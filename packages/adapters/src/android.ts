@@ -235,8 +235,32 @@ type Tags = "raw" | "escaped";
 function tagsOf(raw: string): Tags | undefined {
   const outside = raw.replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, "");
   if (new RegExp(MARKUP_RE.source).test(outside)) return "raw";
-  if (/&lt;\/?[A-Za-z]/.test(outside)) return "escaped";
+  // An escaped close is an escaped pair's; `&lt;Unknown&gt;` alone is
+  // prose, which says nothing of how the element writes its tags.
+  if (/&lt;\/[A-Za-z]/.test(outside)) return "escaped";
   return undefined;
+}
+
+// The tags `text` may write as XML elements: one closed on itself, or a
+// pair that nests; any other would leave the file ill-formed (`<br>`,
+// an unclosed `<xliff:g>`), so it is escaped.
+function wellFormed(text: string): Set<number> {
+  const out = new Set<number>();
+  const open: { name: string; at: number }[] = [];
+  for (const tag of text.matchAll(MARKUP_RE)) {
+    const name = /^<\/?([^\s/>]+)/.exec(tag[0])![1]!;
+    if (tag[0].endsWith("/>")) out.add(tag.index);
+    else if (tag[0].startsWith("</")) {
+      let at = open.length - 1;
+      while (at >= 0 && open[at]!.name !== name) at--;
+      if (at < 0) continue;
+      // The pair closes; what opened inside it and never closed stays out.
+      out.add(open[at]!.at);
+      out.add(tag.index);
+      open.length = at;
+    } else open.push({ name, at: tag.index });
+  }
+  return out;
 }
 
 // A tag the text reads as prose, `<Unknown Recipient>`, is text, escaped
@@ -244,14 +268,16 @@ function tagsOf(raw: string): Tags | undefined {
 // markup, written as `tags` says (#987).
 function escape(text: string, cdata: boolean, tags: Tags = "raw"): string {
   const prose = new Set(proseTagsOf(text, "android").map((t) => t.at));
+  const elements = wellFormed(text);
   let out = "";
   let at = 0;
   for (const tag of text.matchAll(MARKUP_RE)) {
-    // A prose tag's text as Android writes it, `&lt;…&gt;`; an escaped
-    // pair's as Html.fromHtml's idiom does, `&lt;b>`.
+    // A prose tag's text as Android writes it, `&lt;…&gt;`, and so any
+    // tag XML cannot hold as an element; an escaped pair's as
+    // Html.fromHtml's idiom does, `&lt;b>`.
     const markup = cdata
       ? tag[0]
-      : prose.has(tag.index)
+      : prose.has(tag.index) || !elements.has(tag.index)
         ? escapeText(tag[0], false).replace(/>/g, "&gt;")
         : tags === "escaped"
           ? escapeText(tag[0], false)

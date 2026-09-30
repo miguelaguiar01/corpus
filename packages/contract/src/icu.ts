@@ -922,10 +922,6 @@ class Parser {
     tag: { kind: string; name: string; attrs?: string },
     start: number,
   ): void {
-    seq.literal += raw;
-    seq.attrPlaceholders.push(
-      ...(this.tagAttrs(tag.attrs, start).attrPlaceholders ?? []),
-    );
     this.proseOut?.push({
       name: tag.name,
       close: tag.kind === "close",
@@ -933,6 +929,18 @@ class Parser {
       at: start,
       branch: [...this.branchPath],
     });
+    // Where a tag's attributes hold no placeholders of their own, a prose
+    // tag is text through and through: Android's `<Unknown %s>` prints its
+    // verb, which counts by position with the rest (#987).
+    if (!ATTR_PLACEHOLDER_LIBRARIES.has(this.syntax)) {
+      seq.literal += "<";
+      this.pos = start + 1;
+      return;
+    }
+    seq.literal += raw;
+    seq.attrPlaceholders.push(
+      ...(this.tagAttrs(tag.attrs, start).attrPlaceholders ?? []),
+    );
   }
 
   // Where the argument at `at` ends.

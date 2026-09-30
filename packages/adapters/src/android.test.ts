@@ -287,3 +287,24 @@ test("an escaped &lt;…&gt; or a CDATA <…> is text, its aapt escapes undone; 
     '<string name="bold">&lt;b>Gras&lt;/b></string>',
   );
 });
+
+test("a pull writes a tag XML cannot hold as an element escaped, and a prose tag's verb counts in its place (#987 review)", () => {
+  const xml = `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <string name="a">x</string>\n</resources>\n`;
+  const out = entriesToAndroid(
+    xml,
+    {
+      a: "a<br>b",
+      b: "<fichier.ext> ok",
+      c: '<xliff:g id="n">%d</xliff:g> left <b>bold',
+    },
+    xml,
+  );
+  expect(out).toContain('<string name="a">a&lt;br&gt;b</string>');
+  expect(out).toContain('<string name="b">&lt;fichier.ext&gt; ok</string>');
+  expect(out).toContain(
+    '<string name="c"><xliff:g id="n">%d</xliff:g> left &lt;b&gt;bold</string>',
+  );
+  expect(
+    applyAndroidOps(xml, [{ kind: "add", id: "d", text: "a<br>b" }]),
+  ).toContain('<string name="d">a&lt;br&gt;b</string>');
+});
