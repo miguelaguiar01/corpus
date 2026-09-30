@@ -786,3 +786,38 @@ test("a target file's categories are the ones its Plural-Forms picks, or its lan
       GETTEXT_PLURALS.cs!.forms,
     );
 });
+
+test("a plural entry short of its nplurals is left byte for byte while its reading is unchanged (#981)", () => {
+  const ug = `msgid ""\nmsgstr ""\n"Language: ug\\n"\n"Plural-Forms: nplurals=2; plural=(n != 1);\\n"\n\nmsgid "%d file"\nmsgid_plural "%d files"\nmsgstr[0] "%d ھۆججەت"\n`;
+  const lang = { tag: "ug", code: "ug" };
+  const read = Object.fromEntries(
+    gettextTranslations(ug, "ug").map((e) => [e.id, e.source]),
+  );
+  expect(read["%d file"]).toBe(
+    "{count, plural, one {%d ھۆججەت} other {%d ھۆججەت}}",
+  );
+  expect(entriesToGettext(ug, read, ug, lang)).toBe(ug);
+  const edited = entriesToGettext(
+    ug,
+    { "%d file": "{count, plural, one {%d A} other {%d B}}" },
+    ug,
+    lang,
+  );
+  expect(parsePo(edited).find((e) => e.msgid === "%d file")!.msgstr).toEqual([
+    "%d A",
+    "%d B",
+  ]);
+  // Its branches in another order are the same reading.
+  const reordered = {
+    "%d file": "{count, plural, other {%d ھۆججەت} one {%d ھۆججەت}}",
+  };
+  expect(entriesToGettext(ug, reordered, ug, lang)).toBe(ug);
+  // A fuzzy one taken as it stands is written: its flag goes.
+  const fuzzy = ug.replace('msgid "%d file"', '#, fuzzy\nmsgid "%d file"');
+  expect(entriesToGettext(fuzzy, read, fuzzy, lang)).toBe(
+    ug.replace(
+      'msgstr[0] "%d ھۆججەت"\n',
+      'msgstr[0] "%d ھۆججەت"\nmsgstr[1] "%d ھۆججەت"\n',
+    ),
+  );
+});

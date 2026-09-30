@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+### Fixed
+
+- A gettext pull no longer fills in the missing forms of a plural entry nobody edited (#981).
+
 ## [0.21.0] - 2026-09-29
 
 What nine new projects found: XLIFF, gettext, String Catalogs, Qt Linguist and Rails YAML read natively; counterpart, easy_localization, Rails and Qt as libraries, each plural checked by its own rule; a source's catalogues merged strictly or last-wins; broken seeds in an Invalid queue; and nine projects that push and pull back byte-identical.
