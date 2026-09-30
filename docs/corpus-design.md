@@ -151,8 +151,8 @@ export default defineCorpus({
     //    XML could not hold as an element (`<br>`, an unclosed tag), as
     //    `&lt;…&gt;`, and a pair as the element writes its tags, raw or
     //    `&lt;b>`, else as the source's does; a pull patches the
-    //    elements and plural items it
-    //    changes in place and appends new ones before </resources>.
+    //    elements and plural items it changes in place and appends new
+    //    ones before </resources>.
     //    The library is `android` (§5).
     { adapter: "android", type: "ui", path: "app/src/main/res" },
 
