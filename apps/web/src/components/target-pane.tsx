@@ -233,7 +233,8 @@ export function TargetPane({
   const incomplete = validation.incomplete ?? [];
   const selects = branchingOf(source, language, syntax, pluralForms);
   const byId = new Map(selects.map((entry) => [idOf(entry), entry]));
-  const tags = [...partsOf(source, syntax).tags];
+  const parts = partsOf(source, syntax);
+  const tags = [...parts.tags];
 
   const insert = (token: string, caretOffset?: number) => {
     const el = ref.current;
@@ -365,7 +366,8 @@ export function TargetPane({
             // (#590, #643).
             const bare = name.split(/\s/)[0]!;
             const voided =
-              isVoidTag(bare) && hasVoidTags(syntax, richText ?? undefined);
+              (isVoidTag(bare) && hasVoidTags(syntax, richText ?? undefined)) ||
+              parts.selfClosed.has(name);
             const token = voided ? `<${name}/>` : `<${name}></${bare}>`;
             return (
               <button

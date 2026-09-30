@@ -23,6 +23,9 @@ import {
   pluralCategoriesOf,
   pluralCategoryCovered,
   printfVerbOf,
+  proseTagsOf,
+  isHtmlElement,
+  type ProseTag,
   type IcuNode,
   type Shape,
   shapeOf,
@@ -60,6 +63,9 @@ export type ValidationError =
       actual: string | null;
     }
   | { code: "missing-tag"; name: string }
+  // The source's pair written closed on itself, `<2/>` for `<2>…</2>`,
+  // which wraps nothing (#986).
+  | { code: "unpaired-tag"; name: string }
   | { code: "unexpected-tag"; name: string }
   // printf (#594): the verb at a position prints another type than the
   // source's (`%s` where the source has `%d`), which is what a verb
@@ -211,13 +217,17 @@ export function hasVoidTags(syntax: Library, richText?: RichText): boolean {
 }
 
 // How a type's text reads its tags: "markup" for a type read as HTML,
-// where a tag that never closes is text, as a browser reads it (#755);
-// else whether void elements open nothing.
+// where a tag that never closes is text, as a browser reads it (#755),
+// and under i18next, whose `t()` text React escapes and whose `Trans`
+// renders only a tag that closes (#986), its tags still compared; else
+// whether void elements open nothing.
 export function tagMode(
   syntax: Library,
   richText?: RichText,
 ): boolean | "markup" {
-  return richText === "html" ? "markup" : hasVoidTags(syntax, richText);
+  return richText === "html" || syntax === "i18next"
+    ? "markup"
+    : hasVoidTags(syntax, richText);
 }
 
 // The libraries whose placeholders are written verbs (`%s`, `%(n)s`,
@@ -410,35 +420,143 @@ export function validateTranslation(
   // Where a type is read as HTML its tags are not compared, so the
   // placeholders in their attributes are, apart from the text's (#948);
   // elsewhere a tag's attribute text is its identity and says as much.
-  if (options.richText === "html") {
+  const attrErrors = (
+    want: Map<string, string | undefined>,
+    got: Map<string, string | undefined>,
+  ) => {
     const missing = new Set(
       errors.flatMap((e) => (e.code === "missing-placeholder" ? [e.name] : [])),
     );
-    for (const [name, written] of expected.attrPlaceholders)
-      if (!actual.attrPlaceholders.has(name) && !missing.has(name))
+    for (const [name, written] of want)
+      if (!got.has(name) && !missing.has(name))
         errors.push({
           code: "missing-placeholder",
           name,
           ...(written ? { written } : {}),
         });
-    for (const [name, written] of actual.attrPlaceholders)
-      if (
-        !expected.attrPlaceholders.has(name) &&
-        !expectedValues.has(name) &&
-        !passed.has(name)
-      )
+    for (const [name, written] of got)
+      if (!want.has(name) && !expectedValues.has(name) && !passed.has(name))
         errors.push({
           code: "unexpected-placeholder",
           name,
           ...(written ? { written } : {}),
         });
+  };
+  if (options.richText === "html") {
+    attrErrors(expected.attrPlaceholders, actual.attrPlaceholders);
   } else {
     for (const name of expected.tags) {
       if (!actual.tags.has(name)) errors.push({ code: "missing-tag", name });
+      else if (expected.pairs.has(name) && !actual.pairs.has(name))
+        errors.push({ code: "unpaired-tag", name });
     }
     for (const name of actual.tags) {
       if (!expected.tags.has(name))
         errors.push({ code: "unexpected-tag", name });
+    }
+    // Under i18next a tag a source writes as text is text, and so is one
+    // its translation writes as often, the source's unclosed `<p>` or
+    // stray `</br>`; one more, a close, or an open named as a tag of the
+    // source's or HTML's (`<ul> <li>` added to Markdown), is a tag
+    // broken, not prose, while `<sans titre>` is prose. The
+    // placeholders in a prose tag's attributes are the text's, which
+    // i18next fills (#986).
+    if (syntax === "i18next") {
+      const names = new Set(
+        [...expected.tags].map((identity) =>
+          identity.split(" ")[0]!.toLowerCase(),
+        ),
+      );
+      // A pair closed on itself is said once, as that: its first
+      // unclosed open is that pair's, any more are broken besides.
+      const unpaired = new Map<string, number>();
+      for (const e of errors)
+        if (e.code === "unpaired-tag") {
+          const name = e.name.split(" ")[0]!.toLowerCase();
+          unpaired.set(name, (unpaired.get(name) ?? 0) + 1);
+        }
+      const keyOf = (t: ProseTag) =>
+        `${t.close ? "/" : ""}${t.name.toLowerCase()}`;
+      // Counted per branch, a branch's allowance the most any branch of
+      // the same argument has in the source: Polish's four branches may
+      // each keep the `</br>` English's two do; outside every branch, the
+      // text's own count; a place the source keeps none in, a plural
+      // written flat or one the source lacks, the most any one place of
+      // the source keeps.
+      const scopeOf = (t: ProseTag) =>
+        t.branch.length === 0
+          ? ""
+          : [
+              ...t.branch.slice(0, -1),
+              t.branch[t.branch.length - 1]!.split(":")[0]!,
+            ].join("\u0000");
+      const branchOf = (t: ProseTag) => t.branch.join("\u0000");
+      const perBranch = new Map<string, number>();
+      const allowed = new Map<string, number>();
+      const most = new Map<string, number>();
+      for (const t of proseTagsOf(source, syntax)) {
+        const at = `${branchOf(t)}\u0001${keyOf(t)}`;
+        const n = (perBranch.get(at) ?? 0) + 1;
+        perBranch.set(at, n);
+        const scope = `${scopeOf(t)}\u0001${keyOf(t)}`;
+        allowed.set(scope, Math.max(allowed.get(scope) ?? 0, n));
+        most.set(keyOf(t), Math.max(most.get(keyOf(t)) ?? 0, n));
+      }
+      // An element as markup writes one: bare, or with attributes, where
+      // `<em andamento>` is Portuguese for "in progress".
+      const markup = (t: ProseTag) =>
+        isHtmlElement(t.name) &&
+        (t.attrs === undefined || /^(?:\/|[\w:-]+\s*=)/.test(t.attrs));
+      const seen = new Map<string, number>();
+      for (const tag of proseTagsOf(target, syntax)) {
+        const at = `${branchOf(tag)}\u0001${keyOf(tag)}`;
+        const n = (seen.get(at) ?? 0) + 1;
+        seen.set(at, n);
+        const limit =
+          allowed.get(`${scopeOf(tag)}\u0001${keyOf(tag)}`) ??
+          most.get(keyOf(tag)) ??
+          0;
+        if (n <= limit) continue;
+        if (tag.close)
+          errors.push({
+            code: "invalid-icu",
+            where: "target",
+            message: `unexpected </${tag.name}>`,
+            position: tag.at,
+          });
+        else if (names.has(tag.name.toLowerCase()) || markup(tag)) {
+          const name = tag.name.toLowerCase();
+          const left = unpaired.get(name) ?? 0;
+          if (left > 0) {
+            unpaired.set(name, left - 1);
+            continue;
+          }
+          errors.push({
+            code: "invalid-icu",
+            where: "target",
+            message: `unclosed <${tag.name}>`,
+            position: tag.at,
+          });
+        }
+      }
+      // A value a real tag's attribute writes in one and a prose tag's
+      // in the other is a tag broken, said above, not a value moved; one
+      // moved into the text is said once, where it went.
+      const inAttrs = (shape: Shape, name: string) =>
+        shape.attrPlaceholders.has(name);
+      attrErrors(
+        new Map(
+          [...expected.proseAttrPlaceholders].filter(
+            ([name]) =>
+              !inAttrs(actual, name) && !actual.placeholders.has(name),
+          ),
+        ),
+        new Map(
+          [...actual.proseAttrPlaceholders].filter(
+            ([name]) => !inAttrs(expected, name),
+          ),
+        ),
+      );
     }
   }
   errors.push(

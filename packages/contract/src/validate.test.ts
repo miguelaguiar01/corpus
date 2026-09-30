@@ -2124,3 +2124,235 @@ test("a tag with no plural data needs every branch's values, under i18next and r
     });
   }
 });
+
+test("under i18next an unpaired tag is prose, a pair still a tag, and a pair closed on itself wraps nothing (#986)", () => {
+  const prose = 'List of "<GroupID>:<OrgIdOrName>:<Role>" mappings.';
+  expect(validateTranslation(prose, prose, "fr", "i18next")).toEqual({
+    ok: true,
+  });
+  expect(
+    validateTranslation("<no title>", "<sans titre>", "fr", "i18next"),
+  ).toEqual({
+    ok: true,
+  });
+  expect(
+    validateTranslation(
+      "See <0>the docs</0>",
+      "Voir la documentation",
+      "fr",
+      "i18next",
+    ),
+  ).toMatchObject({ ok: false, errors: [{ code: "missing-tag", name: "0" }] });
+  expect(
+    validateTranslation(
+      "See <2>the docs</2>.",
+      "请参阅<2>文档<2/>。",
+      "zh-Hans",
+      "i18next",
+    ),
+  ).toMatchObject({ ok: false, errors: [{ code: "unpaired-tag", name: "2" }] });
+  // ICU's components still refuse an unclosed tag.
+  expect(
+    validateTranslation("<no title>", "<sans titre>", "fr", "icu"),
+  ).toMatchObject({
+    ok: false,
+  });
+});
+
+test("under i18next a translation's broken tag is still found: a close it adds, an open the source's pair lacks its close; a source's own stray close may be kept (#986 review)", () => {
+  const bad = (source: string, target: string) =>
+    validateTranslation(source, target, "cs", "i18next");
+  expect(
+    bad(
+      "The setting <strong>{{s}}</strong> is set",
+      "Nastavení <strong>{{s}}</strong> <strong>je",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "invalid-icu", message: "unclosed <strong>" }],
+  });
+  expect(bad("Removed by {{user_by}}", "</em> {{user_by}} <em>")).toMatchObject(
+    {
+      ok: false,
+      errors: expect.arrayContaining([
+        expect.objectContaining({
+          code: "invalid-icu",
+          message: "unexpected </em>",
+        }),
+      ]),
+    },
+  );
+  expect(bad("See <0>docs</0>", "Voir <0>docs</0> <0>")).toMatchObject({
+    ok: false,
+  });
+  expect(
+    bad("Restart. </br> Then enable.", "Restartujte. </br> Pak povolte."),
+  ).toEqual({
+    ok: true,
+  });
+  // A placeholder in a prose tag's attribute is the text's.
+  expect(bad('Click <a href="{{url}}">here', "Klikněte zde")).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "url" }],
+  });
+});
+
+test("a pair that wraps nothing may be written closed on itself (#986 review)", () => {
+  expect(
+    validateTranslation("Line<br></br>two", "Ligne<br/>deux", "fr", "icu"),
+  ).toEqual({
+    ok: true,
+  });
+  expect(validateTranslation("A <x></x> b", "A <x/> b", "fr", "icu")).toEqual({
+    ok: true,
+  });
+  expect(
+    validateTranslation("A <1></1> b", "A <1/> b", "fr", "i18next"),
+  ).toEqual({
+    ok: true,
+  });
+});
+
+test("under i18next a translation's unclosed HTML element is broken markup, however the source reads, and the source's own unclosed tag may be mirrored (#986 review)", () => {
+  expect(
+    validateTranslation(
+      "You may use:\n - `[name]`",
+      "Brug:\n <ul> <li> [navn]",
+      "da",
+      "i18next",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: expect.arrayContaining([
+      expect.objectContaining({
+        code: "invalid-icu",
+        message: "unclosed <ul>",
+      }),
+    ]),
+  });
+  const email = "<h1>Welcome</h1><p>Hi [name].<p>Bye";
+  expect(
+    validateTranslation(
+      email,
+      "<h1>Hola</h1><p>Hola [name].<p>Adiós",
+      "es",
+      "i18next",
+    ),
+  ).toEqual({
+    ok: true,
+  });
+});
+
+test("an i18next plural's branches are read for prose tags each on its own; prose that starts with an element's name is prose (#986 review 2)", () => {
+  const plural = "{count, plural, one {1 file} other {{{count}} files}}";
+  expect(
+    validateTranslation(
+      plural,
+      "{count, plural, one {1 arquivo </em>} other {{{count}} arquivos <li>}}",
+      "pt",
+      "i18next",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: expect.arrayContaining([
+      expect.objectContaining({ message: "unexpected </em>" }),
+      expect.objectContaining({ message: "unclosed <li>" }),
+    ]),
+  });
+  // The source's own stray </br>, mirrored in each branch.
+  const stray =
+    "{count, plural, one {{{count}} file.</br>} other {{{count}} files.</br>}}";
+  expect(
+    validateTranslation(
+      stray,
+      "{count, plural, one {1 arquivo.</br>} other {{{count}} arquivos.</BR>}}",
+      "pt",
+      "i18next",
+    ),
+  ).toMatchObject({ ok: true });
+  for (const [language, text] of [
+    ["pt", "<em andamento>"],
+    ["es", "<a definir>"],
+    ["cs", "<s přílohami>"],
+  ] as const)
+    expect(
+      validateTranslation("<in progress>", text, language, "i18next"),
+      text,
+    ).toEqual({
+      ok: true,
+    });
+  expect(
+    validateTranslation(
+      "<in progress>",
+      '<a href="x">em andamento',
+      "pt",
+      "i18next",
+    ),
+  ).toMatchObject({ ok: false });
+  expect(
+    validateTranslation("You may use:", "<li / >Можете:", "uk", "i18next"),
+  ).toMatchObject({ ok: false });
+  // A value moved out of a prose attribute into the text is said once.
+  const moved = validateTranslation(
+    'Click <a href="{{url}}">here',
+    "Clique {{url}}",
+    "pt",
+    "i18next",
+  );
+  expect(moved.ok).toBe(false);
+  if (!moved.ok)
+    expect(
+      moved.errors.filter((e) => "name" in e && e.name === "url"),
+    ).toHaveLength(1);
+  // Nine unclosed <p> beside an emptied pair: the pair once, the rest broken.
+  const many = validateTranslation(
+    "<p>Hello</p>",
+    "<p></p><p>a<p>b",
+    "ro",
+    "i18next",
+  );
+  expect(many.ok).toBe(false);
+  if (!many.ok)
+    expect(many.errors.map((e) => e.code)).toEqual(
+      expect.arrayContaining(["unpaired-tag", "invalid-icu"]),
+    );
+});
+
+test("each target branch may keep the prose tags the source's branches do, however many branches the language has (#986 review 3)", () => {
+  const source =
+    "{count, plural, one {1 file </br> ok} other {{{count}} files </br> ok}}";
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, one {1 plik </br> ok} few {{{count}} pliki </br> ok} many {{{count}} plików </br> ok} other {{{count}} pliku </br> ok}}",
+      "pl",
+      "i18next",
+    ),
+  ).toEqual({ ok: true });
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, one {1 plik </br> x </br> ok} few {{{count}} pliki ok} many {{{count}} plików ok} other {{{count}} pliku ok}}",
+      "pl",
+      "i18next",
+    ),
+  ).toMatchObject({ ok: false });
+});
+
+test("a prose tag in a place the source keeps none in may be as many as one place of the source keeps (#986 review 4)", () => {
+  const source =
+    "{count, plural, one {1 file </br> ok} other {{{count}} files </br> ok}}";
+  expect(
+    validateTranslation(source, "{{count}} ファイル </br> ok", "ja", "i18next"),
+  ).toEqual({
+    ok: true,
+  });
+  expect(
+    validateTranslation(
+      "Restart. </br> {{count}} files",
+      "{count, plural, one {Restart. </br> 1 plik} few {Restart. </br> {{count}} pliki} many {Restart. </br> {{count}} plików} other {Restart. </br> {{count}} pliku}}",
+      "pl",
+      "i18next",
+    ),
+  ).toMatchObject({ ok: true });
+});

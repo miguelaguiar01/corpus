@@ -874,3 +874,41 @@ test("an i18next plural family is one string: a target's _few and _many are its 
     n: "{count, plural, other {{{count}} 件}}",
   });
 });
+
+test("under i18next a source's prose tags build, and a stray </br> is named without stopping it (#986)", async () => {
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8")
+      .replace(
+        /sources: \[[\s\S]*?\n {2}\],/,
+        'sources: [{ adapter: "messages", type: "ui", library: "i18next", path: "loc/{lang}.json" }],',
+      )
+      .replace(/languages: \[[^\]]*\]/, 'languages: ["en", "fr"]'),
+  );
+  mkdirSync(path.join(repo, "loc"), { recursive: true });
+  const en = {
+    a: "<no title>",
+    b: "@username <message>",
+    c: "<Redacted>",
+    d: "Restart. </br> Then enable it.",
+    e: "<unknown matchers>",
+    f: "See <0>the docs</0>",
+  };
+  writeFileSync(path.join(repo, "loc", "en.json"), JSON.stringify(en));
+  writeFileSync(
+    path.join(repo, "loc", "fr.json"),
+    JSON.stringify({ a: "<sans titre>", f: "Voir la documentation" }),
+  );
+  const b = ctx();
+  expect(await run(["build", "--out", "snapshot.json"], b)).toBe(0);
+  expect(b.stderr.join("\n")).toContain(
+    "loc/en.json: 1 string(s) write a </br> no <br> opens, which renders as nothing or as its letters; write <br/> (d)",
+  );
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(1);
+  expect(c.stderr.join("\n")).toContain("loc/fr.json:f: missing the <0> tag");
+  expect(c.stderr.join("\n")).not.toContain("loc/fr.json:a:");
+});

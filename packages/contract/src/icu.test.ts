@@ -294,7 +294,7 @@ test("rich-text tags parse as nodes with their children, nest, and self-close; a
       ],
     },
     { kind: "literal", text: ". " },
-    { kind: "tag", name: "icon", children: [] },
+    { kind: "tag", name: "icon", children: [], self: true },
     { kind: "literal", text: " a < b" },
   ]);
   expect([
@@ -317,7 +317,7 @@ test("a tag name may be a number, as react-i18next indexes Trans children", () =
       children: [{ kind: "placeholder", name: "name" }],
     },
     { kind: "literal", text: " " },
-    { kind: "tag", name: "0", children: [] },
+    { kind: "tag", name: "0", children: [], self: true },
   ]);
   expect(parseIcu("<2>x")).toMatchObject({
     ok: false,
