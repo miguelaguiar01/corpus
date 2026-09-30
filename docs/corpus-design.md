@@ -93,16 +93,18 @@ export default defineCorpus({
     //    them (`{ "one": "…", "other": "…" }`, as counterpart,
     //    easy_localization and Rails write a plural), is one string, an
     //    ICU plural on `count` whose branches are the forms as written,
-    //    under the icu, i18next and printf libraries (#662), under
-    //    i18next only with two forms or more, since i18next reads an
-    //    object as its path and Grafana calls `{ "other": "Other" }` as
-    //    `….other` (#984); a pull writes it back as an object with the
+    //    under icu and printf, and under i18next with two forms or more,
+    //    since i18next reads an object as its path and Grafana calls
+    //    `{ "other": "Other" }` as `….other` (#662, #984), so a proposal
+    //    that leaves an i18next plural with `other` alone makes it that
+    //    key on the next push; a pull writes it back as an object with the
     //    target language's forms in CLDR's order. In a target file an
     //    object of categories is such a plural exactly where the source
     //    reads the id as one: there without `other` too (Element's
     //    Polish `{ one, few, many }`, a Japanese `{ other }`), which
     //    validate names for the `other` it lacks and a pull leaves as it
-    //    is (#950), and elsewhere a section of keys (#984). init counts
+    //    is (#950), a removal taking it whole, and elsewhere a section of
+    //    keys (#984). init counts
     //    such an object's forms as the file writes them, never the
     //    plural it is read as, when it picks the library.
     //    Under i18next and printf such a text is read whole as a

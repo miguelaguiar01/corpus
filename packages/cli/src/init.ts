@@ -687,7 +687,9 @@ async function libraryFor(
       texts.push(
         ...entries.flatMap((entry) =>
           objects?.has(entry.id)
-            ? Object.values(pluralBranches(entry.source) ?? {})
+            ? Object.values(
+                pluralBranches(entry.source) ?? { entry: entry.source },
+              )
             : [entry.source],
         ),
       );

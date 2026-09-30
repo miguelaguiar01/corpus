@@ -87,8 +87,9 @@ function leaves(
 function keyPaths(
   tree: Tree,
   plurals: PluralObjects = false,
+  known?: ReadonlySet<string>,
 ): { paths: Map<string, string[]>; pluralIds: Set<string> } {
-  const found = leaves(tree, plurals);
+  const found = leaves(tree, plurals, known);
   return {
     paths: new Map(found.map(([path]) => [path.join("."), path])),
     pluralIds: new Set(
@@ -459,14 +460,20 @@ export type SourceOp =
 export function applyMessagesOps(
   text: string,
   ops: SourceOp[],
-  options: { chrome?: boolean; plurals?: PluralObjects } = {},
+  options: {
+    chrome?: boolean;
+    plurals?: PluralObjects;
+    // A target file's: the ids its source holds as plurals, which its
+    // own objects are, whatever their forms (#984).
+    pluralIds?: ReadonlySet<string>;
+  } = {},
 ): string {
   if (text.trim() === "") text = "{}\n";
   if (options.chrome) return chromeOps(text, ops);
   const tree = parseTree(text);
   const nested = isNested(tree);
   const plurals = options.plurals ?? false;
-  const { paths, pluralIds } = keyPaths(tree, plurals);
+  const { paths, pluralIds } = keyPaths(tree, plurals, options.pluralIds);
   const { indent } = styleOf(text);
   let out = text;
   for (const op of ops) {
