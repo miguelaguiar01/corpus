@@ -336,6 +336,12 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
       [file, kept, config.sourceLanguage],
     ];
     const removals = kept.filter((o) => o.kind === "delete");
+    // The source's plurals before its proposals, which say what a target's
+    // objects are (#984).
+    const pluralIds =
+      removals.length > 0
+        ? await sourcePluralIds(jiti, ctx.cwd, source, config.sourceLanguage)
+        : undefined;
     if (removals.length > 0 && hasLanguages(source)) {
       for (const language of allTargets) {
         files.push([
@@ -354,7 +360,13 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
       }
       let next: string;
       try {
-        next = applyOps(source, existing, targetOps, code);
+        next = applyOps(
+          source,
+          existing,
+          targetOps,
+          code,
+          target === file ? undefined : pluralIds,
+        );
       } catch (error) {
         throw new CliError(
           `${target}: proposal(s) for ${targetOps.map((o) => printable(o.id)).join(", ")}: ${(error as Error).message}`,
@@ -556,6 +568,7 @@ function applyOps(
   existing: string,
   ops: SourceOp[],
   code: string,
+  pluralIds?: ReadonlySet<string>,
 ): string {
   switch (source.adapter) {
     case "android":
@@ -566,6 +579,7 @@ function applyOps(
       return applyMessagesOps(existing, ops, {
         chrome: libraryOf(source) === "chrome",
         plurals: readsPluralObjects(source),
+        ...(pluralIds && { pluralIds }),
       });
     case "xliff":
       return applyXliffOps(existing, ops);

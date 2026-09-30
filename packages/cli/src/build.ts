@@ -24,6 +24,7 @@ import {
   messagesToEntries,
   pluralBranches,
   pluralObjectIds,
+  type PluralObjects,
   RAILS_I18N_VERSION,
   RAILS_PLURALS,
   stripBom,
@@ -683,10 +684,12 @@ export function fileOf(
 
 // A `{ one, other }` object is one plural string (#662) where the
 // library's text can carry one read whole: not vue, whose plurals are
-// pipes, nor Chrome's entries.
-export function readsPluralObjects(source: FileSource): boolean {
+// pipes, nor Chrome's entries; under i18next, only one of two forms or
+// more (#984).
+export function readsPluralObjects(source: FileSource): PluralObjects {
   if (source.adapter !== "messages") return false;
   const library = libraryOf(source);
+  if (library === "i18next") return "several";
   return library === "icu" || WHOLE_PLURAL_LIBRARIES.has(library);
 }
 
@@ -1012,7 +1015,10 @@ export async function sourcePluralIds(
       fileCodeOf(source, sourceLanguage),
     );
   if (source.adapter === "messages" && readsPluralObjects(source))
-    return pluralObjectIds(await readModule(jiti, abs));
+    return pluralObjectIds(
+      await readModule(jiti, abs),
+      readsPluralObjects(source),
+    );
   return undefined;
 }
 

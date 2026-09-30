@@ -4,6 +4,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -1461,4 +1462,34 @@ export default defineCorpus({
   await pullWith(pluralSeeds ?? {});
   for (const [file, text] of Object.entries(plural))
     expect(read(file), file).toBe(text);
+});
+
+test("a removal of an i18next plural takes a target's object with it, however few its forms (#984)", async () => {
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    `export default { project: "pull-fixture", server: process.env.CORPUS_SERVER, sourceLanguage: "en", languages: ["en", "ja"], sources: [{ adapter: "messages", type: "ui", library: "i18next", path: "i18n/{lang}.json" }] };\n`,
+  );
+  writeFileSync(
+    path.join(repo, "i18n/en.json"),
+    `{\n  "calls": {\n    "one": "{{count}} call",\n    "other": "{{count}} calls"\n  },\n  "x": "X"\n}\n`,
+  );
+  writeFileSync(
+    path.join(repo, "i18n/ja.json"),
+    `{\n  "calls": {\n    "other": "{{count}} 件"\n  },\n  "x": "エックス"\n}\n`,
+  );
+  await serve(200, {
+    ...PAYLOAD,
+    types: { calls: "ui", x: "ui" },
+    translations: { en: {}, ja: {} },
+    minState: "untranslated",
+    sourceChanges: [
+      { kind: "delete", id: "calls", type: "ui", file: "i18n/en.json" },
+    ],
+  });
+  expect(await run(["pull"], ctx())).toBe(0);
+  expect(JSON.parse(read("i18n/en.json"))).toEqual({ x: "X" });
+  expect(JSON.parse(read("i18n/ja.json"))).toEqual({ x: "エックス" });
 });

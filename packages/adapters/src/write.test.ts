@@ -1047,3 +1047,25 @@ describe("a target's plural object without other writes back as the file has it 
 `);
   });
 });
+
+test("a pull writes a target's lone other where the source has a key there, never as a plural (#984)", () => {
+  const source = `{\n  "cat": {\n    "other": "Other",\n    "more": "More"\n  }\n}\n`;
+  const target = `{\n  "cat": {\n    "other": "Andere"\n  }\n}\n`;
+  expect(
+    entriesToMessages(source, { "cat.other": "Anderes" }, target, {
+      plurals: true,
+    }),
+  ).toBe(`{\n  "cat": {\n    "other": "Anderes"\n  }\n}\n`);
+  // Under i18next, a lone other in the source is a key too.
+  const lone = `{\n  "cat": {\n    "other": "Other"\n  }\n}\n`;
+  expect(
+    entriesToMessages(
+      lone,
+      { "cat.other": "Andere" },
+      lone.replace("Other", "X"),
+      {
+        plurals: "several",
+      },
+    ),
+  ).toBe(lone.replace("Other", "Andere"));
+});

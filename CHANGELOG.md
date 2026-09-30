@@ -13,6 +13,7 @@ contract (`corpus/1`) is the only one.
 - Switching language on a string page shows that language's own text; the editor no longer keeps the previous language's draft (#979).
 - Gettext files in Cebuano, Manx, Welsh, Filipino, Hebrew and Latvian (older rule), whose `Plural-Forms` cut across CLDR's categories, now show and write every plural form (#982).
 - Rails plurals are checked by the runtime's rule: `zero` is always allowed, and rails-i18n's per-locale rule applies where `Gemfile.lock` lists the gem (#983).
+- A target's section whose keys look like plural categories is read as keys unless the source has a plural there, and under i18next a lone `{ "other": … }` is a key; `init` picks i18next for catalogues with plural objects (#984).
 
 ## [0.21.0] - 2026-09-29
 

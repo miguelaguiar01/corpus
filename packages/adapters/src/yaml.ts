@@ -117,11 +117,14 @@ export function yamlStrings(
         if (typeof value.value === "string")
           out.push({ id: id.join("."), text: value.value, ...note });
       } else if (isMap(value)) {
-        const plural =
-          pluralOf(value) ??
-          (options.pluralIds?.has(id.join("."))
+        // A target's hash of categories is a plural exactly where the
+        // source's is, `other` or not (#950): Mastodon's section
+        // `edit_profile: { other: … }` is a key in its source (#984).
+        const plural = options.pluralIds
+          ? options.pluralIds.has(id.join("."))
             ? pluralOf(value, false)
-            : undefined);
+            : undefined
+          : pluralOf(value);
         if (plural)
           out.push({
             id: id.join("."),

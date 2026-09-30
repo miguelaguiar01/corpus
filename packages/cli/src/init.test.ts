@@ -1712,3 +1712,31 @@ test("init reads a Rails type as HTML where its tags are only HTML's, and names 
   expect(i18njs.out.join("\n")).toMatch(/add richText: \{ ui: "html" \}/);
   expect((await loadConfig(i18njs.dir)).richText).toBeUndefined();
 });
+
+test("a plural object's forms count as the file writes them, so {{ }} in them names i18next: Grafana's lone other, Rocket.Chat's one and other (#984)", async () => {
+  for (const values of [
+    {
+      a: "Olá {{ name }}",
+      b: "{{count}} ficheiros",
+      cat: { other: "Outro" },
+    },
+    {
+      a: "Olá {{ name }}",
+      b: "{{count}} ficheiros",
+      calls: { one: "{{count}} chamada", other: "{{count}} chamadas" },
+    },
+  ]) {
+    const p = project();
+    stubCli(p.dir);
+    mkdirSync(path.join(p.dir, "src", "i18n"), { recursive: true });
+    writeFileSync(
+      path.join(p.dir, "src", "i18n", "pt-PT.json"),
+      JSON.stringify(values),
+    );
+    expect(await run(FLAGS, p.ctx)).toBe(0);
+    const config = await loadConfig(p.dir);
+    expect(config.sources[0], JSON.stringify(values)).toMatchObject({
+      library: "i18next",
+    });
+  }
+});

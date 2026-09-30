@@ -304,3 +304,39 @@ test("in a target, an object of categories at an id the source reads as a plural
     "pair.two",
   ]);
 });
+
+test("a target's object of categories is a plural exactly where the source's is; under i18next a lone other is a key (#984)", () => {
+  // Mastodon's shape: the source's `edit_profile` is a section.
+  const target = {
+    edit_profile: { other: "أخرى" },
+    rooms: { one: "a", other: "b" },
+  };
+  expect(
+    messagesToEntries(target, {
+      type: "ui",
+      plurals: true,
+      pluralIds: new Set(["rooms"]),
+    }).map((e) => e.id),
+  ).toEqual(["edit_profile.other", "rooms"]);
+  // Grafana's `attribute-category: { other: "Other" }`, called as a key.
+  const source = {
+    "attribute-category": { other: "Other" },
+    calls: { one: "{{count}} call", other: "{{count}} calls" },
+  };
+  expect(
+    messagesToEntries(source, { type: "ui", plurals: "several" }).map((e) => [
+      e.id,
+      e.source,
+    ]),
+  ).toEqual([
+    ["attribute-category.other", "Other"],
+    ["calls", "{count, plural, one {{{count}} call} other {{{count}} calls}}"],
+  ]);
+  // A Japanese target's lone other, where the source has the plural.
+  expect(
+    messagesToEntries(
+      { calls: { other: "{{count}} 件" } },
+      { type: "ui", plurals: "several", pluralIds: new Set(["calls"]) },
+    ).map((e) => e.id),
+  ).toEqual(["calls"]);
+});

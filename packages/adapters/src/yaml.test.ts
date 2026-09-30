@@ -739,3 +739,18 @@ test("in a target, a hash of categories at an id the source reads as a plural is
     ),
   ).toBe(`${target}    other: "%{count} pokoju"\n`);
 });
+
+test("a target's hash of categories where the source has a section reads as its keys (#984)", () => {
+  const target = "ar:\n  edit_profile:\n    other: أخرى\n";
+  expect(yamlTranslations(target, "ar", new Set())).toEqual([
+    { id: "edit_profile.other", type: "", source: "أخرى" },
+  ]);
+  const source =
+    "en:\n  edit_profile:\n    other: Other\n    redesign_body: Body\n";
+  expect(
+    entriesToYaml(source, { "edit_profile.other": "أخرى!" }, target, {
+      source: "en",
+      code: "ar",
+    }),
+  ).toBe("ar:\n  edit_profile:\n    other: أخرى!\n");
+});
