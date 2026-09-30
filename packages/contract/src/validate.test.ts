@@ -2356,3 +2356,17 @@ test("a prose tag in a place the source keeps none in may be as many as one plac
     ),
   ).toMatchObject({ ok: true });
 });
+
+test("under android an unpaired tag is prose, as only an escape or CDATA writes one, and a pair is still compared (#987)", () => {
+  expect(
+    validateTranslation(
+      "<Unknown Recipient>",
+      "<Destinataire inconnu>",
+      "fr",
+      "android",
+    ),
+  ).toEqual({ ok: true });
+  expect(
+    validateTranslation("<b>Bold</b> text", "Texte gras", "fr", "android"),
+  ).toMatchObject({ ok: false, errors: [{ code: "missing-tag", name: "b" }] });
+});
