@@ -235,6 +235,20 @@ test("a maintainer takes a string from pushed to verified on a phone", async ({
     page.getByRole("definition").filter({ hasText: /was seen at the window/ }),
   ).toBeVisible();
 
+  // A tab switch by the language bar shows that language's own text,
+  // never what the box held: French has none, English its own (#979).
+  await page.goto(
+    `/p/${moonlightManor.project}/s/skin.seen-at-greenhouse-window?language=en`,
+  );
+  const box = page.getByRole("textbox");
+  await expect(box).toHaveValue(/was seen at the window/);
+  await languageBar.getByRole("link", { name: "fr", exact: true }).click();
+  await page.waitForURL(/language=fr/);
+  await expect(box).toHaveValue("");
+  await languageBar.getByRole("link", { name: "en", exact: true }).click();
+  await page.waitForURL(/language=en/);
+  await expect(box).toHaveValue(/was seen at the window/);
+
   // The fixture's English values: the draft previews as the English
   // sentence, and a chip says what its slot resolves to (§7).
   await page.goto(
