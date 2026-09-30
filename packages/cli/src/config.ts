@@ -156,10 +156,9 @@ export function expandSources(input: CorpusInput, cwd: string): CorpusConfig {
   const seen = new Map<string, string>();
   for (const source of sources) {
     if (source.adapter === "exec") continue;
-    const file = source.path.replaceAll(
-      "{lang}",
-      fileCodeOf(source, input.sourceLanguage),
-    );
+    const file = source.path
+      .replaceAll("{lang}", fileCodeOf(source, input.sourceLanguage))
+      .replace(/\/+$/, "");
     const first = seen.get(file);
     if (first !== undefined) {
       throw new CliError(
