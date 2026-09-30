@@ -18,6 +18,8 @@ import {
   isPluralAt,
   pluralBranches,
   pluralText,
+  suffixFamilies,
+  suffixText,
   type PluralObjects,
 } from "./messages";
 import {
@@ -59,24 +61,51 @@ export function stripBom(text: string): string {
   return text.startsWith("\uFEFF") ? text.slice(1) : text;
 }
 
-type Leaf = [path: string[], value: string, plural: boolean];
+// A leaf's plural: none, an object of forms, or i18next's suffix keys,
+// whose path is the family's, `item` for `item_one` (#985).
+type Leaf = [
+  path: string[],
+  value: string,
+  plural: false | "object" | "suffix",
+];
+
+// i18next's families: off, or on, a target's being `known`, the
+// source's, a source's of its `language`'s categories (#985).
+type Suffix = false | { known?: ReadonlySet<string>; language?: string };
 
 // With `plurals`, a plural object is one leaf, its text the plural
 // string it reads as (#662); at an id of `known`, the source's plurals,
-// one without `other` too (#950).
+// one without `other` too (#950). With `suffix`, so is a family of
+// i18next's plural keys, where its first form is written.
 function leaves(
   tree: Tree,
   plurals: PluralObjects = false,
   known?: ReadonlySet<string>,
+  suffix: Suffix = false,
   path: string[] = [],
   out: Leaf[] = [],
 ): Leaf[] {
+  const families = suffix
+    ? suffixFamilies(tree, path, suffix.known, suffix.language)
+    : new Map<string, Map<string, string>>();
+  const member = new Map<string, string>();
+  for (const [base, forms] of families)
+    for (const key of forms.values()) member.set(key, base);
   for (const [key, value] of Object.entries(tree)) {
+    // A bare key beside its family is no translation of it, and is left.
+    if (families.has(key)) continue;
+    const base = member.get(key);
+    if (base !== undefined) {
+      const forms = families.get(base)!;
+      if ([...forms.values()][0] === key)
+        out.push([[...path, base], suffixText(tree, forms) ?? "", "suffix"]);
+      continue;
+    }
     const at = [...path, key];
     if (typeof value === "string") out.push([at, value, false]);
     else if (isPluralAt(value, at.join("."), plurals, known))
-      out.push([at, pluralText("count", value, "written"), true]);
-    else leaves(value, plurals, known, at, out);
+      out.push([at, pluralText("count", value, "written"), "object"]);
+    else leaves(value, plurals, known, suffix, at, out);
   }
   return out;
 }
@@ -88,13 +117,23 @@ function keyPaths(
   tree: Tree,
   plurals: PluralObjects = false,
   known?: ReadonlySet<string>,
-): { paths: Map<string, string[]>; pluralIds: Set<string> } {
-  const found = leaves(tree, plurals, known);
+  suffix: Suffix = false,
+): {
+  paths: Map<string, string[]>;
+  pluralIds: Set<string>;
+  suffixIds: Set<string>;
+} {
+  const found = leaves(tree, plurals, known, suffix);
+  const ids = (kind: Leaf[2]) =>
+    new Set(
+      found
+        .filter(([, , plural]) => plural === kind)
+        .map(([path]) => path.join(".")),
+    );
   return {
     paths: new Map(found.map(([path]) => [path.join("."), path])),
-    pluralIds: new Set(
-      found.filter(([, , plural]) => plural).map(([path]) => path.join(".")),
-    ),
+    pluralIds: ids("object"),
+    suffixIds: ids("suffix"),
   };
 }
 
@@ -158,6 +197,60 @@ function writePlural(
   return out;
 }
 
+// A plural written as i18next's suffix keys (#985): each form of the
+// text at `base_<category>` beside the family's other keys, a new one
+// where CLDR's order puts it among them. A form the text lacks is left
+// as the file has it, one the language never picks included, save in a
+// file written afresh, `fresh`, where it goes.
+function writeSuffix(
+  text: string,
+  path: string[],
+  plural: string,
+  unit: string,
+  fresh: boolean,
+  order?: (objectPath: string[]) => string[] | undefined,
+  onRefused?: Refusal,
+): string {
+  const forms = formsOf(plural);
+  if (!forms) {
+    onRefused?.(path.join("."), plural);
+    return text;
+  }
+  const parent = path.slice(0, -1);
+  const base = path[path.length - 1]!;
+  const keys = PLURAL_CATEGORIES.map((c) => `${base}_${c}`);
+  const at = parent.join("\u0000");
+  const inOrder = (objectPath: string[]) => {
+    const own = order?.(objectPath);
+    if (objectPath.join("\u0000") !== at) return own;
+    const list = own ?? [];
+    const first = list.findIndex((k) => keys.includes(k));
+    const rest = list.filter((k) => !keys.includes(k));
+    rest.splice(first < 0 ? rest.length : first, 0, ...keys);
+    return rest;
+  };
+  let out = text;
+  for (const [i, form] of PLURAL_CATEGORIES.entries()) {
+    const leaf = [...parent, keys[i]!];
+    const value = forms[form];
+    if (value !== undefined)
+      out =
+        editLeaf(out, leaf, value) ?? addLeaf(out, leaf, value, unit, inOrder);
+    else if (fresh) out = deleteLeaf(out, leaf);
+  }
+  return out;
+}
+
+// A family of suffix keys removed whole.
+function deleteSuffix(text: string, path: string[]): string {
+  const parent = path.slice(0, -1);
+  const base = path[path.length - 1]!;
+  let out = text;
+  for (const form of PLURAL_CATEGORIES)
+    out = deleteLeaf(out, [...parent, `${base}_${form}`]);
+  return out;
+}
+
 function isNested(tree: Tree): boolean {
   return Object.values(tree).some((value) => typeof value !== "string");
 }
@@ -210,12 +303,19 @@ export function entriesToMessages(
     locale?: string;
     chrome?: boolean;
     plurals?: PluralObjects;
+    // i18next's plural keys are one string (#985), a source's of the
+    // categories its language picks.
+    suffixPlurals?: boolean;
+    sourceLanguage?: string;
     onRefused?: Refusal;
   } = {},
 ): string {
   translations = ownRecord(translations);
   if (options.chrome) return chromeMessages(template, translations, existing);
   const plurals = options.plurals ?? false;
+  const suffix: Suffix = options.suffixPlurals
+    ? { ...(options.sourceLanguage && { language: options.sourceLanguage }) }
+    : false;
   const onRefused = options.onRefused;
   const base = existing !== undefined ? existing : template;
   const missing = existing === undefined || existing.trim() === "";
@@ -226,22 +326,26 @@ export function entriesToMessages(
       options.locale,
       plurals,
       onRefused,
+      suffix,
     );
   const baseTree = parseTree(base);
   const style = styleOf(base);
   const nested = isNested(baseTree);
   const sourceTree = parseTree(template);
-  const { paths: sourcePaths, pluralIds: sourcePlurals } = keyPaths(
-    sourceTree,
-    plurals,
-  );
+  const {
+    paths: sourcePaths,
+    pluralIds: sourcePlurals,
+    suffixIds: sourceSuffix,
+  } = keyPaths(sourceTree, plurals, undefined, suffix);
   const order = keyOrder(stripBom(template));
+  const fresh = existing === undefined;
   let text = base;
   const seen = new Set<string>();
   for (const [path, value, plural] of leaves(
     baseTree,
     plurals,
     sourcePlurals,
+    suffix && { ...suffix, known: sourceSuffix },
   )) {
     const id = path.join(".");
     seen.add(id);
@@ -249,26 +353,43 @@ export function entriesToMessages(
     if (next !== undefined) {
       if (next === value) continue;
       text =
-        plural || sourcePlurals.has(id)
-          ? writePlural(text, path, next, style.indent, order, onRefused)
-          : (editLeaf(text, path, next) ?? text);
-    } else if (existing === undefined) {
-      text = plural ? deleteKey(text, path) : deleteLeaf(text, path);
+        plural === "suffix"
+          ? writeSuffix(text, path, next, style.indent, fresh, order, onRefused)
+          : plural || sourcePlurals.has(id)
+            ? writePlural(text, path, next, style.indent, order, onRefused)
+            : (editLeaf(text, path, next) ?? text);
+    } else if (fresh) {
+      text =
+        plural === "suffix"
+          ? deleteSuffix(text, path)
+          : plural
+            ? deleteKey(text, path)
+            : deleteLeaf(text, path);
     }
   }
   for (const id of Object.keys(translations)) {
     if (seen.has(id)) continue;
     const path = sourcePaths.get(id) ?? (nested ? id.split(".") : [id]);
-    text = sourcePlurals.has(id)
-      ? writePlural(
+    text = sourceSuffix.has(id)
+      ? writeSuffix(
           text,
           path,
           translations[id]!,
           style.indent,
+          fresh,
           order,
           onRefused,
         )
-      : addLeaf(text, path, translations[id]!, style.indent, order);
+      : sourcePlurals.has(id)
+        ? writePlural(
+            text,
+            path,
+            translations[id]!,
+            style.indent,
+            order,
+            onRefused,
+          )
+        : addLeaf(text, path, translations[id]!, style.indent, order);
   }
   return text;
 }
@@ -319,6 +440,7 @@ function fromTemplate(
   locale?: string,
   plurals: PluralObjects = false,
   onRefused?: Refusal,
+  suffix: Suffix = false,
 ): string {
   const style = styleOf(template);
   const tree = parseTree(template);
@@ -326,7 +448,7 @@ function fromTemplate(
   const out: Tree = Object.create(null) as Tree;
   if (locale !== undefined) out["@@locale"] = locale.replaceAll("-", "_");
   const seen = new Set<string>();
-  for (const [path, , plural] of leaves(tree, plurals)) {
+  for (const [path, , plural] of leaves(tree, plurals, undefined, suffix)) {
     const id = path.join(".");
     seen.add(id);
     const value = translations[id];
@@ -338,9 +460,13 @@ function fromTemplate(
         onRefused?.(id, value);
         continue;
       }
+      // An object's forms under its key; a family's beside each other.
+      const at = (form: string) =>
+        plural === "suffix"
+          ? [...path.slice(0, -1), `${path[path.length - 1]}_${form}`]
+          : [...path, form];
       for (const form of PLURAL_CATEGORIES)
-        if (forms[form] !== undefined)
-          setPath(out, [...path, form], forms[form]);
+        if (forms[form] !== undefined) setPath(out, at(form), forms[form]);
     }
   }
   for (const id of Object.keys(translations)) {
@@ -464,8 +590,11 @@ export function applyMessagesOps(
     chrome?: boolean;
     plurals?: PluralObjects;
     // A target file's: the ids its source holds as plurals, which its
-    // own objects are, whatever their forms (#984).
+    // own objects are, whatever their forms (#984), and its families.
     pluralIds?: ReadonlySet<string>;
+    // i18next's plural keys are one string (#985).
+    suffixPlurals?: boolean;
+    sourceLanguage?: string;
   } = {},
 ): string {
   if (text.trim() === "") text = "{}\n";
@@ -473,26 +602,50 @@ export function applyMessagesOps(
   const tree = parseTree(text);
   const nested = isNested(tree);
   const plurals = options.plurals ?? false;
-  const { paths, pluralIds } = keyPaths(tree, plurals, options.pluralIds);
+  const suffix = options.suffixPlurals ?? false;
+  const { paths, pluralIds, suffixIds } = keyPaths(
+    tree,
+    plurals,
+    options.pluralIds,
+    suffix && {
+      ...(options.pluralIds && { known: options.pluralIds }),
+      ...(options.sourceLanguage && { language: options.sourceLanguage }),
+    },
+  );
+  // A new plural is written as the file writes its others: as keys, or
+  // as objects in a file that holds objects and no families.
+  const asObjects = pluralIds.size > 0 && suffixIds.size === 0;
+  const newPlural = (op: SourceOp & { text: string }) =>
+    !paths.has(op.id) && pluralBranches(op.text) !== undefined;
   const { indent } = styleOf(text);
+  const refuse = (id: string) => {
+    throw new Error(
+      `messages: ${id} is a plural its object cannot hold (an =N branch, or a brace a form leaves open)`,
+    );
+  };
   let out = text;
   for (const op of ops) {
     const path = paths.get(op.id) ?? (nested ? op.id.split(".") : [op.id]);
     if (op.kind === "delete") {
       // Absent already (a second pull, a target file without the key):
       // nothing to do; the push that lands the removal marks it applied.
-      const next = pluralIds.has(op.id)
-        ? deleteKey(out, path)
-        : deleteLeaf(out, path);
+      const next = suffixIds.has(op.id)
+        ? deleteSuffix(out, path)
+        : pluralIds.has(op.id)
+          ? deleteKey(out, path)
+          : deleteLeaf(out, path);
       out = next === out ? deleteLeaf(out, [op.id]) : next;
-    } else if (pluralIds.has(op.id)) {
+    } else if (
+      suffixIds.has(op.id) ||
+      (suffix && !asObjects && newPlural(op))
+    ) {
+      // A proposed plural, edited or new, is the source's whole plural:
+      // a form it lacks goes (#985).
+      out = writeSuffix(out, path, op.text, indent, true, undefined, refuse);
+    } else if (pluralIds.has(op.id) || (suffix && asObjects && newPlural(op))) {
       // A proposal the object cannot hold fails the file loudly: it is
       // counted written otherwise, and never lands.
-      out = writePlural(out, path, op.text, indent, undefined, (id) => {
-        throw new Error(
-          `messages: ${id} is a plural its object cannot hold (an =N branch, or a brace a form leaves open)`,
-        );
-      });
+      out = writePlural(out, path, op.text, indent, undefined, refuse);
     } else {
       out = editLeaf(out, path, op.text) ?? addLeaf(out, path, op.text, indent);
     }

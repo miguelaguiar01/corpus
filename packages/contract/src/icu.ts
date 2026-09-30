@@ -1413,8 +1413,9 @@ export function pluralCategoriesFor(
     return { required: ["one", "other"], allowed: ["zero", "one", "other"] };
   const cldr = pluralCategoriesOf(language);
   // Ruby's I18n and I18n.js pick `zero` for 0 wherever a plural writes
-  // it, in every language (#983).
-  const zero = (c: string) => library === "rails" && c === "zero";
+  // it, in every language (#983), and so does i18next (#985).
+  const zero = (c: string) =>
+    (library === "rails" || library === "i18next") && c === "zero";
   if (picked && cldr.length > 0)
     return {
       required: [...picked],

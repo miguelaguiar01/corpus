@@ -822,3 +822,55 @@ test("a Qt numerus translation no plural holds is a warning in validate and a no
     "lang/app_pt.ts: 1 translation(s) not seeded: a numerus form Corpus cannot read as one plural",
   );
 });
+
+test("an i18next plural family is one string: a target's _few and _many are its forms, never orphans, and build says the families (#985)", async () => {
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8")
+      .replace(
+        /sources: \[[\s\S]*?\n {2}\],/,
+        'sources: [{ adapter: "messages", type: "ui", library: "i18next", path: "loc/{lang}.json" }],',
+      )
+      .replace(/languages: \[[^\]]*\]/, 'languages: ["en", "pl", "ja"]'),
+  );
+  mkdirSync(path.join(repo, "loc"), { recursive: true });
+  writeFileSync(
+    path.join(repo, "loc", "en.json"),
+    JSON.stringify({ n_one: "{{count}} file", n_other: "{{count}} files" }),
+  );
+  writeFileSync(
+    path.join(repo, "loc", "pl.json"),
+    JSON.stringify({
+      n_one: "{{count}} plik",
+      n_few: "{{count}} pliki",
+      n_many: "{{count}} plików",
+      n_other: "{{count}} pliku",
+    }),
+  );
+  writeFileSync(
+    path.join(repo, "loc", "ja.json"),
+    JSON.stringify({ n_other: "{{count}} 件" }),
+  );
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(0);
+  expect(c.stderr.join("\n")).not.toMatch(/orphan|no longer has/);
+  expect(c.stderr.join("\n")).not.toMatch(/incomplete/);
+  const b = ctx();
+  expect(await run(["build", "--out", "snapshot.json"], b)).toBe(0);
+  expect(b.stderr.join("\n")).toContain(
+    "loc/en.json: 1 i18next plural family read as one string each (n_<category> → n)",
+  );
+  const snapshot = JSON.parse(
+    readFileSync(path.join(repo, "snapshot.json"), "utf8"),
+  ) as {
+    strings: { id: string }[];
+    seedTranslations: Record<string, Record<string, string>>;
+  };
+  expect(snapshot.strings.map((s) => s.id)).toEqual(["n"]);
+  expect(snapshot.seedTranslations.ja).toEqual({
+    n: "{count, plural, other {{{count}} 件}}",
+  });
+});

@@ -340,3 +340,103 @@ test("a target's object of categories is a plural exactly where the source's is;
     ).map((e) => e.id),
   ).toEqual(["calls"]);
 });
+
+test("under i18next a family of suffix keys is one plural; a lone _other, an _ordinal family and a base with its own key stay keys (#985)", () => {
+  const source = {
+    title_one: "{{count}} source",
+    title_other: "{{count}} sources",
+    gender_other: "Other",
+    place_ordinal_one: "{{count}}st",
+    place_ordinal_other: "{{count}}th",
+    item: "Item",
+    item_one: "one item",
+    item_other: "items",
+  };
+  expect(
+    messagesToEntries(source, { type: "ui", suffixPlurals: true }).map((e) => [
+      e.id,
+      e.source,
+    ]),
+  ).toEqual([
+    [
+      "title",
+      "{count, plural, one {{{count}} source} other {{{count}} sources}}",
+    ],
+    ["gender_other", "Other"],
+    ["place_ordinal_one", "{{count}}st"],
+    ["place_ordinal_other", "{{count}}th"],
+    ["item", "Item"],
+    ["item_one", "one item"],
+    ["item_other", "items"],
+  ]);
+  // A Polish target's forms are the source's family, a blank one none,
+  // _zero among them.
+  const pl = {
+    title_one: "{{count}} źródło",
+    title_few: "{{count}} źródła",
+    title_many: "",
+    title_other: "{{count}} źródeł",
+    title_zero: "brak",
+  };
+  expect(
+    messagesToEntries(pl, {
+      type: "ui",
+      suffixPlurals: true,
+      pluralIds: new Set(["title"]),
+    }),
+  ).toEqual([
+    {
+      id: "title",
+      type: "ui",
+      source:
+        "{count, plural, zero {brak} one {{{count}} źródło} few {{{count}} źródła} other {{{count}} źródeł}}",
+    },
+  ]);
+});
+
+test("a natural key's family of blanks is one string whose key is its text; a source family's forms are its language's; a bare key beside a target's family is none of its (#985 review)", () => {
+  expect(
+    messagesToEntries(
+      {
+        "You have {{count}} items_one": "",
+        "You have {{count}} items_other": "",
+      },
+      {
+        type: "ui",
+        suffixPlurals: true,
+        keyIsText: true,
+        sourceLanguage: "en",
+      },
+    ),
+  ).toEqual([
+    {
+      id: "You have {{count}} items",
+      type: "ui",
+      source: "You have {{count}} items",
+      keyIsText: true,
+    },
+  ]);
+  expect(
+    messagesToEntries(
+      { reason_one: "a", reason_two: "b", reason_other: "c" },
+      { type: "ui", suffixPlurals: true, sourceLanguage: "en" },
+    ).map((e) => e.id),
+  ).toEqual(["reason_one", "reason_two", "reason_other"]);
+  expect(
+    messagesToEntries(
+      {
+        item: "{{count}} Element",
+        item_one: "{{count}} Element",
+        item_other: "{{count}} Elemente",
+      },
+      { type: "ui", suffixPlurals: true, pluralIds: new Set(["item"]) },
+    ),
+  ).toEqual([
+    {
+      id: "item",
+      type: "ui",
+      source:
+        "{count, plural, one {{{count}} Element} other {{{count}} Elemente}}",
+    },
+  ]);
+});

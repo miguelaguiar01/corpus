@@ -2002,3 +2002,125 @@ test("under rails, zero is never a branch the runtime does not pick; rails-i18n'
     incomplete: [{ code: "unexpected-category", key: "zero" }],
   });
 });
+
+test("under i18next, zero is a branch in every language, as i18next picks _zero for 0 (#985)", () => {
+  const source =
+    "{count, plural, one {{{count}} call} other {{{count}} calls}}";
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, zero {Keine} one {{{count}} Anruf} other {{{count}} Anrufe}}",
+      "de",
+      "i18next",
+    ),
+  ).toEqual({ ok: true });
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, one {{{count}} x} few {{{count}} y} other {{{count}} z}}",
+      "pl",
+      "i18next",
+    ),
+  ).toMatchObject({ incomplete: [{ code: "missing-category", key: "many" }] });
+});
+
+test("in a language whose only category is other, a value only another source branch prints is not missed (#985)", () => {
+  const source =
+    '{count, plural, one {Delete "{{name}}"?} other {Delete {{count}} variables?}}';
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, other {{{count}}件の変数を削除しますか？}}",
+      "ja",
+      "i18next",
+    ),
+  ).toEqual({ ok: true });
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, other {削除しますか？}}",
+      "ja",
+      "i18next",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "count" }],
+  });
+  // German has one: there it is needed.
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, one {Löschen?} other {{{count}} löschen?}}",
+      "de",
+      "i18next",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "name" }],
+  });
+});
+
+test("a value only a source branch the library never picks prints is not missed, and one it picks is, whatever CLDR says (#985 review)", () => {
+  const icu =
+    '{count, plural, =1 {Delete "{name}"?} one {Delete "{name}"?} other {Delete # items?}}';
+  // ICU in Japanese: =1 is always picked, so its {name} is needed.
+  expect(
+    validateTranslation(
+      icu,
+      "{count, plural, other {#件を削除しますか？}}",
+      "ja",
+      "icu",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "name" }],
+  });
+  // counterpart picks one for 1 in every language, Japanese included.
+  const cp =
+    "{count, plural, one {Delete %(name)s?} other {Delete %(count)s items?}}";
+  expect(
+    validateTranslation(
+      cp,
+      "{count, plural, other {%(count)s件を削除}}",
+      "ja",
+      "counterpart",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "name" }],
+  });
+  // printf under a gettext file that picks one and other.
+  const pf = "{count, plural, one {Delete %s?} other {Delete %d items?}}";
+  expect(
+    validateTranslation(
+      pf,
+      "{count, plural, one {%s?} other {%d件}}",
+      "ja",
+      "printf",
+      {
+        pluralForms: ["one", "other"],
+      },
+    ),
+  ).toEqual({ ok: true });
+});
+
+test("a tag with no plural data needs every branch's values, under i18next and rails too (#985 review)", () => {
+  for (const [library, name] of [
+    ["i18next", "{{name}}"],
+    ["rails", "%{name}"],
+  ] as const) {
+    const source =
+      `{count, plural, one {Delete ${name}?} other {Delete {count} items?}}`.replace(
+        "{count} items",
+        library === "i18next" ? "{{count}} items" : "%{count} items",
+      );
+    const target = `{count, plural, one {x} other {${library === "i18next" ? "{{count}}" : "%{count}"} y}}`;
+    expect(
+      validateTranslation(source, target, "kz", library),
+      library,
+    ).toMatchObject({
+      ok: false,
+      errors: [{ code: "missing-placeholder" }],
+    });
+  }
+});

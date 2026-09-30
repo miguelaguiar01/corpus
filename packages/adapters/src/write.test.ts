@@ -1069,3 +1069,135 @@ test("a pull writes a target's lone other where the source has a key there, neve
     ),
   ).toBe(lone.replace("Other", "Andere"));
 });
+
+describe("i18next's plural keys are written as the family they are (#985)", () => {
+  const source = `{\n  "a": {\n    "title_one": "{{count}} source",\n    "title_other": "{{count}} sources",\n    "next": "Next"\n  }\n}\n`;
+  const pl = `{\n  "a": {\n    "title_one": "{{count}} źródło",\n    "title_other": "{{count}} źródeł",\n    "next": "Dalej"\n  }\n}\n`;
+  const opts = { plurals: "several" as const, suffixPlurals: true };
+  test("a draft's new forms go beside the family, in CLDR's order, and nothing else changes", () => {
+    expect(
+      entriesToMessages(
+        source,
+        {
+          "a.title":
+            "{count, plural, one {{{count}} źródło} few {{{count}} źródła} many {{{count}} źródeł} other {{{count}} źródła!}}",
+        },
+        pl,
+        opts,
+      ),
+    ).toBe(
+      `{\n  "a": {\n    "title_one": "{{count}} źródło",\n    "title_few": "{{count}} źródła",\n    "title_many": "{{count}} źródeł",\n    "title_other": "{{count}} źródła!",\n    "next": "Dalej"\n  }\n}\n`,
+    );
+  });
+  test("its own forms pulled back change nothing; a form the text lacks stays", () => {
+    const ja = `{\n  "a": {\n    "title_one": "{{count}} 件",\n    "title_other": "{{count}} 件",\n    "next": "次"\n  }\n}\n`;
+    expect(
+      entriesToMessages(
+        source,
+        {
+          "a.title": "{count, plural, one {{{count}} 件} other {{{count}} 件}}",
+          "a.next": "次",
+        },
+        ja,
+        opts,
+      ),
+    ).toBe(ja);
+    expect(
+      entriesToMessages(
+        source,
+        { "a.title": "{count, plural, other {{{count}} 件!}}" },
+        ja,
+        opts,
+      ),
+    ).toBe(
+      ja.replace(
+        '"title_other": "{{count}} 件"',
+        '"title_other": "{{count}} 件!"',
+      ),
+    );
+  });
+  test("a file started from the template holds the text's forms alone", () => {
+    expect(
+      JSON.parse(
+        entriesToMessages(
+          source,
+          { "a.title": "{count, plural, other {{{count}} 件}}" },
+          undefined,
+          opts,
+        ),
+      ),
+    ).toEqual({ a: { title_other: "{{count}} 件" } });
+  });
+  test("a removal takes the family whole, from a target however few its forms; a proposed plural is written as keys", () => {
+    const ja = `{\n  "a": {\n    "title_other": "{{count}} 件",\n    "next": "次"\n  }\n}\n`;
+    expect(
+      JSON.parse(
+        applyMessagesOps(ja, [{ kind: "delete", id: "a.title" }], {
+          ...opts,
+          pluralIds: new Set(["a.title"]),
+        }),
+      ),
+    ).toEqual({ a: { next: "次" } });
+    expect(
+      JSON.parse(
+        applyMessagesOps(
+          source,
+          [
+            {
+              kind: "add",
+              id: "a.files",
+              text: "{count, plural, one {{{count}} file} other {{{count}} files}}",
+            },
+            {
+              kind: "edit",
+              id: "a.title",
+              text: "{count, plural, other {{{count}} sources}}",
+            },
+          ],
+          opts,
+        ),
+      ),
+    ).toEqual({
+      a: {
+        title_other: "{{count}} sources",
+        next: "Next",
+        files_one: "{{count}} file",
+        files_other: "{{count}} files",
+      },
+    });
+  });
+});
+
+test("a pull leaves a bare key beside a target's family, and a proposed plural in a file of objects is an object (#985 review)", () => {
+  const source = `{\n  "item_one": "{{count}} item",\n  "item_other": "{{count}} items"\n}\n`;
+  const de = `{\n  "item": "Alt",\n  "item_one": "{{count}} Element",\n  "item_other": "{{count}} Elemente"\n}\n`;
+  expect(
+    entriesToMessages(
+      source,
+      {
+        item: "{count, plural, one {{{count}} Element} other {{{count}} Elemente!}}",
+      },
+      de,
+      { plurals: "several", suffixPlurals: true, sourceLanguage: "en" },
+    ),
+  ).toBe(de.replace('Elemente"', 'Elemente!"'));
+  const objects = `{\n  "calls": {\n    "one": "{{count}} call",\n    "other": "{{count}} calls"\n  }\n}\n`;
+  expect(
+    JSON.parse(
+      applyMessagesOps(
+        objects,
+        [
+          {
+            kind: "add",
+            id: "files",
+            text: "{count, plural, one {{{count}} file} other {{{count}} files}}",
+          },
+        ],
+        { plurals: "several", suffixPlurals: true, sourceLanguage: "en" },
+      ),
+    ),
+  ).toEqual({
+    calls: { one: "{{count}} call", other: "{{count}} calls" },
+    files: { one: "{{count}} file", other: "{{count}} files" },
+  });
+});
