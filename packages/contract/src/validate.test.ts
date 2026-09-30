@@ -2124,3 +2124,37 @@ test("a tag with no plural data needs every branch's values, under i18next and r
     });
   }
 });
+
+test("under i18next an unpaired tag is prose, a pair still a tag, and a pair closed on itself wraps nothing (#986)", () => {
+  const prose = 'List of "<GroupID>:<OrgIdOrName>:<Role>" mappings.';
+  expect(validateTranslation(prose, prose, "fr", "i18next")).toEqual({
+    ok: true,
+  });
+  expect(
+    validateTranslation("<no title>", "<sans titre>", "fr", "i18next"),
+  ).toEqual({
+    ok: true,
+  });
+  expect(
+    validateTranslation(
+      "See <0>the docs</0>",
+      "Voir la documentation",
+      "fr",
+      "i18next",
+    ),
+  ).toMatchObject({ ok: false, errors: [{ code: "missing-tag", name: "0" }] });
+  expect(
+    validateTranslation(
+      "See <2>the docs</2>.",
+      "请参阅<2>文档<2/>。",
+      "zh-Hans",
+      "i18next",
+    ),
+  ).toMatchObject({ ok: false, errors: [{ code: "unpaired-tag", name: "2" }] });
+  // ICU's components still refuse an unclosed tag.
+  expect(
+    validateTranslation("<no title>", "<sans titre>", "fr", "icu"),
+  ).toMatchObject({
+    ok: false,
+  });
+});

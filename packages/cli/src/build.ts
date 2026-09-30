@@ -268,6 +268,21 @@ export async function buildSnapshotReport(
         `${file}: ${keyed} string(s) have an empty value and take the key as the text; a proposal on them is refused, since the text is the key`,
       );
     }
+    // i18next reads a `</br>` no `<br>` opens as text, which `Trans`
+    // renders as nothing and `t()` as the letters: a source defect to
+    // name, never to refuse (#986).
+    if (sourceLibrary(source) === "i18next") {
+      const stray = entries.filter((e) =>
+        /(?<!<br\s*\/?>)<\/br\s*>/i.test(e.source),
+      );
+      if (stray.length > 0)
+        notes.push(
+          `${file}: ${stray.length} string(s) write a </br> no <br> opens, which renders as nothing or as its letters; write <br/> (${stray
+            .slice(0, 3)
+            .map((e) => printable(e.id))
+            .join(", ")}${stray.length > 3 ? ", …" : ""})`,
+        );
+    }
     // A family's keys were strings of their own before 0.22 (#985).
     if (readsSuffixPlurals(source)) {
       const families = suffixPluralIds(

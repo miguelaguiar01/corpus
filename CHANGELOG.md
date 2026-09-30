@@ -15,6 +15,7 @@ contract (`corpus/1`) is the only one.
 - Rails plurals are checked by the runtime's rule: `zero` is always allowed, and rails-i18n's per-locale rule applies where `Gemfile.lock` lists the gem (#983).
 - A target's section whose keys look like plural categories is read as keys unless the source has a plural there, and under i18next a lone `{ "other": … }` is a key; `init` picks i18next for catalogues with plural objects (#984).
 - i18next plural keys (`item_one`, `item_other`) are one string per family, so each language gets its own forms (Polish `few` and `many`) and `_zero` is always allowed; pull translations before the first 0.22 push, which re-reads these families from the files (#985).
+- Under i18next an unpaired tag such as `<no title>` is text, not a refusal, while `Trans` tags are still compared and `<2/>` for `<2>…</2>` is caught (#986).
 
 ## [0.21.0] - 2026-09-29
 

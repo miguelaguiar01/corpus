@@ -32,12 +32,14 @@ export type IcuNode =
   // `attrPlaceholders` are the placeholders written in it, which a type
   // read as HTML, whose tags a translation writes its own way, still
   // keeps apart from the text's own (#948).
+  // `self`: written closed on itself, `<2/>`, which wraps nothing.
   | {
       kind: "tag";
       name: string;
       attrs?: string;
       attrPlaceholders?: IcuNode[];
       children: IcuNode[];
+      self?: true;
     }
   // vue-i18n's pipe plural: `one | other`, positional, with no argument
   // because the count is passed at render time rather than named in the
@@ -427,6 +429,7 @@ class Parser {
             tag.kind === "self"
               ? []
               : this.parseSequence(inBranch, pluralArg, tag.name),
+          ...(tag.kind === "self" && { self: true as const }),
         });
         seq.literalStart = this.pos;
         continue;
@@ -1253,6 +1256,8 @@ export type Shape = {
   selects: Map<string, Set<string>>;
   plurals: Map<string, Set<string>>;
   tags: Set<string>;
+  // The tags that wrap text, a pair and not closed on itself (#986).
+  pairs: Set<string>;
   // The placeholders written in tags' attributes, each as written where
   // the library writes it (#948).
   attrPlaceholders: Map<string, string | undefined>;
@@ -1274,6 +1279,7 @@ export function shapeOf(
     selects: new Map(),
     plurals: new Map(),
     tags: new Set(),
+    pairs: new Set(),
     attrPlaceholders: new Map(),
     written: new Map(),
     verbs: [],
@@ -1302,6 +1308,7 @@ export function shapeOf(
           shape.attrPlaceholders.set(attr.name, attr.written);
     if (node.kind === "tag") {
       shape.tags.add(tagIdentity(node));
+      if (!node.self) shape.pairs.add(tagIdentity(node));
       shapeOf(node.children, shape);
     }
     // A form's placeholders are the message's; how many forms there are

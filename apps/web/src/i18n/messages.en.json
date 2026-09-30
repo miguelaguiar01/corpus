@@ -29,6 +29,7 @@
   "editor.changedVerb": "{actual} at position {name} is {expected} in the source; a verb that moved needs its index, {indexed}",
   "editor.changedVerbType": "{actual} at position {name} where the source has {expected}",
   "editor.missingTag": "Missing the <{name}> tag",
+  "editor.unpairedTag": "<{name}/> wraps nothing where the source's <{name}>…</{name}> wraps text",
   "editor.noLanguageMatches": "No language matches.",
   "editor.pickLanguage": "Pick a language",
   "editor.placeholders": "Insert a placeholder",

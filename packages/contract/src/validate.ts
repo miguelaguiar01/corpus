@@ -60,6 +60,9 @@ export type ValidationError =
       actual: string | null;
     }
   | { code: "missing-tag"; name: string }
+  // The source's pair written closed on itself, `<2/>` for `<2>…</2>`,
+  // which wraps nothing (#986).
+  | { code: "unpaired-tag"; name: string }
   | { code: "unexpected-tag"; name: string }
   // printf (#594): the verb at a position prints another type than the
   // source's (`%s` where the source has `%d`), which is what a verb
@@ -211,13 +214,17 @@ export function hasVoidTags(syntax: Library, richText?: RichText): boolean {
 }
 
 // How a type's text reads its tags: "markup" for a type read as HTML,
-// where a tag that never closes is text, as a browser reads it (#755);
-// else whether void elements open nothing.
+// where a tag that never closes is text, as a browser reads it (#755),
+// and under i18next, whose `t()` text React escapes and whose `Trans`
+// renders only a tag that closes (#986), its tags still compared; else
+// whether void elements open nothing.
 export function tagMode(
   syntax: Library,
   richText?: RichText,
 ): boolean | "markup" {
-  return richText === "html" ? "markup" : hasVoidTags(syntax, richText);
+  return richText === "html" || syntax === "i18next"
+    ? "markup"
+    : hasVoidTags(syntax, richText);
 }
 
 // The libraries whose placeholders are written verbs (`%s`, `%(n)s`,
@@ -435,6 +442,8 @@ export function validateTranslation(
   } else {
     for (const name of expected.tags) {
       if (!actual.tags.has(name)) errors.push({ code: "missing-tag", name });
+      else if (expected.pairs.has(name) && !actual.pairs.has(name))
+        errors.push({ code: "unpaired-tag", name });
     }
     for (const name of actual.tags) {
       if (!expected.tags.has(name))

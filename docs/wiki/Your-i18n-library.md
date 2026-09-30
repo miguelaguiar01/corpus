@@ -62,13 +62,15 @@ export default defineCorpus({
 });
 ```
 
-Three things differ from ICU, and Corpus handles all three:
+Four things differ from ICU, and Corpus handles all four:
 
 **Interpolation is `{{name}}`**, with or without spaces, and a format after a comma is ignored. A single brace is text. The unescaped form `{{- name}}` is its own placeholder, kept apart from `{{name}}`, because i18next inserts one raw and escapes the other, and a translation that swaps them changes what the user sees.
 
 **Plurals are suffix keys**, not arguments: `item_one` and `item_other`, and in Polish `_few` and `_many` too. Corpus reads a family of them as one string, `item`, a plural whose branches are the forms, so a Polish translator gets `few` and `many` to write though the English file has neither, a Japanese one needs only `other`, and a pull writes each branch back to its own key, a new one beside the family's. `_zero` is a branch in every language, as i18next picks it for 0. A key the file also holds bare (`item` beside `item_one`), an `_ordinal` family and a lone `_other` stay keys of their own. Before 0.22 each suffixed key was a string of its own: pull what Corpus holds before the first 0.22 push, since the push archives those rows and reads each family afresh from the files. An object of two forms or more, `{ "one": "…", "other": "…" }`, which a build step turns into suffix keys (Rocket.Chat's), is read as one plural; a lone `{ "other": "…" }` is a key, as i18next reads it.
 
 **Keys are often the English sentence**, spaces, punctuation and all. That works: a string id is any text without control characters. When the English file holds `""` as the value, as i18next-parser writes it and the app falls back to the key, Corpus reads the key as the text: the string page shows the sentence, the placeholders in it are checked, and `push` says how many strings took the key. A proposal on such a string is refused with the reason, "the text of `<key>` is its key: change it in the code that calls t(), and the catalogue follows", on the string page, the API and the MCP tools alike; `get_string` carries `keyIsText` so an agent knows before it tries.
+
+**Tags are `Trans`'s**, compared between source and translation: `<0>the docs</0>` needs its `<0>…</0>`, and `<2/>` in its place wraps nothing and is refused. A tag that never closes is text, as `t()` returns it for React to escape: `<no title>` or `"<GroupID>:<Role>"` needs no `richText`, so declare `richText: { ui: "html" }` only for a type the app really renders as HTML, since it stops the tag comparison. A `</br>` no `<br>` opens renders as nothing; `corpus build` names it.
 
 `<Trans>` is a catalogue call, so `corpus check` does not report the text inside it.
 

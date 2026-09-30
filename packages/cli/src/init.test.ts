@@ -1671,7 +1671,8 @@ test("init reads a Rails type as HTML where its tags are only HTML's, and names 
   expect((await loadConfig(react.dir)).richText).toBeUndefined();
 
   // A yaml source of another library is not Rails': its tags may be
-  // components, as react-i18next's <1> is, so init only says it.
+  // components, as FormatJS's <1> is, so init only says it. (Under
+  // i18next an unclosed tag is text already, #986.)
   const i18next = project();
   stubCli(i18next.dir);
   mkdirSync(path.join(i18next.dir, "config", "locales"), { recursive: true });
@@ -1684,7 +1685,7 @@ test("init reads a Rails type as HTML where its tags are only HTML's, and names 
       [
         ...args("config/locales/client.{lang}.yml"),
         "--library",
-        "i18next",
+        "icu",
         "--type",
         "ui-text",
         "--languages",

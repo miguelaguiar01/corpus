@@ -68,6 +68,8 @@ export function validationMessage(
           });
     case "missing-tag":
       return t("editor.missingTag", { name: error.name });
+    case "unpaired-tag":
+      return t("editor.unpairedTag", { name: error.name });
     case "unexpected-tag":
       return t("editor.unexpectedTag", { name: error.name });
     case "invalid-icu":
