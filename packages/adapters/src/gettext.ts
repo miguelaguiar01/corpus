@@ -879,13 +879,13 @@ export function entriesToGettext(
   const unchanged = (entry: PoEntry, text: string) => {
     if (entry.msgidPlural === undefined || entry.flags.includes("fuzzy"))
       return false;
-    const read = pluralBranches(
-      poPluralText(
-        entry.msgstr.map((t) => t ?? ""),
-        indexes,
-        categories,
-      ),
+    const reading = poPluralText(
+      entry.msgstr.map((t) => t ?? ""),
+      indexes,
+      categories,
     );
+    if (reading === text) return true;
+    const read = pluralBranches(reading);
     const wanted = pluralBranches(text);
     return (
       read !== undefined &&
