@@ -135,7 +135,7 @@ export function expandSources(input: CorpusInput, cwd: string): CorpusConfig {
       const names = namespacesOf(
         cwd,
         source.adapter === "android"
-          ? `${pattern}/values/strings.xml`
+          ? `${pattern.replace(/\/+$/, "")}/values/strings.xml`
           : pattern,
         fileCodeOf(source, input.sourceLanguage),
       );
