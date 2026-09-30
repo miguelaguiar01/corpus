@@ -3,7 +3,7 @@
 // categories through the file's `Plural-Forms`.
 import {
   PLURAL_CATEGORIES,
-  type PluralCategory,
+  REMOVED_PLURAL_CATEGORIES,
   type StringEntry,
 } from "@corpus/contract";
 import { GETTEXT_PLURALS } from "./gettextplurals";
@@ -409,6 +409,73 @@ function majorityOf(found: Tally, order: string[]): (string | undefined)[] {
   });
 }
 
+type Table = ReturnType<typeof pluralTable> & {
+  // The file's own keys, where CLDR's leave a form unread (#982).
+  own: boolean;
+  // A form no key fits: the file's plurals are not read.
+  unread: boolean;
+};
+
+// A gettext file's table: CLDR's categories where they read every form
+// an integer reaches, as `pluralTable` maps them. Where one is left
+// unread (Cebuano's `(n != 1)`, whose `one` holds 1, 2, 3, 5, …), the
+// forms are keyed as the file picks them, so ICU picks the same text
+// for every integer: the form most integers reach is `other`; another
+// is the CLDR category whose integers are exactly its own, else one
+// CLDR dropped for the language (Hebrew's many), else `=k` where k
+// alone reaches it; one no key fits leaves the file's plurals unread.
+function gettextTable(language: string, forms: string | undefined): Table {
+  const table = pluralTable(language, forms);
+  const reach = reachOf(forms);
+  if (
+    !reach ||
+    table.categories.every((c, i) => c !== undefined || reach[i]!.length === 0)
+  )
+    return { ...table, own: false, unread: false };
+  const rules = rulesOf(language);
+  const other = reach.reduce(
+    (best, r, i) => (r.length > reach[best]!.length ? i : best),
+    0,
+  );
+  const removed = Object.entries(
+    REMOVED_PLURAL_CATEGORIES[language.split(/[-_@]/)[0]!.toLowerCase()] ?? {},
+  );
+  const keys = reach.map((integers, i) => {
+    if (i === other) return "other";
+    if (integers.length === 0) return undefined;
+    const held = new Set(integers);
+    const exactly = (test: (n: number) => boolean) =>
+      INTEGERS.every((n) => test(n) === held.has(n));
+    return (
+      cldrOrder(rules).find(
+        (c) => c !== "other" && exactly((n) => rules.select(n) === c),
+      ) ??
+      removed.find(([, test]) => exactly(test))?.[0] ??
+      (integers.length === 1 ? `=${integers[0]}` : null)
+    );
+  });
+  const categories = keys.map((k) => k ?? undefined);
+  return {
+    indexes: new Map(categories.flatMap((k, i) => (k ? [[k, i]] : []))),
+    categories,
+    majority: categories,
+    own: true,
+    unread: keys.includes(null),
+  };
+}
+
+// The integers the file's expression sends to each index; undefined
+// with no expression to go by.
+function reachOf(forms: string | undefined): number[][] | undefined {
+  const nplurals = Number(/nplurals\s*=\s*(\d+)/.exec(forms ?? "")?.[1] ?? 0);
+  const plural =
+    forms && nplurals > 0 ? pluralFunction(forms, nplurals) : undefined;
+  if (!plural) return undefined;
+  const reach = Array.from({ length: nplurals }, () => [] as number[]);
+  for (const n of INTEGERS) reach[plural(n)]!.push(n);
+  return reach;
+}
+
 // A plural entry's forms as one ICU plural on `count`, a branch for
 // every category the language has, each the form its index names.
 // `picked`, a target file's: the categories its `Plural-Forms` reads a
@@ -419,7 +486,10 @@ export function poPluralText(
   indexes: Map<string, number>,
   picked?: readonly (string | undefined)[],
 ): string {
-  const ordered = PLURAL_CATEGORIES.filter(
+  const exact = [...indexes.keys()]
+    .filter((k) => k.startsWith("="))
+    .sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
+  const ordered = [...exact, ...PLURAL_CATEGORIES].filter(
     (c) => indexes.has(c) && (!picked || c === "other" || picked.includes(c)),
   );
   const branch = (c: string) =>
@@ -465,11 +535,14 @@ export function gettextToEntries(
 // A target file's translations: the entries someone translated, a
 // fuzzy one being a guess still to check, a plural as one ICU plural in
 // the language's categories.
+// A plural whose forms no key fits is not read, and named through
+// `onUnread` (#982).
 export function gettextTranslations(
   text: string,
   language: string,
+  onUnread?: (id: string) => void,
 ): StringEntry[] {
-  return poTexts(text, language, false);
+  return poTexts(text, language, false, onUnread);
 }
 
 // The categories a target file's `Plural-Forms` can pick, one for each
@@ -481,14 +554,20 @@ export function gettextTranslations(
 export function gettextPluralCategories(
   text: string | undefined,
   language: string,
-): PluralCategory[] {
+): string[] {
   const rule = pluralRuleOf(language);
   const forms =
     text !== undefined && text.trim() !== ""
       ? poHeader(parsePo(text))["Plural-Forms"]
       : rule && `nplurals=${rule.nplurals}; plural=${rule.plural};`;
-  const written = pluralTable(language, forms).categories;
-  return PLURAL_CATEGORIES.filter((c) => written.includes(c));
+  const written = gettextTable(language, forms).categories;
+  const exact = written
+    .filter((k) => k?.startsWith("="))
+    .sort((a, b) => Number(a!.slice(1)) - Number(b!.slice(1)));
+  return [
+    ...(exact as string[]),
+    ...PLURAL_CATEGORIES.filter((c) => written.includes(c)),
+  ];
 }
 
 // A target file's fuzzy entries, msgmerge's guesses: not translations,
@@ -504,11 +583,12 @@ function poTexts(
   text: string,
   language: string,
   fuzzy: boolean,
+  onUnread?: (id: string) => void,
 ): StringEntry[] {
   const entries = parsePo(text);
   // The config's tag says the language; the header's code may be one
   // the runtime cannot read (`sr@latin`).
-  const { indexes, categories } = pluralTable(
+  const { indexes, categories, unread } = gettextTable(
     language,
     poHeader(entries)["Plural-Forms"],
   );
@@ -520,6 +600,10 @@ function poTexts(
         return t === "" ? [] : [{ id: poId(e), type: "", source: t }];
       }
       if (e.msgstr.every((t) => (t ?? "") === "")) return [];
+      if (unread) {
+        onUnread?.(poId(e));
+        return [];
+      }
       return [
         {
           id: poId(e),
@@ -740,12 +824,26 @@ function withoutObsolete(text: string): string {
 function wantedForms(
   entry: PoEntry,
   text: string,
-  categories: (string | undefined)[],
-  majority: (string | undefined)[],
+  { categories, majority, own }: Table,
+  rules: Intl.PluralRules,
 ): (string | undefined)[] | undefined {
   if (entry.msgidPlural === undefined) return [text];
-  const branches = pluralBranches(text);
+  const branches = pluralBranches(text, true, true);
   if (!branches) return undefined;
+  // A key the text lacks keeps a form the file holds, a seed read before
+  // the file's own keys among them; an empty or missing one takes the
+  // branch ICU picks there, `=1`'s the category 1 is (#982).
+  if (own)
+    return categories.map((key, i) => {
+      if (key !== undefined && Object.hasOwn(branches, key))
+        return branches[key];
+      if (entry.msgstr[i]) return undefined;
+      const picks =
+        key?.startsWith("=") === true
+          ? rules.select(Number(key.slice(1)))
+          : (key ?? "other");
+      return formOf(branches, picks) ?? "";
+    });
   const read = categories.map((c) =>
     c === undefined ? undefined : formOf(branches, c),
   );
@@ -870,10 +968,9 @@ export function entriesToGettext(
   const eol = eolOf(base);
   const entries = parsePo(base);
   const pluralForms = poHeader(entries)["Plural-Forms"];
-  const { indexes, categories, majority } = pluralTable(
-    language.tag,
-    pluralForms,
-  );
+  const table = gettextTable(language.tag, pluralForms);
+  const { indexes, categories } = table;
+  const rules = rulesOf(language.tag);
   // A plural entry the reader reads as the text is left as it is, one
   // short of its nplurals among them: a pull fills in no form (#981).
   const unchanged = (entry: PoEntry, text: string) => {
@@ -885,8 +982,8 @@ export function entriesToGettext(
       categories,
     );
     if (reading === text) return true;
-    const read = pluralBranches(reading);
-    const wanted = pluralBranches(text);
+    const read = pluralBranches(reading, true, true);
+    const wanted = pluralBranches(text, true, true);
     return (
       read !== undefined &&
       wanted !== undefined &&
@@ -895,7 +992,10 @@ export function entriesToGettext(
     );
   };
   const forms = (entry: PoEntry, text: string) => {
-    const wanted = wantedForms(entry, text, categories, majority);
+    const wanted =
+      table.unread && entry.msgidPlural !== undefined
+        ? undefined
+        : wantedForms(entry, text, table, rules);
     if (!wanted) onRefused?.(poId(entry), text);
     return wanted;
   };

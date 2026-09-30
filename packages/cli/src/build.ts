@@ -44,7 +44,6 @@ import {
   type Glossary,
   type Snapshot,
   type Library,
-  type PluralCategory,
   type Source,
   type StringEntry,
   type WritableSource,
@@ -774,7 +773,7 @@ export async function readEntries(
   // (xcstrings): a target's, or the source's, which the file must name.
   language?: string,
   // A translation the file holds that is not read, a Qt numerus form
-  // no plural holds (#751).
+  // no plural holds (#751), a gettext plural no key fits (#982).
   onUnread?: (id: string) => void,
   // The ids the source file holds as plural objects, as the file writes
   // them, where a target's object of categories is the plural though it
@@ -797,7 +796,9 @@ export async function readEntries(
     case "gettext":
       return sourceFile
         ? gettextToEntries(text(), { type: source.type })
-        : typed(gettextTranslations(text(), languageOfFile(file, source)));
+        : typed(
+            gettextTranslations(text(), languageOfFile(file, source), onUnread),
+          );
     case "yaml": {
       // The root key is the file's own code for its language (`pt_BR`).
       const tag = sourceFile
@@ -860,8 +861,8 @@ export function gettextPluralForms(
   cwd: string,
   source: FileSource,
   config: CorpusConfig,
-): Record<string, PluralCategory[]> | undefined {
-  const out: Record<string, PluralCategory[]> = {};
+): Record<string, string[]> | undefined {
+  const out: Record<string, string[]> = {};
   for (const lang of config.languages) {
     if (lang === config.sourceLanguage) continue;
     const rel = fileOf(source, lang, config.sourceLanguage);
@@ -1202,7 +1203,7 @@ async function readSeeds(
         }
         if (unread.length > 0)
           notes.push(
-            `${file}: ${unread.length} translation(s) not seeded: a numerus form Corpus cannot read as one plural, left as the file has it (${unread.map(printable).join(", ")})`,
+            `${file}: ${unread.length} translation(s) not seeded: ${unreadReason(source.adapter)}, left as the file has it (${unread.map(printable).join(", ")})`,
           );
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -1215,4 +1216,11 @@ async function readSeeds(
       );
   }
   return seeds;
+}
+
+// Why a translation the file holds is not read (#751, #982).
+export function unreadReason(adapter: string): string {
+  return adapter === "gettext"
+    ? "a plural whose Plural-Forms gives a form no CLDR category, dropped category or single number fits"
+    : "a numerus form Corpus cannot read as one plural";
 }

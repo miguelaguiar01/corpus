@@ -822,3 +822,38 @@ test("a Qt numerus translation no plural holds is a warning in validate and a no
     "lang/app_pt.ts: 1 translation(s) not seeded: a numerus form Corpus cannot read as one plural",
   );
 });
+
+test("a gettext plural whose Plural-Forms no key fits is a warning in validate and a note in build (#982)", async () => {
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8").replace(
+      /sources: \[[\s\S]*?\n {2}\],/,
+      'sources: [{ adapter: "gettext", type: "ui", path: "po/{lang}.po", sourcePath: "po/app.pot" }],',
+    ),
+  );
+  const entry = `msgid "%d file"\nmsgid_plural "%d files"\n`;
+  mkdirSync(path.join(repo, "po"), { recursive: true });
+  writeFileSync(
+    path.join(repo, "po", "app.pot"),
+    `msgid ""\nmsgstr ""\n"Content-Type: text/plain; charset=UTF-8\\n"\n\n${entry}msgstr[0] ""\nmsgstr[1] ""\n`,
+  );
+  writeFileSync(
+    path.join(repo, "po", "pt.po"),
+    `msgid ""\nmsgstr ""\n"Plural-Forms: nplurals=3; plural=(n==1 ? 0 : n%10==5 ? 1 : 2);\\n"\n\n${entry}msgstr[0] "a"\nmsgstr[1] "b"\nmsgstr[2] "c"\n`,
+  );
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(0);
+  expect(
+    c.stderr.filter((line) =>
+      line.startsWith("po/pt.po:%d file: a plural whose Plural-Forms"),
+    ),
+  ).toHaveLength(1);
+  const b = ctx();
+  expect(await run(["build", "--out", "snapshot.json"], b)).toBe(0);
+  expect(b.stderr.join("\n")).toContain(
+    "po/pt.po: 1 translation(s) not seeded: a plural whose Plural-Forms gives a form no CLDR category, dropped category or single number fits",
+  );
+});

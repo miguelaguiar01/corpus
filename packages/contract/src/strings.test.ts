@@ -249,4 +249,16 @@ test("an entry's pluralForms are CLDR categories, at least one per language (#95
     stringEntrySchema.safeParse({ ...entry, pluralForms: { it: ["bogus"] } })
       .success,
   ).toBe(false);
+  // A file's own exact keys, as the runtimes match them (#982).
+  expect(
+    stringEntrySchema.safeParse({
+      ...entry,
+      pluralForms: { ceb: ["=1", "other"] },
+    }).success,
+  ).toBe(true);
+  for (const key of ["=01", "=-1", "=1.5", "="])
+    expect(
+      stringEntrySchema.safeParse({ ...entry, pluralForms: { ceb: [key] } })
+        .success,
+    ).toBe(false);
 });

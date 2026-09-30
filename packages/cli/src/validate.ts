@@ -31,6 +31,7 @@ import {
   sourceWritesBack,
   runExporter,
   sourceLibrary,
+  unreadReason,
 } from "./build";
 import { unreadableFile } from "./catalogue-format";
 import { CliError, loadConfig } from "./config";
@@ -224,7 +225,8 @@ export async function validateRepo(
         source,
         false,
         language,
-        // Qt reads such forms; Corpus cannot, so it says so, once (#751).
+        // The runtime reads such forms; Corpus cannot, so it says so,
+        // once (#751, #982).
         (key) =>
           findings.push({
             file,
@@ -232,8 +234,7 @@ export async function validateRepo(
             language,
             code: "unread-plural",
             severity: "warning",
-            message:
-              "a numerus form Corpus cannot read as one plural; it is not seeded, and pull leaves it as the file has it",
+            message: `${unreadReason(source.adapter)}; it is not seeded, and pull leaves it as the file has it`,
           }),
         pluralIds,
       );
