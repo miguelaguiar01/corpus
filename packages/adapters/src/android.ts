@@ -1,7 +1,11 @@
 // Android string resources (§3, #596). Text is what the app shows, aapt's
 // escapes undone on read and written back on change; a file is patched
 // element by element, so an unchanged pull writes the same bytes.
-import { PLURAL_CATEGORIES, type StringEntry } from "@corpus/contract";
+import {
+  PLURAL_CATEGORIES,
+  proseTagsOf,
+  type StringEntry,
+} from "@corpus/contract";
 import { pluralFrom } from "./messages";
 import type { SourceOp } from "./write";
 
@@ -111,27 +115,79 @@ function decodeEntities(text: string): string {
   );
 }
 
-// aapt's reading: a backslash escapes the next character, a double
-// quote toggles a run whose whitespace is kept, and outside one a run
-// of ASCII whitespace is one space, trimmed at the ends.
-function unescape(text: string): string {
-  const out: { ch: string; kept: boolean }[] = [];
+// An element's content as aapt parses it: its markup, the tags written
+// with a literal `<` (in a CDATA section too, as Html.fromHtml's markup
+// is written there), kept as written, and its text, entities and CDATA
+// sections, inline ones included, decoded, so `&lt;Unknown&gt;` is text
+// whose quotes and backslashes are aapt's (#987).
+function pieces(raw: string): { text: string; markup: boolean }[] {
+  const out: { text: string; markup: boolean }[] = [];
   const markup = new RegExp(MARKUP_RE.source, "y");
-  let quoted = false;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i]!;
-    if (ch === "<") {
-      markup.lastIndex = i;
-      const tag = markup.exec(text);
-      if (tag) {
-        for (const c of tag[0]) out.push({ ch: c, kept: true });
-        i += tag[0].length - 1;
+  let text = "";
+  const flush = () => {
+    if (text) out.push({ text: decodeEntities(text), markup: false });
+    text = "";
+  };
+  for (let i = 0; i < raw.length;) {
+    if (raw.startsWith("<![CDATA[", i)) {
+      const end = raw.indexOf("]]>", i + 9);
+      if (end >= 0) {
+        flush();
+        const body = raw.slice(i + 9, end);
+        let at = 0;
+        for (const tag of body.matchAll(MARKUP_RE)) {
+          if (tag.index > at)
+            out.push({ text: body.slice(at, tag.index), markup: false });
+          out.push({ text: tag[0], markup: true });
+          at = tag.index + tag[0].length;
+        }
+        if (at < body.length) out.push({ text: body.slice(at), markup: false });
+        i = end + 3;
         continue;
       }
     }
-    if (ch === "\\" && i + 1 < text.length) {
-      const next = text[++i]!;
-      const hex = text.slice(i + 1, i + 5);
+    if (raw[i] === "<") {
+      markup.lastIndex = i;
+      const tag = markup.exec(raw);
+      if (tag) {
+        flush();
+        out.push({ text: decodeEntities(tag[0]), markup: true });
+        i += tag[0].length;
+        continue;
+      }
+    }
+    text += raw[i];
+    i++;
+  }
+  flush();
+  return out;
+}
+
+// aapt's reading: a backslash escapes the next character, a double
+// quote toggles a run whose whitespace is kept, and outside one a run
+// of ASCII whitespace is one space, trimmed at the ends; markup is kept
+// as written.
+function unescape(parts: { text: string; markup: boolean }[]): string {
+  const out: { ch: string; kept: boolean }[] = [];
+  let quoted = false;
+  type Unit = { tag: string } | { ch: string };
+  const units: Unit[] = parts.flatMap(({ text, markup }): Unit[] =>
+    markup ? [{ tag: text }] : [...text].map((ch) => ({ ch })),
+  );
+  for (let i = 0; i < units.length; i++) {
+    const unit = units[i]!;
+    if ("tag" in unit) {
+      for (const c of unit.tag) out.push({ ch: c, kept: true });
+      continue;
+    }
+    const ch = unit.ch;
+    const at = (n: number) => {
+      const u = units[n];
+      return u && "ch" in u ? u.ch : undefined;
+    };
+    if (ch === "\\" && at(i + 1) !== undefined) {
+      const next = at(++i)!;
+      const hex = [1, 2, 3, 4].map((n) => at(i + n) ?? "").join("");
       if (next === "u" && /^[0-9a-fA-F]{4}$/.test(hex)) {
         out.push({ ch: String.fromCharCode(parseInt(hex, 16)), kept: true });
         i += 4;
@@ -159,8 +215,7 @@ function unescape(text: string): string {
 }
 
 function decode(raw: string): string {
-  const cdata = CDATA_RE.exec(raw.trim());
-  return cdata ? unescape(cdata[1]!) : unescape(decodeEntities(raw));
+  return unescape(pieces(raw));
 }
 
 function escapeText(text: string, cdata: boolean): string {
@@ -173,13 +228,60 @@ function escapeText(text: string, cdata: boolean): string {
   return cdata ? out : out.replace(/&/g, "&amp;").replace(/</g, "&lt;");
 }
 
-function escape(text: string, cdata: boolean): string {
+// How an element writes its tags: as markup, or escaped, `&lt;b>`, as
+// Html.fromHtml's idiom has it; none where it writes no tag (#987).
+type Tags = "raw" | "escaped";
+
+function tagsOf(raw: string): Tags | undefined {
+  const outside = raw.replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, "");
+  if (new RegExp(MARKUP_RE.source).test(outside)) return "raw";
+  // An escaped close is an escaped pair's; `&lt;Unknown&gt;` alone is
+  // prose, which says nothing of how the element writes its tags.
+  if (/&lt;\/[A-Za-z]/.test(outside)) return "escaped";
+  return undefined;
+}
+
+// The tags `text` may write as XML elements: one closed on itself, or a
+// pair that nests; any other would leave the file ill-formed (`<br>`,
+// an unclosed `<xliff:g>`), so it is escaped.
+function wellFormed(text: string): Set<number> {
+  const out = new Set<number>();
+  const open: { name: string; at: number }[] = [];
+  for (const tag of text.matchAll(MARKUP_RE)) {
+    const name = /^<\/?([^\s/>]+)/.exec(tag[0])![1]!;
+    if (tag[0].endsWith("/>")) out.add(tag.index);
+    else if (tag[0].startsWith("</")) {
+      let at = open.length - 1;
+      while (at >= 0 && open[at]!.name !== name) at--;
+      if (at < 0) continue;
+      // The pair closes; what opened inside it and never closed stays out.
+      out.add(open[at]!.at);
+      out.add(tag.index);
+      open.length = at;
+    } else open.push({ name, at: tag.index });
+  }
+  return out;
+}
+
+// A tag the text reads as prose, `<Unknown Recipient>`, is text, escaped
+// as text is, or it would be an XML element no one closes; a pair is
+// markup, written as `tags` says (#987).
+function escape(text: string, cdata: boolean, tags: Tags = "raw"): string {
+  const prose = new Set(proseTagsOf(text, "android").map((t) => t.at));
+  const elements = wellFormed(text);
   let out = "";
   let at = 0;
   for (const tag of text.matchAll(MARKUP_RE)) {
+    // A prose tag's text as Android writes it, `&lt;…&gt;`, and so any
+    // tag XML cannot hold as an element; an escaped pair's as
+    // Html.fromHtml's idiom does, `&lt;b>`.
     const markup = cdata
       ? tag[0]
-      : tag[0].replace(/&(?!(?:[A-Za-z]+|#\d+|#x[0-9a-fA-F]+);)/g, "&amp;");
+      : prose.has(tag.index) || !elements.has(tag.index)
+        ? escapeText(tag[0], false).replace(/>/g, "&gt;")
+        : tags === "escaped"
+          ? escapeText(tag[0], false)
+          : tag[0].replace(/&(?!(?:[A-Za-z]+|#\d+|#x[0-9a-fA-F]+);)/g, "&amp;");
     out += escapeText(text.slice(at, tag.index), cdata) + markup;
     at = tag.index + tag[0].length;
   }
@@ -279,8 +381,9 @@ function renderItem(
   quantity: string,
   text: string,
   cdata: boolean,
+  tags?: Tags,
 ) {
-  return `${indent}<item quantity="${quantity}">${escape(text, cdata)}</item>`;
+  return `${indent}<item quantity="${quantity}">${escape(text, cdata, tags)}</item>`;
 }
 
 function render(
@@ -288,24 +391,35 @@ function render(
   text: string,
   kind: Element["kind"],
   { unit, eol }: Style,
+  tags?: Tags,
 ): string {
   if (kind === "string")
-    return `${unit}<string name="${id}">${escape(text, false)}</string>`;
+    return `${unit}<string name="${id}">${escape(text, false, tags)}</string>`;
   const itemLines = [...pluralBranches(text)].map(([q, t]) =>
-    renderItem(unit + unit, q, t, false),
+    renderItem(unit + unit, q, t, false, tags),
   );
   return `${unit}<plurals name="${id}">${eol}${itemLines.join(eol)}${eol}${unit}</plurals>`;
 }
 
-function stringPatches(xml: string, element: Element, text: string): Patch[] {
+// An element's tags as the element writes them, else as the source's.
+function stringPatches(
+  xml: string,
+  element: Element,
+  text: string,
+  tags?: Tags,
+): Patch[] {
   if (!element.inner) {
     if (text === "") return [];
     const open = slice(xml, element).replace(/\s*\/>$/, "");
-    return [{ ...element, text: `${open}>${escape(text, false)}</string>` }];
+    return [
+      { ...element, text: `${open}>${escape(text, false, tags)}</string>` },
+    ];
   }
   const raw = slice(xml, element.inner);
   if (decode(raw) === text) return [];
-  return [{ ...element.inner, text: escape(text, isCdata(raw)) }];
+  return [
+    { ...element.inner, text: escape(text, isCdata(raw), tagsOf(raw) ?? tags) },
+  ];
 }
 
 // A plural's items patched one by one, so comments between them and
@@ -316,8 +430,13 @@ function pluralPatches(
   element: Element,
   text: string,
   { unit, eol }: Style,
+  tags?: Tags,
 ): Patch[] {
   if (pluralOf(xml, element) === text) return [];
+  const own =
+    items(xml, element)
+      .map((item) => tagsOf(slice(xml, item.raw)))
+      .find((t) => t !== undefined) ?? tags;
   const old = items(xml, element);
   const wanted = pluralBranches(text);
   const cdata = old.some((item) => isCdata(slice(xml, item.raw)));
@@ -332,7 +451,7 @@ function pluralPatches(
     } else if (decode(slice(xml, item.raw)) !== next) {
       patches.push({
         ...item.raw,
-        text: escape(next, isCdata(slice(xml, item.raw))),
+        text: escape(next, isCdata(slice(xml, item.raw)), own),
       });
     }
   }
@@ -346,7 +465,7 @@ function pluralPatches(
   const inserts = new Map<number, string[]>();
   for (const [quantity, branch] of added) {
     const before = old.filter((item) => rank(item.quantity) < rank(quantity));
-    const line = renderItem(indent, quantity, branch, cdata);
+    const line = renderItem(indent, quantity, branch, cdata, own);
     if (before.length > 0) {
       const at = before.at(-1)!.end;
       inserts.set(at, [...(inserts.get(at) ?? []), `${eol}${line}`]);
@@ -374,7 +493,13 @@ function applyPatches(xml: string, patches: Patch[]): string {
 // exist are patched in place, the rest appended before </resources>.
 function patchAll(
   xml: string,
-  changes: { id: string; text?: string; kind?: Element["kind"] }[],
+  changes: {
+    id: string;
+    text?: string;
+    kind?: Element["kind"];
+    // How the source's element writes its tags.
+    tags?: Tags;
+  }[],
 ): string {
   const style = styleOf(xml);
   const byName = new Map<string, Element>();
@@ -382,18 +507,18 @@ function patchAll(
     if (!byName.has(element.name)) byName.set(element.name, element);
   const patches: Patch[] = [];
   const appended: string[] = [];
-  for (const { id, text, kind } of changes) {
+  for (const { id, text, kind, tags } of changes) {
     const element = byName.get(id);
     if (text === undefined) {
       if (element) patches.push({ ...lineOf(xml, element), text: "" });
     } else if (element?.kind === "plurals") {
-      patches.push(...pluralPatches(xml, element, text, style));
+      patches.push(...pluralPatches(xml, element, text, style, tags));
     } else if (element) {
-      patches.push(...stringPatches(xml, element, text));
+      patches.push(...stringPatches(xml, element, text, tags));
     } else {
       const as =
         kind ?? (PLURAL_HEAD_RE.test(text.trim()) ? "plurals" : "string");
-      appended.push(render(id, text, as, style));
+      appended.push(render(id, text, as, style, tags));
     }
   }
   if (appended.length > 0) {
@@ -420,13 +545,29 @@ export function entriesToAndroid(
   const xml =
     existing === undefined || existing.trim() === "" ? SKELETON : existing;
   const kinds = new Map(elements(template).map((e) => [e.name, e.kind]));
+  const tags = new Map(
+    elements(template).flatMap((e) => {
+      const own =
+        e.kind === "plurals"
+          ? items(template, e)
+              .map((item) => tagsOf(slice(template, item.raw)))
+              .find((t) => t !== undefined)
+          : e.inner && tagsOf(slice(template, e.inner));
+      return own ? [[e.name, own] as const] : [];
+    }),
+  );
   const ids = [
     ...[...kinds.keys()].filter((id) => Object.hasOwn(translations, id)),
     ...Object.keys(translations).filter((id) => !kinds.has(id)),
   ];
   return patchAll(
     xml,
-    ids.map((id) => ({ id, text: translations[id]!, kind: kinds.get(id) })),
+    ids.map((id) => ({
+      id,
+      text: translations[id]!,
+      kind: kinds.get(id),
+      tags: tags.get(id),
+    })),
   );
 }
 

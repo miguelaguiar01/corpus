@@ -219,13 +219,15 @@ export function hasVoidTags(syntax: Library, richText?: RichText): boolean {
 // How a type's text reads its tags: "markup" for a type read as HTML,
 // where a tag that never closes is text, as a browser reads it (#755),
 // and under i18next, whose `t()` text React escapes and whose `Trans`
-// renders only a tag that closes (#986), its tags still compared; else
-// whether void elements open nothing.
+// renders only a tag that closes (#986), and Android's, whose unpaired
+// tag can only be an escape or CDATA's text, well-formed XML closing
+// every element (#987), their tags still compared; else whether void
+// elements open nothing.
 export function tagMode(
   syntax: Library,
   richText?: RichText,
 ): boolean | "markup" {
-  return richText === "html" || syntax === "i18next"
+  return richText === "html" || syntax === "i18next" || syntax === "android"
     ? "markup"
     : hasVoidTags(syntax, richText);
 }
@@ -461,7 +463,7 @@ export function validateTranslation(
     // broken, not prose, while `<sans titre>` is prose. The
     // placeholders in a prose tag's attributes are the text's, which
     // i18next fills (#986).
-    if (syntax === "i18next") {
+    if (syntax === "i18next" || syntax === "android") {
       const names = new Set(
         [...expected.tags].map((identity) =>
           identity.split(" ")[0]!.toLowerCase(),

@@ -240,3 +240,71 @@ test("an unchanged pull of a large file is linear", () => {
   );
   expect(Date.now() - started).toBeLessThan(2000);
 });
+
+test("an escaped &lt;…&gt; or a CDATA <…> is text, its aapt escapes undone; a pull writes a prose tag escaped, a pair as the file writes it (#987)", () => {
+  const xml = `<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="unknown_recipient">&lt;Unknown Recipient&gt;</string>
+    <string name="no_name">"Using key: <![CDATA[<no name>]]>"</string>
+    <string name="more">&lt;Xliff id=\\"m\\"&gt;%d&lt;/Xliff&gt;</string>
+    <string name="bold">&lt;b>Bold&lt;/b> text</string>
+    <string name="raw"><b>Raw</b> text</string>
+</resources>
+`;
+  const read = Object.fromEntries(
+    androidToEntries(xml, { type: "ui" }).map((e) => [e.id, e.source]),
+  );
+  expect(read).toMatchObject({
+    unknown_recipient: "<Unknown Recipient>",
+    no_name: "Using key: <no name>",
+    more: '<Xliff id="m">%d</Xliff>',
+    bold: "<b>Bold</b> text",
+    raw: "<b>Raw</b> text",
+  });
+  // Its own texts back: the same bytes.
+  expect(entriesToAndroid(xml, read, xml)).toBe(xml);
+  const out = entriesToAndroid(
+    xml,
+    {
+      unknown_recipient: "<Destinataire inconnu>",
+      bold: "<b>Gras</b> texte",
+      raw: "<b>Brut</b> texte",
+      added: "<b>Nouveau</b> et <sans titre>",
+    },
+    xml,
+  );
+  expect(out).toContain(
+    '<string name="unknown_recipient">&lt;Destinataire inconnu&gt;</string>',
+  );
+  expect(out).toContain('<string name="bold">&lt;b>Gras&lt;/b> texte</string>');
+  expect(out).toContain('<string name="raw"><b>Brut</b> texte</string>');
+  expect(out).toContain(
+    '<string name="added"><b>Nouveau</b> et &lt;sans titre&gt;</string>',
+  );
+  // A target file with none of them takes each tag as the source writes it.
+  const target = `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n</resources>\n`;
+  expect(entriesToAndroid(xml, { bold: "<b>Gras</b>" }, target)).toContain(
+    '<string name="bold">&lt;b>Gras&lt;/b></string>',
+  );
+});
+
+test("a pull writes a tag XML cannot hold as an element escaped, and a prose tag's verb counts in its place (#987 review)", () => {
+  const xml = `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <string name="a">x</string>\n</resources>\n`;
+  const out = entriesToAndroid(
+    xml,
+    {
+      a: "a<br>b",
+      b: "<fichier.ext> ok",
+      c: '<xliff:g id="n">%d</xliff:g> left <b>bold',
+    },
+    xml,
+  );
+  expect(out).toContain('<string name="a">a&lt;br&gt;b</string>');
+  expect(out).toContain('<string name="b">&lt;fichier.ext&gt; ok</string>');
+  expect(out).toContain(
+    '<string name="c"><xliff:g id="n">%d</xliff:g> left &lt;b&gt;bold</string>',
+  );
+  expect(
+    applyAndroidOps(xml, [{ kind: "add", id: "d", text: "a<br>b" }]),
+  ).toContain('<string name="d">a&lt;br&gt;b</string>');
+});
