@@ -932,28 +932,33 @@ function railsPluralForms(
     }
   }
   const out: Record<string, string[]> = {};
+  // Locales whose rule is the app's, by the file that stores it.
+  const kept = new Map<string, string>();
   for (const lang of config.languages) {
     if (lang === config.sourceLanguage) continue;
     const code = fileCodeOf(source, lang);
     const cldr = pluralCategoriesOf(lang);
+    if (cldr.length === 0) continue;
+    // The first of the locale and its parents with a rule, the app's
+    // or the gem's, is the one Ruby's lookup through the fallbacks finds.
     const parts = code.split("-");
-    const ancestors = parts.map((_, i) =>
-      parts.slice(0, parts.length - i).join("-"),
-    );
-    if (cldr.length === 0 || ancestors.some((l) => own.has(l))) continue;
-    const found = ancestors
-      .map((l) => RAILS_PLURALS[l])
-      .find((k) => k !== undefined);
-    const keys = found ?? ["one", "other"];
+    let keys: string[] | undefined;
+    for (let i = parts.length; i > 0 && !keys; i--) {
+      const at = parts.slice(0, i).join("-");
+      if (own.has(at)) {
+        kept.set(code, own.get(at)!);
+        break;
+      }
+      keys = RAILS_PLURALS[at];
+    }
+    if (kept.has(code)) continue;
+    keys ??= ["one", "other"];
     if (keys.join() !== cldr.join()) out[lang] = keys;
   }
-  const kept = [...own.keys()].filter((l) =>
-    config.languages.some((lang) => fileCodeOf(source, lang) === l),
-  );
   onNote?.(
     `plural rules: rails-i18n ${version} (Gemfile.lock), read from Corpus's table of ${RAILS_I18N_VERSION}` +
-      (kept.length > 0
-        ? `; ${kept.join(", ")} ${kept.length === 1 ? "registers a rule of its" : "register rules of their"} own (${[...new Set(kept.map((l) => own.get(l)))].join(", ")}), which Corpus cannot run, so CLDR's stands in`
+      (kept.size > 0
+        ? `; ${[...kept.keys()].join(", ")} ${kept.size === 1 ? "takes a rule" : "take rules"} the app stores (${[...new Set(kept.values())].join(", ")}), which Corpus cannot run, so CLDR's stands in`
         : ""),
   );
   return Object.keys(out).length > 0 ? out : undefined;

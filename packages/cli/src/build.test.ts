@@ -1528,7 +1528,7 @@ test("a Rails catalogue's plurals take rails-i18n's keys where Gemfile.lock list
   mkdirSync(path.join(dir, "config", "locales"), { recursive: true });
   const yml = (code: string) =>
     `${code}:\n  files:\n    one: "%{count} file"\n    other: "%{count} files"\n  hello: Hello\n  hello_MF: "{n, plural, one {# x} other {# y}}"\n`;
-  for (const code of ["en", "fr", "cs", "ja", "pt-BR", "pt_BR", "zh_CN"])
+  for (const code of ["en", "fr", "cs", "ja", "pt-BR", "pt-PT", "zh_CN"])
     writeFileSync(
       path.join(dir, "config", "locales", `${code}.yml`),
       yml(code),
@@ -1537,7 +1537,7 @@ test("a Rails catalogue's plurals take rails-i18n's keys where Gemfile.lock list
     buildSnapshotReport(
       config({
         sourceLanguage: "en",
-        languages: ["en", "fr", "cs", "ja", "pt-BR", "zh-CN"],
+        languages: ["en", "fr", "cs", "ja", "pt-BR", "pt-PT", "zh-CN"],
         sources: [
           {
             adapter: "yaml",
@@ -1571,6 +1571,8 @@ test("a Rails catalogue's plurals take rails-i18n's keys where Gemfile.lock list
     fr: ["one", "other"],
     cs: ["one", "few", "other"],
     "pt-BR": ["one", "other"],
+    // The gem has no pt-PT: its parent pt's rule.
+    "pt-PT": ["one", "other"],
     "zh-CN": ["one", "other"],
   });
   // A `*_MF` key is ICU, read by CLDR's rule.
@@ -1587,7 +1589,7 @@ test("a Rails catalogue's plurals take rails-i18n's keys where Gemfile.lock list
   const ruled = await formsOf();
   expect(ruled.files?.["zh-CN"]).toBeUndefined();
   expect(ruled.report.notes.join("\n")).toContain(
-    "zh_CN registers a rule of its own (config/initializers/i18n_pluralization.rb), which Corpus cannot run, so CLDR's stands in",
+    "zh_CN takes a rule the app stores (config/initializers/i18n_pluralization.rb), which Corpus cannot run, so CLDR's stands in",
   );
   // Without parentheses over several lines, and in config/locales/*.rb.
   writeFileSync(
@@ -1603,9 +1605,21 @@ test("a Rails catalogue's plurals take rails-i18n's keys where Gemfile.lock list
     path.join(dir, "config", "initializers", "greetings.rb"),
     'I18n.backend.store_translations(:cs, greeting: "Ahoj")\nI18n.backend.store_translations(:ja, i18n: { plural: { rule: r } })\n',
   );
+  // A parent's rule reaches a locale with none of its own, never one the
+  // gem rules: pt's leaves pt-BR at rails-i18n's.
+  const parent = path.join(dir, "config", "initializers", "pt.rb");
+  writeFileSync(
+    parent,
+    "I18n.backend.store_translations(:pt, i18n: { plural: { rule: r } })\n",
+  );
   const more = await formsOf();
   expect(more.files?.cs).toEqual(["one", "few", "other"]);
+  // pt-BR's own rule, the app's, above; pt-PT has none, so pt's.
   expect(more.files?.["pt-BR"]).toBeUndefined();
+  expect(more.files?.["pt-PT"]).toBeUndefined();
+  rmSync(path.join(dir, "config", "initializers", "i18n_pluralization.rb"));
+  expect((await formsOf()).files?.["pt-BR"]).toEqual(["one", "other"]);
+  rmSync(parent);
   expect(more.files?.fr).toBeUndefined();
   expect(more.files?.["zh-CN"]).toEqual(["one", "other"]);
   rmSync(dir, { recursive: true, force: true });
