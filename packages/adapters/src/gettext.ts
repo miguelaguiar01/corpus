@@ -410,8 +410,13 @@ function majorityOf(found: Tally, order: string[]): (string | undefined)[] {
 }
 
 type Table = ReturnType<typeof pluralTable> & {
-  // The file's own keys, where CLDR's leave a form unread (#982).
+  // The file's own keys, where CLDR's leave a form unread (#982), and
+  // the keys each form is read by, some forms more than one.
   own: boolean;
+  keysAt: string[][];
+  // The keys a reading shows: a CLDR-keyed file's categories that read
+  // a form (#973); a file keyed as it picks shows every key it has.
+  picked?: (string | undefined)[];
   // A form no key fits: the file's plurals are not read.
   unread: boolean;
 };
@@ -420,10 +425,12 @@ type Table = ReturnType<typeof pluralTable> & {
 // an integer reaches, as `pluralTable` maps them. Where one is left
 // unread (Cebuano's `(n != 1)`, whose `one` holds 1, 2, 3, 5, …), the
 // forms are keyed as the file picks them, so ICU picks the same text
-// for every integer: the form most integers reach is `other`; another
-// is the CLDR category whose integers are exactly its own, else one
-// CLDR dropped for the language (Hebrew's many), else `=k` where k
-// alone reaches it; one no key fits leaves the file's plurals unread.
+// for every integer, save for a category Node's CLDR has dropped: the
+// form most integers reach is `other`; another is the CLDR category
+// whose integers are exactly its own, else one CLDR dropped for the
+// language (Hebrew's many), else `=k` for each of the few integers that
+// reach it (Filipino's `(n > 1)`: `=0` and `=1`); one no key fits leaves
+// the file's plurals unread.
 function gettextTable(language: string, forms: string | undefined): Table {
   const table = pluralTable(language, forms);
   const reach = reachOf(forms);
@@ -431,7 +438,13 @@ function gettextTable(language: string, forms: string | undefined): Table {
     !reach ||
     table.categories.every((c, i) => c !== undefined || reach[i]!.length === 0)
   )
-    return { ...table, own: false, unread: false };
+    return {
+      ...table,
+      own: false,
+      keysAt: [],
+      picked: table.categories,
+      unread: false,
+    };
   const rules = rulesOf(language);
   const other = reach.reduce(
     (best, r, i) => (r.length > reach[best]!.length ? i : best),
@@ -440,29 +453,34 @@ function gettextTable(language: string, forms: string | undefined): Table {
   const removed = Object.entries(
     REMOVED_PLURAL_CATEGORIES[language.split(/[-_@]/)[0]!.toLowerCase()] ?? {},
   );
-  const keys = reach.map((integers, i) => {
-    if (i === other) return "other";
-    if (integers.length === 0) return undefined;
+  const keysAt = reach.map((integers, i): string[] | null => {
+    if (i === other) return ["other"];
+    if (integers.length === 0) return [];
     const held = new Set(integers);
     const exactly = (test: (n: number) => boolean) =>
       INTEGERS.every((n) => test(n) === held.has(n));
-    return (
+    const category =
       cldrOrder(rules).find(
         (c) => c !== "other" && exactly((n) => rules.select(n) === c),
-      ) ??
-      removed.find(([, test]) => exactly(test))?.[0] ??
-      (integers.length === 1 ? `=${integers[0]}` : null)
-    );
+      ) ?? removed.find(([, test]) => exactly(test))?.[0];
+    if (category) return [category];
+    return integers.length <= FEW ? integers.map((k) => `=${k}`) : null;
   });
-  const categories = keys.map((k) => k ?? undefined);
+  const categories = keysAt.map((k) => k?.[0]);
   return {
-    indexes: new Map(categories.flatMap((k, i) => (k ? [[k, i]] : []))),
+    indexes: new Map(
+      keysAt.flatMap((keys, i) => (keys ?? []).map((k) => [k, i] as const)),
+    ),
     categories,
     majority: categories,
     own: true,
-    unread: keys.includes(null),
+    keysAt: keysAt.map((k) => k ?? []),
+    unread: keysAt.includes(null),
   };
 }
+
+// The most integers a form is keyed by one `=k` each.
+const FEW = 3;
 
 // The integers the file's expression sends to each index; undefined
 // with no expression to go by.
@@ -560,13 +578,15 @@ export function gettextPluralCategories(
     text !== undefined && text.trim() !== ""
       ? poHeader(parsePo(text))["Plural-Forms"]
       : rule && `nplurals=${rule.nplurals}; plural=${rule.plural};`;
-  const written = gettextTable(language, forms).categories;
-  const exact = written
-    .filter((k) => k?.startsWith("="))
-    .sort((a, b) => Number(a!.slice(1)) - Number(b!.slice(1)));
+  const table = gettextTable(language, forms);
+  if (!table.own)
+    return PLURAL_CATEGORIES.filter((c) => table.categories.includes(c));
+  const keys = [...table.indexes.keys()];
   return [
-    ...(exact as string[]),
-    ...PLURAL_CATEGORIES.filter((c) => written.includes(c)),
+    ...keys
+      .filter((k) => k.startsWith("="))
+      .sort((a, b) => Number(a.slice(1)) - Number(b.slice(1))),
+    ...PLURAL_CATEGORIES.filter((c) => keys.includes(c)),
   ];
 }
 
@@ -588,7 +608,7 @@ function poTexts(
   const entries = parsePo(text);
   // The config's tag says the language; the header's code may be one
   // the runtime cannot read (`sr@latin`).
-  const { indexes, categories, unread } = gettextTable(
+  const { indexes, picked, unread } = gettextTable(
     language,
     poHeader(entries)["Plural-Forms"],
   );
@@ -611,7 +631,7 @@ function poTexts(
           source: poPluralText(
             e.msgstr.map((t) => t ?? ""),
             indexes,
-            categories,
+            picked,
           ),
         },
       ];
@@ -824,26 +844,15 @@ function withoutObsolete(text: string): string {
 function wantedForms(
   entry: PoEntry,
   text: string,
-  { categories, majority, own }: Table,
+  { categories, majority, own, keysAt, indexes }: Table,
   rules: Intl.PluralRules,
 ): (string | undefined)[] | undefined {
   if (entry.msgidPlural === undefined) return [text];
-  const branches = pluralBranches(text, true, true);
+  // `=N` is a branch only where the file is keyed so, and there only one
+  // it has a form for: none is dropped unsaid (#982).
+  const branches = pluralBranches(text, true, own);
   if (!branches) return undefined;
-  // A key the text lacks keeps a form the file holds, a seed read before
-  // the file's own keys among them; an empty or missing one takes the
-  // branch ICU picks there, `=1`'s the category 1 is (#982).
-  if (own)
-    return categories.map((key, i) => {
-      if (key !== undefined && Object.hasOwn(branches, key))
-        return branches[key];
-      if (entry.msgstr[i]) return undefined;
-      const picks =
-        key?.startsWith("=") === true
-          ? rules.select(Number(key.slice(1)))
-          : (key ?? "other");
-      return formOf(branches, picks) ?? "";
-    });
+  if (own) return ownForms(entry, branches, keysAt, indexes, rules);
   const read = categories.map((c) =>
     c === undefined ? undefined : formOf(branches, c),
   );
@@ -862,6 +871,41 @@ function wantedForms(
       ""
     );
   });
+}
+
+// A file keyed as it picks: each form the branch its keys have, one
+// text however many; a key the text lacks keeps a form the file holds,
+// a seed read before the file's own keys among them, and an empty or
+// missing one takes the branch ICU picks there, `=1`'s the category 1
+// is. A text with an `=N` the file has no form for, or two texts for
+// one form, is not written.
+function ownForms(
+  entry: PoEntry,
+  branches: Record<string, string>,
+  keysAt: string[][],
+  indexes: Map<string, number>,
+  rules: Intl.PluralRules,
+): (string | undefined)[] | undefined {
+  if (Object.keys(branches).some((k) => k.startsWith("=") && !indexes.has(k)))
+    return undefined;
+  const forms: (string | undefined)[] = [];
+  for (const [i, keys] of keysAt.entries()) {
+    const texts = new Set(
+      keys.flatMap((k) => (Object.hasOwn(branches, k) ? [branches[k]!] : [])),
+    );
+    if (texts.size > 1) return undefined;
+    const [given] = texts;
+    if (given !== undefined) forms.push(given);
+    else if (entry.msgstr[i]) forms.push(undefined);
+    else {
+      const key = keys[0] ?? "other";
+      const picks = key.startsWith("=")
+        ? rules.select(Number(key.slice(1)))
+        : key;
+      forms.push(formOf(branches, picks) ?? "");
+    }
+  }
+  return forms;
 }
 
 // An entry's patches: each msgstr whose text differs rewritten in
@@ -969,27 +1013,34 @@ export function entriesToGettext(
   const entries = parsePo(base);
   const pluralForms = poHeader(entries)["Plural-Forms"];
   const table = gettextTable(language.tag, pluralForms);
-  const { indexes, categories } = table;
+  const { indexes } = table;
   const rules = rulesOf(language.tag);
   // A plural entry the reader reads as the text is left as it is, one
-  // short of its nplurals among them: a pull fills in no form (#981).
+  // short of its nplurals among them: a pull fills in no form (#981). So
+  // is one a file keyed as it picks read before it was (#982), a row
+  // verified then keeping that reading.
+  const before = table.own ? pluralTable(language.tag, pluralForms) : undefined;
   const unchanged = (entry: PoEntry, text: string) => {
     if (entry.msgidPlural === undefined || entry.flags.includes("fuzzy"))
       return false;
-    const reading = poPluralText(
-      entry.msgstr.map((t) => t ?? ""),
-      indexes,
-      categories,
-    );
-    if (reading === text) return true;
-    const read = pluralBranches(reading, true, true);
+    const forms = entry.msgstr.map((t) => t ?? "");
+    const readings = [
+      poPluralText(forms, indexes, table.picked),
+      ...(before
+        ? [poPluralText(forms, before.indexes, before.categories)]
+        : []),
+    ];
+    if (readings.includes(text)) return true;
     const wanted = pluralBranches(text, true, true);
-    return (
-      read !== undefined &&
-      wanted !== undefined &&
-      Object.keys(read).length === Object.keys(wanted).length &&
-      Object.entries(read).every(([c, f]) => wanted[c] === f)
-    );
+    return readings.some((reading) => {
+      const read = pluralBranches(reading, true, true);
+      return (
+        read !== undefined &&
+        wanted !== undefined &&
+        Object.keys(read).length === Object.keys(wanted).length &&
+        Object.entries(read).every(([c, f]) => wanted[c] === f)
+      );
+    });
   };
   const forms = (entry: PoEntry, text: string) => {
     const wanted =

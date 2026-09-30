@@ -506,7 +506,7 @@ function writeTarget(
         (id) =>
           refused(
             id,
-            "is a plural and its translation is not one gettext can hold (a plain text, or an =N branch)",
+            "is a plural and its translation is not one gettext can hold (a plain text, an =N branch the file has no form for, or two texts for one form)",
           ),
         (note) => err(`corpus: ${file}: ${note}`),
       );

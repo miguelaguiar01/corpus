@@ -9,6 +9,7 @@ import {
   gettextTranslations,
   parsePo,
   pluralTable,
+  poPluralText,
 } from "./gettext";
 
 const indexesOf = (language: string, forms: string | undefined) =>
@@ -968,5 +969,93 @@ test("a form no key fits is not read: the entry is named, never seeded, never wr
       (id) => refused.push(id),
     ),
   ).toBe(odd);
+  expect(refused).toEqual(["%d file"]);
+});
+
+test("an =N the file has no form for is refused by name, never dropped: in a CLDR-keyed file and in one keyed as it picks (#982)", () => {
+  const cases: [string, string, string, string][] = [
+    [
+      "nplurals=2; plural=(n != 1);",
+      "de",
+      `msgstr[0] "a"\nmsgstr[1] "b"\n`,
+      "{count, plural, =1 {Eine} other {# Dateien}}",
+    ],
+    [
+      "nplurals=2; plural=(n != 1);",
+      "de",
+      `msgstr[0] "a"\nmsgstr[1] "b"\n`,
+      "{count, plural, =0 {Keine} one {Eine} other {#}}",
+    ],
+    [
+      CEB,
+      "ceb",
+      `msgstr[0] "S"\nmsgstr[1] "P"\n`,
+      "{count, plural, =0 {Z} =1 {S} other {P}}",
+    ],
+  ];
+  for (const [header, tag, body, text] of cases) {
+    const file = po(header, tag, body);
+    const refused: string[] = [];
+    expect(
+      entriesToGettext(
+        file,
+        { "%d file": text },
+        file,
+        { tag, code: tag },
+        (id) => refused.push(id),
+      ),
+    ).toBe(file);
+    expect(refused).toEqual(["%d file"]);
+  }
+});
+
+test("a row kept from before a file was keyed as it picks leaves the file as it is (#982)", () => {
+  const before = (header: string, tag: string, forms: string[]) => {
+    const t = pluralTable(tag, header);
+    return poPluralText(forms, t.indexes, t.categories);
+  };
+  const cases: [string, string, string[]][] = [
+    [CEB, "ceb", ["S"]],
+    [CEB, "ceb", ["", "P"]],
+    [
+      "nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n != 0 ? 1 : 2);",
+      "lv",
+      ["A", "B"],
+    ],
+    [HE, "he", ["a", "b", "", "d"]],
+  ];
+  for (const [header, tag, held] of cases) {
+    const file = po(
+      header,
+      tag,
+      held.map((f, i) => `msgstr[${i}] "${f}"\n`).join(""),
+    );
+    expect(
+      entriesToGettext(file, { "%d file": before(header, tag, held) }, file, {
+        tag,
+        code: tag,
+      }),
+      `${tag} ${held.join("/")}`,
+    ).toBe(file);
+  }
+});
+
+test("a form a few integers reach is keyed by each: Filipino's (n > 1) reads =0, =1 and other (#982)", () => {
+  const TL = "nplurals=2; plural=(n > 1);";
+  const tl = po(TL, "tl", `msgstr[0] "X"\nmsgstr[1] "Y"\n`);
+  const lang = { tag: "tl", code: "tl" };
+  expect(seedOf(tl, "tl")).toBe("{count, plural, =0 {X} =1 {X} other {Y}}");
+  expect(gettextPluralCategories(tl, "tl")).toEqual(["=0", "=1", "other"]);
+  const write = (text: string, refused?: (id: string) => void) =>
+    entriesToGettext(tl, { "%d file": text }, tl, lang, refused);
+  expect(forms(write("{count, plural, =0 {a} =1 {a} other {b}}"))).toEqual([
+    "a",
+    "b",
+  ]);
+  expect(forms(write("{count, plural, =1 {a} other {b}}"))).toEqual(["a", "b"]);
+  const refused: string[] = [];
+  expect(
+    write("{count, plural, =0 {a} =1 {c} other {b}}", (id) => refused.push(id)),
+  ).toBe(tl);
   expect(refused).toEqual(["%d file"]);
 });
