@@ -907,19 +907,21 @@ function railsPluralForms(
   const rules = [
     // I18n.backend.store_translations(:zh_CN, i18n: { plural: { rule: … } })
     new RegExp(
-      String.raw`store_translations\s*\(?\s*${locale}\s*,[\s\S]{0,200}?\bplural\b[\s\S]{0,100}?\brule\b`,
+      String.raw`store_translations\s*\(?\s*${locale}\s*,(?:(?!store_translations)[\s\S]){0,200}?\bplural\b[^}]{0,100}?\brule\b`,
       "g",
     ),
     // config/locales/zh_CN.rb: { zh_CN: { i18n: { plural: { rule: … } } } }
     new RegExp(
-      String.raw`${locale}\s*(?:=>|:)\s*\{\s*:?["']?i18n["']?\s*(?:=>|:)\s*\{\s*:?["']?plural\b[\s\S]{0,100}?\brule\b`,
+      String.raw`${locale}\s*(?:=>|:)\s*\{\s*:?["']?i18n["']?\s*(?:=>|:)\s*\{\s*:?["']?plural\b[^}]{0,100}?\brule\b`,
       "g",
     ),
   ];
   for (const dir of ["config/initializers", "config/locales"]) {
     let names: string[];
     try {
-      names = readdirSync(path.join(cwd, dir)).filter((f) => f.endsWith(".rb"));
+      names = readdirSync(path.join(cwd, dir), { recursive: true })
+        .map(String)
+        .filter((f) => f.endsWith(".rb"));
     } catch {
       continue;
     }
@@ -934,10 +936,13 @@ function railsPluralForms(
     if (lang === config.sourceLanguage) continue;
     const code = fileCodeOf(source, lang);
     const cldr = pluralCategoriesOf(lang);
-    if (cldr.length === 0 || own.has(code)) continue;
     const parts = code.split("-");
-    const found = parts
-      .map((_, i) => RAILS_PLURALS[parts.slice(0, parts.length - i).join("-")])
+    const ancestors = parts.map((_, i) =>
+      parts.slice(0, parts.length - i).join("-"),
+    );
+    if (cldr.length === 0 || ancestors.some((l) => own.has(l))) continue;
+    const found = ancestors
+      .map((l) => RAILS_PLURALS[l])
       .find((k) => k !== undefined);
     const keys = found ?? ["one", "other"];
     if (keys.join() !== cldr.join()) out[lang] = keys;

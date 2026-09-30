@@ -1598,7 +1598,13 @@ test("a Rails catalogue's plurals take rails-i18n's keys where Gemfile.lock list
     path.join(dir, "config", "locales", "plurals.rb"),
     "{ :fr => { :i18n => { :plural => { :keys => [:one, :other], :rule => lambda { |n| :other } } } } }\n",
   );
+  // A call with no rule beside one with: the rule is the second's.
+  writeFileSync(
+    path.join(dir, "config", "initializers", "greetings.rb"),
+    'I18n.backend.store_translations(:cs, greeting: "Ahoj")\nI18n.backend.store_translations(:ja, i18n: { plural: { rule: r } })\n',
+  );
   const more = await formsOf();
+  expect(more.files?.cs).toEqual(["one", "few", "other"]);
   expect(more.files?.["pt-BR"]).toBeUndefined();
   expect(more.files?.fr).toBeUndefined();
   expect(more.files?.["zh-CN"]).toEqual(["one", "other"]);
