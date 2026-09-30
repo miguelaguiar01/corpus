@@ -18,6 +18,7 @@ contract (`corpus/1`) is the only one.
 - Under i18next an unpaired tag such as `<no title>` is text, not a refusal, while `Trans` tags are still compared and `<2/>` for `<2>…</2>` is caught (#986).
 - Android strings with an escaped `&lt;…&gt;` or an inline CDATA read as text and build; a pull writes such text escaped (#987).
 - Rails keys ending in `_html` are read as HTML: a translation's own tags are accepted, and broken markup in them is still caught (#988).
+- An Android app's modules are one project: an `android` source's `path` may list its `res` directories, with `merge`, and a `{ns}` captures a Compose Multiplatform module (#989).
 
 ## [0.21.0] - 2026-09-29
 

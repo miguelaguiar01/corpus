@@ -1493,3 +1493,110 @@ test("a removal of an i18next plural takes a target's object with it, however fe
   expect(JSON.parse(read("i18n/en.json"))).toEqual({ x: "X" });
   expect(JSON.parse(read("i18n/ja.json"))).toEqual({ x: "エックス" });
 });
+
+test("an android app's modules are one catalogue under a list of res directories, and a {ns} module's ids are its own (#989)", async () => {
+  const res = (dir: string, body: string) => {
+    mkdirSync(path.join(repo, dir), { recursive: true });
+    writeFileSync(
+      path.join(repo, dir, "strings.xml"),
+      `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n${body}</resources>\n`,
+    );
+  };
+  const config = (merge: string) =>
+    writeFileSync(
+      path.join(repo, "corpus.config.ts"),
+      `import { defineCorpus } from "@corpus/contract";
+
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de"],
+  sources: [
+    { adapter: "android", type: "ui", path: ["core/src/main/res", "app/src/main/res"], merge: "${merge}" },
+    { adapter: "android", type: "ui", path: "feature/{ns}/src/commonMain/composeResources" },
+  ],
+});
+`,
+    );
+  res(
+    "core/src/main/res/values",
+    '    <string name="app_name">Mail</string>\n    <string name="sort_by">Sort by</string>\n    <string name="title">Core</string>\n',
+  );
+  res(
+    "app/src/main/res/values",
+    '    <string name="app_name">Mail</string>\n    <string name="title">App</string>\n',
+  );
+  res(
+    "core/src/main/res/values-de",
+    '    <string name="app_name">Post</string>\n',
+  );
+  res(
+    "app/src/main/res/values-de",
+    '    <string name="app_name">Post</string>\n',
+  );
+  res(
+    "feature/notification/api/src/commonMain/composeResources/values",
+    '    <string name="title">New mail</string>\n',
+  );
+  config("strict");
+  const strict = ctx();
+  expect(await run(["build", "--out", path.join(repo, "s.json")], strict)).toBe(
+    1,
+  );
+  expect(strict.output.join("\n")).toMatch(
+    /duplicate id title in core\/src\/main\/res\/values\/strings.xml and app\/src\/main\/res\/values\/strings.xml, with different text/,
+  );
+  config("last-wins");
+  const built = ctx();
+  expect(await run(["build", "--out", path.join(repo, "s.json")], built)).toBe(
+    0,
+  );
+  const snapshot = JSON.parse(read("s.json")) as {
+    strings: { id: string; source: string }[];
+  };
+  expect(snapshot.strings.map((s) => [s.id, s.source])).toEqual(
+    expect.arrayContaining([
+      ["app_name", "Mail"],
+      ["sort_by", "Sort by"],
+      ["title", "App"],
+      ["notification/api:title", "New mail"],
+    ]),
+  );
+  expect(snapshot.strings.filter((s) => s.id === "app_name")).toHaveLength(1);
+  await serve(200, {
+    ...PAYLOAD,
+    types: {
+      app_name: "ui",
+      sort_by: "ui",
+      title: "ui",
+      "notification/api:title": "ui",
+    },
+    translations: {
+      de: {
+        app_name: "E-Post",
+        sort_by: "Sortieren nach",
+        "notification/api:title": "Neue Post",
+      },
+    },
+  });
+  expect(await run(["pull"], ctx())).toBe(0);
+  // A shared id lands in every module that holds it; one alone, in its own.
+  expect(read("core/src/main/res/values-de/strings.xml")).toContain(
+    '<string name="app_name">E-Post</string>',
+  );
+  expect(read("app/src/main/res/values-de/strings.xml")).toContain(
+    '<string name="app_name">E-Post</string>',
+  );
+  expect(read("core/src/main/res/values-de/strings.xml")).toContain(
+    '<string name="sort_by">Sortieren nach</string>',
+  );
+  expect(read("app/src/main/res/values-de/strings.xml")).not.toContain(
+    "sort_by",
+  );
+  expect(
+    read(
+      "feature/notification/api/src/commonMain/composeResources/values-de/strings.xml",
+    ),
+  ).toContain('<string name="title">Neue Post</string>');
+});

@@ -24,7 +24,7 @@ const langPattern = z
 // again (#854).
 const noNamespace = <T extends z.ZodType<string>>(adapter: string, path: T) =>
   path.refine((p) => !p.includes("{ns}"), {
-    message: `${adapter} does not read {ns}: only messages, table and fluent do`,
+    message: `${adapter} does not read {ns}: only messages, table, fluent and android do`,
   });
 const patterns = <T extends z.ZodType<string>>(pattern: T) =>
   z.union([pattern, z.array(pattern).min(1)]);
@@ -76,12 +76,14 @@ const execSchema = z.looseObject({
 });
 
 // Android's `res` directory (#596): `values/strings.xml` is the source
-// and each `values-<qualifier>` a language; the library is android.
-const androidSchema = z.looseObject({
+// and each `values-<qualifier>` a language; the library is android. A
+// modular app's `res` directories, which Gradle merges, are a list of
+// patterns, and a `{ns}` in one captures a Compose Multiplatform
+// module's own `composeResources`, its ids `ns:name` (#989).
+const androidFields = {
   adapter: z.literal("android"),
   type: identifier(),
-  path: noNamespace("android", z.string().min(1)),
-});
+};
 
 // Fluent `.ftl` (#597): messages as ICU, a select as a plural or select.
 const fluentFields = {
@@ -176,7 +178,11 @@ const sourceInputSchema = z.discriminatedUnion("adapter", [
     path: patterns(langPattern),
     ...mergeField,
   }),
-  androidSchema,
+  z.looseObject({
+    ...androidFields,
+    path: patterns(z.string().min(1)),
+    ...mergeField,
+  }),
   xliffSchema,
   gettextSchema,
   xcstringsSchema,
@@ -211,7 +217,12 @@ const sourceSchema = z.discriminatedUnion("adapter", [
     ...expanded,
     ...mergeField,
   }),
-  androidSchema,
+  z.looseObject({
+    ...androidFields,
+    path: z.string().min(1),
+    ...expanded,
+    ...mergeField,
+  }),
   xliffSchema,
   gettextSchema,
   xcstringsSchema,

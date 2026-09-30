@@ -836,8 +836,13 @@ export async function readEntries(
             ...(language !== undefined && { sourceLanguage: language }),
           })
         : typed(xcstringsTranslations(text(), language ?? ""));
-    case "android":
-      return androidToEntries(text(), { type: source.type });
+    case "android": {
+      const entries = androidToEntries(text(), { type: source.type });
+      // A `{ns}` module's ids are its own (#989).
+      return source.namespace
+        ? entries.map((e) => ({ ...e, id: `${source.namespace}:${e.id}` }))
+        : entries;
+    }
     case "gettext":
       return sourceFile
         ? gettextToEntries(text(), { type: source.type })
