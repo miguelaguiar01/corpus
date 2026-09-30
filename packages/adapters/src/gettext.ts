@@ -870,7 +870,20 @@ export function entriesToGettext(
   const eol = eolOf(base);
   const entries = parsePo(base);
   const pluralForms = poHeader(entries)["Plural-Forms"];
-  const { categories, majority } = pluralTable(language.tag, pluralForms);
+  const { indexes, categories, majority } = pluralTable(
+    language.tag,
+    pluralForms,
+  );
+  // A plural entry the reader reads as the text is left as it is, one
+  // short of its nplurals among them: a pull fills in no form (#981).
+  const unchanged = (entry: PoEntry, text: string) =>
+    entry.msgidPlural !== undefined &&
+    !entry.flags.includes("fuzzy") &&
+    poPluralText(
+      entry.msgstr.map((t) => t ?? ""),
+      indexes,
+      categories,
+    ) === text;
   const forms = (entry: PoEntry, text: string) => {
     const wanted = wantedForms(entry, text, categories, majority);
     if (!wanted) onRefused?.(poId(entry), text);
@@ -883,7 +896,7 @@ export function entriesToGettext(
     const id = poId(entry);
     seen.add(id);
     const text = translations[id];
-    if (text === undefined) continue;
+    if (text === undefined || unchanged(entry, text)) continue;
     const wanted = forms(entry, text);
     if (wanted) patches.push(...entryPatches(base, entry, wanted, eol));
   }
