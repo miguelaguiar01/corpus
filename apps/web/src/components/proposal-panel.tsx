@@ -6,7 +6,7 @@ import {
   parseIcu,
   refusalAdvice,
   type Library,
-  type RichText,
+  type TextReading,
 } from "@corpus/contract";
 import { chipText } from "@/components/source-view";
 import { Button } from "@/components/ui/button";
@@ -69,7 +69,7 @@ export function ProposalPanel({
   language?: string;
   source: string;
   syntax?: Library;
-  richText?: RichText | null;
+  richText?: TextReading | null;
   slots: Slot[];
   writable: boolean;
   // The text is the key (#611): the sentence says where to change it.

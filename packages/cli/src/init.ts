@@ -17,10 +17,12 @@ import {
   parseIcu,
   posixTag,
   tagMode,
+  richTextFor,
   type Library,
 } from "@corpus/contract";
 import { headOf, isQtLinguist, unreadableFile } from "./catalogue-format";
 import { option } from "./args";
+import { printable } from "./printable";
 import {
   configKey,
   fileOf,
@@ -188,7 +190,10 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   // whose tags only HTML reads builds with its type read so; any other
   // catalogue's tags may be components, I18n.js's JSON's too, and init
   // only says it (#952).
-  const htmlTags = await htmlOnlyTags(ctx.cwd, source, sourceLanguage);
+  const htmlIds = await htmlOnlyTags(ctx.cwd, source, sourceLanguage);
+  const htmlTags = htmlIds.length;
+  // The keys, a few, so the line says where.
+  const htmlKeys = `${htmlIds.slice(0, 3).map(printable).join(", ")}${htmlTags > 3 ? ", …" : ""}`;
   const readAsHtml =
     htmlTags > 0 &&
     adapter === "yaml" &&
@@ -232,11 +237,11 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     ctx.out("library: rails (the yaml source's default)");
   if (readAsHtml)
     ctx.out(
-      `richText: ${type} is read as HTML: ${htmlTags} source string(s) hold tags only HTML takes as text, an unclosed tag or a lone <br>`,
+      `richText: ${type} is read as HTML: ${htmlTags} source string(s) hold tags only HTML takes as text, an unclosed tag or a lone <br> (${htmlKeys})`,
     );
   else if (htmlTags > 0)
     ctx.out(
-      `corpus: ${htmlTags} source string(s) hold tags only HTML takes as text, an unclosed tag or a lone <br>, and are refused as they are: if the app renders ${type} as HTML, add richText: { ${configKey(type)}: "html" } to ${filename}`,
+      `corpus: ${htmlTags} source string(s) hold tags only HTML takes as text, an unclosed tag or a lone <br> (${htmlKeys}), and are refused as they are: if the app renders ${type} as HTML, add richText: { ${configKey(type)}: "html" } to ${filename}`,
     );
   if (include) {
     ctx.out(
@@ -281,14 +286,15 @@ type InitConfig = {
   check?: { include: string[] };
 };
 
-// How many of the source file's strings are refused as the library
-// reads their tags and taken as text where the type is read as HTML
-// (#952); none where the file will not read, which build then says.
+// The source file's strings refused as the library reads their tags and
+// taken as text where the type is read as HTML (#952), a Rails `_html`
+// key, read as HTML already, never among them (#988); none where the
+// file will not read, which build then says.
 async function htmlOnlyTags(
   cwd: string,
   source: InitSource,
   sourceLanguage: string,
-): Promise<number> {
+): Promise<string[]> {
   const declared = source as FileSource;
   let entries;
   try {
@@ -301,18 +307,20 @@ async function htmlOnlyTags(
       sourceLanguage,
     );
   } catch {
-    return 0;
+    return [];
   }
-  let count = 0;
+  const ids: string[] = [];
   for (const entry of entries) {
     const library = entry.library ?? sourceLibrary(declared);
+    const reading = richTextFor(entry.type, entry.id, library, undefined);
     if (
-      !parseIcu(entry.source, library, { html: tagMode(library) }).ok &&
+      !parseIcu(entry.source, library, { html: tagMode(library, reading) })
+        .ok &&
       parseIcu(entry.source, library, { html: "markup" }).ok
     )
-      count += 1;
+      ids.push(entry.id);
   }
-  return count;
+  return ids;
 }
 
 // What each library init detects is told by, for the line that says so.

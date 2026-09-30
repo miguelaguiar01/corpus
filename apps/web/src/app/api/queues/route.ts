@@ -1,4 +1,5 @@
 import type { QueuesResponse } from "@corpus/contract";
+import { richTextFor } from "@corpus/contract";
 import { getDb } from "@/db";
 import { authenticateProject } from "@/api/bearer";
 import { apiError } from "@/api/body";
@@ -50,7 +51,8 @@ export async function GET(request: Request): Promise<Response> {
                   text,
                   language,
                   syntax ?? "icu",
-                  project.richText?.[type] ?? null,
+                  richTextFor(type, key, syntax ?? "icu", project.richText) ??
+                    null,
                   args,
                 ),
         }),

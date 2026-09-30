@@ -912,3 +912,34 @@ test("under i18next a source's prose tags build, and a stray </br> is named with
   expect(c.stderr.join("\n")).toContain("loc/fr.json:f: missing the <0> tag");
   expect(c.stderr.join("\n")).not.toContain("loc/fr.json:a:");
 });
+
+test("a Rails _html key's translation writes its own tags, closed; a plain key's tags are compared (#988)", async () => {
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8")
+      .replace(
+        /sources: \[[\s\S]*?\n {2}\],/,
+        'sources: [{ adapter: "yaml", type: "server", path: "config/locales/{lang}.yml" }],',
+      )
+      .replace(/languages: \[[^\]]*\]/, 'languages: ["en", "ja"]'),
+  );
+  mkdirSync(path.join(repo, "config", "locales"), { recursive: true });
+  writeFileSync(
+    path.join(repo, "config", "locales", "en.yml"),
+    'en:\n  hint_html: "Read <strong>this</strong>"\n  link_html: \'Go <a href="%{path}">here</a>\'\n  plain: "Read <em>this</em>"\n',
+  );
+  writeFileSync(
+    path.join(repo, "config", "locales", "ja.yml"),
+    'ja:\n  hint_html: "<em>これ</em>を読む"\n  link_html: \'<a href="%{path}">ここ< /a>へ\'\n  plain: "これを読む"\n',
+  );
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(1);
+  const said = c.stderr.join("\n");
+  expect(said).not.toContain("ja.yml:hint_html");
+  expect(said).toContain("config/locales/ja.yml:link_html:");
+  expect(said).toContain("unclosed <a>");
+  expect(said).toContain("config/locales/ja.yml:plain: missing the <em> tag");
+});

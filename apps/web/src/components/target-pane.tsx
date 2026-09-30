@@ -13,7 +13,7 @@ import {
   type Example,
   type PreviewSegment,
   type Library,
-  type RichText,
+  type TextReading,
   partsOf,
 } from "@corpus/contract";
 import { chipText } from "@/components/source-view";
@@ -185,7 +185,7 @@ export function TargetPane({
   action: (formData: FormData) => void | Promise<void>;
   source: string;
   syntax?: Library;
-  richText?: RichText | null;
+  richText?: TextReading | null;
   // The verbs the code passes where the key carries them (#731).
   passed?: string[] | null;
   // The plural categories the runtime picks where they are not CLDR's:

@@ -1,4 +1,4 @@
-import { partsOf } from "@corpus/contract";
+import { isHtml, partsOf } from "@corpus/contract";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/auth/session";
 import { isQueueKind, queueItems } from "@/catalogue/queues";
@@ -252,9 +252,11 @@ export default async function StringPage({
                 <NoteText text={string.note} />
               </Section>
             )}
-            {string.richText === "html" && (
+            {isHtml(string.richText ?? undefined) && (
               <p className="text-sm text-muted-foreground">
-                {t("string.richTextHtml", { type: string.type })}
+                {string.richText === "html-key"
+                  ? t("string.richTextHtmlKey")
+                  : t("string.richTextHtml", { type: string.type })}
               </p>
             )}
             {target && (

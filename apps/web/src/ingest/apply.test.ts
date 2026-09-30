@@ -1247,3 +1247,43 @@ test("a gettext plural's categories per language are kept on the row and reach t
   applySnapshot(db, project.id, bare);
   expect(stringRow(db, "%d note")?.pluralForms).toBeNull();
 });
+
+test("a push's seed of a Rails _html key writes its own tags, but a tag it leaves unclosed is marked invalid (#988)", () => {
+  const { db, project } = seed();
+  const strings = [
+    {
+      id: "about.hint_html",
+      type: "chrome",
+      source: 'Read <strong>this</strong> <a href="%{path}">here</a>',
+      library: "rails" as const,
+    },
+    {
+      id: "about.plain",
+      type: "chrome",
+      source: "Read <strong>this</strong>",
+      library: "rails" as const,
+    },
+  ];
+  applySnapshot(db, project.id, {
+    ...FIXTURE,
+    strings,
+    seedTranslations: {
+      en: {
+        "about.hint_html": 'Read <em>this</em> <a href="%{path}">here</a>',
+        "about.plain": "Read this",
+      },
+    },
+  });
+  expect(translationOf(db, "about.hint_html", "en")?.invalid).toBe(false);
+  expect(translationOf(db, "about.plain", "en")?.invalid).toBe(true);
+  applySnapshot(db, project.id, {
+    ...FIXTURE,
+    strings,
+    seedTranslations: {
+      en: {
+        "about.hint_html": 'Read <em>this</em> <a href="%{path}">here< /a>',
+      },
+    },
+  });
+  expect(translationOf(db, "about.hint_html", "en")?.invalid).toBe(true);
+});

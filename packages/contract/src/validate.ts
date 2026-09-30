@@ -212,8 +212,30 @@ function otherBranch(nodes: IcuNode[], args: Set<string>): IcuNode[] {
 // Where `<br>` and the other void elements open nothing (#643): a type
 // read as HTML, an Android string (rendered through fromHtml), and
 // i18next, whose react-i18next Trans keeps them void.
-export function hasVoidTags(syntax: Library, richText?: RichText): boolean {
-  return richText === "html" || syntax === "android" || syntax === "i18next";
+export function hasVoidTags(syntax: Library, richText?: TextReading): boolean {
+  return isHtml(richText) || syntax === "android" || syntax === "i18next";
+}
+
+// How a string's text is read: its type's `richText` (#622), or, for a
+// Rails key ending `_html` or `.html`, which Rails marks html_safe
+// whatever the type, "html-key", its type's `richText` too: HTML whose
+// tags a translation writes its own way, but closes, as the source does
+// (#988).
+export type TextReading = RichText | "html-key";
+
+export function isHtml(reading: TextReading | undefined): boolean {
+  return reading === "html" || reading === "html-key";
+}
+
+export function richTextFor(
+  type: string,
+  id: string,
+  library: Library,
+  richText: Readonly<Record<string, RichText>> | null | undefined,
+): TextReading | undefined {
+  // Rails' own test, `html_safe_translation_key?`, on the whole key.
+  if (library === "rails" && /(?:_|\b)html$/.test(id)) return "html-key";
+  return richText?.[type] ?? undefined;
 }
 
 // How a type's text reads its tags: "markup" for a type read as HTML,
@@ -225,9 +247,9 @@ export function hasVoidTags(syntax: Library, richText?: RichText): boolean {
 // elements open nothing.
 export function tagMode(
   syntax: Library,
-  richText?: RichText,
+  richText?: TextReading,
 ): boolean | "markup" {
-  return richText === "html" || syntax === "i18next" || syntax === "android"
+  return isHtml(richText) || syntax === "i18next" || syntax === "android"
     ? "markup"
     : hasVoidTags(syntax, richText);
 }
@@ -268,7 +290,7 @@ export function validateTranslation(
   // the language's CLDR ones: a gettext file's `Plural-Forms`' (#951),
   // rails-i18n's (#983).
   options: {
-    richText?: RichText;
+    richText?: TextReading;
     arguments?: string[];
     pluralForms?: readonly string[];
   } = {},
@@ -444,8 +466,26 @@ export function validateTranslation(
           ...(written ? { written } : {}),
         });
   };
-  if (options.richText === "html") {
-    attrErrors(expected.attrPlaceholders, actual.attrPlaceholders);
+  if (isHtml(options.richText)) {
+    // A value moved out of an attribute into the text is said once,
+    // where it went (#988).
+    attrErrors(
+      new Map(
+        [...expected.attrPlaceholders].filter(
+          ([name]) =>
+            !(
+              actual.placeholders.has(name) && !expected.placeholders.has(name)
+            ),
+        ),
+      ),
+      actual.attrPlaceholders,
+    );
+    // A Rails `_html` key's own markup, but a source's pair written with
+    // nothing in it, `<a href="…"></a>` for a link, still hides its text.
+    if (options.richText === "html-key")
+      for (const name of expected.pairs)
+        if (actual.tags.has(name) && !actual.pairs.has(name))
+          errors.push({ code: "unpaired-tag", name });
   } else {
     for (const name of expected.tags) {
       if (!actual.tags.has(name)) errors.push({ code: "missing-tag", name });
@@ -456,96 +496,103 @@ export function validateTranslation(
       if (!expected.tags.has(name))
         errors.push({ code: "unexpected-tag", name });
     }
-    // Under i18next a tag a source writes as text is text, and so is one
-    // its translation writes as often, the source's unclosed `<p>` or
-    // stray `</br>`; one more, a close, or an open named as a tag of the
-    // source's or HTML's (`<ul> <li>` added to Markdown), is a tag
-    // broken, not prose, while `<sans titre>` is prose. The
-    // placeholders in a prose tag's attributes are the text's, which
-    // i18next fills (#986).
-    if (syntax === "i18next" || syntax === "android") {
-      const names = new Set(
-        [...expected.tags].map((identity) =>
-          identity.split(" ")[0]!.toLowerCase(),
-        ),
-      );
-      // A pair closed on itself is said once, as that: its first
-      // unclosed open is that pair's, any more are broken besides.
-      const unpaired = new Map<string, number>();
-      for (const e of errors)
-        if (e.code === "unpaired-tag") {
-          const name = e.name.split(" ")[0]!.toLowerCase();
-          unpaired.set(name, (unpaired.get(name) ?? 0) + 1);
-        }
-      const keyOf = (t: ProseTag) =>
-        `${t.close ? "/" : ""}${t.name.toLowerCase()}`;
-      // Counted per branch, a branch's allowance the most any branch of
-      // the same argument has in the source: Polish's four branches may
-      // each keep the `</br>` English's two do; outside every branch, the
-      // text's own count; a place the source keeps none in, a plural
-      // written flat or one the source lacks, the most any one place of
-      // the source keeps.
-      const scopeOf = (t: ProseTag) =>
-        t.branch.length === 0
-          ? ""
-          : [
-              ...t.branch.slice(0, -1),
-              t.branch[t.branch.length - 1]!.split(":")[0]!,
-            ].join("\u0000");
-      const branchOf = (t: ProseTag) => t.branch.join("\u0000");
-      const perBranch = new Map<string, number>();
-      const allowed = new Map<string, number>();
-      const most = new Map<string, number>();
-      for (const t of proseTagsOf(source, syntax)) {
-        const at = `${branchOf(t)}\u0001${keyOf(t)}`;
-        const n = (perBranch.get(at) ?? 0) + 1;
-        perBranch.set(at, n);
-        const scope = `${scopeOf(t)}\u0001${keyOf(t)}`;
-        allowed.set(scope, Math.max(allowed.get(scope) ?? 0, n));
-        most.set(keyOf(t), Math.max(most.get(keyOf(t)) ?? 0, n));
+  }
+  // Under i18next and Android, and in a Rails `_html` key, a tag a
+  // source writes as text is text, and so is one its translation writes
+  // as often, the source's unclosed `<p>` or
+  // stray `</br>`; one more, a close, or an open named as a tag of the
+  // source's or HTML's (`<ul> <li>` added to Markdown), is a tag
+  // broken, not prose, while `<sans titre>` is prose. The
+  // placeholders in a prose tag's attributes are the text's, which
+  // i18next fills (#986).
+  if (
+    options.richText === "html-key" ||
+    ((syntax === "i18next" || syntax === "android") &&
+      options.richText !== "html")
+  ) {
+    const names = new Set(
+      [...expected.tags].map((identity) =>
+        identity.split(" ")[0]!.toLowerCase(),
+      ),
+    );
+    // A pair closed on itself is said once, as that: its first
+    // unclosed open is that pair's, any more are broken besides.
+    const unpaired = new Map<string, number>();
+    for (const e of errors)
+      if (e.code === "unpaired-tag") {
+        const name = e.name.split(" ")[0]!.toLowerCase();
+        unpaired.set(name, (unpaired.get(name) ?? 0) + 1);
       }
-      // An element as markup writes one: bare, or with attributes, where
-      // `<em andamento>` is Portuguese for "in progress".
-      const markup = (t: ProseTag) =>
-        isHtmlElement(t.name) &&
-        (t.attrs === undefined || /^(?:\/|[\w:-]+\s*=)/.test(t.attrs));
-      const seen = new Map<string, number>();
-      for (const tag of proseTagsOf(target, syntax)) {
-        const at = `${branchOf(tag)}\u0001${keyOf(tag)}`;
-        const n = (seen.get(at) ?? 0) + 1;
-        seen.set(at, n);
-        const limit =
-          allowed.get(`${scopeOf(tag)}\u0001${keyOf(tag)}`) ??
-          most.get(keyOf(tag)) ??
-          0;
-        if (n <= limit) continue;
-        if (tag.close)
-          errors.push({
-            code: "invalid-icu",
-            where: "target",
-            message: `unexpected </${tag.name}>`,
-            position: tag.at,
-          });
-        else if (names.has(tag.name.toLowerCase()) || markup(tag)) {
-          const name = tag.name.toLowerCase();
-          const left = unpaired.get(name) ?? 0;
-          if (left > 0) {
-            unpaired.set(name, left - 1);
-            continue;
-          }
-          errors.push({
-            code: "invalid-icu",
-            where: "target",
-            message: `unclosed <${tag.name}>`,
-            position: tag.at,
-          });
+    const keyOf = (t: ProseTag) =>
+      `${t.close ? "/" : ""}${t.name.toLowerCase()}`;
+    // Counted per branch, a branch's allowance the most any branch of
+    // the same argument has in the source: Polish's four branches may
+    // each keep the `</br>` English's two do; outside every branch, the
+    // text's own count; a place the source keeps none in, a plural
+    // written flat or one the source lacks, the most any one place of
+    // the source keeps.
+    const scopeOf = (t: ProseTag) =>
+      t.branch.length === 0
+        ? ""
+        : [
+            ...t.branch.slice(0, -1),
+            t.branch[t.branch.length - 1]!.split(":")[0]!,
+          ].join("\u0000");
+    const branchOf = (t: ProseTag) => t.branch.join("\u0000");
+    const perBranch = new Map<string, number>();
+    const allowed = new Map<string, number>();
+    const most = new Map<string, number>();
+    for (const t of proseTagsOf(source, syntax)) {
+      const at = `${branchOf(t)}\u0001${keyOf(t)}`;
+      const n = (perBranch.get(at) ?? 0) + 1;
+      perBranch.set(at, n);
+      const scope = `${scopeOf(t)}\u0001${keyOf(t)}`;
+      allowed.set(scope, Math.max(allowed.get(scope) ?? 0, n));
+      most.set(keyOf(t), Math.max(most.get(keyOf(t)) ?? 0, n));
+    }
+    // An element as markup writes one: bare, or with attributes, where
+    // `<em andamento>` is Portuguese for "in progress".
+    const markup = (t: ProseTag) =>
+      isHtmlElement(t.name) &&
+      (t.attrs === undefined || /^(?:\/|[\w:-]+\s*=)/.test(t.attrs));
+    const seen = new Map<string, number>();
+    for (const tag of proseTagsOf(target, syntax)) {
+      const at = `${branchOf(tag)}\u0001${keyOf(tag)}`;
+      const n = (seen.get(at) ?? 0) + 1;
+      seen.set(at, n);
+      const limit =
+        allowed.get(`${scopeOf(tag)}\u0001${keyOf(tag)}`) ??
+        most.get(keyOf(tag)) ??
+        0;
+      if (n <= limit) continue;
+      if (tag.close)
+        errors.push({
+          code: "invalid-icu",
+          where: "target",
+          message: `unexpected </${tag.name}>`,
+          position: tag.at,
+        });
+      else if (names.has(tag.name.toLowerCase()) || markup(tag)) {
+        const name = tag.name.toLowerCase();
+        const left = unpaired.get(name) ?? 0;
+        if (left > 0) {
+          unpaired.set(name, left - 1);
+          continue;
         }
+        errors.push({
+          code: "invalid-icu",
+          where: "target",
+          message: `unclosed <${tag.name}>`,
+          position: tag.at,
+        });
       }
-      // A value a real tag's attribute writes in one and a prose tag's
-      // in the other is a tag broken, said above, not a value moved; one
-      // moved into the text is said once, where it went.
-      const inAttrs = (shape: Shape, name: string) =>
-        shape.attrPlaceholders.has(name);
+    }
+    // A value a real tag's attribute writes in one and a prose tag's
+    // in the other is a tag broken, said above, not a value moved; one
+    // moved into the text is said once, where it went.
+    const inAttrs = (shape: Shape, name: string) =>
+      shape.attrPlaceholders.has(name);
+    if (!isHtml(options.richText))
       attrErrors(
         new Map(
           [...expected.proseAttrPlaceholders].filter(
@@ -559,7 +606,39 @@ export function validateTranslation(
           ),
         ),
       );
-    }
+    // An attribute whose quote never closes swallows the text after it,
+    // where the source's tags close theirs: ia's `<a href="%{path}>`
+    // (#988).
+    // Attribute text with its quoted values taken out: a quote left is
+    // one no value closes, `title="l'été"` none; only text shaped as
+    // attributes, so `<nom d'utilisateur>` is prose.
+    const openQuote = (attrs: string) =>
+      attrs.includes("=") && /["']/.test(attrs.replace(/"[^"]*"|'[^']*'/g, ""));
+    const attrsOf = (shape: Shape, prose: ProseTag[]) => [
+      ...[...shape.tags].flatMap((identity) => {
+        const at = identity.indexOf(" ");
+        return at < 0
+          ? []
+          : [{ name: identity.slice(0, at), attrs: identity.slice(at + 1) }];
+      }),
+      ...prose.flatMap((t) =>
+        t.attrs === undefined ? [] : [{ name: t.name, attrs: t.attrs }],
+      ),
+    ];
+    if (
+      options.richText === "html-key" &&
+      !attrsOf(expected, proseTagsOf(source, syntax)).some((t) =>
+        openQuote(t.attrs),
+      )
+    )
+      for (const tag of attrsOf(actual, proseTagsOf(target, syntax)))
+        if (openQuote(tag.attrs))
+          errors.push({
+            code: "invalid-icu",
+            where: "target",
+            message: `<${tag.name} ${tag.attrs}> opens a quote it never closes`,
+            position: Math.max(0, target.indexOf(`<${tag.name} ${tag.attrs}`)),
+          });
   }
   errors.push(
     ...pluralErrors(

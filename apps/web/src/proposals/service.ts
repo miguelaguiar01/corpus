@@ -8,6 +8,7 @@ import {
   type Library,
   libraryOf,
   refusalAdvice,
+  richTextFor,
 } from "@corpus/contract";
 import type { Db } from "@/db";
 import { projects, sourceChanges, strings, users } from "@/db/schema";
@@ -98,7 +99,10 @@ function forString(
   if (!row.file) return { ok: false, reason: "not-writable" };
   if (kind === "edit") {
     const syntax = row.syntax ?? "icu";
-    const html = tagMode(syntax, found.richText?.[row.type]);
+    const html = tagMode(
+      syntax,
+      richTextFor(row.type, row.stringId, syntax, found.richText),
+    );
     if (text === undefined || !validIcu(text, syntax, html)) {
       const message = invalidIcuMessage(text ?? "", syntax, html);
       return {
@@ -173,7 +177,10 @@ export function proposeAdd(
   );
   const key = namespacedKey(source, typed, namespaces);
   if (key === undefined) return { ok: false, reason: "invalid-key" };
-  const html = tagMode(libraryOf(source), project.richText?.[source.type]);
+  const html = tagMode(
+    libraryOf(source),
+    richTextFor(source.type, key, libraryOf(source), project.richText),
+  );
   if (!validIcu(input.text, libraryOf(source), html)) {
     const message = invalidIcuMessage(input.text, libraryOf(source), html);
     return {

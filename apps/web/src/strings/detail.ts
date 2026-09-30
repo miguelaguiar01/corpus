@@ -10,7 +10,8 @@ import {
   type GlossaryEntry,
   type MetadataValue,
   type Library,
-  type RichText,
+  richTextFor,
+  type TextReading,
 } from "@corpus/contract";
 import type { Db } from "@/db";
 import {
@@ -41,7 +42,9 @@ export type StringDetail = {
     arguments: string[] | null;
     // Per target language, a gettext file's plural categories (#951).
     pluralForms: Record<string, string[]> | null;
-    richText: RichText | null;
+    // How the text is read: its type's richText, or a Rails `_html`
+    // key's (#988).
+    richText: TextReading | null;
     metadata: Record<string, MetadataValue> | null;
     examples: Example[] | null;
     // The type's voice note (§5), when the project carries one.
@@ -159,7 +162,13 @@ export function stringDetail(
       syntax: string.syntax ?? "icu",
       arguments: string.arguments ?? null,
       pluralForms: string.pluralForms ?? null,
-      richText: project.richText?.[string.type] ?? null,
+      richText:
+        richTextFor(
+          string.type,
+          string.stringId,
+          string.syntax ?? "icu",
+          project.richText,
+        ) ?? null,
       metadata,
       examples: string.examples ?? null,
       note: project.typeNotes?.[string.type] ?? null,

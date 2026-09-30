@@ -36,6 +36,8 @@ import {
   libraryOf,
   WHOLE_PLURAL_LIBRARIES,
   tagMode,
+  richTextFor,
+  isHtml,
   messageKind,
   nestedCountsOf,
   parseIcu,
@@ -514,8 +516,9 @@ function validateEntry(
   notes: string[],
 ): void {
   const syntax = libraryOf(entry);
+  const reading = richTextFor(entry.type, entry.id, syntax, richText);
   const icu = parseIcu(entry.source, syntax, {
-    html: tagMode(syntax, richText?.[entry.type]),
+    html: tagMode(syntax, reading),
   });
   if (icu.ok) {
     sourced.push({ entry, file });
@@ -531,8 +534,7 @@ function validateEntry(
     const advice = refusalAdvice(entry.source, syntax, message);
     const cause = refusalCause(entry.source, syntax, message);
     const html =
-      richText?.[entry.type] !== "html" &&
-      parseIcu(entry.source, syntax, { html: "markup" }).ok;
+      !isHtml(reading) && parseIcu(entry.source, syntax, { html: "markup" }).ok;
     refused.push({
       file,
       id: entry.id,

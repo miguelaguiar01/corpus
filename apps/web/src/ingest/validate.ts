@@ -6,6 +6,7 @@ import {
   refusalAdvice,
   snapshotSchema,
   type Snapshot,
+  richTextFor,
 } from "@corpus/contract";
 
 export type EntryError = { id: string; message: string };
@@ -50,7 +51,10 @@ export function validateSnapshot(body: unknown): ValidationResult {
 
     const library = libraryOf(entry);
     const icu = parseIcu(entry.source, library, {
-      html: tagMode(library, snapshot.richText?.[entry.type]),
+      html: tagMode(
+        library,
+        richTextFor(entry.type, entry.id, library, snapshot.richText),
+      ),
     });
     if (!icu.ok) {
       // The CLI refuses these before a push, so this message reaches

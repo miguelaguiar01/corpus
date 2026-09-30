@@ -2,8 +2,8 @@ import {
   isDroppedPlural,
   validateTranslation,
   type Library,
-  type RichText,
   type ValidationError,
+  type TextReading,
 } from "@corpus/contract";
 import { chipText } from "@/components/source-view";
 import { t } from "@/i18n";
@@ -87,7 +87,7 @@ export function problemOf(
   text: string,
   language: string,
   syntax: Library,
-  richText: RichText | null,
+  richText: TextReading | null,
   passed?: string[] | null,
 ): string | null {
   const check = validateTranslation(source, text, language, syntax, {
