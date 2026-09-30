@@ -8,3 +8,4 @@ export * from "./gettext";
 export * from "./xcstrings";
 export * from "./qtts";
 export * from "./yaml";
+export * from "./railsplurals";

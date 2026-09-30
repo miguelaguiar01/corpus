@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { createJiti } from "jiti";
 import { z } from "zod";
@@ -24,6 +24,8 @@ import {
   messagesToEntries,
   pluralBranches,
   pluralObjectIds,
+  RAILS_I18N_VERSION,
+  RAILS_PLURALS,
   stripBom,
   tableToEntries,
 } from "@corpus/adapters";
@@ -264,15 +266,15 @@ export async function buildSnapshotReport(
         `${file}: ${keyed} string(s) have an empty value and take the key as the text; a proposal on them is refused, since the text is the key`,
       );
     }
-    const pluralForms =
-      source.adapter === "gettext"
-        ? gettextPluralForms(cwd, source, config)
-        : undefined;
+    const pluralForms = pluralFormsOf(cwd, source, config, (note) => {
+      if (!notes.includes(note)) notes.push(note);
+    });
     for (const entry of entries) {
       validateEntry(
         {
           ...entry,
-          ...(pluralForms && pluralBranches(entry.source) && { pluralForms }),
+          ...(pluralForms &&
+            takesPluralForms(entry, source) && { pluralForms }),
           // A key-is-text entry carries no file: a proposal would rewrite
           // the key, which is the code's, not the catalogue's.
           ...(writable && !entry.keyIsText ? { file } : {}),
@@ -849,13 +851,100 @@ export async function readEntries(
     : entries;
 }
 
+// Per target language, the plural categories a source's runtime picks
+// where they are not the language's CLDR ones: a gettext file's
+// `Plural-Forms` (#951), rails-i18n's rule for a Rails catalogue (#983).
+export function pluralFormsOf(
+  cwd: string,
+  source: FileSource,
+  config: CorpusConfig,
+  onNote?: (note: string) => void,
+): Record<string, string[]> | undefined {
+  if (source.adapter === "gettext")
+    return gettextPluralForms(cwd, source, config);
+  if (source.adapter === "yaml" && sourceLibrary(source) === "rails")
+    return railsPluralForms(cwd, source, config, onNote);
+  return undefined;
+}
+
+// Whether an entry's plural is checked by its source's plural forms: a
+// plural in the source's own library, not a Rails `*_MF` key's ICU.
+export function takesPluralForms(
+  entry: StringEntry,
+  source: FileSource,
+): boolean {
+  return (
+    pluralBranches(entry.source) !== undefined &&
+    (entry.library === undefined || entry.library === sourceLibrary(source))
+  );
+}
+
+// Per target language, the plural keys rails-i18n registers for a Rails
+// catalogue's locale, where the repository's Gemfile.lock lists the gem
+// (#983): the file's root key as Ruby names the locale, else its parent
+// before a `-`, as I18n's fallbacks reach it, else one and other, I18n's
+// own rule. A locale the app gives a rule of its own in
+// config/initializers keeps CLDR's, which Corpus can read, as does every
+// language of a repository without the gem; `zero`, which I18n picks for
+// 0 wherever it is written, is allowed by the library (§5).
+function railsPluralForms(
+  cwd: string,
+  source: FileSource,
+  config: CorpusConfig,
+  onNote?: (note: string) => void,
+): Record<string, string[]> | undefined {
+  let lock: string;
+  try {
+    lock = readFileSync(path.join(cwd, "Gemfile.lock"), "utf8");
+  } catch {
+    return undefined;
+  }
+  const version = /^ {4}rails-i18n \(([^)]+)\)$/m.exec(lock)?.[1];
+  if (!version) return undefined;
+  const own = new Map<string, string>();
+  const initializers = path.join(cwd, "config", "initializers");
+  try {
+    for (const name of readdirSync(initializers).filter((f) =>
+      f.endsWith(".rb"),
+    )) {
+      const ruby = readFileSync(path.join(initializers, name), "utf8");
+      for (const m of ruby.matchAll(
+        /store_translations\(\s*:?["']?([\w-]+)["']?\s*,[^\n]*\bplural\b[^\n]*\brule\b/g,
+      ))
+        own.set(m[1]!, `config/initializers/${name}`);
+    }
+  } catch {
+    // No initializers: no locale has a rule of its own.
+  }
+  const out: Record<string, string[]> = {};
+  for (const lang of config.languages) {
+    if (lang === config.sourceLanguage) continue;
+    const locale = fileCodeOf(source, lang);
+    const cldr = pluralCategoriesOf(lang);
+    if (cldr.length === 0 || own.has(locale)) continue;
+    const keys = RAILS_PLURALS[locale] ??
+      RAILS_PLURALS[locale.split("-")[0]!] ?? ["one", "other"];
+    if (keys.join() !== cldr.join()) out[lang] = keys;
+  }
+  const kept = [...own.keys()].filter((l) =>
+    config.languages.some((lang) => fileCodeOf(source, lang) === l),
+  );
+  onNote?.(
+    `plural rules: rails-i18n ${version} (Gemfile.lock), read from Corpus's table of ${RAILS_I18N_VERSION}` +
+      (kept.length > 0
+        ? `; ${kept.join(", ")} register a rule of their own (${[...new Set(kept.map((l) => own.get(l)))].join(", ")}), which Corpus cannot run, so CLDR's stands in`
+        : ""),
+  );
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 // Per target language, the plural categories a gettext source's target
 // file picks, where they are not the language's CLDR ones (#951): a
 // missing file is the one pull would write, from the language's table,
 // and one that will not read is named where its seeds are read. A tag
 // the runtime has no plural data for has none: its rules would be the
 // pushing machine's locale, and nothing is enforced for it.
-export function gettextPluralForms(
+function gettextPluralForms(
   cwd: string,
   source: FileSource,
   config: CorpusConfig,

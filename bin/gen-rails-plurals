@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# rails-i18n's plural keys per locale (#983), read from the gem's
+# rails/pluralization/*.rb at a pinned version into
+# packages/adapters/src/railsplurals.ts, which is committed. --check says
+# whether the committed file is what that version gives.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+node bin/gen-rails-plurals.mjs "$@"

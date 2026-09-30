@@ -1522,3 +1522,72 @@ test("under merge: last-wins a source text two files hold otherwise is the later
   );
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("a Rails catalogue's plurals take rails-i18n's keys where Gemfile.lock lists the gem, CLDR's without it or where the app rules its own (#983)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-983-"));
+  mkdirSync(path.join(dir, "config", "locales"), { recursive: true });
+  const yml = (code: string) =>
+    `${code}:\n  files:\n    one: "%{count} file"\n    other: "%{count} files"\n  hello: Hello\n  hello_MF: "{n, plural, one {# x} other {# y}}"\n`;
+  for (const code of ["en", "fr", "cs", "ja", "pt-BR", "pt_BR", "zh_CN"])
+    writeFileSync(
+      path.join(dir, "config", "locales", `${code}.yml`),
+      yml(code),
+    );
+  const build = () =>
+    buildSnapshotReport(
+      config({
+        sourceLanguage: "en",
+        languages: ["en", "fr", "cs", "ja", "pt-BR", "zh-CN"],
+        sources: [
+          {
+            adapter: "yaml",
+            type: "ui",
+            path: "config/locales/{lang}.yml",
+            languageFiles: { "zh-CN": "zh_CN" },
+          },
+        ],
+      }),
+      dir,
+    );
+  const formsOf = async () => {
+    const report = await build();
+    const byId = new Map(report.snapshot.strings.map((s) => [s.id, s]));
+    return {
+      report,
+      files: byId.get("files")?.pluralForms,
+      mf: byId.get("hello_MF")?.pluralForms,
+    };
+  };
+  // No Gemfile.lock: CLDR, as before.
+  expect((await formsOf()).files).toBeUndefined();
+  writeFileSync(
+    path.join(dir, "Gemfile.lock"),
+    "GEM\n  remote: https://rubygems.org/\n  specs:\n    i18n (1.15.2)\n    rails-i18n (8.1.0)\n      i18n (>= 0.7, < 2)\n\nDEPENDENCIES\n  rails-i18n (~> 8.0)\n",
+  );
+  const { report, files, mf } = await formsOf();
+  // ja's keys are CLDR's, so it carries none; zh_CN, which the gem
+  // spells zh-CN, takes I18n's own one and other.
+  expect(files).toEqual({
+    fr: ["one", "other"],
+    cs: ["one", "few", "other"],
+    "pt-BR": ["one", "other"],
+    "zh-CN": ["one", "other"],
+  });
+  // A `*_MF` key is ICU, read by CLDR's rule.
+  expect(mf).toBeUndefined();
+  expect(report.notes).toContain(
+    "plural rules: rails-i18n 8.1.0 (Gemfile.lock), read from Corpus's table of 8.1.0",
+  );
+  // An initializer's rule of its own: CLDR's stands in, and build says so.
+  mkdirSync(path.join(dir, "config", "initializers"));
+  writeFileSync(
+    path.join(dir, "config", "initializers", "i18n_pluralization.rb"),
+    "rule = ->(_count) { :other }\nI18n.backend.store_translations(:zh_CN, i18n: { plural: { rule: rule } })\n",
+  );
+  const ruled = await formsOf();
+  expect(ruled.files?.["zh-CN"]).toBeUndefined();
+  expect(ruled.report.notes.join("\n")).toContain(
+    "zh_CN register a rule of their own (config/initializers/i18n_pluralization.rb), which Corpus cannot run, so CLDR's stands in",
+  );
+  rmSync(dir, { recursive: true, force: true });
+});
