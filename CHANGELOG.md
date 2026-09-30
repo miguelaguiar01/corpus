@@ -11,7 +11,7 @@ contract (`corpus/1`) is the only one.
 
 - A gettext pull no longer fills in the missing forms of a plural entry nobody edited (#981).
 - Switching language on a string page shows that language's own text; the editor no longer keeps the previous language's draft (#979).
-- A gettext file whose `Plural-Forms` does not match CLDR's categories (Cebuano, Manx, Hebrew, Latvian's older rule) now shows and writes every one of its forms (#982).
+- Gettext files in Cebuano, Manx, Welsh, Filipino, Hebrew and Latvian (older rule), whose `Plural-Forms` cut across CLDR's categories, now show and write every plural form (#982).
 
 ## [0.21.0] - 2026-09-29
 
