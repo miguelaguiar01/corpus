@@ -2338,3 +2338,21 @@ test("each target branch may keep the prose tags the source's branches do, howev
     ),
   ).toMatchObject({ ok: false });
 });
+
+test("a prose tag in a place the source keeps none in may be as many as one place of the source keeps (#986 review 4)", () => {
+  const source =
+    "{count, plural, one {1 file </br> ok} other {{{count}} files </br> ok}}";
+  expect(
+    validateTranslation(source, "{{count}} ファイル </br> ok", "ja", "i18next"),
+  ).toEqual({
+    ok: true,
+  });
+  expect(
+    validateTranslation(
+      "Restart. </br> {{count}} files",
+      "{count, plural, one {Restart. </br> 1 plik} few {Restart. </br> {{count}} pliki} many {Restart. </br> {{count}} plików} other {Restart. </br> {{count}} pliku}}",
+      "pl",
+      "i18next",
+    ),
+  ).toMatchObject({ ok: true });
+});

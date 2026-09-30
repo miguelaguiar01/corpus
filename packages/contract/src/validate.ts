@@ -480,7 +480,9 @@ export function validateTranslation(
       // Counted per branch, a branch's allowance the most any branch of
       // the same argument has in the source: Polish's four branches may
       // each keep the `</br>` English's two do; outside every branch, the
-      // text's own count.
+      // text's own count; a place the source keeps none in, a plural
+      // written flat or one the source lacks, the most any one place of
+      // the source keeps.
       const scopeOf = (t: ProseTag) =>
         t.branch.length === 0
           ? ""
@@ -491,12 +493,14 @@ export function validateTranslation(
       const branchOf = (t: ProseTag) => t.branch.join("\u0000");
       const perBranch = new Map<string, number>();
       const allowed = new Map<string, number>();
+      const most = new Map<string, number>();
       for (const t of proseTagsOf(source, syntax)) {
         const at = `${branchOf(t)}\u0001${keyOf(t)}`;
         const n = (perBranch.get(at) ?? 0) + 1;
         perBranch.set(at, n);
         const scope = `${scopeOf(t)}\u0001${keyOf(t)}`;
         allowed.set(scope, Math.max(allowed.get(scope) ?? 0, n));
+        most.set(keyOf(t), Math.max(most.get(keyOf(t)) ?? 0, n));
       }
       // An element as markup writes one: bare, or with attributes, where
       // `<em andamento>` is Portuguese for "in progress".
@@ -508,8 +512,11 @@ export function validateTranslation(
         const at = `${branchOf(tag)}\u0001${keyOf(tag)}`;
         const n = (seen.get(at) ?? 0) + 1;
         seen.set(at, n);
-        if (n <= (allowed.get(`${scopeOf(tag)}\u0001${keyOf(tag)}`) ?? 0))
-          continue;
+        const limit =
+          allowed.get(`${scopeOf(tag)}\u0001${keyOf(tag)}`) ??
+          most.get(keyOf(tag)) ??
+          0;
+        if (n <= limit) continue;
         if (tag.close)
           errors.push({
             code: "invalid-icu",
