@@ -950,28 +950,33 @@ test("a file whose rule coarsens CLDR, or leaves no form unread, reads as before
   ).toBe("{count, plural, one {a} other {b}}");
 });
 
-test("a form no key fits is not read: the entry is named, never seeded, never written (#982)", () => {
-  const odd = po(
-    "nplurals=3; plural=(n==1 ? 0 : n%10==5 ? 1 : 2);",
-    "en",
-    `msgstr[0] "a"\nmsgstr[1] "b"\nmsgstr[2] "c"\n`,
-  );
-  const unread: string[] = [];
-  expect(gettextTranslations(odd, "en", (id) => unread.push(id))).toEqual([]);
-  expect(unread).toEqual(["%d file"]);
-  const refused: string[] = [];
+test("a form no key fits leaves the file read by CLDR's categories, that form keeping its text: the million rule in Galician (#982)", () => {
+  const MILLION =
+    "nplurals=3; plural=n == 1 ? 0 : n != 0 && n % 1000000 == 0 ? 1 : 2;";
+  const gl = po(MILLION, "gl", `msgstr[0] "a"\nmsgstr[1] "m"\nmsgstr[2] "c"\n`);
+  expect(seedOf(gl, "gl")).toBe("{count, plural, one {a} other {c}}");
+  expect(gettextPluralCategories(gl, "gl")).toEqual(["one", "other"]);
   expect(
-    entriesToGettext(
-      odd,
-      { "%d file": "{count, plural, one {x} other {y}}" },
-      odd,
-      { tag: "en", code: "en" },
-      (id) => refused.push(id),
+    forms(
+      entriesToGettext(
+        gl,
+        { "%d file": "{count, plural, one {A} other {C}}" },
+        gl,
+        {
+          tag: "gl",
+          code: "gl",
+        },
+      ),
     ),
-  ).toBe(odd);
-  expect(refused).toEqual(["%d file"]);
+  ).toEqual(["A", "m", "C"]);
+  // A form that 8 and 1008 reach is not =8.
+  const odd = po(
+    "nplurals=2; plural=(n % 1000 == 8 ? 0 : 1);",
+    "de",
+    `msgstr[0] "e"\nmsgstr[1] "o"\n`,
+  );
+  expect(gettextPluralCategories(odd, "de")).not.toContain("=8");
 });
-
 test("an =N the file has no form for is refused by name, never dropped: in a CLDR-keyed file and in one keyed as it picks (#982)", () => {
   const cases: [string, string, string, string][] = [
     [
