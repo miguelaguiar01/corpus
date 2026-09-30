@@ -3,8 +3,9 @@ import {
   libraryOf,
   validateTranslation,
   type Library,
-  type RichText,
   type Snapshot,
+  richTextFor,
+  type TextReading,
 } from "@corpus/contract";
 import type { Db } from "@/db";
 import {
@@ -64,7 +65,7 @@ function seedInvalid(
   text: string,
   language: string,
   library: Library,
-  richText?: RichText,
+  richText?: TextReading,
   passed?: string[],
 ): boolean {
   if (text === source || (PLAIN.test(source) && PLAIN.test(text))) return false;
@@ -208,7 +209,7 @@ function stringWrites(
         text,
         language,
         libraryOf(entry),
-        richText[entry.type],
+        richTextFor(entry.type, entry.id, libraryOf(entry), richText),
         entry.arguments,
       );
     });
@@ -765,7 +766,7 @@ function applySeeds(
           text,
           language,
           string.syntax ?? "icu",
-          richText[string.type],
+          richTextFor(string.type, stringId, string.syntax ?? "icu", richText),
           string.arguments ?? undefined,
         );
       // A seed the row already holds is nothing: no write, no count, and
@@ -869,6 +870,7 @@ function remarkSeeds(
         invalid: stringTranslations.invalid,
         source: strings.source,
         type: strings.type,
+        key: strings.stringId,
         syntax: strings.syntax,
         arguments: strings.arguments,
       })
@@ -890,7 +892,7 @@ function remarkSeeds(
         row.text!,
         row.language,
         row.syntax ?? "icu",
-        richText[row.type],
+        richTextFor(row.type, row.key, row.syntax ?? "icu", richText),
         row.arguments ?? undefined,
       );
       if (invalid !== row.invalid)

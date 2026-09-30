@@ -1,4 +1,4 @@
-import { partsOf, type StringResponse } from "@corpus/contract";
+import { partsOf, type StringResponse, isHtml } from "@corpus/contract";
 import { getDb } from "@/db";
 import { authenticateProject } from "@/api/bearer";
 import { apiError } from "@/api/body";
@@ -64,7 +64,8 @@ export async function GET(
     plurals: [...parts.plurals],
     forms: parts.forms,
     tags: [...parts.tags],
-    richText: detail.string.richText,
+    // An agent reads either HTML reading as "html" (#988).
+    richText: isHtml(detail.string.richText ?? undefined) ? "html" : null,
     library: detail.string.syntax,
     syntax: detail.string.syntax,
     // An empty list is none: an exporter may send one (#737).

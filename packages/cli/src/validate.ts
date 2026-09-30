@@ -11,6 +11,8 @@ import {
   type ValidationError,
   type Library,
   type RichText,
+  type TextReading,
+  richTextFor,
   stringEntrySchema,
   type StringEntry,
 } from "@corpus/contract";
@@ -289,7 +291,12 @@ export async function validateRepo(
               language,
               sourceLanguage: config.sourceLanguage,
               library: entry.library ?? library,
-              richText: config.richText?.[source.type],
+              richText: richTextFor(
+                source.type,
+                key,
+                entry.library ?? library,
+                config.richText,
+              ),
               brokenSources,
             },
           ),
@@ -439,7 +446,7 @@ function validateExec(
           language,
           sourceLanguage,
           library: libraryOf(entry),
-          richText: richText[entry.type],
+          richText: richTextFor(entry.type, key, libraryOf(entry), richText),
           brokenSources,
         }),
       );
@@ -480,7 +487,7 @@ function checkTranslation(
     language: string;
     sourceLanguage: string;
     library: Library;
-    richText: RichText | undefined;
+    richText: TextReading | undefined;
     brokenSources: Set<string>;
   },
 ): Finding[] {

@@ -17,6 +17,7 @@ contract (`corpus/1`) is the only one.
 - i18next plural keys (`item_one`, `item_other`) are one string per family, so each language gets its own forms (Polish `few` and `many`) and `_zero` is always allowed; pull translations before the first 0.22 push, which re-reads these families from the files (#985).
 - Under i18next an unpaired tag such as `<no title>` is text, not a refusal, while `Trans` tags are still compared and `<2/>` for `<2>…</2>` is caught (#986).
 - Android strings with an escaped `&lt;…&gt;` or an inline CDATA read as text and build; a pull writes such text escaped (#987).
+- Rails keys ending in `_html` are read as HTML: a translation's own tags are accepted, and broken markup in them is still caught (#988).
 
 ## [0.21.0] - 2026-09-29
 

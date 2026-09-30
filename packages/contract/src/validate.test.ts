@@ -5,6 +5,7 @@ import { parseIcu, partsOf } from "./icu";
 import { renderPreview } from "./preview";
 import {
   nestedCountsOf,
+  richTextFor,
   validateTranslation,
   type ValidationError,
 } from "./validate";
@@ -2386,5 +2387,71 @@ test("under android a prose tag's printf verb counts in its place (#987 review)"
   ).toMatchObject({
     ok: false,
     errors: [{ code: "missing-placeholder" }],
+  });
+});
+
+test("a Rails key ending _html is read as HTML: its tags the translation's own, but closed as the source closes them (#988)", () => {
+  expect(richTextFor("server", "about.hint_html", "rails", undefined)).toBe(
+    "html-key",
+  );
+  expect(richTextFor("server", "about.html", "rails", undefined)).toBe(
+    "html-key",
+  );
+  expect(
+    richTextFor("server", "about.hint_html", "i18next", undefined),
+  ).toBeUndefined();
+  expect(richTextFor("server", "about.hint", "rails", { server: "html" })).toBe(
+    "html",
+  );
+  expect(
+    richTextFor("server", "about.hint_html", "rails", { server: "html" }),
+  ).toBe("html");
+  const key = { richText: "html-key" as const };
+  const source = 'Read <strong>this</strong> and <a href="%{path}">that</a>.';
+  const v = (target: string) =>
+    validateTranslation(source, target, "pt", "rails", key);
+  expect(v('Leia <em>isto</em> e <a href="%{path}">aquilo</a>.')).toEqual({
+    ok: true,
+  });
+  expect(v('Leia isto e <a href="%{path}">aquilo</a>.')).toEqual({ ok: true });
+  // uk's `< /a>`: the link never closes.
+  expect(
+    v('Leia <strong>isto</strong> e <a href="%{path}">aquilo< /a>.'),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "invalid-icu", message: "unclosed <a>" }],
+  });
+  // ia's missing quote swallows the rest.
+  expect(
+    v('Leia <strong>isto</strong> e <a href="%{path}>aquilo</a>.'),
+  ).toMatchObject({
+    ok: false,
+    errors: [expect.objectContaining({ code: "invalid-icu" })],
+  });
+  // A value moved out of the attribute into the text is said once.
+  const moved = v("Leia <strong>isto</strong> e aquilo %{path}.");
+  expect(moved.ok).toBe(false);
+  if (!moved.ok)
+    expect(
+      moved.errors.filter((e) => "name" in e && e.name === "path"),
+    ).toHaveLength(1);
+  // A link emptied of its text still hides it.
+  expect(
+    v('Leia <strong>isto</strong> e aquilo <a href="%{path}"></a>.'),
+  ).toMatchObject({
+    ok: false,
+    errors: [expect.objectContaining({ code: "unpaired-tag" })],
+  });
+  // A plain key still compares its tags.
+  expect(
+    validateTranslation(
+      "Read <strong>this</strong>",
+      "Leia isto",
+      "pt",
+      "rails",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-tag", name: "strong" }],
   });
 });
