@@ -110,7 +110,7 @@ async function serverLacks(
   token: string,
   snapshot: Snapshot,
 ): Promise<string[]> {
-  const used: { kind: "adapter" | "library"; value: string }[] = [
+  const used: { kind: "adapter" | "library" | "feature"; value: string }[] = [
     ...new Set((snapshot.sources ?? []).map((s) => s.adapter)),
   ].map((value) => ({ kind: "adapter" as const, value }));
   const libraries = new Set(
@@ -120,17 +120,30 @@ async function serverLacks(
     }),
   );
   for (const value of libraries) used.push({ kind: "library", value });
+  const exact = snapshot.strings.some((s) =>
+    Object.values(s.pluralForms ?? {}).some((keys) =>
+      keys.some((k) => k.startsWith("=")),
+    ),
+  );
+  if (exact) used.push({ kind: "feature", value: "exact-plural-forms" });
   const known = (accepts: Accepts, v: (typeof used)[number]) =>
-    (v.kind === "adapter" ? accepts.adapters : accepts.libraries).includes(
-      v.value,
-    );
+    (v.kind === "adapter"
+      ? accepts.adapters
+      : v.kind === "library"
+        ? accepts.libraries
+        : (accepts.features ?? [])
+    ).includes(v.value);
   const newer = used.filter((v) => !known(BEFORE_ACCEPTS, v));
   if (newer.length === 0) return [];
   const accepts = await serverAccepts(base, token);
   if (accepts === undefined) return [];
   return newer
     .filter((v) => !known(accepts ?? BEFORE_ACCEPTS, v))
-    .map((v) => `the ${v.value} ${v.kind}`);
+    .map((v) =>
+      v.kind === "feature"
+        ? "the =N plural forms of a gettext file"
+        : `the ${v.value} ${v.kind}`,
+    );
 }
 
 // What the server says it accepts: null where it reports nothing, a

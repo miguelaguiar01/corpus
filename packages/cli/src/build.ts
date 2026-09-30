@@ -44,7 +44,6 @@ import {
   type Glossary,
   type Snapshot,
   type Library,
-  type PluralCategory,
   type Source,
   type StringEntry,
   type WritableSource,
@@ -860,8 +859,8 @@ export function gettextPluralForms(
   cwd: string,
   source: FileSource,
   config: CorpusConfig,
-): Record<string, PluralCategory[]> | undefined {
-  const out: Record<string, PluralCategory[]> = {};
+): Record<string, string[]> | undefined {
+  const out: Record<string, string[]> = {};
   for (const lang of config.languages) {
     if (lang === config.sourceLanguage) continue;
     const rel = fileOf(source, lang, config.sourceLanguage);

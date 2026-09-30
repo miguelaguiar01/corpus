@@ -1887,3 +1887,42 @@ test("a gettext file's Plural-Forms, where given, are the categories a plural ne
     incomplete: [{ code: "unexpected-category", key: "many" }],
   });
 });
+
+test("a gettext file's own =N keys are its plural's branches; a category it holds no form for is said (#982)", () => {
+  const source = "{count, plural, one {%d file} other {%d files}}";
+  const ceb = { pluralForms: ["=1", "other"] };
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, =1 {%d A} other {%d B}}",
+      "ceb",
+      "printf",
+      ceb,
+    ),
+  ).toEqual({ ok: true });
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, one {%d A} other {%d B}}",
+      "ceb",
+      "printf",
+      ceb,
+    ),
+  ).toMatchObject({
+    ok: true,
+    incomplete: [
+      { code: "missing-category", key: "=1" },
+      { code: "unexpected-category", key: "one" },
+    ],
+  });
+  // Hebrew's many, which CLDR dropped, where the file gives it a form.
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, one {%d a} two {%d b} many {%d c} other {%d d}}",
+      "he",
+      "printf",
+      { pluralForms: ["one", "two", "many", "other"] },
+    ),
+  ).toEqual({ ok: true });
+});

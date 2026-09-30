@@ -27,7 +27,7 @@ import {
   type Shape,
   shapeOf,
 } from "./icu";
-import type { Library, RichText } from "./strings";
+import { EXACT_KEY, type Library, type RichText } from "./strings";
 
 export type ValidationError =
   | {
@@ -521,9 +521,7 @@ function pluralErrors(
     if (categories.required.length === 0) continue;
     // `=01` is not `=1` to the runtimes, which match the key as written.
     const exact = new Set(
-      [...keys]
-        .filter((k) => /^=(0|[1-9]\d*)$/.test(k))
-        .map((k) => Number(k.slice(1))),
+      [...keys].filter((k) => EXACT_KEY.test(k)).map((k) => Number(k.slice(1))),
     );
     for (const key of categories.required) {
       if (

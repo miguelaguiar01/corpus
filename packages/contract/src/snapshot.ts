@@ -46,11 +46,15 @@ export const writableSourceSchema = z.looseObject({
 export type Accepts = {
   adapters: readonly string[];
   libraries: readonly string[];
+  // Values a field takes beyond its first ones: `exact-plural-forms`,
+  // an `=N` key in a string's `pluralForms` (#982).
+  features?: readonly string[];
 };
 
 export const ACCEPTS: Accepts = {
   adapters: writableSourceSchema.shape.adapter.options,
   libraries: LIBRARIES,
+  features: ["exact-plural-forms"],
 };
 
 // What every server since 0.20.0 accepts, which needs no asking; a server

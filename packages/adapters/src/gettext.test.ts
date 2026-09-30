@@ -9,6 +9,7 @@ import {
   gettextTranslations,
   parsePo,
   pluralTable,
+  poPluralText,
 } from "./gettext";
 
 const indexesOf = (language: string, forms: string | undefined) =>
@@ -820,4 +821,246 @@ test("a plural entry short of its nplurals is left byte for byte while its readi
       'msgstr[0] "%d ھۆججەت"\nmsgstr[1] "%d ھۆججەت"\n',
     ),
   );
+});
+
+const po = (forms: string, lang: string, body: string) =>
+  `msgid ""\nmsgstr ""\n"Language: ${lang}\\n"\n"Plural-Forms: ${forms}\\n"\n\nmsgid "%d file"\nmsgid_plural "%d files"\n${body}`;
+const seedOf = (text: string, lang: string) =>
+  gettextTranslations(text, lang).find((e) => e.id === "%d file")?.source;
+const CEB = "nplurals=2; plural=(n != 1);";
+const GV = "nplurals=3; plural=n == 1 ? 0 : (n == 2 ? 1 : 2);";
+const HE =
+  "nplurals=4; plural=(n == 1) ? 0 : ((n == 2) ? 1 : ((n > 10 && n % 10 == 0) ? 2 : 3));";
+
+test("a Plural-Forms that leaves a form no CLDR category reads is read as the file's own: =k where one integer reaches it (#982)", () => {
+  const ceb = po(CEB, "ceb", `msgstr[0] "S"\nmsgstr[1] "P"\n`);
+  expect(seedOf(ceb, "ceb")).toBe("{count, plural, =1 {S} other {P}}");
+  expect(gettextPluralCategories(ceb, "ceb")).toEqual(["=1", "other"]);
+  const written = entriesToGettext(
+    ceb,
+    { "%d file": "{count, plural, =1 {A} other {B}}" },
+    ceb,
+    { tag: "ceb", code: "ceb" },
+  );
+  expect(forms(written)).toEqual(["A", "B"]);
+  expect(
+    entriesToGettext(ceb, { "%d file": seedOf(ceb, "ceb")! }, ceb, {
+      tag: "ceb",
+      code: "ceb",
+    }),
+  ).toBe(ceb);
+
+  const gv = po(GV, "gv", `msgstr[0] "A1"\nmsgstr[1] "A2"\nmsgstr[2] "A3"\n`);
+  expect(seedOf(gv, "gv")).toBe("{count, plural, =1 {A1} =2 {A2} other {A3}}");
+  expect(gettextPluralCategories(gv, "gv")).toEqual(["=1", "=2", "other"]);
+  expect(
+    forms(
+      entriesToGettext(
+        gv,
+        { "%d file": "{count, plural, =1 {B1} =2 {B2} other {B3}}" },
+        gv,
+        { tag: "gv", code: "gv" },
+      ),
+    ),
+  ).toEqual(["B1", "B2", "B3"]);
+});
+
+test("a form whose integers are exactly a category CLDR dropped reads as it: Hebrew's many before CLDR 42 (#982)", () => {
+  const he = po(
+    HE,
+    "he",
+    `msgstr[0] "H0"\nmsgstr[1] "H1"\nmsgstr[2] "H2"\nmsgstr[3] "H3"\n`,
+  );
+  expect(seedOf(he, "he")).toBe(
+    "{count, plural, one {H0} two {H1} many {H2} other {H3}}",
+  );
+  expect(gettextPluralCategories(he, "he")).toEqual([
+    "one",
+    "two",
+    "many",
+    "other",
+  ]);
+  expect(
+    forms(
+      entriesToGettext(
+        he,
+        { "%d file": "{count, plural, one {a} two {b} many {c} other {d}}" },
+        he,
+        { tag: "he", code: "he" },
+      ),
+    ),
+  ).toEqual(["a", "b", "c", "d"]);
+});
+
+test("a key the text lacks keeps the form the file holds, and fills an empty one with the branch ICU picks for it (#982)", () => {
+  const lang = { tag: "ceb", code: "ceb" };
+  // A seed from before the file's own reading: one {P} other {P}.
+  const held = po(CEB, "ceb", `msgstr[0] "S"\nmsgstr[1] "P"\n`);
+  expect(
+    forms(
+      entriesToGettext(
+        held,
+        { "%d file": "{count, plural, one {P} other {Q}}" },
+        held,
+        lang,
+      ),
+    ),
+  ).toEqual(["S", "Q"]);
+  // An empty form takes what ICU shows for 1: ceb's one.
+  const empty = po(CEB, "ceb", `msgstr[0] ""\nmsgstr[1] ""\n`);
+  expect(
+    forms(
+      entriesToGettext(
+        empty,
+        { "%d file": "{count, plural, one {torrent} other {mga torrent}}" },
+        empty,
+        lang,
+      ),
+    ),
+  ).toEqual(["torrent", "mga torrent"]);
+});
+
+test("a file whose rule coarsens CLDR, or leaves no form unread, reads as before (#982)", () => {
+  expect(
+    seedOf(
+      po("nplurals=2; plural=(n > 1);", "fr", `msgstr[0] "a"\nmsgstr[1] "b"\n`),
+      "fr",
+    ),
+  ).toBe("{count, plural, one {a} other {b}}");
+  // Portuguese's (n != 1) splits CLDR's one (0 and 1) but reads every form.
+  expect(
+    seedOf(
+      po(
+        "nplurals=2; plural=(n != 1);",
+        "pt",
+        `msgstr[0] "a"\nmsgstr[1] "b"\n`,
+      ),
+      "pt",
+    ),
+  ).toBe("{count, plural, one {a} other {b}}");
+  expect(
+    seedOf(
+      po(
+        "nplurals=2; plural=(n != 1);",
+        "de",
+        `msgstr[0] "a"\nmsgstr[1] "b"\n`,
+      ),
+      "de",
+    ),
+  ).toBe("{count, plural, one {a} other {b}}");
+});
+
+test("a form no key fits leaves the file read by CLDR's categories, that form keeping its text: the million rule in Galician (#982)", () => {
+  const MILLION =
+    "nplurals=3; plural=n == 1 ? 0 : n != 0 && n % 1000000 == 0 ? 1 : 2;";
+  const gl = po(MILLION, "gl", `msgstr[0] "a"\nmsgstr[1] "m"\nmsgstr[2] "c"\n`);
+  expect(seedOf(gl, "gl")).toBe("{count, plural, one {a} other {c}}");
+  expect(gettextPluralCategories(gl, "gl")).toEqual(["one", "other"]);
+  expect(
+    forms(
+      entriesToGettext(
+        gl,
+        { "%d file": "{count, plural, one {A} other {C}}" },
+        gl,
+        {
+          tag: "gl",
+          code: "gl",
+        },
+      ),
+    ),
+  ).toEqual(["A", "m", "C"]);
+  // A form that 8 and 1008 reach is not =8.
+  const odd = po(
+    "nplurals=2; plural=(n % 1000 == 8 ? 0 : 1);",
+    "de",
+    `msgstr[0] "e"\nmsgstr[1] "o"\n`,
+  );
+  expect(gettextPluralCategories(odd, "de")).not.toContain("=8");
+});
+test("an =N the file has no form for is refused by name, never dropped: in a CLDR-keyed file and in one keyed as it picks (#982)", () => {
+  const cases: [string, string, string, string][] = [
+    [
+      "nplurals=2; plural=(n != 1);",
+      "de",
+      `msgstr[0] "a"\nmsgstr[1] "b"\n`,
+      "{count, plural, =1 {Eine} other {# Dateien}}",
+    ],
+    [
+      "nplurals=2; plural=(n != 1);",
+      "de",
+      `msgstr[0] "a"\nmsgstr[1] "b"\n`,
+      "{count, plural, =0 {Keine} one {Eine} other {#}}",
+    ],
+    [
+      CEB,
+      "ceb",
+      `msgstr[0] "S"\nmsgstr[1] "P"\n`,
+      "{count, plural, =0 {Z} =1 {S} other {P}}",
+    ],
+  ];
+  for (const [header, tag, body, text] of cases) {
+    const file = po(header, tag, body);
+    const refused: string[] = [];
+    expect(
+      entriesToGettext(
+        file,
+        { "%d file": text },
+        file,
+        { tag, code: tag },
+        (id) => refused.push(id),
+      ),
+    ).toBe(file);
+    expect(refused).toEqual(["%d file"]);
+  }
+});
+
+test("a row kept from before a file was keyed as it picks leaves the file as it is (#982)", () => {
+  const before = (header: string, tag: string, forms: string[]) => {
+    const t = pluralTable(tag, header);
+    return poPluralText(forms, t.indexes, t.categories);
+  };
+  const cases: [string, string, string[]][] = [
+    [CEB, "ceb", ["S"]],
+    [CEB, "ceb", ["", "P"]],
+    [
+      "nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n != 0 ? 1 : 2);",
+      "lv",
+      ["A", "B"],
+    ],
+    [HE, "he", ["a", "b", "", "d"]],
+  ];
+  for (const [header, tag, held] of cases) {
+    const file = po(
+      header,
+      tag,
+      held.map((f, i) => `msgstr[${i}] "${f}"\n`).join(""),
+    );
+    expect(
+      entriesToGettext(file, { "%d file": before(header, tag, held) }, file, {
+        tag,
+        code: tag,
+      }),
+      `${tag} ${held.join("/")}`,
+    ).toBe(file);
+  }
+});
+
+test("a form a few integers reach is keyed by each: Filipino's (n > 1) reads =0, =1 and other (#982)", () => {
+  const TL = "nplurals=2; plural=(n > 1);";
+  const tl = po(TL, "tl", `msgstr[0] "X"\nmsgstr[1] "Y"\n`);
+  const lang = { tag: "tl", code: "tl" };
+  expect(seedOf(tl, "tl")).toBe("{count, plural, =0 {X} =1 {X} other {Y}}");
+  expect(gettextPluralCategories(tl, "tl")).toEqual(["=0", "=1", "other"]);
+  const write = (text: string, refused?: (id: string) => void) =>
+    entriesToGettext(tl, { "%d file": text }, tl, lang, refused);
+  expect(forms(write("{count, plural, =0 {a} =1 {a} other {b}}"))).toEqual([
+    "a",
+    "b",
+  ]);
+  expect(forms(write("{count, plural, =1 {a} other {b}}"))).toEqual(["a", "b"]);
+  const refused: string[] = [];
+  expect(
+    write("{count, plural, =0 {a} =1 {c} other {b}}", (id) => refused.push(id)),
+  ).toBe(tl);
+  expect(refused).toEqual(["%d file"]);
 });

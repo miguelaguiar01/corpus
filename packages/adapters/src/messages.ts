@@ -1,4 +1,8 @@
-import { PLURAL_CATEGORIES, type StringEntry } from "@corpus/contract";
+import {
+  EXACT_KEY,
+  PLURAL_CATEGORIES,
+  type StringEntry,
+} from "@corpus/contract";
 
 // `arb`: Flutter's ARB is JSON whose top-level keys starting with "@"
 // are metadata for their sibling ("@wallpaper", "@@locale"), not text
@@ -91,6 +95,8 @@ export function formOf(
 export function pluralBranches(
   text: string,
   needsOther = true,
+  // `=N` branches too, which a gettext file's own forms can be (#982).
+  exact = false,
 ): Record<string, string> | undefined {
   const head = /^\s*\{\s*count\s*,\s*plural\s*,/.exec(text);
   if (!head) return undefined;
@@ -108,7 +114,11 @@ export function pluralBranches(
     const open = text.indexOf("{", at);
     if (open < 0) return undefined;
     const key = text.slice(at, open).trim();
-    if (!/^(?:zero|one|two|few|many|other)$/.test(key)) return undefined;
+    if (
+      !/^(?:zero|one|two|few|many|other)$/.test(key) &&
+      !(exact && EXACT_KEY.test(key))
+    )
+      return undefined;
     let depth = 0;
     let end = open;
     for (; end < text.length; end++) {

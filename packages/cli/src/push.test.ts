@@ -601,3 +601,61 @@ test("a push whose whole file is refused says nothing was pushed, and sends noth
   );
   expect(calls).toEqual([]);
 });
+
+test("push refuses a server that predates a gettext file's =N plural forms, and goes ahead where it takes them (#982)", async () => {
+  const repo = () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-exact-"));
+    mkdirSync(path.join(dir, "po"));
+    const entry = `msgid "%d file"\nmsgid_plural "%d files"\n`;
+    writeFileSync(
+      path.join(dir, "po", "app.pot"),
+      `msgid ""\nmsgstr ""\n"Content-Type: text/plain; charset=UTF-8\\n"\n\n${entry}msgstr[0] ""\nmsgstr[1] ""\n`,
+    );
+    writeFileSync(
+      path.join(dir, "po", "ceb.po"),
+      `msgid ""\nmsgstr ""\n"Language: ceb\\n"\n"Plural-Forms: nplurals=2; plural=(n != 1);\\n"\n\n${entry}msgstr[0] "S"\nmsgstr[1] "P"\n`,
+    );
+    writeFileSync(
+      path.join(dir, "corpus.config.mjs"),
+      `export default { project: "acme", server: process.env.CORPUS_SERVER, sourceLanguage: "en", languages: ["en", "ceb"], sources: [{ adapter: "gettext", type: "ui", path: "po/{lang}.po", sourcePath: "po/app.pot" }] };\n`,
+    );
+    return dir;
+  };
+  for (const [features, code] of [
+    [undefined, 1],
+    [["exact-plural-forms"], 0],
+  ] as const) {
+    const { server, url, calls } = await startServer((c) =>
+      c.url === "/api/health"
+        ? {
+            status: 200,
+            json: {
+              status: "ok",
+              accepts: {
+                adapters: ["messages"],
+                libraries: ["printf"],
+                ...(features && { features }),
+              },
+            },
+          }
+        : { status: 200, json: REPORT },
+    );
+    active = server;
+    process.env.CORPUS_SERVER = url;
+    const c = ctx({ cwd: repo() });
+    expect(await run(["push"], c)).toBe(code);
+    if (code === 1) {
+      expect(c.output.join("\n")).toMatch(
+        /predates the =N plural forms of a gettext file this project uses/,
+      );
+      expect(calls.map((call) => call.url)).toEqual(["/api/health"]);
+    } else {
+      const pushed = calls.find((call) => call.url === "/api/push")!;
+      const body = pushed.body as {
+        strings: { id: string; pluralForms?: Record<string, string[]> }[];
+      };
+      expect(body.strings[0]!.pluralForms).toEqual({ ceb: ["=1", "other"] });
+    }
+    server.close();
+  }
+});

@@ -810,3 +810,26 @@ test("a gettext file's Plural-Forms, where given, are the branches the chip offe
   });
   expect(screen.queryByText(/many branch/)).toBeNull();
 });
+
+test("a gettext file's own =N keys are branches the chip offers (#982)", () => {
+  render(
+    <TargetPane
+      action={vi.fn()}
+      source="{count, plural, one {%d file} other {%d files}}"
+      syntax="printf"
+      pluralForms={["=1", "other"]}
+      slots={[]}
+      language="ceb"
+      initialText=""
+      slug="mm"
+      stringKey="k"
+      openedVersion={1}
+      examples={[]}
+      sourceLanguage="en"
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: /\{count, plural\}/ }));
+  expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe(
+    "{count, plural, =1 {} other {}}",
+  );
+});

@@ -112,6 +112,20 @@ export const PLURAL_CATEGORIES = [
 ] as const;
 export type PluralCategory = (typeof PLURAL_CATEGORIES)[number];
 
+// A plural's exact branch, as the runtimes match it: `=01` is not `=1`.
+export const EXACT_KEY = /^=(?:0|[1-9]\d*)$/;
+
+// Categories CLDR has dropped from a language, which a file written to an
+// older CLDR still gives a form of its own, on the integers: Hebrew's
+// many (20, 30, …) before CLDR 42 (#982).
+export const REMOVED_PLURAL_CATEGORIES: Record<
+  string,
+  Partial<Record<PluralCategory, (n: number) => boolean>>
+> = {
+  he: { many: (n) => n > 10 && n % 10 === 0 },
+  iw: { many: (n) => n > 10 && n % 10 === 0 },
+};
+
 const LIBRARY_NAMES: Record<Library, string> = {
   icu: "ICU",
   i18next: "i18next",
@@ -226,9 +240,17 @@ export const stringEntrySchema = z.looseObject({
   arguments: z.array(z.string()).optional(),
   // Per target language, the plural categories a gettext target file's
   // `Plural-Forms` picks, where they are not the language's CLDR ones
-  // (#951): Italian's one and other under `nplurals=2`. Additive.
+  // (#951): Italian's one and other under `nplurals=2`; and a file's own
+  // `=N` keys, where no category reads a form (#982). Additive.
   pluralForms: z
-    .record(z.string(), z.array(z.enum(PLURAL_CATEGORIES)).min(1))
+    .record(
+      z.string(),
+      z
+        .array(
+          z.union([z.enum(PLURAL_CATEGORIES), z.string().regex(EXACT_KEY)]),
+        )
+        .min(1),
+    )
     .optional(),
   // What the repository says about this one string, for a translator:
   // an ARB's @key.description (§4, #567). Never written back.
