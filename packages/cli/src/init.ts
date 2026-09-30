@@ -685,13 +685,12 @@ async function libraryFor(
       // reader makes of them is no ICU argument of the catalogue's (#984).
       const objects = await sourcePluralIds(jiti, cwd, source, sourceLanguage);
       texts.push(
-        ...entries.flatMap((entry) =>
-          objects?.has(entry.id)
-            ? Object.values(
-                pluralBranches(entry.source) ?? { entry: entry.source },
-              )
-            : [entry.source],
-        ),
+        ...entries.flatMap((entry) => {
+          const forms = objects?.has(entry.id)
+            ? pluralBranches(entry.source)
+            : undefined;
+          return forms ? Object.values(forms) : [entry.source];
+        }),
       );
       ids.push(...entries.map((entry) => entry.id));
       keyed += entries.filter((entry) => entry.keyIsText).length;
