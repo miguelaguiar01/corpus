@@ -53,6 +53,23 @@ export type PlaceholderFormat = {
 
 export type IcuError = { message: string; position: number };
 
+// A tag a text writes that the parser reads as text: an open tag no
+// close matches, or a close no open tag does.
+export type ProseTag = { name: string; close: boolean; at: number };
+
+// The tags `text` writes that i18next reads as text, as the parser finds
+// them in "markup"; none for a text that does not parse (#986).
+export function proseTagsOf(text: string, syntax: Library): ProseTag[] {
+  const parser = new Parser(text, syntax, "markup");
+  try {
+    parser.parseSequence(false);
+  } catch (error) {
+    if (error instanceof ParseFailure) return [];
+    throw error;
+  }
+  return parser.proseRead;
+}
+
 export type IcuParseResult =
   { ok: true; nodes: IcuNode[] } | { ok: false; errors: IcuError[] };
 
@@ -93,6 +110,18 @@ const VOID_TAGS = new Set(["br", "hr", "wbr", "img"]);
 
 export function isVoidTag(name: string): boolean {
   return VOID_TAGS.has(name.toLowerCase());
+}
+
+// HTML's elements, whose names in a translation's unclosed tag are
+// markup broken rather than prose like `<sans titre>` (#986).
+const HTML_ELEMENTS = new Set(
+  "a abbr address article aside b bdi bdo blockquote body br button caption cite code col colgroup dd del details dfn div dl dt em fieldset figcaption figure footer form h1 h2 h3 h4 h5 h6 head header hr html i img input ins kbd label legend li link main mark nav ol option p pre q s samp section select small span strong sub summary sup table tbody td textarea tfoot th thead time tr u ul var wbr".split(
+    " ",
+  ),
+);
+
+export function isHtmlElement(name: string): boolean {
+  return HTML_ELEMENTS.has(name.toLowerCase());
 }
 
 // A tag's identity for a chip and for the check that a translation
@@ -279,6 +308,9 @@ class Parser {
   // no closing tag matches and a closing tag with no open tag, found in
   // one pass over the text (#755).
   private proseTags?: Set<number>;
+  // The tags read as text, in the order read, for a validation that
+  // tells a source's prose from a translation's broken tag (#986).
+  readonly proseRead: ProseTag[] = [];
   // Where each tag name's last `</name>` is, found in one pass (#896).
   private closes?: Map<string, number>;
   // Open tags already found not to close, where the one pass could not
@@ -376,7 +408,7 @@ class Parser {
             (tag.kind === "close" &&
               (closing === undefined || tag.name !== closing)))
         ) {
-          this.proseTag(seq, raw, tag.attrs, tag.start);
+          this.proseTag(seq, raw, tag, tag.start);
           continue;
         }
         this.flush(seq);
@@ -405,7 +437,7 @@ class Parser {
             this.pos = after;
             [this.printfNext, this.ownFree, this.positional] = counters;
             this.unclosed.add(tag.start);
-            this.proseTag(seq, raw, tag.attrs, tag.start);
+            this.proseTag(seq, raw, tag, tag.start);
           }
           seq.literalStart = this.pos;
           continue;
@@ -429,7 +461,10 @@ class Parser {
             tag.kind === "self"
               ? []
               : this.parseSequence(inBranch, pluralArg, tag.name),
-          ...(tag.kind === "self" && { self: true as const }),
+          // A void element is one whatever its form, `<br>`, `<br/>`
+          // or `<br></br>`.
+          ...(tag.kind === "self" &&
+            !isVoidTag(tag.name) && { self: true as const }),
         });
         seq.literalStart = this.pos;
         continue;
@@ -870,13 +905,18 @@ class Parser {
   private proseTag(
     seq: Sequence,
     raw: string,
-    attrs: string | undefined,
+    tag: { kind: string; name: string; attrs?: string },
     start: number,
   ): void {
     seq.literal += raw;
     seq.attrPlaceholders.push(
-      ...(this.tagAttrs(attrs, start).attrPlaceholders ?? []),
+      ...(this.tagAttrs(tag.attrs, start).attrPlaceholders ?? []),
     );
+    this.proseRead.push({
+      name: tag.name,
+      close: tag.kind === "close",
+      at: start,
+    });
   }
 
   // Where the argument at `at` ends.
@@ -1256,11 +1296,15 @@ export type Shape = {
   selects: Map<string, Set<string>>;
   plurals: Map<string, Set<string>>;
   tags: Set<string>;
-  // The tags that wrap text, a pair and not closed on itself (#986).
+  // The tags that wrap text, a pair and not closed on itself, and those
+  // written as a pair, whatever they hold (#986).
   pairs: Set<string>;
+  opened: Set<string>;
   // The placeholders written in tags' attributes, each as written where
   // the library writes it (#948).
   attrPlaceholders: Map<string, string | undefined>;
+  // Those written in the attributes of tags read as text (#986).
+  proseAttrPlaceholders: Map<string, string | undefined>;
   // printf: each verb as written, by position (#594).
   written: Map<string, string>;
   // Every verb as written, a position repeated in each plural branch
@@ -1280,7 +1324,9 @@ export function shapeOf(
     plurals: new Map(),
     tags: new Set(),
     pairs: new Set(),
+    opened: new Set(),
     attrPlaceholders: new Map(),
+    proseAttrPlaceholders: new Map(),
     written: new Map(),
     verbs: [],
     count: 0,
@@ -1306,9 +1352,18 @@ export function shapeOf(
           !shape.attrPlaceholders.has(attr.name)
         )
           shape.attrPlaceholders.set(attr.name, attr.written);
+    if (node.kind === "literal")
+      for (const attr of node.attrPlaceholders ?? [])
+        if (
+          attr.kind === "placeholder" &&
+          !shape.proseAttrPlaceholders.has(attr.name)
+        )
+          shape.proseAttrPlaceholders.set(attr.name, attr.written);
     if (node.kind === "tag") {
       shape.tags.add(tagIdentity(node));
-      if (!node.self) shape.pairs.add(tagIdentity(node));
+      if (!node.self) shape.opened.add(tagIdentity(node));
+      if (!node.self && node.children.length > 0)
+        shape.pairs.add(tagIdentity(node));
       shapeOf(node.children, shape);
     }
     // A form's placeholders are the message's; how many forms there are
@@ -1341,6 +1396,9 @@ export type Parts = {
   selects: Set<string>;
   plurals: Set<string>;
   tags: Set<string>;
+  // The tags the text writes closed on themselves, `<0/>`, as a chip
+  // inserts them (#986).
+  selfClosed: Set<string>;
   forms: number;
 };
 
@@ -1365,6 +1423,9 @@ export function partsOf(source: string, syntax: Library = "icu"): Parts {
     selects: new Set(shape.selects.keys()),
     plurals: new Set(shape.plurals.keys()),
     tags: shape.tags,
+    selfClosed: new Set(
+      [...shape.tags].filter((tag) => !shape.opened.has(tag)),
+    ),
     forms: only?.kind === "forms" ? only.branches.length : 0,
   };
 }

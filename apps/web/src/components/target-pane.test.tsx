@@ -833,3 +833,24 @@ test("a gettext file's own =N keys are branches the chip offers (#982)", () => {
     "{count, plural, =1 {} other {}}",
   );
 });
+
+test("a tag the source writes closed on itself is inserted so (#986)", () => {
+  render(
+    <TargetPane
+      action={vi.fn()}
+      source="Shared by <0/> today"
+      syntax="i18next"
+      slots={[]}
+      language="fr"
+      initialText=""
+      slug="mm"
+      stringKey="k"
+      openedVersion={1}
+      sourceLanguage="en"
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "<0>" }));
+  expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe(
+    "<0/>",
+  );
+});

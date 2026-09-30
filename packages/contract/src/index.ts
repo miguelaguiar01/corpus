@@ -14,6 +14,7 @@ export {
   PLURAL_CATEGORIES,
   pluralCategoriesOf,
   pluralCategoriesFor,
+  proseTagsOf,
   readIcu,
   refusalAdvice,
   refusalCause,
@@ -23,6 +24,7 @@ export {
   type IcuParseResult,
   type Parts,
   type PlaceholderFormat,
+  type ProseTag,
   type RefusalCause,
 } from "./icu";
 export * from "./validate";

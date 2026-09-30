@@ -1741,3 +1741,32 @@ test("a plural object's forms count as the file writes them, so {{ }} in them na
     });
   }
 });
+
+test("init offers no richText for an i18next catalogue whose tags are only unpaired (#986)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "locales"));
+  writeFileSync(
+    path.join(p.dir, "locales", "en.json"),
+    '{ "a": "Hi {{name}}", "b": "<no title>", "c": "Click <1>here to continue", "d": "{{count}} left" }\n',
+  );
+  writeFileSync(path.join(p.dir, "locales", "pt.json"), "{}\n");
+  expect(
+    await run(
+      [
+        "init",
+        "--project",
+        "x",
+        "--source",
+        "en",
+        "--messages",
+        "locales/{lang}.json",
+      ],
+      p.ctx,
+    ),
+  ).toBe(0);
+  const config = await loadConfig(p.dir);
+  expect(config.sources[0]).toMatchObject({ library: "i18next" });
+  expect(config.richText).toBeUndefined();
+  expect(p.out.join("\n")).not.toMatch(/richText/);
+});

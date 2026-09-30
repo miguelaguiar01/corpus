@@ -39,6 +39,7 @@ import {
   messageKind,
   nestedCountsOf,
   parseIcu,
+  proseTagsOf,
   pluralCategoriesOf,
   snapshotSchema,
   stringEntrySchema,
@@ -273,7 +274,9 @@ export async function buildSnapshotReport(
     // name, never to refuse (#986).
     if (sourceLibrary(source) === "i18next") {
       const stray = entries.filter((e) =>
-        /(?<!<br\s*\/?>)<\/br\s*>/i.test(e.source),
+        proseTagsOf(e.source, "i18next").some(
+          (t) => t.close && t.name.toLowerCase() === "br",
+        ),
       );
       if (stray.length > 0)
         notes.push(

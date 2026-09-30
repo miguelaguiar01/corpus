@@ -2158,3 +2158,87 @@ test("under i18next an unpaired tag is prose, a pair still a tag, and a pair clo
     ok: false,
   });
 });
+
+test("under i18next a translation's broken tag is still found: a close it adds, an open the source's pair lacks its close; a source's own stray close may be kept (#986 review)", () => {
+  const bad = (source: string, target: string) =>
+    validateTranslation(source, target, "cs", "i18next");
+  expect(
+    bad(
+      "The setting <strong>{{s}}</strong> is set",
+      "Nastavení <strong>{{s}}</strong> <strong>je",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "invalid-icu", message: "unclosed <strong>" }],
+  });
+  expect(bad("Removed by {{user_by}}", "</em> {{user_by}} <em>")).toMatchObject(
+    {
+      ok: false,
+      errors: expect.arrayContaining([
+        expect.objectContaining({
+          code: "invalid-icu",
+          message: "unexpected </em>",
+        }),
+      ]),
+    },
+  );
+  expect(bad("See <0>docs</0>", "Voir <0>docs</0> <0>")).toMatchObject({
+    ok: false,
+  });
+  expect(
+    bad("Restart. </br> Then enable.", "Restartujte. </br> Pak povolte."),
+  ).toEqual({
+    ok: true,
+  });
+  // A placeholder in a prose tag's attribute is the text's.
+  expect(bad('Click <a href="{{url}}">here', "Klikněte zde")).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "url" }],
+  });
+});
+
+test("a pair that wraps nothing may be written closed on itself (#986 review)", () => {
+  expect(
+    validateTranslation("Line<br></br>two", "Ligne<br/>deux", "fr", "icu"),
+  ).toEqual({
+    ok: true,
+  });
+  expect(validateTranslation("A <x></x> b", "A <x/> b", "fr", "icu")).toEqual({
+    ok: true,
+  });
+  expect(
+    validateTranslation("A <1></1> b", "A <1/> b", "fr", "i18next"),
+  ).toEqual({
+    ok: true,
+  });
+});
+
+test("under i18next a translation's unclosed HTML element is broken markup, however the source reads, and the source's own unclosed tag may be mirrored (#986 review)", () => {
+  expect(
+    validateTranslation(
+      "You may use:\n - `[name]`",
+      "Brug:\n <ul> <li> [navn]",
+      "da",
+      "i18next",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: expect.arrayContaining([
+      expect.objectContaining({
+        code: "invalid-icu",
+        message: "unclosed <ul>",
+      }),
+    ]),
+  });
+  const email = "<h1>Welcome</h1><p>Hi [name].<p>Bye";
+  expect(
+    validateTranslation(
+      email,
+      "<h1>Hola</h1><p>Hola [name].<p>Adiós",
+      "es",
+      "i18next",
+    ),
+  ).toEqual({
+    ok: true,
+  });
+});

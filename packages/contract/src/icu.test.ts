@@ -355,7 +355,7 @@ test("a tag keeps its attribute text as its identity, and a void tag opens nothi
       attrs: 'id="branch_target"',
       children: [{ kind: "literal", text: "main" }],
     },
-    { kind: "tag", name: "br", children: [], self: true },
+    { kind: "tag", name: "br", children: [] },
     { kind: "tag", name: "b", children: [{ kind: "literal", text: "go" }] },
   ]);
   expect([...partsOf(source).tags]).toEqual([

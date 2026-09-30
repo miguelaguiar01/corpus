@@ -23,6 +23,9 @@ import {
   pluralCategoriesOf,
   pluralCategoryCovered,
   printfVerbOf,
+  proseTagsOf,
+  isHtmlElement,
+  type ProseTag,
   type IcuNode,
   type Shape,
   shapeOf,
@@ -417,28 +420,30 @@ export function validateTranslation(
   // Where a type is read as HTML its tags are not compared, so the
   // placeholders in their attributes are, apart from the text's (#948);
   // elsewhere a tag's attribute text is its identity and says as much.
-  if (options.richText === "html") {
+  const attrErrors = (
+    want: Map<string, string | undefined>,
+    got: Map<string, string | undefined>,
+  ) => {
     const missing = new Set(
       errors.flatMap((e) => (e.code === "missing-placeholder" ? [e.name] : [])),
     );
-    for (const [name, written] of expected.attrPlaceholders)
-      if (!actual.attrPlaceholders.has(name) && !missing.has(name))
+    for (const [name, written] of want)
+      if (!got.has(name) && !missing.has(name))
         errors.push({
           code: "missing-placeholder",
           name,
           ...(written ? { written } : {}),
         });
-    for (const [name, written] of actual.attrPlaceholders)
-      if (
-        !expected.attrPlaceholders.has(name) &&
-        !expectedValues.has(name) &&
-        !passed.has(name)
-      )
+    for (const [name, written] of got)
+      if (!want.has(name) && !expectedValues.has(name) && !passed.has(name))
         errors.push({
           code: "unexpected-placeholder",
           name,
           ...(written ? { written } : {}),
         });
+  };
+  if (options.richText === "html") {
+    attrErrors(expected.attrPlaceholders, actual.attrPlaceholders);
   } else {
     for (const name of expected.tags) {
       if (!actual.tags.has(name)) errors.push({ code: "missing-tag", name });
@@ -448,6 +453,72 @@ export function validateTranslation(
     for (const name of actual.tags) {
       if (!expected.tags.has(name))
         errors.push({ code: "unexpected-tag", name });
+    }
+    // Under i18next a tag a source writes as text is text, and so is one
+    // its translation writes as often, the source's unclosed `<p>` or
+    // stray `</br>`; one more, a close, or an open named as a tag of the
+    // source's or HTML's (`<ul> <li>` added to Markdown), is a tag
+    // broken, not prose, while `<sans titre>` is prose. The
+    // placeholders in a prose tag's attributes are the text's, which
+    // i18next fills (#986).
+    if (syntax === "i18next") {
+      const names = new Set(
+        [...expected.tags].map((identity) => identity.split(" ")[0]!),
+      );
+      const unpaired = new Set(
+        errors.flatMap((e) =>
+          e.code === "unpaired-tag" ? [e.name.split(" ")[0]!] : [],
+        ),
+      );
+      const count = (tags: ProseTag[]) => {
+        const out = new Map<string, number>();
+        for (const t of tags) {
+          const key = `${t.close ? "/" : ""}${t.name}`;
+          out.set(key, (out.get(key) ?? 0) + 1);
+        }
+        return out;
+      };
+      const allowed = count(proseTagsOf(source, syntax));
+      const seen = new Map<string, number>();
+      for (const tag of proseTagsOf(target, syntax)) {
+        const key = `${tag.close ? "/" : ""}${tag.name}`;
+        const n = (seen.get(key) ?? 0) + 1;
+        seen.set(key, n);
+        if (n <= (allowed.get(key) ?? 0)) continue;
+        if (tag.close)
+          errors.push({
+            code: "invalid-icu",
+            where: "target",
+            message: `unexpected </${tag.name}>`,
+            position: tag.at,
+          });
+        else if (
+          (names.has(tag.name) || isHtmlElement(tag.name)) &&
+          !unpaired.has(tag.name)
+        )
+          errors.push({
+            code: "invalid-icu",
+            where: "target",
+            message: `unclosed <${tag.name}>`,
+            position: tag.at,
+          });
+      }
+      // A value a real tag's attribute writes in one and a prose tag's
+      // in the other is a tag broken, said above, not a value moved.
+      const inAttrs = (shape: Shape, name: string) =>
+        shape.attrPlaceholders.has(name);
+      attrErrors(
+        new Map(
+          [...expected.proseAttrPlaceholders].filter(
+            ([name]) => !inAttrs(actual, name),
+          ),
+        ),
+        new Map(
+          [...actual.proseAttrPlaceholders].filter(
+            ([name]) => !inAttrs(expected, name),
+          ),
+        ),
+      );
     }
   }
   errors.push(
