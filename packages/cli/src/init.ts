@@ -574,7 +574,67 @@ function formatOf(
   if (/\.ftl$/i.test(messages)) return { adapter: "fluent" };
   const unreadable = unreadableFile(sourceFile);
   if (unreadable) throw new CliError(`--messages ${messages}: ${unreadable}`);
+  const field = entryField(sourceFile);
+  if (field)
+    throw new CliError(
+      `--messages ${messages}: each value is an entry object with its text in ${field}, which the messages source would read as a string per field; an exec source converts it`,
+    );
   return { adapter: "messages" };
+}
+
+// FormatJS's extract formats and Signal's write each string as an
+// object, its text in one field beside its metadata (#1001); the
+// smartling format adds a config object of that name. Chrome's shape is
+// a library of its own.
+const ENTRY_FIELDS = [
+  "messageformat",
+  "defaultMessage",
+  "message",
+  "string",
+  "translation",
+] as const;
+const ENTRY_METADATA = new Set([
+  "description",
+  "developer_comment",
+  "notes",
+  "context",
+  "character_limit",
+  "limit",
+  "ignoreUnused",
+  "id",
+  "meaning",
+]);
+
+function entryField(file: string): string | undefined {
+  if (!file.endsWith(".json") || chromeShaped(file)) return undefined;
+  let data: unknown;
+  try {
+    data = JSON.parse(stripBom(readFileSync(file, "utf8")));
+  } catch {
+    return undefined;
+  }
+  if (data === null || typeof data !== "object" || Array.isArray(data))
+    return undefined;
+  const entries = Object.entries(data).filter(([key]) => key !== "smartling");
+  if (entries.length === 0) return undefined;
+  // The text field on every entry, and on nine in ten nothing else but
+  // metadata: Signal's one `descrption` decides nothing, and a catalogue
+  // whose sections merely share a key is no such file.
+  return ENTRY_FIELDS.find((field) => {
+    let plain = 0;
+    for (const [, value] of entries) {
+      if (value === null || typeof value !== "object") return false;
+      const record = value as Record<string, unknown>;
+      if (typeof record[field] !== "string") return false;
+      if (
+        Object.keys(record).every(
+          (key) => key === field || ENTRY_METADATA.has(key),
+        )
+      )
+        plain += 1;
+    }
+    return plain >= entries.length * 0.9;
+  });
 }
 
 function nextSteps(

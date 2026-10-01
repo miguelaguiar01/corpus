@@ -281,6 +281,7 @@ export async function buildSnapshotReport(
       continue;
     }
     let entries: StringEntry[];
+    const skipped: string[] = [];
     try {
       entries = await readEntries(
         jiti,
@@ -298,12 +299,23 @@ export async function buildSnapshotReport(
             hint: "",
             message: `invalid ${source.adapter === "fluent" ? "Fluent message" : "entry"}: ${reason ?? "not read"}`,
           }),
+        undefined,
+        (id) => skipped.push(id),
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       errors.push(`${file}: ${message}`);
       continue;
     }
+    // A string later set to null leaves the snapshot, and push archives
+    // it: said, so that is never silent (#1026).
+    if (skipped.length > 0)
+      notes.push(
+        `${file}: ${skipped.length} value(s) are no string (a number, true, false or null) and are not read (${skipped
+          .slice(0, 3)
+          .map(printable)
+          .join(", ")}${skipped.length > 3 ? ", …" : ""})`,
+      );
     // The file rides with the entry (§4) so a proposal can come back to
     // it, and only where pull can write it: a .ts catalogue carries none,
     // so a proposal on its strings is refused up front, not left pending.
@@ -893,16 +905,20 @@ export async function readEntries(
   // (xcstrings): a target's, or the source's, which the file must name.
   language?: string,
   // A translation the file holds that is not read, a Qt numerus form
-  // no plural holds (#751).
-  // A Fluent message Corpus cannot read, with why (#991).
+  // no plural holds (#751). A Fluent message, a messages list or an
+  // xliff unit Corpus cannot read, with why (#991, #1026).
   onUnread?: (id: string, reason?: string) => void,
   // The ids the source file holds as plural objects, as the file writes
   // them, where a target's object of categories is the plural though it
   // lacks `other` (#950): sourcePluralIds.
   pluralIds?: ReadonlySet<string>,
+  // A messages value that is no string, a null, number or boolean.
+  onSkipped?: (id: string) => void,
 ): Promise<StringEntry[]> {
   const typed = <T>(entries: T[]) =>
     entries.map((e) => ({ ...e, type: source.type }));
+  const own = (id: string) =>
+    source.namespace ? `${source.namespace}:${id}` : id;
   const text = () => readFileSync(path.join(cwd, file), "utf8");
   switch (source.adapter) {
     case "xcstrings":
@@ -944,11 +960,14 @@ export async function readEntries(
           );
     case "xliff":
       return sourceFile
-        ? xliffToEntries(text(), { type: source.type })
-        : typed(xliffTranslations(text()));
+        ? xliffToEntries(text(), {
+            type: source.type,
+            onRefused: (id, reason) => onUnread?.(id, reason),
+          })
+        : typed(
+            xliffTranslations(text(), (id, reason) => onUnread?.(id, reason)),
+          );
     case "fluent": {
-      const own = (id: string) =>
-        source.namespace ? `${source.namespace}:${id}` : id;
       const entries = fluentToEntries(text(), {
         type: source.type,
         onRefused: (id, reason) => onUnread?.(own(id), reason),
@@ -973,6 +992,8 @@ export async function readEntries(
           ...(sourceFile &&
             language !== undefined && { sourceLanguage: language }),
           ...(pluralIds && { pluralIds }),
+          onRefused: (id, reason) => onUnread?.(own(id), reason),
+          ...(onSkipped && { onSkipped: (id: string) => onSkipped(own(id)) }),
         })
       : tableToEntries(data, { type: source.type, map: source.map });
   // A namespaced file's ids are `ns:key` (#513), i18next's own separator.
@@ -982,6 +1003,16 @@ export async function readEntries(
         id: `${source.namespace}:${entry.id}`,
       }))
     : entries;
+}
+
+// What a target file holds that Corpus cannot read, in a note or a
+// warning: a Fluent message, a Qt numerus form, a messages list or an
+// xliff unit (#991, #751, #1026).
+export function unreadKind(source: FileSource): string {
+  if (source.adapter === "fluent") return "a message Corpus cannot read";
+  if (source.adapter === "qt-ts")
+    return "a numerus form Corpus cannot read as one plural";
+  return "an entry Corpus cannot read";
 }
 
 // Per target language, the plural categories a source's runtime picks
@@ -1462,7 +1493,7 @@ async function readSeeds(
         }
         if (unread.length > 0)
           notes.push(
-            `${file}: ${unread.length} translation(s) not seeded: ${source.adapter === "fluent" ? "a message Corpus cannot read" : "a numerus form Corpus cannot read as one plural"}, left as the file has it (${unread.map(printable).join(", ")})`,
+            `${file}: ${unread.length} translation(s) not seeded: ${unreadKind(source)}, left as the file has it (${unread.map(printable).join(", ")})`,
           );
         // The file's defect, not Corpus's: a count past its forms shows
         // the source text in the app (#1004).

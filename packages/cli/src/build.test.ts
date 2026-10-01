@@ -702,7 +702,7 @@ test("the glossary file of every target language travels; absent is empty, malfo
   );
 });
 
-test("existing target-language catalogues travel as seeds; a missing one is nothing, a broken one an error", async () => {
+test("existing target-language catalogues travel as seeds; a missing one is nothing, and so is a number (#1026)", async () => {
   const snapshot = await buildSnapshot(config(), REPO);
   // An empty value (greeting) and a key the source lacks (gone.key) do
   // not travel.
@@ -711,18 +711,15 @@ test("existing target-language catalogues travel as seeds; a missing one is noth
   });
   const none = await buildSnapshot(config({ languages: ["en", "fr"] }), REPO);
   expect("seedTranslations" in none).toBe(false);
-  await expect(
-    buildSnapshot(
-      config({
-        sources: [
-          { adapter: "messages", type: "chrome", path: "seeded/{lang}.json" },
-        ],
-      }),
-      REPO,
-    ),
-  ).rejects.toThrow(
-    /seeded\/pt-PT\.json: messages: value at a must be a string/,
+  const numbered = await buildSnapshot(
+    config({
+      sources: [
+        { adapter: "messages", type: "chrome", path: "seeded/{lang}.json" },
+      ],
+    }),
+    REPO,
   );
+  expect("seedTranslations" in numbered).toBe(false);
 });
 
 test("a source with the i18next syntax pushes {{name}} strings, each entry carrying the syntax", async () => {

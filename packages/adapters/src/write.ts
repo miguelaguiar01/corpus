@@ -105,7 +105,13 @@ function leaves(
     if (typeof value === "string") out.push([at, value, false]);
     else if (isPluralAt(value, at.join("."), plurals, known))
       out.push([at, pluralText("count", value, "written"), "object"]);
-    else leaves(value, plurals, known, suffix, at, out);
+    // A null, number, boolean or list is no string, left as it is (#1026).
+    else if (
+      value !== null &&
+      typeof value === "object" &&
+      !Array.isArray(value)
+    )
+      leaves(value, plurals, known, suffix, at, out);
   }
   return out;
 }
@@ -308,6 +314,9 @@ export function entriesToMessages(
     suffixPlurals?: boolean;
     sourceLanguage?: string;
     onRefused?: Refusal;
+    // A translation for a list the file holds, which Corpus does not
+    // read and leaves as it is (#1026).
+    onList?: (id: string) => void;
   } = {},
 ): string {
   translations = ownRecord(translations);
@@ -367,8 +376,14 @@ export function entriesToMessages(
             : deleteLeaf(text, path);
     }
   }
+  const lists = listIds(baseTree);
   for (const id of Object.keys(translations)) {
     if (seen.has(id)) continue;
+    const parts = id.split(".");
+    if (parts.some((_, i) => lists.has(parts.slice(0, i + 1).join(".")))) {
+      options.onList?.(id);
+      continue;
+    }
     const path = sourcePaths.get(id) ?? (nested ? id.split(".") : [id]);
     text = sourceSuffix.has(id)
       ? writeSuffix(
@@ -392,6 +407,18 @@ export function entriesToMessages(
         : addLeaf(text, path, translations[id]!, style.indent, order);
   }
   return text;
+}
+
+function listIds(
+  tree: unknown,
+  path: string[] = [],
+  out = new Set<string>(),
+): Set<string> {
+  if (Array.isArray(tree)) out.add(path.join("."));
+  else if (tree !== null && typeof tree === "object")
+    for (const [key, value] of Object.entries(tree))
+      listIds(value, [...path, key], out);
+  return out;
 }
 
 // Chrome i18n (#595): a translation is an entry's `message`, edited in

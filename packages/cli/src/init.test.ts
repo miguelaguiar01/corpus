@@ -336,7 +336,8 @@ test("without --library, a source file with {{ }} and no ICU argument is read as
   mkdirSync(path.join(p.dir, "src", "i18n"), { recursive: true });
   writeFileSync(
     path.join(p.dir, "src", "i18n", "pt-PT.json"),
-    JSON.stringify({ a: "Olá {{ name }}", b: { c: "Sem nada" } }),
+    // A list the source refuses leaves the rest to count (#1026).
+    JSON.stringify({ a: "Olá {{ name }}", b: { c: "Sem nada" }, l: ["x"] }),
   );
   expect(await run(FLAGS, p.ctx)).toBe(0);
   const config = await loadConfig(p.dir);
@@ -2231,4 +2232,76 @@ test("files beside the catalogue that are catalogues of their own are said as fa
   expect(q.err).toContain(
     "corpus: and 25 more file(s) that name no language tag",
   );
+});
+
+test("init names exec for a catalogue of entry objects, never writing a config that reads each field as a string (#1026)", async () => {
+  const p = project();
+  mkdirSync(path.join(p.dir, "_locales", "en"), { recursive: true });
+  writeFileSync(
+    path.join(p.dir, "_locales", "en", "messages.json"),
+    JSON.stringify({
+      smartling: { translate_paths: [{ path: "*/messageformat" }] },
+      "icu:hello": { messageformat: "Hello", description: "A greeting" },
+      "icu:bye": {
+        messageformat: "Bye {name}",
+        description: "Leaving",
+        ignoreUnused: true,
+      },
+    }),
+  );
+  const args = [
+    "init",
+    "--project",
+    "x",
+    "--source",
+    "en",
+    "--messages",
+    "_locales/{lang}/messages.json",
+  ];
+  expect(await run(args, p.ctx)).toBe(1);
+  expect(p.err.join("\n")).toContain(
+    "--messages _locales/{lang}/messages.json: each value is an entry object with its text in messageformat, which the messages source would read as a string per field; an exec source converts it",
+  );
+  expect(existsSync(path.join(p.dir, "corpus.config.ts"))).toBe(false);
+  // One entry's stray key, as Signal's `descrption`, decides nothing.
+  const stray = project();
+  mkdirSync(path.join(stray.dir, "_locales", "en"), { recursive: true });
+  writeFileSync(
+    path.join(stray.dir, "_locales", "en", "messages.json"),
+    JSON.stringify({
+      ...Object.fromEntries(
+        Array.from({ length: 9 }, (_, i) => [
+          `icu:s${i}`,
+          { messageformat: `S${i}`, description: "d" },
+        ]),
+      ),
+      "icu:hint": { messageformat: "Hint", descrption: "typo" },
+    }),
+  );
+  expect(await run(args, stray.ctx)).toBe(1);
+  expect(stray.err.join("\n")).toContain("an exec source converts it");
+  // A nested catalogue of namespaces is no such file.
+  const q = project();
+  mkdirSync(path.join(q.dir, "locales"), { recursive: true });
+  writeFileSync(
+    path.join(q.dir, "locales", "en.json"),
+    JSON.stringify({
+      common: { string: "String", number: "Number" },
+      types: { string: "Str" },
+    }),
+  );
+  expect(
+    await run(
+      [
+        "init",
+        "--project",
+        "x",
+        "--source",
+        "en",
+        "--messages",
+        "locales/{lang}.json",
+      ],
+      q.ctx,
+    ),
+  ).toBe(0);
 });

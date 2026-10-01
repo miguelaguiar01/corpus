@@ -1900,3 +1900,151 @@ export default defineCorpus({
   // A new key is written double-quoted, as yaml's writer does (#1021).
   expect(read("config/locales/en.yml")).toBe("en:\n  hi: Hello\n  bye: Bye\n");
 });
+
+test("one messages value or xliff unit Corpus cannot read is refused by itself: the rest build and seed, and a pull leaves it alone (#1026)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de"],
+  sources: [
+    { adapter: "messages", type: "ui", path: "l/{lang}.json" },
+    { adapter: "xliff", type: "ui", path: "x/messages.{lang}.xlf" },
+  ],
+});
+`,
+  );
+  mkdirSync(path.join(repo, "l"), { recursive: true });
+  mkdirSync(path.join(repo, "x"), { recursive: true });
+  writeFileSync(
+    path.join(repo, "l", "en.json"),
+    `{ "a": "A", "b": "B", "c": "C", "d": "D", "version": 2 }\n`,
+  );
+  const de = `{ "a": "A-de", "b": 3, "c": "C-de", "d": ["x"] }\n`;
+  writeFileSync(path.join(repo, "l", "de.json"), de);
+  const xlf = (lang: string, units: string) =>
+    `<?xml version="1.0"?>\n<xliff version="2.0" srcLang="en"${lang === "en" ? "" : ` trgLang="${lang}"`}><file id="f">\n${units}\n</file></xliff>\n`;
+  writeFileSync(
+    path.join(repo, "x", "messages.en.xlf"),
+    xlf(
+      "en",
+      `<unit id="u1"><segment><source>One</source></segment></unit>\n<unit id="u2"><segment><source>Two</source></segment></unit>`,
+    ),
+  );
+  const xde = xlf(
+    "de",
+    `<unit id="u1"><segment state="translated"><source>One</source><target>Eins</target></segment></unit>\n<unit id="u2"><segment><source>T</source><target>Z</target></segment><segment><source>wo</source></segment></unit>`,
+  );
+  writeFileSync(path.join(repo, "x", "messages.de.xlf"), xde);
+  const out = path.join(repo, "snapshot.json");
+  const built = ctx();
+  expect(await run(["build", "--out", out], built)).toBe(0);
+  const said = built.output.join("\n");
+  expect(said).toContain(
+    "l/de.json: 1 translation(s) not seeded: an entry Corpus cannot read, left as the file has it (d)",
+  );
+  expect(said).toContain(
+    "x/messages.de.xlf: 1 translation(s) not seeded: an entry Corpus cannot read, left as the file has it (u2)",
+  );
+  const snapshot = JSON.parse(readFileSync(out, "utf8")) as {
+    strings: { id: string }[];
+    seedTranslations: Record<string, Record<string, string>>;
+  };
+  expect(snapshot.strings.map((s) => s.id)).toEqual([
+    "a",
+    "b",
+    "c",
+    "d",
+    "u1",
+    "u2",
+  ]);
+  expect(snapshot.seedTranslations).toEqual({
+    de: { a: "A-de", c: "C-de", u1: "Eins" },
+  });
+  const checked = ctx();
+  expect(await run(["validate"], checked)).toBe(0);
+  const found = checked.output.join("\n");
+  expect(found).toContain("l/de.json:d: Corpus cannot read this entry");
+  expect(found).toContain(
+    "x/messages.de.xlf:u2: Corpus cannot read this entry",
+  );
+  await serve(200, {
+    ...PAYLOAD,
+    types: { a: "ui", b: "ui", c: "ui", d: "ui", u1: "ui", u2: "ui" },
+    translations: { de: { a: "A-de", c: "C-de", u1: "Eins" } },
+    minState: "untranslated",
+  });
+  expect(await run(["pull"], ctx())).toBe(0);
+  expect(read("l/de.json")).toBe(de);
+  expect(read("x/messages.de.xlf")).toBe(xde);
+  // A translation for one is named and not written.
+  await serve(200, {
+    ...PAYLOAD,
+    types: { a: "ui", b: "ui", c: "ui", d: "ui", u1: "ui", u2: "ui" },
+    translations: {
+      de: { a: "A-de", c: "C-de", d: "D-de", u1: "Eins", u2: "Zwei" },
+    },
+    minState: "untranslated",
+  });
+  const pulled = ctx();
+  expect(await run(["pull"], pulled)).toBe(0);
+  expect(read("l/de.json")).toBe(de);
+  expect(read("x/messages.de.xlf")).toBe(xde);
+  expect(pulled.output.join("\n")).toContain(
+    "l/de.json: d is a list in the file, which Corpus cannot read; not written",
+  );
+  expect(pulled.output.join("\n")).toContain(
+    "x/messages.de.xlf: u2 is a unit of the file Corpus cannot read; not written",
+  );
+  // The source's ids hold every other string: none is taken for an orphan.
+  expect(pulled.output.join("\n")).not.toContain(
+    "no source-language file holds",
+  );
+  // A source's own: refused by name, the build goes on, and exits 1.
+  writeFileSync(
+    path.join(repo, "l", "en.json"),
+    `{ "a": "A", "b": ["B"], "c": "C" }\n`,
+  );
+  writeFileSync(
+    path.join(repo, "x", "messages.en.xlf"),
+    xlf(
+      "en",
+      `<unit id="u1"><segment><source>One</source></segment></unit>\n<unit id="u2"><segment><source>T</source></segment><segment><source>wo</source></segment></unit>`,
+    ),
+  );
+  const refused = ctx();
+  expect(await run(["build", "--out", out], refused)).toBe(1);
+  const named = refused.output.join("\n");
+  expect(named).toContain("l/en.json [b]: invalid entry:");
+  expect(named).toContain(
+    "x/messages.en.xlf [u2]: invalid entry: xliff: unit u2 has 2 segments; a unit is read as one text",
+  );
+  // A pull still finds each string's own file.
+  await serve(200, {
+    ...PAYLOAD,
+    types: { a: "ui", c: "ui", u1: "ui" },
+    translations: { de: { a: "A-de!", c: "C-de", u1: "Eins!" } },
+    minState: "untranslated",
+  });
+  const after = ctx();
+  expect(await run(["pull"], after)).toBe(0);
+  expect(after.output.join("\n")).not.toContain(
+    "no source-language file holds",
+  );
+  expect(read("l/de.json")).toContain('"a": "A-de!"');
+  expect(read("x/messages.de.xlf")).toContain("Eins!");
+  // A value that is no string is skipped, and in a source said once.
+  writeFileSync(
+    path.join(repo, "l", "en.json"),
+    `{ "a": "A", "v": null, "n": 2, "c": "C" }\n`,
+  );
+  const skipped = ctx();
+  await run(["build", "--out", out], skipped);
+  expect(skipped.output.join("\n")).toContain(
+    "l/en.json: 2 value(s) are no string (a number, true, false or null) and are not read (v, n)",
+  );
+});
