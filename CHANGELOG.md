@@ -29,6 +29,7 @@ contract (`corpus/1`) is the only one.
 - `corpus init` writes a config for a Fluent catalogue and for an Android res directory (#993).
 - An Android language with a numeric region is read and written as `values-b+es+419`, the directory aapt2 accepts (#993).
 - `languageFiles` may map the source language, as `{ en: "templates" }` for Pontoon's layout; a `sourcePath` a source does not read is refused (#994).
+- ICU's `selectordinal` reads, validates by each language's ordinal rule, and previews (#995).
 
 ## [0.21.0] - 2026-09-29
 

@@ -28,7 +28,13 @@ export type IcuNode =
       written?: string;
     }
   | { kind: "select"; arg: string; branches: Record<string, IcuNode[]> }
-  | { kind: "plural"; arg: string; branches: Record<string, IcuNode[]> }
+  | {
+      kind: "plural";
+      arg: string;
+      branches: Record<string, IcuNode[]>;
+      // ICU's selectordinal: the branch by CLDR's ordinal rules (#995).
+      ordinal?: true;
+    }
   // `#` inside a plural branch: the number itself.
   | { kind: "count"; arg: string }
   // <name>children</name>, or <name/> with none.
@@ -1092,19 +1098,30 @@ class Parser {
         format: style === undefined ? { type } : { type, style },
       };
     }
-    if (type !== "select" && type !== "plural") {
+    if (type !== "select" && type !== "plural" && type !== "selectordinal") {
       throw new ParseFailure(
-        `argument type ${JSON.stringify(type)} is not supported; only select, plural, number, date and time are`,
+        `argument type ${JSON.stringify(type)} is not supported; only select, plural, selectordinal, number, date and time are`,
         start,
       );
     }
-    if (inBranch) this.checkNesting(type, start);
-    checkName(`${type} argument`);
+    // Fluent counts an ordinal with NUMBER's option, in a select.
+    if (type === "selectordinal" && this.syntax === "fluent")
+      throw new ParseFailure(
+        `a Fluent text writes an ordinal as { NUMBER($${name}, type: "ordinal") -> … }, which Corpus does not read yet`,
+        start,
+      );
+    // selectordinal is a plural by the ordinal rules, nesting as one.
+    const kind = type === "select" ? "select" : "plural";
+    if (inBranch) this.checkNesting(kind, start);
+    checkName(`${kind} argument`);
     if (this.source[this.pos] !== ",") {
       throw new ParseFailure(`${type} needs branches`, start);
     }
     this.pos += 1;
-    return this.parseBranches(type, name, start);
+    const node = this.parseBranches(kind, name, start, type);
+    return type === "selectordinal" && node.kind === "plural"
+      ? { ...node, ordinal: true }
+      : node;
   }
 
   // One level of nesting, a plural in a select's branch or a select in
@@ -1141,6 +1158,8 @@ class Parser {
     type: "select" | "plural",
     name: string,
     start: number,
+    // The argument type as written, for the messages: selectordinal's.
+    label: string = type,
   ): IcuNode {
     // A branch key is data: `__proto__` is a key like any other (#846).
     const branches = Object.create(null) as Record<string, IcuNode[]>;
@@ -1149,26 +1168,26 @@ class Parser {
       this.skipWhitespace();
       const ch = this.source[this.pos];
       if (ch === undefined) {
-        throw new ParseFailure(`unclosed ${type}`, start);
+        throw new ParseFailure(`unclosed ${label}`, start);
       }
       if (ch === "}") {
         this.pos += 1;
         if (Object.keys(branches).length === 0) {
-          throw new ParseFailure(`${type} needs at least one branch`, start);
+          throw new ParseFailure(`${label} needs at least one branch`, start);
         }
         if (type === "plural" && !("other" in branches)) {
-          throw new ParseFailure("plural needs an other branch", start);
+          throw new ParseFailure(`${label} needs an other branch`, start);
         }
         return { kind: type, arg: name, branches };
       }
       const key = this.readUntil(["{", "}"]).trim();
       if (this.source[this.pos] !== "{") {
-        throw new ParseFailure(`${type} needs branches`, start);
+        throw new ParseFailure(`${label} needs branches`, start);
       }
       if (!(type === "plural" ? PLURAL_KEY_RE : KEY_RE).test(key)) {
         throw new ParseFailure(
           type === "plural"
-            ? `invalid plural branch key ${JSON.stringify(key)}: a category (${PLURAL_CATEGORIES.join(", ")}) or =N`
+            ? `invalid ${label} branch key ${JSON.stringify(key)}: a category (${PLURAL_CATEGORIES.join(", ")}) or =N`
             : `invalid branch key ${JSON.stringify(key)}`,
           this.pos,
         );
@@ -1427,6 +1446,10 @@ export type Shape = {
   formats: Map<string, PlaceholderFormat>;
   selects: Map<string, Set<string>>;
   plurals: Map<string, Set<string>>;
+  // The same keys by kind: a cardinal plural's and a selectordinal's,
+  // one argument holding both apart (#995).
+  cardinalPlurals: Map<string, Set<string>>;
+  ordinalPlurals: Map<string, Set<string>>;
   tags: Set<string>;
   // The tags that wrap text, a pair and not closed on itself, and those
   // written as a pair, whatever they hold (#986).
@@ -1454,6 +1477,8 @@ export function shapeOf(
     formats: new Map(),
     selects: new Map(),
     plurals: new Map(),
+    cardinalPlurals: new Map(),
+    ordinalPlurals: new Map(),
     tags: new Set(),
     pairs: new Set(),
     opened: new Set(),
@@ -1505,6 +1530,14 @@ export function shapeOf(
     }
     if (node.kind === "select" || node.kind === "plural") {
       const map = node.kind === "select" ? shape.selects : shape.plurals;
+      if (node.kind === "plural") {
+        const byKind = node.ordinal
+          ? shape.ordinalPlurals
+          : shape.cardinalPlurals;
+        const own = byKind.get(node.arg) ?? new Set<string>();
+        for (const key of Object.keys(node.branches)) own.add(key);
+        byKind.set(node.arg, own);
+      }
       const keys = map.get(node.arg) ?? new Set<string>();
       for (const key of Object.keys(node.branches)) keys.add(key);
       map.set(node.arg, keys);
@@ -1579,18 +1612,23 @@ function known(language: string): boolean {
 // of a validation, which a push runs for every seed (#646).
 const categoriesByLanguage = new Map<string, string[]>();
 
-export function pluralCategoriesOf(language: string): string[] {
-  const cached = categoriesByLanguage.get(language);
+export function pluralCategoriesOf(
+  language: string,
+  ordinal = false,
+): string[] {
+  const id = ordinal ? `${language} ordinal` : language;
+  const cached = categoriesByLanguage.get(id);
   if (cached) return [...cached];
   let categories: string[] = [];
   if (known(language)) {
     const has = new Set(
-      new Intl.PluralRules(localeOf(language)).resolvedOptions()
-        .pluralCategories,
+      new Intl.PluralRules(localeOf(language), {
+        type: ordinal ? "ordinal" : "cardinal",
+      }).resolvedOptions().pluralCategories,
     );
     categories = PLURAL_CATEGORIES.filter((category) => has.has(category));
   }
-  categoriesByLanguage.set(language, categories);
+  categoriesByLanguage.set(id, categories);
   return [...categories];
 }
 
@@ -1608,7 +1646,13 @@ export function pluralCategoriesFor(
   language: string,
   library: Library,
   picked?: readonly string[],
+  // A selectordinal's: CLDR's ordinal rule, whatever the library (#995).
+  ordinal = false,
 ): { required: string[]; allowed: string[] } {
+  if (ordinal) {
+    const ordinals = pluralCategoriesOf(language, true);
+    return { required: ordinals, allowed: ordinals };
+  }
   if (library === "counterpart")
     return { required: ["one", "other"], allowed: ["zero", "one", "other"] };
   const cldr = pluralCategoriesOf(language);
@@ -1658,11 +1702,15 @@ export function pluralCategoryCovered(
   language: string,
   category: string,
   exact: ReadonlySet<number>,
+  ordinal = false,
 ): boolean {
   if (exact.size === 0 || !known(language)) return false;
-  let samples = samplesByLanguage.get(language);
+  const id = ordinal ? `${language} ordinal` : language;
+  let samples = samplesByLanguage.get(id);
   if (!samples) {
-    const rules = new Intl.PluralRules(localeOf(language));
+    const rules = new Intl.PluralRules(localeOf(language), {
+      type: ordinal ? "ordinal" : "cardinal",
+    });
     samples = new Map();
     for (const n of SAMPLES) {
       const key = rules.select(n);
@@ -1670,7 +1718,7 @@ export function pluralCategoryCovered(
       if (values) values.push(n);
       else samples.set(key, [n]);
     }
-    samplesByLanguage.set(language, samples);
+    samplesByLanguage.set(id, samples);
   }
   const values = samples.get(category);
   return values !== undefined && values.every((n) => n <= 100 && exact.has(n));
@@ -1682,6 +1730,7 @@ export function pluralBranch(
   branches: Record<string, unknown>,
   value: string,
   language?: string,
+  ordinal = false,
 ): string {
   // An empty value is no count at all, not zero (#859).
   if (value.trim() === "") return "other";
@@ -1691,6 +1740,7 @@ export function pluralBranch(
   if (Number.isFinite(n) && (language === undefined || known(language))) {
     const category = new Intl.PluralRules(
       language === undefined ? undefined : localeOf(language),
+      { type: ordinal ? "ordinal" : "cardinal" },
     ).select(n);
     if (Object.hasOwn(branches, category)) return category;
   }

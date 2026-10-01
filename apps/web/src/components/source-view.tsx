@@ -62,7 +62,12 @@ function Branches({
 }) {
   return (
     <div className="flex flex-wrap items-baseline gap-x-2">
-      <dt className="font-mono">{node.arg}</dt>
+      <dt className="font-mono">
+        {node.arg}
+        {node.kind === "plural" && node.ordinal && (
+          <span className="ml-1 font-sans">{t("source.ordinal")}</span>
+        )}
+      </dt>
       {Object.entries(node.branches).map(([key, branch]) => {
         const nested = branchingNodes(branch, false);
         return (
