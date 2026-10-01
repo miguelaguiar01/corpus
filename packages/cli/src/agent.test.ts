@@ -156,6 +156,11 @@ test("flags are read by what they take, wherever they stand; unknown ones and ba
     tool: "status",
     args: {},
   });
+  // A Fluent term's id starts with one dash, which no flag does (#990).
+  expect(parseAgent(["string", "-deck-config-delay-hint"])).toEqual({
+    tool: "get_string",
+    args: { key: "-deck-config-delay-hint" },
+  });
 });
 
 test("the JSON goes to stdout with exit 0; a refusal goes to stderr with exit 1", async () => {
