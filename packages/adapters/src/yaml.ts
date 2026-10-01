@@ -763,13 +763,17 @@ function patchPluralHash(
     if (p) {
       const v = p.value as Node | null;
       if (isScalar(v) && v.value === forms[c]) continue;
-      if (isScalar(v) && v.value !== null && v.range)
+      if (isScalar(v) && v.value !== null && v.range) {
+        // A block's range holds its line break; a form written otherwise
+        // keeps it, so the next form keeps its line (#1126).
+        const out = styled(base, v, forms[c]!, inner, eol);
+        const wasBlock = isBlock(base.slice(v.range[0]));
         patches.push({
           start: v.range[0],
           end: v.range[1],
-          text: styled(base, v, forms[c]!, inner, eol),
+          text: wasBlock && !isBlock(out) ? `${out}${eol}` : out,
         });
-      else
+      } else
         patches.push(
           valueReplaced(
             file,
