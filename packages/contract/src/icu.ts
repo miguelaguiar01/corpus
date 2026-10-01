@@ -833,14 +833,25 @@ class Parser {
     const key = (
       (unescaped ? inner.slice(1) : inner).split(",")[0] ?? ""
     ).trim();
-    if (!I18NEXT_NAME_RE.test(key)) {
+    this.pos = end + 2;
+    if (I18NEXT_NAME_RE.test(key))
+      return { kind: "placeholder", name: unescaped ? `-${key}` : key };
+    // i18next prints a {{…}} it is passed no value for as written, a Go
+    // template's `{{ define "<NAME>" }}` (#1008): its content names it, so
+    // a translation keeps it, and the chip writes it as the source does.
+    // A brace inside is an ICU branch read under the wrong library, which
+    // is refused so the refusal can say so.
+    const content = inner.trim();
+    if (key === "" || /[{}]/.test(content))
       throw new ParseFailure(
         `invalid placeholder name ${JSON.stringify(key)}`,
         start,
       );
-    }
-    this.pos = end + 2;
-    return { kind: "placeholder", name: unescaped ? `-${key}` : key };
+    return {
+      kind: "placeholder",
+      name: content,
+      written: this.source.slice(start, end + 2),
+    };
   }
 
   private lastClose(name: string): number {
