@@ -800,19 +800,21 @@ export function validateTranslation(
     // takes (#956), said as each side writes them.
     const keysOf = (shape: Shape, name: string) =>
       [...(shape.tagKeys.get(name) ?? [name])].map(tagKey);
-    const keys = (shape: Shape, set: Set<string>) =>
-      new Set([...set].flatMap((name) => keysOf(shape, name)));
-    const actualTags = keys(actual, actual.tags);
-    const actualPairs = keys(actual, actual.pairs);
-    const expectedTags = keys(expected, expected.tags);
+    const pairKeysOf = (shape: Shape, name: string) =>
+      [...(shape.pairKeys.get(name) ?? [])].map(tagKey);
+    const actualTags = new Set(
+      [...actual.tags].flatMap((name) => keysOf(actual, name)),
+    );
+    const actualPairs = new Set(
+      [...actual.pairs].flatMap((name) => pairKeysOf(actual, name)),
+    );
+    const expectedTags = new Set(
+      [...expected.tags].flatMap((name) => keysOf(expected, name)),
+    );
     for (const name of expected.tags) {
-      const want = keysOf(expected, name);
-      if (want.some((key) => !actualTags.has(key)))
+      if (keysOf(expected, name).some((key) => !actualTags.has(key)))
         errors.push({ code: "missing-tag", name });
-      else if (
-        expected.pairs.has(name) &&
-        want.some((key) => !actualPairs.has(key))
-      )
+      else if (pairKeysOf(expected, name).some((key) => !actualPairs.has(key)))
         errors.push({ code: "unpaired-tag", name });
     }
     for (const name of actual.tags) {

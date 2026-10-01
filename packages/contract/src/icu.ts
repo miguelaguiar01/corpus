@@ -1611,6 +1611,8 @@ export type Shape = {
   // Each tag's identities with its attribute verbs written by position,
   // which is how two tags compare, where they differ from it (#956).
   tagKeys: Map<string, Set<string>>;
+  // The same of the occurrences that wrap text, every pair's.
+  pairKeys: Map<string, Set<string>>;
   // Those written in the attributes of tags read as text (#986).
   proseAttrPlaceholders: Map<string, string | undefined>;
   // printf: each verb as written, by position (#594).
@@ -1638,6 +1640,7 @@ export function shapeOf(
     attrPlaceholders: new Map(),
     attrTags: new Map(),
     tagKeys: new Map(),
+    pairKeys: new Map(),
     proseAttrPlaceholders: new Map(),
     written: new Map(),
     verbs: [],
@@ -1682,8 +1685,11 @@ export function shapeOf(
         shape.tagKeys.set(tagIdentity(node), keys.add(key));
       }
       if (!node.self) shape.opened.add(tagIdentity(node));
-      if (!node.self && node.children.length > 0)
+      if (!node.self && node.children.length > 0) {
         shape.pairs.add(tagIdentity(node));
+        const keys = shape.pairKeys.get(tagIdentity(node)) ?? new Set();
+        shape.pairKeys.set(tagIdentity(node), keys.add(key));
+      }
       shapeOf(node.children, shape);
     }
     // A form's placeholders are the message's; how many forms there are
