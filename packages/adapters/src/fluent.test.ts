@@ -57,7 +57,7 @@ b = {$g ->
   ]);
 });
 
-test("attributes, terms, functions and string literals are refused by name, all at once", () => {
+test("attributes, terms, functions and string literals are refused by name, a message at a time, and the rest read (#991)", () => {
   const ftl = `login = Log in
     .title = Log in to your account
 -brand = COSMIC
@@ -65,9 +65,45 @@ size = { NUMBER($n) } bytes
 brace = Use {"{"} here
 ok = Fine
 `;
-  expect(() => fluentToEntries(ftl, { type: "ui" })).toThrow(
-    /login has an attribute \(\.title\); -brand is a term; size calls a function; brace has a string literal/,
-  );
+  const refused: [string, string][] = [];
+  const read = fluentToEntries(ftl, {
+    type: "ui",
+    onRefused: (id, reason) => refused.push([id, reason]),
+  });
+  expect(read.map((e) => e.id)).toEqual(["ok"]);
+  expect(refused.map(([id]) => id)).toEqual([
+    "login",
+    "-brand",
+    "size",
+    "brace",
+  ]);
+  expect(refused.map(([, reason]) => reason.split(";")[0])).toEqual([
+    "login has an attribute (.title)",
+    "-brand is a term",
+    "size calls a function",
+    "brace has a string literal",
+  ]);
+});
+
+test("a message Fluent's own parser reads as Junk is refused by name, the rest read (#991)", () => {
+  for (const junk of [
+    "a = { $n -> [0] none [1] one *[other] { $n } many }",
+    "a = { $n -> [one] x\n *[other] y\n}",
+    "a = { $n ->\n [one] x\n [other] y\n}",
+    "a = { $n ->\n *[one] x\n *[other] y\n}",
+    "a = { $n ->\n [one] x\n *[other] y }",
+  ]) {
+    const refused: string[] = [];
+    const read = fluentToEntries(`${junk}\nb = B\n`, {
+      type: "ui",
+      onRefused: (id) => refused.push(id),
+    });
+    expect(refused, junk).toEqual(["a"]);
+    expect(
+      read.map((e) => e.id),
+      junk,
+    ).toEqual(["b"]);
+  }
 });
 
 test("an unchanged pull is byte-identical; a changed message is rewritten in its own layout", () => {
@@ -162,9 +198,12 @@ trash = Trash
 });
 
 test("review of #634: a key with no ] is refused, not a stack overflow; a BOM keeps the first message; } may sit at column 0", () => {
-  expect(() =>
-    fluentToEntries("a = { $n ->\n    [one x\n", { type: "ui" }),
-  ).toThrow(/a has a select Corpus does not read/);
+  const refused: string[] = [];
+  fluentToEntries("a = { $n ->\n    [one x\n", {
+    type: "ui",
+    onRefused: (_, reason) => refused.push(reason),
+  });
+  expect(refused[0]).toMatch(/a has a select Corpus does not read/);
   const bom = "﻿trash = Trash\nother = Other\n";
   expect(fluentToEntries(bom, { type: "ui" }).map((e) => e.id)).toEqual([
     "trash",
@@ -229,4 +268,14 @@ test("a line that starts with whitespace and then . [ or * is escaped too", () =
   expect(fluentToEntries(out, { type: "ui" })[0]?.source).toBe(
     "texto\n.attr = x\n[nota] y",
   );
+});
+
+test("a message whose placeable never closes ends at the next entry, as Fluent's parser restarts there (#991 review)", () => {
+  const refused: string[] = [];
+  const read = fluentToEntries("z = Z\na = Hello { $name\nb = B\nc = C\n", {
+    type: "ui",
+    onRefused: (id) => refused.push(id),
+  });
+  expect(read.map((e) => e.id)).toEqual(["z", "b", "c"]);
+  expect(refused).toEqual(["a"]);
 });

@@ -75,6 +75,9 @@ export type Refused = {
   // Its type, where the type read as HTML would take it: an unclosed
   // tag or a lone <br> as text (#952).
   htmlType?: string;
+  // A Fluent term, never a string the server held: listed, but no
+  // reason to call its file ruined (#991).
+  term?: true;
 };
 export type BuildReport = {
   snapshot: Snapshot;
@@ -160,7 +163,8 @@ function ruinedReasons(sourced: Sourced[], refused: Refused[]): string[] {
   const total = new Map<string, number>();
   for (const { file } of sourced) total.set(file, (total.get(file) ?? 0) + 1);
   const perFile = new Map<string, number>();
-  for (const { file } of refused) {
+  for (const { file, term } of refused) {
+    if (term) continue;
     perFile.set(file, (perFile.get(file) ?? 0) + 1);
     total.set(file, (total.get(file) ?? 0) + 1);
   }
@@ -250,6 +254,17 @@ export async function buildSnapshotReport(
         source,
         true,
         config.sourceLanguage,
+        // A message the source's file holds that Corpus cannot read is
+        // refused by itself, as a string that does not parse is (#991).
+        (id, reason) =>
+          refused.push({
+            file,
+            id,
+            hint: "",
+            message: `invalid ${source.adapter === "fluent" ? "Fluent message" : "entry"}: ${reason ?? "not read"}`,
+            ...(source.adapter === "fluent" &&
+              id.split(":").at(-1)!.startsWith("-") && { term: true }),
+          }),
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -819,7 +834,8 @@ export async function readEntries(
   language?: string,
   // A translation the file holds that is not read, a Qt numerus form
   // no plural holds (#751).
-  onUnread?: (id: string) => void,
+  // A Fluent message Corpus cannot read, with why (#991).
+  onUnread?: (id: string, reason?: string) => void,
   // The ids the source file holds as plural objects, as the file writes
   // them, where a target's object of categories is the plural though it
   // lacks `other` (#950): sourcePluralIds.
@@ -868,10 +884,13 @@ export async function readEntries(
         ? xliffToEntries(text(), { type: source.type })
         : typed(xliffTranslations(text()));
     case "fluent": {
-      const entries = fluentToEntries(text(), { type: source.type });
-      return source.namespace
-        ? entries.map((e) => ({ ...e, id: `${source.namespace}:${e.id}` }))
-        : entries;
+      const own = (id: string) =>
+        source.namespace ? `${source.namespace}:${id}` : id;
+      const entries = fluentToEntries(text(), {
+        type: source.type,
+        onRefused: (id, reason) => onUnread?.(own(id), reason),
+      });
+      return entries.map((e) => ({ ...e, id: own(e.id) }));
     }
   }
   const data = await readModule(
@@ -1346,7 +1365,10 @@ async function readSeeds(
           source,
           false,
           lang,
-          (id) => unread.push(id),
+          // What the source cannot read is no string to seed (#991).
+          (id) => {
+            if (ids.has(id)) unread.push(id);
+          },
           pluralIds,
         )) {
           // A key the source no longer has, or an empty value an
@@ -1372,7 +1394,7 @@ async function readSeeds(
         }
         if (unread.length > 0)
           notes.push(
-            `${file}: ${unread.length} translation(s) not seeded: a numerus form Corpus cannot read as one plural, left as the file has it (${unread.map(printable).join(", ")})`,
+            `${file}: ${unread.length} translation(s) not seeded: ${source.adapter === "fluent" ? "a message Corpus cannot read" : "a numerus form Corpus cannot read as one plural"}, left as the file has it (${unread.map(printable).join(", ")})`,
           );
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
