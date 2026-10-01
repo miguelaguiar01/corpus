@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { createJiti } from "jiti";
+import { androidDirOf } from "@corpus/adapters";
 import {
   corpusConfigSchema,
   type CorpusConfig,
@@ -171,7 +172,84 @@ export function expandSources(input: CorpusInput, cwd: string): CorpusConfig {
   }
   const misspelled = arbUnderscoreCodes(sources, input.languages, cwd);
   if (misspelled) throw new CliError(misspelled);
-  return { ...input, sources };
+  return {
+    ...input,
+    sources: sources.map((source) =>
+      source.adapter === "android"
+        ? androidFallbacks(source, input.languages, input.sourceLanguage, cwd)
+        : source,
+    ),
+  };
+}
+
+// Android resolves a device's `ta-IN` through `values-ta-rIN`, then
+// `values-ta` (#1007): a config language with a region is a module's
+// `values-ta` where the module has that and not its own, so one language
+// reads every module's spelling of it and a pull writes where each
+// module keeps it. Not where the config lists the language or another
+// variant that would read it too, which would share the file, nor where
+// the region changes the script, which Android matches (`zh-TW` is not
+// `values-zh`).
+// Set here and nowhere else, as `group` is.
+function androidFallbacks<S extends Source>(
+  source: S,
+  languages: readonly string[],
+  sourceLanguage: string,
+  cwd: string,
+): S {
+  const res = path.join(cwd, (source as { path: string }).path);
+  // The languages that would take each plain directory: the language
+  // itself, the source language's (an English device reads `values-en`
+  // before `values`), and the variants that can fall back to it.
+  const takers = new Map<string, number>();
+  const bases = new Map<string, string>();
+  for (const language of languages) {
+    const base =
+      language === sourceLanguage || /^[^-_]+$/.test(language)
+        ? language.split(/[-_]/)[0]!
+        : sameScriptBase(language);
+    if (!base) continue;
+    if (base !== language && language !== sourceLanguage)
+      bases.set(language, base);
+    const dir = androidDirOf(base);
+    takers.set(dir, (takers.get(dir) ?? 0) + 1);
+  }
+  const dirs: Record<string, string> = {};
+  for (const [language, base] of bases) {
+    if (takers.get(androidDirOf(base)) !== 1) continue;
+    if (
+      !existsSync(path.join(res, androidDirOf(language), "strings.xml")) &&
+      existsSync(path.join(res, androidDirOf(base), "strings.xml"))
+    )
+      dirs[language] = androidDirOf(base);
+  }
+  return {
+    ...source,
+    languageDirs: Object.keys(dirs).length > 0 ? dirs : undefined,
+  };
+}
+
+// A language-region tag's language, where the two are written in one
+// script.
+function sameScriptBase(language: string): string | undefined {
+  try {
+    const locale = new Intl.Locale(language.replace(/_/g, "-"));
+    if (
+      !locale.region ||
+      locale.script ||
+      locale.toString().split("-").length !== 2
+    )
+      return undefined;
+    // Without likely-subtags data neither has a script, and nothing
+    // tells zh-TW from zh.
+    const script = locale.maximize().script;
+    return script !== undefined &&
+      script === new Intl.Locale(locale.language).maximize().script
+      ? language.split(/[-_]/)[0]
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 // A config code a Flutter project spells with an underscore (#627).

@@ -33,6 +33,7 @@ contract (`corpus/1`) is the only one.
 - `corpus init` takes a target `.po` as the source where no template is committed, and says when a missing source file is git-ignored (#996).
 - Qt: a percentage written `%10` is text, `%n` is a numerus translation's count, and a lookalike `٪n` is refused (#1003).
 - Qt: a numerus file short of forms is seeded and named, a source file's English forms are its source plural, and a proposal on Qt text gives the tr() reason; translations of such a source's numerus strings go stale once (#1004).
+- Android: a regional language reads and writes each module's `values-ta` where it has no `values-ta-rIN`, as Android resolves it (#1007).
 
 ## [0.21.0] - 2026-09-29
 

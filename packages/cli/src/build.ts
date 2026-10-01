@@ -734,7 +734,10 @@ export function fileOf(
   if (source.adapter === "xcstrings") return source.path;
   if (source.adapter !== "android")
     return source.path.replaceAll("{lang}", fileCodeOf(source, language));
-  const dir = language === sourceLanguage ? "values" : androidDirOf(language);
+  const dir =
+    language === sourceLanguage
+      ? "values"
+      : (source.languageDirs?.[language] ?? androidDirOf(language));
   return path.posix.join(source.path, dir, "strings.xml");
 }
 
