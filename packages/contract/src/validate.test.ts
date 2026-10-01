@@ -2512,7 +2512,7 @@ test("a plural whose count the source never prints is a selector: writing it as 
   });
   // A `#` in a select within the plural prints the count.
   const nested = validateTranslation(
-    "{count, plural, one {{g, select, f {# carta} other {# card}}} other {# cards}}",
+    "{count, plural, one {{g, select, f {# carta} other {# card}}} other {{g, select, f {# cartas} other {# cards}}}}",
     "kort",
     "da",
   );

@@ -420,8 +420,9 @@ export function validateTranslation(
   // as a select's argument is: a translation that writes it as one text
   // misses no value; it is incomplete wherever the language may have
   // forms to tell apart, every language but one of a single category, a
-  // tag with no plural data checked for its shape (#992). A `#` in a select within the plural counts as
-  // printed, as messageformat.js prints it. Elsewhere a plural is what
+  // tag with no plural data checked for its shape (#992). A `#` in a
+  // select within the plural counts as printed, as messageformat.js
+  // prints it. Elsewhere a plural is what
   // the writer holds as one (a key family, a Rails hash, gettext's
   // msgid_plural, Android's <plurals>), which one text cannot fill.
   const sourcePrints = printedIn(sourceNodes);
