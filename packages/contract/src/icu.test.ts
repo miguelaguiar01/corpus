@@ -566,8 +566,12 @@ test("i18next's unescaped form {{- name}} is its own placeholder, -name, since i
     ).placeholders,
   ]).toEqual(["-name", "-user.name", "-date"]);
   expect(parseIcu("{{-}}", "i18next").ok).toBe(false);
-  // i18next reads {{ - name }} as the key "- name", which is no name.
+  // i18next reads {{ - name }} and {{ -name }} as the key "- name" or
+  // "-name", which it prints as written: a dash that is no unescape is a
+  // slip, refused, never a name to meet {{-name}} (#1008).
   expect(parseIcu("{{ - name }}", "i18next").ok).toBe(false);
+  expect(parseIcu("{{ -name }}", "i18next").ok).toBe(false);
+  expect(parseIcu("{{ -user.name, short }}", "i18next").ok).toBe(false);
   expect(
     validateTranslation("Hi {{- name}}", "Olá {{name}}", "pt-PT", "i18next"),
   ).toMatchObject({
@@ -611,12 +615,60 @@ test("i18next syntax: {{name}} is a placeholder, a single brace is text, there a
     ok: false,
     errors: [{ message: "unclosed '{{'" }],
   });
-  expect(parseIcu("{{ two words }}", "i18next")).toMatchObject({
+  expect(parseIcu("{{}}", "i18next")).toMatchObject({
     ok: false,
     errors: [{ message: expect.stringMatching(/invalid placeholder name/) }],
   });
+  expect(parseIcu("{{ }}", "i18next").ok).toBe(false);
+  // An ICU branch that opens with a placeholder, read as i18next.
+  expect(parseIcu("other {{name} updated}}", "i18next").ok).toBe(false);
   // The same text under ICU is an error, so the syntax is not optional.
   expect(parseIcu("{{ count }} items", "icu").ok).toBe(false);
+});
+
+test("an i18next {{…}} that is no name is a placeholder named by its content, as i18next prints it, so a translation keeps it (#1008)", () => {
+  const text =
+    'Use {{template "default.message" .}} or <b>{{ define "<NAME>" }}</b>, {{name}} and {{- raw}}.';
+  const result = parseIcu(text, "i18next", { html: "markup" });
+  expect(result.ok).toBe(true);
+  const parts = partsOf(text, "i18next");
+  expect([...parts.placeholders]).toEqual([
+    'template "default.message" .',
+    'define "<NAME>"',
+    "name",
+    "-raw",
+  ]);
+  // The chip and the message write it as the source does.
+  expect(parts.written.get('define "<NAME>"')).toBe('{{ define "<NAME>" }}');
+  expect(parts.written.has("name")).toBe(false);
+  // `<NAME>` inside the braces is no tag.
+  expect([...parts.tags]).toEqual(["b"]);
+  expect(
+    validateTranslation(
+      text,
+      'Utilisez {{template "default.message" .}} ou <b>{{define "<NAME>"}}</b>, {{name}} et {{- raw}}.',
+      "fr-FR",
+      "i18next",
+    ).ok,
+  ).toBe(true);
+  expect(
+    validateTranslation(
+      'using {{ define "<NAME>" }}.',
+      "en utilisant {{ définir « <NAME> » }}.",
+      "fr-FR",
+      "i18next",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [
+      {
+        code: "missing-placeholder",
+        name: 'define "<NAME>"',
+        written: '{{ define "<NAME>" }}',
+      },
+      { code: "unexpected-placeholder", name: "définir « <NAME> »" },
+    ],
+  });
 });
 
 test("<br> opens nothing only in HTML mode, where <br></br> is one <br> as browsers read it (#643)", () => {

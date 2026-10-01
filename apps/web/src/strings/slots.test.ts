@@ -1,5 +1,6 @@
 import { moonlightManor } from "@corpus/contract";
 import { expect, test } from "vitest";
+import { chipText } from "@/components/source-view";
 import { inPositionOrder, slotsOf } from "./slots";
 
 const greenhouse = moonlightManor.strings[0]!;
@@ -105,4 +106,17 @@ test("a slot named like an Object.prototype member has only its own values (#846
     written: null,
     values: {},
   });
+});
+
+test("an i18next {{…}} that holds no name is a slot whose chip writes it as the source does (#1008)", () => {
+  const slots = slotsOf(
+    'Use {{ define "<NAME>" }} for {{name}}',
+    {},
+    null,
+    "en",
+    "i18next",
+  );
+  expect(
+    slots.map((s) => chipText(s.name, "i18next", s.format, s.written)),
+  ).toEqual(['{{ define "<NAME>" }}', "{{name}}"]);
 });
