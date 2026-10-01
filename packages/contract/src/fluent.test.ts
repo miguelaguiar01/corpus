@@ -371,6 +371,13 @@ test("a select collapsed to a word default, a key in another case, one key of it
   expect(ga.ok ? [] : ga.errors).toEqual([
     { code: "missing-branch", arg: "unit", key: "seconds" },
   ]);
+  // Beside the source's own spelling, another case is a key of its own.
+  expect(
+    v(
+      unit,
+      "{unit, select, seconds {{n} s} Seconds {{n} S} minutes {{n} m} other {{n} h}}",
+    ),
+  ).toEqual({ ok: true });
   // One key of its own is Fluent's asymmetry, not a translated key.
   expect(
     v(
