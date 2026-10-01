@@ -48,6 +48,7 @@ contract (`corpus/1`) is the only one.
 - YAML pull writes a new key in the file's style, plain where Rails reads it back, and a plural's forms in the file's order; a text Psych would read as no string (`:D`, `0,5`) is quoted (#1021).
 - YAML pull: a block plural form changed to a quoted text no longer runs the next form onto its line, which broke the file (#1126).
 - YAML pull: a keep-chomped block reads back as written on the first pull, and a block's header comment stays (#1128).
+- YAML: removing a key after a keep-chomped block no longer changes that block's text (#1130).
 
 ## [0.21.0] - 2026-09-29
 

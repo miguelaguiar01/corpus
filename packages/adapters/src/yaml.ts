@@ -296,10 +296,15 @@ function isBlock(rendered: string): boolean {
 // lines after it when the new text is a keep-chomped block, which reads
 // them as its own (#1128), so they are its text and not added to it.
 function blockEnd(base: string, end: number, out: string): number {
-  if (!/^[|>][1-9]?\+/.test(out)) return end;
-  const blank = /^(?:[ \t]*\r?\n)*/.exec(base.slice(end))![0];
-  return end + blank.length;
+  return KEEP_BLOCK.test(out) ? pastBlankLines(base, end) : end;
 }
+
+// The offset past the blank lines that start at `at`.
+function pastBlankLines(text: string, at: number): number {
+  return at + /^(?:[ \t]*\r?\n)*/.exec(text.slice(at))![0].length;
+}
+
+const KEEP_BLOCK = /^[|>][1-9]?\+/;
 
 // A text in the style of the scalar it replaces: plain, single- or
 // double-quoted, or a `|`/`>` block at its own indentation with its
@@ -771,6 +776,9 @@ function patchPluralHash(
   }
   const inner = lineIndent(base, (value.items[0]!.key as Node).range![0]);
   const order = file.formOrder;
+  // The forms written as keep-chomped blocks, which a removal after them
+  // must not hand its blank lines to (#1130).
+  const keeps = new Set<Pair>();
   for (const c of order) {
     if (!Object.hasOwn(forms, c)) continue;
     const p = held.get(c);
@@ -782,6 +790,7 @@ function patchPluralHash(
         // keeps it, so the next form keeps its line (#1126).
         const out = styled(base, v, forms[c]!, inner, eol);
         const wasBlock = isBlock(base.slice(v.range[0]));
+        if (KEEP_BLOCK.test(out)) keeps.add(p);
         patches.push({
           start: v.range[0],
           end: blockEnd(base, v.range[1], out),
@@ -831,7 +840,7 @@ function patchPluralHash(
       (PLURAL_CATEGORIES as readonly string[]).includes(c) &&
       !Object.hasOwn(forms, c)
     )
-      patches.push(pairRemoval(base, value, p));
+      patches.push(pairRemoval(base, value, p, keeps));
 }
 
 // Keys the file lacks, each under the deepest container it has, in the
@@ -1004,7 +1013,13 @@ function contentEnd(text: string, pair: Pair): number {
 
 // A pair's lines, removed: from its key's line, or the comment lines
 // just above it, through the line its value ends on.
-function pairRemoval(text: string, map: YAMLMap, pair: Pair): Patch {
+function pairRemoval(
+  text: string,
+  map: YAMLMap,
+  pair: Pair,
+  // Pairs written as keep-chomped blocks by the same write.
+  keeps: ReadonlySet<Pair> = new Set(),
+): Patch {
   const keyStart = (pair.key as Node).range![0];
   let start = text.lastIndexOf("\n", keyStart - 1) + 1;
   // Comment lines above go with it, never a line of the value before
@@ -1019,7 +1034,18 @@ function pairRemoval(text: string, map: YAMLMap, pair: Pair): Patch {
   }
   const end = contentEnd(text, pair);
   const nl = text[end - 1] === "\n" ? end : text.indexOf("\n", end) + 1;
-  return { start, end: nl <= 0 ? text.length : nl, text: "" };
+  const stop = nl <= 0 ? text.length : nl;
+  // A keep-chomped block before the pair would read the blank lines it
+  // leaves as its own text (#1130): they go with it.
+  const value = before?.value as Node | null | undefined;
+  const keep =
+    before !== undefined &&
+    (keeps.has(before) ||
+      (isScalar(value) &&
+        value.range !== undefined &&
+        value.range !== null &&
+        KEEP_BLOCK.test(text.slice(value.range[0]))));
+  return { start, end: keep ? pastBlankLines(text, stop) : stop, text: "" };
 }
 
 // A proposal into a Rails catalogue (§11), the source file or, for a
