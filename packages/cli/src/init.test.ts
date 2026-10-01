@@ -566,8 +566,34 @@ test("check.include is not written when src alone holds the components, nor when
   expect(await run(FLAGS, none.ctx)).toBe(0);
   expect((await loadConfig(none.dir)).check).toBeUndefined();
   // Nothing found is said, so the first corpus check is no surprise.
-  expect(none.out.join("\n")).toMatch(
-    /check\.include: init found no components where it looks/,
+  // A messages catalogue may be any UI: both ways out are said (#1016).
+  expect(none.out.join("\n")).toContain(
+    "check.include: init found no .jsx, .tsx or .vue components where it looks; set check.include in corpus.config.ts to where they are, or, if the UI is written in something else (Svelte, Handlebars, templates), corpus check does not apply: leave it out of CI",
+  );
+});
+
+test("a qt-ts or gettext project with no components is told corpus check does not apply (#1016)", async () => {
+  const qt = project();
+  write(
+    qt.dir,
+    "lang/app_en.ts",
+    '<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE TS>\n<TS version="2.1" language="en">\n<context><name>A</name><message><source>Quit</source><translation></translation></message></context>\n</TS>\n',
+  );
+  expect(await run(initFor("lang/app_{lang}.ts"), qt.ctx)).toBe(0);
+  const said = qt.out.join("\n");
+  expect(said).toContain(
+    "corpus check reads .jsx, .tsx and .vue components; a qt-ts project has none, so leave corpus check out of CI",
+  );
+  expect(said).not.toMatch(/set check\.include/);
+  const po = project();
+  write(
+    po.dir,
+    "po/en.po",
+    'msgid ""\nmsgstr ""\n"Content-Type: text/plain; charset=UTF-8\\n"\n\nmsgid "Quit"\nmsgstr ""\n',
+  );
+  expect(await run(initFor("po/{lang}.po"), po.ctx)).toBe(0);
+  expect(po.out.join("\n")).toContain(
+    "a gettext project has none, so leave corpus check out of CI",
   );
 });
 
