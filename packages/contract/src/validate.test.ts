@@ -2505,6 +2505,20 @@ test("a plural whose count the source never prints is a selector: writing it as 
   expect(validateTranslation(source, "デッキのカード", "ja")).toEqual({
     ok: true,
   });
+  // No plural data: checked for its shape, so still incomplete.
+  expect(validateTranslation(source, "cartae", "la")).toEqual({
+    ok: true,
+    incomplete: [{ code: "flattened-plural", arg: "count" }],
+  });
+  // A `#` in a select within the plural prints the count.
+  const nested = validateTranslation(
+    "{count, plural, one {{g, select, f {# carta} other {# card}}} other {# cards}}",
+    "kort",
+    "da",
+  );
+  expect(nested.ok ? [] : nested.errors).toEqual([
+    expect.objectContaining({ code: "missing-placeholder", name: "count" }),
+  ]);
   // A count the source prints is still a value to keep.
   const printed = validateTranslation(
     "{count, plural, one {# card} other {# cards}}",

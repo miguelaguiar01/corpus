@@ -3,8 +3,9 @@
 // every source placeholder must survive and none may be added; a target
 // may collapse a select into plain text, but any select it keeps must be
 // on an argument the source selects on, with the same branch keys. A
-// count the source pluralises on is a value like a placeholder: it must
-// survive, as `{n}` or as a plural on n, and a target may pluralise any
+// count the source prints is a value like a placeholder: it must
+// survive, as `{n}` or as a plural on n (one it only selects on may be
+// written as one text, #992), and a target may pluralise any
 // value the source has; with the target language given, a plural's
 // categories must be the ones its runtime picks in that language. A
 // rich-text tag is a component the client renders: every tag in the
@@ -156,8 +157,6 @@ export function nestedCountsOf(
   return parsed.ok ? [...countsInSelects(parsed.nodes)] : [];
 }
 
-// The values a message uses: its placeholders and the counts it
-// pluralises on. A select's argument is not one; it picks a branch.
 // What a text prints: its placeholders and the counts its plurals'
 // branches write as `#`, through tags, branches and forms.
 function printedIn(nodes: IcuNode[], out = new Set<string>()): Set<string> {
@@ -173,6 +172,8 @@ function printedIn(nodes: IcuNode[], out = new Set<string>()): Set<string> {
   return out;
 }
 
+// The values a message uses: its placeholders and the counts it
+// pluralises on. A select's argument is not one; it picks a branch.
 function valuesOf(shape: Shape): Set<string> {
   return new Set([...shape.placeholders, ...shape.plurals.keys()]);
 }
@@ -417,10 +418,14 @@ export function validateTranslation(
       : expectedValues;
   // In ICU a plural on a count the source never prints is a selector,
   // as a select's argument is: a translation that writes it as one text
-  // misses no value, though where the language has forms to tell apart
-  // it is incomplete (#992). A library whose text is one plural read
-  // whole prints its count through a verb or a placeholder of its own.
+  // misses no value; it is incomplete wherever the language may have
+  // forms to tell apart, every language but one of a single category, a
+  // tag with no plural data checked for its shape (#992). A `#` in a select within the plural counts as
+  // printed, as messageformat.js prints it. Elsewhere a plural is what
+  // the writer holds as one (a key family, a Rails hash, gettext's
+  // msgid_plural, Android's <plurals>), which one text cannot fill.
   const sourcePrints = printedIn(sourceNodes);
+  for (const arg of countsInSelects(sourceNodes)) sourcePrints.add(arg);
   for (const name of required) {
     if (actualValues.has(name)) continue;
     if (
@@ -428,7 +433,7 @@ export function validateTranslation(
       expected.plurals.has(name) &&
       !sourcePrints.has(name)
     ) {
-      if (categories.length > 1)
+      if (categories.length !== 1)
         errors.push({ code: "flattened-plural", arg: name });
       continue;
     }
