@@ -754,28 +754,33 @@ test("a nested argument is listed once, and branchingNodes reaches it unless tol
 });
 
 // Linear time, not a speed (#1136): four times the input takes about
-// four times as long, far from a quadratic pass's sixteen. Timed in the
-// process's CPU time, which a loaded runner's other work does not add
-// to, each the best of five runs after a warm one.
+// four times as long, under 8 where a quadratic pass takes sixteen.
+// Timed in the process's CPU time, which a loaded runner's other work
+// does not add to, the best of five runs of each size taken in turn
+// after a warm run of both, so neither is timed before the code is
+// optimised.
 function linear(
   make: (n: number) => string,
   n: number,
   f: (text: string) => unknown,
 ) {
-  const best = (text: string) => {
-    let fastest = Infinity;
-    for (let i = 0; i < 5; i++) {
-      const start = process.cpuUsage();
-      f(text);
-      const { user, system } = process.cpuUsage(start);
-      fastest = Math.min(fastest, (user + system) / 1000);
-    }
-    return fastest;
+  const cpu = (text: string) => {
+    const start = process.cpuUsage();
+    f(text);
+    const { user, system } = process.cpuUsage(start);
+    return (user + system) / 1000;
   };
   const small = make(n);
   const large = make(4 * n);
+  f(large);
   f(small);
-  expect(best(large) / Math.max(best(small), 1)).toBeLessThan(10);
+  let fastSmall = Infinity;
+  let fastLarge = Infinity;
+  for (let i = 0; i < 5; i++) {
+    fastSmall = Math.min(fastSmall, cpu(small));
+    fastLarge = Math.min(fastLarge, cpu(large));
+  }
+  expect(fastLarge / Math.max(fastSmall, 1)).toBeLessThan(8);
 }
 
 test("hostile input is read in bounded time and fails cleanly, never with a thrown error (#861)", () => {
