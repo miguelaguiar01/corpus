@@ -264,8 +264,7 @@ export async function buildSnapshotReport(
             id,
             hint: "",
             message: `invalid ${source.adapter === "fluent" ? "Fluent message" : "entry"}: ${reason ?? "not read"}`,
-            ...(source.adapter === "fluent" &&
-              id.split(":").at(-1)!.startsWith("-") && { term: true }),
+            ...(isFluentTerm(source, id) && { term: true }),
           }),
       );
     } catch (error) {
@@ -498,6 +497,12 @@ export async function buildSnapshotReport(
 
 // Whether the patterns of a source take the later one's text for an id
 // two of them hold, as an app that merges them in order does (#953).
+// A Fluent term (`-brand`), under its namespace or not: a definition
+// the messages use, never a string the server holds (#991).
+export function isFluentTerm(source: FileSource, id: string): boolean {
+  return source.adapter === "fluent" && id.split(":").at(-1)!.startsWith("-");
+}
+
 export function lastWins(source: Source): boolean {
   return "merge" in source && source.merge === "last-wins";
 }

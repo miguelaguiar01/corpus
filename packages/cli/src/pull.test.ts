@@ -984,6 +984,26 @@ export default defineCorpus({
     "every string in the file was refused",
   );
   expect(terms.output.join("\n")).not.toContain("no snapshot was built");
+  // Nor is a term a translation validate can find invalid, in the source
+  // or in a target, as --server leaves it out (#1081).
+  writeFileSync(
+    path.join(repo, "i18n", "en", "app.ftl"),
+    "hello = Hello\nbye = Bye\n",
+  );
+  writeFileSync(
+    path.join(repo, "i18n", "uz", "app.ftl"),
+    "hello = Salom\nbye = Xayr\n",
+  );
+  writeFileSync(
+    path.join(repo, "i18n", "uz", "brands.ftl"),
+    "-brand = Firefox\n",
+  );
+  const valid = ctx();
+  expect(await run(["validate"], valid)).toBe(0);
+  expect(valid.output.join("\n")).not.toContain("-brand");
+  expect(valid.output.join("\n")).toContain(
+    "validate: every translation is valid",
+  );
 });
 
 test("a language whose files use another code is pulled into that file, and seeded from it (#657)", async () => {

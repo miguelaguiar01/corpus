@@ -27,6 +27,7 @@ import {
   fileOf,
   type FileSource,
   hasLanguages,
+  isFluentTerm,
   nestedCountMessage,
   pluralFormsOf,
   takesPluralForms,
@@ -255,6 +256,8 @@ export async function validateRepo(
       config.sourceLanguage,
       (key, reason) => {
         refusedSource.add(key);
+        // A term is no translation to find invalid (#1081).
+        if (isFluentTerm(source, key)) return;
         findings.push({
           file: sourceFile,
           key,
