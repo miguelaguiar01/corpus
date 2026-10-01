@@ -231,6 +231,7 @@ export function TargetPane({
         ...(pluralForms && { pluralForms }),
         // A Fluent term selects on what its callers pass (#1032).
         ...(syntax === "fluent" && isFluentTermId(stringKey) && { term: true }),
+        sourceLanguage,
       });
   const errors = validation.ok ? [] : validation.errors;
   // A plural missing a category the runtime picks saves with a warning

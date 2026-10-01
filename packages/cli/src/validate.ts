@@ -699,6 +699,7 @@ function checkTranslation(
       pluralForms: entry.pluralForms[language],
     }),
     ...(library === "fluent" && isFluentTermId(key) && { term: true }),
+    sourceLanguage: at.sourceLanguage,
   });
   // A select on what the source never passes is Fluent's default, a
   // warning; the rest of the list is incomplete plurals (#1032).

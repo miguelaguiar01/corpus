@@ -95,11 +95,13 @@ export function problemOf(
   richText: TextReading | null,
   passed: string[] | null | undefined,
   key: string,
+  sourceLanguage: string,
 ): string | null {
   const check = validateTranslation(source, text, language, syntax, {
     richText: richText ?? undefined,
     ...(passed && { arguments: passed }),
     ...(syntax === "fluent" && isFluentTermId(key) && { term: true }),
+    sourceLanguage,
   });
   return check.ok
     ? null

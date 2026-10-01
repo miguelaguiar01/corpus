@@ -69,12 +69,14 @@ function seedInvalid(
   richText: TextReading | undefined,
   passed: string[] | undefined,
   id: string,
+  sourceLanguage: string,
 ): boolean {
   if (text === source || (PLAIN.test(source) && PLAIN.test(text))) return false;
   return !validateTranslation(source, text, language, library, {
     richText,
     ...(passed && { arguments: passed }),
     ...(library === "fluent" && isFluentTermId(id) && { term: true }),
+    sourceLanguage,
   }).ok;
 }
 
@@ -215,6 +217,7 @@ function stringWrites(
         richTextFor(entry.type, entry.id, libraryOf(entry), richText),
         entry.arguments,
         entry.id,
+        sourceLanguage,
       );
     });
   const refresh = tx
@@ -433,6 +436,7 @@ export function applySnapshot(
       applySuggestions(tx, projectId, targetLanguages, snapshot, rows);
       remarkSeeds(
         tx,
+        project.sourceLanguage,
         targetLanguages,
         [
           ...recheckedSeeds(current, bySnapshotId, plan.updateSource, {
@@ -773,6 +777,7 @@ function applySeeds(
           richTextFor(string.type, stringId, string.syntax ?? "icu", richText),
           string.arguments ?? undefined,
           stringId,
+          snapshot.sourceLanguage,
         );
       // A seed the row already holds is nothing: no write, no count, and
       // the editor's "changed since you opened it" stays quiet. Its mark
@@ -840,6 +845,7 @@ function recheckedSeeds(
 // changes no text and does not make it theirs.
 function remarkSeeds(
   db: Db,
+  sourceLanguage: string,
   targetLanguages: string[],
   rowIds: number[],
   richText: NonNullable<Snapshot["richText"]>,
@@ -900,6 +906,7 @@ function remarkSeeds(
         richTextFor(row.type, row.key, row.syntax ?? "icu", richText),
         row.arguments ?? undefined,
         row.key,
+        sourceLanguage,
       );
       if (invalid !== row.invalid)
         mark.run({

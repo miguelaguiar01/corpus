@@ -157,6 +157,11 @@ export function nestedCountsOf(
   return parsed.ok ? [...countsInSelects(parsed.nodes)] : [];
 }
 
+// A language tag's base language, case and region aside: en for en-GB.
+function baseOf(tag: string): string {
+  return tag.split(/[-_]/)[0]!.toLowerCase();
+}
+
 // What a text prints: its placeholders and the counts its plurals'
 // branches write as `#`, through tags, branches and forms.
 function printedIn(nodes: IcuNode[], out = new Set<string>()): Set<string> {
@@ -326,6 +331,9 @@ export function validateTranslation(
     arguments?: string[];
     pluralForms?: readonly string[];
     term?: boolean;
+    // The source's language: a target of the same base language, en-GB
+    // for en, takes the source's own plural categories (#1005).
+    sourceLanguage?: string;
   } = {},
 ): ValidationResult {
   const html = tagMode(syntax, options.richText);
@@ -385,6 +393,16 @@ export function validateTranslation(
   const expected = flattened === sourceNodes ? whole : shapeOf(flattened);
   let errors: ValidationError[] = [];
   const expectedValues = valuesOf(expected);
+  const sameBase =
+    options.sourceLanguage !== undefined &&
+    language !== undefined &&
+    baseOf(language) === baseOf(options.sourceLanguage);
+  // A plural written plainly may still print its count, which the
+  // runtime passes (#1005): Immich's yue `永久刪除 {count} 個項目`.
+  const allowedValues =
+    flattened === sourceNodes
+      ? expectedValues
+      : new Set([...expectedValues, ...flat]);
   const actualValues = valuesOf(actual);
 
   const writtenAs = (shape: Shape, name: string) => {
@@ -434,7 +452,12 @@ export function validateTranslation(
       expected.plurals.has(name) &&
       !sourcePrints.has(name)
     ) {
-      if (categories.length !== 1)
+      // A source plural of `other` alone varies by nothing in a language
+      // of its base, so a plain copy flattens nothing (#1005).
+      const otherOnly = [...(whole.plurals.get(name) ?? [])].every(
+        (k) => k === "other",
+      );
+      if (categories.length !== 1 && !(sameBase && otherOnly))
         errors.push({ code: "flattened-plural", arg: name });
       continue;
     }
@@ -464,7 +487,7 @@ export function validateTranslation(
   // is the locale's to define, not a value the code passes (#990).
   const ownTerm = (name: string) => syntax === "fluent" && name.startsWith("-");
   for (const name of actual.placeholders) {
-    if (!expectedValues.has(name) && !passed.has(name) && !ownTerm(name))
+    if (!allowedValues.has(name) && !passed.has(name) && !ownTerm(name))
       errors.push({
         code: "unexpected-placeholder",
         name,
@@ -517,7 +540,7 @@ export function validateTranslation(
     for (const [name, written] of got)
       if (
         !want.has(name) &&
-        !expectedValues.has(name) &&
+        !allowedValues.has(name) &&
         !passed.has(name) &&
         !ownTerm(name)
       )
@@ -779,6 +802,10 @@ export function validateTranslation(
         ? { required: [], allowed: [] }
         : pluralCategoriesFor(language, syntax, options.pluralForms),
       language,
+      // A language of the source's base shares its grammar, so the source
+      // author has already said which categories its text varies by
+      // (#1005): an en-GB copy of an `other`-only plural is complete.
+      sameBase ? whole.plurals : undefined,
     ),
   );
   // Fluent's writer renders a select inside any variant (#990).
@@ -918,6 +945,8 @@ function pluralErrors(
     | undefined,
   categories: { required: string[]; allowed: string[] },
   language: string | undefined,
+  // The source's own keys by argument, for a language of its base.
+  sourceKeys?: Map<string, Set<string>>,
 ): ValidationError[] {
   const out: ValidationError[] = [];
   for (const [arg, keys] of actual.plurals) {
@@ -937,7 +966,9 @@ function pluralErrors(
     const exact = new Set(
       [...keys].filter((k) => EXACT_KEY.test(k)).map((k) => Number(k.slice(1))),
     );
+    const own = sourceKeys?.get(arg);
     for (const key of categories.required) {
+      if (own && key !== "other" && !own.has(key)) continue;
       if (
         !keys.has(key) &&
         !(language && pluralCategoryCovered(language, key, exact))
