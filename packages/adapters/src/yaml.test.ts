@@ -924,3 +924,35 @@ test("a keep-chomped block takes the blank lines after it into its own text, and
     entriesToYaml(en, { s: "zz\nyy" }, "pl:\n  s: |- # note\n    b\n", L),
   ).toBe("pl:\n  s: |- # note\n    zz\n    yy\n");
 });
+
+test("removing a pair after a keep-chomped block takes the blank lines after it, so the block reads as written (#1130)", () => {
+  const en = "en:\n  f:\n    one: one\n    other: many\n";
+  const L = { source: "en", code: "pl" };
+  const tr = { f: "{count, plural, one {x\n\n} other {yy}}" };
+  const once = entriesToYaml(
+    en,
+    tr,
+    "pl:\n  f:\n    one: |-\n      a\n    few: q\n\n    other: yy\n",
+    L,
+  );
+  expect(yamlTranslations(once, "pl")[0]?.source).toBe(tr.f);
+  expect(entriesToYaml(en, tr, once, L)).toBe(once);
+  // An untouched keep block keeps its text when the pair after it goes.
+  const deleted = applyYamlOps(
+    "pl:\n  s: |+\n    b\n\n  t: T\n\n  u: U\n",
+    [{ kind: "delete", id: "t" }],
+    "pl",
+  );
+  expect(yamlTranslations(deleted, "pl").map((e) => [e.id, e.source])).toEqual([
+    ["s", "b\n\n"],
+    ["u", "U"],
+  ]);
+  // After a plain value or a strip block the blank lines stay.
+  expect(
+    applyYamlOps(
+      "pl:\n  s: S\n  t: T\n\n  u: U\n",
+      [{ kind: "delete", id: "t" }],
+      "pl",
+    ),
+  ).toBe("pl:\n  s: S\n\n  u: U\n");
+});
