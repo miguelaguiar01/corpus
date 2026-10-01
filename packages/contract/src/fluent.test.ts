@@ -77,6 +77,17 @@ test("a translation is checked as ICU is: a renamed hyphenated variable and a dr
   expect(messageKind("fluent")).toBe("Fluent message");
 });
 
+test("a translation may nest what its source writes side by side, as Croatian's agreement does", () => {
+  const source =
+    "{cards, plural, one {{cards} card} other {{cards} cards}} studied in {minutes, plural, one {{minutes} minute.} other {{minutes} minutes.}}";
+  const hr =
+    "{cards, plural, one {{minutes, plural, one {{cards} kartica naučena u {minutes} minuti.} few {{cards} kartica naučena u {minutes} minute.} other {{cards} kartica naučena u {minutes} minuta.}}} few {{minutes, plural, one {{cards} kartice naučene u {minutes} minuti.} few {{cards} kartice naučene u {minutes} minute.} other {{cards} kartice naučene u {minutes} minuta.}}} other {{minutes, plural, one {{cards} kartica naučeno u {minutes} minuti.} few {{cards} kartica naučeno u {minutes} minute.} other {{cards} kartica naučeno u {minutes} minuta.}}}}";
+  expect(validateTranslation(source, hr, "hr", "fluent")).toEqual({ ok: true });
+  // ICU's writers that hold a plural as its forms still need the source's
+  // nesting.
+  expect(validateTranslation(source, hr, "hr", "icu").ok).toBe(false);
+});
+
 test("fluent is the adapter's reading, never a config's", () => {
   const config = (library: string) => ({
     project: "p",

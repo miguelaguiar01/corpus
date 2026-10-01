@@ -124,6 +124,8 @@ const COUNT_IN_BRANCH: Record<Library, (arg: string) => string> = {
   qt: () => "%n",
   printf: () => "",
   android: () => "",
+  // Written back as `{ $count }` (#990).
+  fluent: () => "#",
 };
 
 // A plural's branches open with that count.

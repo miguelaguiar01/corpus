@@ -651,7 +651,9 @@ export function validateTranslation(
       language,
     ),
   );
-  errors.push(...nestingErrors(sourceNodes, targetNodes));
+  // Fluent's writer renders a select inside any variant (#990).
+  if (syntax !== "fluent")
+    errors.push(...nestingErrors(sourceNodes, targetNodes));
   // The source's own text keeps the source's warning, not an error: a
   // translation that is the source cannot be the translator's `#` (#923).
   if (target !== source)
