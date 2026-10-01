@@ -28,7 +28,7 @@ export function proposalRefusal(
       return apiError(
         422,
         "not-writable",
-        `the text of ${key} is its key: change it in the code that calls t(), and the catalogue follows`,
+        `the text of ${key} is its key: change it in the code that calls t() or tr(), and the catalogue follows`,
       );
     case "invalid-icu":
       return apiError(

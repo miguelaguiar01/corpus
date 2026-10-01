@@ -62,13 +62,32 @@ export async function status(args: string[], ctx: RunContext): Promise<number> {
     ctx.out(JSON.stringify(body, null, 2));
     return 0;
   }
-  for (const line of render(body, config.server)) ctx.out(line);
+  for (const line of render(
+    body,
+    config.server,
+    config.sources.map((s) => s.adapter),
+  ))
+    ctx.out(line);
   const drift = languageDrift(config.languages, body.languages);
   if (drift) ctx.err(`corpus: ${drift}`);
   return 0;
 }
 
-export function render(status: Status, server: string): string[] {
+// Sources whose text is the code's own (a gettext msgid, a qt-ts tr()
+// literal, a String Catalog key) take no proposals (#1004).
+function codeKeyedOnly(adapters: readonly string[]): boolean {
+  return (
+    adapters.length > 0 &&
+    adapters.every((a) => a === "gettext" || a === "qt-ts" || a === "xcstrings")
+  );
+}
+
+export function render(
+  status: Status,
+  server: string,
+  // The config's file adapters, which say why no source takes proposals.
+  adapters: readonly string[] = [],
+): string[] {
   const lines: string[] = [];
   const pushed = status.lastPushAt
     ? `last push ${status.lastPushAt}`
@@ -88,7 +107,9 @@ export function render(status: Status, server: string): string[] {
   } else if (status.writableSources) {
     lines.push(
       status.writableSources.length === 0
-        ? "no writable source: proposals are not possible on this project"
+        ? codeKeyedOnly(adapters)
+          ? `proposals: none, since ${[...new Set(adapters)].join(" and ")} source text is the code's`
+          : "no writable source: proposals are not possible on this project"
         : `writable sources: ${status.writableSources.join(", ")}`,
     );
   }

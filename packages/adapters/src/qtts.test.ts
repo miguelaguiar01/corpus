@@ -60,24 +60,28 @@ test("a .ts file's messages: Qt's identity, entities decoded, notes, vanished an
     {
       id: "AboutDialog | About qBittorrent",
       type: "ui",
+      keyIsText: true,
       source: "About qBittorrent",
       note: "Used in ../gui/aboutdialog.ui:15",
     },
     {
       id: "AboutDialog | N/A | This date is unavailable",
       type: "ui",
+      keyIsText: true,
       source: "N/A",
       note: "This date is unavailable\nUsed in ../gui/utils.cpp:40",
     },
     {
       id: "AboutDialog | N/A | This comment is unavailable",
       type: "ui",
+      keyIsText: true,
       source: "N/A",
       note: "This comment is unavailable",
     },
     {
       id: 'misc | Use "%1" now',
       type: "ui",
+      keyIsText: true,
       source: 'Use "%1" now',
       note: "%1 is a program name\nUsed in ../base/utils/misc.cpp:59",
     },
@@ -105,10 +109,16 @@ test("length variants seed the first; single quotes, CRLF, relative locations, e
     {
       id: "W | Long\nline",
       type: "ui",
+      keyIsText: true,
       source: "Long\nline",
       note: "Used in w.cpp",
     },
-    { id: "W | Draft &#x110000;", type: "ui", source: "Draft &#x110000;" },
+    {
+      id: "W | Draft &#x110000;",
+      type: "ui",
+      keyIsText: true,
+      source: "Draft &#x110000;",
+    },
   ]);
   expect(qtTsTranslations(xml)).toEqual([
     { id: "W | Long\nline", type: "", source: "Lang" },
@@ -708,4 +718,46 @@ test("a commented-out context or </TS> is never written into (#852)", () => {
   expect(out).toContain(
     "<!--<context><name>B</name><message><source>Old</source></message></context>-->\n<!-- old </TS> -->\n",
   );
+});
+
+test("a numerus translation short of Qt's forms reads its last form for the rest, is said, and writes back as it was (#1004)", async () => {
+  const { qtShortForms } = await import("./qtts");
+  const km = numerus("km", ["%n ឯកសារ"]);
+  const read = qtTsTranslations(km, "km");
+  expect(read).toEqual([
+    {
+      id: "Main | %n file(s)",
+      type: "",
+      source: "{count, plural, other {%n ឯកសារ}}",
+    },
+  ]);
+  expect(qtShortForms(km, "km")).toEqual([
+    { id: "Main | %n file(s)", have: 1, want: 2 },
+  ]);
+  expect(
+    entriesToQtTs(
+      numerus("", ["", ""]),
+      { "Main | %n file(s)": "{count, plural, other {%n ឯកសារ}}" },
+      km,
+      { tag: "km", code: "km" },
+    ),
+  ).toBe(km);
+});
+
+test("the source file's finished English forms are its source plural; unfinished or empty forms read as before; qt text is the code's (#1004)", () => {
+  const en = numerus("en", ["%n file", "%n files"]);
+  expect(qtTsToEntries(en, { type: "ui", language: "en" })).toEqual([
+    expect.objectContaining({
+      id: "Main | %n file(s)",
+      source: "{count, plural, one {%n file} other {%n files}}",
+      keyIsText: true,
+    }),
+  ]);
+  for (const xml of [
+    numerus("en", ["%n file", "%n files"], ' type="unfinished"'),
+    numerus("en", ["", ""]),
+  ])
+    expect(qtTsToEntries(xml, { type: "ui", language: "en" })[0]!.source).toBe(
+      "{count, plural, other {%n file(s)}}",
+    );
 });

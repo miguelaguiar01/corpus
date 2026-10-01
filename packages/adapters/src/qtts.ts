@@ -177,21 +177,79 @@ function sourcePlural(source: string): string {
   return /[{}]/.test(source) ? source : `{count, plural, other {${source}}}`;
 }
 
+// A numerus message's forms as one plural on `count` through Qt's rule
+// for the language, where it gives each form back as a pull would write
+// it; undefined where it does not. A file short of the rule's forms
+// reads its last for the rest, as Transifex leaves Khmer one (#1004).
+function numerusPlural(
+  m: QtMessage,
+  table: ReturnType<typeof pluralTable>,
+): string | undefined {
+  if (m.forms.length === 0) return undefined;
+  const forms = table.categories.map(
+    (_, i) => m.forms[Math.min(i, m.forms.length - 1)]!,
+  );
+  const text = poPluralText(forms, table.indexes);
+  // A form that reads as a brace or a branch of its own (`} other {`)
+  // would be rewritten on every pull.
+  const branches = pluralBranches(text);
+  const back =
+    branches &&
+    table.categories.every(
+      (c, i) => c === undefined || formOf(branches, c) === forms[i],
+    );
+  return back ? text : undefined;
+}
+
 // The source file's messages: each its source text, keyed by Qt's
-// identity.
+// identity, which the code's `tr()` holds, so no proposal edits it. A
+// numerus message whose source-language file gives finished forms reads
+// them through Qt's rule for that language, `Torrent Completed` and
+// `Torrents Completed` rather than `Torrent(s) Completed` (#1004).
 export function qtTsToEntries(
   xml: string,
-  options: { type: string },
+  options: { type: string; language?: string },
 ): StringEntry[] {
+  const table =
+    options.language === undefined
+      ? undefined
+      : pluralTable(options.language, qtPluralForms(options.language));
   return live(xml).map((m) => {
     const note = noteOf(m);
+    const own =
+      m.numerus &&
+      table &&
+      m.state === undefined &&
+      m.forms.length > 0 &&
+      m.forms.every((f) => f !== "")
+        ? numerusPlural(m, table)
+        : undefined;
     return {
       id: m.id,
       type: options.type,
-      source: m.numerus ? sourcePlural(m.source) : m.source,
+      source: own ?? (m.numerus ? sourcePlural(m.source) : m.source),
+      keyIsText: true,
       ...(note && { note }),
     };
   });
+}
+
+// The finished numerus translations short of the forms Qt's rule has,
+// with how many they have and how many it wants: a count past them
+// shows the source text, a defect of the file (#1004).
+export function qtShortForms(
+  xml: string,
+  language: string,
+): { id: string; have: number; want: number }[] {
+  const want = pluralTable(language, qtPluralForms(language)).categories.length;
+  return live(xml).flatMap((m) =>
+    m.numerus &&
+    m.state === undefined &&
+    m.forms.some((f) => f !== "") &&
+    m.forms.length < want
+      ? [{ id: m.id, have: m.forms.length, want }]
+      : [],
+  );
 }
 
 // A target file's translations: the finished ones. An unfinished one,
@@ -205,25 +263,13 @@ export function qtTsTranslations(
   language = "en",
   onUnread?: (id: string) => void,
 ): StringEntry[] {
-  const { indexes, categories } = pluralTable(
-    language,
-    qtPluralForms(language),
-  );
+  const table = pluralTable(language, qtPluralForms(language));
   return live(xml).flatMap((m) => {
     if (m.state !== undefined) return [];
     if (m.numerus) {
       if (!m.forms.some((f) => f !== "")) return [];
-      const text = poPluralText(m.forms, indexes);
-      // Read only where the plural gives each form back, as a pull would
-      // write it: a form that reads as a brace or a branch of its own
-      // (`} other {`) would be rewritten on every pull.
-      const branches = pluralBranches(text);
-      const back =
-        branches &&
-        categories.every(
-          (c, i) => c === undefined || formOf(branches, c) === m.forms[i],
-        );
-      if (back) return [{ id: m.id, type: "", source: text }];
+      const text = numerusPlural(m, table);
+      if (text !== undefined) return [{ id: m.id, type: "", source: text }];
       onUnread?.(m.id);
       return [];
     }
@@ -474,10 +520,15 @@ function translationElement(
   // stay while the rule's are unchanged (#798); so does a file short
   // of a form no category reads, Latvian's zero (#800). A change
   // writes the rule's forms.
+  // And so does a file short of forms a category reads, read as its
+  // last form (#1004), while the reading is unchanged.
   if (
     m.state === undefined &&
     read.every((f, i) =>
-      i < m.forms.length ? f === m.forms[i] : categories[i] === undefined,
+      i < m.forms.length
+        ? f === m.forms[i]
+        : categories[i] === undefined ||
+          (m.forms.length > 0 && f === m.forms[m.forms.length - 1]),
     )
   )
     return undefined;
