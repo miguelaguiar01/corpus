@@ -49,6 +49,7 @@ contract (`corpus/1`) is the only one.
 - YAML pull: a block plural form changed to a quoted text no longer runs the next form onto its line, which broke the file (#1126).
 - YAML pull: a keep-chomped block reads back as written on the first pull, and a block's header comment stays (#1128).
 - YAML: removing a key after a keep-chomped block no longer changes that block's text (#1130).
+- YAML: removing a key takes the comment and blank lines under it, which the block before it read as text (#1132).
 
 ## [0.21.0] - 2026-09-29
 

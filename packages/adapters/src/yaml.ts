@@ -1053,7 +1053,24 @@ function pairRemoval(
   }
   const end = contentEnd(text, pair);
   const nl = text[end - 1] === "\n" ? end : text.indexOf("\n", end) + 1;
-  const stop = nl <= 0 ? text.length : nl;
+  // The lines under the key, a map's trailing comment that its range
+  // leaves out (#804) or a line of spaces, are the pair's: left, a block
+  // before it would read them as its text (#1132).
+  const keyIndent = lineIndent(text, keyStart).length;
+  let stop = nl <= 0 ? text.length : nl;
+  for (;;) {
+    const lineEnd = text.indexOf("\n", stop);
+    const line = text.slice(stop, lineEnd < 0 ? text.length : lineEnd + 1);
+    const indent = /^[ \t]*/.exec(line)![0].length;
+    const rest = line.slice(indent).replace(/\r?\n$/, "");
+    if (
+      line === "" ||
+      indent <= keyIndent ||
+      (rest !== "" && !rest.startsWith("#"))
+    )
+      break;
+    stop += line.length;
+  }
   // A keep-chomped block before the pair, past any pair this write also
   // removes and at the end of a map's last value, would read the blank
   // lines it leaves as its own text (#1130): they go with it.
