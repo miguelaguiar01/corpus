@@ -972,6 +972,16 @@ test("removing a pair after a keep-chomped block takes the blank lines after it,
     "pl",
   );
   expect(yamlTranslations(nested, "pl")[0]?.source).toBe("b\n\n");
+  // The last value inside is one the batch keeps.
+  const deep = applyYamlOps(
+    "pl:\n  a:\n    s: |+\n      b\n\n    v: V\n\n  t: T\n\n  u: U\n",
+    [
+      { kind: "delete", id: "a.v" },
+      { kind: "delete", id: "t" },
+    ],
+    "pl",
+  );
+  expect(yamlTranslations(deep, "pl")[0]?.source).toBe("b\n\n");
   // A keep block this write rewrites as a strip one keeps the blank
   // line after the dropped form, as the file had it.
   expect(
