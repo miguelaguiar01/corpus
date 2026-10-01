@@ -18,6 +18,8 @@ import {
   describeRefused,
   pushOnlyNotes,
   writableSources,
+  fileOf,
+  type FileSource,
 } from "./build";
 import { expandSources } from "./config";
 
@@ -1660,4 +1662,55 @@ test("a source language languageFiles maps is read from its file, and proposals 
   expect(snapshot.sources).toEqual([
     expect.objectContaining({ path: "i18n/english.json" }),
   ]);
+});
+
+test("an Android language with a region reads each module's directory for it, or its language's, as Android resolves them (#1007)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-1007-"));
+  const strings = (text: string) =>
+    `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <string name="hi">${text}</string>\n</resources>\n`;
+  const put = (rel: string, text: string) => {
+    mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
+    writeFileSync(path.join(dir, rel), strings(text));
+  };
+  put("a/res/values/strings.xml", "Hi");
+  put("a/res/values-ta/strings.xml", "வணக்கம் a");
+  put("a/res/values-nb-rNO/strings.xml", "Hei a");
+  put("b/res/values/strings.xml", "Hi");
+  put("b/res/values-ta-rIN/strings.xml", "வணக்கம் b");
+  put("b/res/values-nb/strings.xml", "Hei b");
+  const config = (languages: string[]) =>
+    expandSources(
+      corpusConfigSchema.parse({
+        project: "p",
+        server: "http://localhost:3000",
+        sourceLanguage: "en",
+        languages,
+        sources: [
+          {
+            adapter: "android",
+            type: "ui",
+            path: ["a/res", "b/res"],
+            merge: "last-wins",
+          },
+        ],
+      }),
+      dir,
+    );
+  const { snapshot } = await buildSnapshotReport(
+    config(["en", "ta-IN", "nb-NO"]),
+    dir,
+  );
+  expect(snapshot.seedTranslations).toEqual({
+    "ta-IN": { hi: "வணக்கம் b" },
+    "nb-NO": { hi: "Hei b" },
+  });
+  // Each module's own directory is where a pull writes.
+  const [a, b] = config(["en", "ta-IN", "nb-NO"]).sources as FileSource[];
+  expect(fileOf(a!, "ta-IN", "en")).toBe("a/res/values-ta/strings.xml");
+  expect(fileOf(b!, "ta-IN", "en")).toBe("b/res/values-ta-rIN/strings.xml");
+  expect(fileOf(b!, "nb-NO", "en")).toBe("b/res/values-nb/strings.xml");
+  // Listing the language itself keeps the two apart.
+  const [a2] = config(["en", "ta", "ta-IN"]).sources as FileSource[];
+  expect(fileOf(a2!, "ta-IN", "en")).toBe("a/res/values-ta-rIN/strings.xml");
+  expect(fileOf(a2!, "ta", "en")).toBe("a/res/values-ta/strings.xml");
 });

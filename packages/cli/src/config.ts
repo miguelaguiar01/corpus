@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { createJiti } from "jiti";
+import { androidDirOf } from "@corpus/adapters";
 import {
   corpusConfigSchema,
   type CorpusConfig,
@@ -171,7 +172,44 @@ export function expandSources(input: CorpusInput, cwd: string): CorpusConfig {
   }
   const misspelled = arbUnderscoreCodes(sources, input.languages, cwd);
   if (misspelled) throw new CliError(misspelled);
-  return { ...input, sources };
+  return {
+    ...input,
+    sources: sources.map((source) =>
+      source.adapter === "android"
+        ? androidFallbacks(source, input.languages, input.sourceLanguage, cwd)
+        : source,
+    ),
+  };
+}
+
+// Android resolves a device's `ta-IN` through `values-ta-rIN`, then
+// `values-ta` (#1007): a config language with a region, its language not
+// listed apart, is a module's `values-ta` where the module has that and
+// not its own, so one language reads every module's spelling of it and
+// a pull writes where each module keeps it.
+function androidFallbacks<S extends Source>(
+  source: S,
+  languages: readonly string[],
+  sourceLanguage: string,
+  cwd: string,
+): S {
+  const res = path.join(cwd, (source as { path: string }).path);
+  const listed = new Set(languages.map((l) => androidDirOf(l)));
+  const dirs: Record<string, string> = {};
+  for (const language of languages) {
+    if (language === sourceLanguage) continue;
+    const own = androidDirOf(language);
+    const base = androidDirOf(language.split(/[-_]/)[0]!);
+    if (own === base || listed.has(base)) continue;
+    if (
+      !existsSync(path.join(res, own, "strings.xml")) &&
+      existsSync(path.join(res, base, "strings.xml"))
+    )
+      dirs[language] = base;
+  }
+  return Object.keys(dirs).length > 0
+    ? { ...source, languageDirs: dirs }
+    : source;
 }
 
 // A config code a Flutter project spells with an underscore (#627).
