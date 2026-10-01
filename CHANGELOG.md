@@ -45,6 +45,7 @@ contract (`corpus/1`) is the only one.
 - vue-i18n: placeholder names and a bare `@` are read as vue-i18n's compiler reads them; `{local-mta}` builds, `{aquí}` and `Hallo @all` are invalid (#1017).
 - `check`: a text that is wholly a URL, and a Vue component's `label="name"` naming a field, are no longer findings (#1019).
 - `init` says other catalogues beside the pattern as families and no longer calls an ICU catalogue i18next's; `--help` after a command prints its usage; a yaml `path` array names the rule (#1020).
+- YAML pull writes a new key in the file's style, plain where Rails reads it back, and a plural's forms in the file's order; a text Psych would read as no string (`:D`, `0,5`) is quoted (#1021).
 
 ## [0.21.0] - 2026-09-29
 
