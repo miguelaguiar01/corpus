@@ -754,8 +754,9 @@ test("a nested argument is listed once, and branchingNodes reaches it unless tol
 });
 
 // Linear time, not a speed (#1136): four times the input takes about
-// four times as long, far from a quadratic pass's sixteen, each the best
-// of five runs after a warm one so a loaded runner's pauses fall out.
+// four times as long, far from a quadratic pass's sixteen. Timed in the
+// process's CPU time, which a loaded runner's other work does not add
+// to, each the best of five runs after a warm one.
 function linear(
   make: (n: number) => string,
   n: number,
@@ -764,9 +765,10 @@ function linear(
   const best = (text: string) => {
     let fastest = Infinity;
     for (let i = 0; i < 5; i++) {
-      const start = performance.now();
+      const start = process.cpuUsage();
       f(text);
-      fastest = Math.min(fastest, performance.now() - start);
+      const { user, system } = process.cpuUsage(start);
+      fastest = Math.min(fastest, (user + system) / 1000);
     }
     return fastest;
   };
