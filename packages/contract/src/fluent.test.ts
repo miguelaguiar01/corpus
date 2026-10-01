@@ -143,3 +143,11 @@ test("a string literal is text under fluent, escapes read; a # inside one is no 
     ).ok,
   ).toBe(true);
 });
+
+test("an escape past Unicode is a parse error, a lone surrogate reads as U+FFFD (#990 review)", () => {
+  const past = parseIcu('{"\\UFFFFFF"}', "fluent");
+  expect(past.ok).toBe(false);
+  expect(past.ok ? "" : past.errors[0]?.message).toMatch(/code point/);
+  const lone = parseIcu('{"\\uD800"}', "fluent");
+  expect(lone.ok && lone.nodes).toEqual([{ kind: "literal", text: "�" }]);
+});

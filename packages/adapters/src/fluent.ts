@@ -1,6 +1,6 @@
 // Fluent `.ftl` (§3, #597): messages with a value, `{$var}` and message
-// references as placeholders, a select on a variable as an ICU plural or
-// select, a string literal as written (#990). Attributes, terms,
+// references as placeholders, a select on a variable as an ICU plural
+// or select, a string literal as written (#990). Attributes, terms,
 // functions and number literals are refused by name, a message at a
 // time (#991). A file is patched message by
 // message, so an unchanged pull writes the same bytes and a changed
@@ -39,7 +39,8 @@ const CATEGORIES = new Set<string>(PLURAL_CATEGORIES);
 const KEY_RE = /^(?:[A-Za-z_][A-Za-z0-9_]*|[0-9]+)$/;
 // A string literal as Fluent writes one, its quotes and escapes kept,
 // and the placeable's close.
-const STRING_LITERAL_RE = /^("(?:[^"\\\n]|\\.)*")\s*\}/;
+const STRING_LITERAL_RE =
+  /^("(?:[^"\\\n]|\\(?:["\\]|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{6}))*")\s*\}/;
 // The literals of an ICU view, `{"…"}`, which a `#` inside is not.
 const VIEW_LITERAL_RE = /\{"(?:[^"\\\n]|\\.)*"\}/g;
 
@@ -311,10 +312,13 @@ function render(icu: string, style: Style, refs: Set<string>): string {
     style.spaced ? `{ ${inner} }` : `{${inner}}`;
   // A line that starts with `.`, `[` or `*` would read as an attribute
   // or a variant; Fluent's escape is a string literal.
+  // `inPlural`: within a plural's variant, a select's in one included,
+  // where the reader made a plain `#` the literal `{"#"}`.
   const seq = (
     i: number,
     count?: string,
     lineStart = false,
+    inPlural = false,
   ): [string, number] => {
     let out = "";
     let atStart = lineStart;
@@ -334,7 +338,7 @@ function render(icu: string, style: Style, refs: Set<string>): string {
         out += place(`$${count}`);
         i++;
       } else if (c === "{") {
-        const [text, next] = arg(i + 1);
+        const [text, next] = arg(i + 1, inPlural);
         out += text;
         i = next;
       } else if (c === "\n") {
@@ -348,13 +352,13 @@ function render(icu: string, style: Style, refs: Set<string>): string {
     }
     return [out, i];
   };
-  const arg = (i: number): [string, number] => {
-    // A literal is written back as read; the `#` the view holds as one
-    // is Fluent's plain text.
+  const arg = (i: number, inPlural: boolean): [string, number] => {
+    // A literal is written back as read, but the `#` a plural's variant
+    // holds as one, which is Fluent's plain text there.
     const literal = /^\s*("(?:[^"\\\n]|\\.)*")\s*\}/.exec(icu.slice(i));
     if (literal)
       return [
-        literal[1] === '"#"' ? "#" : place(literal[1]!),
+        inPlural && literal[1] === '"#"' ? "#" : place(literal[1]!),
         i + literal[0].length,
       ];
     const head = /^\s*([A-Za-z0-9_-]+)\s*(?:,\s*(plural|select)\s*,)?/.exec(
@@ -375,7 +379,13 @@ function render(icu: string, style: Style, refs: Set<string>): string {
       }
       const key = /^=?[\w]+/.exec(icu.slice(j))![0];
       j = skipSpace(icu, j + key.length) + 1;
-      const [text, next] = seq(j, head[2] === "plural" ? name : undefined);
+      const plural = head[2] === "plural";
+      const [text, next] = seq(
+        j,
+        plural ? name : undefined,
+        false,
+        inPlural || plural,
+      );
       branches.push([key.replace(/^=/, ""), text]);
       j = next + 1;
     }

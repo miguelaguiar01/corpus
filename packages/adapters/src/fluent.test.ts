@@ -328,3 +328,33 @@ due = { $number ->
     '{number, plural, one {Nueva {"#"}{number}} other {Nuevas {"#"}{number} y {number} más}}',
   );
 });
+
+test("a # literal outside a plural is written back as read; an escape Fluent does not know is refused (#990 review)", () => {
+  const source = 'a = Issue { "#" }{ $n } open\nb = Tab {"\\t"} here\n';
+  const refused: string[] = [];
+  const read = fluentToEntries(source, {
+    type: "ui",
+    onRefused: (id) => refused.push(id),
+  });
+  expect(read.map((e) => [e.id, e.source])).toEqual([
+    ["a", 'Issue {"#"}{n} open'],
+  ]);
+  expect(refused).toEqual(["b"]);
+  const out = applyFluentOps(source, [
+    { kind: "edit", id: "a", text: 'Issue {"#"}{n} closed' },
+  ]);
+  expect(out).toBe('a = Issue { "#" }{ $n } closed\nb = Tab {"\\t"} here\n');
+  expect(fluentToEntries(out, { type: "ui" })[0]!.source).toBe(
+    'Issue {"#"}{n} closed',
+  );
+  // Inside a select within a plural the # is Fluent's text again.
+  const nested = entriesToFluent(
+    "c = { $n ->\n    [one] x\n   *[other] y\n  }\n",
+    {
+      c: '{n, plural, one {{g, select, f {Nº {"#"}} other {No {"#"}}}} other {{n}}}',
+    },
+    undefined,
+  );
+  expect(nested).toContain("[f] Nº #");
+  expect(nested).not.toContain('"#"');
+});

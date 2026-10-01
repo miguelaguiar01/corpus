@@ -108,7 +108,17 @@ function fluentLiteral(
           `unknown escape \\${other} in a string literal`,
           at,
         );
-      return plain ?? String.fromCodePoint(parseInt(u4 ?? u6, 16));
+      if (plain !== undefined) return plain;
+      const point = parseInt(u4 ?? u6, 16);
+      if (point > 0x10ffff)
+        throw new ParseFailure(
+          `\\U${u6} is past the last Unicode code point`,
+          at,
+        );
+      // A lone surrogate is no character: @fluent/bundle reads U+FFFD.
+      return point >= 0xd800 && point <= 0xdfff
+        ? "\uFFFD"
+        : String.fromCodePoint(point);
     },
   );
   return { text: value, length: read[0].length };
