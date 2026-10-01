@@ -2,6 +2,8 @@ import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { createJiti } from "jiti";
 import {
+  androidDirOf,
+  androidLanguageOf,
   isChromeMessages,
   parseXcstrings,
   pluralBranches,
@@ -42,7 +44,7 @@ import {
 import { ignoreCorpusDir } from "./corpus-dir";
 
 export const INIT_USAGE =
-  "corpus init --project <slug> --source <lang> --messages <path with {lang}, or a .xcstrings> [--languages <a,b>] [--server <url>] [--type <name>] [--library <icu|i18next|vue|printf|chrome|counterpart|easy_localization|rails|qt>]";
+  "corpus init --project <slug> --source <lang> --messages <path with {lang}, a .xcstrings or an Android res directory> [--languages <a,b>] [--server <url>] [--type <name>] [--library <icu|i18next|vue|printf|chrome|counterpart|easy_localization|rails|qt>]";
 
 // `corpus init` writes the config from flags alone, so it scripts;
 // it validates the config before writing and never overwrites one.
@@ -89,30 +91,33 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     );
   const server = option(args, "--server") ?? "http://localhost:3000";
   const type = option(args, "--type") ?? "ui";
-  if (!catalog && !messages.includes("{lang}")) {
+  // An Android res directory, or its `values-{lang}/strings.xml`, is
+  // one source whose languages its `values-*` directories name (#993).
+  const res = catalog ? undefined : androidResOf(ctx.cwd, messages);
+  if (!catalog && res === undefined && !messages.includes("{lang}")) {
     throw new CliError(
       `--messages must contain {lang}, such as src/i18n/{lang}.json`,
     );
   }
-  const { adapter, sourcePath } = formatOf(
-    ctx,
-    messages,
-    sourceLanguage,
-    catalog !== undefined,
-  );
-  // An XLIFF unit's text is ICU, and a flag that cannot apply is refused
-  // rather than dropped.
+  const { adapter, sourcePath } =
+    res !== undefined
+      ? { adapter: "android" as const, sourcePath: undefined }
+      : formatOf(ctx, messages, sourceLanguage, catalog !== undefined);
+  // An XLIFF unit's text is ICU, as a Fluent message is read as ICU,
+  // and a flag that cannot apply is refused rather than dropped.
   if (
-    adapter === "xliff" &&
+    (adapter === "xliff" || adapter === "fluent" || adapter === "android") &&
     (args.includes("--library") || args.includes("--syntax"))
   )
     throw new CliError(
-      `--library does not apply to an xliff source: its text is ICU\nusage: ${INIT_USAGE}`,
+      `--library does not apply to ${adapter === "xliff" ? "an xliff source: its text is ICU" : adapter === "fluent" ? "a fluent source: its messages are read as ICU" : "an android source: its strings are Android's"}\nusage: ${INIT_USAGE}`,
     );
   const files =
-    catalog || messages.includes("{ns}")
-      ? { languages: [], languageFiles: {}, skipped: [] }
-      : catalogueLanguages(ctx.cwd, messages, sourceLanguage);
+    res !== undefined
+      ? androidLanguages(ctx, res, sourceLanguage)
+      : catalog || messages.includes("{ns}")
+        ? { languages: [], languageFiles: {}, skipped: [] }
+        : catalogueLanguages(ctx.cwd, messages, sourceLanguage);
   // Beside a JSON catalogue a file that names no language is a glossary
   // or a fixture, not a catalogue left out, unless its name carries a
   // POSIX modifier (`ca@valencia`), which only a language's does.
@@ -167,7 +172,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       ? {}
       : await libraryFor(args, ctx.cwd, messages, sourceLanguage, type, ctx);
   const library = detected.library;
-  const components = checkIncludeFor(ctx.cwd, messages);
+  const components = checkIncludeFor(ctx.cwd, res ?? messages);
   const include = components.include;
   // The mappings of the languages the config lists, given or read.
   const kept = Object.fromEntries(
@@ -178,7 +183,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   const source: InitSource = {
     adapter,
     type,
-    path: messages,
+    path: res ?? messages,
     ...(sourcePath && { sourcePath }),
     ...(library &&
       (adapter !== "messages" || library.value !== "icu") && {
@@ -268,7 +273,15 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
 }
 
 type InitSource = {
-  adapter: "messages" | "xliff" | "gettext" | "xcstrings" | "qt-ts" | "yaml";
+  adapter:
+    | "messages"
+    | "xliff"
+    | "gettext"
+    | "xcstrings"
+    | "qt-ts"
+    | "yaml"
+    | "fluent"
+    | "android";
   type: string;
   path: string;
   sourcePath?: string;
@@ -296,18 +309,33 @@ async function htmlOnlyTags(
   sourceLanguage: string,
 ): Promise<string[]> {
   const declared = source as FileSource;
-  let entries;
-  try {
-    entries = await readEntries(
-      createJiti(import.meta.url),
-      cwd,
-      fileOf(declared, sourceLanguage, sourceLanguage),
-      declared,
-      true,
-      sourceLanguage,
-    );
-  } catch {
-    return [];
+  // A `{ns}` pattern's source files, each, its ids named as build names
+  // them (#993).
+  const files = source.path.includes("{ns}")
+    ? matchPattern(cwd, source.path, sourceLanguage)
+    : [
+        {
+          file: fileOf(declared, sourceLanguage, sourceLanguage),
+          ns: undefined,
+        },
+      ];
+  const entries = [];
+  for (const { file, ns } of files) {
+    try {
+      const read = await readEntries(
+        createJiti(import.meta.url),
+        cwd,
+        file,
+        declared,
+        true,
+        sourceLanguage,
+      );
+      entries.push(
+        ...read.map((e) => (ns ? { ...e, id: `${ns}:${e.id}` } : e)),
+      );
+    } catch {
+      continue;
+    }
   }
   const ids: string[] = [];
   for (const entry of entries) {
@@ -441,6 +469,8 @@ function formatOf(
     ctx.err(
       `corpus: no ${relative}: build reads the source language's strings from it`,
     );
+  // Fluent's `.ftl` reads `{ns}` as messages does (#993).
+  if (/\.ftl$/i.test(messages)) return { adapter: "fluent" };
   const unreadable = unreadableFile(sourceFile);
   if (unreadable) throw new CliError(`--messages ${messages}: ${unreadable}`);
   return { adapter: "messages" };
@@ -786,6 +816,67 @@ async function libraryFor(
     return { library: { value: "vue", detected: file } };
   }
   return {};
+}
+
+// The res directory `--messages` names: the directory itself, its
+// `values` or `values/strings.xml`, or `<res>/values-{lang}/strings.xml`,
+// where `<res>/values/strings.xml` holds the source's strings (#993).
+function androidResOf(cwd: string, messages: string): string | undefined {
+  const pattern = /^(.+?)\/+values(?:-\{lang\})?(?:\/+strings\.xml)?\/*$/.exec(
+    messages,
+  );
+  const res = (pattern ? pattern[1]! : messages).replace(/\/+$/, "");
+  if (!pattern && messages.includes("{lang}")) return undefined;
+  return existsSync(path.join(cwd, res, "values", "strings.xml"))
+    ? res
+    : undefined;
+}
+
+// The languages a res directory's `values-*` directories holding a
+// strings.xml name, the source first. A directory is kept only where it
+// is the one the android source reads and writes for its tag, so a pull
+// never writes a second directory for one locale; any other, a
+// qualifier that is no language (`values-sw360dp`, `values-car`) or the
+// b+ form of a `-r` region, is said and left out.
+function androidLanguages(
+  ctx: RunContext,
+  res: string,
+  sourceLanguage: string,
+): {
+  languages: string[];
+  languageFiles: Record<string, string>;
+  skipped: string[];
+} {
+  const dirs = readdirSync(path.join(ctx.cwd, res)).filter(
+    (name) =>
+      name.startsWith("values-") &&
+      existsSync(path.join(ctx.cwd, res, name, "strings.xml")),
+  );
+  const tags = new Set<string>();
+  for (const dir of dirs.sort()) {
+    const tag = androidLanguageOf(dir);
+    // A tag the runtime does not know is kept, and said below, as any
+    // catalogue's is.
+    if (tag === undefined) {
+      ctx.err(
+        `corpus: ${res}/${dir} is no language's own values directory; left out`,
+      );
+      continue;
+    }
+    if (androidDirOf(tag) !== dir) {
+      ctx.err(
+        `corpus: ${res}/${dir} names ${tag}, which the android source reads from ${androidDirOf(tag)}; left out`,
+      );
+      continue;
+    }
+    tags.add(tag);
+  }
+  tags.delete(sourceLanguage);
+  return {
+    languages: [sourceLanguage, ...[...tags].sort()],
+    languageFiles: {},
+    skipped: [],
+  };
 }
 
 // Only messages, table, fluent and android read `{ns}` (#854, #989).

@@ -26,6 +26,8 @@ contract (`corpus/1`) is the only one.
 - A Fluent translation may select on its own variables and keys, as Fluent allows; a select on a variable the source never passes is a warning (#1032).
 - A translation that writes a plural as one text, where the source never prints the count, is incomplete rather than invalid (#992).
 - A plural written as plain text may print its count, and en-GB beside en needs only the source plural's own categories (#1005).
+- `corpus init` writes a config for a Fluent catalogue and for an Android res directory (#993).
+- An Android language with a numeric region is read and written as `values-b+es+419`, the directory aapt2 accepts (#993).
 
 ## [0.21.0] - 2026-09-29
 

@@ -583,11 +583,43 @@ export function applyAndroidOps(xml: string, ops: SourceOp[]): string {
 }
 
 // A config language's `values` directory by Android's rule: `-r` before
-// a region, `b+` for any other BCP-47 tag.
+// a two-letter region, `b+` for any other BCP-47 tag, a numeric region
+// included, which aapt2 takes as b+ only (`values-b+es+419`, #993).
 export function androidDirOf(language: string): string {
   const parts = language.split(/[-_]/);
   if (parts.length === 1) return `values-${parts[0]}`;
-  if (parts.length === 2 && /^(?:[A-Za-z]{2}|\d{3})$/.test(parts[1]!))
+  if (parts.length === 2 && /^[A-Za-z]{2}$/.test(parts[1]!))
     return `values-${parts[0]}-r${parts[1]!.toUpperCase()}`;
   return `values-b+${parts.join("+")}`;
+}
+
+// The language a `values-*` directory names, androidDirOf's inverse:
+// `values-pt-rBR` is pt-BR and `values-b+sr+Latn` sr-Latn. Undefined
+// for the source's `values` and for a qualifier that is not a language
+// (`values-sw360dp`, `values-night`, `values-v21`), Android's language
+// being the first qualifier and the only one here.
+export function androidLanguageOf(dir: string): string | undefined {
+  const qualifier = /^values-(.+)$/.exec(dir)?.[1];
+  // Android Automotive's UI mode, which aapt never reads as a language.
+  if (qualifier === undefined || qualifier.toLowerCase() === "car")
+    return undefined;
+  const bcp47 = /^b\+([A-Za-z]{2,3})((?:\+[A-Za-z0-9]{2,8})*)$/.exec(qualifier);
+  // Subtags in BCP 47's case: a script title-cased, a region upper.
+  if (bcp47)
+    return [
+      bcp47[1]!.toLowerCase(),
+      ...bcp47[2]!
+        .split("+")
+        .filter(Boolean)
+        .map((sub) =>
+          sub.length === 4
+            ? sub[0]!.toUpperCase() + sub.slice(1).toLowerCase()
+            : sub.toUpperCase(),
+        ),
+    ].join("-");
+  // aapt2 reads the language and region in either case.
+  const legacy = /^([a-z]{2,3})(?:-r([a-z]{2}))?$/i.exec(qualifier);
+  if (!legacy) return undefined;
+  const language = legacy[1]!.toLowerCase();
+  return legacy[2] ? `${language}-${legacy[2].toUpperCase()}` : language;
 }
