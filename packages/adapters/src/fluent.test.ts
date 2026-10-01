@@ -57,12 +57,12 @@ b = {$g ->
   ]);
 });
 
-test("attributes, terms, functions and string literals are refused by name, a message at a time, and the rest read (#991)", () => {
+test("attributes, terms, functions and number literals are refused by name, a message at a time, and the rest read (#991)", () => {
   const ftl = `login = Log in
     .title = Log in to your account
 -brand = COSMIC
 size = { NUMBER($n) } bytes
-brace = Use {"{"} here
+num = { 5 } items
 ok = Fine
 `;
   const refused: [string, string][] = [];
@@ -71,17 +71,12 @@ ok = Fine
     onRefused: (id, reason) => refused.push([id, reason]),
   });
   expect(read.map((e) => e.id)).toEqual(["ok"]);
-  expect(refused.map(([id]) => id)).toEqual([
-    "login",
-    "-brand",
-    "size",
-    "brace",
-  ]);
+  expect(refused.map(([id]) => id)).toEqual(["login", "-brand", "size", "num"]);
   expect(refused.map(([, reason]) => reason.split(";")[0])).toEqual([
     "login has an attribute (.title)",
     "-brand is a term",
     "size calls a function",
-    "brace has a string literal",
+    "num has a number literal",
   ]);
 });
 
@@ -278,4 +273,58 @@ test("a message whose placeable never closes ends at the next entry, as Fluent's
   });
   expect(read.map((e) => e.id)).toEqual(["z", "b", "c"]);
   expect(refused).toEqual(["a"]);
+});
+
+test('a string literal reads as written, and a # in a plural\'s variant as the literal {"#"}, so # stays the count (#990)', () => {
+  const ftl = `cloze = This is a { "{{c1::" }sample{ "}}" } cloze deletion.
+nbsp = 5{"\\u00A0"}km
+legacy = Required for AnkiDroid { "<=" } 2.14
+due = { $number ->
+    [one] Nueva #{ $number }
+   *[other] Nuevas #{ $number }
+  }
+`;
+  const read = fluentToEntries(ftl, { type: "ui" });
+  expect(read.map((e) => [e.id, e.source])).toEqual([
+    ["cloze", 'This is a {"{{c1::"}sample{"}}"} cloze deletion.'],
+    ["nbsp", '5{"\\u00A0"}km'],
+    ["legacy", 'Required for AnkiDroid {"<="} 2.14'],
+    [
+      "due",
+      '{number, plural, one {Nueva {"#"}{number}} other {Nuevas {"#"}{number}}}',
+    ],
+  ]);
+  // An unchanged pull writes the same bytes.
+  const translations = Object.fromEntries(read.map((e) => [e.id, e.source]));
+  expect(entriesToFluent(ftl, translations, ftl)).toBe(ftl);
+});
+
+test('a changed message writes a literal back as written and {"#"} as a plain #', () => {
+  const source = `cloze = This is a { "{{c1::" }sample{ "}}" } cloze deletion.
+due = { $number ->
+    [one] New #{ $number }
+   *[other] New #{ $number }
+  }
+`;
+  const out = entriesToFluent(
+    source,
+    {
+      cloze: 'Isto é um {"{{c1::"}exemplo{"}}"} de omissão.',
+      due: '{number, plural, one {Nueva {"#"}{number}} other {Nuevas {"#"}{number} y # más}}',
+    },
+    undefined,
+  );
+  expect(out).toBe(`cloze = Isto é um { "{{c1::" }exemplo{ "}}" } de omissão.
+due = { $number ->
+    [one] Nueva #{ $number }
+   *[other] Nuevas #{ $number } y { $number } más
+  }
+`);
+  const back = Object.fromEntries(
+    fluentToEntries(out, { type: "ui" }).map((e) => [e.id, e.source]),
+  );
+  expect(back.cloze).toBe('Isto é um {"{{c1::"}exemplo{"}}"} de omissão.');
+  expect(back.due).toBe(
+    '{number, plural, one {Nueva {"#"}{number}} other {Nuevas {"#"}{number} y {number} más}}',
+  );
 });
