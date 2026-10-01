@@ -63,7 +63,9 @@ export type Finding = {
   // A plural missing a category the runtime picks, or with one it never
   // selects, is incomplete, not invalid (#556, #651): printed apart, and
   // never the reason for exit 1. A source's warning (#767) is the same.
-  severity: "invalid" | "incomplete" | "warning";
+  // A key the source no longer has is an `orphan` (#1013): exit 1, as an
+  // invalid one, but counted apart.
+  severity: "invalid" | "orphan" | "incomplete" | "warning";
   message: string;
   sourceFile?: string;
   // A translation the instance holds, checked by --server (#1074).
@@ -114,14 +116,19 @@ export async function validate(
   if (result === undefined) return 1;
   const { findings, unchecked } = result;
   const json = args.includes("--json");
-  const invalid = findings.filter(
-    (f) => f.code !== "orphan" && f.severity === "invalid",
-  );
+  const invalid = findings.filter((f) => f.severity === "invalid");
+  // A source string that does not parse is the build's refusal, not a
+  // translation's problem (#1013).
+  const isSource = (f: Finding) =>
+    f.code === "invalid-icu" && f.language === config.sourceLanguage;
+  const sources = invalid.filter(isSource);
+  const problems = invalid.filter((f) => !isSource(f));
+  const translations = new Set(
+    problems.map((f) => `${f.file}\u0000${f.key}\u0000${f.language}`),
+  ).size;
   const incomplete = findings.filter((f) => f.severity === "incomplete");
   const warnings = findings.filter((f) => f.severity === "warning");
-  const orphans = findings.filter(
-    (f) => f.code === "orphan" && f.severity === "invalid",
-  );
+  const orphans = findings.filter((f) => f.severity === "orphan");
   const byKey = orphansByKey(orphans);
   if (json) ctx.out(JSON.stringify(findings, null, 2));
   else {
@@ -142,7 +149,12 @@ export async function validate(
   }
   if (findings.length > 0) {
     const parts = [
-      invalid.length ? `${invalid.length} invalid translation(s)` : "",
+      translations
+        ? `${translations} invalid translation(s)${problems.length > translations ? ` (${problems.length} problem(s))` : ""}`
+        : "",
+      sources.length
+        ? `${sources.length} source string(s) that do not parse, which build refuses`
+        : "",
       orphans.length
         ? `${byKey.size} orphan key(s) in ${new Set(orphans.map((f) => f.file)).size} file(s)`
         : "",
@@ -381,7 +393,7 @@ export async function validateRepo(
             key,
             language,
             code: "orphan",
-            severity: "invalid",
+            severity: "orphan",
             message: "the source no longer has this key",
             sourceFile,
           });
@@ -564,7 +576,7 @@ function validateExec(
           key,
           language,
           code: "orphan",
-          severity: "invalid",
+          severity: "orphan",
           message: "the exporter's strings no longer have this id",
           sourceFile: file,
         });

@@ -38,6 +38,7 @@ contract (`corpus/1`) is the only one.
 - ICU: a repository's English copy of a string that a TMS restructured, the plural hoisted over the sentence, seeds as untranslated like an exact copy; the next push resends every seed to re-read them (#1009).
 - Agents: `get_string` on a string the build refuses says why, from the repository, and `status` counts them (#1011).
 - printf: Python's `%(name)s` is a placeholder named by its key, so a Python `.po` is checked as `init` writes it (#1012).
+- `validate`: the summary counts translations, not problems, and source strings that do not parse apart; `--json` gives an orphan key `"severity": "orphan"`, not `"invalid"` (#1013).
 
 ## [0.21.0] - 2026-09-29
 

@@ -439,8 +439,51 @@ test("a dropped placeholder, a malformed select and an orphan key are findings, 
   expect(err).toContain(
     "i18n/pt.json:gone: the source no longer has this key (i18n/en.json)",
   );
+  // Two translations, one of them with two problems (#1013).
   expect(err).toMatch(
-    /3 invalid translation\(s\), 1 orphan key\(s\) in 1 file\(s\)/,
+    /2 invalid translation\(s\) \(3 problem\(s\)\), 1 orphan key\(s\) in 1 file\(s\)/,
+  );
+});
+
+test("the summary counts translations, a source that does not parse apart, and --json files an orphan as orphan (#1013)", async () => {
+  write("i18n/en.json", {
+    greeting: "Hello {name}",
+    broken: "Hi {who",
+    plain: "Plain",
+  });
+  write("i18n/pt.json", {
+    greeting: "Olá {nome}",
+    broken: "Olá",
+    plain: "Simples",
+    gone: "Adeus",
+  });
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(1);
+  expect(c.stderr.at(-1)).toBe(
+    "corpus: 1 invalid translation(s) (2 problem(s)), 1 source string(s) that do not parse, which build refuses, 1 orphan key(s) in 1 file(s)",
+  );
+  const j = ctx();
+  expect(await run(["validate", "--json"], j)).toBe(1);
+  const findings = JSON.parse(j.stdout.join("\n")) as {
+    key: string;
+    severity: string;
+  }[];
+  expect(findings.map((f) => [f.key, f.severity]).sort()).toEqual([
+    ["broken", "invalid"],
+    ["gone", "orphan"],
+    ["greeting", "invalid"],
+    ["greeting", "invalid"],
+  ]);
+  // A source that does not parse is still a failure on its own.
+  write("i18n/pt.json", {
+    greeting: "Olá {name}",
+    broken: "Olá",
+    plain: "Simples",
+  });
+  const s = ctx();
+  expect(await run(["validate"], s)).toBe(1);
+  expect(s.stderr.at(-1)).toBe(
+    "corpus: 1 source string(s) that do not parse, which build refuses",
   );
 });
 

@@ -30,6 +30,8 @@ src/i18n/pt-PT.json:editor.unsaved: missing {count}
 corpus: 1 invalid translation(s)
 ```
 
+The summary counts translations: one with a missing and an unexpected placeholder reads `1 invalid translation(s) (2 problem(s))`, the number `corpus status` shows as invalid. A source string that does not parse is counted apart, `1 source string(s) that do not parse, which build refuses`, and fails the run too. In `--json` each finding's `severity` is `invalid`, `orphan`, `incomplete` or `warning`, so a script counting what fails reads `invalid` and `orphan`.
+
 A file's path names the language; a finding on an `exec` source, where the command stands for every language, names it after the key: `exec:node scripts/export.mjs [deleting] fr: missing {trash}`. `--json` carries `language` on every finding.
 
 An `exec` source is checked through the translations its exporter hands over, and the drafts made on the instance for it may never come back that way. When the exporter hands over fewer than one per string and language, `validate` says how many, and its summary reads `every translation checked is valid; not checked: what exec "…" does not hand over`. `corpus validate --server` checks the instance's own translations against the repository's sources instead, so it needs the token; run it beside `pull --check`, where the token is.
