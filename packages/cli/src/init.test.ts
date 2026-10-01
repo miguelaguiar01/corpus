@@ -2032,3 +2032,55 @@ test("init says a missing source file git ignores is generated, whatever the ada
     );
   }
 });
+
+test("init writes sourceVariants for a target in the source's own language and script, and says so (#1014)", async () => {
+  const variants = async (
+    source: string,
+    codes: string[],
+    extra: string[] = [],
+  ) => {
+    const p = project();
+    for (const code of codes) write(p.dir, `l/${code}.json`, "{}\n");
+    expect(
+      await run([...initFor("l/{lang}.json", source), ...extra], p.ctx),
+    ).toBe(0);
+    const config = await loadConfig(p.dir);
+    return { variants: config.sourceVariants, out: p.out.join("\n") };
+  };
+  const en = await variants("en", ["en", "en_GB", "de"]);
+  expect(en.variants).toEqual(["en_GB"]);
+  expect(en.out).toContain(
+    "sourceVariants: en_GB (a variant of en: a row it leaves as the source's text seeds as translated, and a row it lacks is not listed as work, since the app falls back to en; remove a variant whose rows are work)",
+  );
+  const three = await variants("en", ["en", "en_AU", "en_CA", "en_GB"]);
+  expect(three.out).toContain(
+    "sourceVariants: en_AU, en_CA, en_GB (variants of en: a row a variant leaves as the source's text seeds as translated, and a row it lacks is not listed as work, since the app falls back to en; remove a variant whose rows are work)",
+  );
+  // A pseudo-locale is generated text, no variant.
+  expect(
+    (await variants("en", ["en", "en-XA", "en-XC"])).variants,
+  ).toBeUndefined();
+  expect(
+    (await variants("en", ["en", "en-GB", "en_US", "fr"])).variants,
+  ).toEqual(["en-GB", "en_US"]);
+  expect((await variants("pt-BR", ["pt-BR", "pt-PT", "es"])).variants).toEqual([
+    "pt-PT",
+  ]);
+  // Another script is a translation of its own.
+  expect(
+    (await variants("zh-Hans", ["zh-Hans", "zh-Hant"])).variants,
+  ).toBeUndefined();
+  expect((await variants("sr", ["sr", "sr-Latn"])).variants).toBeUndefined();
+  expect((await variants("en", ["en", "de"])).variants).toBeUndefined();
+  // Android's qualifiers name them too.
+  const android = project();
+  const strings = `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n  <string name="hi">Hi</string>\n</resources>\n`;
+  for (const dir of ["values", "values-en-rGB", "values-de"])
+    write(android.dir, `res/${dir}/strings.xml`, strings);
+  expect(await run(initFor("res"), android.ctx)).toBe(0);
+  expect((await loadConfig(android.dir)).sourceVariants).toEqual(["en-GB"]);
+  // A list given by hand is read the same way.
+  expect(
+    (await variants("en", ["en"], ["--languages", "en,en-AU,ja"])).variants,
+  ).toEqual(["en-AU"]);
+});
