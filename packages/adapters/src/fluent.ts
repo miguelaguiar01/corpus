@@ -305,6 +305,9 @@ function parsePlaceable(s: string, i: number, id: string): [string, number] {
     throw new Refusal(
       `${id} is not valid Fluent (a select has ${defaults === 0 ? "no" : "more than one"} * default variant)`,
     );
+  // A select of its default alone is that text, whatever it selects on:
+  // fi's `{ $capitalization -> *[other] tili }` (#1032).
+  if (variants.length === 1) return [variants[0]!.text, j];
   // A term's attribute is a word, `gender`, never a count.
   const plural =
     !name.startsWith("-") &&

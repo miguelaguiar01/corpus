@@ -1121,3 +1121,51 @@ test("--server takes no value, and names a shared string at the copy the build k
     delete process.env.CORPUS_SERVER;
   }
 });
+
+test("a Fluent translation's own select is valid; one on a variable never passed is a warning, a term's never (#1032)", async () => {
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8").replace(
+      /sources: \[[\s\S]*?\n {2}\],/,
+      'sources: [{ adapter: "fluent", type: "ui", path: "l10n/{lang}.ftl" }],',
+    ),
+  );
+  mkdirSync(path.join(repo, "l10n"));
+  writeFileSync(
+    path.join(repo, "l10n", "en.ftl"),
+    `-brand = Firefox
+shared = { $user } shared a file with { -brand }
+account = { $capitalization ->
+    [lowercase] account
+   *[uppercase] Account
+  }
+`,
+  );
+  writeFileSync(
+    path.join(repo, "l10n", "pt.ftl"),
+    `-brand = { $case ->
+    [gen] do Firefox
+   *[other] Firefox
+  }
+shared = { $user_gender ->
+    [female] { $user } partilhou um ficheiro com o { -brand(case: "gen") } (ela)
+   *[other] { $user } partilhou um ficheiro com o { -brand(case: "gen") }
+  }
+account = { $capitalization ->
+   *[other] Conta
+  }
+`,
+  );
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(0);
+  const err = c.stderr.join("\n");
+  expect(err).toContain(
+    "l10n/pt.ftl:shared: selects on {user_gender}, which the source never passes: Fluent renders the default",
+  );
+  expect(err).not.toContain("-brand");
+  expect(err).not.toContain("account");
+  expect(err).toMatch(/corpus: 1 warning\(s\)$/);
+});

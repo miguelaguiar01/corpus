@@ -47,6 +47,9 @@ export type ValidationError =
   | { code: "missing-branch"; arg: string; key: string }
   | { code: "unexpected-branch"; arg: string; key: string }
   | { code: "unknown-plural"; arg: string }
+  // A Fluent translation's select or plural on a variable its source
+  // never has: Fluent renders the default (#1032).
+  | { code: "unpassed-selector"; arg: string }
   // A select and plural nested as the source does not nest them (#764).
   | { code: "changed-nesting"; outer: string; inner: string }
   // `#` in a select within a plural, text to FormatJS and ICU and the
@@ -289,10 +292,13 @@ export function validateTranslation(
   // `pluralForms`: the categories the runtime picks where they are not
   // the language's CLDR ones: a gettext file's `Plural-Forms`' (#951),
   // rails-i18n's (#983).
+  // `term`: the string is a Fluent term, whose variables are what its
+  // callers pass, so a select on one is never unpassed (#1032).
   options: {
     richText?: TextReading;
     arguments?: string[];
     pluralForms?: readonly string[];
+    term?: boolean;
   } = {},
 ): ValidationResult {
   const html = tagMode(syntax, options.richText);
@@ -648,11 +654,23 @@ export function validateTranslation(
             position: Math.max(0, target.indexOf(`<${tag.name} ${tag.attrs}`)),
           });
   }
+  // Fluent selects asymmetrically (#1032): a translation may select on
+  // whatever it is passed, a key it lacks falls back to its `*` default,
+  // and one on a variable never passed renders that default, a warning.
+  // A term's attribute is the locale's to select on.
+  const unpassed = (arg: string): ValidationError[] =>
+    expectedValues.has(arg) ||
+    passed.has(arg) ||
+    arg.startsWith("-") ||
+    options.term
+      ? []
+      : [{ code: "unpassed-selector", arg }];
   errors.push(
     ...pluralErrors(
       actual,
       expectedValues,
       passed,
+      syntax === "fluent" ? unpassed : undefined,
       language === undefined
         ? { required: [], allowed: [] }
         : pluralCategoriesFor(language, syntax, options.pluralForms),
@@ -669,6 +687,12 @@ export function validateTranslation(
       errors.push({ code: "nested-count", arg });
   for (const [arg, keys] of actual.selects) {
     const sourceKeys = expected.selects.get(arg);
+    // But a count selected on words never matches them: Fluent compares
+    // a number with categories and numbers only (gl `[unha]`, #597).
+    if (syntax === "fluent" && !expected.plurals.has(arg)) {
+      if (!sourceKeys) errors.push(...unpassed(arg));
+      continue;
+    }
     if (!sourceKeys) {
       errors.push({ code: "unknown-select", arg });
       continue;
@@ -685,7 +709,9 @@ export function validateTranslation(
   // A category missing falls back to `other`, and one the language never
   // selects is dead text: neither breaks the message (#556, #651).
   const warning = (e: ValidationError) =>
-    e.code === "missing-category" || e.code === "unexpected-category";
+    e.code === "missing-category" ||
+    e.code === "unexpected-category" ||
+    e.code === "unpassed-selector";
   const incomplete = errors.filter(warning);
   const invalid = errors.filter((e) => !warning(e));
   if (invalid.length === 0) {
@@ -778,13 +804,15 @@ function pluralErrors(
   actual: Shape,
   expectedValues: Set<string>,
   passed: Map<string, string>,
+  // Fluent's rule for a plural on a value the source has none of.
+  unpassed: ((arg: string) => ValidationError[]) | undefined,
   categories: { required: string[]; allowed: string[] },
   language: string | undefined,
 ): ValidationError[] {
   const out: ValidationError[] = [];
   for (const [arg, keys] of actual.plurals) {
     if (!expectedValues.has(arg) && !passed.has(arg)) {
-      out.push({ code: "unknown-plural", arg });
+      out.push(...(unpassed?.(arg) ?? [{ code: "unknown-plural", arg }]));
       continue;
     }
     if (categories.required.length === 0) continue;

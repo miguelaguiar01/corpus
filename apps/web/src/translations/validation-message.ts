@@ -47,6 +47,8 @@ export function validationMessage(
       return t("editor.unexpectedBranch", { arg: error.arg, key: error.key });
     case "unknown-plural":
       return t("editor.unknownPlural", { arg: error.arg });
+    case "unpassed-selector":
+      return t("editor.unpassedSelector", { arg: error.arg });
     case "changed-nesting":
       return t("editor.changedNesting", {
         outer: error.outer,

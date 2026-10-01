@@ -239,3 +239,61 @@ test("a format's style under fluent is Fluent's options, and there is no time fo
   // ICU keeps its own styles.
   expect(parseIcu("{n, number, ::percent}", "icu").ok).toBe(true);
 });
+
+test("a Fluent translation selects on what it likes: missing and extra keys take the default, an unpassed variable is a warning (#1032)", () => {
+  const v = (source: string, target: string, options = {}) =>
+    validateTranslation(source, target, "de", "fluent", options);
+  // de genders the user the source only prints.
+  expect(
+    v(
+      "{user} shared a file",
+      "{user_gender, select, female {{user} hat eine Datei geteilt (sie)} other {{user} hat eine Datei geteilt}}",
+    ),
+  ).toEqual({
+    ok: true,
+    incomplete: [{ code: "unpassed-selector", arg: "user_gender" }],
+  });
+  // de collapses a capitalization, fi selects on one key of two.
+  const account =
+    "{capitalization, select, lowercase {account} uppercase {Account} other {account}}";
+  expect(v(account, "{capitalization, select, other {Konto}}")).toEqual({
+    ok: true,
+  });
+  expect(
+    v(account, "{capitalization, select, uppercase {Tili} other {tili}}"),
+  ).toEqual({ ok: true });
+  // A select on a value the source prints, or on a term's attribute, is
+  // no warning.
+  expect(
+    v("{n} files", "{n, select, zero {keine Dateien} other {{n} Dateien}}"),
+  ).toEqual({ ok: true });
+  expect(
+    v(
+      "{-brand} is gone",
+      "{-brand.gender, select, masculine {{-brand} byl} other {{-brand} bylo}}",
+    ),
+  ).toEqual({ ok: true });
+  // A term's own string selects on its callers' arguments.
+  expect(
+    v("Firefox", "{case, select, gen {Firefoxu} other {Firefox}}", {
+      term: true,
+    }),
+  ).toEqual({ ok: true });
+  // A plural the source never has a value for is the same warning.
+  expect(v("Files", "{count, plural, one {Datei} other {Dateien}}")).toEqual({
+    ok: true,
+    incomplete: [{ code: "unpassed-selector", arg: "count" }],
+  });
+  // Printing what the source does not pass, or dropping what it does,
+  // is still invalid.
+  expect(v("{user} shared", "{number} geteilt").ok).toBe(false);
+  // ICU's rules stand everywhere else.
+  expect(
+    validateTranslation(
+      account,
+      "{capitalization, select, other {Konto}}",
+      "de",
+      "icu",
+    ).ok,
+  ).toBe(false);
+});

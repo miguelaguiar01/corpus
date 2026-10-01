@@ -228,6 +228,9 @@ export function TargetPane({
         richText: richText ?? undefined,
         ...(passed && { arguments: passed }),
         ...(pluralForms && { pluralForms }),
+        // A Fluent term selects on what its callers pass (#1032).
+        ...(syntax === "fluent" &&
+          stringKey.split(":").at(-1)!.startsWith("-") && { term: true }),
       });
   const errors = validation.ok ? [] : validation.errors;
   // A plural missing a category the runtime picks saves with a warning

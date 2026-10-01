@@ -433,6 +433,7 @@ gone = { -brand.gender ->
 
 test("a select on a term's attribute is never a plural; a # in a term's argument is no count (#990 review)", () => {
   const ftl = `a = { -brand.gender ->
+    [one] Byl
    *[other] Bylo
   }
 b = { $n ->
@@ -444,13 +445,13 @@ c = Use { -brand (case: "gen") } now
   const read = Object.fromEntries(
     fluentToEntries(ftl, { type: "ui" }).map((e) => [e.id, e.source]),
   );
-  expect(read.a).toBe("{-brand.gender, select, other {Bylo}}");
+  expect(read.a).toBe("{-brand.gender, select, one {Byl} other {Bylo}}");
   expect(read.b).toBe('{n, plural, one {{-brand(x: "#1")} x} other {y}}');
   expect(read.c).toBe('Use {-brand(case: "gen")} now');
   const out = entriesToFluent(
     ftl,
     {
-      a: "{-brand.gender, select, other {Bylo #}}",
+      a: "{-brand.gender, select, one {Byl} other {Bylo #}}",
       b: '{n, plural, one {{-brand(x: "#1")} z} other {y}}',
     },
     ftl,
@@ -533,4 +534,10 @@ b = { NUMBER\t($n) }
   );
   expect(read.a).toBe('{n, plural, one {{n, number, x: "#"} y} other {z}}');
   expect(refused).toEqual(["b"]);
+});
+
+test("a select whose only variant is the default reads as that variant's text (#1032)", () => {
+  const ftl = "account = { $capitalization ->\n   *[other] Konto\n  }\n";
+  expect(fluentToEntries(ftl, { type: "ui" })[0]!.source).toBe("Konto");
+  expect(entriesToFluent(ftl, { account: "Konto" }, ftl)).toBe(ftl);
 });
