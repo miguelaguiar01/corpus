@@ -300,8 +300,10 @@ export async function validateRepo(
         // Qt reads such forms, as Fluent does such messages; Corpus
         // cannot, so it says so, once (#751, #991).
         (key, reason) =>
-          // A message the source cannot read is that source's finding.
+          // A message the source cannot read is that source's finding,
+          // and a target's own term no translation at all (#990).
           refusedSource.has(key) ||
+          (isFluentTerm(source, key) && !sources.has(key)) ||
           findings.push(
             source.adapter === "fluent"
               ? {
@@ -354,6 +356,9 @@ export async function validateRepo(
         if (isBlank(target)) continue;
         const entry = sources.get(key);
         if (entry === undefined && refusedSource.has(key)) continue;
+        // A target's own Fluent term is the locale's, defined for its
+        // messages, never a key the source dropped (#990).
+        if (entry === undefined && isFluentTerm(source, key)) continue;
         if (entry === undefined) {
           findings.push({
             file,

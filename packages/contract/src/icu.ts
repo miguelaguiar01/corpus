@@ -87,8 +87,16 @@ export type IcuParseResult =
 // source lacks, not a parse error (#653).
 const NAME_RE = /^(?:[\p{L}_][\p{L}\p{M}\p{N}_]*|[0-9]+)$/u;
 // Fluent's Identifier (fluent.ebnf): ASCII, a letter first, hyphens
-// inside, as `{ $cards-per-minute }` writes it (#990).
-const FLUENT_NAME_RE = /^[A-Za-z][A-Za-z0-9_-]*$/;
+// inside, as `{ $cards-per-minute }` writes it, `-` first for a term;
+// a plural is on a variable, and a select on one or on a term's
+// attribute, `-brand.gender` (#990).
+const FLUENT_NAME_RE = /^-?[A-Za-z][A-Za-z0-9_-]*$/;
+const FLUENT_VARIABLE_RE = /^[A-Za-z][A-Za-z0-9_-]*$/;
+const FLUENT_SELECTOR_RE =
+  /^(?:[A-Za-z][A-Za-z0-9_-]*|-[A-Za-z][A-Za-z0-9_-]*\.[A-Za-z][A-Za-z0-9_-]*)$/;
+// A term reference with its arguments, `{-brand(case: "gen")}`.
+const FLUENT_TERM_CALL_RE =
+  /^\{\s*(-[A-Za-z][A-Za-z0-9_-]*)\((?:[^()"\n]|"(?:[^"\\\n]|\\.)*")*\)\s*\}/;
 
 // A Fluent string literal at the start of `text`, `{"…"}`, as its text
 // and the length it spans; undefined where `text` opens no literal.
@@ -531,6 +539,13 @@ class Parser {
         const literal = fluentLiteral(this.source.slice(this.pos), this.pos);
         if (literal) {
           this.text(seq, literal.text, literal.length);
+          continue;
+        }
+        // A term's arguments are the locale's: the placeholder is the
+        // term, written with them (#990).
+        const call = FLUENT_TERM_CALL_RE.exec(this.source.slice(this.pos));
+        if (call) {
+          this.placeholder(seq, call[1]!, call[0]);
           continue;
         }
       }
@@ -1012,7 +1027,15 @@ class Parser {
 
     const name = body.trim();
     const checkName = (what: string) => {
-      if (!(this.syntax === "fluent" ? FLUENT_NAME_RE : NAME_RE).test(name))
+      const re =
+        this.syntax !== "fluent"
+          ? NAME_RE
+          : what === "placeholder"
+            ? FLUENT_NAME_RE
+            : what === "select argument"
+              ? FLUENT_SELECTOR_RE
+              : FLUENT_VARIABLE_RE;
+      if (!re.test(name))
         throw new ParseFailure(
           `invalid ${what} name ${JSON.stringify(name)}`,
           start,
