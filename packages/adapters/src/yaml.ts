@@ -336,6 +336,15 @@ function styled(
   return doubleQuoted(text);
 }
 
+// A scalar the file does not have yet (#1021): plain where it reads back
+// as the text under YAML 1.1 and 1.2, as Psych and i18n-tasks write it,
+// else double-quoted.
+function newScalar(text: string, indent: string): string {
+  return !unplain(text) && !text.includes("\n") && readsAs(text, indent, text)
+    ? text
+    : doubleQuoted(text);
+}
+
 // A key a file does not have yet, as the source writes it, else plain
 // where Rails' YAML 1.1 reads it as the same string, else quoted:
 // `no:` would be the key false.
@@ -464,6 +473,11 @@ type YamlFile = {
   // Pairs inside a flow hash: a scalar there is edited in place, but no
   // key goes in and no plural is written line by line (#806).
   inFlow: Set<string>;
+  // The order a plural's forms are written in: alphabetical where every
+  // hash of three forms or more the file holds is, one of them other
+  // than CLDR's, as `i18n-tasks normalize` writes them (#1021); CLDR's
+  // otherwise.
+  formOrder: readonly string[];
 };
 
 type Write = {
@@ -502,6 +516,7 @@ function indexYaml(base: string, code: string, plural: Set<string>): YamlFile {
   const pairs = new Map<string, Pair>();
   const containers = new Map<string, Pair | YAMLMap>();
   const inFlow = new Set<string>();
+  const hashes: string[][] = [];
   const walk = (map: YAMLMap, path: string[], flow = false) => {
     if (!flow) containers.set(path.join("."), map);
     for (const pair of map.items) {
@@ -516,7 +531,14 @@ function indexYaml(base: string, code: string, plural: Set<string>): YamlFile {
       else if (flow) continue;
       else if (isMap(value) && !value.flow && !plural.has(id))
         walk(value, [...path, key]);
-      else if (isEmptyValue(value)) containers.set(id, pair);
+      else if (isMap(value) && !value.flow) {
+        const forms = value.items
+          .map((p) => keyOf(p, base))
+          .filter((k): k is string =>
+            (PLURAL_CATEGORIES as readonly string[]).includes(k ?? ""),
+          );
+        if (forms.length >= 3) hashes.push(forms);
+      } else if (isEmptyValue(value)) containers.set(id, pair);
     }
   };
   const rootValue = rootPair.value as Node | null;
@@ -524,6 +546,20 @@ function indexYaml(base: string, code: string, plural: Set<string>): YamlFile {
   // flow hash is read as one: its scalars edited in place, no key added.
   if (isEmptyValue(rootValue)) containers.set("", rootPair);
   else if (isMap(rootValue)) walk(rootValue, [], rootValue.flow);
+  const cldr = (forms: string[]) =>
+    forms.every(
+      (f, i) =>
+        i === 0 ||
+        PLURAL_CATEGORIES.indexOf(
+          forms[i - 1] as (typeof PLURAL_CATEGORIES)[number],
+        ) < PLURAL_CATEGORIES.indexOf(f as (typeof PLURAL_CATEGORIES)[number]),
+    );
+  const sorted = (forms: string[]) =>
+    forms.every((f, i) => i === 0 || forms[i - 1]! < f);
+  const alphabetical =
+    hashes.length > 0 &&
+    hashes.every(sorted) &&
+    hashes.some((forms) => !cldr(forms));
   return {
     text: base,
     eol: eolOf(base),
@@ -531,6 +567,7 @@ function indexYaml(base: string, code: string, plural: Set<string>): YamlFile {
     pairs,
     containers,
     inFlow,
+    formOrder: alphabetical ? [...PLURAL_CATEGORIES].sort() : PLURAL_CATEGORIES,
   };
 }
 
@@ -584,9 +621,11 @@ function formLines(
   forms: Record<string, string>,
   indent: string,
   eol: string,
+  order: readonly string[],
 ): string {
-  return PLURAL_CATEGORIES.filter((c) => Object.hasOwn(forms, c))
-    .map((c) => `${indent}${c}: ${doubleQuoted(forms[c]!)}${eol}`)
+  return order
+    .filter((c) => Object.hasOwn(forms, c))
+    .map((c) => `${indent}${c}: ${newScalar(forms[c]!, indent)}${eol}`)
     .join("");
 }
 
@@ -647,9 +686,7 @@ function patchHeld(
           text: wasBlock && !isBlock(out) ? `${out}${eol}` : out,
         });
       } else
-        patches.push(
-          valueReplaced(file, pair, `: ${styled(base, {}, text, indent)}`),
-        );
+        patches.push(valueReplaced(file, pair, `: ${newScalar(text, indent)}`));
       continue;
     }
     if (isMap(value) && !value.flow && value.items.length > 0) {
@@ -661,7 +698,7 @@ function patchHeld(
       valueReplaced(
         file,
         pair,
-        `:${eol}${formLines(forms, `${indent}${file.step}`, eol).replace(new RegExp(`${eol}$`), "")}`,
+        `:${eol}${formLines(forms, `${indent}${file.step}`, eol, file.formOrder).replace(new RegExp(`${eol}$`), "")}`,
       ),
     );
   }
@@ -669,7 +706,7 @@ function patchHeld(
 }
 
 // Each form in its own scalar; a form the hash lacks goes before the
-// held form CLDR puts after it, or after the last.
+// held form the file's order puts after it, or after the last.
 function patchPluralHash(
   { file, patches }: Write,
   value: YAMLMap,
@@ -682,7 +719,8 @@ function patchPluralHash(
     if (k) held.set(k, p);
   }
   const inner = lineIndent(base, (value.items[0]!.key as Node).range![0]);
-  for (const c of PLURAL_CATEGORIES) {
+  const order = file.formOrder;
+  for (const c of order) {
     if (!Object.hasOwn(forms, c)) continue;
     const p = held.get(c);
     if (p) {
@@ -694,13 +732,21 @@ function patchPluralHash(
           end: v.range[1],
           text: styled(base, v, forms[c]!, inner, eol),
         });
-      else patches.push(valueReplaced(file, p, `: ${doubleQuoted(forms[c]!)}`));
+      else
+        patches.push(
+          valueReplaced(file, p, `: ${newScalar(forms[c]!, inner)}`),
+        );
       continue;
     }
-    const line = `${inner}${c}: ${doubleQuoted(forms[c]!)}${eol}`;
+    // A form the hash lacks takes its sibling forms' style.
+    const sibling = [...held.values()]
+      .map((q) => q.value as Node | null)
+      .find((v) => isScalar(v) && v.value !== null && v.range);
+    const line = `${inner}${c}: ${sibling ? styled(base, sibling, forms[c]!, inner, eol) : newScalar(forms[c]!, inner)}${eol}`;
     // Before the next form the text keeps: one it drops goes, its
     // comment with it, and cannot be an anchor (#759).
-    const next = PLURAL_CATEGORIES.slice(PLURAL_CATEGORIES.indexOf(c) + 1)
+    const next = order
+      .slice(order.indexOf(c) + 1)
       .filter((k) => Object.hasOwn(forms, k))
       .map((k) => held.get(k))
       .find((q) => q !== undefined);
@@ -773,8 +819,8 @@ function placeMissing(
         const text = translations[id]!;
         const forms = plural.has(id) ? pluralBranches(text) : undefined;
         return forms
-          ? `${indent}${key}:${eol}${formLines(forms, `${indent}${step}`, eol)}`
-          : `${indent}${key}: ${styled("", {}, text, indent)}${eol}`;
+          ? `${indent}${key}:${eol}${formLines(forms, `${indent}${step}`, eol, file.formOrder)}`
+          : `${indent}${key}: ${newScalar(text, indent)}${eol}`;
       }
       const under = `${indent}${step}`;
       const children: string[] = [];

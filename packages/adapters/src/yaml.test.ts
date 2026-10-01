@@ -201,7 +201,8 @@ test("a key the file lacks goes in after its source neighbour, parents made; a m
     without,
     DE_LANG,
   );
-  expect(back).toBe(DE.replace("deny: Abbrechen", 'deny: "Abbrechen"'));
+  // Written plain where they read back (#1021).
+  expect(back).toBe(DE.replace('am: "vorm."', "am: vorm."));
   const fresh = entriesToYaml(
     EN,
     {
@@ -252,7 +253,7 @@ test("the writer's hard cases: YAML 1.1 keys and values, the source's shape, blo
     L,
   );
   expect(yamlTranslations(out, "de").map((e) => e.id)).toContain("choices.no");
-  expect(out).toContain('"no": "Nein"');
+  expect(out).toContain('"no": Nein');
   // 2: an _MF key the source writes as a scalar stays one, whatever its shape.
   out = entriesToYaml(
     en,
@@ -287,7 +288,7 @@ test("the writer's hard cases: YAML 1.1 keys and values, the source's shape, blo
   ]);
   // 5: a null value takes its text with a space, its comment kept.
   out = entriesToYaml(en, { after: "Hi" }, "de:\n  after: # c\n", L);
-  expect(out).toBe('de:\n  after: "Hi" # c\n');
+  expect(out).toBe("de:\n  after: Hi # c\n");
   // 6: a CRLF file's rewritten block keeps CRLF.
   out = entriesToYaml(
     en,
@@ -307,14 +308,14 @@ test("the writer's hard cases: YAML 1.1 keys and values, the source's shape, blo
     L,
   );
   expect(out).toBe(
-    'de:\n  list:\n    a: "A"\n    b: "B"\n    c: "C"\n    d: "D"\n',
+    'de:\n  list:\n    a: A\n    b: "B"\n    c: C\n    d: "D"\n',
   );
   // 9: a `{}` stub and a null parent take their keys as a block.
   expect(entriesToYaml(en, { "g.h": "H" }, "de: {}\n", L)).toBe(
-    'de:\n  g:\n    h: "H"\n',
+    'de:\n  g:\n    h: H\n',
   );
   expect(entriesToYaml(en, { "g.h": "H" }, "de:\n  g:\n", L)).toBe(
-    'de:\n  g:\n    h: "H"\n',
+    'de:\n  g:\n    h: H\n',
   );
 });
 
@@ -371,7 +372,7 @@ test("a key the file lacks is written as the source writes it under its last roo
   const en = "en:\n  a: A\nen:\n  01: One\n";
   expect(
     entriesToYaml(en, { "01": "Un" }, "fr:\n", { source: "en", code: "fr" }),
-  ).toBe('fr:\n  01: "Un"\n');
+  ).toBe("fr:\n  01: Un\n");
 });
 
 test("a proposal edits a key in its own style, adds one after its parent's last, removes one with its comment (#757)", () => {
@@ -407,9 +408,9 @@ test("a proposal edits a key in its own style, adds one after its parent's last,
     src
       .replace(
         '      other: "%{count} topics"\n',
-        '      other: "%{count} topics"\n    accept: "Accept"\n    post_count:\n      one: "%{count} post"\n      other: "%{count} posts"\n',
+        '      other: "%{count} topics"\n    accept: Accept\n    post_count:\n      one: "%{count} post"\n      other: "%{count} posts"\n',
       )
-      .concat('  wizard:\n    intro: "Hello"\n'),
+      .concat("  wizard:\n    intro: Hello\n"),
   );
   expect(applyYamlOps(src, [{ kind: "delete", id: "js.deny" }], "en")).toBe(
     src.replace("    # The deny button\n    deny: Cancel\n", ""),
@@ -499,7 +500,7 @@ test("a null parent keeps its comment, a new block takes the file's indentation,
     lang,
   );
   expect(out).toBe(
-    `de:\n    g: # later\n        a: "Ah"\n    files:\n        one: "%{count} Datei"\n        other: "%{count} Dateien"\n`,
+    `de:\n    g: # later\n        a: Ah\n    files:\n        one: "%{count} Datei"\n        other: "%{count} Dateien"\n`,
   );
 });
 
@@ -639,7 +640,7 @@ test("keys going in at the end of a file with no final line break start one line
   for (const eol of ["\n", "\r\n"]) {
     const out = entriesToYaml(en, tr, fr.replace(/\n/g, eol), lang);
     expect(out).toBe(
-      `fr:\n  k1:\n    k2:\n      k3:\n        k4: "A"\n    k5:\n      k6: "T"\n    k7:\n      k14: "B"\n  k15: "C"\n`.replace(
+      `fr:\n  k1:\n    k2:\n      k3:\n        k4: A\n    k5:\n      k6: "T"\n    k7:\n      k14: B\n  k15: C\n`.replace(
         /\n/g,
         eol,
       ),
@@ -653,7 +654,7 @@ test("keys going in at the end of a file with no final line break start one line
       plural,
       lang,
     ),
-  ).toBe(`fr:\n  n:\n    one: "un"\n    other: "des"\n  m: "MM"\n`);
+  ).toBe(`fr:\n  n:\n    one: "un"\n    other: "des"\n  m: MM\n`);
   // A form dropped at the file's end leaves the line before it last.
   const dropped = `fr:\n  n:\n    one: "un"\n    other: "des"\n    zero: "z"`;
   for (const tail of ["", "\n"])
@@ -664,7 +665,7 @@ test("keys going in at the end of a file with no final line break start one line
         dropped + tail,
         lang,
       ),
-    ).toBe(`fr:\n  n:\n    one: "un"\n    other: "des"\n  m: "MM"\n`);
+    ).toBe(`fr:\n  n:\n    one: "un"\n    other: "des"\n  m: MM\n`);
 });
 
 test("a text Rails' parser could not read back is written double-quoted, whatever the scalar's style (#851)", () => {
@@ -753,4 +754,79 @@ test("a target's hash of categories where the source has a section reads as its 
       code: "ar",
     }),
   ).toBe("ar:\n  edit_profile:\n    other: أخرى!\n");
+});
+
+test("a key the file lacks is written plain where it reads back, quoted where it must be; a plural's forms in the order the file's hashes use (#1021)", () => {
+  const en = `en:
+  title: Discoverable
+  answer: Answer
+  colon: Note
+  star: Star
+  hash: Hash
+  followers:
+    one: follower
+    other: followers
+  posts:
+    one: post
+    other: posts
+  likes:
+    one: like
+    other: likes
+`;
+  const pl = `pl:
+  followers:
+    few: śledzących
+    many: śledzących
+    one: śledzący
+    other: obserwujących
+  likes:
+    few: polubienia
+    one: polubienie
+    other: polubień
+`;
+  const back = entriesToYaml(
+    en,
+    {
+      title: "Odkrywalne",
+      answer: "yes",
+      colon: ": x",
+      star: "*gwiazda",
+      hash: "# nie",
+      posts:
+        "{count, plural, one {post} few {posty} many {postów} other {postu}}",
+      likes:
+        "{count, plural, one {polubienie} few {polubienia} many {polubień} other {polubień}}",
+    },
+    pl,
+    { source: "en", code: "pl" },
+  );
+  expect(back).toContain("  title: Odkrywalne\n");
+  for (const quoted of [
+    'answer: "yes"',
+    'colon: ": x"',
+    'star: "*gwiazda"',
+    'hash: "# nie"',
+  ])
+    expect(back).toContain(quoted);
+  // The file's hashes are alphabetical, so a new one is too.
+  expect(back).toContain(
+    "  posts:\n    few: posty\n    many: postów\n    one: post\n    other: postu\n",
+  );
+  // A form a held hash lacks goes in where the file's order puts it.
+  expect(back).toContain(
+    "  likes:\n    few: polubienia\n    many: polubień\n    one: polubienie\n    other: polubień\n",
+  );
+  // In a file whose hashes follow CLDR, a new one does too.
+  const cldr = entriesToYaml(
+    en,
+    {
+      posts:
+        "{count, plural, one {post} few {posty} many {postów} other {postu}}",
+    },
+    "pl:\n  followers:\n    one: a\n    few: b\n    many: c\n    other: d\n",
+    { source: "en", code: "pl" },
+  );
+  expect(cldr).toContain(
+    "  posts:\n    one: post\n    few: posty\n    many: postów\n    other: postu\n",
+  );
 });

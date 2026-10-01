@@ -369,7 +369,7 @@ test("a proposal on a Rails catalogue lands in its source file and, for a remova
       .replace("    greeting: 'Olá %{name}'\n", "")
       .replace(
         "      Tem {n, plural, one {# aviso} other {# avisos}}.\n",
-        '      Tem {n, plural, one {# aviso} other {# avisos}}.\n    open: "Abrir"\n',
+        "      Tem {n, plural, one {# aviso} other {# avisos}}.\n    open: Abrir\n",
       ),
   );
   expect(after["config/app.en.yml"]).toBe(
