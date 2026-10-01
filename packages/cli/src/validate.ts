@@ -64,7 +64,7 @@ export type Finding = {
   // selects, is incomplete, not invalid (#556, #651): printed apart, and
   // never the reason for exit 1. A source's warning (#767) is the same.
   // A key the source no longer has is an `orphan` (#1013): exit 1, as an
-  // invalid one, but counted apart.
+  // invalid one, but counted apart; under --server it is a warning.
   severity: "invalid" | "orphan" | "incomplete" | "warning";
   message: string;
   sourceFile?: string;
@@ -123,8 +123,10 @@ export async function validate(
     f.code === "invalid-icu" && f.language === config.sourceLanguage;
   const sources = invalid.filter(isSource);
   const problems = invalid.filter((f) => !isSource(f));
+  // A translation is a string's row in a language, as the server holds
+  // it: an id two files of one source share is one (#1013).
   const translations = new Set(
-    problems.map((f) => `${f.file}\u0000${f.key}\u0000${f.language}`),
+    problems.map((f) => `${f.key}\u0000${f.language}`),
   ).size;
   const incomplete = findings.filter((f) => f.severity === "incomplete");
   const warnings = findings.filter((f) => f.severity === "warning");

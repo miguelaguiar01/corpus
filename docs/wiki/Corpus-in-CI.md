@@ -30,7 +30,7 @@ src/i18n/pt-PT.json:editor.unsaved: missing {count}
 corpus: 1 invalid translation(s)
 ```
 
-The summary counts translations: one with a missing and an unexpected placeholder reads `1 invalid translation(s) (2 problem(s))`, the number `corpus status` shows as invalid. A source string that does not parse is counted apart, `1 source string(s) that do not parse, which build refuses`, and fails the run too. In `--json` each finding's `severity` is `invalid`, `orphan`, `incomplete` or `warning`, so a script counting what fails reads `invalid` and `orphan`.
+The summary counts translations: one with a missing and an unexpected placeholder reads `1 invalid translation(s) (2 problem(s))`, the number `corpus status` shows as invalid. A source string that does not parse is counted apart, `1 source string(s) that do not parse, which build refuses`, and fails the run too. In `--json` each finding's `severity` is `invalid`, `orphan`, `incomplete` or `warning`, so a script counting what fails reads `invalid` and `orphan`; under `--server` an id the instance holds and the sources no longer do is `orphan` by `code` and a `warning` by `severity`, and does not fail the run.
 
 A file's path names the language; a finding on an `exec` source, where the command stands for every language, names it after the key: `exec:node scripts/export.mjs [deleting] fr: missing {trash}`. `--json` carries `language` on every finding.
 

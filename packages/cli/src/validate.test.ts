@@ -445,6 +445,29 @@ test("a dropped placeholder, a malformed select and an orphan key are findings, 
   );
 });
 
+test("an id two files of one source share is one translation, as the server holds it (#1013)", async () => {
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8").replace(
+      /sources: \[[\s\S]*?\n {2}\],/,
+      'sources: [{ adapter: "messages", type: "ui", path: ["a/{lang}.json", "b/{lang}.json"] }],',
+    ),
+  );
+  for (const dir of ["a", "b"]) {
+    mkdirSync(path.join(repo, dir), { recursive: true });
+    write(`${dir}/en.json`, { hello: "Hello {name}" });
+    write(`${dir}/pt.json`, { hello: "Olá {nome}" });
+  }
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(1);
+  expect(c.stderr.at(-1)).toBe(
+    "corpus: 1 invalid translation(s) (4 problem(s))",
+  );
+});
+
 test("the summary counts translations, a source that does not parse apart, and --json files an orphan as orphan (#1013)", async () => {
   write("i18n/en.json", {
     greeting: "Hello {name}",
