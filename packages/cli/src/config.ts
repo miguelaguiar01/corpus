@@ -199,16 +199,18 @@ function androidFallbacks<S extends Source>(
 ): S {
   const res = path.join(cwd, (source as { path: string }).path);
   // The languages that would take each plain directory: the language
-  // itself and the variants that can fall back to it.
+  // itself, the source language's (an English device reads `values-en`
+  // before `values`), and the variants that can fall back to it.
   const takers = new Map<string, number>();
   const bases = new Map<string, string>();
   for (const language of languages) {
-    if (language === sourceLanguage) continue;
-    const base = /^[^-_]+$/.test(language)
-      ? language
-      : sameScriptBase(language);
+    const base =
+      language === sourceLanguage || /^[^-_]+$/.test(language)
+        ? language.split(/[-_]/)[0]!
+        : sameScriptBase(language);
     if (!base) continue;
-    if (base !== language) bases.set(language, base);
+    if (base !== language && language !== sourceLanguage)
+      bases.set(language, base);
     const dir = androidDirOf(base);
     takers.set(dir, (takers.get(dir) ?? 0) + 1);
   }

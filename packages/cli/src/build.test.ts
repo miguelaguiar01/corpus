@@ -1717,7 +1717,7 @@ test("an Android language with a region reads each module's directory for it, or
 
 test("an Android language falls back to its language's directory only where that is the same language, alone in the config (#1007)", () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-1007-"));
-  for (const qualifier of ["", "-pt", "-zh", "-sr", "-pa", "-es"]) {
+  for (const qualifier of ["", "-en", "-pt", "-zh", "-sr", "-pa", "-es"]) {
     mkdirSync(path.join(dir, `res/values${qualifier}`), { recursive: true });
     writeFileSync(
       path.join(dir, `res/values${qualifier}/strings.xml`),
@@ -1731,6 +1731,7 @@ test("an Android language falls back to its language's directory only where that
       sourceLanguage: "en",
       languages: [
         "en",
+        "en-GB",
         "pt-BR",
         "pt-PT",
         "zh-CN",
@@ -1754,6 +1755,9 @@ test("an Android language falls back to its language's directory only where that
   // would write over the other.
   expect(fileOf(source!, "pt-BR", "en")).toBe("res/values-pt-rBR/strings.xml");
   expect(fileOf(source!, "pt-PT", "en")).toBe("res/values-pt-rPT/strings.xml");
+  // An English device reads `values-en` before `values`: it is the
+  // source language's too.
+  expect(fileOf(source!, "en-GB", "en")).toBe("res/values-en-rGB/strings.xml");
   // Android matches the script: `values-zh` is Simplified, `values-sr`
   // Cyrillic, `values-pa` Gurmukhi.
   expect(fileOf(source!, "zh-TW", "en")).toBe("res/values-zh-rTW/strings.xml");
