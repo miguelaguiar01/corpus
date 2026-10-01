@@ -714,7 +714,10 @@ export function validateTranslation(
       // default, as de does, is Fluent's way.
       for (const key of own) {
         const meant = [...sourceKeys].find(
-          (s) => s !== key && s.toLowerCase() === key.toLowerCase(),
+          (s) =>
+            s !== key &&
+            s.toLowerCase() === key.toLowerCase() &&
+            !Object.hasOwn(node.branches, s),
         );
         if (meant) add({ code: "missing-branch", arg, key: meant });
       }
