@@ -6,6 +6,8 @@ import {
   isDroppedPlural,
   messageKind,
   nestedCountsOf,
+  parseIcu,
+  tagMode,
   validateTranslation,
   type CorpusConfig,
   type ValidationError,
@@ -97,6 +99,12 @@ export async function validate(
 ): Promise<number> {
   const config = await loadConfig(ctx.cwd);
   const server = args.includes("--server");
+  const value = args[args.indexOf("--server") + 1];
+  if (server && value !== undefined && !value.startsWith("--")) {
+    throw new CliError(
+      `validate: --server takes no value; it checks the instance the config names (${value} given)`,
+    );
+  }
   const result = server
     ? await validateServer(config, ctx)
     : await validateRepo(config, ctx.cwd);
@@ -126,7 +134,7 @@ export async function validate(
   for (const note of deprecations(config)) ctx.err(`corpus: ${note}`);
   for (const { source, reason } of unchecked) {
     ctx.err(
-      `corpus: exec "${source}" ${reason}; the instance holds any others, unchecked here: \`corpus validate --server\` checks them`,
+      `corpus: exec "${source}" ${reason}; any others, such as drafts on the instance, are not checked here: \`corpus validate --server\` checks them`,
     );
   }
   if (findings.length > 0) {
@@ -481,7 +489,19 @@ function validateExec(
 ): { findings: Finding[]; handedOver: number; possible: number } {
   const ran = runExporter(command, cwd);
   if (!ran.ok) throw new CliError(ran.error);
-  const possible = (ran.output.strings ?? []).length * targets.length;
+  const sources = new Map<string, StringEntry>();
+  for (const raw of ran.output.strings ?? []) {
+    const entry = stringEntrySchema.safeParse(raw);
+    if (entry.success) sources.set(entry.data.id, entry.data);
+  }
+  // A string the build refuses can have no translation to hand over.
+  const builds = (e: StringEntry) => {
+    const library = libraryOf(e);
+    return parseIcu(e.source, library, {
+      html: tagMode(library, richTextFor(e.type, e.id, library, richText)),
+    }).ok;
+  };
+  const possible = [...sources.values()].filter(builds).length * targets.length;
   if (ran.output.translations === undefined) {
     return { findings: [], handedOver: 0, possible };
   }
@@ -490,11 +510,6 @@ function validateExec(
     throw new CliError(
       `exec "${command}" emitted invalid translations: a map of language to id to text, or to { text, state: "translated" }`,
     );
-  }
-  const sources = new Map<string, StringEntry>();
-  for (const raw of ran.output.strings ?? []) {
-    const entry = stringEntrySchema.safeParse(raw);
-    if (entry.success) sources.set(entry.data.id, entry.data);
   }
   const findings: Finding[] = [];
   const file = `exec:${command}`;
@@ -506,7 +521,7 @@ function validateExec(
     for (const [key, target] of Object.entries(texts)) {
       if (target.trim() === "") continue;
       const entry = sources.get(key);
-      if (entry) handedOver += 1;
+      if (entry && builds(entry)) handedOver += 1;
       if (!entry) {
         findings.push({
           file,
@@ -540,7 +555,9 @@ function validateExec(
 // at translated or above, each against its string as the repository's
 // sources build it, exporters run, so what an exec source drafted on
 // the instance and never wrote back is checked too. A finding's file is
-// where pull would write it.
+// the language's file of the source the string is read from: for an id
+// two files of one source share, the copy the build keeps, whose text
+// the app reads.
 async function validateServer(
   config: CorpusConfig,
   ctx: RunContext,
@@ -605,7 +622,12 @@ async function validateServer(
           library,
           richText: richTextFor(entry.type, key, library, config.richText),
           brokenSources,
-        }).map((f) => ({ ...f, sourceFile, where: "server" as const })),
+        }).map((f) =>
+          // A source that does not parse is the repository's finding.
+          f.language === sourceLanguage && f.file === sourceFile
+            ? f
+            : { ...f, sourceFile, where: "server" as const },
+        ),
       );
     }
   }

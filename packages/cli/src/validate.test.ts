@@ -121,7 +121,7 @@ test("a clean repository is valid, an exec source whose translations are elsewhe
     'validate: every translation checked is valid; not checked: what exec "node scripts/export.mjs" does not hand over (`corpus validate --server` checks it)',
   );
   expect(c.stderr.join("\n")).toContain(
-    'corpus: exec "node scripts/export.mjs" hands over no translations; the instance holds any others, unchecked here: `corpus validate --server` checks them',
+    'corpus: exec "node scripts/export.mjs" hands over no translations; any others, such as drafts on the instance, are not checked here: `corpus validate --server` checks them',
   );
 });
 
@@ -132,6 +132,7 @@ test("an exporter that hands over some of its translations is named with the cou
       strings: [
         { id: "exec.bye", type: "computed", source: "Bye {who}" },
         { id: "exec.hi", type: "computed", source: "Hi {who}" },
+        { id: "exec.broken", type: "computed", source: "Hi {who" },
       ],
       translations: { pt: { "exec.bye": "Adeus {who}" } },
     }))`,
@@ -139,7 +140,7 @@ test("an exporter that hands over some of its translations is named with the cou
   const c = ctx();
   expect(await run(["validate"], c)).toBe(0);
   expect(c.stderr.join("\n")).toContain(
-    'corpus: exec "node scripts/export.mjs" hands over 1 of the 2 translations its strings can have; the instance holds any others, unchecked here: `corpus validate --server` checks them',
+    'corpus: exec "node scripts/export.mjs" hands over 1 of the 2 translations its strings can have; any others, such as drafts on the instance, are not checked here: `corpus validate --server` checks them',
   );
   expect(c.stdout.join("\n")).toMatch(
     /^validate: every translation checked is valid; not checked: what exec/,
@@ -1080,6 +1081,43 @@ test("--server on a valid instance says how many it checked, and a refused token
     expect(c.stderr.join("\n")).toMatch(/^corpus: /);
   } finally {
     refused.close();
+    delete process.env.CORPUS_SERVER;
+  }
+});
+
+test("--server takes no value, and names a shared string at the copy the build keeps (#1074)", async () => {
+  const c = { ...ctx(), env: { CORPUS_TOKEN: "good" } };
+  await expect(
+    run(["validate", "--server", "http://elsewhere:3000"], c),
+  ).resolves.toBe(1);
+  expect(c.stderr.join("\n")).toContain(
+    "validate: --server takes no value; it checks the instance the config names (http://elsewhere:3000 given)",
+  );
+
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8").replace(
+      /sources: \[[\s\S]*?\n {2}\],/,
+      'sources: [{ adapter: "messages", type: "ui", path: ["a/{lang}.json", "b/{lang}.json"] }],',
+    ),
+  );
+  mkdirSync(path.join(repo, "a"));
+  mkdirSync(path.join(repo, "b"));
+  write("a/en.json", { shared: "Hi {name}", own: "Bye {name}" });
+  write("b/en.json", { shared: "Hi {name}" });
+  const server = await instance({ pt: { shared: "Olá", own: "Adeus" } });
+  try {
+    const s = { ...ctx(), env: { CORPUS_TOKEN: "good" } };
+    expect(await run(["validate", "--server"], s)).toBe(1);
+    const err = s.stderr.join("\n");
+    expect(err).toContain("a/pt.json:shared: missing {name}");
+    expect(err).toContain("a/pt.json:own: missing {name}");
+    expect(err).not.toContain("b/pt.json");
+  } finally {
+    server.close();
     delete process.env.CORPUS_SERVER;
   }
 });
