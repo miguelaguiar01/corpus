@@ -2869,4 +2869,47 @@ test("a placeholder moved out of a broken tag into the text is said once, as mov
       tag: 'a href="%{path}"',
     },
   ]);
+  // ICU's and i18next's too, which keep no written form.
+  for (const [syntax, src, tgt, tag] of [
+    [
+      "icu",
+      '<a href="{url}">Go</a>',
+      '<href="{url}">Vai</a>',
+      'a href="{url}"',
+    ],
+    [
+      "i18next",
+      '<a href="{{url}}">Go</a>',
+      '<href="{{url}}">Vai</a>',
+      'a href="{{url}}"',
+    ],
+  ] as const) {
+    const moved = validateTranslation(src, tgt, "fr", syntax, {
+      richText: "html",
+    });
+    if (moved.ok) throw new Error(`${syntax} moved ok`);
+    expect(moved.errors.filter((e) => e.code.endsWith("placeholder"))).toEqual([
+      expect.objectContaining({ code: "moved-placeholder", name: "url", tag }),
+    ]);
+  }
+});
+
+test("a placeholder in a tag's attribute list is one token, compared by name and never lowercased (#1022)", () => {
+  // Relay's `{ $attrs }`, read through fluent as `{attrs}`.
+  expect(
+    validateTranslation(
+      '<a href="{x}" {attrs}>x</a>',
+      '<a href = "{x}" {attrs}>y</a>',
+      "cy",
+      "icu",
+    ),
+  ).toEqual({ ok: true });
+  for (const target of [
+    '<a href="{x}" {Attrs}>y</a>',
+    '<a href="{x}" {ATTRS}>y</a>',
+  ])
+    expect(
+      validateTranslation('<a href="{x}" {attrs}>x</a>', target, "cy", "icu")
+        .ok,
+    ).toBe(false);
 });
