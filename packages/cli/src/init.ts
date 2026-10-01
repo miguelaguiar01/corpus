@@ -131,11 +131,13 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   // POSIX modifier (`ca@valencia`), which only a language's does.
   const unnamed =
     adapter === "messages"
-      ? files.skipped.filter((file) => path.basename(file).includes("@"))
+      ? files.skipped.filter(({ file }) => path.basename(file).includes("@"))
       : files.skipped;
   if (unnamed.length > 0)
     ctx.err(
-      `corpus: ${unnamed.join(", ")} ${unnamed.length === 1 ? "names" : "name"} no language tag and no script; left out, or map ${unnamed.length === 1 ? "it" : "each"} with languageFiles`,
+      `corpus: ${unnamed.map(({ file }) => file).join(", ")} ${unnamed.length === 1 ? "names" : "name"} no language tag; left out: name its language, as languages: ["<tag>"] with languageFiles: { ${unnamed
+        .map(({ code }) => `"<tag>": ${JSON.stringify(code)}`)
+        .join(", ")} } on the source`,
     );
   // The flag given without a value is an error, as for every option
   // (args.ts); only its absence means "read the files".
@@ -919,7 +921,7 @@ function androidLanguages(
 ): {
   languages: string[];
   languageFiles: Record<string, string>;
-  skipped: string[];
+  skipped: { file: string; code: string }[];
 } {
   const dirs = readdirSync(path.join(ctx.cwd, res)).filter(
     (name) =>
@@ -1152,18 +1154,18 @@ function catalogueLanguages(
 ): {
   languages: string[];
   languageFiles: Record<string, string>;
-  skipped: string[];
+  skipped: { file: string; code: string }[];
 } {
   const languageFiles: Record<string, string> = {};
   const found = new Set<string>();
-  const skipped: string[] = [];
+  const skipped: { file: string; code: string }[] = [];
   for (const { code, file } of filesFilling(cwd, pattern)) {
     const tag = posixTag(code);
     if (tag) {
       languageFiles[tag] = code;
       found.add(tag);
     } else if (LANGUAGE_RE.test(code)) found.add(code);
-    else skipped.push(file);
+    else skipped.push({ file, code });
   }
   if (found.size === 0) return { languages: [], languageFiles, skipped };
   found.delete(sourceLanguage);

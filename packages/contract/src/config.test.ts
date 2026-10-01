@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { corpusConfigSchema, defineCorpus } from "./config";
-import { localeOf } from "./strings";
+import { localeOf, posixTag } from "./strings";
 
 test("the §3 example config validates and round-trips", () => {
   const config = defineCorpus({
@@ -300,6 +300,17 @@ test("a language code that is not a tag is refused by name; a POSIX one is told 
   expect(messages(["en", "e n"])).toEqual([
     '"e n" is not a language tag such as en, pt-PT or en_US',
   ]);
+  expect(messages(["en", "ca@valencia"])).toEqual([
+    '"ca@valencia" is not a language tag; write ca-valencia, and map its files with languageFiles: { "ca-valencia": "ca@valencia" } on the source',
+  ]);
+});
+
+test("a POSIX modifier that is a registered variant names its tag, after any region; one that is not names none (#1015)", () => {
+  expect(posixTag("ca@valencia")).toBe("ca-valencia");
+  expect(posixTag("ca_ES@valencia")).toBe("ca-ES-valencia");
+  expect(posixTag("sr_RS@latin")).toBe("sr-Latn-RS");
+  expect(posixTag("de_DE@euro")).toBeUndefined();
+  expect(posixTag("aa_ER@saaho")).toBeUndefined();
 });
 
 test("a messages or fluent source may name the file code of a language (#657)", () => {

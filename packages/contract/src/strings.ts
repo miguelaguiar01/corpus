@@ -57,18 +57,29 @@ const POSIX_SCRIPTS: Record<string, string> = {
   devanagari: "Deva",
 };
 
-// The tag a POSIX code with a script modifier names (`sr@latin` is
-// sr-Latn, `sr_RS@latin` sr-Latn-RS), or undefined for any other code,
-// a modifier that is no script (`ca@valencia`) among them.
+// POSIX modifiers that are registered BCP 47 variants (#1015), written
+// after any region, where a script is written before it.
+const POSIX_VARIANTS: Record<string, string> = {
+  valencia: "valencia",
+};
+
+// The tag a POSIX code with a script or variant modifier names
+// (`sr@latin` is sr-Latn, `sr_RS@latin` sr-Latn-RS, `ca_ES@valencia`
+// ca-ES-valencia), or undefined for any other code, a modifier that is
+// neither (`de_DE@euro`) among them.
 export function posixTag(code: string): string | undefined {
   const posix = /^([A-Za-z]{2,3})(?:[-_]([A-Za-z]{2}))?@([A-Za-z]+)$/.exec(
     code,
   );
-  const script = posix && POSIX_SCRIPTS[posix[3]!.toLowerCase()];
-  return posix && script
-    ? [posix[1]!.toLowerCase(), script, posix[2]?.toUpperCase()]
-        .filter(Boolean)
-        .join("-")
+  if (!posix) return undefined;
+  const language = posix[1]!.toLowerCase();
+  const region = posix[2]?.toUpperCase();
+  const modifier = posix[3]!.toLowerCase();
+  const script = POSIX_SCRIPTS[modifier];
+  if (script) return [language, script, region].filter(Boolean).join("-");
+  const variant = POSIX_VARIANTS[modifier];
+  return variant
+    ? [language, region, variant].filter(Boolean).join("-")
     : undefined;
 }
 
