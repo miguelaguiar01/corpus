@@ -1056,20 +1056,33 @@ function pairRemoval(
   // The lines under the key, a map's trailing comment that its range
   // leaves out (#804) or a line of spaces, are the pair's: left, a block
   // before it would read them as its text (#1132).
+  // An empty line ends no block, so the lines past a run of them are
+  // taken too where they are the pair's.
   const keyIndent = lineIndent(text, keyStart).length;
-  let stop = nl <= 0 ? text.length : nl;
-  for (;;) {
-    const lineEnd = text.indexOf("\n", stop);
-    const line = text.slice(stop, lineEnd < 0 ? text.length : lineEnd + 1);
+  const lineAt = (at: number) => {
+    const lineEnd = text.indexOf("\n", at);
+    const line = text.slice(at, lineEnd < 0 ? text.length : lineEnd + 1);
     const indent = /^[ \t]*/.exec(line)![0].length;
     const rest = line.slice(indent).replace(/\r?\n$/, "");
-    if (
-      line === "" ||
-      indent <= keyIndent ||
-      (rest !== "" && !rest.startsWith("#"))
+    return {
+      line,
+      // A comment or a line of spaces under the key.
+      under: indent > keyIndent && (rest === "" || rest.startsWith("#")),
+      blank: rest === "",
+    };
+  };
+  let stop = nl <= 0 ? text.length : nl;
+  for (;;) {
+    let ahead = stop;
+    for (
+      let at = lineAt(ahead);
+      at.line !== "" && at.blank && !at.under;
+      at = lineAt(ahead)
     )
-      break;
-    stop += line.length;
+      ahead += at.line.length;
+    const next = lineAt(ahead);
+    if (next.line === "" || !next.under) break;
+    stop = ahead + next.line.length;
   }
   // A keep-chomped block before the pair, past any pair this write also
   // removes and at the end of a map's last value, would read the blank
