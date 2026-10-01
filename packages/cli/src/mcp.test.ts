@@ -7,7 +7,7 @@ import { PassThrough } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { afterEach, expect, test } from "vitest";
 import { run, type RunContext } from "./cli";
-import { apiOver, tools } from "./agent-tools";
+import { apiOver, tools, type Refusals } from "./agent-tools";
 import { serve } from "./mcp";
 
 const REPO = fileURLToPath(
@@ -171,7 +171,7 @@ afterEach(() => {
   api = undefined;
 });
 
-async function connected() {
+async function connected(refusals?: Refusals) {
   api = await startApi(answers);
   const toServer = new PassThrough();
   const fromServer = new PassThrough();
@@ -180,6 +180,7 @@ async function connected() {
     fromServer,
     apiOver(api.url, "tok-1"),
     "9.9.9",
+    refusals,
   );
   const client = new Client({ name: "test", version: "0" });
   await client.connect(streamTransport(fromServer, toServer));
@@ -446,4 +447,33 @@ test("corpus mcp is in the usage and needs the token", async () => {
   expect(out.join("\n")).toContain("corpus mcp");
   expect(await run(["mcp"], ctx)).toBe(1);
   expect(err.join("\n")).toMatch(/CORPUS_TOKEN/);
+});
+
+test("get_string on a key the build refused answers why, from the repository (#1011)", async () => {
+  const { client, done } = await connected(async () => [
+    {
+      id: "statistics-studied-today",
+      reason:
+        "core/statistics.ftl [statistics-studied-today]: invalid Fluent message: x",
+    },
+  ]);
+  const refused = await client.callTool({
+    name: "get_string",
+    arguments: { key: "statistics-studied-today" },
+  });
+  expect(refused.isError).toBe(true);
+  expect(refused.content).toEqual([
+    {
+      type: "text",
+      text: "refused: core/statistics.ftl [statistics-studied-today]: invalid Fluent message: x; the build leaves it out of every push: fix its text in the source file or the config, then push",
+    },
+  ]);
+  const missing = await client.callTool({
+    name: "get_string",
+    arguments: { key: "nowhere" },
+  });
+  expect(missing.content).toEqual([
+    { type: "text", text: "not-found: no string" },
+  ]);
+  await done();
 });

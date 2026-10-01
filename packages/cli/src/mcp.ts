@@ -7,7 +7,14 @@
 import { readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import type { Readable, Writable } from "node:stream";
-import { apiOver, argumentProblem, tools, type Api } from "./agent-tools";
+import {
+  apiOver,
+  argumentProblem,
+  tools,
+  type Api,
+  type Refusals,
+} from "./agent-tools";
+import { refusalsIn } from "./build";
 import type { RunContext } from "./cli";
 import { loadConfig, requireToken } from "./config";
 
@@ -38,8 +45,9 @@ export function serve(
   output: Writable,
   api: Api,
   version: string,
+  refusals?: Refusals,
 ): Promise<void> {
-  const registry = tools(api);
+  const registry = tools(api, refusals);
   // Awaited, so a reply larger than the pipe's buffer is flushed before
   // the process exits on stdin's close.
   const reply = (id: Message["id"], body: object) =>
@@ -156,6 +164,7 @@ export async function mcp(ctx: RunContext): Promise<number> {
     process.stdout,
     apiOver(config.server, token),
     cliVersion(),
+    refusalsIn(config, ctx.cwd),
   );
   return 0;
 }

@@ -62,14 +62,14 @@ Nine, each one API call.
 | Tool | What it does |
 |---|---|
 | `list_queue` | A queue's items: `untranslated`, `stale`, `unverifiedSource`, `agentDrafts` or `invalid` (each item with its `problem`), narrowed by language, by string type, or both |
-| `get_string` | One string: the source and the file it came from, its placeholders, selects, plurals, `forms` (how many vue-i18n pipe forms) and tags, its `arguments` where the key names the verbs the code passes, its slots with their example values, every language's text and state, whether it is `invalid` and its `problem`, and the repository's `suggestion` where one was pushed, the type's note, the glossary terms it contains, the entities it refers to, its siblings under the same key prefix, and any pending proposal |
+| `get_string` | One string: the source and the file it came from, its placeholders, selects, plurals, `forms` (how many vue-i18n pipe forms) and tags, its `arguments` where the key names the verbs the code passes, its slots with their example values, every language's text and state, whether it is `invalid` and its `problem`, and the repository's `suggestion` where one was pushed, the type's note, the glossary terms it contains, the entities it refers to, its siblings under the same key prefix, and any pending proposal; for a key the build refuses, which the server never received, the file and the reason, read from the repository |
 | `save_draft` | A translation for one string in one language |
 | `propose_change` | New source text for a string, as a proposal |
 | `propose_removal` | A string the repository should drop, as a proposal |
 | `add_string` | A new string into one of the repository's writable sources, as a proposal |
 | `list_proposals` | The pending proposals, the agent's own marked |
 | `withdraw_proposal` | One of the agent's own |
-| `status` | The project's numbers, its languages, and which sources can take proposals |
+| `status` | The project's numbers, its languages, which sources can take proposals, and `refusedSourceStrings`, how many of the repository's source strings the build refuses |
 
 The rules an agent works under are not in this table; the server states them itself, in the `instructions` the handshake returns, so a client that reads them needs no prompt of yours. [What an agent may and may not do](What-an-agent-may-and-may-not-do) is the same rules for a person.
 

@@ -61,6 +61,7 @@ import {
   refusalCause,
   type RefusalCause,
 } from "@corpus/contract";
+import type { Refusals } from "./agent-tools";
 import { printable } from "./printable";
 import { unreadableFile } from "./catalogue-format";
 import { CliError, fileCodeOf } from "./config";
@@ -199,6 +200,34 @@ function ruinedReasons(sourced: Sourced[], refused: Refused[]): string[] {
     );
   }
   return reasons;
+}
+
+// A build stopped by its refusals, which it still carries (#1011).
+export class RuinedBuild extends CliError {
+  constructor(
+    readonly refused: Refused[],
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+// What the build refuses, as an agent's tools say it (#1011); a build
+// that fails for another reason refuses nothing it can name.
+export function refusalsIn(config: CorpusConfig, cwd: string): Refusals {
+  return async () => {
+    let refused: Refused[];
+    try {
+      refused = (await buildSnapshotReport(config, cwd)).refused;
+    } catch (error) {
+      if (!(error instanceof RuinedBuild)) return [];
+      refused = error.refused;
+    }
+    return refused.map((entry) => ({
+      id: entry.id,
+      reason: `${describeRefused(entry)}${entry.hint}`,
+    }));
+  };
 }
 
 export function describeRefused({ file, id, message }: Refused): string {
@@ -485,7 +514,8 @@ export async function buildSnapshotReport(
     // Every refusal is listed, not only those of the ruined file: a
     // build that stops should say everything it found, and the hints
     // live in these lines.
-    throw new CliError(
+    throw new RuinedBuild(
+      refused,
       [
         "snapshot build failed:",
         ...refused.map((entry) => `  ${describeRefused(entry)}`),

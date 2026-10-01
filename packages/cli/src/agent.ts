@@ -4,6 +4,7 @@
 // on stderr and exits 1.
 import { createInterface } from "node:readline";
 import type { RunContext } from "./cli";
+import { refusalsIn } from "./build";
 import { CliError, loadConfig, requireToken } from "./config";
 import {
   apiOver,
@@ -154,9 +155,10 @@ export async function agent(argv: string[], ctx: RunContext): Promise<number> {
   const call = parseAgent(argv);
   const config = await loadConfig(ctx.cwd);
   const token = requireToken(ctx.env, ctx.cwd);
-  const tool = tools(apiOver(config.server, token)).find(
-    (t) => t.name === call.tool,
-  );
+  const tool = tools(
+    apiOver(config.server, token),
+    refusalsIn(config, ctx.cwd),
+  ).find((t) => t.name === call.tool);
   if (!tool) throw new CliError(`no such operation ${call.tool}`);
   const problem = argumentProblem(tool, call.args);
   if (problem) throw new CliError(`corpus agent ${argv[0]}: ${problem}`);
@@ -179,7 +181,10 @@ export async function agent(argv: string[], ctx: RunContext): Promise<number> {
 async function agentStdin(ctx: RunContext): Promise<number> {
   const config = await loadConfig(ctx.cwd);
   const token = requireToken(ctx.env, ctx.cwd);
-  const table = tools(apiOver(config.server, token));
+  const table = tools(
+    apiOver(config.server, token),
+    refusalsIn(config, ctx.cwd),
+  );
   let failed = false;
   const answer = (line: Record<string, unknown> & { ok: boolean }) => {
     if (!line.ok) failed = true;

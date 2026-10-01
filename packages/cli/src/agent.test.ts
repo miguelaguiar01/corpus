@@ -1,4 +1,7 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
+import os from "node:os";
+import path from "node:path";
 import { PassThrough } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { afterEach, expect, test } from "vitest";
@@ -180,6 +183,7 @@ test("the JSON goes to stdout with exit 0; a refusal goes to stderr with exit 1"
   expect(JSON.parse(ok.out.join("\n"))).toEqual({
     project: "push-fixture",
     writableSources: [],
+    refusedSourceStrings: 0,
   });
   expect(ok.err).toEqual([]);
 
@@ -329,7 +333,11 @@ test("--stdin runs a batch through one process: one JSON line per operation, in 
     {
       op: "status",
       ok: true,
-      result: { project: "push-fixture", writableSources: [] },
+      result: {
+        project: "push-fixture",
+        writableSources: [],
+        refusedSourceStrings: 0,
+      },
     },
     {
       id: "d1",
@@ -478,4 +486,51 @@ test("--stdin with nothing on stdin exits 0; extra words after --stdin are refus
   expect(out).toEqual([]);
   expect(await run(["agent", "--stdin", "junk"], context)).toBe(1);
   expect(err.join("\n")).toMatch(/unexpected word junk/);
+});
+
+test("a key the build refused is said as refused, with its file and reason, not as not-found; status counts them (#1011)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-refused-"));
+  mkdirSync(path.join(dir, "i18n"));
+  writeFileSync(
+    path.join(dir, "i18n", "en.json"),
+    JSON.stringify({ hello: "Hello", bad: "Hi {name" }),
+  );
+  writeFileSync(
+    path.join(dir, "corpus.config.mjs"),
+    `export default { project: "acme", server: process.env.CORPUS_SERVER, sourceLanguage: "en", languages: ["en", "de"], sources: [{ adapter: "messages", type: "ui", path: "i18n/{lang}.json" }] };\n`,
+  );
+  api = await startApi((seen) =>
+    seen.path === "/api/status"
+      ? { status: 200, body: { strings: 1 } }
+      : { status: 404, body: { error: "not-found", message: "no string" } },
+  );
+  const refused = ctx(api.url);
+  refused.context.cwd = dir;
+  expect(await run(["agent", "string", "bad"], refused.context)).toBe(1);
+  expect(refused.err.join("\n")).toMatch(
+    /^corpus: refused: i18n\/en\.json \[bad\]: invalid ICU: unclosed '\{'; the build leaves it out of every push: fix its text in the source file or the config, then push$/,
+  );
+  const missing = ctx(api.url);
+  missing.context.cwd = dir;
+  expect(await run(["agent", "string", "nope"], missing.context)).toBe(1);
+  expect(missing.err.join("\n")).toBe("corpus: not-found: no string");
+  const status = ctx(api.url);
+  status.context.cwd = dir;
+  expect(await run(["agent", "status"], status.context)).toBe(0);
+  expect(JSON.parse(status.out.join("\n"))).toEqual({
+    strings: 1,
+    refusedSourceStrings: 1,
+  });
+  // A build its refusals stop, a whole file refused, still names them.
+  writeFileSync(
+    path.join(dir, "i18n", "en.json"),
+    JSON.stringify({ a: "{", d: "{y" }),
+  );
+  const ruined = ctx(api.url);
+  ruined.context.cwd = dir;
+  expect(await run(["agent", "string", "d"], ruined.context)).toBe(1);
+  expect(ruined.err.join("\n")).toMatch(
+    /^corpus: refused: i18n\/en\.json \[d\]: /,
+  );
+  rmSync(dir, { recursive: true, force: true });
 });
