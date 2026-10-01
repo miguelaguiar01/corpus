@@ -639,6 +639,21 @@ export function applyMessagesOps(
       ...(options.sourceLanguage && { language: options.sourceLanguage }),
     },
   );
+  // A removed id's object of categories is its plural whatever its forms,
+  // `{ one, few }` too, its path as the file writes it (#959, #642).
+  const deletes = ops.flatMap((op) => (op.kind === "delete" ? [op.id] : []));
+  const removed =
+    deletes.length > 0
+      ? keyPaths(
+          tree,
+          plurals,
+          new Set([...(options.pluralIds ?? []), ...deletes]),
+          suffix && {
+            known: new Set([...(options.pluralIds ?? []), ...deletes]),
+            ...(options.sourceLanguage && { language: options.sourceLanguage }),
+          },
+        )
+      : undefined;
   // A new plural is written as the file writes its others: as keys, or
   // as objects in a file that holds objects and no families.
   const asObjects = pluralIds.size > 0 && suffixIds.size === 0;
@@ -656,10 +671,12 @@ export function applyMessagesOps(
     if (op.kind === "delete") {
       // Absent already (a second pull, a target file without the key):
       // nothing to do; the push that lands the removal marks it applied.
+      const plural = removed?.pluralIds.has(op.id) ?? false;
+      const at = plural ? removed!.paths.get(op.id)! : path;
       const next = suffixIds.has(op.id)
         ? deleteSuffix(out, path)
-        : pluralIds.has(op.id)
-          ? deleteKey(out, path)
+        : pluralIds.has(op.id) || plural
+          ? deleteKey(out, at)
           : deleteLeaf(out, path);
       out = next === out ? deleteLeaf(out, [op.id]) : next;
     } else if (
