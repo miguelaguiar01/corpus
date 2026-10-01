@@ -890,3 +890,63 @@ test("the text after a whole plural is placed after the plural as the parser rea
       text.indexOf("tail"),
     );
 });
+
+test("under android a printf verb in a tag's attribute takes its place in the argument order (#956)", () => {
+  for (const html of [true, "markup"] as const) {
+    expect(
+      parseIcu('<a href="%1$s">x</a> %2$s', "android", { html }),
+    ).toMatchObject({
+      ok: true,
+      nodes: [
+        {
+          kind: "tag",
+          name: "a",
+          attrs: 'href="%1$s"',
+          attrPlaceholders: [{ kind: "placeholder", name: "1" }],
+          children: [{ kind: "literal", text: "x" }],
+        },
+        { kind: "literal", text: " " },
+        { kind: "placeholder", name: "2" },
+      ],
+    });
+    expect(parseIcu('<a href="%s">%s</a>', "android", { html })).toMatchObject({
+      ok: true,
+      nodes: [
+        {
+          kind: "tag",
+          attrPlaceholders: [{ kind: "placeholder", name: "1" }],
+          children: [{ kind: "placeholder", name: "2" }],
+        },
+      ],
+    });
+  }
+  // A prose tag is text through and through, its verb counted with the
+  // rest (#987).
+  expect(
+    parseIcu("<Unknown %s> %s", "android", { html: "markup" }),
+  ).toMatchObject({
+    ok: true,
+    nodes: [
+      { kind: "literal", text: "<Unknown " },
+      { kind: "placeholder", name: "1" },
+      { kind: "literal", text: "> " },
+      { kind: "placeholder", name: "2" },
+    ],
+  });
+});
+
+test("easy_localization reads no tags, so a {} in an attribute counts in the text's order (#956)", () => {
+  expect(
+    parseIcu('<a href="{}">{}</a> {}', "easy_localization", { html: true }),
+  ).toMatchObject({
+    ok: true,
+    nodes: [
+      { kind: "literal", text: '<a href="' },
+      { kind: "placeholder", name: "0" },
+      { kind: "literal", text: '">' },
+      { kind: "placeholder", name: "1" },
+      { kind: "literal", text: "</a> " },
+      { kind: "placeholder", name: "2" },
+    ],
+  });
+});

@@ -238,11 +238,12 @@ const PLURAL_KEY_RE = /^(?:zero|one|two|few|many|other|=[0-9]+)$/;
 // of whitespace and no `>` is linear, not cubic; readTag trims it.
 const TAG_RE = /^<(\/?)([A-Za-z][A-Za-z0-9_-]*|[0-9]+)((?:\s[^<>]*?)?)(\/?)>/;
 // The libraries that read tags and whose placeholders are named or
-// numbered, so one in a tag's attribute is read as a placeholder (#948).
-// Android's printf verbs count by position, which a verb read inside an
-// attribute would renumber, so there an attribute stays text.
+// numbered, so one in a tag's attribute is read as a placeholder (#948);
+// Android's verb takes its place in the argument order, as `getString`
+// formats the text before `fromHtml` reads its tags (#956).
 const ATTR_PLACEHOLDER_LIBRARIES: ReadonlySet<Library> = new Set([
   "icu",
+  "android",
   "fluent",
   "i18next",
   "rails",
@@ -276,6 +277,36 @@ export function isHtmlElement(name: string): boolean {
 // keeps it: the name, with its attribute text when it has one.
 function tagIdentity(tag: { name: string; attrs?: string }): string {
   return tag.attrs ? `${tag.name} ${tag.attrs}` : tag.name;
+}
+// A tag's identity with each printf verb in its attributes written by
+// the position it takes, so Android's `href="%s"` at position 1 and
+// `href="%1$s"` are one tag, and `href="%d"` another (#956).
+function positionedIdentity(tag: {
+  name: string;
+  attrs?: string;
+  attrPlaceholders?: IcuNode[];
+}): string {
+  const verbs = (tag.attrPlaceholders ?? []).filter(
+    (node) =>
+      node.kind === "placeholder" &&
+      /^\d+$/.test(node.name) &&
+      node.written !== undefined &&
+      PRINTF_VERB_RE.test(node.written),
+  );
+  if (!tag.attrs || verbs.length === 0) return tagIdentity(tag);
+  let at = 0;
+  const attrs = tag.attrs.replace(
+    new RegExp(`%%|${PRINTF_VERB_RE.source.slice(1)}`, "g"),
+    (verb) => {
+      const node = verbs[at];
+      if (verb === "%%" || node?.kind !== "placeholder") return verb;
+      at += 1;
+      return verb.replace(/^%(?:\[\d+\]|\d+\$)?/, `%${node.name}$`);
+    },
+  );
+  return at === verbs.length
+    ? tagIdentity({ name: tag.name, attrs })
+    : tagIdentity(tag);
 }
 // i18next's interpolation name: an identifier, dotted into an object
 // ({{user.name}}); a format after a comma ({{date, short}}) is ignored.
@@ -584,13 +615,10 @@ class Parser {
           ] as const;
           const read = this.proseOut?.length ?? 0;
           try {
+            // The attributes first: their verbs come before the text's.
+            const attrs = this.tagAttrs(tag.attrs, tag.start);
             const children = this.parseSequence(inBranch, pluralArg, tag.name);
-            seq.nodes.push({
-              kind: "tag",
-              name: tag.name,
-              ...this.tagAttrs(tag.attrs, tag.start),
-              children,
-            });
+            seq.nodes.push({ kind: "tag", name: tag.name, ...attrs, children });
           } catch (error) {
             if (
               !(error instanceof ParseFailure) ||
@@ -1089,8 +1117,12 @@ class Parser {
     if (!attrs) return {};
     if (!ATTR_PLACEHOLDER_LIBRARIES.has(this.syntax)) return { attrs };
     let nodes: IcuNode[];
+    const parser = new Parser(attrs, this.syntax, false);
+    // Android's verbs count on through the attribute.
+    parser.printfNext = this.printfNext;
     try {
-      nodes = new Parser(attrs, this.syntax, false).parseSequence(false);
+      nodes = parser.parseSequence(false);
+      this.printfNext = parser.printfNext;
     } catch (error) {
       // Brace CSS in an ICU attribute is text; Rails reads only `%{`, so
       // a mistyped one there is refused as it is in the text.
@@ -1119,10 +1151,14 @@ class Parser {
       at: start,
       branch: [...this.branchPath],
     });
-    // Where a tag's attributes hold no placeholders of their own, a prose
-    // tag is text through and through: Android's `<Unknown %s>` prints its
-    // verb, which counts by position with the rest (#987).
-    if (!ATTR_PLACEHOLDER_LIBRARIES.has(this.syntax)) {
+    // Where a tag's attributes hold no placeholders of their own, or
+    // Android's verbs, a prose tag is text through and through: Android's
+    // `<Unknown %s>` prints its verb, which counts by position with the
+    // rest (#987).
+    if (
+      !ATTR_PLACEHOLDER_LIBRARIES.has(this.syntax) ||
+      this.syntax === "android"
+    ) {
       seq.literal += "<";
       this.pos = start + 1;
       return;
@@ -1572,6 +1608,11 @@ export type Shape = {
   attrPlaceholders: Map<string, string | undefined>;
   // The tag each of them is written in, the first (#1022).
   attrTags: Map<string, string>;
+  // Each tag's identities with its attribute verbs written by position,
+  // which is how two tags compare, where they differ from it (#956).
+  tagKeys: Map<string, Set<string>>;
+  // The same of the occurrences that wrap text, every pair's.
+  pairKeys: Map<string, Set<string>>;
   // Those written in the attributes of tags read as text (#986).
   proseAttrPlaceholders: Map<string, string | undefined>;
   // printf: each verb as written, by position (#594).
@@ -1598,6 +1639,8 @@ export function shapeOf(
     opened: new Set(),
     attrPlaceholders: new Map(),
     attrTags: new Map(),
+    tagKeys: new Map(),
+    pairKeys: new Map(),
     proseAttrPlaceholders: new Map(),
     written: new Map(),
     verbs: [],
@@ -1636,9 +1679,17 @@ export function shapeOf(
         if (attr.kind === "placeholder" && !shape.attrTags.has(attr.name))
           shape.attrTags.set(attr.name, tagIdentity(node));
       shape.tags.add(tagIdentity(node));
+      const key = positionedIdentity(node);
+      if (key !== tagIdentity(node)) {
+        const keys = shape.tagKeys.get(tagIdentity(node)) ?? new Set();
+        shape.tagKeys.set(tagIdentity(node), keys.add(key));
+      }
       if (!node.self) shape.opened.add(tagIdentity(node));
-      if (!node.self && node.children.length > 0)
+      if (!node.self && node.children.length > 0) {
         shape.pairs.add(tagIdentity(node));
+        const keys = shape.pairKeys.get(tagIdentity(node)) ?? new Set();
+        shape.pairKeys.set(tagIdentity(node), keys.add(key));
+      }
       shapeOf(node.children, shape);
     }
     // A form's placeholders are the message's; how many forms there are

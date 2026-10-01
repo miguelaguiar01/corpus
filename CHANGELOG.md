@@ -20,6 +20,7 @@ contract (`corpus/1`) is the only one.
 - Rails keys ending in `_html` are read as HTML: a translation's own tags are accepted, and broken markup in them is still caught (#988).
 - An Android app's modules are one project: an `android` source's `path` may list its `res` directories, with `merge`, and a `{ns}` captures a Compose Multiplatform module (#989).
 - A Fluent message Corpus cannot read is refused on its own instead of failing its whole file, and the build goes on (#991).
+- Under Android a printf verb in a tag's attribute counts in the argument order, so `<a href="%1$s">%2$s</a>` for `<a href="%s">%s</a>` is valid and a link whose text takes the URL is caught (#956).
 - A messages list or an xliff unit Corpus cannot read is refused on its own, numbers and booleans in a messages file are skipped, and `init` names exec for a catalogue of entry objects (#1026).
 - A glossary term finds its regular inflections (`assassino`: `assassinos`, `assassina`), and `match: "exact"` turns that off for an entry (#1073).
 - `corpus validate --server` checks the instance's translations, an exec source's drafts included, and plain `validate` no longer calls a partly checked exec source valid (#1074).
