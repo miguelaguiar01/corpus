@@ -47,7 +47,7 @@ An Android app's string resources.
 { adapter: "android", type: "ui", path: "app/src/main/res" }
 ```
 
-`path` is the `res` directory; `values/strings.xml` is the source and each `values-<qualifier>/strings.xml` a language. See [Your i18n library](Your-i18n-library#android-string-resources) for what it reads and how it writes back.
+`path` is the `res` directory; `values/strings.xml` is the source and each `values-<qualifier>/strings.xml` a language, `values-pt-rBR` for `pt-BR` and `values-b+sr+Latn` for `sr-Latn` (a numeric region too: `values-b+es+419`). `corpus init --messages app/src/main/res` writes the source and the languages its directories name; a directory that is not the one Android reads for its tag (`values-sw360dp`, `values-car`, `values-b+pt+BR` beside the `values-pt-rBR` a pull writes) is said and left out. See [Your i18n library](Your-i18n-library#android-string-resources) for what it reads and how it writes back.
 
 ## fluent
 
@@ -57,7 +57,7 @@ Project Fluent's `.ftl` catalogues.
 { adapter: "fluent", type: "ui", path: "i18n/{lang}/app.ftl" }
 ```
 
-One file per language, `{lang}` in the path. See [Your i18n library](Your-i18n-library#fluent) for the subset it reads.
+One file per language, `{lang}` in the path, and `{ns}` for a directory of them (`core/{lang}/{ns}.ftl`). `corpus init --messages i18n/{lang}/app.ftl` writes the source and the languages its files name. See [Your i18n library](Your-i18n-library#fluent) for the subset it reads.
 
 ## xliff
 

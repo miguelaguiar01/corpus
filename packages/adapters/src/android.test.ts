@@ -129,7 +129,8 @@ test("a language's values directory by Android's rule", () => {
   expect(androidDirOf("de")).toBe("values-de");
   expect(androidDirOf("pt-BR")).toBe("values-pt-rBR");
   expect(androidDirOf("pt_BR")).toBe("values-pt-rBR");
-  expect(androidDirOf("es-419")).toBe("values-es-r419");
+  // `-r` takes a two-letter region only; aapt2 reads 419 as b+ (#993).
+  expect(androidDirOf("es-419")).toBe("values-b+es+419");
   expect(androidDirOf("sr-Latn")).toBe("values-b+sr+Latn");
 });
 
@@ -313,6 +314,14 @@ test("a values directory's language is androidDirOf's inverse, a non-language qu
   const { androidLanguageOf, androidDirOf } = await import("./android");
   for (const tag of ["de", "pt-BR", "es-419", "sr-Latn", "zh-Hant-TW", "iw"])
     expect(androidLanguageOf(androidDirOf(tag))).toBe(tag);
+  // A numeric region has no -r form: aapt2 takes it as b+ only.
+  expect(androidDirOf("es-419")).toBe("values-b+es+419");
+  // Car is Android Automotive's UI mode, never a language.
+  expect(androidLanguageOf("values-car")).toBeUndefined();
+  // Another case or the b+ form of a -r region still names the
+  // language, which init compares with androidDirOf's directory.
+  expect(androidLanguageOf("values-EN")).toBe("en");
+  expect(androidLanguageOf("values-b+pt+BR")).toBe("pt-BR");
   for (const dir of [
     "values",
     "values-sw360dp",

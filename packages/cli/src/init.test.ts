@@ -1862,20 +1862,43 @@ test("init writes an android source for a res directory, its values-* qualifiers
     write(p.dir, `${res}/values-iw/strings.xml`, strings("שלום"));
     write(p.dir, `${res}/values-sw360dp/strings.xml`, strings("Hi"));
     write(p.dir, `${res}/values-night/colors.xml`, "<resources/>\n");
+    write(p.dir, `${res}/values-b+es+419/strings.xml`, strings("Hola"));
+    // Not where the android source writes de, nor a language.
+    write(p.dir, `${res}/values-b+de/strings.xml`, strings("Hallo"));
+    write(p.dir, `${res}/values-car/strings.xml`, strings("Hi"));
     return p;
   };
-  for (const messages of [res, `${res}/values-{lang}/strings.xml`]) {
+  for (const messages of [
+    res,
+    `${res}/`,
+    `${res}/values-{lang}/strings.xml`,
+    `${res}/values`,
+    `${res}/values/strings.xml`,
+  ]) {
     const p = setup();
     expect(await run(initFor(messages), p.ctx)).toBe(0);
     const config = await loadConfig(p.dir);
-    expect(config.languages).toEqual(["en", "iw", "pt-BR", "sr-Latn"]);
+    expect(config.languages).toEqual([
+      "en",
+      "es-419",
+      "iw",
+      "pt-BR",
+      "sr-Latn",
+    ]);
     expect(config.sources[0]).toEqual({
       adapter: "android",
       type: "ui",
       path: res,
     });
-    expect(p.err.join("\n")).toContain(
-      `corpus: ${res}/values-sw360dp names no language; left out`,
+    const said = p.err.join("\n");
+    expect(said).toContain(
+      `corpus: ${res}/values-sw360dp is no language's own values directory; left out`,
+    );
+    expect(said).toContain(
+      `corpus: ${res}/values-car is no language's own values directory; left out`,
+    );
+    expect(said).toContain(
+      `corpus: ${res}/values-b+de names de, which the android source reads from values-de; left out`,
     );
     expect(await run(["build", "--out", "s.json"], p.ctx)).toBe(0);
   }

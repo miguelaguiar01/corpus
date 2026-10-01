@@ -124,9 +124,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   const unnamed =
     adapter === "messages"
       ? files.skipped.filter((file) => path.basename(file).includes("@"))
-      : adapter === "android"
-        ? []
-        : files.skipped;
+      : files.skipped;
   if (unnamed.length > 0)
     ctx.err(
       `corpus: ${unnamed.join(", ")} ${unnamed.length === 1 ? "names" : "name"} no language tag and no script; left out, or map ${unnamed.length === 1 ? "it" : "each"} with languageFiles`,
@@ -168,7 +166,6 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   // has its default, which only the flag changes, and xliff's is fixed.
   const detected =
     adapter === "xliff" ||
-    adapter === "fluent" ||
     (adapter !== "messages" &&
       !args.includes("--library") &&
       !args.includes("--syntax"))
@@ -313,21 +310,29 @@ async function htmlOnlyTags(
 ): Promise<string[]> {
   const declared = source as FileSource;
   // A `{ns}` pattern's source files, each (#993).
+  // A `{ns}` pattern's source files, each, its ids named as build names
+  // them (#993).
   const files = source.path.includes("{ns}")
-    ? matchPattern(cwd, source.path, sourceLanguage).map((m) => m.file)
-    : [fileOf(declared, sourceLanguage, sourceLanguage)];
+    ? matchPattern(cwd, source.path, sourceLanguage)
+    : [
+        {
+          file: fileOf(declared, sourceLanguage, sourceLanguage),
+          ns: undefined,
+        },
+      ];
   const entries = [];
-  for (const file of files) {
+  for (const { file, ns } of files) {
     try {
+      const read = await readEntries(
+        createJiti(import.meta.url),
+        cwd,
+        file,
+        declared,
+        true,
+        sourceLanguage,
+      );
       entries.push(
-        ...(await readEntries(
-          createJiti(import.meta.url),
-          cwd,
-          file,
-          declared,
-          true,
-          sourceLanguage,
-        )),
+        ...read.map((e) => (ns ? { ...e, id: `${ns}:${e.id}` } : e)),
       );
     } catch {
       continue;
@@ -814,12 +819,13 @@ async function libraryFor(
   return {};
 }
 
-// Only messages, table, fluent and android read `{ns}` (#854, #989).
-// The res directory `--messages` names: the directory itself, or
-// `<res>/values-{lang}/strings.xml`, where `<res>/values/strings.xml`
-// holds the source's strings (#993).
+// The res directory `--messages` names: the directory itself, its
+// `values` or `values/strings.xml`, or `<res>/values-{lang}/strings.xml`,
+// where `<res>/values/strings.xml` holds the source's strings (#993).
 function androidResOf(cwd: string, messages: string): string | undefined {
-  const pattern = /^(.+?)\/?values-\{lang\}\/strings\.xml$/.exec(messages);
+  const pattern = /^(.+?)\/+values(?:-\{lang\})?(?:\/+strings\.xml)?\/*$/.exec(
+    messages,
+  );
   const res = (pattern ? pattern[1]! : messages).replace(/\/+$/, "");
   if (!pattern && messages.includes("{lang}")) return undefined;
   return existsSync(path.join(cwd, res, "values", "strings.xml"))
@@ -828,9 +834,11 @@ function androidResOf(cwd: string, messages: string): string | undefined {
 }
 
 // The languages a res directory's `values-*` directories holding a
-// strings.xml name, the source first; a qualifier that is no language
-// (`values-sw360dp`) is said and left out, and so is a second directory
-// for one tag.
+// strings.xml name, the source first. A directory is kept only where it
+// is the one the android source reads and writes for its tag, so a pull
+// never writes a second directory for one locale; any other, a
+// qualifier that is no language (`values-sw360dp`, `values-car`) or the
+// b+ form of a `-r` region, is said and left out.
 function androidLanguages(
   ctx: RunContext,
   res: string,
@@ -845,32 +853,34 @@ function androidLanguages(
       name.startsWith("values-") &&
       existsSync(path.join(ctx.cwd, res, name, "strings.xml")),
   );
-  const byTag = new Map<string, string>();
+  const tags = new Set<string>();
   for (const dir of dirs.sort()) {
     const tag = androidLanguageOf(dir);
     // A tag the runtime does not know is kept, and said below, as any
     // catalogue's is.
     if (tag === undefined) {
-      ctx.err(`corpus: ${res}/${dir} names no language; left out`);
-      continue;
-    }
-    const first = byTag.get(tag);
-    if (first) {
       ctx.err(
-        `corpus: ${res}/${first} and ${res}/${dir} both name ${tag}; the android source writes ${androidDirOf(tag)}`,
+        `corpus: ${res}/${dir} is no language's own values directory; left out`,
       );
       continue;
     }
-    byTag.set(tag, dir);
+    if (androidDirOf(tag) !== dir) {
+      ctx.err(
+        `corpus: ${res}/${dir} names ${tag}, which the android source reads from ${androidDirOf(tag)}; left out`,
+      );
+      continue;
+    }
+    tags.add(tag);
   }
-  byTag.delete(sourceLanguage);
+  tags.delete(sourceLanguage);
   return {
-    languages: [sourceLanguage, ...[...byTag.keys()].sort()],
+    languages: [sourceLanguage, ...[...tags].sort()],
     languageFiles: {},
     skipped: [],
   };
 }
 
+// Only messages, table, fluent and android read `{ns}` (#854, #989).
 function refuseNamespace(messages: string, adapter: string): void {
   if (messages.includes("{ns}"))
     throw new CliError(
