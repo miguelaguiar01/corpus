@@ -303,7 +303,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       `check.include: ${include.join(", ")} (the directories holding components, which corpus check scans)`,
     );
   } else if (!components.found) {
-    // A UI that is never JSX, TSX or Vue gives check nothing to read,
+    // A UI that is never JSX, TSX, Vue or Svelte gives check nothing to read,
     // whatever it is pointed at (#1016).
     ctx.out(
       NO_COMPONENTS[adapter]
@@ -334,7 +334,7 @@ const LISTS_PATTERNS: ReadonlySet<InitSource["adapter"]> = new Set([
   "yaml",
 ]);
 
-// The formats whose interface is never JSX, TSX or Vue, by what it is;
+// The formats whose interface is never JSX, TSX, Vue or Svelte, by what it is;
 // a .po catalogue may be a Lingui or Vue app's, an XLIFF one not always
 // Angular's.
 const NO_COMPONENTS: Partial<Record<InitSource["adapter"], string>> = {

@@ -192,8 +192,8 @@ export function findVueLiterals(
 }
 
 // The text and the static user-facing attributes of HTML-shaped markup,
-// each reported at its offset: Vue's template, and a Svelte component's
-// markup with its expressions blanked (#1025).
+// each reported at the offset of its first character: Vue's template,
+// and a Svelte component's markup with its expressions blanked (#1025).
 export function markupLiterals(
   body: string,
   offset: number,
@@ -218,7 +218,12 @@ export function markupLiterals(
     );
     const first = blanked.search(/\S/);
     if (first === -1) return;
-    report(offset + textFrom + first, slice.replace(/\{\{[\s\S]*?\}\}/g, " "));
+    // The text from its first character on, at that character's offset
+    // (#1025): a Svelte reader splits it and keeps every piece's place.
+    report(
+      offset + textFrom + first,
+      slice.replace(/\{\{[\s\S]*?\}\}/g, " ").trimStart(),
+    );
   };
   while (at < body.length) {
     const lt = body.indexOf("<", at);
@@ -241,7 +246,9 @@ export function markupLiterals(
     } else {
       if (
         !tag.selfClosing &&
-        (CATALOGUE_ELEMENTS.has(tag.name) || OPAQUE.has(tag.name))
+        (CATALOGUE_ELEMENTS.has(tag.name) ||
+          // A `<Script>` or `<Code>` component is markup.
+          (OPAQUE.has(tag.name) && !tag.component))
       ) {
         skip.push(tag.name);
       }

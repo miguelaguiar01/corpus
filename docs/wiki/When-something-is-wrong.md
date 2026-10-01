@@ -72,7 +72,7 @@ On a Vue project two things account for most of it. Stories are not the applicat
 
 ## The check found nothing and the app is full of text
 
-Either `check.include` is missing, or the components are not `.jsx`, `.tsx` or `.vue`. Both print a line saying so — read the last line of the output rather than the exit code.
+Either `check.include` is missing, or the components are not `.jsx`, `.tsx`, `.vue` or `.svelte`. Both print a line saying so — read the last line of the output rather than the exit code.
 
 ## A translation will not save
 

@@ -29,8 +29,11 @@ function closing(source: string, at: number): number {
   for (let i = at; i < source.length; i++) {
     const ch = source[i];
     if (ch === '"' || ch === "'" || ch === "`") {
-      const end = source.indexOf(ch, i + 1);
-      if (end < 0) return source.length - 1;
+      // To the closing quote, past a backslash's escape: `'it\'s'`.
+      let end = i + 1;
+      while (end < source.length && source[end] !== ch)
+        end += source[end] === "\\" ? 2 : 1;
+      if (end >= source.length) return source.length - 1;
       i = end;
     } else if (ch === "{") depth += 1;
     else if (ch === "}" && --depth === 0) return i;
@@ -40,10 +43,11 @@ function closing(source: string, at: number): number {
 
 // The markup alone: `<script>`, `<style>` and every expression blanked.
 function markupOf(source: string): string {
-  const scriptless = source.replace(
-    /<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi,
-    blank,
-  );
+  // A comment holds no expression, and a `<Script>` component is no
+  // script block.
+  const scriptless = source
+    .replace(/<!--[\s\S]*?-->/g, blank)
+    .replace(/<(script|style)(?=[\s>/])[^>]*>[\s\S]*?<\/\1\s*>/g, blank);
   let out = "";
   let at = 0;
   for (let open = scriptless.indexOf("{"); open >= 0;) {
@@ -75,7 +79,8 @@ export function findSvelteLiterals(
     if (silenced.has(line)) return;
     findings.push({ file, line, text });
   };
-  // Each piece between expressions on its own, at its first character.
+  // Each piece between expressions on its own, at its first character;
+  // `raw` starts at `offset`.
   markupLiterals(markupOf(source), 0, (offset, raw) => {
     let at = 0;
     for (const piece of raw.split(new RegExp(`${GAP}+`))) {
