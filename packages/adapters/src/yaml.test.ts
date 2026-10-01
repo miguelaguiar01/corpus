@@ -947,6 +947,31 @@ test("removing a pair after a keep-chomped block takes the blank lines after it,
     ["s", "b\n\n"],
     ["u", "U"],
   ]);
+  // Two removals in a row after the block, as a language going from four
+  // forms to two, and a block as the last value inside the pair before.
+  const twice = entriesToYaml(
+    en,
+    tr,
+    "pl:\n  f:\n    one: |-\n      a\n    few: q\n    many: r\n\n    other: yy\n",
+    L,
+  );
+  expect(yamlTranslations(twice, "pl")[0]?.source).toBe(tr.f);
+  expect(entriesToYaml(en, tr, twice, L)).toBe(twice);
+  const both = applyYamlOps(
+    "pl:\n  s: |+\n    b\n\n  t: T\n  t2: T2\n\n  u: U\n",
+    [
+      { kind: "delete", id: "t" },
+      { kind: "delete", id: "t2" },
+    ],
+    "pl",
+  );
+  expect(yamlTranslations(both, "pl")[0]?.source).toBe("b\n\n");
+  const nested = applyYamlOps(
+    "pl:\n  a:\n    s: |+\n      b\n\n  t: T\n\n  u: U\n",
+    [{ kind: "delete", id: "t" }],
+    "pl",
+  );
+  expect(yamlTranslations(nested, "pl")[0]?.source).toBe("b\n\n");
   // After a plain value or a strip block the blank lines stay.
   expect(
     applyYamlOps(
