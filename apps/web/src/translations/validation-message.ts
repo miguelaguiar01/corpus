@@ -48,6 +48,10 @@ export function validationMessage(
       return t("editor.unexpectedBranch", { arg: error.arg, key: error.key });
     case "unknown-plural":
       return t("editor.unknownPlural", { arg: error.arg });
+    case "count-for-marker":
+      return t("editor.countForMarker", {
+        name: error.written ?? `%${error.name}`,
+      });
     case "changed-ordinal":
       return t(
         error.ordinal ? "editor.ordinalAsPlural" : "editor.pluralAsOrdinal",

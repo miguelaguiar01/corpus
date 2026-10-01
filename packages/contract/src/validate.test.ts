@@ -2626,3 +2626,81 @@ test("a plural written plainly may print its own count; a language of the source
     "unknown-plural",
   );
 });
+
+test("Qt: a marker no .arg() fills is text; %n in a numerus message is its count; a lookalike percent is refused (#1003)", () => {
+  const qt = (source: string, target: string, language = "tr") =>
+    validateTranslation(source, target, language, "qt");
+  // KeePassXC: tr() with no .arg, Turkish percentages.
+  expect(
+    qt(
+      "More than 10% of passwords are reused.",
+      "Parolaların %10'undan fazlası yeniden kullanılıyor.",
+    ),
+  ).toEqual({ ok: true });
+  // Transmission: .arg() fills %1 alone, so %100 (%10, then 0) is text.
+  expect(qt("%1 (100%)", "%1 (%100)")).toEqual({ ok: true });
+  // A marker writing no number the source writes is Qt's `%1` as text,
+  // still named.
+  const stray = qt("Purged %n icon(s).", "Poistettu %1 kuvaketta.", "fi");
+  expect(stray.ok ? [] : stray.errors.map((e) => e.code)).toEqual([
+    "missing-placeholder",
+    "unexpected-placeholder",
+  ]);
+  // A source with its own %n keeps every marker it prints.
+  const own = qt(
+    "{count, plural, other {and%1 %Ln leecher(s)%2 %3 ago}}",
+    "{count, plural, other {en%1 %Ln saaier(s)%2 gelede}}",
+    "af",
+  );
+  expect(own.ok ? [] : own.errors.map((e) => e.code)).toEqual([
+    "missing-placeholder",
+  ]);
+  // A stray marker .arg() would fill, where %1 is lost, is still said.
+  const lost = qt("%1 (100%)", "%10 (yüzde)");
+  expect(lost.ok ? [] : lost.errors.map((e) => e.code)).toEqual([
+    "missing-placeholder",
+    "unexpected-placeholder",
+  ]);
+  // KeePassXC et: translate() fills %n in a numerus message.
+  expect(
+    qt(
+      "{count, plural, other {over %1 year(s)}}",
+      "{count, plural, one {Üle %n aasta} other {Üle %n aasta}}",
+      "et",
+    ),
+  ).toEqual({
+    ok: true,
+    incomplete: [{ code: "count-for-marker", name: "1", written: "%1" }],
+  });
+  // With two markers, %n where one was is no count's place: the name is
+  // lost, or lands where the count belongs.
+  const leaked =
+    "{count, plural, other {Password for '%1' has been leaked %2 time(s)!}}";
+  expect(
+    qt(leaked, "{count, plural, other {Salasana on vuotanut %n kertaa!}}", "fi")
+      .ok,
+  ).toBe(false);
+  expect(
+    qt(
+      leaked,
+      "{count, plural, other {Salasana '%n' on vuotanut %2 kertaa!}}",
+      "fi",
+    ).ok,
+  ).toBe(false);
+  // A lookalike before a number the source has no marker for is text.
+  expect(qt("50% done", "٪50 مكتمل", "ar")).toEqual({ ok: true });
+  expect(qt("%1 done", "٪ 1 مكتمل", "ar").ok).toBe(false);
+  // ar: U+066A before n is no marker at all.
+  const ar = qt(
+    "{count, plural, other {%n row(s)}}",
+    "{count, plural, zero {٪n صف} one {%n صف} two {%n صف} few {%n صفوف} many {%n صفًا} other {%n صف}}",
+    "ar",
+  );
+  expect(ar.ok ? [] : ar.errors).toEqual([
+    expect.objectContaining({
+      code: "invalid-icu",
+      where: "target",
+      message: "writes ٪n, which Qt prints as text; write %n",
+    }),
+  ]);
+});
