@@ -886,3 +886,23 @@ test("a text Rails' Psych would read as no string is quoted, new or changed; a f
   expect(block).not.toMatch(/\n\n/);
   expect(block).toContain("    few: b\n");
 });
+
+test("a block plural form changed to a text no block holds keeps the next form on its own line (#1126)", () => {
+  const en = "en:\n  f:\n    one: one\n    other: many\n";
+  const pl = "pl:\n  f:\n    one: |-\n      a\n    other: y\n";
+  for (const text of [" x", "\tx", "a\rb"]) {
+    const out = entriesToYaml(
+      en,
+      { f: `{count, plural, one {${text}} other {y}}` },
+      pl,
+      { source: "en", code: "pl" },
+    );
+    expect(out).toMatch(/^pl:\n {2}f:\n {4}one: "[^\n]*"\n {4}other: y\n$/);
+    expect(yamlTranslations(out, "pl")).toEqual([
+      expect.objectContaining({
+        id: "f",
+        source: `{count, plural, one {${text}} other {y}}`,
+      }),
+    ]);
+  }
+});
