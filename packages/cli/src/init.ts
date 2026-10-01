@@ -293,7 +293,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
 }
 
 // The formats whose interface is never JSX, TSX or Vue, by what it is;
-// a .po or XLIFF catalogue may be a Lingui, Vue or FormatJS app's.
+// a .po catalogue may be a Lingui or Vue app's, an XLIFF one not Angular's.
 const NO_COMPONENTS: Partial<Record<InitSource["adapter"], string>> = {
   "qt-ts": "a Qt interface",
   android: "an Android app",
