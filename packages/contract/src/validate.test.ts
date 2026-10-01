@@ -2752,5 +2752,17 @@ test("under printf a Python mapping key, %(name)s, is a placeholder named by its
   // The space flag stays out, as for a verb: prose, not a key.
   expect([...partsOf("50%(approx) of", "printf").placeholders]).toEqual([]);
   // A C verb beside it counts on by position as before.
-  expect([...partsOf("%s and %d", "printf").placeholders]).toEqual(["1", "2"]);
+  expect([...partsOf("%(a)s %s %d", "printf").placeholders]).toEqual([
+    "a",
+    "1",
+    "2",
+  ]);
+  // A key is found by its name: one that changed conversion did not
+  // move, and needs no index.
+  expect(
+    validateTranslation("%(a)s, %(b)d", "%(b)s, %(a)s", "de", "printf"),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "changed-verb", name: "b", moved: false }],
+  });
 });
