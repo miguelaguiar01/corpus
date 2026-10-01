@@ -128,16 +128,14 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
         : catalogueLanguages(ctx.cwd, messages, sourceLanguage);
   // Beside a JSON catalogue a file that names no language is a glossary
   // or a fixture, not a catalogue left out, unless its name carries a
-  // POSIX modifier (`ca@valencia`), which only a language's does.
+  // POSIX modifier (`de@euro`), which only a language's does.
   const unnamed =
     adapter === "messages"
       ? files.skipped.filter(({ file }) => path.basename(file).includes("@"))
       : files.skipped;
-  if (unnamed.length > 0)
+  for (const { file, code } of unnamed)
     ctx.err(
-      `corpus: ${unnamed.map(({ file }) => file).join(", ")} ${unnamed.length === 1 ? "names" : "name"} no language tag; left out: name its language, as languages: ["<tag>"] with languageFiles: { ${unnamed
-        .map(({ code }) => `"<tag>": ${JSON.stringify(code)}`)
-        .join(", ")} } on the source`,
+      `corpus: ${file} names no language tag; left out: name its language, as languages: ["<tag>"] with languageFiles: { "<tag>": ${JSON.stringify(code)} } on the source`,
     );
   // The flag given without a value is an error, as for every option
   // (args.ts); only its absence means "read the files".

@@ -2110,8 +2110,13 @@ test("init maps ca@valencia to ca-valencia through languageFiles, and names the 
   const q = project();
   write(q.dir, "l/en.json", "{}\n");
   write(q.dir, "l/ca@foo.json", "{}\n");
+  write(q.dir, "l/sr@foo.json", "{}\n");
   expect(await run(initFor("l/{lang}.json"), q.ctx)).toBe(0);
   expect(q.err.join("\n")).toContain(
     'corpus: l/ca@foo.json names no language tag; left out: name its language, as languages: ["<tag>"] with languageFiles: { "<tag>": "ca@foo" } on the source',
+  );
+  // One line a file, each its own mapping.
+  expect(q.err.join("\n")).toContain(
+    'corpus: l/sr@foo.json names no language tag; left out: name its language, as languages: ["<tag>"] with languageFiles: { "<tag>": "sr@foo" } on the source',
   );
 });
