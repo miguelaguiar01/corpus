@@ -465,7 +465,7 @@ test("get_string on a key the build refused answers why, from the repository (#1
   expect(refused.content).toEqual([
     {
       type: "text",
-      text: "refused: core/statistics.ftl [statistics-studied-today]: invalid Fluent message: x; it is in the repository, so do not add it: the build leaves it out of every push until its text in the source file, or the config, is fixed",
+      text: "refused: core/statistics.ftl [statistics-studied-today]: invalid Fluent message: x; it is in the repository, so do not add it: the build leaves it out of every push until its text in the source file, or the config, is fixed (as read when this session first asked; a new session reads it again)",
     },
   ]);
   const missing = await client.callTool({

@@ -516,7 +516,7 @@ test("a key the build refused is said as refused, with its file and reason, not 
     expect(await agent("string", "bad")).toEqual({
       code: 1,
       out: "",
-      err: "corpus: refused: i18n/en.json [bad]: invalid ICU: unclosed '{'; it is in the repository, so do not add it: the build leaves it out of every push until its text in the source file, or the config, is fixed",
+      err: "corpus: refused: i18n/en.json [bad]: invalid ICU: unclosed '{'; it is in the repository, so do not add it: the build leaves it out of every push until its text in the source file, or the config, is fixed (as read when this session first asked; a new session reads it again)",
     });
     // The advice a refusal carries is said once.
     const greet = (await agent("string", "greet")).err;

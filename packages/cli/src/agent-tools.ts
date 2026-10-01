@@ -156,7 +156,7 @@ export function tools(api: Api, refusals?: Refusals): Tool[] {
           content: [
             {
               type: "text",
-              text: `refused: ${refused.reason}; it is in the repository, so do not add it: the build leaves it out of every push until its text in the source file, or the config, is fixed`,
+              text: `refused: ${refused.reason}; it is in the repository, so do not add it: the build leaves it out of every push until its text in the source file, or the config, is fixed (as read when this session first asked; a new session reads it again)`,
             },
           ],
           isError: true,
