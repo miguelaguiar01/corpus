@@ -44,6 +44,7 @@ contract (`corpus/1`) is the only one.
 - `init` no longer points a project with no `.jsx`, `.tsx` or `.vue` components at `corpus check`, which cannot read it (#1016).
 - vue-i18n: placeholder names and a bare `@` are read as vue-i18n's compiler reads them; `{local-mta}` builds, `{aquí}` and `Hallo @all` are invalid (#1017).
 - `check`: a text that is wholly a URL, and a Vue component's `label="name"` naming a field, are no longer findings (#1019).
+- `init` says other catalogues beside the pattern as families and no longer calls an ICU catalogue i18next's; `--help` after a command prints its usage; a yaml `path` array names the rule (#1020).
 
 ## [0.21.0] - 2026-09-29
 

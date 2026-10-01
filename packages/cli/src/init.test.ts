@@ -2171,3 +2171,53 @@ test("init maps ca@valencia to ca-valencia through languageFiles, and names the 
     'corpus: l/sr@foo.json names no language tag; left out: name its language, as languages: ["<tag>"] with languageFiles: { "<tag>": "sr@foo" } on the source',
   );
 });
+
+test("an ICU catalogue whose ids end in a plural suffix draws no i18next note (#1020)", async () => {
+  const p = project();
+  write(
+    p.dir,
+    "l/en.json",
+    JSON.stringify({
+      "account.familiar_followers_many": "Followed by {name1}, {name2}",
+      "hashtags.and_other": "{count, plural, one {# more} other {# more}}",
+    }),
+  );
+  expect(await run(initFor("l/{lang}.json"), p.ctx)).toBe(0);
+  expect(p.out.join("\n")).not.toMatch(/i18next keys/);
+});
+
+test("files beside the catalogue that are catalogues of their own are said as families; a long list is cut at five (#1020)", async () => {
+  const yml = (lang: string) => `${lang}:\n  hi: Hi\n`;
+  const p = project();
+  for (const name of ["en", "de", "sf.en", "sf.de", "devise.en", "devise.de"])
+    write(p.dir, `y/${name}.yml`, yml(name.split(".").at(-1)!));
+  expect(await run(initFor("y/{lang}.yml"), p.ctx)).toBe(0);
+  const said = p.err.join("\n");
+  expect(said).toContain(
+    'corpus: 2 other catalogue(s) beside y/{lang}.yml, 4 file(s) (y/devise.{lang}.yml, y/sf.{lang}.yml): each is its own source, as { adapter: "yaml", type: "ui", path: "y/devise.{lang}.yml" }',
+  );
+  expect(said).not.toMatch(/sf\.en\.yml/);
+  // A language and a region with a dot are a code, not a family.
+  const dotted = project();
+  for (const name of ["en", "de", "pt.BR"])
+    write(dotted.dir, `y/${name}.yml`, yml(name));
+  expect(await run(initFor("y/{lang}.yml"), dotted.ctx)).toBe(0);
+  expect(dotted.err.join("\n")).toContain(
+    'corpus: y/pt.BR.yml names no language tag; left out: name its language, as languages: ["<tag>"] with languageFiles: { "<tag>": "pt.BR" } on the source',
+  );
+  // `{lang}` twice is the family's twice.
+  const twice = project();
+  for (const name of ["en", "de", "foo.de"])
+    write(twice.dir, `l/${name}/${name}.yml`, yml(name));
+  expect(await run(initFor("l/{lang}/{lang}.yml"), twice.ctx)).toBe(0);
+  expect(twice.err.join("\n")).toContain("l/foo.{lang}/foo.{lang}.yml");
+  const q = project();
+  write(q.dir, "l/en.json", "{}\n");
+  for (let i = 0; i < 30; i++) write(q.dir, `l/x${i}@foo.json`, "{}\n");
+  expect(await run(initFor("l/{lang}.json"), q.ctx)).toBe(0);
+  const lines = q.err.filter((l) => l.includes("names no language tag"));
+  expect(lines).toHaveLength(5);
+  expect(q.err).toContain(
+    "corpus: and 25 more file(s) that name no language tag",
+  );
+});

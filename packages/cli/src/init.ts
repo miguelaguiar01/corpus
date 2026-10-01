@@ -133,9 +133,38 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     adapter === "messages"
       ? files.skipped.filter(({ file }) => path.basename(file).includes("@"))
       : files.skipped;
-  for (const { file, code } of unnamed)
+  // A code that is a prefix and a language, `activerecord.af` beside
+  // `{lang}.yml`, is another catalogue's file (#1020): one line for the
+  // family, as its own source, not a mapping a file at a time.
+  const families = new Map<string, number>();
+  const loose: typeof unnamed = [];
+  for (const entry of unnamed) {
+    const family = /^(.+)\.([^.]+)$/.exec(entry.code);
+    // `pt.BR` is a language and a region with a dot, not a family.
+    const dotted = /^[A-Za-z]{2,3}\.(?:[A-Z]{2}|[0-9]{3})$/.test(entry.code);
+    if (
+      family &&
+      !dotted &&
+      (LANGUAGE_RE.test(family[2]!) || posixTag(family[2]!))
+    ) {
+      const pattern = messages.replaceAll("{lang}", `${family[1]}.{lang}`);
+      families.set(pattern, (families.get(pattern) ?? 0) + 1);
+    } else loose.push(entry);
+  }
+  if (families.size > 0) {
+    const patterns = [...families.keys()].sort();
+    const count = [...families.values()].reduce((a, b) => a + b, 0);
+    ctx.err(
+      `corpus: ${patterns.length} other catalogue(s) beside ${messages}, ${count} file(s) (${patterns.slice(0, 5).join(", ")}${patterns.length > 5 ? ", …" : ""}): each is its own source, as { adapter: ${JSON.stringify(adapter)}, type: ${JSON.stringify(type)}, path: ${JSON.stringify(patterns[0])} }`,
+    );
+  }
+  for (const { file, code } of loose.slice(0, 5))
     ctx.err(
       `corpus: ${file} names no language tag; left out: name its language, as languages: ["<tag>"] with languageFiles: { "<tag>": ${JSON.stringify(code)} } on the source`,
+    );
+  if (loose.length > 5)
+    ctx.err(
+      `corpus: and ${loose.length - 5} more file(s) that name no language tag`,
     );
   // The flag given without a value is an error, as for every option
   // (args.ts); only its absence means "read the files".
@@ -885,9 +914,12 @@ async function libraryFor(
     return { library: { value: "counterpart", detected: file } };
   if (printf > doubles + singles)
     return { library: { value: "printf", detected: file } };
+  // An ICU plural or select names the catalogue ICU's, an id ending in
+  // `_other` aside (Mastodon's react-intl, #1020).
   if (
     doubles === 0 &&
     singles > 0 &&
+    !icu &&
     ids.some((id) => PLURAL_SUFFIX_RE.test(id))
   ) {
     return {

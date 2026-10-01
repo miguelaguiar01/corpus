@@ -235,3 +235,28 @@ test("check names each kind of entry it could not scan", async () => {
   expect(said).toContain("check could not read src/dangling; it was skipped");
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("--help or -h after a command prints its usage and exits 0 (#1020)", async () => {
+  for (const [argv, usage] of [
+    [["init", "--help"], COMMANDS.find((c) => c.name === "init")!.usage],
+    [["validate", "-h"], "corpus validate [--server] [--json]"],
+    [
+      ["project", "create", "--help"],
+      COMMANDS.find((c) => c.name === "project create")!.usage,
+    ],
+    [["push", "--dry-run", "-h"], "corpus push [--dry-run]"],
+  ] as const) {
+    const c = ctx({ cwd: EMPTY });
+    expect(await run([...argv], c)).toBe(0);
+    expect(c.output).toEqual([`usage: ${usage}`]);
+  }
+  for (const argv of [
+    ["agent", "--help"],
+    ["agent", "queue", "--help"],
+    ["agent", "-h"],
+  ]) {
+    const agent = ctx({ cwd: EMPTY });
+    expect(await run(argv, agent)).toBe(0);
+    expect(agent.output[0]).toMatch(/^usage: corpus agent /);
+  }
+});

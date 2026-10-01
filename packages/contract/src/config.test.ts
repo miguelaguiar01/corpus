@@ -662,3 +662,56 @@ test("a source that reads no sourcePath refuses one by name (#994)", () => {
     }),
   ).toEqual(["android reads no sourcePath"]);
 });
+
+test("a path array on a source that takes one pattern is refused by the rule's name (#1020)", () => {
+  for (const adapter of ["yaml", "gettext", "xliff", "qt-ts"]) {
+    const parsed = corpusConfigSchema.safeParse({
+      project: "p",
+      server: "http://localhost:3000",
+      sourceLanguage: "en",
+      languages: ["en", "de"],
+      sources: [
+        {
+          adapter,
+          type: "ui",
+          path: [
+            "config/locales/{lang}.yml",
+            "config/locales/devise.{lang}.yml",
+          ],
+        },
+      ],
+    });
+    expect(parsed.success).toBe(false);
+    if (!parsed.success)
+      expect(parsed.error.issues.map((i) => i.message)).toEqual([
+        `${adapter} takes one path pattern per source; declare one source per pattern (only messages, table, fluent and android take an array)`,
+      ]);
+  }
+  const issues = (source: Record<string, unknown>) => {
+    const parsed = corpusConfigSchema.safeParse({
+      project: "p",
+      server: "http://localhost:3000",
+      sourceLanguage: "en",
+      languages: ["en", "de"],
+      sources: [source],
+    });
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  expect(
+    issues({
+      adapter: "xcstrings",
+      type: "ui",
+      path: ["a.xcstrings", "b.xcstrings"],
+    }),
+  ).toEqual([
+    "xcstrings takes one file per source; declare one source per file",
+  ]);
+  expect(
+    issues({
+      adapter: "gettext",
+      type: "ui",
+      path: "po/{lang}.po",
+      sourcePath: ["po/a.pot", "po/b.pot"],
+    }),
+  ).toEqual(["gettext takes one sourcePath per source"]);
+});

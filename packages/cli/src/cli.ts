@@ -17,7 +17,7 @@ import {
   type Snapshot,
 } from "@corpus/contract";
 import { option, refuseUnknown } from "./args";
-import { COMMAND_WORDS, KNOWN_FLAGS, USAGE } from "./commands";
+import { COMMAND_WORDS, KNOWN_FLAGS, USAGE, usageOf } from "./commands";
 import { CliError, configFileName, loadConfig, requireToken } from "./config";
 import { checkFiles, DEFAULT_INCLUDE, READS } from "./check";
 import { init } from "./init";
@@ -54,6 +54,30 @@ export async function run(argv: string[], ctx: RunContext): Promise<number> {
     return 0;
   }
   if (command !== undefined && COMMAND_WORDS.has(command)) {
+    // `corpus init --help` is a question, not an unknown flag (#1020);
+    // under `agent`, whose words refuse an unknown `--` one anyway, `-h`
+    // asks only as the first word, since a draft's text may be `-h`.
+    const asks = (word: string | undefined) =>
+      word === "--help" || word === "-h";
+    if (
+      command === "agent"
+        ? asks(argv[1]) || argv.slice(1).includes("--help")
+        : argv.slice(1).some(asks)
+    ) {
+      const sub =
+        command === "project" &&
+        (argv[1] === "create" || argv[1] === "rotate-token")
+          ? `project ${argv[1]}`
+          : command;
+      ctx.out(
+        `usage: ${
+          command === "project" && sub === "project"
+            ? `${usageOf("project create")} | ${usageOf("project rotate-token")}`
+            : usageOf(sub)
+        }`,
+      );
+      return 0;
+    }
     try {
       // `agent` reads its own words, subcommand by subcommand.
       if (command !== "agent") {
