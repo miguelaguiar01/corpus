@@ -1976,6 +1976,9 @@ test("init with no template and no source .po takes a target .po's msgids as the
     sourcePath: "po/it.po",
   });
   expect(q.err.join("\n")).not.toContain("lacks");
+  expect(q.err.join("\n")).toContain(
+    "corpus: 1 msgid(s) only older catalogues hold, likely removed since, are not read",
+  );
   const r = project();
   write(
     r.dir,

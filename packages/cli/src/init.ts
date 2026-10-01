@@ -400,7 +400,10 @@ function formatOf(
       missing && bare !== undefined && existsSync(path.join(ctx.cwd, bare))
         ? bare
         : undefined;
-    if (!sourcePath && missing) gitIgnored(ctx, relative);
+    if (!sourcePath && missing) {
+      gitIgnored(ctx, relative);
+      if (bare !== undefined) gitIgnored(ctx, bare);
+    }
     if (!sourcePath && missing)
       ctx.err(
         bare === undefined
@@ -431,6 +434,10 @@ function formatOf(
         if (target.lacking > 0)
           ctx.err(
             `corpus: ${target.file} lacks ${target.lacking} msgid(s) another current catalogue holds; those are not read`,
+          );
+        if (target.older > 0)
+          ctx.err(
+            `corpus: ${target.older} msgid(s) only older catalogues hold, likely removed since, are not read`,
           );
         return { adapter: "gettext", sourcePath: target.file };
       }
@@ -1017,7 +1024,7 @@ function gitIgnored(ctx: RunContext, rel: string): void {
 function sourceFromTargets(
   cwd: string,
   pattern: string,
-): { file: string; lacking: number } | undefined {
+): { file: string; lacking: number; older: number } | undefined {
   const read = patternFiles(cwd, pattern)
     .filter((file) => statSync(path.join(cwd, file)).isFile())
     .map((file) => {
@@ -1043,7 +1050,15 @@ function sourceFromTargets(
     (a, b) => b.ids.size - a.ids.size || a.file.localeCompare(b.file),
   )[0]!;
   const current = new Set(pool.flatMap((r) => [...r.ids]));
-  return { file: chosen.file, lacking: current.size - chosen.ids.size };
+  // What only older catalogues hold, likely removed since.
+  const older = new Set(
+    usable.flatMap((r) => [...r.ids]).filter((id) => !current.has(id)),
+  );
+  return {
+    file: chosen.file,
+    lacking: current.size - chosen.ids.size,
+    older: older.size,
+  };
 }
 
 // The `.pot` files in the directory above a `.po` pattern's language,
