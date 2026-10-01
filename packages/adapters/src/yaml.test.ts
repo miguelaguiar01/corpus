@@ -906,3 +906,21 @@ test("a block plural form changed to a text no block holds keeps the next form o
     ]);
   }
 });
+
+test("a keep-chomped block takes the blank lines after it into its own text, and a header comment stays (#1128)", () => {
+  const en = "en:\n  f:\n    one: one\n    other: many\n  s: S\n";
+  const pl =
+    "pl:\n  f:\n    one: |-\n      a\n\n    other: yy\n  s: |-\n    b\n\n";
+  const tr = { f: "{count, plural, one {x\n\n} other {yy}}", s: "z\n\n" };
+  const L = { source: "en", code: "pl" };
+  const once = entriesToYaml(en, tr, pl, L);
+  expect(yamlTranslations(once, "pl").map((e) => [e.id, e.source])).toEqual([
+    ["f", "{count, plural, one {x\n\n} other {yy}}"],
+    ["s", "z\n\n"],
+  ]);
+  // A second pull has nothing to change.
+  expect(entriesToYaml(en, tr, once, L)).toBe(once);
+  expect(
+    entriesToYaml(en, { s: "zz\nyy" }, "pl:\n  s: |- # note\n    b\n", L),
+  ).toBe("pl:\n  s: |- # note\n    zz\n    yy\n");
+});
