@@ -1570,6 +1570,8 @@ export type Shape = {
   // The placeholders written in tags' attributes, each as written where
   // the library writes it (#948).
   attrPlaceholders: Map<string, string | undefined>;
+  // The tag each of them is written in, the first (#1022).
+  attrTags: Map<string, string>;
   // Those written in the attributes of tags read as text (#986).
   proseAttrPlaceholders: Map<string, string | undefined>;
   // printf: each verb as written, by position (#594).
@@ -1595,6 +1597,7 @@ export function shapeOf(
     pairs: new Set(),
     opened: new Set(),
     attrPlaceholders: new Map(),
+    attrTags: new Map(),
     proseAttrPlaceholders: new Map(),
     written: new Map(),
     verbs: [],
@@ -1629,6 +1632,9 @@ export function shapeOf(
         )
           shape.proseAttrPlaceholders.set(attr.name, attr.written);
     if (node.kind === "tag") {
+      for (const attr of node.attrPlaceholders ?? [])
+        if (attr.kind === "placeholder" && !shape.attrTags.has(attr.name))
+          shape.attrTags.set(attr.name, tagIdentity(node));
       shape.tags.add(tagIdentity(node));
       if (!node.self) shape.opened.add(tagIdentity(node));
       if (!node.self && node.children.length > 0)

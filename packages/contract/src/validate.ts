@@ -176,10 +176,20 @@ function tagKey(identity: string): string {
   const at = identity.indexOf(" ");
   if (at < 0) return identity;
   const pairs: string[] = [];
+  // A placeholder where a name goes, Relay's `{ $attrs }`, is one token,
+  // its spaces aside, compared as written.
+  const brace = /^(?:\{\{[^{}]*\}\}|[%$]?\{[^{}]*\})$/;
   for (const m of identity
     .slice(at + 1)
-    .matchAll(/([^\s=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g)) {
-    const name = m[1]!.toLowerCase();
+    .matchAll(
+      /(\{\{[^{}]*\}\}|[%$]?\{[^{}]*\}|[^\s="'{]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|(\{\{[^{}]*\}\}|\{[^{}]*\}|[^\s"'=<>`]+)))?/g,
+    )) {
+    const token = m[1]!;
+    const name = brace.test(token)
+      ? token.replace(/\s+/g, "")
+      : /^[A-Za-z_:][-A-Za-z0-9_:.]*$/.test(token)
+        ? token.toLowerCase()
+        : token;
     let value = m[2] ?? m[3] ?? m[4];
     if (value !== undefined && URL_ATTRIBUTES.has(name))
       value = value.replace(/^[\t\n\f\r ]+|[\t\n\f\r ]+$/g, "");
@@ -685,11 +695,9 @@ export function validateTranslation(
   const ownTerm = (name: string) => syntax === "fluent" && name.startsWith("-");
   for (const name of actual.placeholders) {
     if (allowedValues.has(name) || passed.has(name) || ownTerm(name)) continue;
-    const inAttr = expected.attrPlaceholders.get(name);
-    const tag =
-      inAttr !== undefined && !actual.attrPlaceholders.has(name)
-        ? [...expected.tags].find((t) => t.includes(inAttr))
-        : undefined;
+    const tag = actual.attrPlaceholders.has(name)
+      ? undefined
+      : expected.attrTags.get(name);
     errors.push(
       tag !== undefined
         ? {
