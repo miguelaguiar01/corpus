@@ -885,9 +885,12 @@ async function libraryFor(
     return { library: { value: "counterpart", detected: file } };
   if (printf > doubles + singles)
     return { library: { value: "printf", detected: file } };
+  // An ICU plural or select names the catalogue ICU's, an id ending in
+  // `_other` aside (Mastodon's react-intl, #1020).
   if (
     doubles === 0 &&
     singles > 0 &&
+    !icu &&
     ids.some((id) => PLURAL_SUFFIX_RE.test(id))
   ) {
     return {

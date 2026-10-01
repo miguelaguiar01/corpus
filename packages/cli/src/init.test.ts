@@ -2171,3 +2171,17 @@ test("init maps ca@valencia to ca-valencia through languageFiles, and names the 
     'corpus: l/sr@foo.json names no language tag; left out: name its language, as languages: ["<tag>"] with languageFiles: { "<tag>": "sr@foo" } on the source',
   );
 });
+
+test("an ICU catalogue whose ids end in a plural suffix draws no i18next note (#1020)", async () => {
+  const p = project();
+  write(
+    p.dir,
+    "l/en.json",
+    JSON.stringify({
+      "account.familiar_followers_many": "Followed by {name1}, {name2}",
+      "hashtags.and_other": "{count, plural, one {# more} other {# more}}",
+    }),
+  );
+  expect(await run(initFor("l/{lang}.json"), p.ctx)).toBe(0);
+  expect(p.out.join("\n")).not.toMatch(/i18next keys/);
+});
