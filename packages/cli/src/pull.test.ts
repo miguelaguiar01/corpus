@@ -948,7 +948,8 @@ export default defineCorpus({
   expect(snapshot.strings.map((s) => s.id)).toEqual(["hello", "bye"]);
   expect(snapshot.seedTranslations).toEqual({ uz: { bye: "Xayr" } });
   const checked = ctx();
-  await run(["validate"], checked);
+  // A refused message that is no term is an invalid finding (#1081).
+  expect(await run(["validate"], checked)).toBe(1);
   const found = checked.output.join("\n");
   expect(found).toContain("i18n/en/app.ftl:size: invalid Fluent message");
   expect(found).toContain(
@@ -984,6 +985,26 @@ export default defineCorpus({
     "every string in the file was refused",
   );
   expect(terms.output.join("\n")).not.toContain("no snapshot was built");
+  // Nor is a term a translation validate can find invalid, in the source
+  // or in a target, as --server leaves it out (#1081).
+  writeFileSync(
+    path.join(repo, "i18n", "en", "app.ftl"),
+    "hello = Hello\nbye = Bye\n",
+  );
+  writeFileSync(
+    path.join(repo, "i18n", "uz", "app.ftl"),
+    "hello = Salom\nbye = Xayr\n",
+  );
+  writeFileSync(
+    path.join(repo, "i18n", "uz", "brands.ftl"),
+    "-brand = Firefox\n",
+  );
+  const valid = ctx();
+  expect(await run(["validate"], valid)).toBe(0);
+  expect(valid.output.join("\n")).not.toMatch(/-brand|-relay/);
+  expect(valid.output.join("\n")).toContain(
+    "validate: every translation is valid",
+  );
 });
 
 test("a language whose files use another code is pulled into that file, and seeded from it (#657)", async () => {

@@ -264,8 +264,7 @@ export async function buildSnapshotReport(
             id,
             hint: "",
             message: `invalid ${source.adapter === "fluent" ? "Fluent message" : "entry"}: ${reason ?? "not read"}`,
-            ...(source.adapter === "fluent" &&
-              id.split(":").at(-1)!.startsWith("-") && { term: true }),
+            ...(isFluentTerm(source, id) && { term: true }),
           }),
       );
     } catch (error) {
@@ -494,6 +493,12 @@ export async function buildSnapshotReport(
     notes: [...richTextAdvice(refused), ...notes],
     origin: new Map(sourced.map((s) => [s.entry.id, s.file])),
   };
+}
+
+// A Fluent term (`-brand`), under its namespace or not: a definition
+// the messages use, never a string the server holds (#991).
+export function isFluentTerm(source: FileSource, id: string): boolean {
+  return source.adapter === "fluent" && id.split(":").at(-1)!.startsWith("-");
 }
 
 // Whether the patterns of a source take the later one's text for an id
