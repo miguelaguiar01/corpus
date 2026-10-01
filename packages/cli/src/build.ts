@@ -85,6 +85,8 @@ export type BuildReport = {
   // What the build wants said that is not a refusal: a file whose empty
   // values took the key as the text (#589).
   notes: string[];
+  // Each string's source-language file, or `exec:<command>` (#1074).
+  origin: Map<string, string>;
 };
 // What an exporter says the repository already holds for its strings
 // (§3, §8): per target language, id to text; taken as seeds once the
@@ -490,6 +492,7 @@ export async function buildSnapshotReport(
     snapshot: parsed.data as Snapshot,
     refused,
     notes: [...richTextAdvice(refused), ...notes],
+    origin: new Map(sourced.map((s) => [s.entry.id, s.file])),
   };
 }
 

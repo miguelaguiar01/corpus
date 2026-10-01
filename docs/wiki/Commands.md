@@ -7,7 +7,7 @@ usage: corpus push [--dry-run] | corpus pull [--min-state <untranslated|translat
        corpus workbench [--port <n>] [--db <path>] [--open] [--no-provision]
        corpus project create [--name <name>] [--server <url>] | corpus project rotate-token [--server <url>]
        corpus status [--json]
-       corpus validate [--json]
+       corpus validate [--server] [--json]
        corpus mcp
        corpus agent queue <untranslated|stale|unverifiedSource|agentDrafts|invalid> [--lang <l>] [--type <t>] | string <key> | draft <key> <lang> <text> | propose <key> (--text <t> | --remove) | add <key> --file <f> --text <t> | proposals | withdraw <id> | status | --stdin
 ```
@@ -27,7 +27,7 @@ Most failures print one line per finding and a summary last, on stderr, prefixed
 | `init` | writes one | no | no |
 | `build` | yes | no | no |
 | `check` | yes | no | no |
-| `validate` | yes | no | no |
+| `validate` | yes | with `--server` | with `--server` |
 | `push` | yes | yes | yes |
 | `pull` | yes | yes | yes |
 | `status` | yes | yes | yes |

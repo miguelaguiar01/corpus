@@ -190,7 +190,7 @@ Paths are relative to the repository; one outside it fails the pull.
 
 `pull --check` does not run an import command unless the source says it may, `importCheck: true`: the check promises to write nothing, and an import command that writes regardless would break that. Declare it once your command, when the environment has `CORPUS_PULL_CHECK=1`, writes nothing and prints the same `{"changed": […]}` line for the files it would change; those count toward the check's exit code. The variable reaches the command through `npm run` and a chained command, where a flag would not. An import command without `importCheck` is named as not checked, and one that runs but prints no line is named the same way.
 
-Without `importCommand` the source is push-only, and every command that reads it says so. `corpus validate` runs the export command and validates the `translations` it hands over as it does a target file's, the command standing for the file; an exporter that emits none is named as not validated.
+Without `importCommand` the source is push-only, and every command that reads it says so. `corpus validate` runs the export command and validates the `translations` it hands over as it does a target file's, the command standing for the file; an exporter that hands over fewer than one per string and language is named with the count, and `corpus validate --server` checks the translations the instance holds.
 
 ### A worked example
 

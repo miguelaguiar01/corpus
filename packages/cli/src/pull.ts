@@ -647,7 +647,7 @@ function forType(
   return out;
 }
 
-async function download(
+export async function download(
   config: CorpusConfig,
   token: string,
   minState: MinState,
