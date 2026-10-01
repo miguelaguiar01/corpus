@@ -524,9 +524,13 @@ function writeTarget(
             id,
             "is a plural its object cannot hold (an =N branch, or a brace a form leaves open)",
           ),
+        onList: (id) =>
+          refused(id, "is a list in the file, which Corpus cannot read"),
       });
     case "xliff":
-      return entriesToXliff(template, translations, existing, language);
+      return entriesToXliff(template, translations, existing, language, (id) =>
+        refused(id, "is a unit of the file Corpus cannot read"),
+      );
     case "gettext":
       return entriesToGettext(
         template,

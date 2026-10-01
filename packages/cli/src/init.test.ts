@@ -2232,3 +2232,59 @@ test("files beside the catalogue that are catalogues of their own are said as fa
     "corpus: and 25 more file(s) that name no language tag",
   );
 });
+
+test("init names exec for a catalogue of entry objects, never writing a config that reads each field as a string (#1026)", async () => {
+  const p = project();
+  mkdirSync(path.join(p.dir, "_locales", "en"), { recursive: true });
+  writeFileSync(
+    path.join(p.dir, "_locales", "en", "messages.json"),
+    JSON.stringify({
+      smartling: { translate_paths: [{ path: "*/messageformat" }] },
+      "icu:hello": { messageformat: "Hello", description: "A greeting" },
+      "icu:bye": {
+        messageformat: "Bye {name}",
+        description: "Leaving",
+        ignoreUnused: true,
+      },
+    }),
+  );
+  const args = [
+    "init",
+    "--project",
+    "x",
+    "--source",
+    "en",
+    "--messages",
+    "_locales/{lang}/messages.json",
+  ];
+  expect(await run(args, p.ctx)).toBe(1);
+  expect(p.err.join("\n")).toContain(
+    "--messages _locales/{lang}/messages.json: each value is an entry object with its text in messageformat, which the messages source would read as a string per field; an exec source converts it",
+  );
+  expect(existsSync(path.join(p.dir, "corpus.config.ts"))).toBe(false);
+  // A nested catalogue of namespaces is no such file.
+  const q = project();
+  mkdirSync(path.join(q.dir, "locales"), { recursive: true });
+  writeFileSync(
+    path.join(q.dir, "locales", "en.json"),
+    JSON.stringify({
+      common: { message: "Hi", save: "Save" },
+      auth: { message: "Log in", out: "Log out" },
+      extra: { title: "T" },
+    }),
+  );
+  expect(
+    await run(
+      [
+        "init",
+        "--project",
+        "x",
+        "--source",
+        "en",
+        "--messages",
+        "locales/{lang}.json",
+      ],
+      q.ctx,
+    ),
+  ).toBe(0);
+});

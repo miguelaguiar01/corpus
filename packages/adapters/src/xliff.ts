@@ -285,14 +285,14 @@ function unit(
 
 // Every unit of a file, 1.2's `<trans-unit>` then 2.0's `<unit>`, each
 // in document order.
-export function xliffUnits(xml: string): XliffUnit[] {
+export function xliffUnits(xml: string, onRefused?: OnRefused): XliffUnit[] {
   const { text } = hidden(xml);
   // A namespace prefix (`<xlf:trans-unit>`) would read as no unit at all.
   if (new RegExp(`<[\\w.-]+:(?:trans-unit|unit)${NAME_END}`).test(text))
     throw new Error(
       "xliff: a file whose elements carry a namespace prefix is not read; write them unprefixed",
     );
-  return unitSpans(xml).map((u) => {
+  return unitSpans(xml, onRefused).map((u) => {
     const body = without(xml, u.start, u.end, u.cuts);
     const content = (span: Span) => without(xml, span.start, span.end, u.cuts);
     return unit(
@@ -311,9 +311,9 @@ export function xliffUnits(xml: string): XliffUnit[] {
 // description and meaning as the note.
 export function xliffToEntries(
   xml: string,
-  options: { type: string },
+  options: { type: string; onRefused?: OnRefused },
 ): StringEntry[] {
-  return xliffUnits(xml).map((u) => ({
+  return xliffUnits(xml, options.onRefused).map((u) => ({
     id: u.id,
     type: options.type,
     source: u.source,
@@ -332,8 +332,11 @@ function exampleOf(source: string, values: Record<string, string>) {
 
 // A target file's translations: the units whose target someone wrote,
 // by id; a target still `new` is work, not a translation.
-export function xliffTranslations(xml: string): StringEntry[] {
-  return xliffUnits(xml)
+export function xliffTranslations(
+  xml: string,
+  onRefused?: OnRefused,
+): StringEntry[] {
+  return xliffUnits(xml, onRefused)
     .filter((u) => u.translated)
     .map((u) => ({ id: u.id, type: "", source: u.target! }));
 }
@@ -415,10 +418,20 @@ function blankInside(
   return inner;
 }
 
-function unitSpans(xml: string): UnitSpan[] {
+export type OnRefused = (id: string, reason: string) => void;
+
+// A unit that does not read is named through `onRefused` and left out,
+// its bytes the file's (#1026); without it, the file's error.
+function unitSpans(xml: string, onRefused?: OnRefused): UnitSpan[] {
   // Found in the text with comments and CDATA hidden, and each unit's
   // foreign elements blanked within it, so none of theirs is taken for
   // the unit's own (#900, #917).
+  const refused = new Set<number>();
+  const refuse = (id: string, start: number, error: unknown) => {
+    if (!onRefused || !(error instanceof Error)) throw error;
+    refused.add(start);
+    onRefused(id, error.message);
+  };
   const read = hidden(xml);
   let text = read.text;
   const foreign: Span[] = [];
@@ -485,28 +498,38 @@ function unitSpans(xml: string): UnitSpan[] {
   let at = 0;
   for (const u of [...units].sort((x, y) => x.start - y.start)) {
     if (u.start < at) continue;
-    blanked +=
-      text.slice(at, u.start) +
-      blankInside(text.slice(u.start, u.end), u.id, u.start, foreign);
+    let inner = text.slice(u.start, u.end);
+    try {
+      inner = blankInside(inner, u.id, u.start, foreign);
+    } catch (error) {
+      refuse(u.id, u.start, error);
+    }
+    blanked += text.slice(at, u.start) + inner;
     at = u.end;
   }
   text = blanked + text.slice(at);
   const cuts = [...read.comments, ...foreign].sort((x, y) => x.start - y.start);
   for (const { version, id, start, end } of units) {
-    if (version === "2.0") {
-      const segments =
-        text.slice(start, end).match(new RegExp(`<segment${NAME_END}`, "g"))
-          ?.length ?? 0;
-      if (segments > 1)
-        throw new Error(
-          `xliff: unit ${id} has ${segments} segments; a unit is read as one text`,
-        );
+    if (refused.has(start)) continue;
+    let source, target, segment;
+    try {
+      if (version === "2.0") {
+        const segments =
+          text.slice(start, end).match(new RegExp(`<segment${NAME_END}`, "g"))
+            ?.length ?? 0;
+        if (segments > 1)
+          throw new Error(
+            `xliff: unit ${id} has ${segments} segments; a unit is read as one text`,
+          );
+      }
+      source = find(start, end, "source", id);
+      if (!source) continue;
+      target = find(start, end, "target", id);
+      segment = version === "2.0" ? find(start, end, "segment", id) : undefined;
+    } catch (error) {
+      refuse(id, start, error);
+      continue;
     }
-    const source = find(start, end, "source", id);
-    if (!source) continue;
-    const target = find(start, end, "target", id);
-    const segment =
-      version === "2.0" ? find(start, end, "segment", id) : undefined;
     out.push({
       id,
       version,
@@ -583,6 +606,9 @@ export function entriesToXliff(
   translations: Record<string, string>,
   existing: string | undefined,
   language: string,
+  // A translation for a unit the target file holds and Corpus cannot
+  // read, which is left as the file has it.
+  onRefused?: OnRefused,
 ): string {
   translations = ownRecord(translations);
   const base =
@@ -590,10 +616,15 @@ export function entriesToXliff(
       ? targetFrom(template, language)
       : existing;
   const eol = eolOf(base);
-  const sources = new Map(unitSpans(template).map((u) => [u.id, u]));
+  const ignore: OnRefused = () => {};
+  const sources = new Map(unitSpans(template, ignore).map((u) => [u.id, u]));
   const patches: Patch[] = [];
   const seen = new Set<string>();
-  for (const u of unitSpans(base)) {
+  const unread: Record<string, string> = {};
+  for (const u of unitSpans(base, (id, reason) => {
+    seen.add(id);
+    unread[id] = reason;
+  })) {
     seen.add(u.id);
     const text = translations[u.id];
     if (text === undefined) continue;
@@ -604,13 +635,15 @@ export function entriesToXliff(
       : without(base, u.source.start, u.source.end, u.cuts);
     patches.push(...targetPatches(base, u, text, sourceXml, eol));
   }
+  for (const [id, reason] of Object.entries(unread))
+    if (translations[id] !== undefined) onRefused?.(id, reason);
   let out = applied(base, patches);
   // Units the target file lacks, copied from the source with their target.
   const missing = Object.keys(translations).filter(
     (id) => !seen.has(id) && sources.has(id),
   );
   if (missing.length > 0) {
-    const last = unitSpans(out).at(-1);
+    const last = unitSpans(out, ignore).at(-1);
     const at = last ? last.end : out.search(/<\/(?:body|file)>/);
     if (at >= 0) {
       const indent = last ? lineIndent(out, last.start) : "";
@@ -685,7 +718,10 @@ export function applyXliffOps(xml: string, ops: SourceOp[]): string {
   let out = xml;
   const eol = eolOf(xml);
   for (const op of ops) {
-    const units = unitSpans(out);
+    const unread = new Set<string>();
+    const units = unitSpans(out, (id) => unread.add(id));
+    // A unit Corpus cannot read is the file's, left as it is.
+    if (unread.has(op.id)) continue;
     const u = units.find((unit) => unit.id === op.id);
     if (op.kind === "delete") {
       if (!u) continue;

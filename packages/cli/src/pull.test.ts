@@ -1981,6 +1981,25 @@ export default defineCorpus({
   expect(await run(["pull"], ctx())).toBe(0);
   expect(read("l/de.json")).toBe(de);
   expect(read("x/messages.de.xlf")).toBe(xde);
+  // A translation for one is named and not written.
+  await serve(200, {
+    ...PAYLOAD,
+    types: { a: "ui", b: "ui", c: "ui", d: "ui", u1: "ui", u2: "ui" },
+    translations: {
+      de: { a: "A-de", c: "C-de", d: "D-de", u1: "Eins", u2: "Zwei" },
+    },
+    minState: "untranslated",
+  });
+  const pulled = ctx();
+  expect(await run(["pull"], pulled)).toBe(0);
+  expect(read("l/de.json")).toBe(de);
+  expect(read("x/messages.de.xlf")).toBe(xde);
+  expect(pulled.output.join("\n")).toContain(
+    "l/de.json: d is a list in the file, which Corpus cannot read; not written",
+  );
+  expect(pulled.output.join("\n")).toContain(
+    "x/messages.de.xlf: u2 is a unit of the file Corpus cannot read; not written",
+  );
   // A source's own: refused by name, the build goes on, and exits 1.
   writeFileSync(
     path.join(repo, "l", "en.json"),

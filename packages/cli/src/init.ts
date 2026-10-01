@@ -574,7 +574,45 @@ function formatOf(
   if (/\.ftl$/i.test(messages)) return { adapter: "fluent" };
   const unreadable = unreadableFile(sourceFile);
   if (unreadable) throw new CliError(`--messages ${messages}: ${unreadable}`);
+  const field = entryField(sourceFile);
+  if (field)
+    throw new CliError(
+      `--messages ${messages}: each value is an entry object with its text in ${field}, which the messages source would read as a string per field; an exec source converts it`,
+    );
   return { adapter: "messages" };
+}
+
+// FormatJS's extract formats and Signal's write each string as an
+// object, its text in one field (#1001); the smartling format adds a
+// config object of that name. Chrome's shape is a library of its own.
+const ENTRY_FIELDS = [
+  "messageformat",
+  "defaultMessage",
+  "message",
+  "string",
+  "translation",
+] as const;
+
+function entryField(file: string): string | undefined {
+  if (!file.endsWith(".json") || chromeShaped(file)) return undefined;
+  let data: unknown;
+  try {
+    data = JSON.parse(stripBom(readFileSync(file, "utf8")));
+  } catch {
+    return undefined;
+  }
+  if (data === null || typeof data !== "object" || Array.isArray(data))
+    return undefined;
+  const entries = Object.entries(data).filter(([key]) => key !== "smartling");
+  if (entries.length === 0) return undefined;
+  return ENTRY_FIELDS.find((field) =>
+    entries.every(
+      ([, value]) =>
+        value !== null &&
+        typeof value === "object" &&
+        typeof (value as Record<string, unknown>)[field] === "string",
+    ),
+  );
 }
 
 function nextSteps(

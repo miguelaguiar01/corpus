@@ -308,6 +308,9 @@ export function entriesToMessages(
     suffixPlurals?: boolean;
     sourceLanguage?: string;
     onRefused?: Refusal;
+    // A translation for a list the file holds, which Corpus does not
+    // read and leaves as it is (#1026).
+    onList?: (id: string) => void;
   } = {},
 ): string {
   translations = ownRecord(translations);
@@ -367,8 +370,13 @@ export function entriesToMessages(
             : deleteLeaf(text, path);
     }
   }
+  const lists = listIds(baseTree);
   for (const id of Object.keys(translations)) {
     if (seen.has(id)) continue;
+    if (lists.has(id)) {
+      options.onList?.(id);
+      continue;
+    }
     const path = sourcePaths.get(id) ?? (nested ? id.split(".") : [id]);
     text = sourceSuffix.has(id)
       ? writeSuffix(
@@ -392,6 +400,18 @@ export function entriesToMessages(
         : addLeaf(text, path, translations[id]!, style.indent, order);
   }
   return text;
+}
+
+function listIds(
+  tree: unknown,
+  path: string[] = [],
+  out = new Set<string>(),
+): Set<string> {
+  if (Array.isArray(tree)) out.add(path.join("."));
+  else if (tree !== null && typeof tree === "object")
+    for (const [key, value] of Object.entries(tree))
+      listIds(value, [...path, key], out);
+  return out;
 }
 
 // Chrome i18n (#595): a translation is an entry's `message`, edited in

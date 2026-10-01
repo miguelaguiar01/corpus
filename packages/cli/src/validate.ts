@@ -280,7 +280,7 @@ export async function validateRepo(
           language: config.sourceLanguage,
           code: "invalid-icu",
           severity: "invalid",
-          message: `invalid Fluent message: ${reason ?? "not read"}`,
+          message: `invalid ${source.adapter === "fluent" ? "Fluent message" : "entry"}: ${reason ?? "not read"}`,
         });
       },
     );
@@ -314,21 +314,21 @@ export async function validateRepo(
         false,
         language,
         // Qt reads such forms, as Fluent does such messages; Corpus
-        // cannot, so it says so, once (#751, #991).
+        // cannot, so it says so, once (#751, #991, #1026).
         (key, reason) =>
           // A message the source cannot read is that source's finding,
           // and a target's own term no translation at all (#990).
           refusedSource.has(key) ||
           (isFluentTerm(source, key) && !sources.has(key)) ||
           findings.push(
-            source.adapter === "fluent"
+            source.adapter !== "qt-ts"
               ? {
                   file,
                   key,
                   language,
                   code: "unread-message",
                   severity: "warning",
-                  message: `Corpus cannot read this message (${reason ?? "not read"}); it is not seeded, and pull leaves it as the file has it`,
+                  message: `Corpus cannot read this ${source.adapter === "fluent" ? "message" : "entry"} (${reason ?? "not read"}); it is not seeded, and pull leaves it as the file has it`,
                 }
               : {
                   file,

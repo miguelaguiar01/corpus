@@ -27,6 +27,9 @@ export type MessagesOptions = {
   // language, `sourceLanguage`, picks.
   suffixPlurals?: boolean;
   sourceLanguage?: string;
+  // A list Corpus cannot read as text, named with why and left out
+  // (#1026); without this, the file's error.
+  onRefused?: (id: string, reason: string) => void;
 };
 
 const SUFFIX = /^(.+)_(zero|one|two|few|many|other)$/;
@@ -323,9 +326,9 @@ function takeKeys(
 // Flat or nested key-value catalog (already-parsed JSON/TS) -> snapshot
 // string entries (§3). Nested keys flatten to dot-paths; the leaf string
 // is the source, the flattened key is the stable id (§4). Input is
-// `unknown` because it comes straight from JSON.parse: values must be
-// strings, and a non-string leaf is a hard error naming its path, so a
-// malformed catalog fails loudly rather than dropping strings silently.
+// `unknown` because it comes straight from JSON.parse: a null, number
+// or boolean leaf is no string and skipped, a list is refused by name,
+// and any other non-string leaf is the file's error naming its path.
 export function messagesToEntries(
   data: unknown,
   options: MessagesOptions,
@@ -458,6 +461,19 @@ function walk(
     paths.set(id, path);
     out.push({ id, type, source: node });
     return;
+  }
+  if (path.length > 0) {
+    // As yaml's (§3): a null, number or boolean is no string. A list may
+    // hold text (i18next's `returnObjects`), so it is named (#1026).
+    if (node === null || typeof node === "number" || typeof node === "boolean")
+      return;
+    if (Array.isArray(node) && options.onRefused) {
+      options.onRefused(
+        path.join("."),
+        `the value at ${path.join(".")} is a list; Corpus reads strings and nested objects`,
+      );
+      return;
+    }
   }
   if (node === null || typeof node !== "object" || Array.isArray(node)) {
     throw new Error(
