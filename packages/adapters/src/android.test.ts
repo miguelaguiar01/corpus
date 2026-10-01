@@ -322,6 +322,7 @@ test("a values directory's language is androidDirOf's inverse, a non-language qu
   // language, which init compares with androidDirOf's directory.
   expect(androidLanguageOf("values-EN")).toBe("en");
   expect(androidLanguageOf("values-b+pt+BR")).toBe("pt-BR");
+  expect(androidLanguageOf("values-b+sr+latn")).toBe("sr-Latn");
   for (const dir of [
     "values",
     "values-sw360dp",

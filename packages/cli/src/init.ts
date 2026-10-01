@@ -309,7 +309,6 @@ async function htmlOnlyTags(
   sourceLanguage: string,
 ): Promise<string[]> {
   const declared = source as FileSource;
-  // A `{ns}` pattern's source files, each (#993).
   // A `{ns}` pattern's source files, each, its ids named as build names
   // them (#993).
   const files = source.path.includes("{ns}")

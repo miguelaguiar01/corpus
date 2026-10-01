@@ -604,8 +604,19 @@ export function androidLanguageOf(dir: string): string | undefined {
   if (qualifier === undefined || qualifier.toLowerCase() === "car")
     return undefined;
   const bcp47 = /^b\+([A-Za-z]{2,3})((?:\+[A-Za-z0-9]{2,8})*)$/.exec(qualifier);
+  // Subtags in BCP 47's case: a script title-cased, a region upper.
   if (bcp47)
-    return `${bcp47[1]!.toLowerCase()}${bcp47[2]!.replaceAll("+", "-")}`;
+    return [
+      bcp47[1]!.toLowerCase(),
+      ...bcp47[2]!
+        .split("+")
+        .filter(Boolean)
+        .map((sub) =>
+          sub.length === 4
+            ? sub[0]!.toUpperCase() + sub.slice(1).toLowerCase()
+            : sub.toUpperCase(),
+        ),
+    ].join("-");
   // aapt2 reads the language and region in either case.
   const legacy = /^([a-z]{2,3})(?:-r([a-z]{2}))?$/i.exec(qualifier);
   if (!legacy) return undefined;
