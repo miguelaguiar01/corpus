@@ -425,3 +425,23 @@ test("a new string for a namespaced file takes the file's namespace, and the pus
     "admin:Error: file not found",
   );
 });
+
+test("an add to a source whose source-language file languageFiles maps is placed in that file (#994)", () => {
+  const { db, p, ana } = pushed();
+  const sources = (FIXTURE.sources ?? []).map((s) =>
+    s.path === "src/ui/{lang}.json" ? { ...s, path: "src/ui/base.json" } : s,
+  );
+  applySnapshot(db, p.id, { ...FIXTURE, sources });
+  expect(
+    proposeAdd(db, {
+      projectId: p.id,
+      sourcePath: "src/ui/base.json",
+      key: "ui.back",
+      text: "Voltar",
+      actor: ana,
+    }).ok,
+  ).toBe(true);
+  expect(sourceChangesFor(db, p.id)).toEqual([
+    expect.objectContaining({ id: "ui.back", file: "src/ui/base.json" }),
+  ]);
+});

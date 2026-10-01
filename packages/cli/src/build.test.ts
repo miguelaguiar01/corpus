@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  corpusConfigSchema,
   defineCorpus,
   snapshotSchema,
   type CorpusConfig,
@@ -1623,4 +1624,40 @@ test("a Rails catalogue's plurals take rails-i18n's keys where Gemfile.lock list
   expect(more.files?.fr).toBeUndefined();
   expect(more.files?.["zh-CN"]).toEqual(["one", "other"]);
   rmSync(dir, { recursive: true, force: true });
+});
+
+test("a source language languageFiles maps is read from its file, and proposals are placed there (#994)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-994-"));
+  mkdirSync(path.join(dir, "i18n"));
+  writeFileSync(path.join(dir, "i18n", "english.json"), '{ "hi": "Hello" }\n');
+  writeFileSync(path.join(dir, "i18n", "de.json"), '{ "hi": "Hallo" }\n');
+  const config = expandSources(
+    corpusConfigSchema.parse({
+      project: "p",
+      server: "http://localhost:3000",
+      sourceLanguage: "en",
+      languages: ["en", "de"],
+      sources: [
+        {
+          adapter: "messages",
+          type: "ui",
+          path: "i18n/{lang}.json",
+          languageFiles: { en: "english" },
+        },
+      ],
+    }),
+    dir,
+  );
+  const { snapshot } = await buildSnapshotReport(config, dir);
+  expect(snapshot.strings).toEqual([
+    expect.objectContaining({
+      id: "hi",
+      source: "Hello",
+      file: "i18n/english.json",
+    }),
+  ]);
+  expect(snapshot.seedTranslations).toEqual({ de: { hi: "Hallo" } });
+  expect(snapshot.sources).toEqual([
+    expect.objectContaining({ path: "i18n/english.json" }),
+  ]);
 });
