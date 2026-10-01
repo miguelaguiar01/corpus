@@ -31,6 +31,7 @@ contract (`corpus/1`) is the only one.
 - `languageFiles` may map the source language, as `{ en: "templates" }` for Pontoon's layout; a `sourcePath` a source does not read is refused (#994).
 - ICU's `selectordinal` reads, validates by each language's ordinal rule, and previews (#995).
 - `corpus init` takes a target `.po` as the source where no template is committed, and says when a missing source file is git-ignored (#996).
+- Qt: a percentage written `%10` is text, `%n` is a numerus translation's count, and a lookalike `٪n` is refused (#1003).
 
 ## [0.21.0] - 2026-09-29
 

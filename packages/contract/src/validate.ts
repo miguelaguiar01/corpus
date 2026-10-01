@@ -170,9 +170,15 @@ function baseOf(tag: string): string {
 
 // The markers Qt fills in a translation (#1003): `QString::arg` replaces
 // as many as the source has, lowest-numbered first, so a higher one is
-// text (Turkish `%10` for 10%); and in a numerus message translate()
-// fills every `%n`.
-function qtFilled(target: Shape, source: Shape): Shape {
+// text, and is read as text where it writes a number the source writes
+// (Turkish `%10` for 10%, `%100` for 100%); one that writes no such
+// number is still named, Qt printing it as `%1`.
+function qtFilled(
+  target: Shape,
+  source: Shape,
+  targetText: string,
+  sourceText: string,
+): Shape {
   // `%1` to `%99`: a `%0` is no marker .arg() ranks, kept to be named.
   const numbered = (shape: Shape) =>
     [...shape.placeholders].filter((n) => /^\d+$/.test(n) && n !== "0");
@@ -182,9 +188,16 @@ function qtFilled(target: Shape, source: Shape): Shape {
       .sort((a, b) => Number(a) - Number(b))
       .slice(0, k),
   );
+  const numberInSource = (name: string) =>
+    [...targetText.matchAll(new RegExp(`%L?0*${name}(\\d*)`, "g"))].some((m) =>
+      new RegExp(`(?<![\\d%])${name}${m[1]}(?!\\d)`).test(
+        sourceText.replace(/%L?(?:\d\d?|n)/g, " "),
+      ),
+    );
   const placeholders = new Set(
     [...target.placeholders].filter(
-      (n) => !/^\d+$/.test(n) || n === "0" || filled.has(n),
+      (n) =>
+        !/^\d+$/.test(n) || n === "0" || filled.has(n) || !numberInSource(n),
     ),
   );
   return { ...target, placeholders };
@@ -419,7 +432,7 @@ export function validateTranslation(
   const whole = shapeOf(sourceNodes);
   const actual =
     syntax === "qt"
-      ? qtFilled(shapeOf(targetNodes), whole)
+      ? qtFilled(shapeOf(targetNodes), whole, target, source)
       : shapeOf(targetNodes);
   // A lookalike percent before a marker is text Qt prints (#1003).
   if (syntax === "qt") {
@@ -538,7 +551,14 @@ export function validateTranslation(
   for (const name of required) {
     if (actualValues.has(name)) continue;
     // `%n` shows the count a dropped `%1` would have (#1003).
-    if (numerus && /^\d+$/.test(name) && actual.placeholders.has("n")) {
+    // Only where the source counts through `.arg()` alone, with no `%n`
+    // of its own: KeePassXC's `over %1 year(s)`.
+    if (
+      numerus &&
+      !whole.placeholders.has("n") &&
+      /^\d+$/.test(name) &&
+      actual.placeholders.has("n")
+    ) {
       errors.push({
         code: "count-for-marker",
         name,
