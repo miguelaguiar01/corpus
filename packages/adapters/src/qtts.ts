@@ -536,7 +536,10 @@ function translationElement(
     c === undefined ? undefined : formOf(branches, c);
   // In a short file read as one category (#1004), a form no category
   // reads stood for that category's text, and changes with it.
-  const short = shortOf(m, categories).short;
+  const { short: isShort, readable } = shortOf(m, categories);
+  // Only a short file read as one category is one; any other is work,
+  // and a draft on it writes every form of the rule (#1004).
+  const short = isShort && readable;
   const read = categories.map((c, i) =>
     c === undefined
       ? short
@@ -556,7 +559,7 @@ function translationElement(
       i < m.forms.length
         ? f === m.forms[i]
         : categories[i] === undefined ||
-          (m.forms.length > 0 && f === m.forms[m.forms.length - 1]),
+          (short && f === m.forms[m.forms.length - 1]),
     )
   )
     return undefined;

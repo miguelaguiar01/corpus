@@ -802,3 +802,17 @@ test("only a one-category language's short file is read; others stay work; an ed
     })[0]!.source,
   ).toBe("{count, plural, other {%n file(s)}}");
 });
+
+test("a draft on a short file that stays unread writes Qt's every form (#1004 review)", () => {
+  const ru = numerus("ru", ["%n МБ", "%n МБ"]);
+  const out = entriesToQtTs(
+    numerus("", ["", "", ""]),
+    {
+      "Main | %n file(s)":
+        "{count, plural, one {%n МБ} few {%n МБ} many {%n МБ} other {%n МБ}}",
+    },
+    ru,
+    { tag: "ru", code: "ru" },
+  );
+  expect(out.match(/<numerusform>/g)).toHaveLength(3);
+});
