@@ -1005,17 +1005,20 @@ function nodeEnd(text: string, range: readonly number[]): number {
   return end;
 }
 
-// Where a pair's content ends: a map's last item's, since the library
-// lets a map's range take the comment lines after it (#804).
-// The pair whose value a pair's lines end with: its own, or its map's
-// last, as deep as it goes.
-function lastPair(pair: Pair): Pair {
+// The pair whose value a pair's lines end with once `removed` is gone:
+// its own, or its map's last kept one, as deep as it goes; the pair
+// itself where its map keeps none.
+function lastPair(pair: Pair, removed: ReadonlySet<Pair>): Pair {
   const value = pair.value as Node | null;
-  return isMap(value) && !value.flow && value.items.length > 0
-    ? lastPair(value.items[value.items.length - 1] as Pair)
-    : pair;
+  if (!isMap(value) || value.flow) return pair;
+  const last = [...value.items]
+    .reverse()
+    .find((p) => !removed.has(p as Pair)) as Pair | undefined;
+  return last ? lastPair(last, removed) : pair;
 }
 
+// Where a pair's content ends: a map's last item's, since the library
+// lets a map's range take the comment lines after it (#804).
 function contentEnd(text: string, pair: Pair): number {
   const value = pair.value as Node | null;
   if (isMap(value) && !value.flow && value.items.length > 0)
@@ -1058,7 +1061,7 @@ function pairRemoval(
     .slice(0, index)
     .reverse()
     .find((p) => !removed.has(p as Pair)) as Pair | undefined;
-  const last = kept && lastPair(kept);
+  const last = kept && lastPair(kept, removed);
   const value = last?.value as Node | null | undefined;
   const keep =
     last !== undefined &&
@@ -1126,13 +1129,20 @@ export function applyYamlOps(
   if (removals.length === 0) return out;
   const root = rootPairOf(parseDocument(out, { uniqueKeys: false }), out, code);
   const spans: Patch[] = [];
+  // Every pair the batch removes, at any depth, so a removal looks past
+  // all of them for the value before it (#1130).
+  const gone = new Set<Pair>();
+  const collect = (map: YAMLMap, path: string[]) => {
+    for (const pair of map.items) {
+      const key = keyOf(pair, out);
+      if (key === undefined) continue;
+      const id = [...path, key].join(".");
+      if (removals.includes(id)) gone.add(pair);
+      else if (isMap(pair.value) && !pair.value.flow)
+        collect(pair.value, [...path, key]);
+    }
+  };
   const walk = (map: YAMLMap, path: string[]) => {
-    const gone = new Set(
-      map.items.filter((pair) => {
-        const key = keyOf(pair, out);
-        return key !== undefined && removals.includes([...path, key].join("."));
-      }),
-    );
     for (const pair of map.items) {
       const key = keyOf(pair, out);
       if (key === undefined) continue;
@@ -1148,6 +1158,7 @@ export function applyYamlOps(
       } else if (isMap(pair.value)) walk(pair.value, [...path, key]);
     }
   };
+  if (root && isMap(root.value) && !root.value.flow) collect(root.value, []);
   if (root && isMap(root.value) && root.value.flow) {
     // A root written inline cannot lose a line either (#865).
     const keys = root.value.items.flatMap((pair) => keyOf(pair, out) ?? []);
