@@ -753,18 +753,43 @@ test("a nested argument is listed once, and branchingNodes reaches it unless tol
   expect(branchingNodes(parsed.nodes, false).map((n) => n.arg)).toEqual(["g"]);
 });
 
-function within(ms: number, f: () => unknown) {
-  const start = performance.now();
-  f();
-  expect(performance.now() - start).toBeLessThan(ms);
+// Linear time, not a speed (#1136): four times the input takes about
+// four times as long, under 8 where a quadratic pass takes sixteen.
+// Timed in the process's CPU time, which a loaded runner's other work
+// does not add to, the best of five runs of each size taken in turn
+// after a warm run of both, so neither is timed before the code is
+// optimised.
+function linear(
+  make: (n: number) => string,
+  n: number,
+  f: (text: string) => unknown,
+) {
+  const cpu = (text: string) => {
+    const start = process.cpuUsage();
+    f(text);
+    const { user, system } = process.cpuUsage(start);
+    return (user + system) / 1000;
+  };
+  const small = make(n);
+  const large = make(4 * n);
+  f(large);
+  f(small);
+  let fastSmall = Infinity;
+  let fastLarge = Infinity;
+  for (let i = 0; i < 5; i++) {
+    fastSmall = Math.min(fastSmall, cpu(small));
+    fastLarge = Math.min(fastLarge, cpu(large));
+  }
+  expect(fastLarge / Math.max(fastSmall, 1)).toBeLessThan(8);
 }
 
 test("hostile input is read in bounded time and fails cleanly, never with a thrown error (#861)", () => {
   // The markup retry, once quadratic.
-  const retried = "<b>{g, select, a {</b>} other {x}} ".repeat(3000);
-  within(1000, () => parseIcu(retried, "icu", { html: "markup" }));
-  within(2000, () =>
-    validateTranslation(retried, retried, "en", "icu", { richText: "html" }),
+  const retried = (n: number) =>
+    "<b>{g, select, a {</b>} other {x}} ".repeat(n);
+  linear(retried, 750, (text) => parseIcu(text, "icu", { html: "markup" }));
+  linear(retried, 750, (text) =>
+    validateTranslation(text, text, "en", "icu", { richText: "html" }),
   );
   // Nesting past any catalogue: a parse failure, not a stack overflow.
   const deep = `${"<b>".repeat(5000)}x${"</b>".repeat(5000)}`;
@@ -773,12 +798,12 @@ test("hostile input is read in bounded time and fails cleanly, never with a thro
   expect(validateTranslation(deep, deep).ok).toBe(false);
   // Retries the depth limit never meets: the chain inside plural
   // branches, which the step budget alone stops.
-  const shallow =
+  const shallow = (n: number) =>
     `{n, plural, other {${"<b>{g, select, a {</b>} other {x}} ".repeat(150)}}} `.repeat(
-      20,
+      n,
     );
-  within(500, () => {
-    const result = parseIcu(shallow, "icu", { html: "markup" });
+  linear(shallow, 5, (text) => {
+    const result = parseIcu(text, "icu", { html: "markup" });
     expect(!result.ok && result.errors[0]?.message).toMatch(/too many tags/);
   });
   // A real text never nears it: one such block parses.
@@ -792,19 +817,22 @@ test("hostile input is read in bounded time and fails cleanly, never with a thro
     ).ok,
   ).toBe(true);
   // The refusal's advice regex, once backtracking on long runs of spaces.
-  within(500, () => parseIcu(`{{a b}} {x${" ".repeat(32000)}`, "vue"));
+  linear(
+    (n) => `{{a b}} {x${" ".repeat(n)}`,
+    8000,
+    (text) => parseIcu(text, "vue"),
+  );
 });
 
 test("markup tags are paired in linear time, stray closes and opens alike (#924)", () => {
-  for (const text of [
-    "<a></b>".repeat(4300),
-    "<a></b>".repeat(17000),
-    "<a>".repeat(5000) + "</b>".repeat(3750),
-  ]) {
-    within(200, () =>
+  for (const [make, n] of [
+    [(n: number) => "<a></b>".repeat(n), 4300],
+    [(n: number) => "<a>".repeat(n) + "</b>".repeat((n * 3) / 4), 1250],
+  ] as const) {
+    linear(make, n, (text) =>
       validateTranslation("<a>x</a>", text, "ru", "icu", { richText: "html" }),
     );
-    within(200, () => parseIcu(text, "icu", { html: "markup" }));
+    linear(make, n, (text) => parseIcu(text, "icu", { html: "markup" }));
   }
   // A close pairs with the nearest open of its name; what opened inside
   // it and never closed is text.
@@ -817,18 +845,19 @@ test("markup tags are paired in linear time, stray closes and opens alike (#924)
 });
 
 test("counterpart's tags and vue's unclosed braces are read in linear time (#896)", () => {
-  const names = Array.from({ length: 6000 }, (_, i) => `<t${i}>`).join("");
-  for (const [text, library] of [
-    [names + names, "counterpart"],
-    ["<b>".repeat(30000), "counterpart"],
-    ["<b>x".repeat(20000), "counterpart"],
-    ["{".repeat(30000), "vue"],
-    ["{{".repeat(20000), "vue"],
-    ["{'".repeat(20000), "vue"],
-    ["|{".repeat(20000), "vue"],
+  const tags = (n: number) =>
+    Array.from({ length: n }, (_, i) => `<t${i}>`).join("");
+  for (const [make, n, library] of [
+    [(n: number) => tags(n) + tags(n), 1500, "counterpart"],
+    [(n: number) => "<b>".repeat(n), 7500, "counterpart"],
+    [(n: number) => "<b>x".repeat(n), 5000, "counterpart"],
+    [(n: number) => "{".repeat(n), 7500, "vue"],
+    [(n: number) => "{{".repeat(n), 5000, "vue"],
+    [(n: number) => "{'".repeat(n), 5000, "vue"],
+    [(n: number) => "|{".repeat(n), 5000, "vue"],
   ] as const) {
-    within(200, () => parseIcu(text, library));
-    within(200, () => partsOf(text, library));
+    linear(make, n, (text) => parseIcu(text, library));
+    linear(make, n, (text) => partsOf(text, library));
   }
   // What each reads is unchanged: a bare tag with no close, a pair, and
   // a pipe kept by a quoted brace or split by a bare one.
