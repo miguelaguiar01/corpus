@@ -176,14 +176,15 @@ function tagKey(identity: string): string {
   const at = identity.indexOf(" ");
   if (at < 0) return identity;
   const pairs: string[] = [];
+  const attrs = identity.slice(at + 1);
+  let read = 0;
+  let unread = "";
   // A placeholder where a name goes, Relay's `{ $attrs }`, is one token,
   // its spaces aside, compared as written.
   const brace = /^(?:\{\{[^{}]*\}\}|[%$]?\{[^{}]*\})$/;
-  for (const m of identity
-    .slice(at + 1)
-    .matchAll(
-      /(\{\{[^{}]*\}\}|[%$]?\{[^{}]*\}|[^\s="'{]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|(\{\{[^{}]*\}\}|\{[^{}]*\}|[^\s"'=<>`]+)))?/g,
-    )) {
+  for (const m of attrs.matchAll(
+    /(\{\{[^{}]*\}\}|[%$]?\{[^{}]*\}|[^\s="'{]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|(\{\{[^{}]*\}\}|\{[^{}]*\}|[^\s"'=<>`]+)))?/g,
+  )) {
     const token = m[1]!;
     const name = brace.test(token)
       ? token.replace(/\s+/g, "")
@@ -194,7 +195,13 @@ function tagKey(identity: string): string {
     if (value !== undefined && URL_ATTRIBUTES.has(name))
       value = value.replace(/^[\t\n\f\r ]+|[\t\n\f\r ]+$/g, "");
     pairs.push(value === undefined ? name : `${name}=${JSON.stringify(value)}`);
+    unread += attrs.slice(read, m.index);
+    read = m.index + m[0].length;
   }
+  unread += attrs.slice(read);
+  // Text no pair reads, a quote dropped or one stray (`href=x"`), is
+  // HTML's to read otherwise: the tag is compared as written.
+  if (/\S/.test(unread)) return identity;
   return `${identity.slice(0, at)} ${pairs.sort().join(" ")}`;
 }
 
@@ -781,10 +788,13 @@ export function validateTranslation(
     );
     // A Rails `_html` key's own markup, but a source's pair written with
     // nothing in it, `<a href="…"></a>` for a link, still hides its text.
-    if (options.richText === "html-key")
+    if (options.richText === "html-key") {
+      const actualTags = new Set([...actual.tags].map(tagKey));
+      const actualPairs = new Set([...actual.pairs].map(tagKey));
       for (const name of expected.pairs)
-        if (actual.tags.has(name) && !actual.pairs.has(name))
+        if (actualTags.has(tagKey(name)) && !actualPairs.has(tagKey(name)))
           errors.push({ code: "unpaired-tag", name });
+    }
   } else {
     // Compared as HTML reads them, said as each side writes them.
     const keys = (set: Set<string>) => new Set([...set].map(tagKey));
