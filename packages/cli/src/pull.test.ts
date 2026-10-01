@@ -963,11 +963,11 @@ export default defineCorpus({
   });
   expect(await run(["pull"], ctx())).toBe(0);
   expect(read("i18n/uz/app.ftl")).toBe(uz);
-  // A file of terms alone is listed, and builds the rest: no term was
-  // ever a string to archive.
+  // A file of terms Corpus cannot read is listed, and builds the rest:
+  // a term is not the strings a ruined file would archive.
   writeFileSync(
     path.join(repo, "i18n", "en", "brands.ftl"),
-    "-brand = Firefox\n-relay = Relay\n",
+    "-brand = { PLATFORM() }\n-relay = { OS() }\n",
   );
   writeFileSync(
     path.join(repo, "corpus.config.ts"),
@@ -979,14 +979,14 @@ export default defineCorpus({
   const terms = ctx();
   expect(await run(["build", "--out", out], terms)).toBe(1);
   expect(terms.output.join("\n")).toContain(
-    "i18n/en/brands.ftl [-brand]: invalid Fluent message: -brand is a term",
+    "i18n/en/brands.ftl [-brand]: invalid Fluent message: -brand calls a function",
   );
   expect(terms.output.join("\n")).not.toContain(
     "every string in the file was refused",
   );
   expect(terms.output.join("\n")).not.toContain("no snapshot was built");
-  // Nor is a term a translation validate can find invalid, in the source
-  // or in a target, as --server leaves it out (#1081).
+  // Nor is a refused term a translation validate can find invalid, in
+  // the source or in a target, as --server leaves it out (#1081).
   writeFileSync(
     path.join(repo, "i18n", "en", "app.ftl"),
     "hello = Hello\nbye = Bye\n",
@@ -1004,6 +1004,53 @@ export default defineCorpus({
   expect(valid.output.join("\n")).not.toMatch(/-brand|-relay/);
   expect(valid.output.join("\n")).toContain(
     "validate: every translation is valid",
+  );
+  // A term Corpus reads is a string like any message, seeded and
+  // pulled; a target's own term, which no source defines, is the
+  // locale's and no orphan (#990).
+  writeFileSync(
+    path.join(repo, "i18n", "en", "brands.ftl"),
+    "-brand = Firefox\n    .gender = masculine\n",
+  );
+  writeFileSync(
+    path.join(repo, "i18n", "en", "app.ftl"),
+    "hello = Hello { -brand }\nbye = Bye\n",
+  );
+  const uzBrands =
+    "-brand = Firefoxu\n    .gender = masculine\n-local = Mahalliy\n-os = { OS() }\n";
+  writeFileSync(path.join(repo, "i18n", "uz", "brands.ftl"), uzBrands);
+  writeFileSync(
+    path.join(repo, "i18n", "uz", "app.ftl"),
+    "hello = Salom { -brand } { -local }\nbye = Xayr\n",
+  );
+  const termsBuilt = ctx();
+  expect(await run(["build", "--out", out], termsBuilt)).toBe(0);
+  const withTerms = JSON.parse(readFileSync(out, "utf8")) as {
+    strings: { id: string; source: string }[];
+    seedTranslations: Record<string, Record<string, string>>;
+  };
+  expect(withTerms.strings).toContainEqual(
+    expect.objectContaining({ id: "-brand", source: "Firefox" }),
+  );
+  expect(withTerms.seedTranslations.uz).toMatchObject({
+    "-brand": "Firefoxu",
+    hello: "Salom {-brand} {-local}",
+  });
+  expect(withTerms.seedTranslations.uz!["-local"]).toBeUndefined();
+  const termsValid = ctx();
+  expect(await run(["validate"], termsValid)).toBe(0);
+  expect(termsValid.output.join("\n")).not.toMatch(/-local|-os/);
+  await serve(200, {
+    ...PAYLOAD,
+    types: { hello: "ui", bye: "ui", "-brand": "ui" },
+    translations: {
+      uz: { "-brand": "Firefoxa", hello: "Salom {-brand} {-local}" },
+    },
+    minState: "untranslated",
+  });
+  expect(await run(["pull"], ctx())).toBe(0);
+  expect(read("i18n/uz/brands.ftl")).toBe(
+    "-brand = Firefoxa\n    .gender = masculine\n-local = Mahalliy\n-os = { OS() }\n",
   );
 });
 

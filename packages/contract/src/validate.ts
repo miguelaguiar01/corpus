@@ -407,8 +407,11 @@ export function validateTranslation(
     (options.arguments ?? []).forEach((written, i) => {
       if (written) passed.set(String(i + 1), written);
     });
+  // A Fluent translation may use a term its source does not: the term
+  // is the locale's to define, not a value the code passes (#990).
+  const ownTerm = (name: string) => syntax === "fluent" && name.startsWith("-");
   for (const name of actual.placeholders) {
-    if (!expectedValues.has(name) && !passed.has(name))
+    if (!expectedValues.has(name) && !passed.has(name) && !ownTerm(name))
       errors.push({
         code: "unexpected-placeholder",
         name,
@@ -459,7 +462,12 @@ export function validateTranslation(
           ...(written ? { written } : {}),
         });
     for (const [name, written] of got)
-      if (!want.has(name) && !expectedValues.has(name) && !passed.has(name))
+      if (
+        !want.has(name) &&
+        !expectedValues.has(name) &&
+        !passed.has(name) &&
+        !ownTerm(name)
+      )
         errors.push({
           code: "unexpected-placeholder",
           name,

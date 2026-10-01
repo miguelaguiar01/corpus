@@ -151,3 +151,31 @@ test("an escape past Unicode is a parse error, a lone surrogate reads as U+FFFD 
   const lone = parseIcu('{"\\uD800"}', "fluent");
   expect(lone.ok && lone.nodes).toEqual([{ kind: "literal", text: "�" }]);
 });
+
+test("a term reference is a placeholder named after the term, its arguments part of it; a term's attribute only selects (#990)", () => {
+  const source =
+    'Use {-brand} and {-brand-x(capitalization: "upper", n: "a, b")}';
+  expect(partsOf(source, "fluent").placeholders).toEqual(
+    new Set(["-brand", "-brand-x"]),
+  );
+  expect(parseIcu("{-brand}", "icu").ok).toBe(false);
+  expect(
+    parseIcu("{-brand.gender, select, masculine {Byl} other {Bylo}}", "fluent")
+      .ok,
+  ).toBe(true);
+  expect(parseIcu("{-brand.gender}", "fluent").ok).toBe(false);
+  expect(parseIcu("{$brand}", "fluent").ok).toBe(false);
+  expect(parseIcu('{-brand(case: "gen"}', "fluent").ok).toBe(false);
+  // A translation keeps the source's terms, names them as it likes, and
+  // may use a term of its own; a variable it adds is still invalid.
+  const ok = (text: string) =>
+    validateTranslation(source, text, "cs", "fluent");
+  expect(ok('Použij {-brand(case: "acc")} a {-brand-x} s {-other}').ok).toBe(
+    true,
+  );
+  const dropped = ok("Použij {-brand-x}");
+  expect(dropped.ok ? [] : dropped.errors).toEqual([
+    expect.objectContaining({ code: "missing-placeholder", name: "-brand" }),
+  ]);
+  expect(ok("Použij {-brand} a {-brand-x} {n}").ok).toBe(false);
+});

@@ -13,8 +13,9 @@ type Message = {
   // The message's first line to the end of its last continuation line.
   start: number;
   end: number;
-  // Just after `=`.
+  // Just after `=`, and the end of the value, before any attribute.
   valueStart: number;
+  valueEnd: number;
   attribute?: string;
 };
 
@@ -66,6 +67,7 @@ function messages(text: string): Message[] {
     const head = /^(-?[A-Za-z][\w-]*)[ \t]*=/.exec(lines[i]!.slice(skip));
     if (!head) continue;
     let last = i;
+    let valueLast = -1;
     let attribute: string | undefined;
     // Inside an open placeable a line continues the message wherever
     // it starts: a select's `}` may sit at column 0.
@@ -77,17 +79,24 @@ function messages(text: string): Message[] {
       // no valid placeable holds such a line (#991).
       if (/^-?[A-Za-z][\w-]*[ \t]*=/.test(line)) break;
       if (depth > 0 || /^[ \t]+\S/.test(line)) {
+        const named = /^[ \t]+\.([A-Za-z][\w-]*)[ \t]*=/.exec(line)?.[1];
+        if (named && attribute === undefined) {
+          attribute = named;
+          valueLast = last;
+        }
         if (line.trim() !== "") last = j;
         depth += braces(line);
-        attribute ??= /^[ \t]+\.([A-Za-z][\w-]*)[ \t]*=/.exec(line)?.[1];
       } else if (line.trim() !== "") break;
     }
     const start = offsets[i]! + skip;
+    const endOf = (line: number) =>
+      offsets[line]! + lines[line]!.replace(/\r$/, "").length;
     out.push({
       id: head[1]!,
       start,
-      end: offsets[last]! + lines[last]!.replace(/\r$/, "").length,
+      end: endOf(last),
       valueStart: start + head[0].length,
+      valueEnd: endOf(valueLast < 0 ? last : valueLast),
       ...(attribute && { attribute }),
     });
     i = last;
@@ -134,6 +143,22 @@ function parseText(
   return [out, i];
 }
 
+// The `)` that closes a term's arguments, strings skipped, on one line;
+// -1 where there is none.
+function callEnd(s: string, open: number): number {
+  for (let k = open + 1; k < s.length; k++) {
+    const ch = s[k]!;
+    if (ch === "\n") return -1;
+    if (ch === ")") return k;
+    if (ch === '"') {
+      const literal = /^"(?:[^"\\\n]|\\.)*"/.exec(s.slice(k));
+      if (!literal) return -1;
+      k += literal[0].length - 1;
+    }
+  }
+  return -1;
+}
+
 function skipSpace(s: string, i: number): number {
   while (i < s.length && /\s/.test(s[i]!)) i++;
   return i;
@@ -142,7 +167,6 @@ function skipSpace(s: string, i: number): number {
 function parsePlaceable(s: string, i: number, id: string): [string, number] {
   let j = skipSpace(s, i);
   const c = s[j];
-  if (c === "-") throw new Refusal(`${id} refers to a term`);
   // `{""}` is an empty pattern and `{"."}` the escape for a line that
   // starts with a special character, read as their text; any other
   // literal is kept as written, `{"{{c1::"}`, which the fluent reading
@@ -156,15 +180,41 @@ function parsePlaceable(s: string, i: number, id: string): [string, number] {
   if (c && /[0-9]/.test(c)) throw new Refusal(`${id} has a number literal`);
   if (c === "{")
     throw new Refusal(`${id} has a placeable Corpus does not read`);
+  // A term reference is the placeholder `-name` (#990), its arguments
+  // kept as written, `{-brand(case: "gen")}`; a term's attribute is
+  // read only as a select's selector, `{-brand.gender, select, …}`.
+  const term = c === "-";
   const variable = c === "$";
-  if (variable) j++;
-  const name = /^[A-Za-z][\w-]*/.exec(s.slice(j))?.[0];
-  if (!name) throw new Refusal(`${id} has a placeable Corpus does not read`);
-  j += name.length;
-  if (s[j] === "(") throw new Refusal(`${id} calls a function`);
+  if (variable || term) j++;
+  const bare = /^[A-Za-z][\w-]*/.exec(s.slice(j))?.[0];
+  if (!bare) throw new Refusal(`${id} has a placeable Corpus does not read`);
+  j += bare.length;
+  let name = term ? `-${bare}` : bare;
+  const attribute = term
+    ? /^\.[A-Za-z][\w-]*/.exec(s.slice(j))?.[0]
+    : undefined;
+  if (attribute) {
+    name += attribute;
+    j += attribute.length;
+  }
+  let call = "";
+  if (s[j] === "(") {
+    if (!term) throw new Refusal(`${id} calls a function`);
+    const close = callEnd(s, j);
+    if (close < 0 || attribute)
+      throw new Refusal(`${id} has a term reference Corpus does not read`);
+    call = s.slice(j, close + 1);
+    j = close + 1;
+  }
   j = skipSpace(s, j);
-  if (s[j] === "}") return [`{${name}}`, j + 1];
-  if (!variable || s.slice(j, j + 2) !== "->")
+  if (s[j] === "}") {
+    if (attribute)
+      throw new Refusal(
+        `${id} prints a term's attribute, which only a select reads`,
+      );
+    return [`{${name}${call}}`, j + 1];
+  }
+  if (!(variable || attribute) || s.slice(j, j + 2) !== "->")
     throw new Refusal(`${id} has a placeable Corpus does not read`);
   j += 2;
   const variants: { key: string; fallback: boolean; text: string }[] = [];
@@ -237,7 +287,7 @@ function hashesAsLiterals(text: string): string {
 
 function toIcu(text: string, message: Message): string {
   return parseText(
-    valueText(text.slice(message.valueStart, message.end)),
+    valueText(text.slice(message.valueStart, message.valueEnd)),
     0,
     message.id,
     false,
@@ -254,14 +304,12 @@ export function fluentToEntries(
   const refuse = (id: string, reason: string) =>
     options.onRefused?.(
       id,
-      `${reason}; Corpus reads messages with a value, variables, message references and selects on a variable`,
+      `${reason}; Corpus reads messages and terms with a value, variables, message and term references, string literals and selects on a variable or a term's attribute`,
     );
   for (const message of messages(text)) {
-    if (message.id.startsWith("-")) {
-      refuse(message.id, `${message.id} is a term`);
-      continue;
-    }
-    if (message.attribute) {
+    // A term's attributes are what messages select on, kept by the
+    // writer and never strings; a message's are refused (#990).
+    if (message.attribute && !message.id.startsWith("-")) {
       refuse(
         message.id,
         `${message.id} has an attribute (.${message.attribute})`,
@@ -284,14 +332,14 @@ export function fluentToEntries(
 
 function styleOf(text: string, message: Message): Style {
   const [first = "", ...rest] = text
-    .slice(message.valueStart, message.end)
+    .slice(message.valueStart, message.valueEnd)
     .split("\n");
   const indent = (re: RegExp) =>
     rest.map((line) => re.exec(line)?.[1]).find((x) => x !== undefined);
   const variant = indent(/^([ \t]*)\[/);
   return {
     block: first.trim() === "" && rest.length > 0,
-    spaced: /\{ /.test(text.slice(message.valueStart, message.end)),
+    spaced: /\{ /.test(text.slice(message.valueStart, message.valueEnd)),
     cont:
       rest
         .filter((l) => l.trim() !== "" && !/^\s*(?:\*?\[|\})/.test(l))
@@ -303,7 +351,11 @@ function styleOf(text: string, message: Message): Style {
 }
 
 const hasSelect = (text: string, m: Message) =>
-  /->/.test(text.slice(m.valueStart, m.end));
+  /->/.test(text.slice(m.valueStart, m.valueEnd));
+
+// A select's argument as Fluent writes it: a variable, or a term's
+// attribute (#990).
+const selector = (name: string) => (name.startsWith("-") ? name : `$${name}`);
 
 // ICU back to a Fluent value in a style: `refs` are the message ids a
 // bare name refers to.
@@ -335,7 +387,7 @@ function render(icu: string, style: Style, refs: Set<string>): string {
         out += `{"${c}"}`;
         i++;
       } else if (c === "#" && count !== undefined) {
-        out += place(`$${count}`);
+        out += place(selector(count));
         i++;
       } else if (c === "{") {
         const [text, next] = arg(i + 1, inPlural);
@@ -361,13 +413,16 @@ function render(icu: string, style: Style, refs: Set<string>): string {
         inPlural && literal[1] === '"#"' ? "#" : place(literal[1]!),
         i + literal[0].length,
       ];
-    const head = /^\s*([A-Za-z0-9_-]+)\s*(?:,\s*(plural|select)\s*,)?/.exec(
-      icu.slice(i),
-    )!;
+    const head =
+      /^\s*([A-Za-z0-9_.-]+)(\((?:[^()"\n]|"(?:[^"\\\n]|\\.)*")*\))?\s*(?:,\s*(plural|select)\s*,)?/.exec(
+        icu.slice(i),
+      )!;
     const name = head[1]!;
     let j = i + head[0].length;
-    if (!head[2]) {
+    if (!head[3]) {
       j = icu.indexOf("}", j) + 1;
+      // A term is written as it is named, with its arguments.
+      if (name.startsWith("-")) return [place(name + (head[2] ?? "")), j];
       return [place(refs.has(name) ? name : `$${name}`), j];
     }
     const branches: [string, string][] = [];
@@ -379,7 +434,7 @@ function render(icu: string, style: Style, refs: Set<string>): string {
       }
       const key = /^=?[\w]+/.exec(icu.slice(j))![0];
       j = skipSpace(icu, j + key.length) + 1;
-      const plural = head[2] === "plural";
+      const plural = head[3] === "plural";
       const [text, next] = seq(
         j,
         plural ? name : undefined,
@@ -396,7 +451,9 @@ function render(icu: string, style: Style, refs: Set<string>): string {
       ([key, text]) =>
         `${key === fallback ? `${style.fallback}*` : style.variant}[${key}] ${text || '{""}'}`,
     );
-    const open = style.spaced ? `{ $${name} ->` : `{$${name} ->`;
+    const open = style.spaced
+      ? `{ ${selector(name)} ->`
+      : `{${selector(name)} ->`;
     return [`${open}\n${lines.join("\n")}\n${style.close}}`, j];
   };
   const [body = ""] = seq(0, undefined, true);
@@ -445,7 +502,7 @@ function patch(text: string, changes: Change[], template: Template): string {
       if (toIcu(text, message) === next) continue;
       patches.push({
         start: message.valueStart,
-        end: message.end,
+        end: message.valueEnd,
         text: lines(render(next, styleFor(id), template.refsFor(id))),
       });
     } else {
@@ -485,7 +542,7 @@ function templateOf(template: string, added: string[] = []): Template {
     byId,
     refsFor: (id) => {
       const own = byId.get(id);
-      const value = own ? template.slice(own.valueStart, own.end) : "";
+      const value = own ? template.slice(own.valueStart, own.valueEnd) : "";
       const ownVariables = new Set(
         [...value.matchAll(/\{\s*\$([A-Za-z][\w-]*)/g)].map((m) => m[1]!),
       );

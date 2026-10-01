@@ -57,10 +57,9 @@ b = {$g ->
   ]);
 });
 
-test("attributes, terms, functions and number literals are refused by name, a message at a time, and the rest read (#991)", () => {
+test("attributes, functions and number literals are refused by name, a message at a time, and the rest read (#991)", () => {
   const ftl = `login = Log in
     .title = Log in to your account
--brand = COSMIC
 size = { NUMBER($n) } bytes
 num = { 5 } items
 ok = Fine
@@ -71,10 +70,9 @@ ok = Fine
     onRefused: (id, reason) => refused.push([id, reason]),
   });
   expect(read.map((e) => e.id)).toEqual(["ok"]);
-  expect(refused.map(([id]) => id)).toEqual(["login", "-brand", "size", "num"]);
+  expect(refused.map(([id]) => id)).toEqual(["login", "size", "num"]);
   expect(refused.map(([, reason]) => reason.split(";")[0])).toEqual([
     "login has an attribute (.title)",
-    "-brand is a term",
     "size calls a function",
     "num has a number literal",
   ]);
@@ -357,4 +355,78 @@ test("a # literal outside a plural is written back as read; an escape Fluent doe
   );
   expect(nested).toContain("[f] Nº #");
   expect(nested).not.toContain('"#"');
+});
+
+test("a term is a string, its references placeholders named after it, its arguments kept as written (#990)", () => {
+  const ftl = `-brand = Firefox
+-brand-x = { $capitalization ->
+    [upper] Firefox Relay
+   *[lower] firefox relay
+  }
+use = Use { -brand } and { -brand-x(capitalization: "upper") }
+`;
+  const refused: string[] = [];
+  const read = fluentToEntries(ftl, {
+    type: "ui",
+    onRefused: (id) => refused.push(id),
+  });
+  expect(refused).toEqual([]);
+  expect(read.map((e) => [e.id, e.source])).toEqual([
+    ["-brand", "Firefox"],
+    [
+      "-brand-x",
+      "{capitalization, select, upper {Firefox Relay} lower {firefox relay} other {firefox relay}}",
+    ],
+    ["use", 'Use {-brand} and {-brand-x(capitalization: "upper")}'],
+  ]);
+  const same = Object.fromEntries(read.map((e) => [e.id, e.source]));
+  expect(entriesToFluent(ftl, same, ftl)).toBe(ftl);
+  const out = entriesToFluent(
+    ftl,
+    {
+      "-brand": "Firefoxu",
+      use: 'Use {-brand-x(case: "gen")} e {-brand}',
+    },
+    ftl,
+  );
+  expect(out).toContain("-brand = Firefoxu\n");
+  expect(out).toContain('use = Use { -brand-x(case: "gen") } e { -brand }\n');
+});
+
+test("a term's attributes are kept, never strings, and a select on one reads as a select on -term.attr (#990)", () => {
+  const cs = `-brand = Relay
+    .gender = masculine
+gone = { -brand.gender ->
+    [masculine] Byl pryč
+   *[other] Bylo pryč
+  }
+`;
+  const read = fluentToEntries(cs, { type: "ui" });
+  expect(read.map((e) => [e.id, e.source])).toEqual([
+    ["-brand", "Relay"],
+    ["gone", "{-brand.gender, select, masculine {Byl pryč} other {Bylo pryč}}"],
+  ]);
+  const out = entriesToFluent(
+    cs,
+    {
+      "-brand": "Relayi",
+      gone: "{-brand.gender, select, masculine {Byl odstraněn} other {Bylo odstraněno}}",
+    },
+    cs,
+  );
+  expect(out).toBe(`-brand = Relayi
+    .gender = masculine
+gone = { -brand.gender ->
+    [masculine] Byl odstraněn
+   *[other] Bylo odstraněno
+  }
+`);
+  // A message's attributes, a term reference as a selector, and a
+  // message attribute as a placeable are still refused.
+  const refused: string[] = [];
+  fluentToEntries(
+    "a = A\n    .title = T\nb = { -brand ->\n    *[x] y\n  }\nc = { a.title }\n",
+    { type: "ui", onRefused: (id) => refused.push(id) },
+  );
+  expect(refused).toEqual(["a", "b", "c"]);
 });
