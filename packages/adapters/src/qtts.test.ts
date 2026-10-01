@@ -761,3 +761,44 @@ test("the source file's finished English forms are its source plural; unfinished
       "{count, plural, other {%n file(s)}}",
     );
 });
+
+test("only a one-category language's short file is read; others stay work; an edit fills the short file's every form; identical source forms read as before (#1004 review)", async () => {
+  const { qtShortForms } = await import("./qtts");
+  const unread: string[] = [];
+  for (const [lang, forms] of [
+    ["ru", ["%n файл", "%n файла"]],
+    ["ar", ["%n ملف", "ملف", "ملفان"]],
+    ["fr", ["%n fichier"]],
+  ] as const) {
+    expect(
+      qtTsTranslations(numerus(lang, [...forms]), lang, (id) =>
+        unread.push(id),
+      ),
+    ).toEqual([]);
+    expect(qtShortForms(numerus(lang, [...forms]), lang)).toEqual([]);
+  }
+  expect(unread).toHaveLength(3);
+  // An unfinished short file is no finished translation to name.
+  expect(
+    qtShortForms(numerus("km", ["%n ឯកសារ"], ' type="unfinished"'), "km"),
+  ).toEqual([]);
+  // A fix to a short km row writes both of Qt's forms.
+  const km = numerus("km", ["%1 %2"]);
+  const fixed = entriesToQtTs(
+    numerus("", ["", ""]),
+    { "Main | %n file(s)": "{count, plural, other {%n ឯកសារ}}" },
+    km,
+    { tag: "km", code: "km" },
+  );
+  expect(fixed).toContain(
+    "<numerusform>%n ឯកសារ</numerusform>\n            <numerusform>%n ឯកសារ</numerusform>",
+  );
+  expect(fixed).not.toContain("%1 %2");
+  // An English source whose forms are the same text is its one form.
+  expect(
+    qtTsToEntries(numerus("en", ["%n file(s)", "%n file(s)"]), {
+      type: "ui",
+      language: "en",
+    })[0]!.source,
+  ).toBe("{count, plural, other {%n file(s)}}");
+});

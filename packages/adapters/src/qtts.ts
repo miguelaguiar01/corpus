@@ -181,11 +181,28 @@ function sourcePlural(source: string): string {
 // for the language, where it gives each form back as a pull would write
 // it; undefined where it does not. A file short of the rule's forms
 // reads its last for the rest, as Transifex leaves Khmer one (#1004).
+// Whether a file is short of a form a category reads, and whether the
+// language's integers reach one CLDR category alone (Khmer, Lao), where
+// its last form is that category's text; anywhere else a short file
+// would read a made-up grammar (Russian's `few` as `many`), and stays
+// work.
+function shortOf(
+  m: QtMessage,
+  categories: readonly (string | undefined)[],
+): { short: boolean; readable: boolean } {
+  const short = categories.some(
+    (c, i) => i >= m.forms.length && c !== undefined,
+  );
+  const one = new Set(categories.filter((c) => c !== undefined)).size === 1;
+  return { short, readable: !short || one };
+}
+
 function numerusPlural(
   m: QtMessage,
   table: ReturnType<typeof pluralTable>,
 ): string | undefined {
-  if (m.forms.length === 0) return undefined;
+  if (m.forms.length === 0 || !shortOf(m, table.categories).readable)
+    return undefined;
   const forms = table.categories.map(
     (_, i) => m.forms[Math.min(i, m.forms.length - 1)]!,
   );
@@ -221,7 +238,9 @@ export function qtTsToEntries(
       table &&
       m.state === undefined &&
       m.forms.length > 0 &&
-      m.forms.every((f) => f !== "")
+      m.forms.every((f) => f !== "") &&
+      // The same text in every form varies by nothing.
+      new Set(m.forms).size > 1
         ? numerusPlural(m, table)
         : undefined;
     return {
@@ -241,15 +260,17 @@ export function qtShortForms(
   xml: string,
   language: string,
 ): { id: string; have: number; want: number }[] {
-  const want = pluralTable(language, qtPluralForms(language)).categories.length;
-  return live(xml).flatMap((m) =>
-    m.numerus &&
-    m.state === undefined &&
-    m.forms.some((f) => f !== "") &&
-    m.forms.length < want
-      ? [{ id: m.id, have: m.forms.length, want }]
-      : [],
-  );
+  const { categories } = pluralTable(language, qtPluralForms(language));
+  return live(xml).flatMap((m) => {
+    const { short, readable } = shortOf(m, categories);
+    return m.numerus &&
+      m.state === undefined &&
+      m.forms.some((f) => f !== "") &&
+      short &&
+      readable
+      ? [{ id: m.id, have: m.forms.length, want: categories.length }]
+      : [];
+  });
 }
 
 // A target file's translations: the finished ones. An unfinished one,
@@ -513,8 +534,15 @@ function translationElement(
   // a finished message ships empty.
   const pick = (c: string | undefined) =>
     c === undefined ? undefined : formOf(branches, c);
+  // In a short file read as one category (#1004), a form no category
+  // reads stood for that category's text, and changes with it.
+  const short = shortOf(m, categories).short;
   const read = categories.map((c, i) =>
-    c === undefined ? (m.forms[i] ?? "") : (pick(c) ?? ""),
+    c === undefined
+      ? short
+        ? (pick(majority[i]) ?? m.forms[i] ?? "")
+        : (m.forms[i] ?? "")
+      : (pick(c) ?? ""),
   );
   // Forms beyond the rule's, an older rule's or lupdate's own mapping,
   // stay while the rule's are unchanged (#798); so does a file short

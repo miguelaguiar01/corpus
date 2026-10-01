@@ -801,7 +801,7 @@ const OWN_FORMAT = new Set<FileSource["adapter"]>([
 // The adapters whose keys are the code's own (a msgid, a String Catalog
 // key, a `tr()` literal): no proposal is taken on their strings (#719,
 // #728, #741).
-const CODE_KEYED_ADAPTERS = ["gettext", "xcstrings", "qt-ts"] as const;
+export const CODE_KEYED_ADAPTERS = ["gettext", "xcstrings", "qt-ts"] as const;
 type CodeKeyed = (typeof CODE_KEYED_ADAPTERS)[number];
 const CODE_KEYED = new Set<FileSource["adapter"]>(CODE_KEYED_ADAPTERS);
 
@@ -1420,7 +1420,7 @@ async function readSeeds(
           ).filter((s) => ids.has(s.id));
           if (short.length > 0)
             notes.push(
-              `${file}: ${short.length} numerus translation(s) hold ${short[0]!.have} of the ${short[0]!.want} forms Qt's rule for ${lang} has, so a count past them shows the source text (${short
+              `${file}: ${short.length} numerus translation(s) hold fewer than the ${short[0]!.want} forms Qt's rule for ${lang} has, so a count past them shows the source text (${short
                 .slice(0, 3)
                 .map((s) => printable(s.id))
                 .join(", ")}${short.length > 3 ? ", …" : ""})`,

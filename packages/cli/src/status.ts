@@ -1,4 +1,5 @@
 import type { RunContext } from "./cli";
+import { CODE_KEYED_ADAPTERS } from "./build";
 import { CliError, loadConfig, requireToken } from "./config";
 import { languageDrift } from "./project";
 import { request, serverMessage, UNAUTHORIZED } from "./server";
@@ -78,8 +79,17 @@ export async function status(args: string[], ctx: RunContext): Promise<number> {
 function codeKeyedOnly(adapters: readonly string[]): boolean {
   return (
     adapters.length > 0 &&
-    adapters.every((a) => a === "gettext" || a === "qt-ts" || a === "xcstrings")
+    adapters.every((a) =>
+      (CODE_KEYED_ADAPTERS as readonly string[]).includes(a),
+    )
   );
+}
+
+// `a`, `a and b`, `a, b and c`.
+function listed(items: string[]): string {
+  return items.length < 2
+    ? items.join("")
+    : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
 }
 
 export function render(
@@ -108,7 +118,7 @@ export function render(
     lines.push(
       status.writableSources.length === 0
         ? codeKeyedOnly(adapters)
-          ? `proposals: none, since ${[...new Set(adapters)].join(" and ")} source text is the code's`
+          ? `proposals: none, since ${listed([...new Set(adapters)])} source text is the code's`
           : "no writable source: proposals are not possible on this project"
         : `writable sources: ${status.writableSources.join(", ")}`,
     );
