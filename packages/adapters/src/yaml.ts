@@ -306,7 +306,8 @@ function styled(
   const was = node.range ? source.slice(node.range[0], node.range[1]) : "";
   if (unplain(text)) return doubleQuoted(text);
   let out: string | undefined;
-  if (node.type === "PLAIN" && !text.includes("\n")) out = text;
+  if (node.type === "PLAIN" && !text.includes("\n") && !psychTyped(text))
+    out = text;
   else if (node.type === "QUOTE_SINGLE" && !text.includes("\n"))
     out = `'${text.replace(/'/g, "''")}'`;
   else if (node.type === "BLOCK_LITERAL" || node.type === "BLOCK_FOLDED") {
@@ -336,11 +337,31 @@ function styled(
   return doubleQuoted(text);
 }
 
+// A plain text Rails' Psych reads as no string (#1021), past what the
+// YAML 1.1 schema says: `:D` a Symbol, which i18n takes for a link to a
+// key, `0,5` the integer 5, `yEs` true, `nUll` nil, `.iNf`, a base-60
+// `1:30`, a date; as Psych::ScalarScanner#tokenize reads them, erring
+// on the side of quoting.
+function psychTyped(text: string): boolean {
+  return (
+    /^:./.test(text) ||
+    /^(?:y|n|yes|no|true|false|on|off|null|~)$/i.test(text) ||
+    /^[-+]?\.(?:inf|nan)$/i.test(text) ||
+    /^-?\d{4}-\d{1,2}-\d{1,2}/.test(text) ||
+    /^[-+.]?\d[\d_,.:eE+\-xXa-fA-FoObB]*$/.test(text)
+  );
+}
+
 // A scalar the file does not have yet (#1021): plain where it reads back
-// as the text under YAML 1.1 and 1.2, as Psych and i18n-tasks write it,
-// else double-quoted.
-function newScalar(text: string, indent: string): string {
-  return !unplain(text) && !text.includes("\n") && readsAs(text, indent, text)
+// as the text under YAML 1.1 and 1.2 and Psych, as `i18n-tasks
+// normalize` writes it, else double-quoted; double-quoted throughout in
+// a file that quotes most of its scalars, as a Crowdin export does.
+function newScalar(text: string, indent: string, quoted = false): string {
+  return !quoted &&
+    !unplain(text) &&
+    !text.includes("\n") &&
+    !psychTyped(text) &&
+    readsAs(text, indent, text)
     ? text
     : doubleQuoted(text);
 }
@@ -478,6 +499,8 @@ type YamlFile = {
   // than CLDR's, as `i18n-tasks normalize` writes them (#1021); CLDR's
   // otherwise.
   formOrder: readonly string[];
+  // Whether the file double-quotes most of its scalars (#1021).
+  quoted: boolean;
 };
 
 type Write = {
@@ -517,6 +540,7 @@ function indexYaml(base: string, code: string, plural: Set<string>): YamlFile {
   const containers = new Map<string, Pair | YAMLMap>();
   const inFlow = new Set<string>();
   const hashes: string[][] = [];
+  const styles = { plain: 0, quoted: 0 };
   const walk = (map: YAMLMap, path: string[], flow = false) => {
     if (!flow) containers.set(path.join("."), map);
     for (const pair of map.items) {
@@ -526,6 +550,11 @@ function indexYaml(base: string, code: string, plural: Set<string>): YamlFile {
       pairs.set(id, pair);
       if (flow) inFlow.add(id);
       const value = pair.value as Node | null;
+      if (isScalar(value) && value.value !== null) {
+        if (value.type === "QUOTE_DOUBLE") styles.quoted += 1;
+        else if (value.type === "PLAIN" || value.type === "QUOTE_SINGLE")
+          styles.plain += 1;
+      }
       if (isMap(value) && value.flow && value.items.length > 0)
         walk(value, [...path, key], true);
       else if (flow) continue;
@@ -568,6 +597,7 @@ function indexYaml(base: string, code: string, plural: Set<string>): YamlFile {
     containers,
     inFlow,
     formOrder: alphabetical ? [...PLURAL_CATEGORIES].sort() : PLURAL_CATEGORIES,
+    quoted: styles.quoted > styles.plain,
   };
 }
 
@@ -622,10 +652,11 @@ function formLines(
   indent: string,
   eol: string,
   order: readonly string[],
+  quoted: boolean,
 ): string {
   return order
     .filter((c) => Object.hasOwn(forms, c))
-    .map((c) => `${indent}${c}: ${newScalar(forms[c]!, indent)}${eol}`)
+    .map((c) => `${indent}${c}: ${newScalar(forms[c]!, indent, quoted)}${eol}`)
     .join("");
 }
 
@@ -686,7 +717,13 @@ function patchHeld(
           text: wasBlock && !isBlock(out) ? `${out}${eol}` : out,
         });
       } else
-        patches.push(valueReplaced(file, pair, `: ${newScalar(text, indent)}`));
+        patches.push(
+          valueReplaced(
+            file,
+            pair,
+            `: ${newScalar(text, indent, file.quoted)}`,
+          ),
+        );
       continue;
     }
     if (isMap(value) && !value.flow && value.items.length > 0) {
@@ -698,7 +735,7 @@ function patchHeld(
       valueReplaced(
         file,
         pair,
-        `:${eol}${formLines(forms, `${indent}${file.step}`, eol, file.formOrder).replace(new RegExp(`${eol}$`), "")}`,
+        `:${eol}${formLines(forms, `${indent}${file.step}`, eol, file.formOrder, file.quoted).replace(new RegExp(`${eol}$`), "")}`,
       ),
     );
   }
@@ -734,15 +771,29 @@ function patchPluralHash(
         });
       else
         patches.push(
-          valueReplaced(file, p, `: ${newScalar(forms[c]!, inner)}`),
+          valueReplaced(
+            file,
+            p,
+            `: ${newScalar(forms[c]!, inner, file.quoted)}`,
+          ),
         );
       continue;
     }
     // A form the hash lacks takes its sibling forms' style.
+    // The first sibling on one line sets it; a block's is no style for a
+    // form of one line.
     const sibling = [...held.values()]
       .map((q) => q.value as Node | null)
-      .find((v) => isScalar(v) && v.value !== null && v.range);
-    const line = `${inner}${c}: ${sibling ? styled(base, sibling, forms[c]!, inner, eol) : newScalar(forms[c]!, inner)}${eol}`;
+      .find(
+        (v) =>
+          isScalar(v) &&
+          v.value !== null &&
+          v.range &&
+          (v.type === "PLAIN" ||
+            v.type === "QUOTE_SINGLE" ||
+            v.type === "QUOTE_DOUBLE"),
+      );
+    const line = `${inner}${c}: ${sibling ? styled(base, sibling, forms[c]!, inner, eol) : newScalar(forms[c]!, inner, file.quoted)}${eol}`;
     // Before the next form the text keeps: one it drops goes, its
     // comment with it, and cannot be an anchor (#759).
     const next = order
@@ -819,8 +870,8 @@ function placeMissing(
         const text = translations[id]!;
         const forms = plural.has(id) ? pluralBranches(text) : undefined;
         return forms
-          ? `${indent}${key}:${eol}${formLines(forms, `${indent}${step}`, eol, file.formOrder)}`
-          : `${indent}${key}: ${newScalar(text, indent)}${eol}`;
+          ? `${indent}${key}:${eol}${formLines(forms, `${indent}${step}`, eol, file.formOrder, file.quoted)}`
+          : `${indent}${key}: ${newScalar(text, indent, file.quoted)}${eol}`;
       }
       const under = `${indent}${step}`;
       const children: string[] = [];

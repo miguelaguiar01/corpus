@@ -253,7 +253,8 @@ test("the writer's hard cases: YAML 1.1 keys and values, the source's shape, blo
     L,
   );
   expect(yamlTranslations(out, "de").map((e) => e.id)).toContain("choices.no");
-  expect(out).toContain('"no": Nein');
+  // The file quotes its scalars, so a new one is quoted too (#1021).
+  expect(out).toContain('"no": "Nein"');
   // 2: an _MF key the source writes as a scalar stays one, whatever its shape.
   out = entriesToYaml(
     en,
@@ -308,7 +309,7 @@ test("the writer's hard cases: YAML 1.1 keys and values, the source's shape, blo
     L,
   );
   expect(out).toBe(
-    'de:\n  list:\n    a: A\n    b: "B"\n    c: C\n    d: "D"\n',
+    'de:\n  list:\n    a: "A"\n    b: "B"\n    c: "C"\n    d: "D"\n',
   );
   // 9: a `{}` stub and a null parent take their keys as a block.
   expect(entriesToYaml(en, { "g.h": "H" }, "de: {}\n", L)).toBe(
@@ -640,7 +641,7 @@ test("keys going in at the end of a file with no final line break start one line
   for (const eol of ["\n", "\r\n"]) {
     const out = entriesToYaml(en, tr, fr.replace(/\n/g, eol), lang);
     expect(out).toBe(
-      `fr:\n  k1:\n    k2:\n      k3:\n        k4: A\n    k5:\n      k6: "T"\n    k7:\n      k14: B\n  k15: C\n`.replace(
+      `fr:\n  k1:\n    k2:\n      k3:\n        k4: "A"\n    k5:\n      k6: "T"\n    k7:\n      k14: "B"\n  k15: "C"\n`.replace(
         /\n/g,
         eol,
       ),
@@ -829,4 +830,59 @@ test("a key the file lacks is written plain where it reads back, quoted where it
   expect(cldr).toContain(
     "  posts:\n    one: post\n    few: posty\n    many: postów\n    other: postu\n",
   );
+});
+
+test("a text Rails' Psych would read as no string is quoted, new or changed; a file that quotes most of its scalars has new ones quoted (#1021)", () => {
+  const en = "en:\n  t: Tea\n  u: You\n";
+  for (const text of [
+    ":D",
+    ":-)",
+    ":) :p :( gibi",
+    "0,5",
+    "1,000.5",
+    "yEs",
+    "oFf",
+    "nUll",
+    ".iNf",
+    "-.inf",
+    "1:30",
+    "2024-01-02",
+    "12",
+    "0x1F",
+  ]) {
+    const added = entriesToYaml(en, { t: text }, "de:\n  u: Du\n", {
+      source: "en",
+      code: "de",
+    });
+    expect(added).toContain(`t: ${JSON.stringify(text)}`);
+    // A plain scalar changed to it is quoted too.
+    const changed = entriesToYaml(en, { t: text }, "de:\n  t: stare\n", {
+      source: "en",
+      code: "de",
+    });
+    expect(changed).toBe(`de:\n  t: ${JSON.stringify(text)}\n`);
+  }
+  // A sentence beginning with a word stays plain.
+  expect(
+    entriesToYaml(en, { t: "Yes, please" }, "de:\n  u: Du\n", {
+      source: "en",
+      code: "de",
+    }),
+  ).toContain("t: Yes, please\n");
+  // A file of quoted scalars, as Crowdin exports, takes new ones quoted.
+  expect(
+    entriesToYaml(en, { t: "Tee" }, 'de:\n  u: "Du"\n  v: "Ihr"\n', {
+      source: "en",
+      code: "de",
+    }),
+  ).toContain('t: "Tee"');
+  // A form beside a block sibling is one line, not a block.
+  const block = entriesToYaml(
+    "en:\n  n:\n    one: one\n    other: many\n",
+    { n: "{count, plural, one {a} few {b} other {c}}" },
+    "pl:\n  n:\n    one: |-\n      a\n    other: |-\n      c\n",
+    { source: "en", code: "pl" },
+  );
+  expect(block).not.toMatch(/\n\n/);
+  expect(block).toContain("    few: b\n");
 });
