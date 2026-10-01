@@ -2576,6 +2576,16 @@ test("a plural written plainly may print its own count; a language of the source
       sourceLanguage: "en-US",
     }),
   ).toEqual({ ok: true });
+  // Nor does it flatten anything written as plain text.
+  expect(
+    validateTranslation(
+      "{jobCount, plural, other {delayed}}",
+      "delayed",
+      "en-GB",
+      "icu",
+      { sourceLanguage: "en" },
+    ),
+  ).toEqual({ ok: true });
   // Another language keeps CLDR's.
   expect(
     validateTranslation(

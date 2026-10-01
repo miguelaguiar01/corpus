@@ -393,6 +393,10 @@ export function validateTranslation(
   const expected = flattened === sourceNodes ? whole : shapeOf(flattened);
   let errors: ValidationError[] = [];
   const expectedValues = valuesOf(expected);
+  const sameBase =
+    options.sourceLanguage !== undefined &&
+    language !== undefined &&
+    baseOf(language) === baseOf(options.sourceLanguage);
   // A plural written plainly may still print its count, which the
   // runtime passes (#1005): Immich's yue `永久刪除 {count} 個項目`.
   const allowedValues =
@@ -448,7 +452,12 @@ export function validateTranslation(
       expected.plurals.has(name) &&
       !sourcePrints.has(name)
     ) {
-      if (categories.length !== 1)
+      // A source plural of `other` alone varies by nothing in a language
+      // of its base, so a plain copy flattens nothing (#1005).
+      const otherOnly = [...(whole.plurals.get(name) ?? [])].every(
+        (k) => k === "other",
+      );
+      if (categories.length !== 1 && !(sameBase && otherOnly))
         errors.push({ code: "flattened-plural", arg: name });
       continue;
     }
@@ -793,14 +802,10 @@ export function validateTranslation(
         ? { required: [], allowed: [] }
         : pluralCategoriesFor(language, syntax, options.pluralForms),
       language,
-      // A language of the source's base shares its rules, so the source
+      // A language of the source's base shares its grammar, so the source
       // author has already said which categories its text varies by
       // (#1005): an en-GB copy of an `other`-only plural is complete.
-      options.sourceLanguage !== undefined &&
-        language !== undefined &&
-        baseOf(language) === baseOf(options.sourceLanguage)
-        ? whole.plurals
-        : undefined,
+      sameBase ? whole.plurals : undefined,
     ),
   );
   // Fluent's writer renders a select inside any variant (#990).
