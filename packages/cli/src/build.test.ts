@@ -1733,6 +1733,7 @@ test("an Android language falls back to its language's directory only where that
         "en",
         "pt-BR",
         "pt-PT",
+        "zh-CN",
         "zh-TW",
         "sr-Latn",
         "pa-PK",
@@ -1756,6 +1757,8 @@ test("an Android language falls back to its language's directory only where that
   // Android matches the script: `values-zh` is Simplified, `values-sr`
   // Cyrillic, `values-pa` Gurmukhi.
   expect(fileOf(source!, "zh-TW", "en")).toBe("res/values-zh-rTW/strings.xml");
+  // zh-TW never reads `values-zh`, so zh-CN shares it with nothing.
+  expect(fileOf(source!, "zh-CN", "en")).toBe("res/values-zh/strings.xml");
   expect(fileOf(source!, "sr-Latn", "en")).toBe(
     "res/values-b+sr+Latn/strings.xml",
   );

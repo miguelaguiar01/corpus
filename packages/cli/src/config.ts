@@ -187,8 +187,9 @@ export function expandSources(input: CorpusInput, cwd: string): CorpusConfig {
 // `values-ta` where the module has that and not its own, so one language
 // reads every module's spelling of it and a pull writes where each
 // module keeps it. Not where the config lists the language or another
-// variant of it, which would share the file, nor where the region
-// changes the script, which Android matches (`zh-TW` is not `values-zh`).
+// variant that would read it too, which would share the file, nor where
+// the region changes the script, which Android matches (`zh-TW` is not
+// `values-zh`).
 // Set here and nowhere else, as `group` is.
 function androidFallbacks<S extends Source>(
   source: S,
@@ -197,16 +198,23 @@ function androidFallbacks<S extends Source>(
   cwd: string,
 ): S {
   const res = path.join(cwd, (source as { path: string }).path);
-  const variants = new Map<string, number>();
-  for (const language of languages) {
-    const base = language.split(/[-_]/)[0]!;
-    variants.set(base, (variants.get(base) ?? 0) + 1);
-  }
-  const dirs: Record<string, string> = {};
+  // The languages that would take each plain directory: the language
+  // itself and the variants that can fall back to it.
+  const takers = new Map<string, number>();
+  const bases = new Map<string, string>();
   for (const language of languages) {
     if (language === sourceLanguage) continue;
-    const base = sameScriptBase(language);
-    if (!base || variants.get(base) !== 1) continue;
+    const base = /^[^-_]+$/.test(language)
+      ? language
+      : sameScriptBase(language);
+    if (!base) continue;
+    if (base !== language) bases.set(language, base);
+    const dir = androidDirOf(base);
+    takers.set(dir, (takers.get(dir) ?? 0) + 1);
+  }
+  const dirs: Record<string, string> = {};
+  for (const [language, base] of bases) {
+    if (takers.get(androidDirOf(base)) !== 1) continue;
     if (
       !existsSync(path.join(res, androidDirOf(language), "strings.xml")) &&
       existsSync(path.join(res, androidDirOf(base), "strings.xml"))
@@ -230,8 +238,11 @@ function sameScriptBase(language: string): string | undefined {
       locale.toString().split("-").length !== 2
     )
       return undefined;
-    const base = new Intl.Locale(locale.language);
-    return locale.maximize().script === base.maximize().script
+    // Without likely-subtags data neither has a script, and nothing
+    // tells zh-TW from zh.
+    const script = locale.maximize().script;
+    return script !== undefined &&
+      script === new Intl.Locale(locale.language).maximize().script
       ? language.split(/[-_]/)[0]
       : undefined;
   } catch {
