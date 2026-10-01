@@ -1946,41 +1946,86 @@ test("init with no template and no source .po takes a target .po's msgids as the
     "Quit",
   ]);
 
-  // A stale file loses to the newest date most files share, and the
-  // msgids only others hold are said.
+  // The newest date wins, however many stale files share an older one
+  // (paperless-ngx's en_US, which makemessages regenerated), and only a
+  // msgid another current file holds is said missing, never a stale one.
   const q = project();
   write(
     q.dir,
     "po/de.po",
-    po("2024-01-01 10:00+0000", ["Open", "Close", "Quit", "Old"]),
+    po("2024-01-01 10:00+0000", ["Open", "Close", "Old"]),
+  );
+  write(
+    q.dir,
+    "po/es.po",
+    po("2024-01-01 10:00+0000", ["Open", "Close", "Old"]),
   );
   write(
     q.dir,
     "po/fr.po",
-    po("2025-06-01 10:00+0000", ["Open", "Close", "Quit"]),
+    po("2025-06-01 10:00+0000", ["Open", "Close", "New"]),
   );
   write(
     q.dir,
     "po/it.po",
-    po("2025-06-01 10:00+0000", ["Open", "Close", "Quit"]),
+    po("2025-06-01 10:00+0000", ["Open", "Close", "New", "Newer"]),
   );
+  write(q.dir, "po/pt.po", po("YEAR-MO-DA HO:MI+ZONE", ["Open"]));
   expect(await run(initFor("po/{lang}.po"), q.ctx)).toBe(0);
   expect((await loadConfig(q.dir)).sources[0]).toMatchObject({
-    sourcePath: "po/fr.po",
+    sourcePath: "po/it.po",
   });
-  expect(q.err.join("\n")).toContain(
-    "corpus: po/fr.po lacks 1 msgid(s) another catalogue holds; those are not read",
+  expect(q.err.join("\n")).not.toContain("lacks");
+  const r = project();
+  write(
+    r.dir,
+    "po/fr.po",
+    po("2025-06-01 10:00+0000", ["Open", "Close", "New"]),
+  );
+  write(
+    r.dir,
+    "po/it.po",
+    po("2025-06-01 10:00+0000", ["Open", "Close", "Newer"]),
+  );
+  expect(await run(initFor("po/{lang}.po"), r.ctx)).toBe(0);
+  expect(r.err.join("\n")).toContain(
+    "corpus: po/fr.po lacks 1 msgid(s) another current catalogue holds; those are not read",
   );
 });
 
-test("init says a missing source file git ignores is generated (#996)", async () => {
-  const p = project();
+test("init says a missing source file git ignores is generated, whatever the adapter (#996)", async () => {
   const { spawnSync } = await import("node:child_process");
-  spawnSync("git", ["init", "-q"], { cwd: p.dir });
-  write(p.dir, ".gitignore", "/locale/en\n");
-  write(p.dir, "locale/de/translations.json", '{ "hi": "Hallo" }\n');
-  await run(initFor("locale/{lang}/translations.json"), p.ctx);
-  expect(p.err.join("\n")).toContain(
-    "corpus: locale/en/translations.json is git-ignored, so it is generated: commit it, or point the source at a file that is committed",
-  );
+  const cases: [string, string, string][] = [
+    [
+      "locale/{lang}/translations.json",
+      "locale/de/translations.json",
+      '{ "hi": "Hallo" }\n',
+    ],
+    [
+      "src/locale/messages.{lang}.xlf",
+      "src/locale/messages.de.xlf",
+      '<?xml version="1.0"?>\n<xliff version="1.2"><file source-language="en" target-language="de"><body></body></file></xliff>\n',
+    ],
+    [
+      "lang/app_{lang}.ts",
+      "lang/app_de.ts",
+      '<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE TS>\n<TS version="2.1" language="de"></TS>\n',
+    ],
+    [
+      "config/locales/{lang}.yml",
+      "config/locales/de.yml",
+      "de:\n  hi: Hallo\n",
+    ],
+  ];
+  for (const [pattern, file, text] of cases) {
+    const p = project();
+    spawnSync("git", ["init", "-q"], { cwd: p.dir });
+    const source = pattern.replace("{lang}", "en");
+    write(p.dir, ".gitignore", `/${source}\n`);
+    write(p.dir, file, text);
+    await run(initFor(pattern), p.ctx);
+    expect(p.err.join("\n"), pattern).toContain(
+      `corpus: ${source} is git-ignored, so it is generated: commit it, or point the source at a file that is committed`,
+    );
+  }
 });

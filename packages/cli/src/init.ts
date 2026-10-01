@@ -1,5 +1,11 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import { createJiti } from "jiti";
 import {
@@ -394,6 +400,7 @@ function formatOf(
       missing && bare !== undefined && existsSync(path.join(ctx.cwd, bare))
         ? bare
         : undefined;
+    if (!sourcePath && missing) gitIgnored(ctx, relative);
     if (!sourcePath && missing)
       ctx.err(
         bare === undefined
@@ -423,7 +430,7 @@ function formatOf(
         );
         if (target.lacking > 0)
           ctx.err(
-            `corpus: ${target.file} lacks ${target.lacking} msgid(s) another catalogue holds; those are not read`,
+            `corpus: ${target.file} lacks ${target.lacking} msgid(s) another current catalogue holds; those are not read`,
           );
         return { adapter: "gettext", sourcePath: target.file };
       }
@@ -441,6 +448,7 @@ function formatOf(
   // rather than written into a config that cannot build.
   if (/\.ya?ml$/i.test(messages)) {
     refuseNamespace(messages, "yaml");
+    if (missing) gitIgnored(ctx, relative);
     if (missing)
       throw new CliError(
         `--messages ${messages}: no ${relative} to read the source language's strings from`,
@@ -472,10 +480,12 @@ function formatOf(
     // lupdate's template, `app.ts` beside `app_de.ts`, is the source where
     // the source language has no file of its own (#749).
     const sourcePath = missing ? qtTemplateOf(ctx.cwd, messages) : undefined;
-    if (missing && !sourcePath)
+    if (missing && !sourcePath) {
+      gitIgnored(ctx, relative);
       ctx.err(
         `corpus: no ${relative}; set the qt-ts source's sourcePath to the template lupdate writes`,
       );
+    }
     return { adapter: "qt-ts", ...(sourcePath && { sourcePath }) };
   }
   // Every format's build reads the source language's file (#856).
@@ -487,7 +497,7 @@ function formatOf(
     ctx.err(
       `corpus: no ${relative}: build reads the source language's strings from it`,
     );
-    if (missing) gitIgnored(ctx, relative);
+    if (missing && !messages.includes("{ns}")) gitIgnored(ctx, relative);
   }
   // Fluent's `.ftl` reads `{ns}` as messages does (#993).
   if (/\.ftl$/i.test(messages)) return { adapter: "fluent" };
@@ -985,10 +995,6 @@ function siblingCatalogues(
     .sort();
 }
 
-// The `.pot` files in the directory above a `.po` pattern's language,
-// `locales/` for `locales/{lang}.po` and GNU's
-// `locales/{lang}/LC_MESSAGES/app.po` alike; the one named as the
-// catalogues are (`app.pot`) alone when it is there.
 // A missing source file git ignores is generated, by a build step the
 // repository does not commit the output of (Zulip's `/locale/en`).
 function gitIgnored(ctx: RunContext, rel: string): void {
@@ -1004,40 +1010,46 @@ function gitIgnored(ctx: RunContext, rel: string): void {
 
 // The target `.po` whose msgids stand for the source's where no template
 // and no source-language file is committed (#996): among the files
-// sharing the newest POT-Creation-Date most of them share, msgmerged
-// together, the one holding the most msgids; and how many msgids other
-// files hold that it lacks.
+// msgmerged last, by the newest POT-Creation-Date (a file another tool
+// regenerated alone, paperless-ngx's en_US, is current where 47 stale
+// ones are not), the one holding the most msgids; and how many msgids the
+// other current files hold that it lacks.
 function sourceFromTargets(
   cwd: string,
   pattern: string,
 ): { file: string; lacking: number } | undefined {
-  const read = patternFiles(cwd, pattern).map((file) => {
-    const text = readFileSync(path.join(cwd, file), "utf8");
-    let ids = new Set<string>();
-    try {
-      ids = new Set(gettextToEntries(text, { type: "x" }).map((e) => e.id));
-    } catch {
-      // A file that does not parse stands for nothing.
-    }
-    const date = /"POT-Creation-Date:\s*([^"\\]*)/.exec(text)?.[1]?.trim();
-    return { file, ids, date };
-  });
+  const read = patternFiles(cwd, pattern)
+    .filter((file) => statSync(path.join(cwd, file)).isFile())
+    .map((file) => {
+      const text = readFileSync(path.join(cwd, file), "utf8");
+      const ids = new Set(
+        gettextToEntries(text, { type: "x" }).map((e) => e.id),
+      );
+      const date = Date.parse(
+        (/"POT-Creation-Date:\s*([^"\\]*)/.exec(text)?.[1] ?? "")
+          .trim()
+          .replace(" ", "T")
+          .replace(/([+-]\d\d)(\d\d)$/, "$1:$2"),
+      );
+      return { file, ids, date: Number.isNaN(date) ? undefined : date };
+    });
   const usable = read.filter((r) => r.ids.size > 0);
   if (usable.length === 0) return undefined;
-  const shared = new Map<string, number>();
-  for (const { date } of usable)
-    if (date) shared.set(date, (shared.get(date) ?? 0) + 1);
-  const best = [...shared].sort(
-    ([a, m], [b, n]) => n - m || b.localeCompare(a),
-  )[0]?.[0];
-  const pool = best ? usable.filter((r) => r.date === best) : usable;
+  const dates = usable.flatMap((r) => (r.date === undefined ? [] : [r.date]));
+  const newest = dates.length > 0 ? Math.max(...dates) : undefined;
+  const pool =
+    newest === undefined ? usable : usable.filter((r) => r.date === newest);
   const chosen = [...pool].sort(
     (a, b) => b.ids.size - a.ids.size || a.file.localeCompare(b.file),
   )[0]!;
-  const all = new Set(usable.flatMap((r) => [...r.ids]));
-  return { file: chosen.file, lacking: all.size - chosen.ids.size };
+  const current = new Set(pool.flatMap((r) => [...r.ids]));
+  return { file: chosen.file, lacking: current.size - chosen.ids.size };
 }
 
+// The `.pot` files in the directory above a `.po` pattern's language,
+// `locales/` for `locales/{lang}.po` and GNU's
+// `locales/{lang}/LC_MESSAGES/app.po` alike; the one named as the
+// catalogues are (`app.pot`) alone when it is there.
 function potsBeside(cwd: string, pattern: string): string[] {
   const dir = path.posix.dirname(
     `${pattern.slice(0, pattern.indexOf("{lang}"))}x`,
