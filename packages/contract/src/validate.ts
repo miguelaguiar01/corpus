@@ -74,6 +74,9 @@ export type ValidationError =
   // `#` in a select within a plural, text to FormatJS and ICU and the
   // count to messageformat.js: `{arg}` reads the same to all.
   | { code: "nested-count"; arg: string }
+  // vue-i18n: an `@` that opens no link, which its compiler refuses
+  // (#1017); `{'@'}` writes the character.
+  | { code: "bare-at" }
   | { code: "missing-category"; arg: string; key: string }
   | { code: "unexpected-category"; arg: string; key: string }
   // A formatted placeholder written with another type, or with none
@@ -152,6 +155,30 @@ function countsInSelects(
     if (node.kind === "tag") countsInSelects(node.children, within, out);
   }
   return out;
+}
+
+// vue-i18n's link, `@:key`, `@.modifier:key`, `@:(key)` or `@:{'key'}`,
+// at the start of the text (@intlify/message-compiler 11).
+const VUE_LINK_RE =
+  /^@(?:\.[A-Za-z]+)?:(?:\([^()]+\)|\{[^{}]+\}|[A-Za-z0-9_$.-]+)/;
+
+// Whether a text writes an `@` outside braces that opens no link, which
+// vue-i18n's compiler refuses, showing the message raw (#1017): said
+// for a source, invalid in a translation.
+export function bareAtOf(text: string, syntax: Library = "icu"): boolean {
+  if (syntax !== "vue") return false;
+  let depth = 0;
+  for (let at = 0; at < text.length; at++) {
+    const ch = text[at];
+    if (ch === "{") depth += 1;
+    else if (ch === "}") depth = Math.max(0, depth - 1);
+    else if (ch === "@" && depth === 0) {
+      const link = VUE_LINK_RE.exec(text.slice(at));
+      if (!link) return true;
+      at += link[0].length - 1;
+    }
+  }
+  return false;
 }
 
 // The plurals whose `#` a source writes in a select within them, which
@@ -965,6 +992,8 @@ export function validateTranslation(
   if (!sameMessage(source, target, syntax))
     for (const arg of countsInSelects(parsedTarget.nodes))
       errors.push({ code: "nested-count", arg });
+  if (target !== source && bareAtOf(target, syntax))
+    errors.push({ code: "bare-at" });
   for (const [arg, keys] of actual.selects) {
     const sourceKeys = expected.selects.get(arg);
     if (syntax === "fluent") {

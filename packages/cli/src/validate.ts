@@ -7,6 +7,7 @@ import {
   isFluentTermId,
   messageKind,
   nestedCountsOf,
+  bareAtOf,
   parseIcu,
   tagMode,
   validateTranslation,
@@ -30,6 +31,7 @@ import {
   hasLanguages,
   isFluentTerm,
   nestedCountMessage,
+  BARE_AT_MESSAGE,
   pluralFormsOf,
   takesPluralForms,
   lastWins,
@@ -498,6 +500,8 @@ export function describe(
       return `{${error.inner}} sits inside {${error.outer}}'s branch, where the source does not put it`;
     case "nested-count":
       return nestedCountMessage(error.arg);
+    case "bare-at":
+      return BARE_AT_MESSAGE;
     case "missing-category":
       return `plural on {${error.arg}} lacks the ${error.key} branch the runtime picks in its language`;
     case "unexpected-category":
@@ -701,16 +705,29 @@ function nestedCounts(
   sources: Map<string, StringEntry>,
   libraryFor: (entry: StringEntry) => Library,
 ): Finding[] {
-  return [...sources].flatMap(([key, entry]) =>
-    nestedCountsOf(entry.source, libraryFor(entry)).map((arg) => ({
+  return [...sources].flatMap(([key, entry]): Finding[] => [
+    ...nestedCountsOf(entry.source, libraryFor(entry)).map((arg) => ({
       file,
       key,
       language,
-      code: "nested-count",
+      code: "nested-count" as const,
       severity: "warning" as const,
       message: nestedCountMessage(arg),
     })),
-  );
+    // vue-i18n's unlinked `@`, said where the source writes it (#1017).
+    ...(bareAtOf(entry.source, libraryFor(entry))
+      ? [
+          {
+            file,
+            key,
+            language,
+            code: "bare-at" as const,
+            severity: "warning" as const,
+            message: BARE_AT_MESSAGE,
+          },
+        ]
+      : []),
+  ]);
 }
 
 // One translation against its source string: its incomplete plurals,

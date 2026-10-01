@@ -57,6 +57,7 @@
   "editor.unknownSelect": "The source has no select on {arg}",
   "editor.changedNesting": "{inner} sits inside a branch of {outer}, where the source does not put it",
   "editor.nestedCount": "# in a select within the plural on {arg} is text to some runtimes; write the placeholder {arg} instead",
+  "editor.bareAt": "An @ that opens no link does not compile in vue-i18n, which then shows the message raw; write {literal}",
   "editor.warningSourceChanged": "The source changed since you opened this string. Your draft is kept below; read it against the new source before saving.",
   "entities.all": "All",
   "entities.empty": "No entities yet. Push a snapshot that includes them.",
