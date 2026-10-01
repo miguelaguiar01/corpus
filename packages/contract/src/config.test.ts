@@ -613,6 +613,17 @@ test("a source that reads no sourcePath refuses one by name (#994)", () => {
   ]);
   expect(
     issues({
+      adapter: "fluent",
+      type: "ui",
+      path: "core/{lang}/{ns}.ftl",
+      languageFiles: { en: "templates" },
+      sourcePath: "core/templates/{ns}.ftl",
+    }),
+  ).toEqual([
+    "fluent reads no sourcePath; this one is the pattern's own source file, so drop it",
+  ]);
+  expect(
+    issues({
       adapter: "messages",
       type: "ui",
       path: "src/{ns}/i18n/{lang}.json",

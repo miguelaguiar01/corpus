@@ -365,7 +365,10 @@ export const corpusConfigSchema = z
           code: "custom",
           message: !MAPS_LANGUAGE_FILES.includes(source.adapter)
             ? `${source.adapter} reads no sourcePath`
-            : code === c.sourceLanguage
+            : code === c.sourceLanguage ||
+                (code !== undefined &&
+                  (source as { languageFiles?: Record<string, string> })
+                    .languageFiles?.[c.sourceLanguage] === code)
               ? `${source.adapter} reads no sourcePath; this one is the pattern's own source file, so drop it`
               : `${source.adapter} reads no sourcePath; map the source language with languageFiles: { ${c.sourceLanguage}: "${code ?? "<its file's code>"}" }`,
           path: ["sources", index, "sourcePath"],
