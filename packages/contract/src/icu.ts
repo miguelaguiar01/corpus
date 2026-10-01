@@ -1104,6 +1104,12 @@ class Parser {
         start,
       );
     }
+    // Fluent counts an ordinal with NUMBER's option, in a select.
+    if (type === "selectordinal" && this.syntax === "fluent")
+      throw new ParseFailure(
+        `a Fluent text writes an ordinal as { NUMBER($${name}, type: "ordinal") -> … }, which Corpus does not read yet`,
+        start,
+      );
     // selectordinal is a plural by the ordinal rules, nesting as one.
     const kind = type === "select" ? "select" : "plural";
     if (inBranch) this.checkNesting(kind, start);
@@ -1112,7 +1118,7 @@ class Parser {
       throw new ParseFailure(`${type} needs branches`, start);
     }
     this.pos += 1;
-    const node = this.parseBranches(kind, name, start);
+    const node = this.parseBranches(kind, name, start, type);
     return type === "selectordinal" && node.kind === "plural"
       ? { ...node, ordinal: true }
       : node;
@@ -1152,6 +1158,8 @@ class Parser {
     type: "select" | "plural",
     name: string,
     start: number,
+    // The argument type as written, for the messages: selectordinal's.
+    label: string = type,
   ): IcuNode {
     // A branch key is data: `__proto__` is a key like any other (#846).
     const branches = Object.create(null) as Record<string, IcuNode[]>;
@@ -1160,26 +1168,26 @@ class Parser {
       this.skipWhitespace();
       const ch = this.source[this.pos];
       if (ch === undefined) {
-        throw new ParseFailure(`unclosed ${type}`, start);
+        throw new ParseFailure(`unclosed ${label}`, start);
       }
       if (ch === "}") {
         this.pos += 1;
         if (Object.keys(branches).length === 0) {
-          throw new ParseFailure(`${type} needs at least one branch`, start);
+          throw new ParseFailure(`${label} needs at least one branch`, start);
         }
         if (type === "plural" && !("other" in branches)) {
-          throw new ParseFailure("plural needs an other branch", start);
+          throw new ParseFailure(`${label} needs an other branch`, start);
         }
         return { kind: type, arg: name, branches };
       }
       const key = this.readUntil(["{", "}"]).trim();
       if (this.source[this.pos] !== "{") {
-        throw new ParseFailure(`${type} needs branches`, start);
+        throw new ParseFailure(`${label} needs branches`, start);
       }
       if (!(type === "plural" ? PLURAL_KEY_RE : KEY_RE).test(key)) {
         throw new ParseFailure(
           type === "plural"
-            ? `invalid plural branch key ${JSON.stringify(key)}: a category (${PLURAL_CATEGORIES.join(", ")}) or =N`
+            ? `invalid ${label} branch key ${JSON.stringify(key)}: a category (${PLURAL_CATEGORIES.join(", ")}) or =N`
             : `invalid branch key ${JSON.stringify(key)}`,
           this.pos,
         );
@@ -1438,8 +1446,10 @@ export type Shape = {
   formats: Map<string, PlaceholderFormat>;
   selects: Map<string, Set<string>>;
   plurals: Map<string, Set<string>>;
-  // The plurals' arguments a selectordinal counts (#995).
-  ordinals: Set<string>;
+  // The same keys by kind: a cardinal plural's and a selectordinal's,
+  // one argument holding both apart (#995).
+  cardinalPlurals: Map<string, Set<string>>;
+  ordinalPlurals: Map<string, Set<string>>;
   tags: Set<string>;
   // The tags that wrap text, a pair and not closed on itself, and those
   // written as a pair, whatever they hold (#986).
@@ -1467,7 +1477,8 @@ export function shapeOf(
     formats: new Map(),
     selects: new Map(),
     plurals: new Map(),
-    ordinals: new Set(),
+    cardinalPlurals: new Map(),
+    ordinalPlurals: new Map(),
     tags: new Set(),
     pairs: new Set(),
     opened: new Set(),
@@ -1519,7 +1530,14 @@ export function shapeOf(
     }
     if (node.kind === "select" || node.kind === "plural") {
       const map = node.kind === "select" ? shape.selects : shape.plurals;
-      if (node.kind === "plural" && node.ordinal) shape.ordinals.add(node.arg);
+      if (node.kind === "plural") {
+        const byKind = node.ordinal
+          ? shape.ordinalPlurals
+          : shape.cardinalPlurals;
+        const own = byKind.get(node.arg) ?? new Set<string>();
+        for (const key of Object.keys(node.branches)) own.add(key);
+        byKind.set(node.arg, own);
+      }
       const keys = map.get(node.arg) ?? new Set<string>();
       for (const key of Object.keys(node.branches)) keys.add(key);
       map.set(node.arg, keys);

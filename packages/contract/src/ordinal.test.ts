@@ -106,3 +106,50 @@ test("a preview takes the ordinal branch", () => {
     text: "3rd birthday",
   });
 });
+
+test("a cardinal and an ordinal on one argument are each judged by their own rule (#995 review)", () => {
+  const both =
+    "{n, plural, one {# day} other {# days}}, the {n, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}";
+  // de keeps the cardinal and writes the one-form ordinal plainly.
+  expect(
+    validateTranslation(
+      both,
+      "{n, plural, one {# Tag} other {# Tage}}, der {n}.",
+      "de",
+    ),
+  ).toEqual({ ok: true });
+  expect(
+    validateTranslation(
+      both,
+      "{n, plural, one {# Tag} other {# Tage}}, der {n, selectordinal, other {#.}}",
+      "de",
+    ),
+  ).toEqual({ ok: true });
+  expect(
+    validateTranslation(
+      both,
+      "{n, plural, one {# день} few {# дня} many {# дней} other {# дня}}, {n, selectordinal, other {#-й}}",
+      "ru",
+    ),
+  ).toEqual({ ok: true });
+  const lacking = validateTranslation(
+    both,
+    "{n, plural, one {# день} other {# дня}}, {n, selectordinal, other {#-й}}",
+    "ru",
+  );
+  expect(lacking.ok && lacking.incomplete).toEqual([
+    { code: "missing-category", arg: "n", key: "few" },
+    { code: "missing-category", arg: "n", key: "many" },
+  ]);
+});
+
+test("the fluent reading refuses a selectordinal, which Fluent writes with NUMBER (#995 review)", () => {
+  const read = parseIcu(
+    "{pos, selectordinal, one {#er} other {#e}} place",
+    "fluent",
+  );
+  expect(read.ok).toBe(false);
+  expect(read.ok ? "" : read.errors[0]?.message).toMatch(
+    /NUMBER\(\$pos, type: "ordinal"\)/,
+  );
+});

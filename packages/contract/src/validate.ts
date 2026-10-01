@@ -219,11 +219,23 @@ function pickedBranches(
 
 // The message as an other-only language renders it: each plural on
 // `args` replaced by its `other` branch, `#` by the count.
+// A plural by its kind and argument: `ordinal n`, `cardinal n` (#995).
+function pluralId(ordinal: boolean, arg: string): string {
+  return `${ordinal ? "ordinal" : "cardinal"} ${arg}`;
+}
+
 function otherBranch(nodes: IcuNode[], args: Set<string>): IcuNode[] {
   return nodes.flatMap((node): IcuNode[] => {
-    if (node.kind === "plural" && args.has(node.arg))
+    if (
+      node.kind === "plural" &&
+      args.has(pluralId(node.ordinal === true, node.arg))
+    )
       return otherBranch(node.branches.other ?? [], args);
-    if (node.kind === "count" && args.has(node.arg))
+    if (
+      node.kind === "count" &&
+      (args.has(pluralId(false, node.arg)) ||
+        args.has(pluralId(true, node.arg)))
+    )
       return [{ kind: "placeholder", name: node.arg }];
     if (node.kind === "select" || node.kind === "plural")
       return [
@@ -387,18 +399,30 @@ export function validateTranslation(
   // <plurals> the code asks for.
   const categories = language === undefined ? [] : pluralCategoriesOf(language);
   // A selectordinal's are its language's ordinal ones (#995): German's
-  // is `other` alone.
-  const categoriesOf = (arg: string) =>
+  // is `other` alone. A cardinal and an ordinal on one argument are each
+  // their own plural, flattened by its own rule.
+  const categoriesOf = (ordinal: boolean) =>
     language === undefined
       ? []
-      : whole.ordinals.has(arg)
+      : ordinal
         ? pluralCategoriesOf(language, true)
         : categories;
-  const flat = new Set(
-    [...whole.plurals.keys()].filter(
-      (arg) => !actual.plurals.has(arg) && categoriesOf(arg).length === 1,
-    ),
-  );
+  const kinds = (shape: Shape) =>
+    [
+      [false, shape.cardinalPlurals],
+      [true, shape.ordinalPlurals],
+    ] as const;
+  const flat = new Set<string>();
+  for (const [ordinal, map] of kinds(whole))
+    for (const arg of map.keys()) {
+      const mine = ordinal ? actual.ordinalPlurals : actual.cardinalPlurals;
+      // The other kind there is a changed one unless the source has it.
+      const swapped =
+        (ordinal ? actual.cardinalPlurals : actual.ordinalPlurals).has(arg) &&
+        !(ordinal ? whole.cardinalPlurals : whole.ordinalPlurals).has(arg);
+      if (!mine.has(arg) && !swapped && categoriesOf(ordinal).length === 1)
+        flat.add(pluralId(ordinal, arg));
+    }
   const flattened =
     flat.size > 0 && syntax !== "android"
       ? otherBranch(sourceNodes, flat)
@@ -415,7 +439,10 @@ export function validateTranslation(
   const allowedValues =
     flattened === sourceNodes
       ? expectedValues
-      : new Set([...expectedValues, ...flat]);
+      : new Set([
+          ...expectedValues,
+          ...[...flat].map((id) => id.slice(id.indexOf(" ") + 1)),
+        ]);
   const actualValues = valuesOf(actual);
 
   const writtenAs = (shape: Shape, name: string) => {
@@ -476,7 +503,9 @@ export function validateTranslation(
       const otherOnly = [...(whole.plurals.get(name) ?? [])].every(
         (k) => k === "other",
       );
-      if (categoriesOf(name).length !== 1 && !(sameBase && otherOnly))
+      const ordinalOnly =
+        whole.ordinalPlurals.has(name) && !whole.cardinalPlurals.has(name);
+      if (categoriesOf(ordinalOnly).length !== 1 && !(sameBase && otherOnly))
         errors.push({ code: "flattened-plural", arg: name });
       continue;
     }
@@ -830,20 +859,21 @@ export function validateTranslation(
       // A language of the source's base shares its grammar, so the source
       // author has already said which categories its text varies by
       // (#1005): an en-GB copy of an `other`-only plural is complete.
-      sameBase ? whole.plurals : undefined,
+      sameBase
+        ? { cardinal: whole.cardinalPlurals, ordinal: whole.ordinalPlurals }
+        : undefined,
     ),
   );
-  // An ordinal is picked by another rule than a cardinal (#995).
-  for (const arg of actual.plurals.keys())
-    if (
-      whole.plurals.has(arg) &&
-      whole.ordinals.has(arg) !== actual.ordinals.has(arg)
-    )
-      errors.push({
-        code: "changed-ordinal",
-        arg,
-        ordinal: whole.ordinals.has(arg),
-      });
+  // An ordinal is picked by another rule than a cardinal (#995): a
+  // translation's plural of a kind the source has none of on that
+  // argument, where the source has the other.
+  for (const [ordinal, map] of kinds(actual))
+    for (const arg of map.keys()) {
+      const same = ordinal ? whole.ordinalPlurals : whole.cardinalPlurals;
+      const other = ordinal ? whole.cardinalPlurals : whole.ordinalPlurals;
+      if (!same.has(arg) && other.has(arg))
+        errors.push({ code: "changed-ordinal", arg, ordinal: !ordinal });
+    }
   // Fluent's writer renders a select inside any variant (#990).
   if (syntax !== "fluent")
     errors.push(...nestingErrors(sourceNodes, targetNodes));
@@ -985,43 +1015,57 @@ function pluralErrors(
     allowed: string[];
   },
   language: string | undefined,
-  // The source's own keys by argument, for a language of its base.
-  sourceKeys?: Map<string, Set<string>>,
+  // The source's own keys by kind and argument, for a language of its
+  // base.
+  sourceKeys?: {
+    cardinal: Map<string, Set<string>>;
+    ordinal: Map<string, Set<string>>;
+  },
 ): ValidationError[] {
   const out: ValidationError[] = [];
-  for (const [arg, keys] of actual.plurals) {
-    const ordinal = actual.ordinals.has(arg);
-    const categories = categoriesFor(ordinal);
-    if (!expectedValues.has(arg) && !passed.has(arg)) {
-      out.push(...(fluent?.unpassed(arg) ?? [{ code: "unknown-plural", arg }]));
-      continue;
-    }
-    if (
-      fluent &&
-      keys.size === 1 &&
-      keys.has("other") &&
-      !fluent.sourcePlurals.has(arg)
-    )
-      continue;
-    if (categories.required.length === 0) continue;
-    // `=01` is not `=1` to the runtimes, which match the key as written.
-    const exact = new Set(
-      [...keys].filter((k) => EXACT_KEY.test(k)).map((k) => Number(k.slice(1))),
-    );
-    const own = sourceKeys?.get(arg);
-    for (const key of categories.required) {
-      if (own && key !== "other" && !own.has(key)) continue;
+  const byKind = [
+    [false, actual.cardinalPlurals],
+    [true, actual.ordinalPlurals],
+  ] as const;
+  for (const [ordinal, plurals] of byKind)
+    for (const [arg, keys] of plurals) {
+      const categories = categoriesFor(ordinal);
+      if (!expectedValues.has(arg) && !passed.has(arg)) {
+        out.push(
+          ...(fluent?.unpassed(arg) ?? [{ code: "unknown-plural", arg }]),
+        );
+        continue;
+      }
       if (
-        !keys.has(key) &&
-        !(language && pluralCategoryCovered(language, key, exact, ordinal))
+        fluent &&
+        keys.size === 1 &&
+        keys.has("other") &&
+        !fluent.sourcePlurals.has(arg)
       )
-        out.push({ code: "missing-category", arg, key });
+        continue;
+      if (categories.required.length === 0) continue;
+      // `=01` is not `=1` to the runtimes, which match the key as written.
+      const exact = new Set(
+        [...keys]
+          .filter((k) => EXACT_KEY.test(k))
+          .map((k) => Number(k.slice(1))),
+      );
+      const own = (ordinal ? sourceKeys?.ordinal : sourceKeys?.cardinal)?.get(
+        arg,
+      );
+      for (const key of categories.required) {
+        if (own && key !== "other" && !own.has(key)) continue;
+        if (
+          !keys.has(key) &&
+          !(language && pluralCategoryCovered(language, key, exact, ordinal))
+        )
+          out.push({ code: "missing-category", arg, key });
+      }
+      for (const key of keys) {
+        if (!key.startsWith("=") && !categories.allowed.includes(key))
+          out.push({ code: "unexpected-category", arg, key });
+      }
     }
-    for (const key of keys) {
-      if (!key.startsWith("=") && !categories.allowed.includes(key))
-        out.push({ code: "unexpected-category", arg, key });
-    }
-  }
   return out;
 }
 
