@@ -73,20 +73,20 @@ Terms that must be rendered the same way everywhere, one file per target languag
 [
   {
     "term": "workspace",
-    "forms": ["workspaces"],
     "target": "espaço de trabalho",
     "note": "Never \"área de trabalho\", which is the desktop."
   },
-  { "term": "draft", "forms": ["drafts", "drafted"], "target": "rascunho" },
+  { "term": "entry", "forms": ["entries"], "target": "entrada" },
   {
     "term": "Acme",
+    "match": "exact",
     "target": "Acme",
     "note": "The product name never translates."
   }
 ]
 ```
 
-`term` is matched in the source text, along with any `forms` you list, and the matching is case- and accent-insensitive on whole words: `Vítima` in a source matches the term `vitima`. The editor shows the matched terms with their `target` and `note` while the string is being translated, and `get_string` returns them, so an agent sees the same list.
+`term` is matched in the source text, along with any `forms` you list, and the matching is case- and accent-insensitive on whole words: `Vítima` in a source matches the term `vitima`. A term also matches its regular endings: a word, or the word less a final `a`, `e` or `o`, followed by up to two letters, so `workspace` finds `workspaces`, and `assassino` finds `assassinos` and `assassina`. A word shorter than four letters matches only as written. List in `forms` what that rule cannot reach, such as `entries` for `entry` or `divisões` for `divisão`, and set `"match": "exact"` on an entry whose term should match only as written. The editor shows the matched terms with their `target` and `note` while the string is being translated, and `get_string` returns them, so an agent sees the same list.
 
 The repository owns these files and `corpus pull` never writes them. An absent file for a language is an empty glossary; a malformed one is a build error.
 

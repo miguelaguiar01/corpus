@@ -20,6 +20,7 @@ contract (`corpus/1`) is the only one.
 - Rails keys ending in `_html` are read as HTML: a translation's own tags are accepted, and broken markup in them is still caught (#988).
 - An Android app's modules are one project: an `android` source's `path` may list its `res` directories, with `merge`, and a `{ns}` captures a Compose Multiplatform module (#989).
 - A Fluent message Corpus cannot read is refused on its own instead of failing its whole file, and the build goes on (#991).
+- A glossary term finds its regular inflections (`assassino`: `assassinos`, `assassina`), and `match: "exact"` turns that off for an entry (#1073).
 
 ## [0.21.0] - 2026-09-29
 

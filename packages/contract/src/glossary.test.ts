@@ -101,20 +101,14 @@ test("an entry's forms match as the term does, and the entry shows once under it
     { term: "assassino", forms: ["assassinos", "assassina"], target: "killer" },
     { term: "vítima", target: "victim" },
   ];
-  // The plural of a term with no forms is not the term.
-  expect(
-    glossaryMatches("Mais casos do que os ASSASSINOS e as vítimas.", terms).map(
-      (e) => e.term,
-    ),
-  ).toEqual(["assassino"]);
   expect(
     glossaryMatches("A assassina fugiu.", terms).map((e) => e.term),
   ).toEqual(["assassino"]);
   expect(
-    glossaryMatches("As vítimas.", [{ ...terms[1]!, forms: ["vítimas"] }]).map(
-      (e) => e.term,
-    ),
-  ).toEqual(["vítima"]);
+    glossaryMatches("As divisões.", [
+      { term: "divisão", forms: ["divisões"], target: "room" },
+    ]).map((e) => e.term),
+  ).toEqual(["divisão"]);
   expect(
     glossaryFileSchema.safeParse([{ term: "x", forms: [""], target: "y" }])
       .success,
@@ -153,4 +147,54 @@ test("a term inside a rich-text tag is found; the tag's name is not a word", () 
   expect(
     glossaryMatches("Veja a <link>vítima</link>.", terms).map((e) => e.term),
   ).toEqual(["vítima"]);
+});
+
+test("a term matches its inflections: the term, or the term less a final a, e or o, and at most two more letters", () => {
+  const terms = [
+    { term: "assassino", target: "killer" },
+    { term: "vítima", target: "victim" },
+    { term: "suspeito", target: "suspect" },
+    { term: "hora do crime", target: "time of the crime" },
+    { term: "draft", target: "rascunho" },
+  ];
+  const hits = (source: string) =>
+    glossaryMatches(source, terms).map((e) => e.term);
+  expect(hits("A pressa já estragou mais casos do que os assassinos.")).toEqual(
+    ["assassino"],
+  );
+  expect(hits("A assassina e as assassinas.")).toEqual(["assassino"]);
+  expect(hits("As vítimas e os suspeitos.")).toEqual(["vítima", "suspeito"]);
+  expect(hits("As horas do crime.")).toEqual(["hora do crime"]);
+  expect(hits("Two drafts, one drafted.")).toEqual(["draft"]);
+  // Three letters more, or a different stem, is another word.
+  expect(hits("Os assassinatos, a vitimização, o drafting.")).toEqual([]);
+  // Each word of a multi-word term inflects by itself; the run still counts.
+  expect(hits("Uma hora do dia, o crime.")).toEqual([]);
+});
+
+test("a term under four letters, and an entry with match exact, match only as written", () => {
+  const terms = [
+    { term: "pé", target: "foot" },
+    { term: "sol", target: "sun" },
+    {
+      term: "pista",
+      match: "exact" as const,
+      forms: ["pistas"],
+      target: "clue",
+    },
+  ];
+  const hits = (source: string) =>
+    glossaryMatches(source, terms).map((e) => e.term);
+  expect(hits("Os pés ao solo.")).toEqual([]);
+  expect(hits("O pé ao sol.")).toEqual(["pé", "sol"]);
+  expect(hits("A pista e as pistas.")).toEqual(["pista"]);
+  expect(hits("Uma pistola.")).toEqual([]);
+  expect(hits("As pistas.")).toEqual(["pista"]);
+  expect(
+    glossaryMatches("A pistinha.", [{ term: "pista", target: "clue" }]),
+  ).toEqual([]);
+  expect(
+    glossaryFileSchema.safeParse([{ term: "x", match: "loose", target: "y" }])
+      .success,
+  ).toBe(false);
 });

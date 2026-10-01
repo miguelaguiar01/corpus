@@ -10,6 +10,7 @@ const glossaryEntrySchema = z.object({
   // Other surface forms of the term (plurals, agreements), each matched
   // as the term is; the entry still shows under its term.
   forms: z.array(z.string().min(1)).optional(),
+  match: z.enum(["exact", "inflected"]).optional(),
   target: z.string().min(1),
   note: z.string().min(1).optional(),
 });
@@ -63,9 +64,21 @@ function literalText(source: string, syntax: Library): string {
   return parts.join(" ");
 }
 
+// An inflection without a dictionary: the word, or the word less a final
+// a, e or o, and at most two more letters (assassino: assassinos,
+// assassina; draft: drafted). A word under four letters is too short to
+// tell an ending from another word, so it matches only as written.
+function inflects(term: string, word: string): boolean {
+  if (word === term) return true;
+  if (term.length < 4) return false;
+  const stem = /[aeo]$/.test(term) ? term.slice(0, -1) : term;
+  return word.startsWith(stem) && word.length - stem.length <= 2;
+}
+
 // The entries whose term occurs in the source as whole words, in the
-// glossary's order; a multi-word term matches as a run of words, and a
-// term in a script written without spaces as a run of characters.
+// glossary's order; a multi-word term matches as a run of words, each
+// inflected by itself, and a term in a script written without spaces as a
+// run of characters. Forms are matched as written.
 export function glossaryMatches(
   source: string,
   entries: GlossaryEntry[],
@@ -74,16 +87,20 @@ export function glossaryMatches(
   const literal = literalText(source, syntax);
   const haystack = words(literal);
   const folded = foldTerm(literal);
-  const occurs = (form: string) => {
+  const occurs = (form: string, inflected: boolean) => {
     if (UNSPACED.test(form)) return folded.includes(foldTerm(form));
     const needle = words(form);
     if (needle.length === 0 || needle.length > haystack.length) return false;
+    const same = (w: string, at: string) =>
+      inflected ? inflects(w, at) : w === at;
     for (let i = 0; i + needle.length <= haystack.length; i++) {
-      if (needle.every((w, j) => haystack[i + j] === w)) return true;
+      if (needle.every((w, j) => same(w, haystack[i + j]!))) return true;
     }
     return false;
   };
-  return entries.filter((entry) =>
-    [entry.term, ...(entry.forms ?? [])].some(occurs),
+  return entries.filter(
+    (entry) =>
+      occurs(entry.term, entry.match !== "exact") ||
+      (entry.forms ?? []).some((form) => occurs(form, false)),
   );
 }
