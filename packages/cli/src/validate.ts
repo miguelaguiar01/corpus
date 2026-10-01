@@ -146,7 +146,7 @@ export async function validate(
         ? `${byKey.size} orphan key(s) in ${new Set(orphans.map((f) => f.file)).size} file(s)`
         : "",
       incomplete.length
-        ? `${incomplete.length} incomplete plural(s), a category the runtime picks that the translation lacks, or one it never picks`
+        ? `${incomplete.length} incomplete plural(s), a category the runtime picks that the translation lacks, one it never picks, or a plural written as one text`
         : "",
       warnings.length ? `${warnings.length} warning(s)` : "",
     ].filter(Boolean);
@@ -469,6 +469,8 @@ export function describe(
       return `plural on {${error.arg}} lacks the ${error.key} branch the runtime picks in its language`;
     case "unexpected-category":
       return `plural on {${error.arg}} has the branch ${error.key}, which the runtime never picks in its language`;
+    case "flattened-plural":
+      return `the plural on {${error.arg}} is written as one text: no value is lost, but every count reads the same form`;
     case "unpassed-selector":
       return `selects on {${error.arg}}, which the source never passes: Fluent renders the default`;
     case "unexpected-format":

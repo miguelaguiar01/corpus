@@ -1169,3 +1169,25 @@ account = { $capitalization ->
   expect(err).not.toContain("account");
   expect(err).toMatch(/corpus: 1 warning\(s\)$/);
 });
+
+test("a plural written as one text where the source never prints its count is incomplete, in --json too (#992)", async () => {
+  write("i18n/en.json", {
+    greeting:
+      "{count, plural, one {card from the deck} other {cards from the deck}}",
+  });
+  write("i18n/pt.json", { greeting: "cartas do baralho" });
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(0);
+  expect(c.stderr.join("\n")).toContain(
+    "i18n/pt.json:greeting: the plural on {count} is written as one text",
+  );
+  const j = ctx();
+  expect(await run(["validate", "--json"], j)).toBe(0);
+  expect(JSON.parse(j.stdout.join("\n"))).toContainEqual(
+    expect.objectContaining({
+      key: "greeting",
+      code: "flattened-plural",
+      severity: "incomplete",
+    }),
+  );
+});

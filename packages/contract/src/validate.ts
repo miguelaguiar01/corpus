@@ -3,8 +3,9 @@
 // every source placeholder must survive and none may be added; a target
 // may collapse a select into plain text, but any select it keeps must be
 // on an argument the source selects on, with the same branch keys. A
-// count the source pluralises on is a value like a placeholder: it must
-// survive, as `{n}` or as a plural on n, and a target may pluralise any
+// count the source prints is a value like a placeholder: it must
+// survive, as `{n}` or as a plural on n (one it only selects on may be
+// written as one text, #992), and a target may pluralise any
 // value the source has; with the target language given, a plural's
 // categories must be the ones its runtime picks in that language. A
 // rich-text tag is a component the client renders: every tag in the
@@ -54,6 +55,10 @@ export type ValidationError =
   | { code: "missing-branch"; arg: string; key: string }
   | { code: "unexpected-branch"; arg: string; key: string }
   | { code: "unknown-plural"; arg: string }
+  // A plural whose count the source never prints, written as one text:
+  // no value is lost, but a language that inflects reads one form for
+  // every count (#992).
+  | { code: "flattened-plural"; arg: string }
   // A Fluent translation's select or plural on a variable its source
   // never has: Fluent renders the default (#1032).
   | { code: "unpassed-selector"; arg: string }
@@ -150,6 +155,21 @@ export function nestedCountsOf(
 ): string[] {
   const parsed = readIcu(source, syntax);
   return parsed.ok ? [...countsInSelects(parsed.nodes)] : [];
+}
+
+// What a text prints: its placeholders and the counts its plurals'
+// branches write as `#`, through tags, branches and forms.
+function printedIn(nodes: IcuNode[], out = new Set<string>()): Set<string> {
+  for (const node of nodes) {
+    if (node.kind === "placeholder") out.add(node.name);
+    else if (node.kind === "count") out.add(node.arg);
+    else if (node.kind === "tag") printedIn(node.children, out);
+    else if (node.kind === "select" || node.kind === "plural")
+      for (const branch of Object.values(node.branches)) printedIn(branch, out);
+    else if (node.kind === "forms")
+      for (const branch of node.branches) printedIn(branch, out);
+  }
+  return out;
 }
 
 // The values a message uses: its placeholders and the counts it
@@ -396,13 +416,33 @@ export function validateTranslation(
           ),
         )
       : expectedValues;
+  // In ICU a plural on a count the source never prints is a selector,
+  // as a select's argument is: a translation that writes it as one text
+  // misses no value; it is incomplete wherever the language may have
+  // forms to tell apart, every language but one of a single category, a
+  // tag with no plural data checked for its shape (#992). A `#` in a
+  // select within the plural counts as printed, as messageformat.js
+  // prints it. Elsewhere a plural is what
+  // the writer holds as one (a key family, a Rails hash, gettext's
+  // msgid_plural, Android's <plurals>), which one text cannot fill.
+  const sourcePrints = printedIn(sourceNodes);
+  for (const arg of countsInSelects(sourceNodes)) sourcePrints.add(arg);
   for (const name of required) {
-    if (!actualValues.has(name))
-      errors.push({
-        code: "missing-placeholder",
-        name,
-        ...writtenAs(expected, name),
-      });
+    if (actualValues.has(name)) continue;
+    if (
+      readsAsIcu(syntax) &&
+      expected.plurals.has(name) &&
+      !sourcePrints.has(name)
+    ) {
+      if (categories.length !== 1)
+        errors.push({ code: "flattened-plural", arg: name });
+      continue;
+    }
+    errors.push({
+      code: "missing-placeholder",
+      name,
+      ...writtenAs(expected, name),
+    });
   }
   // Outside ICU, whose `#` prints it, a plural on a value prints nothing:
   // a count the source writes is shown only where a form writes it too
@@ -773,7 +813,8 @@ export function validateTranslation(
   const warning = (e: ValidationError) =>
     e.code === "missing-category" ||
     e.code === "unexpected-category" ||
-    e.code === "unpassed-selector";
+    e.code === "unpassed-selector" ||
+    e.code === "flattened-plural";
   const incomplete = errors.filter(warning);
   const invalid = errors.filter((e) => !warning(e));
   if (invalid.length === 0) {
