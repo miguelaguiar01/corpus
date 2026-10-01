@@ -2185,3 +2185,25 @@ test("an ICU catalogue whose ids end in a plural suffix draws no i18next note (#
   expect(await run(initFor("l/{lang}.json"), p.ctx)).toBe(0);
   expect(p.out.join("\n")).not.toMatch(/i18next keys/);
 });
+
+test("files beside the catalogue that are catalogues of their own are said as families; a long list is cut at five (#1020)", async () => {
+  const yml = (lang: string) => `${lang}:\n  hi: Hi\n`;
+  const p = project();
+  for (const name of ["en", "de", "sf.en", "sf.de", "devise.en", "devise.de"])
+    write(p.dir, `y/${name}.yml`, yml(name.split(".").at(-1)!));
+  expect(await run(initFor("y/{lang}.yml"), p.ctx)).toBe(0);
+  const said = p.err.join("\n");
+  expect(said).toContain(
+    'corpus: 2 other catalogue(s) beside y/{lang}.yml, 4 file(s) (y/devise.{lang}.yml, y/sf.{lang}.yml): each is its own source, as { adapter: "yaml", type: "ui", path: "y/devise.{lang}.yml" }',
+  );
+  expect(said).not.toMatch(/sf\.en\.yml/);
+  const q = project();
+  write(q.dir, "l/en.json", "{}\n");
+  for (let i = 0; i < 30; i++) write(q.dir, `l/x${i}@foo.json`, "{}\n");
+  expect(await run(initFor("l/{lang}.json"), q.ctx)).toBe(0);
+  const lines = q.err.filter((l) => l.includes("names no language tag"));
+  expect(lines).toHaveLength(5);
+  expect(q.err).toContain(
+    "corpus: and 25 more file(s) that name no language tag",
+  );
+});
