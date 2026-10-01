@@ -269,8 +269,12 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       `check.include: ${include.join(", ")} (the directories holding components, which corpus check scans)`,
     );
   } else if (!components.found) {
+    // A UI that is never JSX, TSX or Vue gives check nothing to read,
+    // whatever it is pointed at (#1016).
     ctx.out(
-      `check.include: init found no components where it looks; corpus check scans src, so set check.include in ${filename} to where they are`,
+      NO_COMPONENTS[adapter]
+        ? `corpus check reads .jsx, .tsx and .vue components, which ${NO_COMPONENTS[adapter]} has none of: leave corpus check out of CI`
+        : `check.include: init found no .jsx, .tsx or .vue components where it looks; set check.include in ${filename} to where they are, or, if the UI is written in something else (C, GTK, Angular, Svelte, Handlebars, templates), corpus check does not apply: leave it out of CI`,
     );
   }
   const siblings =
@@ -287,6 +291,15 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   nextSteps(ctx, project, server, option(args, "--server") === undefined);
   return 0;
 }
+
+// The formats whose interface is never JSX, TSX or Vue, by what it is;
+// a .po catalogue may be a Lingui or Vue app's, an XLIFF one not always
+// Angular's.
+const NO_COMPONENTS: Partial<Record<InitSource["adapter"], string>> = {
+  "qt-ts": "a Qt interface",
+  android: "an Android app",
+  xcstrings: "an Apple app",
+};
 
 type InitSource = {
   adapter:

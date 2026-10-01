@@ -41,6 +41,7 @@ contract (`corpus/1`) is the only one.
 - `validate`: the summary counts translations, not problems, and source strings that do not parse apart; `--json` gives an orphan key `"severity": "orphan"`, not `"invalid"` (#1013).
 - `init` writes `sourceVariants` for a target in the source's language and script, `en_GB` beside `en` (#1014).
 - `init` maps `ca@valencia` to `ca-valencia`, and names the line to write for a code it cannot map (#1015).
+- `init` no longer points a project with no `.jsx`, `.tsx` or `.vue` components at `corpus check`, which cannot read it (#1016).
 
 ## [0.21.0] - 2026-09-29
 
