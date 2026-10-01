@@ -929,7 +929,7 @@ export default defineCorpus({
     path.join(repo, "i18n", "en", "app.ftl"),
     "size = { PLATFORM() } files\nhello = Hello\nbye = Bye\n",
   );
-  const uz = 'hello = Salom { "<=" } 2\nbye = Xayr\n';
+  const uz = "hello = Salom { PLATFORM() } 2\nbye = Xayr\n";
   writeFileSync(path.join(repo, "i18n", "uz", "app.ftl"), uz);
   const out = path.join(repo, "snapshot.json");
   const built = ctx();
