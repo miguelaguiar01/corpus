@@ -52,6 +52,9 @@ export type ValidationError =
   // when that is not `{name}` (printf's `%s`), for the message.
   | { code: "missing-placeholder"; name: string; written?: string }
   | { code: "unexpected-placeholder"; name: string; written?: string }
+  // A placeholder the source writes in a tag's attribute, written in the
+  // text, as a broken tag leaves it (#1022): said once, as moved.
+  | { code: "moved-placeholder"; name: string; written?: string; tag: string }
   | { code: "unknown-select"; arg: string }
   | { code: "missing-branch"; arg: string; key: string }
   | { code: "unexpected-branch"; arg: string; key: string }
@@ -155,6 +158,34 @@ function countsInSelects(
     if (node.kind === "tag") countsInSelects(node.children, within, out);
   }
   return out;
+}
+
+// A tag as HTML reads it (#1022): its name, then its attributes as
+// name and value pairs, the names lowercased, the spacing and quotes
+// gone, in no order, and a URL's value without the ASCII spaces its
+// parser strips; NBSP and any other value kept as written.
+const URL_ATTRIBUTES = new Set([
+  "href",
+  "src",
+  "action",
+  "formaction",
+  "cite",
+  "poster",
+]);
+function tagKey(identity: string): string {
+  const at = identity.indexOf(" ");
+  if (at < 0) return identity;
+  const pairs: string[] = [];
+  for (const m of identity
+    .slice(at + 1)
+    .matchAll(/([^\s=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g)) {
+    const name = m[1]!.toLowerCase();
+    let value = m[2] ?? m[3] ?? m[4];
+    if (value !== undefined && URL_ATTRIBUTES.has(name))
+      value = value.replace(/^[\t\n\f\r ]+|[\t\n\f\r ]+$/g, "");
+    pairs.push(value === undefined ? name : `${name}=${JSON.stringify(value)}`);
+  }
+  return `${identity.slice(0, at)} ${pairs.sort().join(" ")}`;
 }
 
 // vue-i18n's link, `@:key`, `@.modifier:key`, `@:(key)` or `@:{'key'}`,
@@ -653,12 +684,22 @@ export function validateTranslation(
   // is the locale's to define, not a value the code passes (#990).
   const ownTerm = (name: string) => syntax === "fluent" && name.startsWith("-");
   for (const name of actual.placeholders) {
-    if (!allowedValues.has(name) && !passed.has(name) && !ownTerm(name))
-      errors.push({
-        code: "unexpected-placeholder",
-        name,
-        ...writtenAs(actual, name),
-      });
+    if (allowedValues.has(name) || passed.has(name) || ownTerm(name)) continue;
+    const inAttr = expected.attrPlaceholders.get(name);
+    const tag =
+      inAttr !== undefined && !actual.attrPlaceholders.has(name)
+        ? [...expected.tags].find((t) => t.includes(inAttr))
+        : undefined;
+    errors.push(
+      tag !== undefined
+        ? {
+            code: "moved-placeholder",
+            name,
+            ...writtenAs(actual, name),
+            tag,
+          }
+        : { code: "unexpected-placeholder", name, ...writtenAs(actual, name) },
+    );
   }
   // counterpart substitutes `%(name)s` only as written: `%(n)d` for the
   // source's `%(n)s` is text in the app (#663).
@@ -737,13 +778,19 @@ export function validateTranslation(
         if (actual.tags.has(name) && !actual.pairs.has(name))
           errors.push({ code: "unpaired-tag", name });
   } else {
+    // Compared as HTML reads them, said as each side writes them.
+    const keys = (set: Set<string>) => new Set([...set].map(tagKey));
+    const actualTags = keys(actual.tags);
+    const actualPairs = keys(actual.pairs);
+    const expectedTags = keys(expected.tags);
     for (const name of expected.tags) {
-      if (!actual.tags.has(name)) errors.push({ code: "missing-tag", name });
-      else if (expected.pairs.has(name) && !actual.pairs.has(name))
+      if (!actualTags.has(tagKey(name)))
+        errors.push({ code: "missing-tag", name });
+      else if (expected.pairs.has(name) && !actualPairs.has(tagKey(name)))
         errors.push({ code: "unpaired-tag", name });
     }
     for (const name of actual.tags) {
-      if (!expected.tags.has(name))
+      if (!expectedTags.has(tagKey(name)))
         errors.push({ code: "unexpected-tag", name });
     }
   }

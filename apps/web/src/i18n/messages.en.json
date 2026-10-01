@@ -46,6 +46,7 @@
   "editor.unexpectedBranch": "Select {arg} has an extra {key} branch",
   "editor.unexpectedCategory": "Plural {arg} has a {key} branch the runtime never picks in this language",
   "editor.unexpectedPlaceholder": "Unexpected {name}",
+  "editor.movedPlaceholder": "{name} is in the text where the source writes it inside {tag}; is the tag written wrong?",
   "editor.unexpectedTag": "Unexpected <{name}> tag",
   "editor.unknownPlural": "The source has no value {arg} to count",
   "editor.countForMarker": "{name} is dropped; %n shows the count in its place",
