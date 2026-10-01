@@ -59,6 +59,9 @@ export type ValidationError =
   // no value is lost, but a language that inflects reads one form for
   // every count (#992).
   | { code: "flattened-plural"; arg: string }
+  // Qt: a numerus translation that prints `%n` where the source prints
+  // the same count through `.arg()`'s `%1` (#1003).
+  | { code: "count-for-marker"; name: string; written?: string }
   // A cardinal plural where the source has a selectordinal, or the
   // reverse (`ordinal` is the source's): the other rule picks (#995).
   | { code: "changed-ordinal"; arg: string; ordinal: boolean }
@@ -163,6 +166,28 @@ export function nestedCountsOf(
 // A language tag's base language, case and region aside: en for en-GB.
 function baseOf(tag: string): string {
   return tag.split(/[-_]/)[0]!.toLowerCase();
+}
+
+// The markers Qt fills in a translation (#1003): `QString::arg` replaces
+// as many as the source has, lowest-numbered first, so a higher one is
+// text (Turkish `%10` for 10%); and in a numerus message translate()
+// fills every `%n`.
+function qtFilled(target: Shape, source: Shape): Shape {
+  // `%1` to `%99`: a `%0` is no marker .arg() ranks, kept to be named.
+  const numbered = (shape: Shape) =>
+    [...shape.placeholders].filter((n) => /^\d+$/.test(n) && n !== "0");
+  const k = numbered(source).length;
+  const filled = new Set(
+    numbered(target)
+      .sort((a, b) => Number(a) - Number(b))
+      .slice(0, k),
+  );
+  const placeholders = new Set(
+    [...target.placeholders].filter(
+      (n) => !/^\d+$/.test(n) || n === "0" || filled.has(n),
+    ),
+  );
+  return { ...target, placeholders };
 }
 
 // What a text prints: its placeholders and the counts its plurals'
@@ -391,8 +416,27 @@ export function validateTranslation(
     syntax === "printf" ? argPositions(nodes) : nodes;
   const sourceNodes = positioned(parsedSource.nodes);
   const targetNodes = positioned(parsedTarget.nodes);
-  const actual = shapeOf(targetNodes);
   const whole = shapeOf(sourceNodes);
+  const actual =
+    syntax === "qt"
+      ? qtFilled(shapeOf(targetNodes), whole)
+      : shapeOf(targetNodes);
+  // A lookalike percent before a marker is text Qt prints (#1003).
+  if (syntax === "qt") {
+    const mangled = /([٪％])(L?(?:\d|n))/.exec(target);
+    if (mangled)
+      return {
+        ok: false,
+        errors: [
+          {
+            code: "invalid-icu",
+            where: "target",
+            message: `writes ${mangled[0]}, which Qt prints as text; write %${mangled[2]}`,
+            position: mangled.index,
+          },
+        ],
+      };
+  }
   // A language whose only category is `other` renders a plural as its
   // `other` branch, so a translation may write that text plainly (#651);
   // not on Android, where a <string> is another resource than the
@@ -436,13 +480,13 @@ export function validateTranslation(
     baseOf(language) === baseOf(options.sourceLanguage);
   // A plural written plainly may still print its count, which the
   // runtime passes (#1005): Immich's yue `永久刪除 {count} 個項目`.
-  const allowedValues =
-    flattened === sourceNodes
-      ? expectedValues
-      : new Set([
-          ...expectedValues,
-          ...[...flat].map((id) => id.slice(id.indexOf(" ") + 1)),
-        ]);
+  // Qt's numerus message fills `%n` in every branch (#1003).
+  const numerus = syntax === "qt" && whole.plurals.size > 0;
+  const allowedValues = new Set([
+    ...expectedValues,
+    ...[...flat].map((id) => id.slice(id.indexOf(" ") + 1)),
+    ...(numerus ? ["n"] : []),
+  ]);
   const actualValues = valuesOf(actual);
 
   const writtenAs = (shape: Shape, name: string) => {
@@ -493,6 +537,15 @@ export function validateTranslation(
   for (const arg of countsInSelects(sourceNodes)) sourcePrints.add(arg);
   for (const name of required) {
     if (actualValues.has(name)) continue;
+    // `%n` shows the count a dropped `%1` would have (#1003).
+    if (numerus && /^\d+$/.test(name) && actual.placeholders.has("n")) {
+      errors.push({
+        code: "count-for-marker",
+        name,
+        ...writtenAs(expected, name),
+      });
+      continue;
+    }
     if (
       readsAsIcu(syntax) &&
       expected.plurals.has(name) &&
@@ -907,7 +960,8 @@ export function validateTranslation(
     e.code === "missing-category" ||
     e.code === "unexpected-category" ||
     e.code === "unpassed-selector" ||
-    e.code === "flattened-plural";
+    e.code === "flattened-plural" ||
+    e.code === "count-for-marker";
   const incomplete = errors.filter(warning);
   const invalid = errors.filter((e) => !warning(e));
   if (invalid.length === 0) {

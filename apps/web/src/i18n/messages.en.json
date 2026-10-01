@@ -47,6 +47,7 @@
   "editor.unexpectedPlaceholder": "Unexpected {name}",
   "editor.unexpectedTag": "Unexpected <{name}> tag",
   "editor.unknownPlural": "The source has no value {arg} to count",
+  "editor.countForMarker": "{name} is dropped; %n shows the count in its place",
   "editor.ordinalAsPlural": "{arg} is a selectordinal in the source (1st, 2nd…): write it as one, not as a plural",
   "editor.pluralAsOrdinal": "{arg} is a plural in the source: write it as one, not as a selectordinal",
   "editor.insertOrdinal": "Insert the ordinal on {arg}: {keys}",
