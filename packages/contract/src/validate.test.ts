@@ -2822,3 +2822,51 @@ test("under vue a placeholder name and an @ follow vue-i18n's own compiler (#101
     validateTranslation("こんにちは {名前}", "Hello {名前}", "en").ok,
   ).toBe(true);
 });
+
+test("a tag's attributes compare as HTML reads them, spacing, quotes, order and a URL's edge spaces aside (#1022)", () => {
+  const source = 'See <a href="x" target="_blank">it</a>';
+  for (const target of [
+    'Vois <a href = "x"  target="_blank" >ça</a>',
+    "Vois <a href='x' target='_blank'>ça</a>",
+    'Vois <a href="x " target="_blank">ça</a>',
+    'Vois <a target="_blank" href="x">ça</a>',
+    'Vois <a HREF="x" target="_blank">ça</a>',
+  ])
+    expect(validateTranslation(source, target, "fr", "counterpart")).toEqual({
+      ok: true,
+    });
+  for (const target of [
+    'Vois <a href="x#a b" target="_blank">ça</a>',
+    'Vois <a href="mailto :x" target="_blank">ça</a>',
+    'Vois <a href="x" target=" _blank">ça</a>',
+  ])
+    expect(validateTranslation(source, target, "fr", "counterpart").ok).toBe(
+      false,
+    );
+  // A missing tag is said in the source's own spelling.
+  expect(
+    validateTranslation(source, "Vois ça", "fr", "counterpart"),
+  ).toMatchObject({
+    errors: [{ code: "missing-tag", name: 'a href="x" target="_blank"' }],
+  });
+});
+
+test("a placeholder moved out of a broken tag into the text is said once, as moved (#1022)", () => {
+  const result = validateTranslation(
+    '<a href="%{path}">Go</a>',
+    '<href="%{path}">Vai</a>',
+    "ckb",
+    "rails",
+    { richText: "html" },
+  );
+  expect(result).toMatchObject({ ok: false });
+  if (result.ok) return;
+  expect(result.errors.filter((e) => e.code.endsWith("placeholder"))).toEqual([
+    {
+      code: "moved-placeholder",
+      name: "path",
+      written: "%{path}",
+      tag: 'a href="%{path}"',
+    },
+  ]);
+});
