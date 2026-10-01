@@ -69,14 +69,16 @@ function literalText(source: string, syntax: Library): string {
 // a, e or o, and at most two more letters (assassino: assassinos,
 // assassina; hero: heroes; draft: drafted). A word under four letters is
 // too short to tell an ending from another word, so it matches only as
-// written, and an ending is letters, so 100 never finds 10000.
+// written, and an ending is letters or marks, so 2077 never finds 207799
+// while किताब finds किताबें.
 function inflects(term: string, word: string): boolean {
   if (word === term) return true;
   if (term.length < 4) return false;
   const stems = /[aeo]$/.test(term) ? [term, term.slice(0, -1)] : [term];
   return stems.some(
     (stem) =>
-      word.startsWith(stem) && /^\p{L}{0,2}$/u.test(word.slice(stem.length)),
+      word.startsWith(stem) &&
+      /^[\p{L}\p{M}]{0,2}$/u.test(word.slice(stem.length)),
   );
 }
 

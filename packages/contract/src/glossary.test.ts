@@ -173,9 +173,15 @@ test("a term matches its inflections: the term, or the term less a final a, e or
       { term: "echo", target: "eco" },
     ]).map((e) => e.term),
   ).toEqual(["hero", "echo"]);
+  // A marked script's ending is marks: Hindi's plural.
+  expect(
+    glossaryMatches("किताबें", [{ term: "किताब", target: "book" }]).map(
+      (e) => e.term,
+    ),
+  ).toEqual(["किताब"]);
   // An ending is letters.
   expect(
-    glossaryMatches("In 100000 drafts22.", [
+    glossaryMatches("In 100000 draft2.", [
       { term: "1000", target: "mil" },
       { term: "draft", target: "rascunho" },
     ]),
