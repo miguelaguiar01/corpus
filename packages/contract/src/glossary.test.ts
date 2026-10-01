@@ -96,7 +96,7 @@ test("a marked script keeps its marks inside the word, so a near miss is not a m
   expect(glossaryMatches("काल", terms).map((e) => e.term)).toEqual(["काल"]);
 });
 
-test("an entry's forms match as the term does, and the entry shows once under its term", () => {
+test("an entry's forms match as written, and the entry shows once under its term", () => {
   const terms = [
     { term: "assassino", forms: ["assassinos", "assassina"], target: "killer" },
     { term: "vítima", target: "victim" },
@@ -166,6 +166,20 @@ test("a term matches its inflections: the term, or the term less a final a, e or
   expect(hits("As vítimas e os suspeitos.")).toEqual(["vítima", "suspeito"]);
   expect(hits("As horas do crime.")).toEqual(["hora do crime"]);
   expect(hits("Two drafts, one drafted.")).toEqual(["draft"]);
+  // A term ending in a, e or o keeps that letter too.
+  expect(
+    glossaryMatches("The heroes echoed.", [
+      { term: "hero", target: "herói" },
+      { term: "echo", target: "eco" },
+    ]).map((e) => e.term),
+  ).toEqual(["hero", "echo"]);
+  // An ending is letters.
+  expect(
+    glossaryMatches("In 100000 drafts22.", [
+      { term: "1000", target: "mil" },
+      { term: "draft", target: "rascunho" },
+    ]),
+  ).toEqual([]);
   // Three letters more, or a different stem, is another word.
   expect(hits("Os assassinatos, a vitimização, o drafting.")).toEqual([]);
   // Each word of a multi-word term inflects by itself; the run still counts.
@@ -190,6 +204,12 @@ test("a term under four letters, and an entry with match exact, match only as wr
   expect(hits("A pista e as pistas.")).toEqual(["pista"]);
   expect(hits("Uma pistola.")).toEqual([]);
   expect(hits("As pistas.")).toEqual(["pista"]);
+  // Exact without the form: the plural is another word.
+  expect(
+    glossaryMatches("As pistas.", [
+      { term: "pista", match: "exact", target: "clue" },
+    ]),
+  ).toEqual([]);
   expect(
     glossaryMatches("A pistinha.", [{ term: "pista", target: "clue" }]),
   ).toEqual([]);

@@ -7,8 +7,9 @@ import type { Library } from "./strings";
 
 const glossaryEntrySchema = z.object({
   term: z.string().min(1),
-  // Other surface forms of the term (plurals, agreements), each matched
-  // as the term is; the entry still shows under its term.
+  // Other surface forms of the term, matched as written, for what its
+  // inflection cannot reach (divisão: divisões); the entry still shows
+  // under its term.
   forms: z.array(z.string().min(1)).optional(),
   match: z.enum(["exact", "inflected"]).optional(),
   target: z.string().min(1),
@@ -66,13 +67,17 @@ function literalText(source: string, syntax: Library): string {
 
 // An inflection without a dictionary: the word, or the word less a final
 // a, e or o, and at most two more letters (assassino: assassinos,
-// assassina; draft: drafted). A word under four letters is too short to
-// tell an ending from another word, so it matches only as written.
+// assassina; hero: heroes; draft: drafted). A word under four letters is
+// too short to tell an ending from another word, so it matches only as
+// written, and an ending is letters, so 100 never finds 10000.
 function inflects(term: string, word: string): boolean {
   if (word === term) return true;
   if (term.length < 4) return false;
-  const stem = /[aeo]$/.test(term) ? term.slice(0, -1) : term;
-  return word.startsWith(stem) && word.length - stem.length <= 2;
+  const stems = /[aeo]$/.test(term) ? [term, term.slice(0, -1)] : [term];
+  return stems.some(
+    (stem) =>
+      word.startsWith(stem) && /^\p{L}{0,2}$/u.test(word.slice(stem.length)),
+  );
 }
 
 // The entries whose term occurs in the source as whole words, in the
