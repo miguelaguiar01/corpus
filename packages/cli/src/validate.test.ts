@@ -295,6 +295,16 @@ export default defineCorpus({
 test("describe words every error code", () => {
   expect(
     describe({
+      code: "moved-placeholder",
+      name: "path",
+      written: "%{path}",
+      tag: 'a href="%{path}"',
+    }),
+  ).toBe(
+    '%{path} is in the text where the source writes it inside <a href="%{path}">; is the tag written wrong?',
+  );
+  expect(
+    describe({
       code: "changed-verb",
       name: "n",
       expected: "%(n)d",

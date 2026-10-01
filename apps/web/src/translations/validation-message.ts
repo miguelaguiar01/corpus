@@ -27,6 +27,11 @@ export function validationMessage(
       return t("editor.unexpectedPlaceholder", {
         name: chipText(error.name, syntax, null, error.written),
       });
+    case "moved-placeholder":
+      return t("editor.movedPlaceholder", {
+        name: chipText(error.name, syntax, null, error.written),
+        tag: `<${error.tag}>`,
+      });
     case "changed-verb":
       return error.moved
         ? t("editor.changedVerb", {

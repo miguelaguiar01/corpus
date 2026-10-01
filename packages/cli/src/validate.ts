@@ -482,6 +482,8 @@ export function describe(
       return `missing ${error.written ?? written(error.name)}`;
     case "unexpected-placeholder":
       return `unexpected ${error.written ?? written(error.name)}`;
+    case "moved-placeholder":
+      return `${error.written ?? written(error.name)} is in the text where the source writes it inside <${error.tag}>; is the tag written wrong?`;
     case "changed-verb":
       return error.moved
         ? `${error.actual} at position ${error.name} is ${error.expected} in the source; a verb that moved needs its index, ${error.indexed}`

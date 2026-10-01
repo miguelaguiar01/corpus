@@ -2822,3 +2822,123 @@ test("under vue a placeholder name and an @ follow vue-i18n's own compiler (#101
     validateTranslation("こんにちは {名前}", "Hello {名前}", "en").ok,
   ).toBe(true);
 });
+
+test("a tag's attributes compare as HTML reads them, spacing, quotes, order and a URL's edge spaces aside (#1022)", () => {
+  const source = 'See <a href="x" target="_blank">it</a>';
+  for (const target of [
+    'Vois <a href = "x"  target="_blank" >ça</a>',
+    "Vois <a href='x' target='_blank'>ça</a>",
+    'Vois <a href="x " target="_blank">ça</a>',
+    'Vois <a target="_blank" href="x">ça</a>',
+    'Vois <a HREF="x" target="_blank">ça</a>',
+  ])
+    expect(validateTranslation(source, target, "fr", "counterpart")).toEqual({
+      ok: true,
+    });
+  for (const target of [
+    'Vois <a href="x#a b" target="_blank">ça</a>',
+    'Vois <a href="mailto :x" target="_blank">ça</a>',
+    'Vois <a href="x" target=" _blank">ça</a>',
+  ])
+    expect(validateTranslation(source, target, "fr", "counterpart").ok).toBe(
+      false,
+    );
+  // A missing tag is said in the source's own spelling.
+  expect(
+    validateTranslation(source, "Vois ça", "fr", "counterpart"),
+  ).toMatchObject({
+    errors: [{ code: "missing-tag", name: 'a href="x" target="_blank"' }],
+  });
+});
+
+test("a placeholder moved out of a broken tag into the text is said once, as moved (#1022)", () => {
+  const result = validateTranslation(
+    '<a href="%{path}">Go</a>',
+    '<href="%{path}">Vai</a>',
+    "ckb",
+    "rails",
+    { richText: "html" },
+  );
+  expect(result).toMatchObject({ ok: false });
+  if (result.ok) return;
+  expect(result.errors.filter((e) => e.code.endsWith("placeholder"))).toEqual([
+    {
+      code: "moved-placeholder",
+      name: "path",
+      written: "%{path}",
+      tag: 'a href="%{path}"',
+    },
+  ]);
+  // ICU's and i18next's too, which keep no written form.
+  for (const [syntax, src, tgt, tag] of [
+    [
+      "icu",
+      '<a href="{url}">Go</a>',
+      '<href="{url}">Vai</a>',
+      'a href="{url}"',
+    ],
+    [
+      "i18next",
+      '<a href="{{url}}">Go</a>',
+      '<href="{{url}}">Vai</a>',
+      'a href="{{url}}"',
+    ],
+  ] as const) {
+    const moved = validateTranslation(src, tgt, "fr", syntax, {
+      richText: "html",
+    });
+    if (moved.ok) throw new Error(`${syntax} moved ok`);
+    expect(moved.errors.filter((e) => e.code.endsWith("placeholder"))).toEqual([
+      expect.objectContaining({ code: "moved-placeholder", name: "url", tag }),
+    ]);
+  }
+});
+
+test("an attribute text HTML reads otherwise, a quote dropped or one stray, is compared as written (#1022)", () => {
+  for (const [syntax, src, tgt] of [
+    ["icu", '<a href="x">a</a>', '<a href=x">b</a>'],
+    ["rails", '<a href="%{p}">a</a>', '<a href=%{p}">b</a>'],
+    ["counterpart", '<a href="%(u)s">a</a>', '<a href=%(u)s">b</a>'],
+    ["icu", '<a href="x">a</a>', "<a href=x'>b</a>"],
+    ["icu", '<a href="x">a</a>', '<a href="x"">b</a>'],
+    [
+      "icu",
+      '<a href="x" target="_blank">a</a>',
+      '<a href="x" " target="_blank">b</a>',
+    ],
+    ["icu", '<a href="x">a</a>', '<a href="x" ===>b</a>'],
+  ] as const)
+    expect(validateTranslation(src, tgt, "fr", syntax).ok).toBe(false);
+  // A Rails `_html` key's link emptied is said, its spacing aside.
+  expect(
+    validateTranslation(
+      '<a href="x">link</a>',
+      '<a href = "x"></a>',
+      "fr",
+      "rails",
+      {
+        richText: "html-key",
+      },
+    ),
+  ).toMatchObject({ ok: false, errors: [{ code: "unpaired-tag" }] });
+});
+
+test("a placeholder in a tag's attribute list is one token, compared by name and never lowercased (#1022)", () => {
+  // Relay's `{ $attrs }`, read through fluent as `{attrs}`.
+  expect(
+    validateTranslation(
+      '<a href="{x}" {attrs}>x</a>',
+      '<a href = "{x}" {attrs}>y</a>',
+      "cy",
+      "icu",
+    ),
+  ).toEqual({ ok: true });
+  for (const target of [
+    '<a href="{x}" {Attrs}>y</a>',
+    '<a href="{x}" {ATTRS}>y</a>',
+  ])
+    expect(
+      validateTranslation('<a href="{x}" {attrs}>x</a>', target, "cy", "icu")
+        .ok,
+    ).toBe(false);
+});
