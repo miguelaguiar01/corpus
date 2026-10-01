@@ -2894,6 +2894,35 @@ test("a placeholder moved out of a broken tag into the text is said once, as mov
   }
 });
 
+test("an attribute text HTML reads otherwise, a quote dropped or one stray, is compared as written (#1022)", () => {
+  for (const [syntax, src, tgt] of [
+    ["icu", '<a href="x">a</a>', '<a href=x">b</a>'],
+    ["rails", '<a href="%{p}">a</a>', '<a href=%{p}">b</a>'],
+    ["counterpart", '<a href="%(u)s">a</a>', '<a href=%(u)s">b</a>'],
+    ["icu", '<a href="x">a</a>', "<a href=x'>b</a>"],
+    ["icu", '<a href="x">a</a>', '<a href="x"">b</a>'],
+    [
+      "icu",
+      '<a href="x" target="_blank">a</a>',
+      '<a href="x" " target="_blank">b</a>',
+    ],
+    ["icu", '<a href="x">a</a>', '<a href="x" ===>b</a>'],
+  ] as const)
+    expect(validateTranslation(src, tgt, "fr", syntax).ok).toBe(false);
+  // A Rails `_html` key's link emptied is said, its spacing aside.
+  expect(
+    validateTranslation(
+      '<a href="x">link</a>',
+      '<a href = "x"></a>',
+      "fr",
+      "rails",
+      {
+        richText: "html-key",
+      },
+    ),
+  ).toMatchObject({ ok: false, errors: [{ code: "unpaired-tag" }] });
+});
+
 test("a placeholder in a tag's attribute list is one token, compared by name and never lowercased (#1022)", () => {
   // Relay's `{ $attrs }`, read through fluent as `{attrs}`.
   expect(
