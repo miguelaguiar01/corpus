@@ -211,11 +211,13 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     htmlTags > 0 &&
     adapter === "yaml" &&
     sourceLibrary(source as FileSource) === "rails";
+  const variants = sourceVariantsOf(languages, sourceLanguage);
   const config: InitConfig = {
     project,
     server,
     sourceLanguage,
     languages,
+    ...(variants.length > 0 && { sourceVariants: variants }),
     sources: [source],
     ...(readAsHtml && { richText: { [type]: "html" as const } }),
     ...(include && { check: { include } }),
@@ -246,6 +248,10 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     );
   }
   if (detected.note) ctx.out(detected.note);
+  if (variants.length > 0)
+    ctx.out(
+      `sourceVariants: ${variants.join(", ")} (a variant of ${sourceLanguage}: a row it leaves as the source's text seeds as translated; remove it if those rows are work)`,
+    );
   if (adapter === "yaml" && !library)
     ctx.out("library: rails (the yaml source's default)");
   if (readAsHtml)
@@ -302,6 +308,7 @@ type InitConfig = {
   server: string;
   sourceLanguage: string;
   languages: string[];
+  sourceVariants?: string[];
   sources: [InitSource];
   richText?: Record<string, "html">;
   check?: { include: string[] };
@@ -550,6 +557,32 @@ function cliResolvesFrom(cwd: string): boolean {
   }
 }
 
+// The targets in the source's own language and script, `en_GB` beside
+// `en`, whose rows left as the source's text are what the app ships
+// (#1014); `zh-Hant` beside `zh-Hans` or `sr-Latn` beside `sr` is a
+// translation of its own.
+function sourceVariantsOf(
+  languages: readonly string[],
+  sourceLanguage: string,
+): string[] {
+  const base = (tag: string) => tag.split(/[-_]/)[0]!.toLowerCase();
+  const script = (tag: string) => {
+    try {
+      return new Intl.Locale(tag.replace(/_/g, "-")).maximize().script;
+    } catch {
+      return undefined;
+    }
+  };
+  const own = script(sourceLanguage);
+  return languages.filter(
+    (tag) =>
+      tag !== sourceLanguage &&
+      base(tag) === base(sourceLanguage) &&
+      own !== undefined &&
+      script(tag) === own,
+  );
+}
+
 function render(plain: boolean, config: InitConfig): string {
   const q = (value: string) => JSON.stringify(value);
   const [source] = config.sources;
@@ -566,7 +599,7 @@ function render(plain: boolean, config: InitConfig): string {
   server: ${q(config.server)},
   sourceLanguage: ${q(config.sourceLanguage)},
   languages: [${config.languages.map(q).join(", ")}],
-  sources: [
+${config.sourceVariants ? `  sourceVariants: [${config.sourceVariants.map(q).join(", ")}],\n` : ""}  sources: [
     { adapter: ${q(source.adapter)}, type: ${q(source.type)}, path: ${q(source.path)}${source.sourcePath ? `, sourcePath: ${q(source.sourcePath)}` : ""}${library}${
       source.languageFiles
         ? `, languageFiles: { ${Object.entries(source.languageFiles)

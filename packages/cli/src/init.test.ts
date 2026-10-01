@@ -2032,3 +2032,40 @@ test("init says a missing source file git ignores is generated, whatever the ada
     );
   }
 });
+
+test("init writes sourceVariants for a target in the source's own language and script, and says so (#1014)", async () => {
+  const variants = async (
+    source: string,
+    codes: string[],
+    extra: string[] = [],
+  ) => {
+    const p = project();
+    for (const code of codes) write(p.dir, `l/${code}.json`, "{}\n");
+    expect(
+      await run([...initFor("l/{lang}.json", source), ...extra], p.ctx),
+    ).toBe(0);
+    const config = await loadConfig(p.dir);
+    return { variants: config.sourceVariants, out: p.out.join("\n") };
+  };
+  const en = await variants("en", ["en", "en_GB", "de"]);
+  expect(en.variants).toEqual(["en_GB"]);
+  expect(en.out).toContain(
+    "sourceVariants: en_GB (a variant of en: a row it leaves as the source's text seeds as translated; remove it if those rows are work)",
+  );
+  expect(
+    (await variants("en", ["en", "en-GB", "en_US", "fr"])).variants,
+  ).toEqual(["en-GB", "en_US"]);
+  expect((await variants("pt-BR", ["pt-BR", "pt-PT", "es"])).variants).toEqual([
+    "pt-PT",
+  ]);
+  // Another script is a translation of its own.
+  expect(
+    (await variants("zh-Hans", ["zh-Hans", "zh-Hant"])).variants,
+  ).toBeUndefined();
+  expect((await variants("sr", ["sr", "sr-Latn"])).variants).toBeUndefined();
+  expect((await variants("en", ["en", "de"])).variants).toBeUndefined();
+  // A list given by hand is read the same way.
+  expect(
+    (await variants("en", ["en"], ["--languages", "en,en-AU,ja"])).variants,
+  ).toEqual(["en-AU"]);
+});
