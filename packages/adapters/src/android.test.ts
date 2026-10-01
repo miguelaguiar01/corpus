@@ -308,3 +308,18 @@ test("a pull writes a tag XML cannot hold as an element escaped, and a prose tag
     applyAndroidOps(xml, [{ kind: "add", id: "d", text: "a<br>b" }]),
   ).toContain('<string name="d">a&lt;br&gt;b</string>');
 });
+
+test("a values directory's language is androidDirOf's inverse, a non-language qualifier none (#993)", async () => {
+  const { androidLanguageOf, androidDirOf } = await import("./android");
+  for (const tag of ["de", "pt-BR", "es-419", "sr-Latn", "zh-Hant-TW", "iw"])
+    expect(androidLanguageOf(androidDirOf(tag))).toBe(tag);
+  for (const dir of [
+    "values",
+    "values-sw360dp",
+    "values-night",
+    "values-v21",
+    "values-land",
+    "values-pt-rBR-night",
+  ])
+    expect(androidLanguageOf(dir)).toBeUndefined();
+});

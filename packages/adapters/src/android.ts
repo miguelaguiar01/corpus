@@ -591,3 +591,18 @@ export function androidDirOf(language: string): string {
     return `values-${parts[0]}-r${parts[1]!.toUpperCase()}`;
   return `values-b+${parts.join("+")}`;
 }
+
+// The language a `values-*` directory names, androidDirOf's inverse:
+// `values-pt-rBR` is pt-BR and `values-b+sr+Latn` sr-Latn. Undefined
+// for the source's `values` and for a qualifier that is not a language
+// (`values-sw360dp`, `values-night`, `values-v21`), Android's language
+// being the first qualifier and the only one here.
+export function androidLanguageOf(dir: string): string | undefined {
+  const qualifier = /^values-(.+)$/.exec(dir)?.[1];
+  if (qualifier === undefined) return undefined;
+  const bcp47 = /^b\+([A-Za-z]{2,3}(?:\+[A-Za-z0-9]{2,8})*)$/.exec(qualifier);
+  if (bcp47) return bcp47[1]!.replaceAll("+", "-");
+  const legacy = /^([a-z]{2,3})(?:-r([A-Z]{2}|\d{3}))?$/.exec(qualifier);
+  if (!legacy) return undefined;
+  return legacy[2] ? `${legacy[1]}-${legacy[2]}` : legacy[1];
+}

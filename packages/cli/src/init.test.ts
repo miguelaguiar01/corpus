@@ -1806,3 +1806,82 @@ test("init writes no richText for tags only an _html key holds, which Rails read
     /1 source string\(s\) hold tags only HTML takes as text.*\(plain\)/,
   );
 });
+
+const write = (dir: string, rel: string, text: string) => {
+  mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
+  writeFileSync(path.join(dir, rel), text);
+};
+const initFor = (messages: string, source = "en") => [
+  "init",
+  "--project",
+  "p",
+  "--source",
+  source,
+  "--messages",
+  messages,
+];
+
+test("init writes a fluent source for a .ftl pattern, {ns} included, with the languages its files name (#993)", async () => {
+  const p = project();
+  write(p.dir, "i18n/en/app.ftl", "hello = Hello\n");
+  write(p.dir, "i18n/pt-BR/app.ftl", "hello = Olá\n");
+  write(p.dir, "i18n/de/app.ftl", "hello = Hallo\n");
+  expect(await run(initFor("i18n/{lang}/app.ftl"), p.ctx)).toBe(0);
+  const config = await loadConfig(p.dir);
+  expect(config.languages).toEqual(["en", "de", "pt-BR"]);
+  expect(config.sources[0]).toEqual({
+    adapter: "fluent",
+    type: "ui",
+    path: "i18n/{lang}/app.ftl",
+  });
+  expect(await run(["build", "--out", "s.json"], p.ctx)).toBe(0);
+
+  const ns = project();
+  write(ns.dir, "core/en/a.ftl", "x = X\n");
+  write(ns.dir, "core/en/b.ftl", "y = Y\n");
+  write(ns.dir, "core/fr/a.ftl", "x = X\n");
+  expect(await run(initFor("core/{lang}/{ns}.ftl"), ns.ctx)).toBe(0);
+  const nsConfig = await loadConfig(ns.dir);
+  expect(nsConfig.languages).toEqual(["en", "fr"]);
+  // The loader expands {ns}; the file keeps the pattern as given.
+  expect(nsConfig.sources[0]).toMatchObject({ adapter: "fluent" });
+  expect(
+    readFileSync(path.join(ns.dir, "corpus.config.mjs"), "utf8"),
+  ).toContain('path: "core/{lang}/{ns}.ftl"');
+});
+
+test("init writes an android source for a res directory, its values-* qualifiers read as tags (#993)", async () => {
+  const strings = (text: string) =>
+    `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n  <string name="hi">${text}</string>\n</resources>\n`;
+  const res = "legacy/ui/src/main/res";
+  const setup = () => {
+    const p = project();
+    write(p.dir, `${res}/values/strings.xml`, strings("Hi"));
+    write(p.dir, `${res}/values-pt-rBR/strings.xml`, strings("Oi"));
+    write(p.dir, `${res}/values-b+sr+Latn/strings.xml`, strings("Zdravo"));
+    write(p.dir, `${res}/values-iw/strings.xml`, strings("שלום"));
+    write(p.dir, `${res}/values-sw360dp/strings.xml`, strings("Hi"));
+    write(p.dir, `${res}/values-night/colors.xml`, "<resources/>\n");
+    return p;
+  };
+  for (const messages of [res, `${res}/values-{lang}/strings.xml`]) {
+    const p = setup();
+    expect(await run(initFor(messages), p.ctx)).toBe(0);
+    const config = await loadConfig(p.dir);
+    expect(config.languages).toEqual(["en", "iw", "pt-BR", "sr-Latn"]);
+    expect(config.sources[0]).toEqual({
+      adapter: "android",
+      type: "ui",
+      path: res,
+    });
+    expect(p.err.join("\n")).toContain(
+      `corpus: ${res}/values-sw360dp names no language; left out`,
+    );
+    expect(await run(["build", "--out", "s.json"], p.ctx)).toBe(0);
+  }
+  // A plain .xml outside a res directory is still refused.
+  const plain = project();
+  write(plain.dir, "data/en.xml", "<a/>\n");
+  expect(await run(initFor("data/{lang}.xml"), plain.ctx)).toBe(1);
+  expect(plain.err.join("\n")).toMatch(/exec/);
+});
