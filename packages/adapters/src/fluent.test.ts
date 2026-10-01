@@ -430,3 +430,42 @@ gone = { -brand.gender ->
   );
   expect(refused).toEqual(["a", "b", "c"]);
 });
+
+test("a select on a term's attribute is never a plural; a # in a term's argument is no count (#990 review)", () => {
+  const ftl = `a = { -brand.gender ->
+   *[other] Bylo
+  }
+b = { $n ->
+    [one] { -brand(x: "#1") } x
+   *[other] y
+  }
+c = Use { -brand (case: "gen") } now
+`;
+  const read = Object.fromEntries(
+    fluentToEntries(ftl, { type: "ui" }).map((e) => [e.id, e.source]),
+  );
+  expect(read.a).toBe("{-brand.gender, select, other {Bylo}}");
+  expect(read.b).toBe('{n, plural, one {{-brand(x: "#1")} x} other {y}}');
+  expect(read.c).toBe('Use {-brand(case: "gen")} now');
+  const out = entriesToFluent(
+    ftl,
+    {
+      a: "{-brand.gender, select, other {Bylo #}}",
+      b: '{n, plural, one {{-brand(x: "#1")} z} other {y}}',
+    },
+    ftl,
+  );
+  expect(out).toContain("*[other] Bylo #\n");
+  expect(out).toContain('[one] { -brand(x: "#1") } z\n');
+});
+
+test("a new target file takes a term's value, not the source's attributes (#990 review)", () => {
+  const en = "-brand = Relay\n    .gender = masculine\nhi = Hi { -brand }\n";
+  expect(
+    entriesToFluent(
+      en,
+      { "-brand": "Relais", hi: "Salut {-brand}" },
+      undefined,
+    ),
+  ).toBe("-brand = Relais\nhi = Salut { -brand }\n");
+});

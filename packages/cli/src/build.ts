@@ -75,8 +75,8 @@ export type Refused = {
   // Its type, where the type read as HTML would take it: an unclosed
   // tag or a lone <br> as text (#952).
   htmlType?: string;
-  // A Fluent term, never a string the server held: listed, but no
-  // reason to call its file ruined (#991).
+  // A Fluent term Corpus cannot read: listed, but no reason to call its
+  // file ruined (#991); one it reads is a string like any (#990).
   term?: true;
 };
 export type BuildReport = {
@@ -495,8 +495,9 @@ export async function buildSnapshotReport(
   };
 }
 
-// A Fluent term (`-brand`), under its namespace or not: a definition
-// the messages use, never a string the server holds (#991).
+// A Fluent term (`-brand`), under its namespace or not: a string where
+// the source defines it (#990), the locale's own where only a target
+// does.
 export function isFluentTerm(source: FileSource, id: string): boolean {
   return source.adapter === "fluent" && id.split(":").at(-1)!.startsWith("-");
 }

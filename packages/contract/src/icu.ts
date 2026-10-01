@@ -88,10 +88,12 @@ export type IcuParseResult =
 const NAME_RE = /^(?:[\p{L}_][\p{L}\p{M}\p{N}_]*|[0-9]+)$/u;
 // Fluent's Identifier (fluent.ebnf): ASCII, a letter first, hyphens
 // inside, as `{ $cards-per-minute }` writes it, `-` first for a term;
-// a select may be on a term's attribute, `-brand.gender` (#990).
+// a plural is on a variable, and a select on one or on a term's
+// attribute, `-brand.gender` (#990).
 const FLUENT_NAME_RE = /^-?[A-Za-z][A-Za-z0-9_-]*$/;
+const FLUENT_VARIABLE_RE = /^[A-Za-z][A-Za-z0-9_-]*$/;
 const FLUENT_SELECTOR_RE =
-  /^(?:[A-Za-z][A-Za-z0-9_-]*|-[A-Za-z][A-Za-z0-9_-]*(?:\.[A-Za-z][A-Za-z0-9_-]*)?)$/;
+  /^(?:[A-Za-z][A-Za-z0-9_-]*|-[A-Za-z][A-Za-z0-9_-]*\.[A-Za-z][A-Za-z0-9_-]*)$/;
 // A term reference with its arguments, `{-brand(case: "gen")}`.
 const FLUENT_TERM_CALL_RE =
   /^\{\s*(-[A-Za-z][A-Za-z0-9_-]*)\((?:[^()"\n]|"(?:[^"\\\n]|\\.)*")*\)\s*\}/;
@@ -1030,7 +1032,9 @@ class Parser {
           ? NAME_RE
           : what === "placeholder"
             ? FLUENT_NAME_RE
-            : FLUENT_SELECTOR_RE;
+            : what === "select argument"
+              ? FLUENT_SELECTOR_RE
+              : FLUENT_VARIABLE_RE;
       if (!re.test(name))
         throw new ParseFailure(
           `invalid ${what} name ${JSON.stringify(name)}`,

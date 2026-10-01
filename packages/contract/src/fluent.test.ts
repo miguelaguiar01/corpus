@@ -179,3 +179,13 @@ test("a term reference is a placeholder named after the term, its arguments part
   ]);
   expect(ok("Použij {-brand} a {-brand-x} {n}").ok).toBe(false);
 });
+
+test("a plural is on a variable, a select on a variable or a term's attribute, never on a bare term (#990 review)", () => {
+  expect(parseIcu("{-brand, select, other {x}}", "fluent").ok).toBe(false);
+  expect(parseIcu("{-brand.gender, plural, other {x}}", "fluent").ok).toBe(
+    false,
+  );
+  expect(parseIcu("{-brand.gender, select, other {x}}", "fluent").ok).toBe(
+    true,
+  );
+});

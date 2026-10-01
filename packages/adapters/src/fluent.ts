@@ -1,8 +1,8 @@
-// Fluent `.ftl` (§3, #597): messages with a value, `{$var}` and message
-// references as placeholders, a select on a variable as an ICU plural
-// or select, a string literal as written (#990). Attributes, terms,
-// functions and number literals are refused by name, a message at a
-// time (#991). A file is patched message by
+// Fluent `.ftl` (§3, #597): messages and terms with a value, `{$var}`,
+// message and term references as placeholders, a select on a variable
+// as an ICU plural or select, a string literal as written (#990). A
+// message's attributes, functions and number literals are refused by
+// name, a message at a time (#991). A file is patched message by
 // message, so an unchanged pull writes the same bytes and a changed
 // message keeps its layout.
 import { PLURAL_CATEGORIES, type StringEntry } from "@corpus/contract";
@@ -42,8 +42,10 @@ const KEY_RE = /^(?:[A-Za-z_][A-Za-z0-9_]*|[0-9]+)$/;
 // and the placeable's close.
 const STRING_LITERAL_RE =
   /^("(?:[^"\\\n]|\\(?:["\\]|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{6}))*")\s*\}/;
-// The literals of an ICU view, `{"…"}`, which a `#` inside is not.
-const VIEW_LITERAL_RE = /\{"(?:[^"\\\n]|\\.)*"\}/g;
+// What a `#` inside is not the count in, in an ICU view: a literal,
+// `{"…"}`, and a term's arguments, `{-brand(x: "#1")}`.
+const VIEW_LITERAL_RE =
+  /\{"(?:[^"\\\n]|\\.)*"\}|\{-[A-Za-z][\w-]*\((?:[^()"\n]|"(?:[^"\\\n]|\\.)*")*\)\}/g;
 
 class Refusal extends Error {}
 
@@ -198,6 +200,9 @@ function parsePlaceable(s: string, i: number, id: string): [string, number] {
     j += attribute.length;
   }
   let call = "";
+  // Fluent allows blanks before a call's `(`.
+  const paren = /^[ \t]*\(/.exec(s.slice(j));
+  if (term && paren) j += paren[0].length - 1;
   if (s[j] === "(") {
     if (!term) throw new Refusal(`${id} calls a function`);
     const close = callEnd(s, j);
@@ -250,9 +255,10 @@ function parsePlaceable(s: string, i: number, id: string): [string, number] {
     throw new Refusal(
       `${id} is not valid Fluent (a select has ${defaults === 0 ? "no" : "more than one"} * default variant)`,
     );
-  const plural = variants.every(
-    (v) => CATEGORIES.has(v.key) || /^\d+$/.test(v.key),
-  );
+  // A term's attribute is a word, `gender`, never a count.
+  const plural =
+    !name.startsWith("-") &&
+    variants.every((v) => CATEGORIES.has(v.key) || /^\d+$/.test(v.key));
   if (!variants.every((v) => KEY_RE.test(v.key)))
     throw new Refusal(`${id} has a variant key Corpus does not read`);
   // A `#` in a plural's variant is Fluent's text, where ICU's would be
@@ -461,7 +467,9 @@ function render(icu: string, style: Style, refs: Set<string>): string {
   return style.block ? `\n${style.cont}${value}` : ` ${value}`;
 }
 
-type Change = { id: string; text?: string };
+// `whole`: the message's attributes go too, as a new target's term
+// takes its value from the source but not the source's attributes.
+type Change = { id: string; text?: string; whole?: boolean };
 
 type Template = {
   text: string;
@@ -490,7 +498,7 @@ function patch(text: string, changes: Change[], template: Template): string {
   const lines = (value: string) => value.replace(/\n/g, eol);
   const patches: { start: number; end: number; text: string }[] = [];
   const appended: string[] = [];
-  for (const { id, text: next } of changes) {
+  for (const { id, text: next, whole } of changes) {
     const message = byId.get(id);
     if (next === undefined) {
       if (!message) continue;
@@ -499,10 +507,15 @@ function patch(text: string, changes: Change[], template: Template): string {
       if (text[end] === "\n") end++;
       patches.push({ start: message.start, end, text: "" });
     } else if (message) {
-      if (toIcu(text, message) === next) continue;
+      const end = whole ? message.end : message.valueEnd;
+      if (toIcu(text, message) === next) {
+        if (end !== message.valueEnd)
+          patches.push({ start: message.valueEnd, end, text: "" });
+        continue;
+      }
       patches.push({
         start: message.valueStart,
-        end: message.valueEnd,
+        end,
         text: lines(render(next, styleFor(id), template.refsFor(id))),
       });
     } else {
@@ -577,7 +590,11 @@ export function entriesToFluent(
     ...[...source.byId.keys()].filter((id) => Object.hasOwn(translations, id)),
     ...Object.keys(translations).filter((id) => !source.byId.has(id)),
   ])
-    changes.push({ id, text: translations[id]! });
+    changes.push({
+      id,
+      text: translations[id]!,
+      ...(fresh && id.startsWith("-") && { whole: true }),
+    });
   return patch(base, changes, source);
 }
 
