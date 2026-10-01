@@ -20,6 +20,17 @@ import {
 const langPattern = z
   .string()
   .refine((p) => p.includes("{lang}"), "path must contain {lang}");
+// A source that reads one file per language takes one pattern; an array,
+// which only a merged catalogue takes, is refused by that rule (#1020).
+const onePattern = (adapter: string) =>
+  z
+    .string({
+      error: (issue) =>
+        Array.isArray(issue.input)
+          ? `${adapter} takes one path pattern per source; declare one source per pattern (only messages, table, fluent and android take an array)`
+          : undefined,
+    })
+    .refine((p) => p.includes("{lang}"), "path must contain {lang}");
 // `{ns}` only where the ids are prefixed with it, and a pull strips it
 // again (#854).
 const noNamespace = <T extends z.ZodType<string>>(adapter: string, path: T) =>
@@ -97,7 +108,7 @@ const fluentFields = {
 const xliffSchema = z.looseObject({
   adapter: z.literal("xliff"),
   type: identifier(),
-  path: noNamespace("xliff", langPattern),
+  path: noNamespace("xliff", onePattern("xliff")),
   sourcePath: noNamespace("xliff", z.string().min(1)).optional(),
   languageFiles,
 });
@@ -107,7 +118,7 @@ const xliffSchema = z.looseObject({
 const gettextSchema = z.looseObject({
   adapter: z.literal("gettext"),
   type: identifier(),
-  path: noNamespace("gettext", langPattern),
+  path: noNamespace("gettext", onePattern("gettext")),
   sourcePath: noNamespace("gettext", z.string().min(1)).optional(),
   library: configLibrarySchema.optional(),
   languageFiles,
@@ -119,7 +130,7 @@ const gettextSchema = z.looseObject({
 const qtTsSchema = z.looseObject({
   adapter: z.literal("qt-ts"),
   type: identifier(),
-  path: noNamespace("qt-ts", langPattern),
+  path: noNamespace("qt-ts", onePattern("qt-ts")),
   sourcePath: noNamespace("qt-ts", z.string().min(1)).optional(),
   library: configLibrarySchema.optional(),
   languageFiles,
@@ -130,7 +141,7 @@ const qtTsSchema = z.looseObject({
 const yamlSchema = z.looseObject({
   adapter: z.literal("yaml"),
   type: identifier(),
-  path: noNamespace("yaml", langPattern),
+  path: noNamespace("yaml", onePattern("yaml")),
   library: configLibrarySchema.optional(),
   languageFiles,
 });
