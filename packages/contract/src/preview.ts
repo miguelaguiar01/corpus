@@ -63,6 +63,7 @@ function render(
   out: PreviewSegment[],
   language: string | undefined,
   unset: Unset,
+  library?: Library,
 ): void {
   for (const node of nodes) {
     if (node.kind === "literal") out.push({ text: node.text, value: false });
@@ -85,7 +86,7 @@ function render(
       );
     } else if (node.kind === "tag") {
       // The component is the client's; the preview shows what it wraps.
-      render(node.children, values, out, language, unset);
+      render(node.children, values, out, language, unset, library);
     } else if (node.kind === "forms") {
       // vue-i18n picks a form by the count passed at render time, by
       // position. A preview has no count, so it shows the last form,
@@ -96,14 +97,22 @@ function render(
         out,
         language,
         unset,
+        library,
       );
     } else if (node.kind === "plural") {
       const value = own(values, node.arg);
       const key =
         value === undefined
           ? "other"
-          : pluralBranch(node.branches, value, language, node.ordinal);
-      render(own(node.branches, key) ?? [], values, out, language, unset);
+          : pluralBranch(node.branches, value, language, node.ordinal, library);
+      render(
+        own(node.branches, key) ?? [],
+        values,
+        out,
+        language,
+        unset,
+        library,
+      );
     } else {
       const value = own(values, node.arg);
       const branch =
@@ -111,7 +120,7 @@ function render(
         node.branches.other ??
         Object.values(node.branches)[0] ??
         [];
-      render(branch, values, out, language, unset);
+      render(branch, values, out, language, unset, library);
     }
   }
 }
@@ -159,6 +168,7 @@ export function renderPreviewSegments(
     segments,
     language,
     options.syntax === "i18next" ? i18nextUnset : icuUnset,
+    options.syntax,
   );
   // Capitalise the first character of the whole render, wherever it
   // falls: an empty leading value must not stop it.
