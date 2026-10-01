@@ -1,8 +1,16 @@
-import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import {
+  existsSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import { createJiti } from "jiti";
 import {
   androidDirOf,
+  gettextToEntries,
   androidLanguageOf,
   isChromeMessages,
   parseXcstrings,
@@ -392,6 +400,10 @@ function formatOf(
       missing && bare !== undefined && existsSync(path.join(ctx.cwd, bare))
         ? bare
         : undefined;
+    if (!sourcePath && missing) {
+      gitIgnored(ctx, relative);
+      if (bare !== undefined) gitIgnored(ctx, bare);
+    }
     if (!sourcePath && missing)
       ctx.err(
         bare === undefined
@@ -409,10 +421,30 @@ function formatOf(
       ctx.err(
         `corpus: ${templates.join(", ")} sit beside the catalogues; set the gettext source's sourcePath to the one xgettext writes`,
       );
-    else if (templates.length === 0 && missing)
+    if (templates.length === 0 && missing) {
+      gitIgnored(ctx, relative);
+      // A msgmerged target holds every msgid, with its references: its
+      // msgids are the catalogue's, read as the source's, and it is
+      // still written as a target (#996).
+      const target = sourceFromTargets(ctx.cwd, messages);
+      if (target) {
+        ctx.err(
+          `corpus: no template: sourcePath is ${target.file}, whose msgids are the catalogue's; point it at a .pot when one is committed`,
+        );
+        if (target.lacking > 0)
+          ctx.err(
+            `corpus: ${target.file} lacks ${target.lacking} msgid(s) another current catalogue holds; those are not read`,
+          );
+        if (target.older > 0)
+          ctx.err(
+            `corpus: ${target.older} msgid(s) only older catalogues hold, likely removed since, are not read`,
+          );
+        return { adapter: "gettext", sourcePath: target.file };
+      }
       ctx.err(
         `corpus: no .pot beside the catalogues and no ${relative}; set the gettext source's sourcePath to the template xgettext writes`,
       );
+    }
     return {
       adapter: "gettext",
       ...(templates.length === 1 && { sourcePath: templates[0] }),
@@ -423,6 +455,7 @@ function formatOf(
   // rather than written into a config that cannot build.
   if (/\.ya?ml$/i.test(messages)) {
     refuseNamespace(messages, "yaml");
+    if (missing) gitIgnored(ctx, relative);
     if (missing)
       throw new CliError(
         `--messages ${messages}: no ${relative} to read the source language's strings from`,
@@ -454,10 +487,12 @@ function formatOf(
     // lupdate's template, `app.ts` beside `app_de.ts`, is the source where
     // the source language has no file of its own (#749).
     const sourcePath = missing ? qtTemplateOf(ctx.cwd, messages) : undefined;
-    if (missing && !sourcePath)
+    if (missing && !sourcePath) {
+      gitIgnored(ctx, relative);
       ctx.err(
         `corpus: no ${relative}; set the qt-ts source's sourcePath to the template lupdate writes`,
       );
+    }
     return { adapter: "qt-ts", ...(sourcePath && { sourcePath }) };
   }
   // Every format's build reads the source language's file (#856).
@@ -465,10 +500,12 @@ function formatOf(
     messages.includes("{ns}")
       ? matchPattern(ctx.cwd, messages, sourceLanguage).length === 0
       : missing
-  )
+  ) {
     ctx.err(
       `corpus: no ${relative}: build reads the source language's strings from it`,
     );
+    if (missing && !messages.includes("{ns}")) gitIgnored(ctx, relative);
+  }
   // Fluent's `.ftl` reads `{ns}` as messages does (#993).
   if (/\.ftl$/i.test(messages)) return { adapter: "fluent" };
   const unreadable = unreadableFile(sourceFile);
@@ -963,6 +1000,65 @@ function siblingCatalogues(
     })
     .map((name) => path.join(dir, name))
     .sort();
+}
+
+// A missing source file git ignores is generated, by a build step the
+// repository does not commit the output of (Zulip's `/locale/en`).
+function gitIgnored(ctx: RunContext, rel: string): void {
+  const check = spawnSync("git", ["check-ignore", "-q", rel], {
+    cwd: ctx.cwd,
+    stdio: "ignore",
+  });
+  if (check.status === 0)
+    ctx.err(
+      `corpus: ${rel} is git-ignored, so it is generated: commit it, or point the source at a file that is committed`,
+    );
+}
+
+// The target `.po` whose msgids stand for the source's where no template
+// and no source-language file is committed (#996): among the files
+// msgmerged last, by the newest POT-Creation-Date (a file another tool
+// regenerated alone, paperless-ngx's en_US, is current where 47 stale
+// ones are not), the one holding the most msgids; and how many msgids the
+// other current files hold that it lacks.
+function sourceFromTargets(
+  cwd: string,
+  pattern: string,
+): { file: string; lacking: number; older: number } | undefined {
+  const read = patternFiles(cwd, pattern)
+    .filter((file) => statSync(path.join(cwd, file)).isFile())
+    .map((file) => {
+      const text = readFileSync(path.join(cwd, file), "utf8");
+      const ids = new Set(
+        gettextToEntries(text, { type: "x" }).map((e) => e.id),
+      );
+      const date = Date.parse(
+        (/"POT-Creation-Date:\s*([^"\\]*)/.exec(text)?.[1] ?? "")
+          .trim()
+          .replace(" ", "T")
+          .replace(/([+-]\d\d)(\d\d)$/, "$1:$2"),
+      );
+      return { file, ids, date: Number.isNaN(date) ? undefined : date };
+    });
+  const usable = read.filter((r) => r.ids.size > 0);
+  if (usable.length === 0) return undefined;
+  const dates = usable.flatMap((r) => (r.date === undefined ? [] : [r.date]));
+  const newest = dates.length > 0 ? Math.max(...dates) : undefined;
+  const pool =
+    newest === undefined ? usable : usable.filter((r) => r.date === newest);
+  const chosen = [...pool].sort(
+    (a, b) => b.ids.size - a.ids.size || a.file.localeCompare(b.file),
+  )[0]!;
+  const current = new Set(pool.flatMap((r) => [...r.ids]));
+  // What only older catalogues hold, likely removed since.
+  const older = new Set(
+    usable.flatMap((r) => [...r.ids]).filter((id) => !current.has(id)),
+  );
+  return {
+    file: chosen.file,
+    lacking: current.size - chosen.ids.size,
+    older: older.size,
+  };
 }
 
 // The `.pot` files in the directory above a `.po` pattern's language,
