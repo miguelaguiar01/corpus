@@ -250,7 +250,9 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   if (detected.note) ctx.out(detected.note);
   if (variants.length > 0)
     ctx.out(
-      `sourceVariants: ${variants.join(", ")} (a variant of ${sourceLanguage}: a row it leaves as the source's text seeds as translated; remove it if those rows are work)`,
+      variants.length === 1
+        ? `sourceVariants: ${variants[0]} (a variant of ${sourceLanguage}: a row it leaves as the source's text seeds as translated, and a row it lacks is not listed as work, since the app falls back to ${sourceLanguage}; remove a variant whose rows are work)`
+        : `sourceVariants: ${variants.join(", ")} (variants of ${sourceLanguage}: a row a variant leaves as the source's text seeds as translated, and a row it lacks is not listed as work, since the app falls back to ${sourceLanguage}; remove a variant whose rows are work)`,
     );
   if (adapter === "yaml" && !library)
     ctx.out("library: rails (the yaml source's default)");
@@ -577,6 +579,8 @@ function sourceVariantsOf(
   return languages.filter(
     (tag) =>
       tag !== sourceLanguage &&
+      // A pseudo-locale, `en-XA`, is generated, no variant.
+      !/[-_]X[A-C]$/i.test(tag) &&
       base(tag) === base(sourceLanguage) &&
       own !== undefined &&
       script(tag) === own,
