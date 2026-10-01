@@ -17,6 +17,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Only where the UI is .jsx, .tsx or .vue components: leave it out otherwise.
       - name: No user-facing text outside the catalogues
         run: npx corpus check
       - name: Every translation in the repository is valid

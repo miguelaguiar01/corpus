@@ -269,12 +269,12 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       `check.include: ${include.join(", ")} (the directories holding components, which corpus check scans)`,
     );
   } else if (!components.found) {
-    // A format whose UI is never JSX, TSX or Vue gives check nothing to
-    // read, whatever it is pointed at (#1016).
+    // A UI that is never JSX, TSX or Vue gives check nothing to read,
+    // whatever it is pointed at (#1016).
     ctx.out(
-      NO_COMPONENTS.has(adapter)
-        ? `corpus check reads .jsx, .tsx and .vue components; a ${adapter} project has none, so leave corpus check out of CI`
-        : `check.include: init found no .jsx, .tsx or .vue components where it looks; set check.include in ${filename} to where they are, or, if the UI is written in something else (Svelte, Handlebars, templates), corpus check does not apply: leave it out of CI`,
+      NO_COMPONENTS[adapter]
+        ? `corpus check reads .jsx, .tsx and .vue components, which ${NO_COMPONENTS[adapter]} has none of: leave corpus check out of CI`
+        : `check.include: init found no .jsx, .tsx or .vue components where it looks; set check.include in ${filename} to where they are, or, if the UI is written in something else (C, GTK, Angular, Svelte, Handlebars, templates), corpus check does not apply: leave it out of CI`,
     );
   }
   const siblings =
@@ -292,15 +292,13 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   return 0;
 }
 
-// The formats whose interface is never JSX, TSX or Vue: Qt, GTK and C
-// programs, Android and Apple apps, Angular templates.
-const NO_COMPONENTS: ReadonlySet<InitSource["adapter"]> = new Set([
-  "qt-ts",
-  "gettext",
-  "android",
-  "xcstrings",
-  "xliff",
-]);
+// The formats whose interface is never JSX, TSX or Vue, by what it is;
+// a .po or XLIFF catalogue may be a Lingui, Vue or FormatJS app's.
+const NO_COMPONENTS: Partial<Record<InitSource["adapter"], string>> = {
+  "qt-ts": "a Qt interface",
+  android: "an Android app",
+  xcstrings: "an Apple app",
+};
 
 type InitSource = {
   adapter:

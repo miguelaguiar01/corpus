@@ -568,11 +568,11 @@ test("check.include is not written when src alone holds the components, nor when
   // Nothing found is said, so the first corpus check is no surprise.
   // A messages catalogue may be any UI: both ways out are said (#1016).
   expect(none.out.join("\n")).toContain(
-    "check.include: init found no .jsx, .tsx or .vue components where it looks; set check.include in corpus.config.ts to where they are, or, if the UI is written in something else (Svelte, Handlebars, templates), corpus check does not apply: leave it out of CI",
+    "check.include: init found no .jsx, .tsx or .vue components where it looks; set check.include in corpus.config.ts to where they are, or, if the UI is written in something else (C, GTK, Angular, Svelte, Handlebars, templates), corpus check does not apply: leave it out of CI",
   );
 });
 
-test("a qt-ts or gettext project with no components is told corpus check does not apply (#1016)", async () => {
+test("a Qt, Android or Apple project with no components is told corpus check does not apply; a gettext one is told both ways (#1016)", async () => {
   const qt = project();
   write(
     qt.dir,
@@ -580,11 +580,21 @@ test("a qt-ts or gettext project with no components is told corpus check does no
     '<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE TS>\n<TS version="2.1" language="en">\n<context><name>A</name><message><source>Quit</source><translation></translation></message></context>\n</TS>\n',
   );
   expect(await run(initFor("lang/app_{lang}.ts"), qt.ctx)).toBe(0);
-  const said = qt.out.join("\n");
-  expect(said).toContain(
-    "corpus check reads .jsx, .tsx and .vue components; a qt-ts project has none, so leave corpus check out of CI",
+  expect(qt.out.join("\n")).toContain(
+    "corpus check reads .jsx, .tsx and .vue components, which a Qt interface has none of: leave corpus check out of CI",
   );
-  expect(said).not.toMatch(/set check\.include/);
+  expect(qt.out.join("\n")).not.toMatch(/set check\.include/);
+  const android = project();
+  write(
+    android.dir,
+    "res/values/strings.xml",
+    '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n  <string name="hi">Hi</string>\n</resources>\n',
+  );
+  expect(await run(initFor("res"), android.ctx)).toBe(0);
+  expect(android.out.join("\n")).toContain(
+    "corpus check reads .jsx, .tsx and .vue components, which an Android app has none of: leave corpus check out of CI",
+  );
+  // A .po catalogue may be a Lingui or Vue app's: both ways are said.
   const po = project();
   write(
     po.dir,
@@ -592,9 +602,24 @@ test("a qt-ts or gettext project with no components is told corpus check does no
     'msgid ""\nmsgstr ""\n"Content-Type: text/plain; charset=UTF-8\\n"\n\nmsgid "Quit"\nmsgstr ""\n',
   );
   expect(await run(initFor("po/{lang}.po"), po.ctx)).toBe(0);
-  expect(po.out.join("\n")).toContain(
-    "a gettext project has none, so leave corpus check out of CI",
+  expect(po.out.join("\n")).toMatch(
+    /init found no \.jsx, \.tsx or \.vue components where it looks; set check\.include .* or, if the UI is written in something else .*, corpus check does not apply/,
   );
+  // Components found beside a .po catalogue are what check reads.
+  const vue = project();
+  write(
+    vue.dir,
+    "po/en.po",
+    'msgid ""\nmsgstr ""\n"Content-Type: text/plain; charset=UTF-8\\n"\n\nmsgid "Quit"\nmsgstr ""\n',
+  );
+  write(
+    vue.dir,
+    "app/Home.vue",
+    "<template><p>{{ $gettext('Quit') }}</p></template>\n",
+  );
+  expect(await run(initFor("po/{lang}.po"), vue.ctx)).toBe(0);
+  expect(vue.out.join("\n")).toContain("check.include: app");
+  expect(vue.out.join("\n")).not.toMatch(/does not apply/);
 });
 
 test("in a monorepo, check.include is the components directories below the root (#655)", async () => {
