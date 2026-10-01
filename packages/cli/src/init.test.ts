@@ -2195,7 +2195,7 @@ test("files beside the catalogue that are catalogues of their own are said as fa
   const said = p.err.join("\n");
   expect(said).toContain(
     // A Rails app's families are one tree: one source lists them (#1024).
-    'corpus: 2 other catalogue(s) beside y/{lang}.yml, 4 file(s) (y/devise.{lang}.yml, y/sf.{lang}.yml): where the app loads them into one catalogue, as Rails does, list them in the source\'s path, path: ["y/{lang}.yml", "y/devise.{lang}.yml", "y/sf.{lang}.yml"]; otherwise each is its own source',
+    'corpus: 2 other catalogue(s) beside y/{lang}.yml, 4 file(s) (y/devise.{lang}.yml, y/sf.{lang}.yml): where the app loads them into one catalogue, as Rails does, list them in the source\'s path in the order it loads them, path: ["y/{lang}.yml", "y/devise.{lang}.yml", "y/sf.{lang}.yml"]; otherwise each is its own source',
   );
   expect(said).not.toMatch(/sf\.en\.yml/);
   // A source that takes one pattern says each is its own.

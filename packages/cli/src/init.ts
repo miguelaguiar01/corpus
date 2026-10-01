@@ -159,7 +159,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     // loads a yaml family (#1024); any other takes one each.
     ctx.err(
       LISTS_PATTERNS.has(adapter)
-        ? `corpus: ${patterns.length} other catalogue(s) beside ${messages}, ${count} file(s) (${named}): where the app loads them into one catalogue, as Rails does, list them in the source's path, path: ${JSON.stringify([messages, ...patterns]).replace(/","/g, '", "')}; otherwise each is its own source`
+        ? `corpus: ${patterns.length} other catalogue(s) beside ${messages}, ${count} file(s) (${named}): where the app loads them into one catalogue${adapter === "yaml" ? ", as Rails does" : ""}, list them in the source's path in the order it loads them, path: ${JSON.stringify([messages, ...patterns]).replace(/","/g, '", "')}; otherwise each is its own source`
         : `corpus: ${patterns.length} other catalogue(s) beside ${messages}, ${count} file(s) (${named}): each is its own source, as { adapter: ${JSON.stringify(adapter)}, type: ${JSON.stringify(type)}, path: ${JSON.stringify(patterns[0])} }`,
     );
   }
