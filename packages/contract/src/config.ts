@@ -231,6 +231,28 @@ const sourceSchema = z.discriminatedUnion("adapter", [
   execSchema,
 ]);
 
+// The adapters whose source-language file may be other than the
+// pattern's: Angular's `messages.xlf`, a `.pot`, lupdate's template.
+const READS_SOURCE_PATH = new Set(["xliff", "gettext", "qt-ts"]);
+
+// The code a file fills a pattern's {lang} with, {ns} matching itself or
+// any name: `templates` for `core/templates/{ns}.ftl` in
+// `core/{lang}/{ns}.ftl`.
+function fileCodeIn(pattern: string, file: string): string | undefined {
+  const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const source = pattern
+    .split(/(\{lang\}|\{ns\})/)
+    .map((part) =>
+      part === "{lang}"
+        ? "([^/]+)"
+        : part === "{ns}"
+          ? "(?:\\{ns\\}|[^/]+(?:/[^/]+)*)"
+          : escape(part),
+    )
+    .join("");
+  return new RegExp(`^${source}$`).exec(file)?.[1];
+}
+
 // The adapters whose sources map a language to its file's code.
 const MAPS_LANGUAGE_FILES: string[] = sourceInputSchema.options.flatMap(
   (option) =>
@@ -329,6 +351,29 @@ export const corpusConfigSchema = z
       // (#860): syntax is the old name on messages and table alone,
       // xliff, fluent and android set their own, and an exec source's
       // entries carry theirs.
+      // A sourcePath an adapter does not read is refused, not ignored
+      // (#994): the source language's file is the pattern's, filled
+      // through languageFiles.
+      const given = (source as { sourcePath?: unknown }).sourcePath;
+      if (typeof given === "string" && !READS_SOURCE_PATH.has(source.adapter)) {
+        const pattern = (source as { path?: unknown }).path;
+        const code = (Array.isArray(pattern) ? pattern : [pattern])
+          .filter((p): p is string => typeof p === "string")
+          .map((p) => fileCodeIn(p, given))
+          .find((found) => found !== undefined);
+        ctx.addIssue({
+          code: "custom",
+          message: !MAPS_LANGUAGE_FILES.includes(source.adapter)
+            ? `${source.adapter} reads no sourcePath`
+            : code === c.sourceLanguage ||
+                (code !== undefined &&
+                  (source as { languageFiles?: Record<string, string> })
+                    .languageFiles?.[c.sourceLanguage] === code)
+              ? `${source.adapter} reads no sourcePath; this one is the pattern's own source file, so drop it`
+              : `${source.adapter} reads no sourcePath; map the source language with languageFiles: { ${c.sourceLanguage}: "${code ?? "<its file's code>"}" }`,
+          path: ["sources", index, "sourcePath"],
+        });
+      }
       const set = source as { library?: unknown; syntax?: unknown };
       const field = (name: "library" | "syntax", message: string) =>
         ctx.addIssue({
@@ -372,12 +417,6 @@ export const corpusConfigSchema = z
         );
         return;
       }
-      // The server fills a writable source's pattern with the source
-      // language's tag when it places a proposal (#657).
-      if (Object.hasOwn(files, c.sourceLanguage))
-        issue(
-          `the source language ${c.sourceLanguage} keeps its tag as its file's name; languageFiles maps target languages`,
-        );
       for (const tag of Object.keys(files))
         if (!c.languages.includes(tag))
           issue(`languageFiles names ${tag}, which languages does not list`);

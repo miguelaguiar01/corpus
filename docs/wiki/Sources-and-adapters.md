@@ -57,7 +57,7 @@ Project Fluent's `.ftl` catalogues.
 { adapter: "fluent", type: "ui", path: "i18n/{lang}/app.ftl" }
 ```
 
-One file per language, `{lang}` in the path, and `{ns}` for a directory of them (`core/{lang}/{ns}.ftl`). `corpus init --messages i18n/{lang}/app.ftl` writes the source and the languages its files name. See [Your i18n library](Your-i18n-library#fluent) for the subset it reads.
+One file per language, `{lang}` in the path, and `{ns}` for a directory of them (`core/{lang}/{ns}.ftl`). `corpus init --messages i18n/{lang}/app.ftl` writes the source and the languages its files name. Where the source language's files sit in a directory of their own, as Pontoon's `templates/` beside the locales, map it: `languageFiles: { en: "templates" }`. See [Your i18n library](Your-i18n-library#fluent) for the subset it reads.
 
 ## xliff
 

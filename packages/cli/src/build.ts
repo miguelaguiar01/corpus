@@ -1130,9 +1130,14 @@ export function writableSources(config: CorpusConfig): WritableSource[] {
           {
             // Android's source file itself: the server fills {lang} in
             // a pattern, and a res directory has none.
-            // XLIFF's source file too: its name may hold no language.
+            // XLIFF's source file too: its name may hold no language,
+            // and so does one whose source language languageFiles maps
+            // (Anki's `templates`, #994).
             path:
-              source.adapter === "android" || source.adapter === "xliff"
+              source.adapter === "android" ||
+              source.adapter === "xliff" ||
+              fileCodeOf(source, config.sourceLanguage) !==
+                config.sourceLanguage
                 ? fileOf(source, config.sourceLanguage, config.sourceLanguage)
                 : source.path,
             // Every file adapter not code-keyed: tsc checks this set

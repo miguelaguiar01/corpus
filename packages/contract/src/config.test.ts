@@ -346,8 +346,11 @@ test("a messages or fluent source may name the file code of a language (#657)", 
   expect(refused({ "pt-BR": "pt" })).toEqual([
     "pt and pt-BR would share the file of pt",
   ]);
-  expect(refused({ en: "english" })).toEqual([
-    "the source language en keeps its tag as its file's name; languageFiles maps target languages",
+  // The source language may keep its strings under another name, as
+  // Anki's `templates` (#994), but not in a target's file.
+  expect(refused({ en: "english" })).toEqual([]);
+  expect(refused({ en: "pt" })).toEqual([
+    "en and pt would share the file of pt",
   ]);
   expect(refused({ "zh-cn": "cn" })).toEqual([
     "languageFiles names zh-cn, which languages does not list",
@@ -553,4 +556,98 @@ test("an android source takes a list of res directories and merge, as messages d
       merge: "strict",
     }).success,
   ).toBe(false);
+});
+
+test("a source that reads no sourcePath refuses one by name (#994)", () => {
+  const config = (source: object) =>
+    corpusConfigSchema.safeParse({
+      project: "p",
+      server: "http://localhost:3000",
+      sourceLanguage: "en",
+      languages: ["en", "de"],
+      sources: [source],
+    });
+  const issues = (source: object) => {
+    const parsed = config(source);
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  expect(
+    issues({
+      adapter: "fluent",
+      type: "ui",
+      path: "core/{lang}/{ns}.ftl",
+      sourcePath: "core/templates/{ns}.ftl",
+    }),
+  ).toEqual([
+    'fluent reads no sourcePath; map the source language with languageFiles: { en: "templates" }',
+  ]);
+  expect(
+    issues({
+      adapter: "messages",
+      type: "ui",
+      path: "i18n/{lang}.json",
+      sourcePath: "i18n/base.json",
+    }),
+  ).toEqual([
+    'messages reads no sourcePath; map the source language with languageFiles: { en: "base" }',
+  ]);
+  expect(
+    issues({
+      adapter: "gettext",
+      type: "ui",
+      path: "po/{lang}.po",
+      sourcePath: "po/app.pot",
+    }),
+  ).toEqual([]);
+  // The pattern's own source file needs no mapping; a {ns} spans
+  // directories; each pattern of a list is tried.
+  expect(
+    issues({
+      adapter: "fluent",
+      type: "ui",
+      path: "l/{lang}/main.ftl",
+      sourcePath: "l/en/main.ftl",
+    }),
+  ).toEqual([
+    "fluent reads no sourcePath; this one is the pattern's own source file, so drop it",
+  ]);
+  expect(
+    issues({
+      adapter: "fluent",
+      type: "ui",
+      path: "core/{lang}/{ns}.ftl",
+      languageFiles: { en: "templates" },
+      sourcePath: "core/templates/{ns}.ftl",
+    }),
+  ).toEqual([
+    "fluent reads no sourcePath; this one is the pattern's own source file, so drop it",
+  ]);
+  expect(
+    issues({
+      adapter: "messages",
+      type: "ui",
+      path: "src/{ns}/i18n/{lang}.json",
+      sourcePath: "src/Card/Header/i18n/base.json",
+    }),
+  ).toEqual([
+    'messages reads no sourcePath; map the source language with languageFiles: { en: "base" }',
+  ]);
+  expect(
+    issues({
+      adapter: "messages",
+      type: "ui",
+      path: ["a/{lang}.json", "b/{lang}.json"],
+      sourcePath: "b/root.json",
+    }),
+  ).toEqual([
+    'messages reads no sourcePath; map the source language with languageFiles: { en: "root" }',
+  ]);
+  expect(
+    issues({
+      adapter: "android",
+      type: "ui",
+      path: "res",
+      sourcePath: "res/values/strings.xml",
+    }),
+  ).toEqual(["android reads no sourcePath"]);
 });
