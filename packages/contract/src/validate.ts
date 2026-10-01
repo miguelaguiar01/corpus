@@ -15,6 +15,7 @@
 // own message catalog.
 import {
   argPositions,
+  branchingNodes,
   parseIcu,
   readIcu,
   printfPluralError,
@@ -30,7 +31,13 @@ import {
   type Shape,
   shapeOf,
 } from "./icu";
-import { EXACT_KEY, readsAsIcu, type Library, type RichText } from "./strings";
+import {
+  EXACT_KEY,
+  PLURAL_CATEGORIES,
+  readsAsIcu,
+  type Library,
+  type RichText,
+} from "./strings";
 
 export type ValidationError =
   | {
@@ -660,6 +667,7 @@ export function validateTranslation(
   // A term's attribute is the locale's to select on.
   const unpassed = (arg: string): ValidationError[] =>
     expectedValues.has(arg) ||
+    expected.selects.has(arg) ||
     passed.has(arg) ||
     arg.startsWith("-") ||
     options.term
@@ -670,7 +678,9 @@ export function validateTranslation(
       actual,
       expectedValues,
       passed,
-      syntax === "fluent" ? unpassed : undefined,
+      syntax === "fluent"
+        ? { unpassed, sourcePlurals: new Set(expected.plurals.keys()) }
+        : undefined,
       language === undefined
         ? { required: [], allowed: [] }
         : pluralCategoriesFor(language, syntax, options.pluralForms),
@@ -687,10 +697,43 @@ export function validateTranslation(
       errors.push({ code: "nested-count", arg });
   for (const [arg, keys] of actual.selects) {
     const sourceKeys = expected.selects.get(arg);
-    // But a count selected on words never matches them: Fluent compares
-    // a number with categories and numbers only (gl `[unha]`, #597).
-    if (syntax === "fluent" && !expected.plurals.has(arg)) {
-      if (!sourceKeys) errors.push(...unpassed(arg));
+    if (syntax === "fluent") {
+      if (!expected.plurals.has(arg)) {
+        if (!sourceKeys) errors.push(...unpassed(arg));
+        // Keys of its own and none of the source's, other aside, are the
+        // source's translated, which the value never matches: da's
+        // `[sekunder]` for `[seconds]`. Keeping some, as fi does, or
+        // collapsing to the default, as de does, is Fluent's way. A
+        // term's keys are its locale's, which that locale's messages pass
+        // (cs `[lower]` for en's `[lowercase]`).
+        const own = [...keys].filter((k) => k !== "other");
+        if (
+          !options.term &&
+          sourceKeys &&
+          own.length > 0 &&
+          own.every((k) => !sourceKeys.has(k))
+        )
+          for (const key of sourceKeys)
+            if (key !== "other")
+              errors.push({ code: "missing-branch", arg, key });
+        continue;
+      }
+      // But a count selected on a word never matches it: Fluent compares
+      // a number with categories and numbers only (gl `[unha]`, #597).
+      // The `*` default is chosen whatever its key, es-MX `*[otro]`,
+      // and the reader carries it as `other` beside it, with its text.
+      for (const node of branchingNodes(parsedTarget.nodes)) {
+        if (node.kind !== "select" || node.arg !== arg) continue;
+        const fallback = JSON.stringify(node.branches.other);
+        for (const [key, branch] of Object.entries(node.branches))
+          if (
+            key !== "other" &&
+            !(PLURAL_CATEGORIES as readonly string[]).includes(key) &&
+            !/^\d+$/.test(key) &&
+            JSON.stringify(branch) !== fallback
+          )
+            errors.push({ code: "unexpected-branch", arg, key });
+      }
       continue;
     }
     if (!sourceKeys) {
@@ -804,17 +847,31 @@ function pluralErrors(
   actual: Shape,
   expectedValues: Set<string>,
   passed: Map<string, string>,
-  // Fluent's rule for a plural on a value the source has none of.
-  unpassed: ((arg: string) => ValidationError[]) | undefined,
+  // Fluent's rules: a plural on a value the source has none of, and a
+  // select of its `*[other]` alone, which reads as a plural, on a value
+  // the source never counts: no categories to pick (#1032).
+  fluent:
+    | {
+        unpassed: (arg: string) => ValidationError[];
+        sourcePlurals: ReadonlySet<string>;
+      }
+    | undefined,
   categories: { required: string[]; allowed: string[] },
   language: string | undefined,
 ): ValidationError[] {
   const out: ValidationError[] = [];
   for (const [arg, keys] of actual.plurals) {
     if (!expectedValues.has(arg) && !passed.has(arg)) {
-      out.push(...(unpassed?.(arg) ?? [{ code: "unknown-plural", arg }]));
+      out.push(...(fluent?.unpassed(arg) ?? [{ code: "unknown-plural", arg }]));
       continue;
     }
+    if (
+      fluent &&
+      keys.size === 1 &&
+      keys.has("other") &&
+      !fluent.sourcePlurals.has(arg)
+    )
+      continue;
     if (categories.required.length === 0) continue;
     // `=01` is not `=1` to the runtimes, which match the key as written.
     const exact = new Set(

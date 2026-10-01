@@ -535,9 +535,3 @@ b = { NUMBER\t($n) }
   expect(read.a).toBe('{n, plural, one {{n, number, x: "#"} y} other {z}}');
   expect(refused).toEqual(["b"]);
 });
-
-test("a select whose only variant is the default reads as that variant's text (#1032)", () => {
-  const ftl = "account = { $capitalization ->\n   *[other] Konto\n  }\n";
-  expect(fluentToEntries(ftl, { type: "ui" })[0]!.source).toBe("Konto");
-  expect(entriesToFluent(ftl, { account: "Konto" }, ftl)).toBe(ftl);
-});

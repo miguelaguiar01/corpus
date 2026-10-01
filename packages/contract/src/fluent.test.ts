@@ -259,6 +259,21 @@ test("a Fluent translation selects on what it likes: missing and extra keys take
   expect(v(account, "{capitalization, select, other {Konto}}")).toEqual({
     ok: true,
   });
+  // As the adapter reads `*[other] Konto` alone: a plural of one branch,
+  // on a value the source never counts, has no categories to lack.
+  expect(v(account, "{capitalization, plural, other {Konto}}")).toEqual({
+    ok: true,
+  });
+  // On a count, it still lacks the categories the language picks.
+  expect(
+    v(
+      "{n, plural, one {# card} other {# cards}}",
+      "{n, plural, other {# Karten}}",
+    ),
+  ).toEqual({
+    ok: true,
+    incomplete: [{ code: "missing-category", arg: "n", key: "one" }],
+  });
   expect(
     v(account, "{capitalization, select, uppercase {Tili} other {tili}}"),
   ).toEqual({ ok: true });
@@ -284,6 +299,46 @@ test("a Fluent translation selects on what it likes: missing and extra keys take
     ok: true,
     incomplete: [{ code: "unpassed-selector", arg: "count" }],
   });
+  // Keys of its own and none of the source's are the source's
+  // translated, which the code's value never matches (da's `[sekunder]`).
+  const unit =
+    "{unit, select, seconds {{n} s} minutes {{n} min} hours {{n} h} other {{n} h}}";
+  const da = v(
+    unit,
+    "{unit, select, sekunder {{n} s} minutter {{n} min} timer {{n} t} other {{n} t}}",
+  );
+  expect(da.ok ? [] : da.errors.map((e) => "key" in e && e.key)).toEqual([
+    "seconds",
+    "minutes",
+    "hours",
+  ]);
+  expect(v(unit, "{unit, select, seconds {{n} s} other {{n} t}}")).toEqual({
+    ok: true,
+  });
+  expect(
+    v(
+      "{capitalization, select, lowercase {account} uppercase {Account} other {account}}",
+      "{capitalization, select, lower {účet} upper {Účet} other {Účet}}",
+      { term: true },
+    ),
+  ).toEqual({ ok: true });
+  // A count selected on words never matches them, but the default is
+  // chosen whatever its key: gl's `[unha]` is a finding, es-MX's
+  // `*[otro]`, which the reader carries as `other`, is not.
+  const count = "{items, plural, one {# item} other {# items}}";
+  const gl = v(
+    count,
+    "{items, select, unha {{items} elemento} outra {{items} elementos} other {{items} elementos}}",
+  );
+  expect(gl.ok ? [] : gl.errors).toEqual([
+    { code: "unexpected-branch", arg: "items", key: "unha" },
+  ]);
+  expect(
+    v(
+      count,
+      "{items, select, 1 {un elemento} otro {{items} elementos} other {{items} elementos}}",
+    ),
+  ).toEqual({ ok: true });
   // Printing what the source does not pass, or dropping what it does,
   // is still invalid.
   expect(v("{user} shared", "{number} geteilt").ok).toBe(false);
