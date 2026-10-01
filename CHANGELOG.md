@@ -35,6 +35,7 @@ contract (`corpus/1`) is the only one.
 - Qt: a numerus file short of forms is seeded and named, a source file's English forms are its source plural, and a proposal on Qt text gives the tr() reason; translations of such a source's numerus strings go stale once (#1004).
 - Android: a regional language reads and writes each module's `values-ta` where it has no `values-ta-rIN`, as Android resolves it (#1007).
 - i18next: a `{{…}}` that holds no name, a Go template's `{{ define "<NAME>" }}`, is a placeholder a translation keeps verbatim, not a refusal (#1008).
+- ICU: a repository's English copy of a string that a TMS restructured, the plural hoisted over the sentence, seeds as untranslated like an exact copy; the next push resends every seed to re-read them (#1009).
 
 ## [0.21.0] - 2026-09-29
 

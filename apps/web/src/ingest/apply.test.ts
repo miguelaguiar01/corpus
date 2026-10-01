@@ -501,6 +501,44 @@ test("a seed equal to the source keeps its text as untranslated, is counted apar
   expect(translationOf(db, "ui.continue", "en")?.updatedAt).toEqual(before);
 });
 
+test("a seed that is the source restructured, as a TMS fills a target file, is the source's text: untranslated and counted apart (#1009)", () => {
+  const { db, project } = seed();
+  const copy =
+    "{n,plural,=0 {Nenhuma marca por encontrar.} one {Falta {n, number} marca.} other {Faltam {n,number} marcas.}}";
+  const report = applySnapshot(
+    db,
+    project.id,
+    withSeeds({ en: { "ui.marks-left": copy } }),
+  );
+  expect(report.seedsIdentical).toBe(1);
+  expect(report.seeded).toBe(0);
+  expect(translationOf(db, "ui.marks-left", "en")).toMatchObject({
+    state: "untranslated",
+    text: copy,
+  });
+  // A row that held a translation takes the copy as untranslated too;
+  // one that differs in a branch's words is a translation.
+  applySnapshot(
+    db,
+    project.id,
+    withSeeds({ en: { "ui.marks-left": "{n, plural, other {# marks}}" } }),
+  );
+  expect(translationOf(db, "ui.marks-left", "en")?.state).toBe("translated");
+  const again = applySnapshot(
+    db,
+    project.id,
+    withSeeds({ en: { "ui.marks-left": copy } }),
+  );
+  expect(again.seedsIdentical).toBe(1);
+  expect(translationOf(db, "ui.marks-left", "en")?.state).toBe("untranslated");
+  applySnapshot(
+    db,
+    project.id,
+    withSeeds({ en: { "ui.marks-left": copy.replace("marcas.", "marcas!") } }),
+  );
+  expect(translationOf(db, "ui.marks-left", "en")?.state).toBe("translated");
+});
+
 test("a push's seed digests are kept per target language, merged over the last push's, left by a push that carries none, and not stored for a language the project lacks (#601)", () => {
   const { db, project } = seed();
   db.update(projects)

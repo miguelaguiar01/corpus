@@ -35,6 +35,7 @@ import {
 import {
   entitySchema,
   libraryOf,
+  sameMessage,
   isFluentTermId,
   WHOLE_PLURAL_LIBRARIES,
   tagMode,
@@ -417,15 +418,23 @@ export async function buildSnapshotReport(
       if (kept.length > 0) (seedTranslated[lang] ??= []).push(...kept);
     }
   // An XLIFF target marked translated, or a gettext msgstr neither empty
-  // nor fuzzy, whose text is the source's is a translation, not work
-  // (#658, #710, #718): only such targets are seeds.
+  // nor fuzzy, whose text is the source's, the same message (#1009), is
+  // a translation, not work (#658, #710, #718): only such targets are
+  // seeds.
   for (const source of config.sources) {
     if (source.adapter === "exec" || !STATED_TARGETS.has(source.adapter))
       continue;
     const file = fileOf(source, config.sourceLanguage, config.sourceLanguage);
     for (const { entry } of sourced.filter((s) => s.file === file))
       for (const [lang, texts] of Object.entries(seedTranslations))
-        if (texts[entry.id] === entry.source)
+        if (
+          texts[entry.id] !== undefined &&
+          sameMessage(
+            entry.source,
+            texts[entry.id]!,
+            entry.library ?? sourceLibrary(source),
+          )
+        )
           (seedTranslated[lang] ??= []).push(entry.id);
   }
   const seedSuggestions = readSuggestions(

@@ -1,6 +1,7 @@
 import { and, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
 import {
   libraryOf,
+  sameMessage,
   validateTranslation,
   type Library,
   type Snapshot,
@@ -185,7 +186,8 @@ function stringWrites(
           texts && Object.hasOwn(texts, entry.id) ? texts[entry.id] : undefined;
         const translated =
           text !== undefined &&
-          (text !== entry.source || counts(language, entry.id));
+          (!sameMessage(entry.source, text, libraryOf(entry)) ||
+            counts(language, entry.id));
         return [
           [`text${k}_${i}`, text ?? null],
           [`state${k}_${i}`, translated ? "translated" : "untranslated"],
@@ -760,7 +762,11 @@ function applySeeds(
         continue;
       }
       const rowId = string.id;
-      const identical = text === string.source && !counts(language, stringId);
+      // A seed that is the source restructured, as a TMS fills a target
+      // file, is the source's text too (#1009).
+      const identical =
+        sameMessage(string.source, text, string.syntax ?? "icu") &&
+        !counts(language, stringId);
       if (identical) seedsIdentical += 1;
       const state = identical ? "untranslated" : "translated";
       if (created.has(stringId)) {
