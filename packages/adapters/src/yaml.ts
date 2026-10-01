@@ -776,9 +776,9 @@ function patchPluralHash(
   }
   const inner = lineIndent(base, (value.items[0]!.key as Node).range![0]);
   const order = file.formOrder;
-  // The forms written as keep-chomped blocks, which a removal after them
-  // must not hand its blank lines to (#1130).
-  const keeps = new Set<Pair>();
+  // The forms rewritten, as keep-chomped blocks or not: a removal after
+  // a keep block must not hand it its blank lines (#1130).
+  const written = new Map<Pair, boolean>();
   for (const c of order) {
     if (!Object.hasOwn(forms, c)) continue;
     const p = held.get(c);
@@ -790,7 +790,7 @@ function patchPluralHash(
         // keeps it, so the next form keeps its line (#1126).
         const out = styled(base, v, forms[c]!, inner, eol);
         const wasBlock = isBlock(base.slice(v.range[0]));
-        if (KEEP_BLOCK.test(out)) keeps.add(p);
+        written.set(p, KEEP_BLOCK.test(out));
         patches.push({
           start: v.range[0],
           end: blockEnd(base, v.range[1], out),
@@ -835,12 +835,17 @@ function patchPluralHash(
   }
   // A form the text no longer has goes, with its comment, so the hash
   // holds the text's forms (#759).
-  for (const [c, p] of held)
-    if (
-      (PLURAL_CATEGORIES as readonly string[]).includes(c) &&
-      !Object.hasOwn(forms, c)
-    )
-      patches.push(pairRemoval(base, value, p, keeps));
+  const dropped = new Set(
+    [...held]
+      .filter(
+        ([c]) =>
+          (PLURAL_CATEGORIES as readonly string[]).includes(c) &&
+          !Object.hasOwn(forms, c),
+      )
+      .map(([, p]) => p),
+  );
+  for (const p of dropped)
+    patches.push(pairRemoval(base, value, p, written, dropped));
 }
 
 // Keys the file lacks, each under the deepest container it has, in the
@@ -1002,6 +1007,15 @@ function nodeEnd(text: string, range: readonly number[]): number {
 
 // Where a pair's content ends: a map's last item's, since the library
 // lets a map's range take the comment lines after it (#804).
+// The pair whose value a pair's lines end with: its own, or its map's
+// last, as deep as it goes.
+function lastPair(pair: Pair): Pair {
+  const value = pair.value as Node | null;
+  return isMap(value) && !value.flow && value.items.length > 0
+    ? lastPair(value.items[value.items.length - 1] as Pair)
+    : pair;
+}
+
 function contentEnd(text: string, pair: Pair): number {
   const value = pair.value as Node | null;
   if (isMap(value) && !value.flow && value.items.length > 0)
@@ -1017,8 +1031,10 @@ function pairRemoval(
   text: string,
   map: YAMLMap,
   pair: Pair,
-  // Pairs written as keep-chomped blocks by the same write.
-  keeps: ReadonlySet<Pair> = new Set(),
+  // The pairs the same write rewrites, as keep-chomped blocks or not,
+  // and the pairs of the map it removes too.
+  written: ReadonlyMap<Pair, boolean> = new Map(),
+  removed: ReadonlySet<Pair> = new Set([pair]),
 ): Patch {
   const keyStart = (pair.key as Node).range![0];
   let start = text.lastIndexOf("\n", keyStart - 1) + 1;
@@ -1035,12 +1051,18 @@ function pairRemoval(
   const end = contentEnd(text, pair);
   const nl = text[end - 1] === "\n" ? end : text.indexOf("\n", end) + 1;
   const stop = nl <= 0 ? text.length : nl;
-  // A keep-chomped block before the pair would read the blank lines it
-  // leaves as its own text (#1130): they go with it.
-  const value = before?.value as Node | null | undefined;
+  // A keep-chomped block before the pair, past any pair this write also
+  // removes and at the end of a map's last value, would read the blank
+  // lines it leaves as its own text (#1130): they go with it.
+  const kept = map.items
+    .slice(0, index)
+    .reverse()
+    .find((p) => !removed.has(p as Pair)) as Pair | undefined;
+  const last = kept && lastPair(kept);
+  const value = last?.value as Node | null | undefined;
   const keep =
-    before !== undefined &&
-    (keeps.has(before) ||
+    last !== undefined &&
+    (written.get(last) ??
       (isScalar(value) &&
         value.range !== undefined &&
         value.range !== null &&
@@ -1105,12 +1127,18 @@ export function applyYamlOps(
   const root = rootPairOf(parseDocument(out, { uniqueKeys: false }), out, code);
   const spans: Patch[] = [];
   const walk = (map: YAMLMap, path: string[]) => {
+    const gone = new Set(
+      map.items.filter((pair) => {
+        const key = keyOf(pair, out);
+        return key !== undefined && removals.includes([...path, key].join("."));
+      }),
+    );
     for (const pair of map.items) {
       const key = keyOf(pair, out);
       if (key === undefined) continue;
       const id = [...path, key].join(".");
       if (removals.includes(id)) {
-        spans.push(pairRemoval(out, map, pair));
+        spans.push(pairRemoval(out, map, pair, new Map(), gone));
       } else if (isMap(pair.value) && pair.value.flow) {
         const inside = removals.find((r) => r.startsWith(`${id}.`));
         if (inside)

@@ -972,6 +972,16 @@ test("removing a pair after a keep-chomped block takes the blank lines after it,
     "pl",
   );
   expect(yamlTranslations(nested, "pl")[0]?.source).toBe("b\n\n");
+  // A keep block this write rewrites as a strip one keeps the blank
+  // line after the dropped form, as the file had it.
+  expect(
+    entriesToYaml(
+      en,
+      { f: "{count, plural, one {x} other {yy}}" },
+      "pl:\n  f:\n    one: |+\n      a\n\n    few: q\n\n    other: yy\n",
+      L,
+    ),
+  ).toBe("pl:\n  f:\n    one: |-\n      x\n\n    other: yy\n");
   // After a plain value or a strip block the blank lines stay.
   expect(
     applyYamlOps(
