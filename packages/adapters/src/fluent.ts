@@ -5,7 +5,11 @@
 // name, a message at a time (#991). A file is patched message by
 // message, so an unchanged pull writes the same bytes and a changed
 // message keeps its layout.
-import { PLURAL_CATEGORIES, type StringEntry } from "@corpus/contract";
+import {
+  FLUENT_OPTIONS_RE,
+  PLURAL_CATEGORIES,
+  type StringEntry,
+} from "@corpus/contract";
 import type { SourceOp } from "./write";
 
 type Message = {
@@ -43,9 +47,10 @@ const KEY_RE = /^(?:[A-Za-z_][A-Za-z0-9_]*|[0-9]+)$/;
 const STRING_LITERAL_RE =
   /^("(?:[^"\\\n]|\\(?:["\\]|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{6}))*")\s*\}/;
 // What a `#` inside is not the count in, in an ICU view: a literal,
-// `{"…"}`, and a term's arguments, `{-brand(x: "#1")}`.
+// `{"…"}`, a term's arguments, `{-brand(x: "#1")}`, and a format's
+// options, `{n, number, x: "#"}`.
 const VIEW_LITERAL_RE =
-  /\{"(?:[^"\\\n]|\\.)*"\}|\{-[A-Za-z][\w-]*\((?:[^()"\n]|"(?:[^"\\\n]|\\.)*")*\)\}/g;
+  /\{"(?:[^"\\\n]|\\.)*"\}|\{-[A-Za-z][\w-]*\((?:[^()"\n]|"(?:[^"\\\n]|\\.)*")*\)\}|\{[A-Za-z][\w-]*, (?:number|date), [^{}]*\}/g;
 
 class Refusal extends Error {}
 
@@ -145,6 +150,49 @@ function parseText(
   return [out, i];
 }
 
+// Fluent's built-in functions, read as the ICU format they apply (#990):
+// `{ NUMBER($n, minimumIntegerDigits: 2) }` is
+// `{n, number, minimumIntegerDigits: 2}`, the options kept as the style.
+const BUILTINS: Record<string, "number" | "date"> = {
+  NUMBER: "number",
+  DATETIME: "date",
+};
+const FUNCTIONS: Record<string, string> = {
+  number: "NUMBER",
+  date: "DATETIME",
+  time: "DATETIME",
+};
+
+function formatOf(
+  s: string,
+  open: number,
+  id: string,
+  fn: string,
+  type: "number" | "date",
+): [string, number] {
+  const close = callEnd(s, open);
+  if (close < 0)
+    throw new Refusal(
+      `${id} has a ${fn} call Corpus does not read (its arguments on one line)`,
+    );
+  const args = /^\s*\$([A-Za-z][\w-]*)\s*(?:,\s*(.*?))?\s*$/.exec(
+    s.slice(open + 1, close),
+  );
+  if (!args)
+    throw new Refusal(`${id} calls ${fn} on something other than a variable`);
+  if (args[2] !== undefined && !FLUENT_OPTIONS_RE.test(args[2]))
+    throw new Refusal(
+      `${id} has ${fn} options Corpus does not read (name: "value" or name: number, no braces)`,
+    );
+  const j = skipSpace(s, close + 1);
+  if (s[j] !== "}")
+    throw new Refusal(
+      `${id} ${s.slice(j, j + 2) === "->" ? "selects on" : "has"} a ${fn} call Corpus does not read`,
+    );
+  const style = args[2] === undefined ? "" : `, ${args[2]}`;
+  return [`{${args[1]}, ${type}${style}}`, j + 1];
+}
+
 // The `)` that closes a term's arguments, strings skipped, on one line;
 // -1 where there is none.
 function callEnd(s: string, open: number): number {
@@ -200,9 +248,11 @@ function parsePlaceable(s: string, i: number, id: string): [string, number] {
     j += attribute.length;
   }
   let call = "";
-  // Fluent allows blanks before a call's `(`.
-  const paren = /^[ \t]*\(/.exec(s.slice(j));
-  if (term && paren) j += paren[0].length - 1;
+  // Fluent allows spaces, not tabs, as @fluent/syntax reads blank_inline.
+  const paren = /^ *\(/.exec(s.slice(j));
+  const builtin = !term && !variable ? BUILTINS[bare] : undefined;
+  if ((term || builtin) && paren) j += paren[0].length - 1;
+  if (s[j] === "(" && builtin) return formatOf(s, j, id, bare, builtin);
   if (s[j] === "(") {
     if (!term) throw new Refusal(`${id} calls a function`);
     const close = callEnd(s, j);
@@ -426,6 +476,20 @@ function render(icu: string, style: Style, refs: Set<string>): string {
     const name = head[1]!;
     let j = i + head[0].length;
     if (!head[3]) {
+      // A format is Fluent's function on the variable, its style the
+      // options (#990).
+      const format = /^,\s*(number|date|time)\s*(?:,([^}]*))?\}/.exec(
+        icu.slice(j),
+      );
+      if (format) {
+        const style = format[2]?.trim();
+        return [
+          place(
+            `${FUNCTIONS[format[1]!]}($${name}${style ? `, ${style}` : ""})`,
+          ),
+          j + format[0].length,
+        ];
+      }
       j = icu.indexOf("}", j) + 1;
       // A term is written as it is named, with its arguments.
       if (name.startsWith("-")) return [place(name + (head[2] ?? "")), j];

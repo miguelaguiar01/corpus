@@ -94,6 +94,12 @@ const FLUENT_NAME_RE = /^-?[A-Za-z][A-Za-z0-9_-]*$/;
 const FLUENT_VARIABLE_RE = /^[A-Za-z][A-Za-z0-9_-]*$/;
 const FLUENT_SELECTOR_RE =
   /^(?:[A-Za-z][A-Za-z0-9_-]*|-[A-Za-z][A-Za-z0-9_-]*\.[A-Za-z][A-Za-z0-9_-]*)$/;
+// A Fluent function's options, which a format's style is under the
+// fluent reading since the writer passes them to NUMBER() or DATETIME():
+// `name: "value"` or `name: number`, comma-separated, spaces alone
+// between them as the writer keeps them on one line (#990).
+export const FLUENT_OPTIONS_RE =
+  /^[A-Za-z][\w-]* *: *(?:"[^"\\{}\n\t]*"|-?\d+(?:\.\d+)?)(?: *, *[A-Za-z][\w-]* *: *(?:"[^"\\{}\n\t]*"|-?\d+(?:\.\d+)?))*$/;
 // A term reference with its arguments, `{-brand(case: "gen")}`.
 const FLUENT_TERM_CALL_RE =
   /^\{\s*(-[A-Za-z][A-Za-z0-9_-]*)\((?:[^()"\n]|"(?:[^"\\\n]|\\.)*")*\)\s*\}/;
@@ -1063,6 +1069,22 @@ class Parser {
       if (this.source[this.pos] !== "}") {
         throw new ParseFailure(`unclosed ${type}`, start);
       }
+      // Fluent formats through NUMBER() and DATETIME(), whose options a
+      // style is; DATETIME formats a date, so there is no time (#990).
+      if (this.syntax === "fluent" && type === "time")
+        throw new ParseFailure(
+          "a Fluent text has no time format: DATETIME formats a date",
+          start,
+        );
+      if (
+        this.syntax === "fluent" &&
+        style !== undefined &&
+        !FLUENT_OPTIONS_RE.test(style)
+      )
+        throw new ParseFailure(
+          `a Fluent ${type}'s style is its options, name: "value" or name: number`,
+          start,
+        );
       this.pos += 1;
       return {
         kind: "placeholder",

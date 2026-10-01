@@ -75,9 +75,6 @@ export type Refused = {
   // Its type, where the type read as HTML would take it: an unclosed
   // tag or a lone <br> as text (#952).
   htmlType?: string;
-  // A Fluent term Corpus cannot read: listed, but no reason to call its
-  // file ruined (#991); one it reads is a string like any (#990).
-  term?: true;
 };
 export type BuildReport = {
   snapshot: Snapshot;
@@ -165,8 +162,7 @@ function ruinedReasons(sourced: Sourced[], refused: Refused[]): string[] {
   const total = new Map<string, number>();
   for (const { file } of sourced) total.set(file, (total.get(file) ?? 0) + 1);
   const perFile = new Map<string, number>();
-  for (const { file, term } of refused) {
-    if (term) continue;
+  for (const { file } of refused) {
     perFile.set(file, (perFile.get(file) ?? 0) + 1);
     total.set(file, (total.get(file) ?? 0) + 1);
   }
@@ -264,7 +260,6 @@ export async function buildSnapshotReport(
             id,
             hint: "",
             message: `invalid ${source.adapter === "fluent" ? "Fluent message" : "entry"}: ${reason ?? "not read"}`,
-            ...(isFluentTerm(source, id) && { term: true }),
           }),
       );
     } catch (error) {

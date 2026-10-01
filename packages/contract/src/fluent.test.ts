@@ -189,3 +189,53 @@ test("a plural is on a variable, a select on a variable or a term's attribute, n
     true,
   );
 });
+
+test("a NUMBER() or DATETIME() format keeps its type, and a translation may change its options (#990)", () => {
+  const source = "{remaining_seconds, number, minimumIntegerDigits: 2} s";
+  expect(parseIcu(source, "fluent").ok).toBe(true);
+  expect(
+    validateTranslation(
+      source,
+      "{remaining_seconds, number, minimumIntegerDigits: 3} s",
+      "fr",
+      "fluent",
+    ).ok,
+  ).toBe(true);
+  const bare = validateTranslation(
+    source,
+    "{remaining_seconds} s",
+    "fr",
+    "fluent",
+  );
+  expect(bare.ok ? [] : bare.errors.map((e) => e.code)).toEqual([
+    "unexpected-format",
+  ]);
+  expect(
+    parseIcu('On {d, date, month: "long", day: "numeric"}', "fluent").ok,
+  ).toBe(true);
+});
+
+test("a format's style under fluent is Fluent's options, and there is no time format (#990 review)", () => {
+  for (const ok of [
+    "{n, number}",
+    "{n, number, minimumIntegerDigits: 2}",
+    '{n, number, style: "percent", maximumFractionDigits: 1}',
+    '{d, date, month: "long", day: "numeric"}',
+  ])
+    expect(parseIcu(ok, "fluent").ok).toBe(true);
+  for (const bad of [
+    "{n, number, ::percent}",
+    "{n, number, style: 'percent'}",
+    "{n, number, percent}",
+    "{d, date, short}",
+    "{t, time}",
+    '{n, number, x: "{"}',
+    "{n, number, minimumIntegerDigits:\t3}",
+    "{n, number, minimumIntegerDigits: 2,\n useGrouping: 0}",
+  ]) {
+    const read = parseIcu(bad, "fluent");
+    expect(read.ok, bad).toBe(false);
+  }
+  // ICU keeps its own styles.
+  expect(parseIcu("{n, number, ::percent}", "icu").ok).toBe(true);
+});
