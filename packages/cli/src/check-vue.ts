@@ -10,6 +10,8 @@
 import {
   decoded,
   LETTERS,
+  isWholeUrl,
+  namesAField,
   USER_FACING_PROPS,
   type Finding,
   type FindOptions,
@@ -22,6 +24,8 @@ const OPAQUE = new Set(["script", "style", "pre", "code"]);
 
 type Tag = {
   name: string;
+  // PascalCase or hyphenated as written, as no native element is.
+  component: boolean;
   attributes: string;
   closing: boolean;
   selfClosing: boolean;
@@ -47,6 +51,7 @@ function tagAt(source: string, at: number): Tag | null {
   const raw = source.slice(at + match[0].length, i);
   return {
     name: match[2]!.toLowerCase(),
+    component: /^[A-Z]|-/.test(match[2]!),
     attributes: raw,
     closing: match[1] === "/",
     selfClosing: raw.trimEnd().endsWith("/"),
@@ -174,6 +179,7 @@ export function findVueLiterals(
   const report = (offset: number, raw: string) => {
     const text = raw.trim();
     if (!LETTERS.test(decoded(text))) return;
+    if (isWholeUrl(text)) return;
     if (options.allow?.some((pattern) => pattern.test(text))) return;
     const line = lineAt(offset);
     if (silenced.has(line)) return;
@@ -234,6 +240,8 @@ export function findVueLiterals(
         )) {
           if (BOUND.test(attribute.name)) continue;
           if (!USER_FACING_PROPS.has(attribute.name.toLowerCase())) continue;
+          if (namesAField(tag.component, attribute.name, attribute.value))
+            continue;
           report(attribute.at, attribute.value);
         }
       }

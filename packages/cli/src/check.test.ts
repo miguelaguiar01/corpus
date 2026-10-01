@@ -567,3 +567,21 @@ test("check says how many test files it skipped (#656)", async () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("in JSX a text that is wholly a URL is no finding, and a component's label holding one field name names a field (#1019)", () => {
+  const source = `export const A = () => (
+  <>
+    <input placeholder="https://example.com/webhook" />
+    <input placeholder={"wss://127.0.0.1:7777/"} />
+    <input placeholder="See https://example.com" />
+    <Select label="title" />
+    <Select label="Pick one" />
+    <option label="name">x</option>
+  </>
+);`;
+  expect(findLiterals(source, "a.tsx").map((f) => f.text)).toEqual([
+    "See https://example.com",
+    "Pick one",
+    "name",
+  ]);
+});
