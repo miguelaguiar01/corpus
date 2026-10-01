@@ -69,6 +69,7 @@ export function transitionFlow(db: Db, input: TransitionFlowInput): FlowResult {
         richText: detail.string.richText ?? undefined,
         ...(detail.string.syntax === "fluent" &&
           isFluentTermId(detail.string.key) && { term: true }),
+        sourceLanguage: project.sourceLanguage,
         ...(detail.string.arguments && {
           arguments: detail.string.arguments,
         }),

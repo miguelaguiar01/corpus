@@ -47,6 +47,7 @@ export async function GET(
               detail.string.richText,
               detail.string.arguments,
               detail.string.key,
+              project.sourceLanguage,
             )
           : null,
       ...(row.suggestion !== null && { suggestion: row.suggestion }),

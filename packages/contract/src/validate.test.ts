@@ -2544,3 +2544,75 @@ test("a plural whose count the source never prints is a selector: writing it as 
     incomplete: [{ code: "flattened-plural", arg: "count" }],
   });
 });
+
+test("a plural written plainly may print its own count; a language of the source's base needs the source's own categories (#1005)", () => {
+  // Immich: the runtime passes count, so a one-category text may print it.
+  expect(
+    validateTranslation(
+      "Permanently delete {count, plural, one {asset} other {assets}}",
+      "永久刪除 {count} 個項目",
+      "yue-Hant",
+    ),
+  ).toEqual({ ok: true });
+  // A value the source never has is still unexpected.
+  const other = validateTranslation(
+    "Permanently delete {count, plural, one {asset} other {assets}}",
+    "永久刪除 {total} 個項目",
+    "yue-Hant",
+  );
+  expect(other.ok ? [] : other.errors).toEqual([
+    expect.objectContaining({ code: "unexpected-placeholder", name: "total" }),
+  ]);
+  // en-GB copies an other-only English source: the author decided the
+  // text does not vary.
+  const delayed = "{jobCount, plural, other {# delayed}}";
+  expect(
+    validateTranslation(delayed, delayed, "en-GB", "icu", {
+      sourceLanguage: "en",
+    }),
+  ).toEqual({ ok: true });
+  expect(
+    validateTranslation(delayed, delayed, "en_GB", "icu", {
+      sourceLanguage: "en-US",
+    }),
+  ).toEqual({ ok: true });
+  // Another language keeps CLDR's.
+  expect(
+    validateTranslation(
+      delayed,
+      "{jobCount, plural, other {# retrasados}}",
+      "es",
+      "icu",
+      {
+        sourceLanguage: "en",
+      },
+    ),
+  ).toMatchObject({
+    ok: true,
+    incomplete: expect.arrayContaining([
+      { code: "missing-category", arg: "jobCount", key: "one" },
+    ]),
+  });
+  // A source with one and other still needs one in en-GB.
+  expect(
+    validateTranslation(
+      "{n, plural, one {# job} other {# jobs}}",
+      "{n, plural, other {# jobs}}",
+      "en-GB",
+      "icu",
+      { sourceLanguage: "en" },
+    ),
+  ).toEqual({
+    ok: true,
+    incomplete: [{ code: "missing-category", arg: "n", key: "one" }],
+  });
+  // A plural on a value the source lacks is still unknown.
+  const unknown = validateTranslation(
+    "{counter} you know",
+    "{count, plural, one {# знаеш} other {# знаеце}}",
+    "be",
+  );
+  expect(unknown.ok ? [] : unknown.errors.map((e) => e.code)).toContain(
+    "unknown-plural",
+  );
+});
