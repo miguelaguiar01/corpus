@@ -37,11 +37,13 @@ export const LETTERS = /\p{L}.*\p{L}/su;
 // A text that is wholly a URL, an example endpoint in a placeholder, is
 // never translated (#1019); one that holds a URL among words still is.
 export function isWholeUrl(text: string): boolean {
-  return /^[a-z][a-z0-9+.-]*:\/\/\S+$/i.test(text);
+  return /^[a-z][a-z0-9+.-]*:\/\/\S*$/i.test(text);
 }
 
-// A component's `label` holding one lowercase identifier names the field
-// it shows (VueMultiselect's `label="name"`), not a caption (#1019).
+// A Vue component's `label` holding one lowercase identifier names the
+// field it shows (VueMultiselect's `label="name"`), not a caption
+// (#1019); in JSX a label is a caption, a React library's as much as a
+// native element's.
 export function namesAField(
   component: boolean,
   prop: string,
@@ -187,14 +189,7 @@ export function findLiterals(
       ts.isStringLiteral(node.initializer) &&
       USER_FACING_PROPS.has(node.name.getText(sf))
     ) {
-      if (
-        !namesAField(
-          isComponent(node),
-          node.name.getText(sf),
-          node.initializer.text,
-        )
-      )
-        report(node.initializer.getStart(sf), node.initializer.text);
+      report(node.initializer.getStart(sf), node.initializer.text);
     } else if (
       ts.isJsxExpression(node) &&
       node.expression &&
@@ -212,17 +207,6 @@ export function findLiterals(
   };
   visit(sf);
   return findings;
-}
-
-// Whether an attribute sits on a component, a tag whose name starts
-// with a capital (`<Select>`, `<Form.Item>`), not a native element.
-function isComponent(attribute: ts.JsxAttribute): boolean {
-  const element = attribute.parent.parent;
-  const tag =
-    ts.isJsxOpeningElement(element) || ts.isJsxSelfClosingElement(element)
-      ? element.tagName.getText()
-      : "";
-  return /^[A-Z]/.test(tag);
 }
 
 function isTransElement(node: ts.Node): boolean {

@@ -24,7 +24,8 @@ const OPAQUE = new Set(["script", "style", "pre", "code"]);
 
 type Tag = {
   name: string;
-  // PascalCase or hyphenated as written, as no native element is.
+  // PascalCase or hyphenated as written: a component, `font-face` aside,
+  // which takes no label.
   component: boolean;
   attributes: string;
   closing: boolean;

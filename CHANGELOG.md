@@ -43,7 +43,7 @@ contract (`corpus/1`) is the only one.
 - `init` maps `ca@valencia` to `ca-valencia`, and names the line to write for a code it cannot map (#1015).
 - `init` no longer points a project with no `.jsx`, `.tsx` or `.vue` components at `corpus check`, which cannot read it (#1016).
 - vue-i18n: placeholder names and a bare `@` are read as vue-i18n's compiler reads them; `{local-mta}` builds, `{aquí}` and `Hallo @all` are invalid (#1017).
-- `check`: a text that is wholly a URL, and a component's `label="name"` naming a field, are no longer findings (#1019).
+- `check`: a text that is wholly a URL, and a Vue component's `label="name"` naming a field, are no longer findings (#1019).
 
 ## [0.21.0] - 2026-09-29
 
