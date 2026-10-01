@@ -1714,3 +1714,51 @@ test("an Android language with a region reads each module's directory for it, or
   expect(fileOf(a2!, "ta-IN", "en")).toBe("a/res/values-ta-rIN/strings.xml");
   expect(fileOf(a2!, "ta", "en")).toBe("a/res/values-ta/strings.xml");
 });
+
+test("an Android language falls back to its language's directory only where that is the same language, alone in the config (#1007)", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-1007-"));
+  for (const qualifier of ["", "-pt", "-zh", "-sr", "-pa", "-es"]) {
+    mkdirSync(path.join(dir, `res/values${qualifier}`), { recursive: true });
+    writeFileSync(
+      path.join(dir, `res/values${qualifier}/strings.xml`),
+      "<resources/>\n",
+    );
+  }
+  const [source] = expandSources(
+    corpusConfigSchema.parse({
+      project: "p",
+      server: "http://localhost:3000",
+      sourceLanguage: "en",
+      languages: [
+        "en",
+        "pt-BR",
+        "pt-PT",
+        "zh-TW",
+        "sr-Latn",
+        "pa-PK",
+        "es-419",
+      ],
+      sources: [
+        {
+          adapter: "android",
+          type: "ui",
+          path: "res",
+          languageDirs: { "pt-BR": "values-pt" },
+        },
+      ],
+    }),
+    dir,
+  ).sources as FileSource[];
+  // Two variants of one language would share its file; a pull of one
+  // would write over the other.
+  expect(fileOf(source!, "pt-BR", "en")).toBe("res/values-pt-rBR/strings.xml");
+  expect(fileOf(source!, "pt-PT", "en")).toBe("res/values-pt-rPT/strings.xml");
+  // Android matches the script: `values-zh` is Simplified, `values-sr`
+  // Cyrillic, `values-pa` Gurmukhi.
+  expect(fileOf(source!, "zh-TW", "en")).toBe("res/values-zh-rTW/strings.xml");
+  expect(fileOf(source!, "sr-Latn", "en")).toBe(
+    "res/values-b+sr+Latn/strings.xml",
+  );
+  expect(fileOf(source!, "pa-PK", "en")).toBe("res/values-pa-rPK/strings.xml");
+  expect(fileOf(source!, "es-419", "en")).toBe("res/values-es/strings.xml");
+});

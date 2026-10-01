@@ -183,10 +183,13 @@ export function expandSources(input: CorpusInput, cwd: string): CorpusConfig {
 }
 
 // Android resolves a device's `ta-IN` through `values-ta-rIN`, then
-// `values-ta` (#1007): a config language with a region, its language not
-// listed apart, is a module's `values-ta` where the module has that and
-// not its own, so one language reads every module's spelling of it and
-// a pull writes where each module keeps it.
+// `values-ta` (#1007): a config language with a region is a module's
+// `values-ta` where the module has that and not its own, so one language
+// reads every module's spelling of it and a pull writes where each
+// module keeps it. Not where the config lists the language or another
+// variant of it, which would share the file, nor where the region
+// changes the script, which Android matches (`zh-TW` is not `values-zh`).
+// Set here and nowhere else, as `group` is.
 function androidFallbacks<S extends Source>(
   source: S,
   languages: readonly string[],
@@ -194,22 +197,46 @@ function androidFallbacks<S extends Source>(
   cwd: string,
 ): S {
   const res = path.join(cwd, (source as { path: string }).path);
-  const listed = new Set(languages.map((l) => androidDirOf(l)));
+  const variants = new Map<string, number>();
+  for (const language of languages) {
+    const base = language.split(/[-_]/)[0]!;
+    variants.set(base, (variants.get(base) ?? 0) + 1);
+  }
   const dirs: Record<string, string> = {};
   for (const language of languages) {
     if (language === sourceLanguage) continue;
-    const own = androidDirOf(language);
-    const base = androidDirOf(language.split(/[-_]/)[0]!);
-    if (own === base || listed.has(base)) continue;
+    const base = sameScriptBase(language);
+    if (!base || variants.get(base) !== 1) continue;
     if (
-      !existsSync(path.join(res, own, "strings.xml")) &&
-      existsSync(path.join(res, base, "strings.xml"))
+      !existsSync(path.join(res, androidDirOf(language), "strings.xml")) &&
+      existsSync(path.join(res, androidDirOf(base), "strings.xml"))
     )
-      dirs[language] = base;
+      dirs[language] = androidDirOf(base);
   }
-  return Object.keys(dirs).length > 0
-    ? { ...source, languageDirs: dirs }
-    : source;
+  return {
+    ...source,
+    languageDirs: Object.keys(dirs).length > 0 ? dirs : undefined,
+  };
+}
+
+// A language-region tag's language, where the two are written in one
+// script.
+function sameScriptBase(language: string): string | undefined {
+  try {
+    const locale = new Intl.Locale(language.replace(/_/g, "-"));
+    if (
+      !locale.region ||
+      locale.script ||
+      locale.toString().split("-").length !== 2
+    )
+      return undefined;
+    const base = new Intl.Locale(locale.language);
+    return locale.maximize().script === base.maximize().script
+      ? language.split(/[-_]/)[0]
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 // A config code a Flutter project spells with an underscore (#627).

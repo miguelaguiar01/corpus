@@ -737,9 +737,7 @@ export function fileOf(
   const dir =
     language === sourceLanguage
       ? "values"
-      : ((source as { languageDirs?: Record<string, string> }).languageDirs?.[
-          language
-        ] ?? androidDirOf(language));
+      : (source.languageDirs?.[language] ?? androidDirOf(language));
   return path.posix.join(source.path, dir, "strings.xml");
 }
 

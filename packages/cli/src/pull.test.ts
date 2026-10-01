@@ -1746,6 +1746,62 @@ export default defineCorpus({
   ).toContain('<string name="title">Neue Post</string>');
 });
 
+test("an Android regional language pulls into each module's directory for it, or its language's, and a new one into its own (#1007)", async () => {
+  const xml = (body: string) =>
+    `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n${body}</resources>\n`;
+  const res = (dir: string, body: string) => {
+    mkdirSync(path.join(repo, dir), { recursive: true });
+    writeFileSync(path.join(repo, dir, "strings.xml"), xml(body));
+  };
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "ta-IN"],
+  sources: [{ adapter: "android", type: "ui", path: ["a/res", "b/res", "c/res"], merge: "last-wins" }],
+});
+`,
+  );
+  res("a/res/values", '    <string name="a">A</string>\n');
+  res("a/res/values-ta", '    <string name="a">அ</string>\n');
+  res("b/res/values", '    <string name="b">B</string>\n');
+  res("b/res/values-ta-rIN", '    <string name="b">ப</string>\n');
+  res("c/res/values", '    <string name="c">C</string>\n');
+  const before = {
+    a: read("a/res/values-ta/strings.xml"),
+    b: read("b/res/values-ta-rIN/strings.xml"),
+  };
+  const pull = async (ta: Record<string, string>) => {
+    await serve(200, {
+      ...PAYLOAD,
+      types: { a: "ui", b: "ui", c: "ui" },
+      translations: { "ta-IN": ta },
+    });
+    expect(await run(["pull"], ctx())).toBe(0);
+    active?.close();
+  };
+  // The text each module holds comes back as it was.
+  await pull({ a: "அ", b: "ப" });
+  expect(read("a/res/values-ta/strings.xml")).toBe(before.a);
+  expect(read("b/res/values-ta-rIN/strings.xml")).toBe(before.b);
+  expect(existsSync(path.join(repo, "a/res/values-ta-rIN"))).toBe(false);
+  await pull({ a: "அஅ", b: "பப", c: "க" });
+  expect(read("a/res/values-ta/strings.xml")).toContain(
+    '<string name="a">அஅ</string>',
+  );
+  expect(read("b/res/values-ta-rIN/strings.xml")).toContain(
+    '<string name="b">பப</string>',
+  );
+  expect(read("c/res/values-ta-rIN/strings.xml")).toContain(
+    '<string name="c">க</string>',
+  );
+  expect(existsSync(path.join(repo, "a/res/values-ta-rIN"))).toBe(false);
+});
+
 test("a yaml source whose source language languageFiles maps pulls into the mapped root, proposals too (#994)", async () => {
   writeFileSync(
     path.join(repo, "corpus.config.ts"),

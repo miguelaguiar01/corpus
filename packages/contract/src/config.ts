@@ -221,6 +221,8 @@ const sourceSchema = z.discriminatedUnion("adapter", [
     ...androidFields,
     path: z.string().min(1),
     ...expanded,
+    // A config language read from its language's directory (#1007).
+    languageDirs: z.record(z.string(), z.string()).optional(),
     ...mergeField,
   }),
   xliffSchema,

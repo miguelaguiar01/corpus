@@ -138,10 +138,12 @@ export default defineCorpus({
     //    values/strings.xml is the source and whose values-<qualifier>
     //    directory is each config language's, by Android's rule (pt-BR
     //    is values-pt-rBR, sr-Latn is values-b+sr+Latn, es-419
-    //    values-b+es+419); a language with a region whose language the
-    //    config does not list apart reads and writes a module's
-    //    values-ta where the module has that and no values-ta-rIN, as
-    //    Android resolves ta-IN (#1007). A <string> is a
+    //    values-b+es+419); a language with a region, the only variant
+    //    of its language in the config and written in its script, reads
+    //    and writes a module's values-ta where the module has that and
+    //    no values-ta-rIN, as Android resolves ta-IN (#1007); pt-BR
+    //    beside pt-PT, zh-TW (Hant against values-zh's Hans) and sr-Latn
+    //    keep their own directories. A <string> is a
     //    string and a <plurals> one string, an ICU plural on `quantity`;
     //    translatable="false", a product variant other than the default
     //    and an @string/ reference are skipped and kept as written, and
