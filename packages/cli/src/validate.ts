@@ -288,7 +288,7 @@ export async function validateRepo(
       throw new CliError(`source file ${sourceFile} does not exist`);
     }
     findings.push(
-      ...nestedCounts(
+      ...sourceWarnings(
         sourceFile,
         config.sourceLanguage,
         sources,
@@ -567,7 +567,7 @@ function validateExec(
   }
   const findings: Finding[] = [];
   const file = `exec:${command}`;
-  findings.push(...nestedCounts(file, sourceLanguage, sources, libraryOf));
+  findings.push(...sourceWarnings(file, sourceLanguage, sources, libraryOf));
   const brokenSources = new Set<string>();
   let handedOver = 0;
   for (const [language, texts] of Object.entries(parsed.data)) {
@@ -698,8 +698,9 @@ async function validateServer(
   return { findings, unchecked: [], checked };
 }
 
-// A source's nested counts, a warning on each string where it is.
-function nestedCounts(
+// A source's warnings, nested counts and vue-i18n's unlinked `@`, each
+// on the string where it is.
+function sourceWarnings(
   file: string,
   language: string,
   sources: Map<string, StringEntry>,

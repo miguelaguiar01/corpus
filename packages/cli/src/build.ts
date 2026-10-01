@@ -568,12 +568,12 @@ export function richTextAdvice(refused: Refused[]): string[] {
   );
 }
 
-// A `#` in a select within a plural, said of a source by build and
-// validate and of a translation by validate (#767).
 // A vue-i18n `@` that opens no link (#1017), said to the author.
 export const BARE_AT_MESSAGE =
   "an @ that opens no link does not compile in vue-i18n, which then shows the message raw; write {'@'}";
 
+// A `#` in a select within a plural, said of a source by build and
+// validate and of a translation by validate (#767).
 export function nestedCountMessage(arg: string): string {
   return `# in a select within the plural on {${arg}} is text to some runtimes; write {${arg}}`;
 }

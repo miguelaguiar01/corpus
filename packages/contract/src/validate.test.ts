@@ -2808,6 +2808,15 @@ test("under vue a placeholder name and an @ follow vue-i18n's own compiler (#101
   expect(bareAtOf("mail a@b.c", "vue")).toBe(true);
   expect(bareAtOf("mail {'@'} @:x", "vue")).toBe(false);
   expect(bareAtOf("mail a@b.c", "icu")).toBe(false);
+  // A quoted brace is no brace: the @ after it is text, as the compiler
+  // reads it, and an @ quoted with a brace is quoted.
+  expect(bareAtOf("{'{'} \"@context\": 1 {'}'}", "vue")).toBe(true);
+  expect(bareAtOf("{'{'}@all", "vue")).toBe(true);
+  expect(bareAtOf("{'}@'}", "vue")).toBe(false);
+  // Modifiers as the compiler names them, and a key that starts with a
+  // dot is empty.
+  expect(bareAtOf("@.snake_case:k @.upper2:k @._x:k", "vue")).toBe(false);
+  expect(bareAtOf("@:.a", "vue")).toBe(true);
   // ICU keeps any script's names.
   expect(
     validateTranslation("こんにちは {名前}", "Hello {名前}", "en").ok,

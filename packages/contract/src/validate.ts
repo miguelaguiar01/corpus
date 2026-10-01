@@ -158,22 +158,31 @@ function countsInSelects(
 }
 
 // vue-i18n's link, `@:key`, `@.modifier:key`, `@:(key)` or `@:{'key'}`,
-// at the start of the text (@intlify/message-compiler 11).
+// where it is read (@intlify/message-compiler 11).
 const VUE_LINK_RE =
-  /^@(?:\.[A-Za-z]+)?:(?:\([^()]+\)|\{[^{}]+\}|[A-Za-z0-9_$.-]+)/;
+  /@(?:\.[A-Za-z_][A-Za-z0-9_$]*)?:(?:\([^()]+\)|\{[^{}]+\}|[A-Za-z0-9_$-][A-Za-z0-9_$.-]*)/y;
 
 // Whether a text writes an `@` outside braces that opens no link, which
 // vue-i18n's compiler refuses, showing the message raw (#1017): said
 // for a source, invalid in a translation.
 export function bareAtOf(text: string, syntax: Library = "icu"): boolean {
   if (syntax !== "vue") return false;
-  let depth = 0;
+  // A brace closes at its first `}` outside the quotes of a `{'…'}`
+  // literal, as the parser reads it: `{'{'}` is one brace, closed.
+  let inBrace = false;
+  let quoted = false;
   for (let at = 0; at < text.length; at++) {
     const ch = text[at];
-    if (ch === "{") depth += 1;
-    else if (ch === "}") depth = Math.max(0, depth - 1);
-    else if (ch === "@" && depth === 0) {
-      const link = VUE_LINK_RE.exec(text.slice(at));
+    if (inBrace) {
+      if (quoted && ch === "\\") at += 1;
+      else if (ch === "'") quoted = !quoted;
+      else if (ch === "}" && !quoted) inBrace = false;
+    } else if (ch === "{") {
+      inBrace = true;
+      quoted = false;
+    } else if (ch === "@") {
+      VUE_LINK_RE.lastIndex = at;
+      const link = VUE_LINK_RE.exec(text);
       if (!link) return true;
       at += link[0].length - 1;
     }
