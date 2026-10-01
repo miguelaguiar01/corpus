@@ -140,8 +140,14 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   const loose: typeof unnamed = [];
   for (const entry of unnamed) {
     const family = /^(.+)\.([^.]+)$/.exec(entry.code);
-    if (family && (LANGUAGE_RE.test(family[2]!) || posixTag(family[2]!))) {
-      const pattern = messages.replace("{lang}", `${family[1]}.{lang}`);
+    // `pt.BR` is a language and a region with a dot, not a family.
+    const dotted = /^[A-Za-z]{2,3}\.(?:[A-Z]{2}|[0-9]{3})$/.test(entry.code);
+    if (
+      family &&
+      !dotted &&
+      (LANGUAGE_RE.test(family[2]!) || posixTag(family[2]!))
+    ) {
+      const pattern = messages.replaceAll("{lang}", `${family[1]}.{lang}`);
       families.set(pattern, (families.get(pattern) ?? 0) + 1);
     } else loose.push(entry);
   }
@@ -149,7 +155,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     const patterns = [...families.keys()].sort();
     const count = [...families.values()].reduce((a, b) => a + b, 0);
     ctx.err(
-      `corpus: ${patterns.length} other catalogue(s) beside ${messages}, ${count} file(s) (${patterns.slice(0, 3).join(", ")}${patterns.length > 3 ? ", …" : ""}): each is its own source, as { adapter: ${JSON.stringify(adapter)}, type: ${JSON.stringify(type)}, path: ${JSON.stringify(patterns[0])} }`,
+      `corpus: ${patterns.length} other catalogue(s) beside ${messages}, ${count} file(s) (${patterns.slice(0, 5).join(", ")}${patterns.length > 5 ? ", …" : ""}): each is its own source, as { adapter: ${JSON.stringify(adapter)}, type: ${JSON.stringify(type)}, path: ${JSON.stringify(patterns[0])} }`,
     );
   }
   for (const { file, code } of loose.slice(0, 5))

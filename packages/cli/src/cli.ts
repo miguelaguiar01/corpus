@@ -55,10 +55,15 @@ export async function run(argv: string[], ctx: RunContext): Promise<number> {
   }
   if (command !== undefined && COMMAND_WORDS.has(command)) {
     // `corpus init --help` is a question, not an unknown flag (#1020);
-    // `agent`'s words are its own, so only its first one asks.
+    // under `agent`, whose words refuse an unknown `--` one anyway, `-h`
+    // asks only as the first word, since a draft's text may be `-h`.
     const asks = (word: string | undefined) =>
       word === "--help" || word === "-h";
-    if (command === "agent" ? asks(argv[1]) : argv.slice(1).some(asks)) {
+    if (
+      command === "agent"
+        ? asks(argv[1]) || argv.slice(1).includes("--help")
+        : argv.slice(1).some(asks)
+    ) {
       const sub =
         command === "project" &&
         (argv[1] === "create" || argv[1] === "rotate-token")

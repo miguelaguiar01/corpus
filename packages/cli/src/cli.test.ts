@@ -250,7 +250,13 @@ test("--help or -h after a command prints its usage and exits 0 (#1020)", async 
     expect(await run([...argv], c)).toBe(0);
     expect(c.output).toEqual([`usage: ${usage}`]);
   }
-  const agent = ctx({ cwd: EMPTY });
-  expect(await run(["agent", "--help"], agent)).toBe(0);
-  expect(agent.output[0]).toMatch(/^usage: corpus agent /);
+  for (const argv of [
+    ["agent", "--help"],
+    ["agent", "queue", "--help"],
+    ["agent", "-h"],
+  ]) {
+    const agent = ctx({ cwd: EMPTY });
+    expect(await run(argv, agent)).toBe(0);
+    expect(agent.output[0]).toMatch(/^usage: corpus agent /);
+  }
 });

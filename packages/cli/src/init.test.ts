@@ -2197,6 +2197,20 @@ test("files beside the catalogue that are catalogues of their own are said as fa
     'corpus: 2 other catalogue(s) beside y/{lang}.yml, 4 file(s) (y/devise.{lang}.yml, y/sf.{lang}.yml): each is its own source, as { adapter: "yaml", type: "ui", path: "y/devise.{lang}.yml" }',
   );
   expect(said).not.toMatch(/sf\.en\.yml/);
+  // A language and a region with a dot are a code, not a family.
+  const dotted = project();
+  for (const name of ["en", "de", "pt.BR"])
+    write(dotted.dir, `y/${name}.yml`, yml(name));
+  expect(await run(initFor("y/{lang}.yml"), dotted.ctx)).toBe(0);
+  expect(dotted.err.join("\n")).toContain(
+    'corpus: y/pt.BR.yml names no language tag; left out: name its language, as languages: ["<tag>"] with languageFiles: { "<tag>": "pt.BR" } on the source',
+  );
+  // `{lang}` twice is the family's twice.
+  const twice = project();
+  for (const name of ["en", "de", "foo.de"])
+    write(twice.dir, `l/${name}/${name}.yml`, yml(name));
+  expect(await run(initFor("l/{lang}/{lang}.yml"), twice.ctx)).toBe(0);
+  expect(twice.err.join("\n")).toContain("l/foo.{lang}/foo.{lang}.yml");
   const q = project();
   write(q.dir, "l/en.json", "{}\n");
   for (let i = 0; i < 30; i++) write(q.dir, `l/x${i}@foo.json`, "{}\n");

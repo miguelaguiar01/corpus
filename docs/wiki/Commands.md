@@ -45,6 +45,8 @@ The token is `CORPUS_TOKEN`, then `.corpus/token`. The instance secret is `CORPU
 
 **`corpus pull`** writes translations back through the same adapters, format-preserving. `--min-state` sets the floor, `verified` by default; `--lang` narrows to one language and repeats. `--check` writes nothing and exits 1 if a pull would have changed a file, which includes a proposal waiting to land.
 
+`corpus <command> --help` (or `-h`) prints that command's usage.
+
 **`corpus status`** prints the dashboard's numbers, the last push, the server's version, the pending proposals and the writable sources. `--json` is the same as one object, for a gate of your own.
 
 ## The ones you run once

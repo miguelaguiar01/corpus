@@ -20,6 +20,15 @@ import {
 const langPattern = z
   .string()
   .refine((p) => p.includes("{lang}"), "path must contain {lang}");
+const oneSourcePath = (adapter: string) =>
+  z
+    .string({
+      error: (issue) =>
+        Array.isArray(issue.input)
+          ? `${adapter} takes one sourcePath per source`
+          : undefined,
+    })
+    .min(1);
 // A source that reads one file per language takes one pattern; an array,
 // which only a merged catalogue takes, is refused by that rule (#1020).
 const onePattern = (adapter: string) =>
@@ -109,7 +118,7 @@ const xliffSchema = z.looseObject({
   adapter: z.literal("xliff"),
   type: identifier(),
   path: noNamespace("xliff", onePattern("xliff")),
-  sourcePath: noNamespace("xliff", z.string().min(1)).optional(),
+  sourcePath: noNamespace("xliff", oneSourcePath("xliff")).optional(),
   languageFiles,
 });
 
@@ -119,7 +128,7 @@ const gettextSchema = z.looseObject({
   adapter: z.literal("gettext"),
   type: identifier(),
   path: noNamespace("gettext", onePattern("gettext")),
-  sourcePath: noNamespace("gettext", z.string().min(1)).optional(),
+  sourcePath: noNamespace("gettext", oneSourcePath("gettext")).optional(),
   library: configLibrarySchema.optional(),
   languageFiles,
 });
@@ -131,7 +140,7 @@ const qtTsSchema = z.looseObject({
   adapter: z.literal("qt-ts"),
   type: identifier(),
   path: noNamespace("qt-ts", onePattern("qt-ts")),
-  sourcePath: noNamespace("qt-ts", z.string().min(1)).optional(),
+  sourcePath: noNamespace("qt-ts", oneSourcePath("qt-ts")).optional(),
   library: configLibrarySchema.optional(),
   languageFiles,
 });
@@ -155,7 +164,12 @@ const xcstringsSchema = z.looseObject({
   path: noNamespace(
     "xcstrings",
     z
-      .string()
+      .string({
+        error: (issue) =>
+          Array.isArray(issue.input)
+            ? "xcstrings takes one file per source; declare one source per file"
+            : undefined,
+      })
       .min(1)
       .refine((p) => !p.includes("{lang}"), {
         message:
