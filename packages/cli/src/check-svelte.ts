@@ -35,6 +35,15 @@ function closing(source: string, at: number): number {
         end += source[end] === "\\" ? 2 : 1;
       if (end >= source.length) return source.length - 1;
       i = end;
+    } else if (ch === "/" && source[i + 1] === "*") {
+      // A comment's quote ends no string: `{x /* don't */}`.
+      const end = source.indexOf("*/", i + 2);
+      if (end < 0) return source.length - 1;
+      i = end + 1;
+    } else if (ch === "/" && source[i + 1] === "/") {
+      const end = source.indexOf("\n", i);
+      if (end < 0) return source.length - 1;
+      i = end;
     } else if (ch === "{") depth += 1;
     else if (ch === "}" && --depth === 0) return i;
   }
@@ -43,11 +52,13 @@ function closing(source: string, at: number): number {
 
 // The markup alone: `<script>`, `<style>` and every expression blanked.
 function markupOf(source: string): string {
-  // A comment holds no expression, and a `<Script>` component is no
-  // script block.
-  const scriptless = source
-    .replace(/<!--[\s\S]*?-->/g, blank)
-    .replace(/<(script|style)(?=[\s>/])[^>]*>[\s\S]*?<\/\1\s*>/g, blank);
+  // One pass, whichever opens first: a `<!--` in a script's string is
+  // the script's, a `<script>` in a comment the comment's. A comment
+  // holds no expression, and a `<Script>` component is no script block.
+  const scriptless = source.replace(
+    /<!--[\s\S]*?-->|<(script|style)(?=[\s>/])[^>]*>[\s\S]*?<\/\1\s*>/g,
+    blank,
+  );
   let out = "";
   let at = 0;
   for (let open = scriptless.indexOf("{"); open >= 0;) {
