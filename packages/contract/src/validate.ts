@@ -664,22 +664,73 @@ export function validateTranslation(
   // Fluent selects asymmetrically (#1032): a translation may select on
   // whatever it is passed, a key it lacks falls back to its `*` default,
   // and one on a variable never passed renders that default, a warning.
-  // A term's attribute is the locale's to select on.
+  // A term's attribute is the locale's to select on. What is passed is
+  // the source's whole, a flattened plural's value included.
+  const wholeValues = valuesOf(whole);
   const unpassed = (arg: string): ValidationError[] =>
-    expectedValues.has(arg) ||
-    expected.selects.has(arg) ||
+    wholeValues.has(arg) ||
+    whole.selects.has(arg) ||
     passed.has(arg) ||
     arg.startsWith("-") ||
     options.term
       ? []
       : [{ code: "unpassed-selector", arg }];
+  // The keys Fluent never matches, each select of the translation on
+  // `arg` by itself; the `*` default is chosen whatever its key, and the
+  // reader carries it as `other` beside it with its text, so a key whose
+  // text is `other`'s is the default, never a finding.
+  const fluentSelectErrors = (arg: string): ValidationError[] => {
+    const sourceKeys = whole.selects.get(arg);
+    const counted = whole.plurals.has(arg);
+    const out = new Map<string, ValidationError>();
+    const add = (error: ValidationError & { key: string }) =>
+      out.set(`${error.code} ${error.key}`, error);
+    if (!counted && !sourceKeys)
+      for (const error of unpassed(arg)) out.set(error.code, error);
+    for (const node of branchingNodes(parsedTarget.nodes)) {
+      if (node.kind !== "select" || node.arg !== arg) continue;
+      const fallback = JSON.stringify(node.branches.other);
+      const own = Object.entries(node.branches)
+        .filter(([k, b]) => k !== "other" && JSON.stringify(b) !== fallback)
+        .map(([k]) => k);
+      // A count selected on a word never matches it: Fluent compares a
+      // number with categories and numbers only (gl `[unha]`, #597).
+      if (counted) {
+        for (const key of own)
+          if (
+            !(PLURAL_CATEGORIES as readonly string[]).includes(key) &&
+            !/^\d+$/.test(key)
+          )
+            add({ code: "unexpected-branch", arg, key });
+        continue;
+      }
+      // A term's keys are its locale's, which that locale's messages
+      // pass (cs `[lower]` for en's `[lowercase]`).
+      if (!sourceKeys || options.term) continue;
+      // A key the source's in another case never matches it (ga-IE
+      // `[Seconds]` for `[seconds]`), and two keys or more of its own and
+      // none of the source's are the source's translated (da `[sekunder]`
+      // for `[seconds]`); keeping some, as fi does, or collapsing to the
+      // default, as de does, is Fluent's way.
+      for (const key of own) {
+        const meant = [...sourceKeys].find(
+          (s) => s !== key && s.toLowerCase() === key.toLowerCase(),
+        );
+        if (meant) add({ code: "missing-branch", arg, key: meant });
+      }
+      if (own.length >= 2 && own.every((k) => !sourceKeys.has(k)))
+        for (const key of sourceKeys)
+          if (key !== "other") add({ code: "missing-branch", arg, key });
+    }
+    return [...out.values()];
+  };
   errors.push(
     ...pluralErrors(
       actual,
       expectedValues,
       passed,
       syntax === "fluent"
-        ? { unpassed, sourcePlurals: new Set(expected.plurals.keys()) }
+        ? { unpassed, sourcePlurals: new Set(whole.plurals.keys()) }
         : undefined,
       language === undefined
         ? { required: [], allowed: [] }
@@ -698,42 +749,7 @@ export function validateTranslation(
   for (const [arg, keys] of actual.selects) {
     const sourceKeys = expected.selects.get(arg);
     if (syntax === "fluent") {
-      if (!expected.plurals.has(arg)) {
-        if (!sourceKeys) errors.push(...unpassed(arg));
-        // Keys of its own and none of the source's, other aside, are the
-        // source's translated, which the value never matches: da's
-        // `[sekunder]` for `[seconds]`. Keeping some, as fi does, or
-        // collapsing to the default, as de does, is Fluent's way. A
-        // term's keys are its locale's, which that locale's messages pass
-        // (cs `[lower]` for en's `[lowercase]`).
-        const own = [...keys].filter((k) => k !== "other");
-        if (
-          !options.term &&
-          sourceKeys &&
-          own.length > 0 &&
-          own.every((k) => !sourceKeys.has(k))
-        )
-          for (const key of sourceKeys)
-            if (key !== "other")
-              errors.push({ code: "missing-branch", arg, key });
-        continue;
-      }
-      // But a count selected on a word never matches it: Fluent compares
-      // a number with categories and numbers only (gl `[unha]`, #597).
-      // The `*` default is chosen whatever its key, es-MX `*[otro]`,
-      // and the reader carries it as `other` beside it, with its text.
-      for (const node of branchingNodes(parsedTarget.nodes)) {
-        if (node.kind !== "select" || node.arg !== arg) continue;
-        const fallback = JSON.stringify(node.branches.other);
-        for (const [key, branch] of Object.entries(node.branches))
-          if (
-            key !== "other" &&
-            !(PLURAL_CATEGORIES as readonly string[]).includes(key) &&
-            !/^\d+$/.test(key) &&
-            JSON.stringify(branch) !== fallback
-          )
-            errors.push({ code: "unexpected-branch", arg, key });
-      }
+      errors.push(...fluentSelectErrors(arg));
       continue;
     }
     if (!sourceKeys) {

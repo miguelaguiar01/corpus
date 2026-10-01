@@ -4,7 +4,7 @@
 // dashboard when the queue is done, or back to the same string carrying
 // a typed error or the changed-since-opened warning. Pure apart from the
 // DB, so the server actions stay thin wrappers.
-import { validateTranslation } from "@corpus/contract";
+import { validateTranslation, isFluentTermId } from "@corpus/contract";
 import { neighbours, queueItems, type QueueKind } from "@/catalogue/queues";
 import type { Db } from "@/db";
 import { stringDetail } from "@/strings/detail";
@@ -67,6 +67,8 @@ export function transitionFlow(db: Db, input: TransitionFlowInput): FlowResult {
       detail.string.syntax,
       {
         richText: detail.string.richText ?? undefined,
+        ...(detail.string.syntax === "fluent" &&
+          isFluentTermId(detail.string.key) && { term: true }),
         ...(detail.string.arguments && {
           arguments: detail.string.arguments,
         }),

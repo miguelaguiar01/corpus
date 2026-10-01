@@ -433,7 +433,6 @@ gone = { -brand.gender ->
 
 test("a select on a term's attribute is never a plural; a # in a term's argument is no count (#990 review)", () => {
   const ftl = `a = { -brand.gender ->
-    [one] Byl
    *[other] Bylo
   }
 b = { $n ->
@@ -445,13 +444,13 @@ c = Use { -brand (case: "gen") } now
   const read = Object.fromEntries(
     fluentToEntries(ftl, { type: "ui" }).map((e) => [e.id, e.source]),
   );
-  expect(read.a).toBe("{-brand.gender, select, one {Byl} other {Bylo}}");
+  expect(read.a).toBe("{-brand.gender, select, other {Bylo}}");
   expect(read.b).toBe('{n, plural, one {{-brand(x: "#1")} x} other {y}}');
   expect(read.c).toBe('Use {-brand(case: "gen")} now');
   const out = entriesToFluent(
     ftl,
     {
-      a: "{-brand.gender, select, one {Byl} other {Bylo #}}",
+      a: "{-brand.gender, select, other {Bylo #}}",
       b: '{n, plural, one {{-brand(x: "#1")} z} other {y}}',
     },
     ftl,

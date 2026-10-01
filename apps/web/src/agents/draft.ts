@@ -2,7 +2,7 @@
 // rule that an agent never overwrites a person's current work. Accepted
 // on an untranslated row, a stale row, or a translated row the agent
 // last edited; refused, plainly, on anything else.
-import { validateTranslation } from "@corpus/contract";
+import { validateTranslation, isFluentTermId } from "@corpus/contract";
 import type { Db } from "@/db";
 import type { Project } from "@/projects/service";
 import { stringDetail, type StringDetail } from "@/strings/detail";
@@ -59,6 +59,8 @@ export function agentDraft(
     detail.string.syntax,
     {
       richText: detail.string.richText ?? undefined,
+      ...(detail.string.syntax === "fluent" &&
+        isFluentTermId(detail.string.key) && { term: true }),
       ...(detail.string.arguments && { arguments: detail.string.arguments }),
       ...(detail.string.pluralForms?.[language] && {
         pluralForms: detail.string.pluralForms[language],

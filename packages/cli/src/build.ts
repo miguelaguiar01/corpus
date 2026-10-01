@@ -34,6 +34,7 @@ import {
 import {
   entitySchema,
   libraryOf,
+  isFluentTermId,
   WHOLE_PLURAL_LIBRARIES,
   tagMode,
   richTextFor,
@@ -494,7 +495,7 @@ export async function buildSnapshotReport(
 // the source defines it (#990), the locale's own where only a target
 // does.
 export function isFluentTerm(source: FileSource, id: string): boolean {
-  return source.adapter === "fluent" && id.split(":").at(-1)!.startsWith("-");
+  return source.adapter === "fluent" && isFluentTermId(id);
 }
 
 // Whether the patterns of a source take the later one's text for an id

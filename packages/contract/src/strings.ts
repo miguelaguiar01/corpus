@@ -156,6 +156,12 @@ export function messageKind(library: Library): string {
   return library === "icu" ? "ICU" : `${libraryName(library)} message`;
 }
 
+// A Fluent term's id, `-brand`, under its file's namespace or not: its
+// select keys and variables are its locale's (#990, #1032).
+export function isFluentTermId(id: string): boolean {
+  return id.split(":").at(-1)!.startsWith("-");
+}
+
 // ICU MessageFormat's own semantics: plain ICU, and Fluent read as ICU,
 // whose differences are names and nesting (#990).
 export function readsAsIcu(library: Library): boolean {

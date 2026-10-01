@@ -352,3 +352,41 @@ test("a Fluent translation selects on what it likes: missing and extra keys take
     ).ok,
   ).toBe(false);
 });
+
+test("a select collapsed to a word default, a key in another case, one key of its own, and the same key twice (#1032 review)", () => {
+  const v = (source: string, target: string) =>
+    validateTranslation(source, target, "de", "fluent");
+  const gender = "{g, select, male {his} female {her} other {their}}";
+  // `*[neutral] ihr` alone: the reader adds `other` with its text.
+  expect(v(gender, "{g, select, neutral {ihr} other {ihr}}")).toEqual({
+    ok: true,
+  });
+  // ga-IE's `[Seconds]` never matches `seconds`.
+  const unit =
+    "{unit, select, seconds {{n} s} minutes {{n} min} other {{n} h}}";
+  const ga = v(
+    unit,
+    "{unit, select, Seconds {{n} s} minutes {{n} n} other {{n} u}}",
+  );
+  expect(ga.ok ? [] : ga.errors).toEqual([
+    { code: "missing-branch", arg: "unit", key: "seconds" },
+  ]);
+  // One key of its own is Fluent's asymmetry, not a translated key.
+  expect(
+    v(
+      "{os, select, windows {Ctrl} other {Ctrl}}",
+      "{os, select, macos {Cmd} other {Strg}}",
+    ),
+  ).toEqual({ ok: true });
+  // The same select twice, in a branch and in its `other` copy, says
+  // its finding once.
+  const count =
+    "{unit, select, seconds {{amount, plural, one {# s} other {# s}}} other {{amount, plural, one {# h} other {# h}}}}";
+  const da = v(
+    count,
+    "{unit, select, sekunder {{amount, select, en {{amount} sekund} other {{amount} sekunder}}} timer {{amount, select, en {{amount} time} other {{amount} timer}}} other {{amount, select, en {{amount} time} other {{amount} timer}}}}",
+  );
+  expect(da.ok ? [] : da.errors).toEqual([
+    { code: "unexpected-branch", arg: "amount", key: "en" },
+  ]);
+});

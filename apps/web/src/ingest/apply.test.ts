@@ -1287,3 +1287,29 @@ test("a push's seed of a Rails _html key writes its own tags, but a tag it leave
   });
   expect(translationOf(db, "about.hint_html", "en")?.invalid).toBe(true);
 });
+
+test("a Fluent term's seed selects on its locale's own keys and is no invalid row; a message's with translated keys is (#1032)", () => {
+  const { db, project } = seed();
+  const source =
+    "{capitalization, select, lowercase {account} uppercase {Account} other {account}}";
+  const fluent = (id: string) => ({
+    id,
+    type: FIXTURE.strings[0]!.type,
+    source,
+    library: "fluent" as const,
+    syntax: "fluent" as const,
+  });
+  // Two keys of its own, none the source's, neither the default's text.
+  const keys =
+    "{capitalization, select, lower {účet} upper {ÚČET} other {Účet}}";
+  applySnapshot(
+    db,
+    project.id,
+    withSeeds({ en: { "-brand-account": keys, "ui:account": keys } }, [
+      fluent("-brand-account"),
+      fluent("ui:account"),
+    ]),
+  );
+  expect(translationOf(db, "-brand-account", "en")?.invalid).toBe(false);
+  expect(translationOf(db, "ui:account", "en")?.invalid).toBe(true);
+});
