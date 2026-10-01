@@ -97,9 +97,15 @@ export const LIBRARIES = [
   "easy_localization",
   "rails",
   "qt",
+  // The fluent adapter's reading (#990): ICU with Fluent's identifiers
+  // and nesting. A config never names it.
+  "fluent",
 ] as const;
 export type Library = (typeof LIBRARIES)[number];
 export const librarySchema = z.enum(LIBRARIES);
+// What a config's `library` may name: every reading but an adapter's own.
+export const CONFIG_LIBRARIES = LIBRARIES.filter((l) => l !== "fluent");
+export const configLibrarySchema = librarySchema.exclude(["fluent"]);
 
 // CLDR's plural categories, in its order.
 export const PLURAL_CATEGORIES = [
@@ -137,6 +143,7 @@ const LIBRARY_NAMES: Record<Library, string> = {
   easy_localization: "easy_localization",
   rails: "Rails I18n",
   qt: "Qt",
+  fluent: "Fluent",
 };
 
 export function libraryName(library: Library): string {
@@ -147,6 +154,12 @@ export function libraryName(library: Library): string {
 // "invalid ICU", "invalid vue-i18n message".
 export function messageKind(library: Library): string {
   return library === "icu" ? "ICU" : `${libraryName(library)} message`;
+}
+
+// ICU MessageFormat's own semantics: plain ICU, and Fluent read as ICU,
+// whose differences are names and nesting (#990).
+export function readsAsIcu(library: Library): boolean {
+  return library === "icu" || library === "fluent";
 }
 
 // A string type whose text an HTML renderer reads (#622): its tags are

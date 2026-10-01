@@ -30,7 +30,7 @@ import {
   type Shape,
   shapeOf,
 } from "./icu";
-import { EXACT_KEY, type Library, type RichText } from "./strings";
+import { EXACT_KEY, readsAsIcu, type Library, type RichText } from "./strings";
 
 export type ValidationError =
   | {
@@ -394,7 +394,7 @@ export function validateTranslation(
   // Outside ICU, whose `#` prints it, a plural on a value prints nothing:
   // a count the source writes is shown only where a form writes it too
   // (#949).
-  if (syntax !== "icu")
+  if (!readsAsIcu(syntax))
     for (const name of expected.placeholders)
       if (!actual.placeholders.has(name) && actualValues.has(name))
         errors.push({

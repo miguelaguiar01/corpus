@@ -711,9 +711,8 @@ export function sourceLibrary(source: FileSource): Library {
     return source.library ?? "printf";
   if (source.adapter === "qt-ts") return source.library ?? "qt";
   if (source.adapter === "yaml") return source.library ?? "rails";
-  return source.adapter === "fluent" || source.adapter === "xliff"
-    ? "icu"
-    : libraryOf(source);
+  if (source.adapter === "fluent") return "fluent";
+  return source.adapter === "xliff" ? "icu" : libraryOf(source);
 }
 
 // The file a source keeps a language in: its pattern with {lang}
