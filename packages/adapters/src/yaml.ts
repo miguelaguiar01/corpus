@@ -292,6 +292,15 @@ function isBlock(rendered: string): boolean {
   return /^[|>]/.test(rendered);
 }
 
+// Where a patch of the value range [start, end) ends: past the blank
+// lines after it when the new text is a keep-chomped block, which reads
+// them as its own (#1128), so they are its text and not added to it.
+function blockEnd(base: string, end: number, out: string): number {
+  if (!/^[|>][1-9]?\+/.test(out)) return end;
+  const blank = /^(?:[ \t]*\r?\n)*/.exec(base.slice(end))![0];
+  return end + blank.length;
+}
+
 // A text in the style of the scalar it replaces: plain, single- or
 // double-quoted, or a `|`/`>` block at its own indentation with its
 // header's indentation indicator; where that style cannot hold the text,
@@ -325,7 +334,12 @@ function styled(
     const chomp = trailing === 0 ? "-" : trailing === 1 ? "" : "+";
     // A folded block rewraps; a text with its own lines is literal.
     const mark = kept.includes("\n") ? "|" : (header?.[1] ?? "|");
-    const block = `${mark}${digit}${chomp}\n${kept
+    // A comment on the header line stays with the block (#1128).
+    const comment =
+      /^[ \t]+#.*/.exec(
+        was.split(/\r?\n/)[0]!.slice(header?.[0].length ?? 0),
+      )?.[0] ?? "";
+    const block = `${mark}${digit}${chomp}${comment}\n${kept
       .split("\n")
       .map((l) => (l === "" ? "" : `${body}${l}`))
       .join("\n")}\n${"\n".repeat(Math.max(0, trailing - 1))}`;
@@ -713,7 +727,7 @@ function patchHeld(
         const wasBlock = isBlock(base.slice(value.range[0]));
         patches.push({
           start: value.range[0],
-          end: value.range[1],
+          end: blockEnd(base, value.range[1], out),
           text: wasBlock && !isBlock(out) ? `${out}${eol}` : out,
         });
       } else
@@ -770,7 +784,7 @@ function patchPluralHash(
         const wasBlock = isBlock(base.slice(v.range[0]));
         patches.push({
           start: v.range[0],
-          end: v.range[1],
+          end: blockEnd(base, v.range[1], out),
           text: wasBlock && !isBlock(out) ? `${out}${eol}` : out,
         });
       } else

@@ -47,6 +47,7 @@ contract (`corpus/1`) is the only one.
 - `init` says other catalogues beside the pattern as families and no longer calls an ICU catalogue i18next's; `--help` after a command prints its usage; a yaml `path` array names the rule (#1020).
 - YAML pull writes a new key in the file's style, plain where Rails reads it back, and a plural's forms in the file's order; a text Psych would read as no string (`:D`, `0,5`) is quoted (#1021).
 - YAML pull: a block plural form changed to a quoted text no longer runs the next form onto its line, which broke the file (#1126).
+- YAML pull: a keep-chomped block reads back as written on the first pull, and a block's header comment stays (#1128).
 
 ## [0.21.0] - 2026-09-29
 
