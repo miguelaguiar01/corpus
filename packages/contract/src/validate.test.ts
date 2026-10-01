@@ -576,6 +576,25 @@ describe("android library", () => {
     expect(de(two, '<a href="%1$s">y</a> <a href="%1$s">x</a>')).toMatchObject({
       ok: false,
     });
+    // Which of two alike tags wraps the text is the position's.
+    expect(
+      de(
+        '<a href="%s">x</a><a href="%s"></a>',
+        '<a href="%1$s">x</a><a href="%2$s"></a>',
+      ),
+    ).toEqual({ ok: true });
+    expect(
+      de(
+        '<a href="%s">x</a><a href="%s"></a>',
+        '<a href="%1$s">x</a><a href="%2$s"/>',
+      ),
+    ).toEqual({ ok: true });
+    expect(
+      de(
+        '<a href="%1$s">x</a><a href="%2$s"></a>',
+        '<a href="%s"></a><a href="%s">x</a>',
+      ),
+    ).toMatchObject({ ok: false, errors: [{ code: "unpaired-tag" }] });
     // A chip inserts the source's tag as written.
     expect(partsOf(link, "android").tags).toEqual(new Set(['a href="%s"']));
   });
