@@ -1,8 +1,10 @@
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { createJiti } from "jiti";
 import {
   androidDirOf,
+  gettextToEntries,
   androidLanguageOf,
   isChromeMessages,
   parseXcstrings,
@@ -409,10 +411,26 @@ function formatOf(
       ctx.err(
         `corpus: ${templates.join(", ")} sit beside the catalogues; set the gettext source's sourcePath to the one xgettext writes`,
       );
-    else if (templates.length === 0 && missing)
+    if (templates.length === 0 && missing) {
+      gitIgnored(ctx, relative);
+      // A msgmerged target holds every msgid, with its references: its
+      // msgids are the catalogue's, read as the source's, and it is
+      // still written as a target (#996).
+      const target = sourceFromTargets(ctx.cwd, messages);
+      if (target) {
+        ctx.err(
+          `corpus: no template: sourcePath is ${target.file}, whose msgids are the catalogue's; point it at a .pot when one is committed`,
+        );
+        if (target.lacking > 0)
+          ctx.err(
+            `corpus: ${target.file} lacks ${target.lacking} msgid(s) another catalogue holds; those are not read`,
+          );
+        return { adapter: "gettext", sourcePath: target.file };
+      }
       ctx.err(
         `corpus: no .pot beside the catalogues and no ${relative}; set the gettext source's sourcePath to the template xgettext writes`,
       );
+    }
     return {
       adapter: "gettext",
       ...(templates.length === 1 && { sourcePath: templates[0] }),
@@ -465,10 +483,12 @@ function formatOf(
     messages.includes("{ns}")
       ? matchPattern(ctx.cwd, messages, sourceLanguage).length === 0
       : missing
-  )
+  ) {
     ctx.err(
       `corpus: no ${relative}: build reads the source language's strings from it`,
     );
+    if (missing) gitIgnored(ctx, relative);
+  }
   // Fluent's `.ftl` reads `{ns}` as messages does (#993).
   if (/\.ftl$/i.test(messages)) return { adapter: "fluent" };
   const unreadable = unreadableFile(sourceFile);
@@ -969,6 +989,55 @@ function siblingCatalogues(
 // `locales/` for `locales/{lang}.po` and GNU's
 // `locales/{lang}/LC_MESSAGES/app.po` alike; the one named as the
 // catalogues are (`app.pot`) alone when it is there.
+// A missing source file git ignores is generated, by a build step the
+// repository does not commit the output of (Zulip's `/locale/en`).
+function gitIgnored(ctx: RunContext, rel: string): void {
+  const check = spawnSync("git", ["check-ignore", "-q", rel], {
+    cwd: ctx.cwd,
+    stdio: "ignore",
+  });
+  if (check.status === 0)
+    ctx.err(
+      `corpus: ${rel} is git-ignored, so it is generated: commit it, or point the source at a file that is committed`,
+    );
+}
+
+// The target `.po` whose msgids stand for the source's where no template
+// and no source-language file is committed (#996): among the files
+// sharing the newest POT-Creation-Date most of them share, msgmerged
+// together, the one holding the most msgids; and how many msgids other
+// files hold that it lacks.
+function sourceFromTargets(
+  cwd: string,
+  pattern: string,
+): { file: string; lacking: number } | undefined {
+  const read = patternFiles(cwd, pattern).map((file) => {
+    const text = readFileSync(path.join(cwd, file), "utf8");
+    let ids = new Set<string>();
+    try {
+      ids = new Set(gettextToEntries(text, { type: "x" }).map((e) => e.id));
+    } catch {
+      // A file that does not parse stands for nothing.
+    }
+    const date = /"POT-Creation-Date:\s*([^"\\]*)/.exec(text)?.[1]?.trim();
+    return { file, ids, date };
+  });
+  const usable = read.filter((r) => r.ids.size > 0);
+  if (usable.length === 0) return undefined;
+  const shared = new Map<string, number>();
+  for (const { date } of usable)
+    if (date) shared.set(date, (shared.get(date) ?? 0) + 1);
+  const best = [...shared].sort(
+    ([a, m], [b, n]) => n - m || b.localeCompare(a),
+  )[0]?.[0];
+  const pool = best ? usable.filter((r) => r.date === best) : usable;
+  const chosen = [...pool].sort(
+    (a, b) => b.ids.size - a.ids.size || a.file.localeCompare(b.file),
+  )[0]!;
+  const all = new Set(usable.flatMap((r) => [...r.ids]));
+  return { file: chosen.file, lacking: all.size - chosen.ids.size };
+}
+
 function potsBeside(cwd: string, pattern: string): string[] {
   const dir = path.posix.dirname(
     `${pattern.slice(0, pattern.indexOf("{lang}"))}x`,

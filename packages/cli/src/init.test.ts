@@ -1136,11 +1136,11 @@ test("init finds GNU's layout's .pot above the language directories, writes --li
   );
 });
 
-test("init says so when a gettext source has no template and no source-language file (#720)", async () => {
+test("init says so when a gettext source has no template, no source-language file and no target holding msgids (#720, #996)", async () => {
   const p = project();
   stubCli(p.dir);
   mkdirSync(path.join(p.dir, "po"), { recursive: true });
-  writeFileSync(path.join(p.dir, "po", "de.po"), 'msgid "x"\nmsgstr ""\n');
+  writeFileSync(path.join(p.dir, "po", "de.po"), 'msgid ""\nmsgstr ""\n');
   expect(
     await run(
       [
@@ -1907,4 +1907,80 @@ test("init writes an android source for a res directory, its values-* qualifiers
   write(plain.dir, "data/en.xml", "<a/>\n");
   expect(await run(initFor("data/{lang}.xml"), plain.ctx)).toBe(1);
   expect(plain.err.join("\n")).toMatch(/exec/);
+});
+
+const po = (date: string, ids: string[]) =>
+  `msgid ""\nmsgstr ""\n"POT-Creation-Date: ${date}\\n"\n"Content-Type: text/plain; charset=UTF-8\\n"\n\n` +
+  ids
+    .map((id) => `#: src/app.c:1\nmsgid "${id}"\nmsgstr "${id}!"\n`)
+    .join("\n");
+
+test("init with no template and no source .po takes a target .po's msgids as the source (#996)", async () => {
+  const p = project();
+  write(
+    p.dir,
+    "po/de.po",
+    po("2025-01-01 10:00+0000", ["Open", "Close", "Quit"]),
+  );
+  write(
+    p.dir,
+    "po/fr.po",
+    po("2025-01-01 10:00+0000", ["Open", "Close", "Quit"]),
+  );
+  write(p.dir, "po/it.po", po("2025-01-01 10:00+0000", ["Open", "Close"]));
+  expect(await run(initFor("po/{lang}.po"), p.ctx)).toBe(0);
+  const config = await loadConfig(p.dir);
+  expect(config.sources[0]).toMatchObject({
+    adapter: "gettext",
+    path: "po/{lang}.po",
+    sourcePath: "po/de.po",
+  });
+  expect(p.err.join("\n")).toContain(
+    "corpus: no template: sourcePath is po/de.po, whose msgids are the catalogue's; point it at a .pot when one is committed",
+  );
+  expect(await run(["build", "--out", "s.json"], p.ctx)).toBe(0);
+  const snapshot = JSON.parse(readFileSync(path.join(p.dir, "s.json"), "utf8"));
+  expect(snapshot.strings.map((s: { id: string }) => s.id)).toEqual([
+    "Open",
+    "Close",
+    "Quit",
+  ]);
+
+  // A stale file loses to the newest date most files share, and the
+  // msgids only others hold are said.
+  const q = project();
+  write(
+    q.dir,
+    "po/de.po",
+    po("2024-01-01 10:00+0000", ["Open", "Close", "Quit", "Old"]),
+  );
+  write(
+    q.dir,
+    "po/fr.po",
+    po("2025-06-01 10:00+0000", ["Open", "Close", "Quit"]),
+  );
+  write(
+    q.dir,
+    "po/it.po",
+    po("2025-06-01 10:00+0000", ["Open", "Close", "Quit"]),
+  );
+  expect(await run(initFor("po/{lang}.po"), q.ctx)).toBe(0);
+  expect((await loadConfig(q.dir)).sources[0]).toMatchObject({
+    sourcePath: "po/fr.po",
+  });
+  expect(q.err.join("\n")).toContain(
+    "corpus: po/fr.po lacks 1 msgid(s) another catalogue holds; those are not read",
+  );
+});
+
+test("init says a missing source file git ignores is generated (#996)", async () => {
+  const p = project();
+  const { spawnSync } = await import("node:child_process");
+  spawnSync("git", ["init", "-q"], { cwd: p.dir });
+  write(p.dir, ".gitignore", "/locale/en\n");
+  write(p.dir, "locale/de/translations.json", '{ "hi": "Hallo" }\n');
+  await run(initFor("locale/{lang}/translations.json"), p.ctx);
+  expect(p.err.join("\n")).toContain(
+    "corpus: locale/en/translations.json is git-ignored, so it is generated: commit it, or point the source at a file that is committed",
+  );
 });

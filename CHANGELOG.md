@@ -30,6 +30,7 @@ contract (`corpus/1`) is the only one.
 - An Android language with a numeric region is read and written as `values-b+es+419`, the directory aapt2 accepts (#993).
 - `languageFiles` may map the source language, as `{ en: "templates" }` for Pontoon's layout; a `sourcePath` a source does not read is refused (#994).
 - ICU's `selectordinal` reads, validates by each language's ordinal rule, and previews (#995).
+- `corpus init` takes a target `.po` as the source where no template is committed, and says when a missing source file is git-ignored (#996).
 
 ## [0.21.0] - 2026-09-29
 
