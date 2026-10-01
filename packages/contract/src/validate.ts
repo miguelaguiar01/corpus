@@ -27,6 +27,7 @@ import {
   printfVerbOf,
   proseTagsOf,
   isHtmlElement,
+  sameMessage,
   type ProseTag,
   type IcuNode,
   type Shape,
@@ -959,8 +960,9 @@ export function validateTranslation(
   if (syntax !== "fluent")
     errors.push(...nestingErrors(sourceNodes, targetNodes));
   // The source's own text keeps the source's warning, not an error: a
-  // translation that is the source cannot be the translator's `#` (#923).
-  if (target !== source)
+  // translation that is the source cannot be the translator's `#` (#923),
+  // nor one that is it restructured (#1009).
+  if (!sameMessage(source, target, syntax))
     for (const arg of countsInSelects(parsedTarget.nodes))
       errors.push({ code: "nested-count", arg });
   for (const [arg, keys] of actual.selects) {

@@ -84,6 +84,84 @@ export function proseTagsOf(text: string, syntax: Library): ProseTag[] {
   return parseIcu(text, syntax, { html: "markup", prose }).ok ? prose : [];
 }
 
+// Whether two texts are one message as the library renders it (#1009).
+// Under ICU, the same flat text for every choice of branches: a plural
+// hoisted over the whole sentence, the text around it carried into its
+// branches, and `#` against `{n, number}` are the same; a branch key one
+// has and the other lacks, `=1` against `one`, is not. Elsewhere, the
+// same bytes.
+export function sameMessage(a: string, b: string, library: Library): boolean {
+  if (a === b) return true;
+  if (library !== "icu") return false;
+  const left = parseIcu(a, "icu");
+  const right = parseIcu(b, "icu");
+  if (!left.ok || !right.ok) return false;
+  const choices = (nodes: IcuNode[], out = new Map<string, Set<string>>()) => {
+    for (const node of nodes) {
+      if (node.kind === "tag") choices(node.children, out);
+      if (node.kind !== "select" && node.kind !== "plural") continue;
+      const id = `${node.kind === "select" ? "select" : node.ordinal ? "ordinal" : "plural"}\u0000${node.arg}`;
+      const keys = out.get(id) ?? new Set<string>();
+      for (const [key, branch] of Object.entries(node.branches)) {
+        keys.add(key);
+        choices(branch, out);
+      }
+      out.set(id, keys);
+    }
+    return out;
+  };
+  const ours = choices(left.nodes);
+  const theirs = choices(right.nodes);
+  const same = (x: Set<string>, y: Set<string> | undefined) =>
+    y !== undefined && x.size === y.size && [...x].every((k) => y.has(k));
+  if (
+    ours.size !== theirs.size ||
+    [...ours].some(([id, keys]) => !same(keys, theirs.get(id)))
+  )
+    return false;
+  const ids = [...ours.keys()];
+  const options = ids.map((id) => [...ours.get(id)!]);
+  if (options.reduce((n, keys) => n * keys.length, 1) > 512) return false;
+  const render = (nodes: IcuNode[], chosen: Map<string, string>): string =>
+    nodes
+      .map((node): string => {
+        switch (node.kind) {
+          case "literal":
+            return node.text;
+          case "placeholder":
+            return node.format
+              ? `\u0000{${node.name}, ${node.format.type}${node.format.style ? `, ${node.format.style}` : ""}}`
+              : `\u0000{${node.name}}`;
+          case "count":
+            return `\u0000{${node.arg}, number}`;
+          case "tag":
+            return `\u0001<${node.name}${node.attrs ? ` ${node.attrs}` : ""}${node.self ? "/" : ""}>${render(node.children, chosen)}\u0001</${node.name}>`;
+          case "select":
+          case "plural": {
+            const id = `${node.kind === "select" ? "select" : node.ordinal ? "ordinal" : "plural"}\u0000${node.arg}`;
+            const key = chosen.get(id)!;
+            return render(
+              node.branches[key] ?? node.branches.other ?? [],
+              chosen,
+            );
+          }
+          case "forms":
+            return JSON.stringify(node);
+        }
+      })
+      .join("");
+  const chosen = new Map<string, string>();
+  const every = (i: number): boolean => {
+    if (i === ids.length)
+      return render(left.nodes, chosen) === render(right.nodes, chosen);
+    return options[i]!.every((key) => {
+      chosen.set(ids[i]!, key);
+      return every(i + 1);
+    });
+  };
+  return every(0);
+}
+
 export type IcuParseResult =
   { ok: true; nodes: IcuNode[] } | { ok: false; errors: IcuError[] };
 

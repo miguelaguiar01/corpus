@@ -1568,6 +1568,15 @@ test("a translation that is its source's own text keeps the source's # warning, 
   expect(
     validateTranslation(source, source.replace("# x}", "# z}"), "en"),
   ).toMatchObject({ ok: false, errors: [{ code: "nested-count", arg: "n" }] });
+  // The source's text restructured, as a TMS fills a target file, is the
+  // source's own text too (#1009).
+  expect(
+    validateTranslation(
+      `Hi ${source}`,
+      "{n, plural, one {{g, select, a {Hi # x} other {Hi y}}} other {{g, select, a {Hi # xs} other {Hi ys}}}}",
+      "en",
+    ),
+  ).toEqual({ ok: true });
 });
 
 test("nestedCountsOf names the plurals whose # sits in a select within them (#767)", () => {
