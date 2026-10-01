@@ -94,7 +94,7 @@ npx corpus status                     # per-language and per-type counts; --json
 npx corpus pull                       # Corpus → repo: verified translations only
 npx corpus pull --check               # writes nothing; exit 1 if a pull would change a file
 npx corpus validate                   # no server: every translation still fits its source
-npx corpus check                      # lint .jsx, .tsx and .vue for user-facing literals outside the sources
+npx corpus check                      # lint .jsx, .tsx, .vue and .svelte for user-facing literals outside the sources
 ```
 
 The [wiki](https://github.com/miguelaguiar01/corpus/wiki) is where this is explained: [the config file](https://github.com/miguelaguiar01/corpus/wiki/The-config-file) field by field, [sources and adapters](https://github.com/miguelaguiar01/corpus/wiki/Sources-and-adapters) for catalogues, tables and an exporter of your own, [your i18n library](https://github.com/miguelaguiar01/corpus/wiki/Your-i18n-library) for next-intl, i18next, vue-i18n and the rest, and [Commands](https://github.com/miguelaguiar01/corpus/wiki/Commands) for what each command needs and what it exits with.

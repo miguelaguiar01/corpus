@@ -52,6 +52,7 @@ contract (`corpus/1`) is the only one.
 - YAML: removing a key takes the comment and blank lines under it, which the block before it read as text (#1132).
 - Tag attributes compare as HTML reads them, spacing, quotes and order aside; a placeholder moved out of a broken tag is one finding (#1022).
 - A `yaml` source's `path` may list several patterns, a Rails app's families as one catalogue (#1024).
+- `check` reads Svelte components (#1025).
 
 ## [0.21.0] - 2026-09-29
 

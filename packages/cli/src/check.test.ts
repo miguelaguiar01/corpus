@@ -307,7 +307,7 @@ test("checkFiles counts the files it parsed, so a clean bill can be honest", () 
   try {
     mkdirSync(path.join(dir, "src", "components"), { recursive: true });
     writeFileSync(
-      path.join(dir, "src", "components", "a.svelte"),
+      path.join(dir, "src", "components", "a.hbs"),
       `<p>Stray text</p>\n`,
     );
     writeFileSync(
@@ -355,12 +355,12 @@ test("check refuses a clean bill when it parsed nothing, and counts the files wh
       path.join(dir, "corpus.config.mjs"),
       `export default { project: "p", server: "http://localhost:3000", sourceLanguage: "en", languages: ["en"], sources: [{ adapter: "messages", type: "chrome", path: "i18n/{lang}.json" }] };\n`,
     );
-    writeFileSync(path.join(dir, "src", "a.svelte"), `<p>Stray text</p>\n`);
+    writeFileSync(path.join(dir, "src", "a.hbs"), `<p>Stray text</p>\n`);
     const unread = ctx();
     expect(await run(["check"], unread.c)).toBe(1);
     expect(unread.out).toEqual([]);
     expect(unread.err.join("\n")).toMatch(
-      /corpus: check parsed no files in src; it reads \.jsx, \.tsx and \.vue/,
+      /corpus: check parsed no files in src; it reads \.jsx, \.tsx, \.vue and \.svelte/,
     );
 
     // A second include that does parse must not buy a clean bill for the
@@ -372,7 +372,7 @@ test("check refuses a clean bill when it parsed nothing, and counts the files wh
       mkdirSync(path.join(two, "app"));
       mkdirSync(path.join(two, "src"));
       writeFileSync(path.join(two, "i18n", "en.json"), "{}\n");
-      writeFileSync(path.join(two, "src", "a.svelte"), `<p>Stray text</p>\n`);
+      writeFileSync(path.join(two, "src", "a.hbs"), `<p>Stray text</p>\n`);
       writeFileSync(
         path.join(two, "app", "ok.tsx"),
         `export const O = () => <p>{x}</p>;\n`,

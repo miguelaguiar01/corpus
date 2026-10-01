@@ -2,7 +2,7 @@ Four commands belong in CI, and they divide cleanly: two read only the repositor
 
 | Command | Needs the instance | Runs on | Fails when |
 |---|---|---|---|
-| `corpus check` | no | every pull request, where the UI is `.jsx`, `.tsx` or `.vue` | a component says something to a person without going through a catalogue |
+| `corpus check` | no | every pull request, where the UI is `.jsx`, `.tsx`, `.vue` or `.svelte` | a component says something to a person without going through a catalogue |
 | `corpus validate` | no | every pull request | a translation in the repository is broken |
 | `corpus pull --check` | yes, read only | every pull request from the repository | the repository is behind what is verified, or a proposal is waiting |
 | `corpus push` | yes, writes | the default branch, after merge | a string will not parse, the token is refused, the instance rejects the push, or it cannot be reached |
@@ -11,7 +11,7 @@ Four commands belong in CI, and they divide cleanly: two read only the repositor
 
 Neither needs a token, a network or an instance, so they run on a fork's pull request like any other check, and they are fast enough that nobody notices them: on this repository `check` reads 80 files in 0.7 s and `validate` finishes in 0.5 s. On Outline, 1,920 keys across 28 languages, `validate` takes 2.5 s.
 
-`corpus check` reads the `.jsx`, `.tsx` and `.vue` components your config's `check.include` names and reports text a person would read that did not come from a catalogue. Where the interface is written in something else (a Qt, GTK or C program, an Android or Apple app, Angular, Svelte or Handlebars templates), check has nothing to read, and parsing nothing is an error, so leave it out of CI there; `corpus init` says so when it finds no components. It prints one line per literal and exits 1:
+`corpus check` reads the `.jsx`, `.tsx`, `.vue` and `.svelte` components your config's `check.include` names and reports text a person would read that did not come from a catalogue. Where the interface is written in something else (a Qt, GTK or C program, an Android or Apple app, Angular or Handlebars templates), check has nothing to read, and parsing nothing is an error, so leave it out of CI there; `corpus init` says so when it finds no components. It prints one line per literal and exits 1:
 
 <!-- from: recorded/check.out -->
 ```text
@@ -69,7 +69,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      # Only where the UI is .jsx, .tsx or .vue components: leave it out otherwise.
+      # Only where the UI is .jsx, .tsx, .vue or .svelte components: leave it out otherwise.
       - name: No user-facing text outside the catalogues
         run: npx corpus check
       - name: Every translation in the repository is valid
