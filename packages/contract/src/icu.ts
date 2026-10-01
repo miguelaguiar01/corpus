@@ -92,9 +92,9 @@ export function proseTagsOf(text: string, syntax: Library): ProseTag[] {
 // same bytes.
 export function sameMessage(a: string, b: string, library: Library): boolean {
   if (a === b) return true;
-  if (library !== "icu") return false;
-  const left = parseIcu(a, "icu");
-  const right = parseIcu(b, "icu");
+  if (library !== "icu" && library !== "angular") return false;
+  const left = parseIcu(a, library);
+  const right = parseIcu(b, library);
   if (!left.ok || !right.ok) return false;
   const same = (x: Set<string>, y: Set<string> | undefined) =>
     y !== undefined && x.size === y.size && [...x].every((k) => y.has(k));
@@ -240,6 +240,7 @@ const TAG_RE = /^<(\/?)([A-Za-z][A-Za-z0-9_-]*|[0-9]+)((?:\s[^<>]*?)?)(\/?)>/;
 // attribute would renumber, so there an attribute stays text.
 const ATTR_PLACEHOLDER_LIBRARIES: ReadonlySet<Library> = new Set([
   "icu",
+  "angular",
   "fluent",
   "i18next",
   "rails",
@@ -526,6 +527,36 @@ class Parser {
           this.pos,
         );
       const ch = this.source[this.pos]!;
+      // ICU's apostrophe, as FormatJS reads it (#1010): `''` is one, and
+      // one before a brace, a tag or a plural's `#` quotes the text to the
+      // next lone one, or to the end; any other is the character.
+      if (ch === "'" && this.syntax === "icu") {
+        const next = this.source[this.pos + 1];
+        if (next === "'") {
+          this.text(seq, "'", 2);
+          continue;
+        }
+        if (
+          next === "{" ||
+          next === "}" ||
+          next === "<" ||
+          next === ">" ||
+          (next === "#" && pluralArg !== undefined)
+        ) {
+          let quoted = "";
+          let at = this.pos + 1;
+          while (at < this.source.length) {
+            if (this.source[at] === "'") {
+              at += 1;
+              if (this.source[at] !== "'") break;
+            }
+            quoted += this.source[at];
+            at += 1;
+          }
+          this.text(seq, quoted, at - this.pos);
+          continue;
+        }
+      }
       if (
         ch === "}" &&
         (readsAsIcu(this.syntax) ||

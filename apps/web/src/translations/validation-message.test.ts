@@ -19,3 +19,15 @@ test("a plural's count missing under printf or android says the plural was dropp
     ),
   ).toBe("Missing %d");
 });
+
+test("a placeholder an apostrophe quotes says the apostrophe did it (#1010)", () => {
+  expect(
+    validationMessage({
+      code: "missing-placeholder",
+      name: "name",
+      quoted: true,
+    }),
+  ).toBe(
+    "Missing {name}: an apostrophe before a brace quotes it, so write ’ in its place",
+  );
+});

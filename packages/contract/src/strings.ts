@@ -100,12 +100,17 @@ export const LIBRARIES = [
   // The fluent adapter's reading (#990): ICU with Fluent's identifiers
   // and nesting. A config never names it.
   "fluent",
+  // The xliff adapter's reading (#1010): ICU as Angular's compiler reads
+  // it, an apostrophe always the character. A config never names it.
+  "angular",
 ] as const;
 export type Library = (typeof LIBRARIES)[number];
 export const librarySchema = z.enum(LIBRARIES);
 // What a config's `library` may name: every reading but an adapter's own.
-export const CONFIG_LIBRARIES = LIBRARIES.filter((l) => l !== "fluent");
-export const configLibrarySchema = librarySchema.exclude(["fluent"]);
+export const CONFIG_LIBRARIES = LIBRARIES.filter(
+  (l) => l !== "fluent" && l !== "angular",
+);
+export const configLibrarySchema = librarySchema.exclude(["fluent", "angular"]);
 
 // CLDR's plural categories, in its order.
 export const PLURAL_CATEGORIES = [
@@ -144,6 +149,7 @@ const LIBRARY_NAMES: Record<Library, string> = {
   rails: "Rails I18n",
   qt: "Qt",
   fluent: "Fluent",
+  angular: "Angular",
 };
 
 export function libraryName(library: Library): string {
@@ -153,7 +159,9 @@ export function libraryName(library: Library): string {
 // What a text that does not parse is called in a message (#644):
 // "invalid ICU", "invalid vue-i18n message".
 export function messageKind(library: Library): string {
-  return library === "icu" ? "ICU" : `${libraryName(library)} message`;
+  return library === "icu" || library === "angular"
+    ? "ICU"
+    : `${libraryName(library)} message`;
 }
 
 // A Fluent term's id, `-brand`, under its file's namespace or not: its
@@ -162,10 +170,11 @@ export function isFluentTermId(id: string): boolean {
   return id.split(":").at(-1)!.startsWith("-");
 }
 
-// ICU MessageFormat's own semantics: plain ICU, and Fluent read as ICU,
-// whose differences are names and nesting (#990).
+// ICU MessageFormat's own semantics: plain ICU, Fluent read as ICU,
+// whose differences are names and nesting (#990), and Angular's, whose
+// apostrophe is the character (#1010).
 export function readsAsIcu(library: Library): boolean {
-  return library === "icu" || library === "fluent";
+  return library === "icu" || library === "fluent" || library === "angular";
 }
 
 // A string type whose text an HTML renderer reads (#622): its tags are

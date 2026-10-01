@@ -572,7 +572,7 @@ test("push refuses a server that predates the project's adapter, as it does a li
   const c = ctx({ cwd: dir });
   expect(await run(["push"], c)).toBe(1);
   expect(c.output.join("\n")).toMatch(
-    /the server at .* predates the xliff adapter this project uses/,
+    /the server at .* predates the xliff adapter and the angular library this project uses/,
   );
   expect(calls.map((call) => call.url)).toEqual(["/api/health"]);
 });

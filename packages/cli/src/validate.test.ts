@@ -294,6 +294,11 @@ export default defineCorpus({
 
 test("describe words every error code", () => {
   expect(
+    describe({ code: "missing-placeholder", name: "name", quoted: true }),
+  ).toBe(
+    "missing {name}; an apostrophe before a brace quotes it: write ’ or ''",
+  );
+  expect(
     describe({
       code: "invalid-icu",
       where: "target",

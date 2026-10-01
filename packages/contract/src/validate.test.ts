@@ -2713,3 +2713,28 @@ test("Qt: a marker no .arg() fills is text; %n in a numerus message is its count
     }),
   ]);
 });
+
+test("a placeholder an apostrophe quotes is missing, and the error says the apostrophe did it (#1010)", () => {
+  expect(
+    validateTranslation("Open {name}", "Ouvrir l'{name}", "fr"),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "name", quoted: true }],
+  });
+  expect(validateTranslation("Open {name}", "Ouvrir l’{name}", "fr")).toEqual({
+    ok: true,
+  });
+  expect(validateTranslation("Open {name}", "Ouvrir l''{name}", "fr")).toEqual({
+    ok: true,
+  });
+  // Elsewhere the apostrophe is the character.
+  expect(
+    validateTranslation("Open {name}", "Ouvrir l'{name}", "fr", "angular"),
+  ).toEqual({ ok: true });
+  expect(
+    validateTranslation("Failed to upload %'{file}'", "Échec %{file}", "fr"),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "unexpected-placeholder", name: "file" }],
+  });
+});

@@ -463,7 +463,7 @@ export function describe(
         return `a <string> where the source is a <plurals> on ${error.name}`;
       if (isDroppedPlural(error, syntax))
         return `the source is a plural on ${error.name}: write the translation as one`;
-      return `missing ${error.written ?? written(error.name)}`;
+      return `missing ${error.written ?? written(error.name)}${error.quoted ? "; an apostrophe before a brace quotes it: write ’ or ''" : ""}`;
     case "unexpected-placeholder":
       return `unexpected ${error.written ?? written(error.name)}`;
     case "changed-verb":

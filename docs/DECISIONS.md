@@ -479,3 +479,25 @@ preloading rather than what is downloaded, and Corpus displays
 translations, so Cyrillic, Greek and Vietnamese are content.
 
 **Context:** #506, PR #530.
+
+## 2026-10-01 — Angular's ICU is its own reading, `angular`
+
+**Decision:** an `xliff` source's strings carry the library `angular`
+rather than `icu`. It reads exactly as `icu` does except that an
+apostrophe is always the character, and like `fluent` it is an
+adapter's reading that a config never names.
+
+**Why:** #1010 makes `icu` read apostrophe quoting as FormatJS,
+next-intl and Lingui do. Angular's compiler has no quoting (its
+lexer reads an apostrophe in an ICU case as text, checked in
+@angular/compiler 22.1.7), so under `icu` a French `l'<x
+id="INTERPOLATION"/>` would lose its placeholder. The string's library
+is the only thing the server, the editor and `validate` all see, so the
+difference has to live there, not in a parse option the CLI alone knows.
+
+**What it costs:** existing XLIFF projects' strings move from `icu` to
+`angular` on their next push, which re-checks their seeds and nothing
+else. A server older than this CLI refuses the push and says it
+predates the `angular` library, as it would for any new value.
+
+**Context:** #1010.

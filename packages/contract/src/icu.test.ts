@@ -95,8 +95,8 @@ test("a text's select arguments are collected", () => {
   expect(partsOf("plain").selects).toEqual(new Set());
 });
 
-test("braces are structural: no ICU quote-escaping in the v1 subset", () => {
-  const result = parseIcu("it''s {name}");
+test("Angular's ICU has no apostrophe quoting: '' is two apostrophes (#1010)", () => {
+  const result = parseIcu("it''s {name}", "angular");
   if (!result.ok) throw new Error("expected ok");
   expect(result.nodes[0]).toEqual({ kind: "literal", text: "it''s " });
 });
@@ -726,6 +726,7 @@ test("each library has a name for messages (#644)", () => {
     "Rails I18n",
     "Qt",
     "Fluent",
+    "Angular",
   ]);
 });
 
@@ -860,4 +861,82 @@ test("the text after a whole plural is placed after the plural as the parser rea
     expect(printfPluralError(text, false, "printf")?.position).toBe(
       text.indexOf("tail"),
     );
+});
+
+test("under icu an apostrophe quotes a brace, a tag or a plural's #, and '' is one apostrophe, as FormatJS reads them (#1010)", () => {
+  const literal = (text: string) => {
+    const result = parseIcu(text, "icu");
+    if (!result.ok) throw new Error(result.errors[0]!.message);
+    return result.nodes;
+  };
+  expect(literal("envoyée à '{'0'}' utilisateur")).toEqual([
+    { kind: "literal", text: "envoyée à {0} utilisateur" },
+  ]);
+  expect([...partsOf("Failed to upload %'{file}'").placeholders]).toEqual([]);
+  expect(literal("It''s {n}")).toEqual([
+    { kind: "literal", text: "It's " },
+    { kind: "placeholder", name: "n" },
+  ]);
+  expect(literal("{n, plural, one {'#' one} other {# x}}")).toEqual([
+    {
+      kind: "plural",
+      arg: "n",
+      branches: {
+        one: [{ kind: "literal", text: "# one" }],
+        other: [
+          { kind: "count", arg: "n" },
+          { kind: "literal", text: " x" },
+        ],
+      },
+    },
+  ]);
+  // A # in a select within the plural is no count, so its apostrophe is
+  // the character.
+  expect(literal("{n, plural, other {{g, select, other {'# y}}}}")).toEqual([
+    {
+      kind: "plural",
+      arg: "n",
+      branches: {
+        other: [
+          {
+            kind: "select",
+            arg: "g",
+            branches: { other: [{ kind: "literal", text: "'# y" }] },
+          },
+        ],
+      },
+    },
+  ]);
+  expect(literal("a '<b>x</b>' c")).toEqual([
+    { kind: "literal", text: "a <b>x</b> c" },
+  ]);
+  // Any other apostrophe is the character; a quote never closed runs to
+  // the end.
+  expect(literal("don't '' it's")).toEqual([
+    { kind: "literal", text: "don't ' it's" },
+  ]);
+  expect(literal("a'b'{n}")).toEqual([{ kind: "literal", text: "a'b{n}" }]);
+  expect(literal("x '} y")).toEqual([{ kind: "literal", text: "x } y" }]);
+  expect(literal("'{a''b}'")).toEqual([{ kind: "literal", text: "{a'b}" }]);
+  expect(literal("{n, plural, other {it''s #}}")).toEqual([
+    {
+      kind: "plural",
+      arg: "n",
+      branches: {
+        other: [
+          { kind: "literal", text: "it's " },
+          { kind: "count", arg: "n" },
+        ],
+      },
+    },
+  ]);
+});
+
+test("apostrophe quoting is ICU's alone: printf, rails, i18next, fluent and Angular's reading keep the apostrophe (#1010)", () => {
+  expect([...partsOf("l'%{name}", "rails").placeholders]).toEqual(["name"]);
+  expect([...partsOf("l'{{name}}", "i18next").placeholders]).toEqual(["name"]);
+  expect([...partsOf("l'%s", "printf").placeholders]).toEqual(["1"]);
+  expect([...partsOf("l'{name}", "fluent").placeholders]).toEqual(["name"]);
+  expect([...partsOf("l'{name}", "angular").placeholders]).toEqual(["name"]);
+  expect([...partsOf("l'{name}", "icu").placeholders]).toEqual([]);
 });

@@ -50,7 +50,14 @@ export type ValidationError =
     }
   // `written` is the placeholder as the source or the target writes it
   // when that is not `{name}` (printf's `%s`), for the message.
-  | { code: "missing-placeholder"; name: string; written?: string }
+  // `quoted`: the target writes an apostrophe before a brace, which ICU
+  // reads as quoting it (#1010).
+  | {
+      code: "missing-placeholder";
+      name: string;
+      written?: string;
+      quoted?: true;
+    }
   | { code: "unexpected-placeholder"; name: string; written?: string }
   | { code: "unknown-select"; arg: string }
   | { code: "missing-branch"; arg: string; key: string }
@@ -595,6 +602,7 @@ export function validateTranslation(
       code: "missing-placeholder",
       name,
       ...writtenAs(expected, name),
+      ...(syntax === "icu" && /'\{/.test(target) && { quoted: true as const }),
     });
   }
   // Outside ICU, whose `#` prints it, a plural on a value prints nothing:
