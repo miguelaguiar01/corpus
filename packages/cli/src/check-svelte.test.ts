@@ -51,5 +51,8 @@ test("an expression divides the text around it, as JSX's does: units between val
     found(
       "<p>{percent}% - {speed}/s - {remaining}s</p>\n<p>(HTTP {status})</p>\n<p>{n} photos left</p>\n",
     ),
-  ).toEqual([[3, "photos left"]]);
+  ).toEqual([
+    [2, "(HTTP"],
+    [3, "photos left"],
+  ]);
 });

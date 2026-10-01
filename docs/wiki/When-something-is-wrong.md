@@ -40,7 +40,7 @@ Five strings that share one honest mistake stop the build the same way — the s
 
 ## `corpus: check parsed no files in …`
 
-`check` found the directories but could not read anything in them. It reads `.jsx`, `.tsx` and `.vue`, so on a Svelte project this is expected.
+`check` found the directories but could not read anything in them. It reads `.jsx`, `.tsx`, `.vue` and `.svelte`, so on a Handlebars or Angular project this is expected.
 
 ## `corpus: check scanned nothing: no directory among …`
 

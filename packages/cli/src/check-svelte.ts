@@ -17,6 +17,10 @@ import {
 import { markupLiterals } from "./check-vue";
 
 const blank = (text: string) => text.replace(/[^\n]/g, " ");
+// An expression's place, kept so it divides the text around it as a JSX
+// expression does: `{n}% - {speed}/s` is no words (#1025).
+const GAP = "\u0001";
+const gap = (text: string) => text.replace(/[^\n]/g, GAP);
 
 // The `}` that closes the `{` at `at`, past nested braces and the
 // strings an expression holds; the text's end where none does.
@@ -44,7 +48,7 @@ function markupOf(source: string): string {
   let at = 0;
   for (let open = scriptless.indexOf("{"); open >= 0;) {
     const end = closing(scriptless, open);
-    out += scriptless.slice(at, open) + blank(scriptless.slice(open, end + 1));
+    out += scriptless.slice(at, open) + gap(scriptless.slice(open, end + 1));
     at = end + 1;
     open = scriptless.indexOf("{", at);
   }
@@ -62,14 +66,24 @@ export function findSvelteLiterals(
     if (line.includes("corpus-ignore")) silenced.add(index + 1).add(index + 2);
   });
   const findings: Finding[] = [];
-  markupLiterals(markupOf(source), 0, (offset, raw) => {
-    const text = raw.trim().replace(/\s{2,}/g, " ");
+  const report = (offset: number, raw: string) => {
+    const text = raw.trim();
     if (!LETTERS.test(decoded(text))) return;
     if (isWholeUrl(text)) return;
     if (options.allow?.some((pattern) => pattern.test(text))) return;
     const line = lineAt(offset);
     if (silenced.has(line)) return;
     findings.push({ file, line, text });
+  };
+  // Each piece between expressions on its own, at its first character.
+  markupLiterals(markupOf(source), 0, (offset, raw) => {
+    let at = 0;
+    for (const piece of raw.split(new RegExp(`${GAP}+`))) {
+      const start = raw.indexOf(piece, at);
+      const lead = piece.length - piece.trimStart().length;
+      if (piece.trim() !== "") report(offset + start + lead, piece);
+      at = start + piece.length;
+    }
   });
   return findings;
 }
