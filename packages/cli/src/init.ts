@@ -12,7 +12,7 @@ import {
 import {
   corpusConfigSchema,
   LANGUAGE_RE,
-  LIBRARIES,
+  CONFIG_LIBRARIES,
   localeOf,
   parseIcu,
   posixTag,
@@ -658,9 +658,9 @@ async function libraryFor(
       ctx.err("corpus: --syntax is the old name for --library; it goes at 1.0");
     }
     const given = option(args, flag);
-    if (!(LIBRARIES as readonly string[]).includes(given ?? "")) {
+    if (!(CONFIG_LIBRARIES as readonly string[]).includes(given ?? "")) {
       throw new CliError(
-        `${flag} takes ${LIBRARIES.join(", ")}\nusage: ${INIT_USAGE}`,
+        `${flag} takes ${CONFIG_LIBRARIES.join(", ")}\nusage: ${INIT_USAGE}`,
       );
     }
     return { library: { value: given as Library } };

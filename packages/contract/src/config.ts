@@ -6,7 +6,7 @@ import {
   fieldDeclarationSchema,
   identifier,
   languageCode,
-  librarySchema,
+  configLibrarySchema,
   richTextSchema,
 } from "./strings";
 
@@ -46,15 +46,15 @@ const messagesFields = {
   type: identifier(),
   // The library the files are written for (§3, §5); plain ICU when
   // absent. `syntax` is the old name, accepted until 1.0.
-  library: librarySchema.optional(),
-  syntax: librarySchema.optional(),
+  library: configLibrarySchema.optional(),
+  syntax: configLibrarySchema.optional(),
   languageFiles,
 };
 const tableFields = {
   adapter: z.literal("table"),
   type: identifier(),
-  library: librarySchema.optional(),
-  syntax: librarySchema.optional(),
+  library: configLibrarySchema.optional(),
+  syntax: configLibrarySchema.optional(),
   // The module's default export, or the named export `export` names.
   export: z.string().min(1).optional(),
   // Fields beside id and text become metadata: all of them, or only
@@ -109,7 +109,7 @@ const gettextSchema = z.looseObject({
   type: identifier(),
   path: noNamespace("gettext", langPattern),
   sourcePath: noNamespace("gettext", z.string().min(1)).optional(),
-  library: librarySchema.optional(),
+  library: configLibrarySchema.optional(),
   languageFiles,
 });
 
@@ -121,7 +121,7 @@ const qtTsSchema = z.looseObject({
   type: identifier(),
   path: noNamespace("qt-ts", langPattern),
   sourcePath: noNamespace("qt-ts", z.string().min(1)).optional(),
-  library: librarySchema.optional(),
+  library: configLibrarySchema.optional(),
   languageFiles,
 });
 
@@ -131,7 +131,7 @@ const yamlSchema = z.looseObject({
   adapter: z.literal("yaml"),
   type: identifier(),
   path: noNamespace("yaml", langPattern),
-  library: librarySchema.optional(),
+  library: configLibrarySchema.optional(),
   languageFiles,
 });
 
@@ -151,7 +151,7 @@ const xcstringsSchema = z.looseObject({
           "a String Catalog holds every language in one file: its path has no {lang}",
       }),
   ),
-  library: librarySchema.optional(),
+  library: configLibrarySchema.optional(),
 });
 
 // How the patterns of one source merge an id two of them hold (#953):

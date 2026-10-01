@@ -5,7 +5,12 @@
 // and a translation must keep. Each library reads its own placeholder
 // syntax into the same nodes; a < that opens no tag is text.
 
-import { localeOf, PLURAL_CATEGORIES, type Library } from "./strings";
+import {
+  localeOf,
+  PLURAL_CATEGORIES,
+  readsAsIcu,
+  type Library,
+} from "./strings";
 
 export type IcuNode =
   // `attrPlaceholders`: those written in the attributes of a tag the
@@ -81,6 +86,9 @@ export type IcuParseResult =
 // bare number ({0}, {1}): a translated name is then a placeholder the
 // source lacks, not a parse error (#653).
 const NAME_RE = /^(?:[\p{L}_][\p{L}\p{M}\p{N}_]*|[0-9]+)$/u;
+// Fluent's Identifier (fluent.ebnf): ASCII, a letter first, hyphens
+// inside, as `{ $cards-per-minute }` writes it (#990).
+const FLUENT_NAME_RE = /^[A-Za-z][A-Za-z0-9_-]*$/;
 // A branch key is a word, or a bare number (`1 {marca} other {marcas}`).
 const KEY_RE = /^(?:[A-Za-z_][A-Za-z0-9_]*|[0-9]+)$/;
 // A plural branch is a CLDR category or an exact number (`=1 {…}`).
@@ -99,6 +107,7 @@ const TAG_RE = /^<(\/?)([A-Za-z][A-Za-z0-9_-]*|[0-9]+)((?:\s[^<>]*?)?)(\/?)>/;
 // attribute would renumber, so there an attribute stays text.
 const ATTR_PLACEHOLDER_LIBRARIES: ReadonlySet<Library> = new Set([
   "icu",
+  "fluent",
   "i18next",
   "rails",
   "counterpart",
@@ -386,7 +395,7 @@ class Parser {
       const ch = this.source[this.pos]!;
       if (
         ch === "}" &&
-        (this.syntax === "icu" ||
+        (readsAsIcu(this.syntax) ||
           this.syntax === "android" ||
           (this.mode !== "text" && inBranch))
       ) {
@@ -961,7 +970,7 @@ class Parser {
 
     const name = body.trim();
     const checkName = (what: string) => {
-      if (!NAME_RE.test(name))
+      if (!(this.syntax === "fluent" ? FLUENT_NAME_RE : NAME_RE).test(name))
         throw new ParseFailure(
           `invalid ${what} name ${JSON.stringify(name)}`,
           start,
@@ -1012,8 +1021,10 @@ class Parser {
   }
 
   // One level of nesting, a plural in a select's branch or a select in
-  // a plural's (#674); a printf plural's braces are the plural's own,
-  // and an Android item is a string with no select.
+  // a plural's (#674), and under Fluent, whose selects nest freely, a
+  // plural in a plural's or a select in a select's (#990); a printf
+  // plural's braces are the plural's own, and an Android item is a
+  // string with no select.
   private checkNesting(type: "select" | "plural", start: number): void {
     const outer = this.within.at(-1);
     if (
@@ -1022,7 +1033,7 @@ class Parser {
       outer === undefined
     )
       throw new ParseFailure(`${type}s cannot nest`, start);
-    if (outer === type)
+    if (outer === type && this.syntax !== "fluent")
       throw new ParseFailure(
         `a ${type} cannot nest in a ${type}'s branch`,
         start,
@@ -1688,7 +1699,7 @@ function refusal(
   // strings push and its nested ones do not, which is the least
   // obvious way to get this wrong.
   if (
-    library !== "icu" &&
+    !readsAsIcu(library) &&
     badName &&
     /(?<!\{)\{\s*[^{},\s][^{},]*,\s*[a-z]+/.test(source)
   ) {

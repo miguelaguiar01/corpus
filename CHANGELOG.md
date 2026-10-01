@@ -23,6 +23,7 @@ contract (`corpus/1`) is the only one.
 - A glossary term finds its regular inflections (`assassino`: `assassinos`, `assassina`), and `match: "exact"` turns that off for an entry (#1073).
 - `corpus validate --server` checks the instance's translations, an exec source's drafts included, and plain `validate` no longer calls a partly checked exec source valid (#1074).
 - `corpus validate` no longer counts a Fluent term definition as an invalid translation (#1081).
+- Fluent names with hyphens and a plural nested in a plural, or a select in a select, read and validate (#990).
 
 ## [0.21.0] - 2026-09-29
 
