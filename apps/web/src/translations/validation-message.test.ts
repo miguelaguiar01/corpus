@@ -19,3 +19,19 @@ test("a plural's count missing under printf or android says the plural was dropp
     ),
   ).toBe("Missing %d");
 });
+
+test("a Python key's changed conversion names no position (#1012)", () => {
+  expect(
+    validationMessage(
+      {
+        code: "changed-verb",
+        name: "n",
+        expected: "%(n)d",
+        actual: "%(n)s",
+        indexed: "%n$s",
+        moved: false,
+      },
+      "printf",
+    ),
+  ).toBe("%(n)s where the source has %(n)d");
+});

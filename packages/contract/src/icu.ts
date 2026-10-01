@@ -295,6 +295,12 @@ class ParseFailure extends Error {
 const PRINTF_VERB_RE =
   /^%(?:\[(\d+)\]|(\d+)\$)?([-+0#]*(?:\d+|\*)?(?:\.(?:\d+|\*))?)((?:hh|h|ll|l|z|j|t|L|q)?[a-zA-Z@])/;
 
+// Python's `%` operator: a mapping key in parentheses, then printf's
+// flags, width and precision and its conversion (#1012). The space flag
+// stays out, so "50%(approx) of" is prose.
+const PYTHON_KEY_RE =
+  /^%\(([^()\s]+)\)([-+0#]*(?:\d+|\*)?(?:\.(?:\d+|\*))?)([hlL]?[diouxXeEfFgGcrsa])/;
+
 // counterpart's `%(name)s` (#663), as Element's matrix-web-i18n writes
 // it: the name in parentheses, then `s` or `d`.
 const COUNTERPART_PLACEHOLDER_RE = /^%\(([^()\s]+)\)[sd]/;
@@ -325,7 +331,7 @@ const CHROME_PLACEHOLDER_RE = /^\$([A-Za-z0-9_]+)\$/;
 // (`ld` of `%2$-8ld`): what a translation must keep at the position,
 // and what the index form names. Undefined for text that is not a verb.
 export function printfVerbOf(written: string): string | undefined {
-  return PRINTF_VERB_RE.exec(written)?.[4];
+  return PRINTF_VERB_RE.exec(written)?.[4] ?? PYTHON_KEY_RE.exec(written)?.[3];
 }
 
 // The libraries whose text has no ICU arguments of its own, so a text
@@ -874,6 +880,11 @@ class Parser {
     }
     if (ch === "%") {
       if (this.source[this.pos + 1] === "%") return this.text(seq, "%", 2);
+      // A Python key is named by itself, never counted by position.
+      const key =
+        this.syntax === "printf" &&
+        PYTHON_KEY_RE.exec(this.source.slice(this.pos));
+      if (key) return this.placeholder(seq, key[1]!, key[0]);
       const verb = PRINTF_VERB_RE.exec(this.source.slice(this.pos));
       if (verb) {
         const explicit = verb[1] ?? verb[2];
