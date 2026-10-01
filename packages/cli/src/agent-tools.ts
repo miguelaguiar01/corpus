@@ -36,6 +36,13 @@ export type Api = (
   body?: unknown,
 ) => Promise<ToolResult>;
 
+// What the repository's build refuses (#1011): the server never holds
+// those strings, so only the repository can say why one is missing;
+// undefined where the build fails for another reason.
+export type Refusals = () => Promise<
+  { id: string; reason: string }[] | undefined
+>;
+
 export function apiOver(server: string, token: string): Api {
   const base = server.replace(/\/$/, "");
   return async (method, path, body) => {
@@ -75,7 +82,7 @@ const language = {
   description: "A language code of the project, such as pt-PT.",
 };
 
-export function tools(api: Api): Tool[] {
+export function tools(api: Api, refusals?: Refusals): Tool[] {
   const str = (args: Record<string, unknown>, name: string) =>
     String(args[name] ?? "");
   const segment = (value: string) => encodeURIComponent(value);
@@ -134,7 +141,27 @@ export function tools(api: Api): Tool[] {
         required: ["key"],
         additionalProperties: false,
       },
-      call: (args) => api("GET", `/api/strings/${segment(str(args, "key"))}`),
+      call: async (args) => {
+        const result = await api(
+          "GET",
+          `/api/strings/${segment(str(args, "key"))}`,
+        );
+        if (!refusals || !result.content[0]?.text.startsWith("not-found:"))
+          return result;
+        const refused = (await refusals())?.find(
+          (r) => r.id === String(args.key),
+        );
+        if (!refused) return result;
+        return {
+          content: [
+            {
+              type: "text",
+              text: `refused: ${refused.reason}; it is in the repository, so do not add it: the build leaves it out of every push until its text in the source file, or the config, is fixed (as read when this session first asked; a new session reads it again)`,
+            },
+          ],
+          isError: true,
+        };
+      },
     },
     {
       name: "save_draft",
@@ -224,13 +251,28 @@ export function tools(api: Api): Tool[] {
       name: "status",
       op: "status",
       description:
-        "The project's numbers: strings, last push, pending proposals, the writable sources proposals can go into (null until a push declares them), progress per language and per string type.",
+        "The project's numbers: strings, last push, pending proposals, the writable sources proposals can go into (null until a push declares them), progress per language and per string type, and refusedSourceStrings, how many of the repository's source strings the build refuses, which the server never receives (get_string on one says why), as the repository was when this session first asked; absent when the build fails for another reason.",
       inputSchema: {
         type: "object",
         properties: {},
         additionalProperties: false,
       },
-      call: () => api("GET", "/api/status"),
+      call: async () => {
+        const [result, refused] = await Promise.all([
+          api("GET", "/api/status"),
+          refusals?.(),
+        ]);
+        if (!refused || result.isError || !result.structuredContent)
+          return result;
+        const counted = {
+          ...result.structuredContent,
+          refusedSourceStrings: refused.length,
+        };
+        return {
+          content: [{ type: "text", text: JSON.stringify(counted, null, 2) }],
+          structuredContent: counted,
+        };
+      },
     },
     {
       name: "list_proposals",

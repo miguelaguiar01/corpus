@@ -1,8 +1,14 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
+import os from "node:os";
+import path from "node:path";
 import { PassThrough } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { afterEach, expect, test } from "vitest";
+import { corpusConfigSchema } from "@corpus/contract";
 import { parseAgent } from "./agent";
+import { refusalsIn } from "./build";
+import { expandSources } from "./config";
 import { run, type RunContext } from "./cli";
 
 const REPO = fileURLToPath(
@@ -180,6 +186,7 @@ test("the JSON goes to stdout with exit 0; a refusal goes to stderr with exit 1"
   expect(JSON.parse(ok.out.join("\n"))).toEqual({
     project: "push-fixture",
     writableSources: [],
+    refusedSourceStrings: 0,
   });
   expect(ok.err).toEqual([]);
 
@@ -329,7 +336,11 @@ test("--stdin runs a batch through one process: one JSON line per operation, in 
     {
       op: "status",
       ok: true,
-      result: { project: "push-fixture", writableSources: [] },
+      result: {
+        project: "push-fixture",
+        writableSources: [],
+        refusedSourceStrings: 0,
+      },
     },
     {
       id: "d1",
@@ -478,4 +489,89 @@ test("--stdin with nothing on stdin exits 0; extra words after --stdin are refus
   expect(out).toEqual([]);
   expect(await run(["agent", "--stdin", "junk"], context)).toBe(1);
   expect(err.join("\n")).toMatch(/unexpected word junk/);
+});
+
+test("a key the build refused is said as refused, with its file and reason, not as not-found; status counts them (#1011)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-refused-"));
+  try {
+    mkdirSync(path.join(dir, "i18n"));
+    const catalogue = (strings: Record<string, string>) =>
+      writeFileSync(path.join(dir, "i18n", "en.json"), JSON.stringify(strings));
+    catalogue({ hello: "Hello", bad: "Hi {name", greet: "Hi {{name}}" });
+    writeFileSync(
+      path.join(dir, "corpus.config.mjs"),
+      `export default { project: "acme", server: process.env.CORPUS_SERVER, sourceLanguage: "en", languages: ["en", "de"], sources: [{ adapter: "messages", type: "ui", path: "i18n/{lang}.json" }] };\n`,
+    );
+    api = await startApi((seen) =>
+      seen.path === "/api/status"
+        ? { status: 200, body: { strings: 1 } }
+        : { status: 404, body: { error: "not-found", message: "no string" } },
+    );
+    const agent = async (...argv: string[]) => {
+      const call = ctx(api!.url);
+      call.context.cwd = dir;
+      const code = await run(["agent", ...argv], call.context);
+      return { code, out: call.out.join("\n"), err: call.err.join("\n") };
+    };
+    expect(await agent("string", "bad")).toEqual({
+      code: 1,
+      out: "",
+      err: "corpus: refused: i18n/en.json [bad]: invalid ICU: unclosed '{'; it is in the repository, so do not add it: the build leaves it out of every push until its text in the source file, or the config, is fixed (as read when this session first asked; a new session reads it again)",
+    });
+    // The advice a refusal carries is said once.
+    const greet = (await agent("string", "greet")).err;
+    expect(greet.match(/declare library: "i18next"/g)).toHaveLength(1);
+    expect(await agent("string", "nope")).toMatchObject({
+      code: 1,
+      err: "corpus: not-found: no string",
+    });
+    const status = await agent("status");
+    expect(JSON.parse(status.out)).toEqual({
+      strings: 1,
+      refusedSourceStrings: 2,
+    });
+    // A build its refusals stop, a whole file refused, still names them.
+    catalogue({ a: "{", d: "{y" });
+    expect((await agent("string", "d")).err).toMatch(
+      /^corpus: refused: i18n\/en\.json \[d\]: /,
+    );
+    // A build that fails otherwise counts nothing it could vouch for.
+    rmSync(path.join(dir, "i18n", "en.json"));
+    expect(JSON.parse((await agent("status")).out)).toEqual({ strings: 1 });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("the repository is built once a process, the first time a refusal is asked for (#1011)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-refused-"));
+  try {
+    mkdirSync(path.join(dir, "i18n"));
+    writeFileSync(
+      path.join(dir, "i18n", "en.json"),
+      JSON.stringify({ ok: "Fine", bad: "Hi {name" }),
+    );
+    const config = expandSources(
+      corpusConfigSchema.parse({
+        project: "acme",
+        server: "http://localhost:1",
+        sourceLanguage: "en",
+        languages: ["en", "de"],
+        sources: [
+          { adapter: "messages", type: "ui", path: "i18n/{lang}.json" },
+        ],
+      }),
+      dir,
+    );
+    const refusals = refusalsIn(config, dir);
+    expect((await refusals())?.map((r) => r.id)).toEqual(["bad"]);
+    writeFileSync(
+      path.join(dir, "i18n", "en.json"),
+      JSON.stringify({ ok: "Hi {x", bad: "Fine" }),
+    );
+    expect((await refusals())?.map((r) => r.id)).toEqual(["bad"]);
+    expect((await refusalsIn(config, dir)())?.map((r) => r.id)).toEqual(["ok"]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
