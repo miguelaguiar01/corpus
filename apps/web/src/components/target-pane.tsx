@@ -139,6 +139,7 @@ const COUNT_IN_BRANCH: Record<Library, (arg: string) => string> = {
   // Written back as `{ $count }` (#990).
   fluent: () => "#",
   angular: () => "#",
+  flutter: () => "#",
 };
 
 // A plural's branches open with that count.

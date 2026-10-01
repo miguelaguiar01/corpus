@@ -501,7 +501,7 @@ export function describe(
         ? `{${error.name}} is a ${error.expected} in the source; write it {${error.name}, ${error.expected}}`
         : `{${error.name}} is a ${error.expected} in the source, not a ${error.actual}`;
     case "missing-tag":
-      return `missing the <${error.name}> tag`;
+      return `missing the <${error.name}> tag${error.quoted ? "; an apostrophe before a tag quotes it: write ’ or ''" : ""}`;
     case "unpaired-tag":
       return `<${error.name}> wraps nothing here, where the source's <${error.name}>…</${error.name.split(" ")[0]}> wraps text`;
     case "unexpected-tag":

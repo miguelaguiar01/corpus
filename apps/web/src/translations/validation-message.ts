@@ -84,7 +84,9 @@ export function validationMessage(
             actual: error.actual,
           });
     case "missing-tag":
-      return t("editor.missingTag", { name: error.name });
+      return t(error.quoted ? "editor.missingTagQuoted" : "editor.missingTag", {
+        name: error.name,
+      });
     case "unpaired-tag":
       return t("editor.unpairedTag", {
         name: error.name,

@@ -2731,6 +2731,17 @@ test("a placeholder an apostrophe quotes is missing, and the error says the apos
   expect(
     validateTranslation("Open {name}", "Ouvrir l'{name}", "fr", "angular"),
   ).toEqual({ ok: true });
+  // A tag too: Mastodon's Italian `l'<a>…</a>` prints the tag as text.
+  expect(
+    validateTranslation(
+      "see the <a>policy</a>",
+      "consulta l'<a>policy</a>",
+      "it",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-tag", name: "a", quoted: true }],
+  });
   expect(
     validateTranslation("Failed to upload %'{file}'", "Échec %{file}", "fr"),
   ).toMatchObject({

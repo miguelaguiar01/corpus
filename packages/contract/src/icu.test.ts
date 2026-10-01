@@ -727,6 +727,7 @@ test("each library has a name for messages (#644)", () => {
     "Qt",
     "Fluent",
     "Angular",
+    "Flutter",
   ]);
 });
 

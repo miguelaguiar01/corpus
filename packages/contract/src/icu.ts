@@ -92,7 +92,8 @@ export function proseTagsOf(text: string, syntax: Library): ProseTag[] {
 // same bytes.
 export function sameMessage(a: string, b: string, library: Library): boolean {
   if (a === b) return true;
-  if (library !== "icu" && library !== "angular") return false;
+  if (library !== "icu" && library !== "angular" && library !== "flutter")
+    return false;
   const left = parseIcu(a, library);
   const right = parseIcu(b, library);
   if (!left.ok || !right.ok) return false;
@@ -241,6 +242,7 @@ const TAG_RE = /^<(\/?)([A-Za-z][A-Za-z0-9_-]*|[0-9]+)((?:\s[^<>]*?)?)(\/?)>/;
 const ATTR_PLACEHOLDER_LIBRARIES: ReadonlySet<Library> = new Set([
   "icu",
   "angular",
+  "flutter",
   "fluent",
   "i18next",
   "rails",

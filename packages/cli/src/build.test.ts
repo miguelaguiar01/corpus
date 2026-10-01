@@ -7,6 +7,7 @@ import {
   defineCorpus,
   snapshotSchema,
   type CorpusConfig,
+  partsOf,
 } from "@corpus/contract";
 import { expect, test } from "vitest";
 import {
@@ -391,6 +392,37 @@ test("an .arb catalogue reads as JSON, its @ entries as metadata, and writes bac
   expect(writableSources(arb).map((s) => s.path)).toEqual([
     "arb/strings_{lang}.arb",
   ]);
+});
+
+test("an .arb catalogue reads as Flutter's gen_l10n does, an apostrophe the character, unless the source names icu (#1010)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-arb-"));
+  writeFileSync(
+    path.join(dir, "app_en.arb"),
+    JSON.stringify({ confirmDelete: "Delete '{toDelete}'?" }),
+  );
+  const build = async (library?: "icu") =>
+    (
+      await buildSnapshotReport(
+        config({
+          sources: [
+            {
+              adapter: "messages",
+              type: "ui",
+              path: "app_{lang}.arb",
+              ...(library && { library }),
+            },
+          ],
+        }),
+        dir,
+      )
+    ).snapshot.strings[0]!;
+  expect(await build()).toMatchObject({ library: "flutter" });
+  expect(partsOf("Delete '{toDelete}'?", "flutter").placeholders).toEqual(
+    new Set(["toDelete"]),
+  );
+  // A project that turns use-escaping on says so.
+  expect((await build("icu")).library).toBeUndefined();
+  rmSync(dir, { recursive: true, force: true });
 });
 
 test("a {ns} pattern is one source per namespace, its ids prefixed ns:, and an array is one source per pattern (#513)", async () => {

@@ -36,7 +36,7 @@ contract (`corpus/1`) is the only one.
 - Android: a regional language reads and writes each module's `values-ta` where it has no `values-ta-rIN`, as Android resolves it (#1007).
 - i18next: a `{{…}}` that holds no name, a Go template's `{{ define "<NAME>" }}`, is a placeholder a translation keeps verbatim, not a refusal (#1008).
 - ICU: a repository's English copy of a string that a TMS restructured, the plural hoisted over the sentence, seeds as untranslated like an exact copy; the next push resends every seed to re-read them (#1009).
-- ICU: an apostrophe quotes a brace, a tag or a plural's `#`, and `''` is one apostrophe, as FormatJS reads them; XLIFF keeps Angular's reading, without quoting (#1010).
+- ICU: an apostrophe quotes a brace, a tag or a plural's `#`, and `''` is one apostrophe, as FormatJS reads them; XLIFF and `.arb` keep Angular's and Flutter's reading, without quoting (#1010).
 
 ## [0.21.0] - 2026-09-29
 

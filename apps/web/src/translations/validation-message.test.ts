@@ -30,4 +30,9 @@ test("a placeholder an apostrophe quotes says the apostrophe did it (#1010)", ()
   ).toBe(
     "Missing {name}: an apostrophe before a brace quotes it, so write ’ in its place",
   );
+  expect(
+    validationMessage({ code: "missing-tag", name: "a", quoted: true }),
+  ).toBe(
+    "Missing the <a> tag: an apostrophe before a tag quotes it, so write ’ in its place",
+  );
 });

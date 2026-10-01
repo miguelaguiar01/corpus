@@ -721,7 +721,17 @@ export function sourceLibrary(source: FileSource): Library {
   if (source.adapter === "qt-ts") return source.library ?? "qt";
   if (source.adapter === "yaml") return source.library ?? "rails";
   if (source.adapter === "fluent") return "fluent";
-  return source.adapter === "xliff" ? "angular" : libraryOf(source);
+  // Angular's and Flutter's ICU read an apostrophe as the character
+  // (#1010); a Flutter project with `use-escaping` on names `icu`.
+  if (source.adapter === "xliff") return "angular";
+  if (
+    source.adapter === "messages" &&
+    !source.library &&
+    !source.syntax &&
+    [source.path].flat().some((p) => p.endsWith(".arb"))
+  )
+    return "flutter";
+  return libraryOf(source);
 }
 
 // The file a source keeps a language in: its pattern with {lang}

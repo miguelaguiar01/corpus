@@ -298,6 +298,9 @@ test("describe words every error code", () => {
   ).toBe(
     "missing {name}; an apostrophe before a brace quotes it: write ’ or ''",
   );
+  expect(describe({ code: "missing-tag", name: "a", quoted: true })).toBe(
+    "missing the <a> tag; an apostrophe before a tag quotes it: write ’ or ''",
+  );
   expect(
     describe({
       code: "invalid-icu",

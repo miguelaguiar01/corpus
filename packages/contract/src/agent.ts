@@ -65,8 +65,9 @@ export type StringResponse = {
   // %(name)s and bare <tag> substitutions (#663), "easy_localization"
   // for {} and @:key links (#664), "rails" for %{name} (#665), "qt"
   // for %1 and %n (#666), "fluent" for a .ftl message read as ICU
-  // with Fluent's names and nesting (#990), or "angular" for an XLIFF
-  // message read as ICU without apostrophe quoting (#1010). `syntax` is the
+  // with Fluent's names and nesting (#990), or "angular" and "flutter"
+  // for an XLIFF or `.arb` message read as ICU without apostrophe
+  // quoting (#1010). `syntax` is the
   // field's old name, sent beside it with the same value until 1.0,
   // when it goes with the config's alias (#522).
   library: Library;

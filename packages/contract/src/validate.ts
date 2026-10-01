@@ -91,7 +91,7 @@ export type ValidationError =
       expected: string;
       actual: string | null;
     }
-  | { code: "missing-tag"; name: string }
+  | { code: "missing-tag"; name: string; quoted?: true }
   // The source's pair written closed on itself, `<2/>` for `<2>…</2>`,
   // which wraps nothing (#986).
   | { code: "unpaired-tag"; name: string }
@@ -710,7 +710,13 @@ export function validateTranslation(
           errors.push({ code: "unpaired-tag", name });
   } else {
     for (const name of expected.tags) {
-      if (!actual.tags.has(name)) errors.push({ code: "missing-tag", name });
+      if (!actual.tags.has(name))
+        errors.push({
+          code: "missing-tag",
+          name,
+          ...(syntax === "icu" &&
+            /'</.test(target) && { quoted: true as const }),
+        });
       else if (expected.pairs.has(name) && !actual.pairs.has(name))
         errors.push({ code: "unpaired-tag", name });
     }
