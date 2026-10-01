@@ -1073,6 +1073,47 @@ ${units.join("\n")}
   rmSync(dir, { recursive: true, force: true });
 });
 
+test("an xliff target marked translated that is its source restructured is a translation, as one written the same is (#1009)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-xliff-"));
+  mkdirSync(path.join(dir, "locale"));
+  const file = (unit: string, target?: string) =>
+    `<?xml version="1.0" encoding="UTF-8" ?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file source-language="en"${target ? ` target-language="${target}"` : ""} datatype="plaintext" original="ng2.template">
+    <body>
+      <trans-unit id="left" datatype="html">
+        <source>{n, plural, one {# file} other {# files}} left</source>${unit}
+      </trans-unit>
+    </body>
+  </file>
+</xliff>
+`;
+  writeFileSync(path.join(dir, "locale", "messages.xlf"), file(""));
+  writeFileSync(
+    path.join(dir, "locale", "messages.de.xlf"),
+    file(
+      `\n        <target state="final">{n, plural, one {{n, number} file left} other {{n, number} files left}}</target>`,
+      "de",
+    ),
+  );
+  const report = await buildSnapshotReport(
+    config({
+      languages: ["en", "de"],
+      sources: [
+        {
+          adapter: "xliff",
+          type: "ui",
+          path: "locale/messages.{lang}.xlf",
+          sourcePath: "locale/messages.xlf",
+        },
+      ],
+    }),
+    dir,
+  );
+  expect(report.snapshot.seedTranslated).toEqual({ de: ["left"] });
+  rmSync(dir, { recursive: true, force: true });
+});
+
 test("a gettext source reads a .pot and its .po files: msgids, fuzzy rows, plural forms (#718)", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-gettext-"));
   mkdirSync(path.join(dir, "locales"));

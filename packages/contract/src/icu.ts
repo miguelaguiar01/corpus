@@ -96,25 +96,29 @@ export function sameMessage(a: string, b: string, library: Library): boolean {
   const left = parseIcu(a, "icu");
   const right = parseIcu(b, "icu");
   if (!left.ok || !right.ok) return false;
-  const choices = (nodes: IcuNode[], out = new Map<string, Set<string>>()) => {
+  const same = (x: Set<string>, y: Set<string> | undefined) =>
+    y !== undefined && x.size === y.size && [...x].every((k) => y.has(k));
+  // Every plural or select on one argument, in either text, has the same
+  // keys: one keyed apart picks another branch for the same value, `=1`
+  // in one and `one` in another, which no single choice stands for.
+  let uneven = false;
+  const choices = (nodes: IcuNode[], out: Map<string, Set<string>>) => {
     for (const node of nodes) {
       if (node.kind === "tag") choices(node.children, out);
       if (node.kind !== "select" && node.kind !== "plural") continue;
       const id = `${node.kind === "select" ? "select" : node.ordinal ? "ordinal" : "plural"}\u0000${node.arg}`;
-      const keys = out.get(id) ?? new Set<string>();
-      for (const [key, branch] of Object.entries(node.branches)) {
-        keys.add(key);
-        choices(branch, out);
-      }
+      const keys = new Set(Object.keys(node.branches));
+      const seen = out.get(id);
+      if (seen && !same(seen, keys)) uneven = true;
       out.set(id, keys);
+      for (const branch of Object.values(node.branches)) choices(branch, out);
     }
     return out;
   };
-  const ours = choices(left.nodes);
-  const theirs = choices(right.nodes);
-  const same = (x: Set<string>, y: Set<string> | undefined) =>
-    y !== undefined && x.size === y.size && [...x].every((k) => y.has(k));
+  const ours = choices(left.nodes, new Map());
+  const theirs = choices(right.nodes, new Map());
   if (
+    uneven ||
     ours.size !== theirs.size ||
     [...ours].some(([id, keys]) => !same(keys, theirs.get(id)))
   )
@@ -140,10 +144,7 @@ export function sameMessage(a: string, b: string, library: Library): boolean {
           case "plural": {
             const id = `${node.kind === "select" ? "select" : node.ordinal ? "ordinal" : "plural"}\u0000${node.arg}`;
             const key = chosen.get(id)!;
-            return render(
-              node.branches[key] ?? node.branches.other ?? [],
-              chosen,
-            );
+            return render(node.branches[key]!, chosen);
           }
           case "forms":
             return JSON.stringify(node);

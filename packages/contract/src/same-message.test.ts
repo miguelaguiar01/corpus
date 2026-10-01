@@ -56,6 +56,15 @@ test("a text that differs in words, a branch, or its keys is another message (#1
       "icu",
     ),
   ).toBe(false);
+  // Two plurals on one argument, keyed apart: at 1 FormatJS picks `=1`
+  // in the first and `one` in the second, which the other text has not.
+  expect(
+    sameMessage(
+      "{n, plural, =1 {a} other {b}}{n, plural, one {c} other {d}}",
+      "{n, plural, =1 {ad} one {bc} other {bd}}",
+      "icu",
+    ),
+  ).toBe(false);
   // A plural is not an ordinal, nor a select.
   expect(
     sameMessage(
