@@ -1201,3 +1201,21 @@ test("a pull leaves a bare key beside a target's family, and a proposed plural i
     files: { one: "{{count}} file", other: "{{count}} files" },
   });
 });
+
+test("a null, number or list the file holds is left as it is; a translation under a list is named (#1026)", () => {
+  const template = `{ "a": "Apple", "v": null, "n": 2, "l": ["x", null], "c": { "d": "D" } }\n`;
+  const de = `{ "a": "Apfel", "v": null, "n": 2, "l": ["y", null], "c": ["z"] }\n`;
+  expect(entriesToMessages(template, { a: "Apfel" }, de)).toBe(de);
+  const listed: string[] = [];
+  expect(
+    entriesToMessages(template, { a: "Apfel", "c.d": "Dd" }, de, {
+      onList: (id) => listed.push(id),
+    }),
+  ).toBe(de);
+  expect(listed).toEqual(["c.d"]);
+  // A first pull into a missing file, and a proposal into the source.
+  expect(() => entriesToMessages(template, { a: "Apfel" })).not.toThrow();
+  expect(
+    applyMessagesOps(template, [{ kind: "edit", id: "a", text: "Apples" }]),
+  ).toBe(template.replace('"Apple"', '"Apples"'));
+});

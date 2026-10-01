@@ -2000,6 +2000,10 @@ export default defineCorpus({
   expect(pulled.output.join("\n")).toContain(
     "x/messages.de.xlf: u2 is a unit of the file Corpus cannot read; not written",
   );
+  // The source's ids hold every other string: none is taken for an orphan.
+  expect(pulled.output.join("\n")).not.toContain(
+    "no source-language file holds",
+  );
   // A source's own: refused by name, the build goes on, and exits 1.
   writeFileSync(
     path.join(repo, "l", "en.json"),
@@ -2018,5 +2022,29 @@ export default defineCorpus({
   expect(named).toContain("l/en.json [b]: invalid entry:");
   expect(named).toContain(
     "x/messages.en.xlf [u2]: invalid entry: xliff: unit u2 has 2 segments; a unit is read as one text",
+  );
+  // A pull still finds each string's own file.
+  await serve(200, {
+    ...PAYLOAD,
+    types: { a: "ui", c: "ui", u1: "ui" },
+    translations: { de: { a: "A-de!", c: "C-de", u1: "Eins!" } },
+    minState: "untranslated",
+  });
+  const after = ctx();
+  expect(await run(["pull"], after)).toBe(0);
+  expect(after.output.join("\n")).not.toContain(
+    "no source-language file holds",
+  );
+  expect(read("l/de.json")).toContain('"a": "A-de!"');
+  expect(read("x/messages.de.xlf")).toContain("Eins!");
+  // A value that is no string is skipped, and in a source said once.
+  writeFileSync(
+    path.join(repo, "l", "en.json"),
+    `{ "a": "A", "v": null, "n": 2, "c": "C" }\n`,
+  );
+  const skipped = ctx();
+  await run(["build", "--out", out], skipped);
+  expect(skipped.output.join("\n")).toContain(
+    "l/en.json: 2 value(s) are no string (a number, true, false or null) and are not read (v, n)",
   );
 });

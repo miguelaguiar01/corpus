@@ -336,7 +336,8 @@ test("without --library, a source file with {{ }} and no ICU argument is read as
   mkdirSync(path.join(p.dir, "src", "i18n"), { recursive: true });
   writeFileSync(
     path.join(p.dir, "src", "i18n", "pt-PT.json"),
-    JSON.stringify({ a: "Olá {{ name }}", b: { c: "Sem nada" } }),
+    // A list the source refuses leaves the rest to count (#1026).
+    JSON.stringify({ a: "Olá {{ name }}", b: { c: "Sem nada" }, l: ["x"] }),
   );
   expect(await run(FLAGS, p.ctx)).toBe(0);
   const config = await loadConfig(p.dir);
@@ -2268,9 +2269,8 @@ test("init names exec for a catalogue of entry objects, never writing a config t
   writeFileSync(
     path.join(q.dir, "locales", "en.json"),
     JSON.stringify({
-      common: { message: "Hi", save: "Save" },
-      auth: { message: "Log in", out: "Log out" },
-      extra: { title: "T" },
+      common: { string: "String", number: "Number" },
+      types: { string: "Str" },
     }),
   );
   expect(
