@@ -48,6 +48,11 @@ export function validationMessage(
       return t("editor.unexpectedBranch", { arg: error.arg, key: error.key });
     case "unknown-plural":
       return t("editor.unknownPlural", { arg: error.arg });
+    case "changed-ordinal":
+      return t(
+        error.ordinal ? "editor.ordinalAsPlural" : "editor.pluralAsOrdinal",
+        { arg: error.arg },
+      );
     case "flattened-plural":
       return t("editor.flattenedPlural", { arg: error.arg });
     case "unpassed-selector":

@@ -469,6 +469,10 @@ export function describe(
       return `plural on {${error.arg}} lacks the ${error.key} branch the runtime picks in its language`;
     case "unexpected-category":
       return `plural on {${error.arg}} has the branch ${error.key}, which the runtime never picks in its language`;
+    case "changed-ordinal":
+      return error.ordinal
+        ? `{${error.arg}} is a selectordinal in the source, counted by the ordinal rule (1st, 2nd); write it as one, not as a plural`
+        : `{${error.arg}} is a plural in the source; write it as one, not as a selectordinal`;
     case "flattened-plural":
       return `the plural on {${error.arg}} is written as one text: no value is lost, but every count reads the same form`;
     case "unpassed-selector":

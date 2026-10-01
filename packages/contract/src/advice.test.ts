@@ -51,7 +51,7 @@ test("an ICU argument type of ICU's own draws no library advice (#557)", () => {
     "",
   );
   expect(
-    adviceFor("{n, selectordinal, one {{n}st} other {{n}th}}", "icu"),
+    adviceFor("{n, plural, one {{n, duration} x} other {y}}", "icu"),
   ).toBe("");
   expect(adviceFor("{{date, short}} left", "icu")).toBe(
     '; {{ }} is i18next\'s interpolation: declare library: "i18next" on the source',

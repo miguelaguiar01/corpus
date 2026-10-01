@@ -28,7 +28,13 @@ export type IcuNode =
       written?: string;
     }
   | { kind: "select"; arg: string; branches: Record<string, IcuNode[]> }
-  | { kind: "plural"; arg: string; branches: Record<string, IcuNode[]> }
+  | {
+      kind: "plural";
+      arg: string;
+      branches: Record<string, IcuNode[]>;
+      // ICU's selectordinal: the branch by CLDR's ordinal rules (#995).
+      ordinal?: true;
+    }
   // `#` inside a plural branch: the number itself.
   | { kind: "count"; arg: string }
   // <name>children</name>, or <name/> with none.
@@ -1092,19 +1098,24 @@ class Parser {
         format: style === undefined ? { type } : { type, style },
       };
     }
-    if (type !== "select" && type !== "plural") {
+    if (type !== "select" && type !== "plural" && type !== "selectordinal") {
       throw new ParseFailure(
-        `argument type ${JSON.stringify(type)} is not supported; only select, plural, number, date and time are`,
+        `argument type ${JSON.stringify(type)} is not supported; only select, plural, selectordinal, number, date and time are`,
         start,
       );
     }
-    if (inBranch) this.checkNesting(type, start);
-    checkName(`${type} argument`);
+    // selectordinal is a plural by the ordinal rules, nesting as one.
+    const kind = type === "select" ? "select" : "plural";
+    if (inBranch) this.checkNesting(kind, start);
+    checkName(`${kind} argument`);
     if (this.source[this.pos] !== ",") {
       throw new ParseFailure(`${type} needs branches`, start);
     }
     this.pos += 1;
-    return this.parseBranches(type, name, start);
+    const node = this.parseBranches(kind, name, start);
+    return type === "selectordinal" && node.kind === "plural"
+      ? { ...node, ordinal: true }
+      : node;
   }
 
   // One level of nesting, a plural in a select's branch or a select in
@@ -1427,6 +1438,8 @@ export type Shape = {
   formats: Map<string, PlaceholderFormat>;
   selects: Map<string, Set<string>>;
   plurals: Map<string, Set<string>>;
+  // The plurals' arguments a selectordinal counts (#995).
+  ordinals: Set<string>;
   tags: Set<string>;
   // The tags that wrap text, a pair and not closed on itself, and those
   // written as a pair, whatever they hold (#986).
@@ -1454,6 +1467,7 @@ export function shapeOf(
     formats: new Map(),
     selects: new Map(),
     plurals: new Map(),
+    ordinals: new Set(),
     tags: new Set(),
     pairs: new Set(),
     opened: new Set(),
@@ -1505,6 +1519,7 @@ export function shapeOf(
     }
     if (node.kind === "select" || node.kind === "plural") {
       const map = node.kind === "select" ? shape.selects : shape.plurals;
+      if (node.kind === "plural" && node.ordinal) shape.ordinals.add(node.arg);
       const keys = map.get(node.arg) ?? new Set<string>();
       for (const key of Object.keys(node.branches)) keys.add(key);
       map.set(node.arg, keys);
@@ -1579,18 +1594,23 @@ function known(language: string): boolean {
 // of a validation, which a push runs for every seed (#646).
 const categoriesByLanguage = new Map<string, string[]>();
 
-export function pluralCategoriesOf(language: string): string[] {
-  const cached = categoriesByLanguage.get(language);
+export function pluralCategoriesOf(
+  language: string,
+  ordinal = false,
+): string[] {
+  const id = ordinal ? `${language} ordinal` : language;
+  const cached = categoriesByLanguage.get(id);
   if (cached) return [...cached];
   let categories: string[] = [];
   if (known(language)) {
     const has = new Set(
-      new Intl.PluralRules(localeOf(language)).resolvedOptions()
-        .pluralCategories,
+      new Intl.PluralRules(localeOf(language), {
+        type: ordinal ? "ordinal" : "cardinal",
+      }).resolvedOptions().pluralCategories,
     );
     categories = PLURAL_CATEGORIES.filter((category) => has.has(category));
   }
-  categoriesByLanguage.set(language, categories);
+  categoriesByLanguage.set(id, categories);
   return [...categories];
 }
 
@@ -1608,7 +1628,13 @@ export function pluralCategoriesFor(
   language: string,
   library: Library,
   picked?: readonly string[],
+  // A selectordinal's: CLDR's ordinal rule, whatever the library (#995).
+  ordinal = false,
 ): { required: string[]; allowed: string[] } {
+  if (ordinal) {
+    const ordinals = pluralCategoriesOf(language, true);
+    return { required: ordinals, allowed: ordinals };
+  }
   if (library === "counterpart")
     return { required: ["one", "other"], allowed: ["zero", "one", "other"] };
   const cldr = pluralCategoriesOf(language);
@@ -1658,11 +1684,15 @@ export function pluralCategoryCovered(
   language: string,
   category: string,
   exact: ReadonlySet<number>,
+  ordinal = false,
 ): boolean {
   if (exact.size === 0 || !known(language)) return false;
-  let samples = samplesByLanguage.get(language);
+  const id = ordinal ? `${language} ordinal` : language;
+  let samples = samplesByLanguage.get(id);
   if (!samples) {
-    const rules = new Intl.PluralRules(localeOf(language));
+    const rules = new Intl.PluralRules(localeOf(language), {
+      type: ordinal ? "ordinal" : "cardinal",
+    });
     samples = new Map();
     for (const n of SAMPLES) {
       const key = rules.select(n);
@@ -1670,7 +1700,7 @@ export function pluralCategoryCovered(
       if (values) values.push(n);
       else samples.set(key, [n]);
     }
-    samplesByLanguage.set(language, samples);
+    samplesByLanguage.set(id, samples);
   }
   const values = samples.get(category);
   return values !== undefined && values.every((n) => n <= 100 && exact.has(n));
@@ -1682,6 +1712,7 @@ export function pluralBranch(
   branches: Record<string, unknown>,
   value: string,
   language?: string,
+  ordinal = false,
 ): string {
   // An empty value is no count at all, not zero (#859).
   if (value.trim() === "") return "other";
@@ -1691,6 +1722,7 @@ export function pluralBranch(
   if (Number.isFinite(n) && (language === undefined || known(language))) {
     const category = new Intl.PluralRules(
       language === undefined ? undefined : localeOf(language),
+      { type: ordinal ? "ordinal" : "cardinal" },
     ).select(n);
     if (Object.hasOwn(branches, category)) return category;
   }

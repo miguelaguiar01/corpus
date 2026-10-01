@@ -59,6 +59,9 @@ export type ValidationError =
   // no value is lost, but a language that inflects reads one form for
   // every count (#992).
   | { code: "flattened-plural"; arg: string }
+  // A cardinal plural where the source has a selectordinal, or the
+  // reverse (`ordinal` is the source's): the other rule picks (#995).
+  | { code: "changed-ordinal"; arg: string; ordinal: boolean }
   // A Fluent translation's select or plural on a variable its source
   // never has: Fluent renders the default (#1032).
   | { code: "unpassed-selector"; arg: string }
@@ -186,7 +189,7 @@ function valuesOf(shape: Shape): Set<string> {
 // The nodes with each plural's branches narrowed to those `keep` names.
 function pickedBranches(
   nodes: IcuNode[],
-  keep: (key: string) => boolean,
+  keep: (key: string, ordinal: boolean) => boolean,
 ): IcuNode[] {
   return nodes.map((node): IcuNode => {
     if (node.kind === "plural")
@@ -194,7 +197,7 @@ function pickedBranches(
         ...node,
         branches: Object.fromEntries(
           Object.entries(node.branches)
-            .filter(([key]) => keep(key))
+            .filter(([key]) => keep(key, node.ordinal === true))
             .map(([key, branch]) => [key, pickedBranches(branch, keep)]),
         ),
       };
@@ -383,11 +386,21 @@ export function validateTranslation(
   // not on Android, where a <string> is another resource than the
   // <plurals> the code asks for.
   const categories = language === undefined ? [] : pluralCategoriesOf(language);
+  // A selectordinal's are its language's ordinal ones (#995): German's
+  // is `other` alone.
+  const categoriesOf = (arg: string) =>
+    language === undefined
+      ? []
+      : whole.ordinals.has(arg)
+        ? pluralCategoriesOf(language, true)
+        : categories;
   const flat = new Set(
-    [...whole.plurals.keys()].filter((arg) => !actual.plurals.has(arg)),
+    [...whole.plurals.keys()].filter(
+      (arg) => !actual.plurals.has(arg) && categoriesOf(arg).length === 1,
+    ),
   );
   const flattened =
-    categories.length === 1 && flat.size > 0 && syntax !== "android"
+    flat.size > 0 && syntax !== "android"
       ? otherBranch(sourceNodes, flat)
       : sourceNodes;
   const expected = flattened === sourceNodes ? whole : shapeOf(flattened);
@@ -422,14 +435,20 @@ export function validateTranslation(
     (categories.length === 0 && syntax !== "counterpart")
       ? []
       : pluralCategoriesFor(language, syntax, options.pluralForms).allowed;
+  const ordinalPicks =
+    language === undefined
+      ? []
+      : pluralCategoriesFor(language, syntax, undefined, true).allowed;
   const required =
     picks.length > 0
       ? valuesOf(
           shapeOf(
             pickedBranches(
               flattened,
-              (key) =>
-                key === "other" || key.startsWith("=") || picks.includes(key),
+              (key, ordinal) =>
+                key === "other" ||
+                key.startsWith("=") ||
+                (ordinal ? ordinalPicks : picks).includes(key),
             ),
           ),
         )
@@ -457,7 +476,7 @@ export function validateTranslation(
       const otherOnly = [...(whole.plurals.get(name) ?? [])].every(
         (k) => k === "other",
       );
-      if (categories.length !== 1 && !(sameBase && otherOnly))
+      if (categoriesOf(name).length !== 1 && !(sameBase && otherOnly))
         errors.push({ code: "flattened-plural", arg: name });
       continue;
     }
@@ -798,9 +817,15 @@ export function validateTranslation(
       syntax === "fluent"
         ? { unpassed, sourcePlurals: new Set(whole.plurals.keys()) }
         : undefined,
-      language === undefined
-        ? { required: [], allowed: [] }
-        : pluralCategoriesFor(language, syntax, options.pluralForms),
+      (ordinal) =>
+        language === undefined
+          ? { required: [], allowed: [] }
+          : pluralCategoriesFor(
+              language,
+              syntax,
+              ordinal ? undefined : options.pluralForms,
+              ordinal,
+            ),
       language,
       // A language of the source's base shares its grammar, so the source
       // author has already said which categories its text varies by
@@ -808,6 +833,17 @@ export function validateTranslation(
       sameBase ? whole.plurals : undefined,
     ),
   );
+  // An ordinal is picked by another rule than a cardinal (#995).
+  for (const arg of actual.plurals.keys())
+    if (
+      whole.plurals.has(arg) &&
+      whole.ordinals.has(arg) !== actual.ordinals.has(arg)
+    )
+      errors.push({
+        code: "changed-ordinal",
+        arg,
+        ordinal: whole.ordinals.has(arg),
+      });
   // Fluent's writer renders a select inside any variant (#990).
   if (syntax !== "fluent")
     errors.push(...nestingErrors(sourceNodes, targetNodes));
@@ -943,13 +979,19 @@ function pluralErrors(
         sourcePlurals: ReadonlySet<string>;
       }
     | undefined,
-  categories: { required: string[]; allowed: string[] },
+  // A cardinal plural's categories, or a selectordinal's (#995).
+  categoriesFor: (ordinal: boolean) => {
+    required: string[];
+    allowed: string[];
+  },
   language: string | undefined,
   // The source's own keys by argument, for a language of its base.
   sourceKeys?: Map<string, Set<string>>,
 ): ValidationError[] {
   const out: ValidationError[] = [];
   for (const [arg, keys] of actual.plurals) {
+    const ordinal = actual.ordinals.has(arg);
+    const categories = categoriesFor(ordinal);
     if (!expectedValues.has(arg) && !passed.has(arg)) {
       out.push(...(fluent?.unpassed(arg) ?? [{ code: "unknown-plural", arg }]));
       continue;
@@ -971,7 +1013,7 @@ function pluralErrors(
       if (own && key !== "other" && !own.has(key)) continue;
       if (
         !keys.has(key) &&
-        !(language && pluralCategoryCovered(language, key, exact))
+        !(language && pluralCategoryCovered(language, key, exact, ordinal))
       )
         out.push({ code: "missing-category", arg, key });
     }

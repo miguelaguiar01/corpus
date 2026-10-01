@@ -102,7 +102,7 @@ function render(
       const key =
         value === undefined
           ? "other"
-          : pluralBranch(node.branches, value, language);
+          : pluralBranch(node.branches, value, language, node.ordinal);
       render(own(node.branches, key) ?? [], values, out, language, unset);
     } else {
       const value = own(values, node.arg);

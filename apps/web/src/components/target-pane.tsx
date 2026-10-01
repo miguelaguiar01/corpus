@@ -37,6 +37,8 @@ export type Slot = {
 
 type Branching = {
   kind: "select" | "plural";
+  // A selectordinal (#995), written and chosen as one.
+  ordinal?: boolean;
   arg: string;
   keys: string[];
   // The arguments nested in each key's branch (#765), by `idOf`.
@@ -45,8 +47,11 @@ type Branching = {
 
 // A select and a plural may share an argument's name; each is its own
 // chip (#770).
-const idOf = (node: { kind: "select" | "plural"; arg: string }) =>
-  `${node.kind} ${node.arg}`;
+const idOf = (node: {
+  kind: "select" | "plural";
+  ordinal?: boolean;
+  arg: string;
+}) => `${node.ordinal ? "selectordinal" : node.kind} ${node.arg}`;
 
 // The source's select and plural arguments, each with every key any of
 // its uses has, in source order (validation unions them the same way):
@@ -71,13 +76,19 @@ function branchingOf(
     const keys = sourced.get(idOf(node)) ?? new Set<string>();
     for (const key of Object.keys(node.branches)) keys.add(key);
     sourced.set(idOf(node), keys);
+    const ordinal = node.kind === "plural" && node.ordinal === true;
     const entry = byId.get(idOf(node)) ?? {
       kind: node.kind,
+      ...(ordinal && { ordinal }),
       arg: node.arg,
       keys:
         node.kind === "plural"
-          ? pluralCategoriesFor(language, syntax, pluralForms ?? undefined)
-              .required
+          ? pluralCategoriesFor(
+              language,
+              syntax,
+              ordinal ? undefined : (pluralForms ?? undefined),
+              ordinal,
+            ).required
           : [],
       inner: new Map<string, string[]>(),
     };
@@ -135,7 +146,7 @@ const COUNT_IN_BRANCH: Record<Library, (arg: string) => string> = {
 // is one level deep, so an inner skeleton is never expanded further:
 // arguments nested in each other in different places would not end.
 function skeleton(
-  { kind, arg, keys, inner }: Branching,
+  { kind, ordinal, arg, keys, inner }: Branching,
   syntax: Library,
   byId?: Map<string, Branching>,
 ): { token: string; caret: number } {
@@ -152,7 +163,7 @@ function skeleton(
     };
   };
   const first = fill(keys[0]!);
-  const head = `{${arg}, ${kind}, ${keys[0]} {`;
+  const head = `{${arg}, ${ordinal ? "selectordinal" : kind}, ${keys[0]} {`;
   const rest = keys
     .slice(1)
     .map((key) => ` ${key} {${fill(key).text}}`)
@@ -347,14 +358,16 @@ export function TargetPane({
                     "min-h-8 hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
                 })}
                 title={t(
-                  select.kind === "plural"
-                    ? "editor.insertPlural"
-                    : "editor.insertSelect",
+                  select.ordinal
+                    ? "editor.insertOrdinal"
+                    : select.kind === "plural"
+                      ? "editor.insertPlural"
+                      : "editor.insertSelect",
                   { arg: select.arg, keys: select.keys.join(", ") },
                 )}
                 onClick={() => insert(token.token, token.caret)}
               >
-                {`{${select.arg}, ${select.kind}}`}
+                {`{${select.arg}, ${select.ordinal ? "selectordinal" : select.kind}}`}
               </button>
             );
           })}
