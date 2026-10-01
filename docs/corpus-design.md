@@ -125,7 +125,9 @@ export default defineCorpus({
     //    build says how many took the key. A file with no sentence key
     //    keeps its empty values empty: rows an extraction tool left.
     //    A null, number or boolean value is no string, as in yaml, and
-    //    is skipped; a list is refused by name, since i18next's
+    //    is skipped, left by a pull, a source's counted in a build note
+    //    since push archives a string that became one; a list is
+    //    refused by name, since i18next's
     //    `returnObjects` lists hold text: a source's is left out as a
     //    string that does not parse is, a target's is not seeded, named
     //    by `build` and as a `validate` warning, and left by a pull, a

@@ -583,8 +583,9 @@ function formatOf(
 }
 
 // FormatJS's extract formats and Signal's write each string as an
-// object, its text in one field (#1001); the smartling format adds a
-// config object of that name. Chrome's shape is a library of its own.
+// object, its text in one field beside its metadata (#1001); the
+// smartling format adds a config object of that name. Chrome's shape is
+// a library of its own.
 const ENTRY_FIELDS = [
   "messageformat",
   "defaultMessage",
@@ -592,6 +593,17 @@ const ENTRY_FIELDS = [
   "string",
   "translation",
 ] as const;
+const ENTRY_METADATA = new Set([
+  "description",
+  "developer_comment",
+  "notes",
+  "context",
+  "character_limit",
+  "limit",
+  "ignoreUnused",
+  "id",
+  "meaning",
+]);
 
 function entryField(file: string): string | undefined {
   if (!file.endsWith(".json") || chromeShaped(file)) return undefined;
@@ -606,12 +618,16 @@ function entryField(file: string): string | undefined {
   const entries = Object.entries(data).filter(([key]) => key !== "smartling");
   if (entries.length === 0) return undefined;
   return ENTRY_FIELDS.find((field) =>
-    entries.every(
-      ([, value]) =>
-        value !== null &&
-        typeof value === "object" &&
-        typeof (value as Record<string, unknown>)[field] === "string",
-    ),
+    entries.every(([, value]) => {
+      if (value === null || typeof value !== "object") return false;
+      const record = value as Record<string, unknown>;
+      return (
+        typeof record[field] === "string" &&
+        Object.keys(record).every(
+          (key) => key === field || ENTRY_METADATA.has(key),
+        )
+      );
+    }),
   );
 }
 

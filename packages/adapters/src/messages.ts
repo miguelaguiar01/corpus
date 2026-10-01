@@ -30,6 +30,8 @@ export type MessagesOptions = {
   // A list Corpus cannot read as text, named with why and left out
   // (#1026); without this, the file's error.
   onRefused?: (id: string, reason: string) => void;
+  // A null, number or boolean, skipped.
+  onSkipped?: (id: string) => void;
 };
 
 const SUFFIX = /^(.+)_(zero|one|two|few|many|other)$/;
@@ -465,8 +467,14 @@ function walk(
   if (path.length > 0) {
     // As yaml's (§3): a null, number or boolean is no string. A list may
     // hold text (i18next's `returnObjects`), so it is named (#1026).
-    if (node === null || typeof node === "number" || typeof node === "boolean")
+    if (
+      node === null ||
+      typeof node === "number" ||
+      typeof node === "boolean"
+    ) {
+      options.onSkipped?.(path.join("."));
       return;
+    }
     if (Array.isArray(node) && options.onRefused) {
       options.onRefused(
         path.join("."),

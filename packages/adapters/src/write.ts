@@ -105,7 +105,13 @@ function leaves(
     if (typeof value === "string") out.push([at, value, false]);
     else if (isPluralAt(value, at.join("."), plurals, known))
       out.push([at, pluralText("count", value, "written"), "object"]);
-    else leaves(value, plurals, known, suffix, at, out);
+    // A null, number, boolean or list is no string, left as it is (#1026).
+    else if (
+      value !== null &&
+      typeof value === "object" &&
+      !Array.isArray(value)
+    )
+      leaves(value, plurals, known, suffix, at, out);
   }
   return out;
 }
@@ -373,7 +379,8 @@ export function entriesToMessages(
   const lists = listIds(baseTree);
   for (const id of Object.keys(translations)) {
     if (seen.has(id)) continue;
-    if (lists.has(id)) {
+    const parts = id.split(".");
+    if (parts.some((_, i) => lists.has(parts.slice(0, i + 1).join(".")))) {
       options.onList?.(id);
       continue;
     }

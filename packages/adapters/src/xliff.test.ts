@@ -796,6 +796,17 @@ test("a unit that does not read is refused by name and the file's other units re
   );
   expect(pulled).toBe(target.replace("Eins", "Eins!"));
   expect(refused.map(([id]) => id)).toEqual(["u2"]);
+  // A unit the target lacks goes after its last, refused or not.
+  const lastRefused = file20(
+    [
+      `<unit id="u1"><segment state="translated"><source>One</source><target>Eins</target></segment></unit>`,
+      `<unit id="u2"><segment><source>A</source></segment><segment><source>B</source></segment></unit>`,
+    ].join("\n"),
+  );
+  const appended = entriesToXliff(template, { u3: "Drei" }, lastRefused, "de");
+  expect(appended.indexOf('<unit id="u3">')).toBeGreaterThan(
+    appended.indexOf('<unit id="u2">'),
+  );
   // A source proposal leaves a refused unit alone too.
   expect(applyXliffOps(target, [{ kind: "edit", id: "u2", text: "x" }])).toBe(
     target,

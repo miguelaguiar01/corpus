@@ -281,6 +281,7 @@ export async function buildSnapshotReport(
       continue;
     }
     let entries: StringEntry[];
+    const skipped: string[] = [];
     try {
       entries = await readEntries(
         jiti,
@@ -298,12 +299,23 @@ export async function buildSnapshotReport(
             hint: "",
             message: `invalid ${source.adapter === "fluent" ? "Fluent message" : "entry"}: ${reason ?? "not read"}`,
           }),
+        undefined,
+        (id) => skipped.push(id),
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       errors.push(`${file}: ${message}`);
       continue;
     }
+    // A string later set to null leaves the snapshot, and push archives
+    // it: said, so that is never silent (#1026).
+    if (skipped.length > 0)
+      notes.push(
+        `${file}: ${skipped.length} value(s) are no string (a number, true, false or null) and are not read (${skipped
+          .slice(0, 3)
+          .map(printable)
+          .join(", ")}${skipped.length > 3 ? ", …" : ""})`,
+      );
     // The file rides with the entry (§4) so a proposal can come back to
     // it, and only where pull can write it: a .ts catalogue carries none,
     // so a proposal on its strings is refused up front, not left pending.
@@ -900,9 +912,13 @@ export async function readEntries(
   // them, where a target's object of categories is the plural though it
   // lacks `other` (#950): sourcePluralIds.
   pluralIds?: ReadonlySet<string>,
+  // A messages value that is no string, a null, number or boolean.
+  onSkipped?: (id: string) => void,
 ): Promise<StringEntry[]> {
   const typed = <T>(entries: T[]) =>
     entries.map((e) => ({ ...e, type: source.type }));
+  const own = (id: string) =>
+    source.namespace ? `${source.namespace}:${id}` : id;
   const text = () => readFileSync(path.join(cwd, file), "utf8");
   switch (source.adapter) {
     case "xcstrings":
@@ -946,12 +962,12 @@ export async function readEntries(
       return sourceFile
         ? xliffToEntries(text(), {
             type: source.type,
-            ...(onUnread && { onRefused: onUnread }),
+            onRefused: (id, reason) => onUnread?.(id, reason),
           })
-        : typed(xliffTranslations(text(), onUnread));
+        : typed(
+            xliffTranslations(text(), (id, reason) => onUnread?.(id, reason)),
+          );
     case "fluent": {
-      const own = (id: string) =>
-        source.namespace ? `${source.namespace}:${id}` : id;
       const entries = fluentToEntries(text(), {
         type: source.type,
         onRefused: (id, reason) => onUnread?.(own(id), reason),
@@ -976,13 +992,8 @@ export async function readEntries(
           ...(sourceFile &&
             language !== undefined && { sourceLanguage: language }),
           ...(pluralIds && { pluralIds }),
-          ...(onUnread && {
-            onRefused: (id: string, reason: string) =>
-              onUnread(
-                source.namespace ? `${source.namespace}:${id}` : id,
-                reason,
-              ),
-          }),
+          onRefused: (id, reason) => onUnread?.(own(id), reason),
+          ...(onSkipped && { onSkipped: (id: string) => onSkipped(own(id)) }),
         })
       : tableToEntries(data, { type: source.type, map: source.map });
   // A namespaced file's ids are `ns:key` (#513), i18next's own separator.

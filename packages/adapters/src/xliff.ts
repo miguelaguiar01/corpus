@@ -419,18 +419,19 @@ function blankInside(
 }
 
 export type OnRefused = (id: string, reason: string) => void;
+type OnUnitRefused = (id: string, reason: string, unit: Span) => void;
 
 // A unit that does not read is named through `onRefused` and left out,
 // its bytes the file's (#1026); without it, the file's error.
-function unitSpans(xml: string, onRefused?: OnRefused): UnitSpan[] {
+function unitSpans(xml: string, onRefused?: OnUnitRefused): UnitSpan[] {
   // Found in the text with comments and CDATA hidden, and each unit's
   // foreign elements blanked within it, so none of theirs is taken for
   // the unit's own (#900, #917).
   const refused = new Set<number>();
-  const refuse = (id: string, start: number, error: unknown) => {
+  const refuse = (id: string, unit: Span, error: unknown) => {
     if (!onRefused || !(error instanceof Error)) throw error;
-    refused.add(start);
-    onRefused(id, error.message);
+    refused.add(unit.start);
+    onRefused(id, error.message, unit);
   };
   const read = hidden(xml);
   let text = read.text;
@@ -502,7 +503,7 @@ function unitSpans(xml: string, onRefused?: OnRefused): UnitSpan[] {
     try {
       inner = blankInside(inner, u.id, u.start, foreign);
     } catch (error) {
-      refuse(u.id, u.start, error);
+      refuse(u.id, u, error);
     }
     blanked += text.slice(at, u.start) + inner;
     at = u.end;
@@ -527,7 +528,7 @@ function unitSpans(xml: string, onRefused?: OnRefused): UnitSpan[] {
       target = find(start, end, "target", id);
       segment = version === "2.0" ? find(start, end, "segment", id) : undefined;
     } catch (error) {
-      refuse(id, start, error);
+      refuse(id, { start, end }, error);
       continue;
     }
     out.push({
@@ -643,7 +644,10 @@ export function entriesToXliff(
     (id) => !seen.has(id) && sources.has(id),
   );
   if (missing.length > 0) {
-    const last = unitSpans(out, ignore).at(-1);
+    // After the file's last unit, read or refused.
+    const refused: Span[] = [];
+    const read = unitSpans(out, (_id, _reason, unit) => refused.push(unit));
+    const last = [...read, ...refused].sort((x, y) => x.end - y.end).at(-1);
     const at = last ? last.end : out.search(/<\/(?:body|file)>/);
     if (at >= 0) {
       const indent = last ? lineIndent(out, last.start) : "";
