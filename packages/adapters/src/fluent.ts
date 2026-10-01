@@ -65,6 +65,10 @@ function messages(text: string): Message[] {
     let depth = braces(lines[i]!);
     for (let j = i + 1; j < lines.length; j++) {
       const line = lines[j]!.replace(/\r$/, "");
+      // An entry at column 0 starts anew, as Fluent's parser restarts
+      // after a message it reads as Junk, a placeable left open or not:
+      // no valid placeable holds such a line (#991).
+      if (/^-?[A-Za-z][\w-]*[ \t]*=/.test(line)) break;
       if (depth > 0 || /^[ \t]+\S/.test(line)) {
         if (line.trim() !== "") last = j;
         depth += braces(line);

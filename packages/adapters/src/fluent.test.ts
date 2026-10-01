@@ -269,3 +269,13 @@ test("a line that starts with whitespace and then . [ or * is escaped too", () =
     "texto\n.attr = x\n[nota] y",
   );
 });
+
+test("a message whose placeable never closes ends at the next entry, as Fluent's parser restarts there (#991 review)", () => {
+  const refused: string[] = [];
+  const read = fluentToEntries("z = Z\na = Hello { $name\nb = B\nc = C\n", {
+    type: "ui",
+    onRefused: (id) => refused.push(id),
+  });
+  expect(read.map((e) => e.id)).toEqual(["z", "b", "c"]);
+  expect(refused).toEqual(["a"]);
+});

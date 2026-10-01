@@ -246,6 +246,8 @@ export async function validateRepo(
         // Qt reads such forms, as Fluent does such messages; Corpus
         // cannot, so it says so, once (#751, #991).
         (key, reason) =>
+          // A message the source cannot read is that source's finding.
+          refusedSource.has(key) ||
           findings.push(
             source.adapter === "fluent"
               ? {

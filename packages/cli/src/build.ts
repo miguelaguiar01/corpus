@@ -75,6 +75,9 @@ export type Refused = {
   // Its type, where the type read as HTML would take it: an unclosed
   // tag or a lone <br> as text (#952).
   htmlType?: string;
+  // A Fluent term, never a string the server held: listed, but no
+  // reason to call its file ruined (#991).
+  term?: true;
 };
 export type BuildReport = {
   snapshot: Snapshot;
@@ -160,7 +163,8 @@ function ruinedReasons(sourced: Sourced[], refused: Refused[]): string[] {
   const total = new Map<string, number>();
   for (const { file } of sourced) total.set(file, (total.get(file) ?? 0) + 1);
   const perFile = new Map<string, number>();
-  for (const { file } of refused) {
+  for (const { file, term } of refused) {
+    if (term) continue;
     perFile.set(file, (perFile.get(file) ?? 0) + 1);
     total.set(file, (total.get(file) ?? 0) + 1);
   }
@@ -257,7 +261,9 @@ export async function buildSnapshotReport(
             file,
             id,
             hint: "",
-            message: `invalid Fluent message: ${reason ?? "not read"}`,
+            message: `invalid ${source.adapter === "fluent" ? "Fluent message" : "entry"}: ${reason ?? "not read"}`,
+            ...(source.adapter === "fluent" &&
+              id.split(":").at(-1)!.startsWith("-") && { term: true }),
           }),
       );
     } catch (error) {
@@ -1359,7 +1365,10 @@ async function readSeeds(
           source,
           false,
           lang,
-          (id) => unread.push(id),
+          // What the source cannot read is no string to seed (#991).
+          (id) => {
+            if (ids.has(id)) unread.push(id);
+          },
           pluralIds,
         )) {
           // A key the source no longer has, or an empty value an

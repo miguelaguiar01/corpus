@@ -962,6 +962,28 @@ export default defineCorpus({
   });
   expect(await run(["pull"], ctx())).toBe(0);
   expect(read("i18n/uz/app.ftl")).toBe(uz);
+  // A file of terms alone is listed, and builds the rest: no term was
+  // ever a string to archive.
+  writeFileSync(
+    path.join(repo, "i18n", "en", "brands.ftl"),
+    "-brand = Firefox\n-relay = Relay\n",
+  );
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    read("corpus.config.ts").replace(
+      'path: "i18n/{lang}/app.ftl"',
+      'path: ["i18n/{lang}/app.ftl", "i18n/{lang}/brands.ftl"]',
+    ),
+  );
+  const terms = ctx();
+  expect(await run(["build", "--out", out], terms)).toBe(1);
+  expect(terms.output.join("\n")).toContain(
+    "i18n/en/brands.ftl [-brand]: invalid Fluent message: -brand is a term",
+  );
+  expect(terms.output.join("\n")).not.toContain(
+    "every string in the file was refused",
+  );
+  expect(terms.output.join("\n")).not.toContain("no snapshot was built");
 });
 
 test("a language whose files use another code is pulled into that file, and seeded from it (#657)", async () => {
