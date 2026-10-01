@@ -56,3 +56,18 @@ test("an expression divides the text around it, as JSX's does: units between val
     [3, "photos left"],
   ]);
 });
+
+test("a finding names the line its text starts on, indented or after an expression; an escaped quote or a brace in a comment hides nothing (#1025)", () => {
+  expect(found("<button>\n        Save\n</button>\n")).toEqual([[2, "Save"]]);
+  expect(found("<p>\n  {count}\n  MP\n</p>\n")).toEqual([[3, "MP"]]);
+  expect(found("<p>{'it\\'s'}</p>\n<p>Not lost</p>\n")).toEqual([
+    [2, "Not lost"],
+  ]);
+  expect(found("<!-- do not use { here -->\n<p>Not lost</p>\n")).toEqual([
+    [2, "Not lost"],
+  ]);
+  // A component named Script is markup, not a script block.
+  expect(found("<Script>\n  Shown text\n</Script>\n")).toEqual([
+    [2, "Shown text"],
+  ]);
+});
