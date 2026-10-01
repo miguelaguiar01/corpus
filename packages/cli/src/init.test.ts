@@ -1240,7 +1240,7 @@ test("init's qt-ts: --languages keeps its mappings, an unmapped POSIX file is na
   const p = project();
   stubCli(p.dir);
   mkdirSync(path.join(p.dir, "lang"));
-  for (const code of ["en", "de", "sr@latin", "ca@valencia"])
+  for (const code of ["en", "de", "sr@latin", "de@euro"])
     writeFileSync(
       path.join(p.dir, "lang", `app_${code}.ts`),
       ts(code === "en" ? "" : code),
@@ -1256,7 +1256,7 @@ test("init's qt-ts: --languages keeps its mappings, an unmapped POSIX file is na
     languageFiles: { "sr-Latn": "sr@latin" },
   });
   expect(p.err.join("\n")).toContain(
-    "lang/app_ca@valencia.ts names no language tag and no script",
+    "lang/app_de@euro.ts names no language tag; left out",
   );
 
   // {lang} as a directory.
@@ -1394,14 +1394,14 @@ test("a GNU @modifier catalogue is kept for every format: a script maps through 
   const po = (lang: string) =>
     `msgid ""\nmsgstr ""\n"Language: ${lang}\\n"\n"Content-Type: text/plain; charset=UTF-8\\n"\n\nmsgid "Quit"\nmsgstr "${lang === "en" ? "" : "Q"}"\n`;
   writeFileSync(path.join(p.dir, "po", "app.pot"), po("en"));
-  for (const lang of ["en", "de", "sr@latin", "ca@valencia", "pt_BR"])
+  for (const lang of ["en", "de", "sr@latin", "de@euro", "pt_BR"])
     writeFileSync(path.join(p.dir, "po", `${lang}.po`), po(lang));
   const code = await run(
     ["init", "--project", "x", "--source", "en", "--messages", "po/{lang}.po"],
     p.ctx,
   );
   expect(code).toBe(0);
-  expect(p.err.join("\n")).toMatch(/po\/ca@valencia\.po names no language tag/);
+  expect(p.err.join("\n")).toMatch(/po\/de@euro\.po names no language tag/);
   const config = await loadConfig(p.dir);
   expect(config.languages).toEqual(["en", "de", "pt_BR", "sr-Latn"]);
   expect(config.sources[0]).toMatchObject({
@@ -1576,7 +1576,7 @@ test("a JSON catalogue named with a POSIX modifier that is no tag is said to nam
   const p = project();
   stubCli(p.dir);
   mkdirSync(path.join(p.dir, "l"));
-  for (const code of ["en", "de", "sr@latin", "ca@valencia"])
+  for (const code of ["en", "de", "sr@latin", "de@euro"])
     writeFileSync(path.join(p.dir, "l", `${code}.json`), '{"a":"A"}');
   expect(
     await run(
@@ -1594,7 +1594,7 @@ test("a JSON catalogue named with a POSIX modifier that is no tag is said to nam
   ).toBe(0);
   const said = [...p.out, ...p.err].join("\n");
   expect(said).toMatch(
-    /l\/ca@valencia\.json names no language tag and no script; left out, or map it with languageFiles/,
+    /l\/de@euro\.json names no language tag; left out: name its language, as languages: \["<tag>"\] with languageFiles: \{ "<tag>": "de@euro" \} on the source/,
   );
   expect(said).not.toMatch(/sibling catalogue/);
 });
@@ -2083,4 +2083,40 @@ test("init writes sourceVariants for a target in the source's own language and s
   expect(
     (await variants("en", ["en"], ["--languages", "en,en-AU,ja"])).variants,
   ).toEqual(["en-AU"]);
+});
+
+test("init maps ca@valencia to ca-valencia through languageFiles, and names the line to write for a code it cannot (#1015)", async () => {
+  for (const pattern of ["l/{lang}.json", "po/{lang}.po"]) {
+    const p = project();
+    const ext = pattern.endsWith(".po") ? "po" : "json";
+    const body =
+      ext === "po"
+        ? 'msgid ""\nmsgstr ""\n"Content-Type: text/plain; charset=UTF-8\\n"\n\nmsgid "Hi"\nmsgstr "Hola"\n'
+        : '{ "hi": "Hola" }\n';
+    write(
+      p.dir,
+      `${pattern.split("/")[0]}/en.${ext}`,
+      body.replace("Hola", "Hi"),
+    );
+    write(p.dir, `${pattern.split("/")[0]}/ca@valencia.${ext}`, body);
+    expect(await run(initFor(pattern), p.ctx)).toBe(0);
+    const config = await loadConfig(p.dir);
+    expect(config.languages).toEqual(["en", "ca-valencia"]);
+    expect(config.sources[0]).toMatchObject({
+      languageFiles: { "ca-valencia": "ca@valencia" },
+    });
+    expect(p.err.join("\n")).not.toMatch(/left out/);
+  }
+  const q = project();
+  write(q.dir, "l/en.json", "{}\n");
+  write(q.dir, "l/ca@foo.json", "{}\n");
+  write(q.dir, "l/sr@foo.json", "{}\n");
+  expect(await run(initFor("l/{lang}.json"), q.ctx)).toBe(0);
+  expect(q.err.join("\n")).toContain(
+    'corpus: l/ca@foo.json names no language tag; left out: name its language, as languages: ["<tag>"] with languageFiles: { "<tag>": "ca@foo" } on the source',
+  );
+  // One line a file, each its own mapping.
+  expect(q.err.join("\n")).toContain(
+    'corpus: l/sr@foo.json names no language tag; left out: name its language, as languages: ["<tag>"] with languageFiles: { "<tag>": "sr@foo" } on the source',
+  );
 });

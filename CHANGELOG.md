@@ -40,6 +40,7 @@ contract (`corpus/1`) is the only one.
 - printf: Python's `%(name)s` is a placeholder named by its key, so a Python `.po` is checked as `init` writes it (#1012).
 - `validate`: the summary counts translations, not problems, and source strings that do not parse apart; `--json` gives an orphan key `"severity": "orphan"`, not `"invalid"` (#1013).
 - `init` writes `sourceVariants` for a target in the source's language and script, `en_GB` beside `en` (#1014).
+- `init` maps `ca@valencia` to `ca-valencia`, and names the line to write for a code it cannot map (#1015).
 
 ## [0.21.0] - 2026-09-29
 
