@@ -96,9 +96,10 @@ const FLUENT_SELECTOR_RE =
   /^(?:[A-Za-z][A-Za-z0-9_-]*|-[A-Za-z][A-Za-z0-9_-]*\.[A-Za-z][A-Za-z0-9_-]*)$/;
 // A Fluent function's options, which a format's style is under the
 // fluent reading since the writer passes them to NUMBER() or DATETIME():
-// `name: "value"` or `name: number`, comma-separated (#990).
+// `name: "value"` or `name: number`, comma-separated, spaces alone
+// between them as the writer keeps them on one line (#990).
 export const FLUENT_OPTIONS_RE =
-  /^[A-Za-z][\w-]*\s*:\s*(?:"[^"\\{}\n]*"|-?\d+(?:\.\d+)?)(?:\s*,\s*[A-Za-z][\w-]*\s*:\s*(?:"[^"\\{}\n]*"|-?\d+(?:\.\d+)?))*$/;
+  /^[A-Za-z][\w-]* *: *(?:"[^"\\{}\n\t]*"|-?\d+(?:\.\d+)?)(?: *, *[A-Za-z][\w-]* *: *(?:"[^"\\{}\n\t]*"|-?\d+(?:\.\d+)?))*$/;
 // A term reference with its arguments, `{-brand(case: "gen")}`.
 const FLUENT_TERM_CALL_RE =
   /^\{\s*(-[A-Za-z][A-Za-z0-9_-]*)\((?:[^()"\n]|"(?:[^"\\\n]|\\.)*")*\)\s*\}/;

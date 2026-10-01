@@ -188,7 +188,8 @@ export default defineCorpus({
     //    `{s, number, minimumIntegerDigits: 2}` and `{ DATETIME($d) }`
     //    is `{d, date}`, written back as the functions; the `fluent`
     //    reading takes a style only as Fluent's options (`name: "value"`
-    //    or `name: number`) and no `time`, which DATETIME cannot mean.
+    //    or `name: number`, spaces between, no escapes) and not ICU's
+    //    bare `time` type, which DATETIME would write as a date.
     //    A message's attributes, any other function, a function on
     //    anything but a variable, as a selector, with its arguments
     //    across lines or with braces in its options, and number

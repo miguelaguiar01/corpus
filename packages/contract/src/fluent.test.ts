@@ -230,6 +230,8 @@ test("a format's style under fluent is Fluent's options, and there is no time fo
     "{d, date, short}",
     "{t, time}",
     '{n, number, x: "{"}',
+    "{n, number, minimumIntegerDigits:\t3}",
+    "{n, number, minimumIntegerDigits: 2,\n useGrouping: 0}",
   ]) {
     const read = parseIcu(bad, "fluent");
     expect(read.ok, bad).toBe(false);
