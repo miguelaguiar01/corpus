@@ -181,3 +181,13 @@ test("render names the writable sources, their absence, or a push that predates 
   expect(at(STATUS)).toBe("");
   expect(at({ ...STATUS, lastPushAt: null, writableSources: null })).toBe("");
 });
+
+test("a project whose sources are all the code's text says why it takes no proposals (#1004)", () => {
+  const none = { ...STATUS, writableSources: [] };
+  expect(render(none, "http://x", ["qt-ts", "gettext"])).toContain(
+    "proposals: none, since qt-ts and gettext source text is the code's",
+  );
+  expect(render(none, "http://x", ["messages"])).toContain(
+    "no writable source: proposals are not possible on this project",
+  );
+});
