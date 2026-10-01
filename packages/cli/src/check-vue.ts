@@ -187,7 +187,18 @@ export function findVueLiterals(
     findings.push({ file, line, text });
   };
 
-  const { body, offset } = block;
+  markupLiterals(block.body, block.offset, report);
+  return findings;
+}
+
+// The text and the static user-facing attributes of HTML-shaped markup,
+// each reported at its offset: Vue's template, and a Svelte component's
+// markup with its expressions blanked (#1025).
+export function markupLiterals(
+  body: string,
+  offset: number,
+  report: (offset: number, raw: string) => void,
+): void {
   // Elements whose content is not text a person reads, by depth.
   const skip: string[] = [];
   let at = 0;
@@ -251,5 +262,4 @@ export function findVueLiterals(
     textFrom = at;
   }
   flushText(body.length);
-  return findings;
 }

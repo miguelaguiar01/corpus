@@ -41,7 +41,7 @@ import {
   sourcePluralIds,
   type FileSource,
 } from "./build";
-import { DEFAULT_INCLUDE, EXTENSIONS, SKIP_DIRS } from "./check";
+import { DEFAULT_INCLUDE, EXTENSIONS, READS, SKIP_DIRS } from "./check";
 import type { RunContext } from "./cli";
 import {
   CliError,
@@ -307,8 +307,8 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     // whatever it is pointed at (#1016).
     ctx.out(
       NO_COMPONENTS[adapter]
-        ? `corpus check reads .jsx, .tsx and .vue components, which ${NO_COMPONENTS[adapter]} has none of: leave corpus check out of CI`
-        : `check.include: init found no .jsx, .tsx or .vue components where it looks; set check.include in ${filename} to where they are, or, if the UI is written in something else (C, GTK, Angular, Svelte, Handlebars, templates), corpus check does not apply: leave it out of CI`,
+        ? `corpus check reads ${READS} components, which ${NO_COMPONENTS[adapter]} has none of: leave corpus check out of CI`
+        : `check.include: init found no ${EXTENSIONS.join(", ").replace(/, ([^,]*)$/, " or $1")} components where it looks; set check.include in ${filename} to where they are, or, if the UI is written in something else (C, GTK, Angular, Handlebars, templates), corpus check does not apply: leave it out of CI`,
     );
   }
   const siblings =

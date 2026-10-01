@@ -45,3 +45,11 @@ test("Svelte: comments, pre and code are not text; corpus-ignore silences a line
 `;
   expect(found(source)).toEqual([[6, "A real sentence"]]);
 });
+
+test("an expression divides the text around it, as JSX's does: units between values are not words (#1025)", () => {
+  expect(
+    found(
+      "<p>{percent}% - {speed}/s - {remaining}s</p>\n<p>(HTTP {status})</p>\n<p>{n} photos left</p>\n",
+    ),
+  ).toEqual([[3, "photos left"]]);
+});

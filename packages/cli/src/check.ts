@@ -11,6 +11,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
+import { findSvelteLiterals } from "./check-svelte";
 import { findVueLiterals } from "./check-vue";
 
 export type Finding = { file: string; line: number; text: string };
@@ -270,8 +271,9 @@ export type CheckResult = {
 };
 
 // JSX carries its markup in the syntax tree; a Vue single-file
-// component carries it in a `<template>` block, scanned separately.
-export const EXTENSIONS = [".jsx", ".tsx", ".vue"] as const;
+// component carries it in a `<template>` block and a Svelte one around
+// its `<script>`, each scanned as markup (#1025).
+export const EXTENSIONS = [".jsx", ".tsx", ".vue", ".svelte"] as const;
 // "a, b and c", so the message reads as a sentence; there are always
 // at least two.
 export const READS =
@@ -334,7 +336,11 @@ export function checkFiles(root: string, options: CheckOptions): CheckResult {
           continue;
         }
         parsed += 1;
-        const find = name.endsWith(".vue") ? findVueLiterals : findLiterals;
+        const find = name.endsWith(".vue")
+          ? findVueLiterals
+          : name.endsWith(".svelte")
+            ? findSvelteLiterals
+            : findLiterals;
         for (const f of find(source, rel, {
           allow: options.allow,
         })) {
