@@ -43,6 +43,7 @@ import {
   isHtml,
   messageKind,
   nestedCountsOf,
+  bareAtOf,
   parseIcu,
   proseTagsOf,
   pluralCategoriesOf,
@@ -567,6 +568,10 @@ export function richTextAdvice(refused: Refused[]): string[] {
   );
 }
 
+// A vue-i18n `@` that opens no link (#1017), said to the author.
+export const BARE_AT_MESSAGE =
+  "an @ that opens no link does not compile in vue-i18n, which then shows the message raw; write {'@'}";
+
 // A `#` in a select within a plural, said of a source by build and
 // validate and of a translation by validate (#767).
 export function nestedCountMessage(arg: string): string {
@@ -595,6 +600,8 @@ function validateEntry(
       : `${file}:${printable(entry.id)}`;
     for (const arg of nestedCountsOf(entry.source, syntax))
       notes.push(`${where}: ${nestedCountMessage(arg)}`);
+    if (bareAtOf(entry.source, syntax))
+      notes.push(`${where}: ${BARE_AT_MESSAGE}`);
   } else {
     const message = icu.errors[0]?.message ?? "";
     const advice = refusalAdvice(entry.source, syntax, message);

@@ -4,6 +4,7 @@ import type { Library } from "./strings";
 import { parseIcu, partsOf } from "./icu";
 import { renderPreview } from "./preview";
 import {
+  bareAtOf,
   nestedCountsOf,
   richTextFor,
   validateTranslation,
@@ -891,15 +892,11 @@ test("a placeholder named in any script is a placeholder, so a translated name i
   ).toEqual({
     ok: true,
   });
+  // vue-i18n's compiler takes ASCII names only, and shows a message with
+  // another raw (#1017).
   expect(
     validateTranslation("Hi {name}", "Привет {наме}", "ru", "vue"),
-  ).toMatchObject({
-    ok: false,
-    errors: [
-      { code: "missing-placeholder" },
-      { code: "unexpected-placeholder", name: "наме" },
-    ],
-  });
+  ).toMatchObject({ ok: false, errors: [{ code: "invalid-icu" }] });
   expect(
     validateTranslation("Hi {{name}}", "Olá {{nome_é}}", "pt", "i18next"),
   ).toMatchObject({
@@ -2765,4 +2762,63 @@ test("under printf a Python mapping key, %(name)s, is a placeholder named by its
     ok: false,
     errors: [{ code: "changed-verb", name: "b", moved: false }],
   });
+});
+
+test("under vue a placeholder name and an @ follow vue-i18n's own compiler (#1017)", () => {
+  // A hyphen is a name; a script other than ASCII is no name, and one
+  // error says so, with no missing and unexpected pair.
+  expect(
+    validateTranslation("Use a {local-mta}", "Nutze {local-mta}", "de", "vue"),
+  ).toEqual({ ok: true });
+  for (const target of ["Va {aquí}", "{০} আগে", "{الإخطار}"]) {
+    const result = validateTranslation("Go {here}", target, "es", "vue");
+    expect(result).toMatchObject({
+      ok: false,
+      errors: [
+        {
+          code: "invalid-icu",
+          where: "target",
+          message: expect.stringMatching(
+            /is not a name vue-i18n compiles \(a–z, digits, _, \$, -\); the whole message shows raw/,
+          ),
+        },
+      ],
+    });
+    if (!result.ok) expect(result.errors).toHaveLength(1);
+  }
+  // An @ opening no link does not compile; a link and {'@'} do.
+  for (const target of ["Hallo @all", "mail a@b.c", "x @ y"])
+    expect(
+      validateTranslation("Hi {'@'}all", target, "de", "vue"),
+    ).toMatchObject({ ok: false, errors: [{ code: "bare-at" }] });
+  for (const target of [
+    "Hallo {'@'}all",
+    "@:common.name",
+    "@.upper:foo",
+    "@:(foo)",
+    "@:{'foo'}",
+  ])
+    expect(validateTranslation("Hi {'@'}all", target, "de", "vue").ok).toBe(
+      true,
+    );
+  // The source's own text keeps the source's warning (#923).
+  expect(validateTranslation("mail a@b.c", "mail a@b.c", "de", "vue")).toEqual({
+    ok: true,
+  });
+  expect(bareAtOf("mail a@b.c", "vue")).toBe(true);
+  expect(bareAtOf("mail {'@'} @:x", "vue")).toBe(false);
+  expect(bareAtOf("mail a@b.c", "icu")).toBe(false);
+  // A quoted brace is no brace: the @ after it is text, as the compiler
+  // reads it, and an @ quoted with a brace is quoted.
+  expect(bareAtOf("{'{'} \"@context\": 1 {'}'}", "vue")).toBe(true);
+  expect(bareAtOf("{'{'}@all", "vue")).toBe(true);
+  expect(bareAtOf("{'}@'}", "vue")).toBe(false);
+  // Modifiers as the compiler names them, and a key that starts with a
+  // dot is empty.
+  expect(bareAtOf("@.snake_case:k @.upper2:k @._x:k", "vue")).toBe(false);
+  expect(bareAtOf("@:.a", "vue")).toBe(true);
+  // ICU keeps any script's names.
+  expect(
+    validateTranslation("こんにちは {名前}", "Hello {名前}", "en").ok,
+  ).toBe(true);
 });

@@ -1267,3 +1267,35 @@ test("a plural written as one text where the source never prints its count is in
     }),
   );
 });
+
+test("under vue a source's bare @ is a warning and builds, a translation's is invalid (#1017)", async () => {
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8").replace(
+      /sources: \[[\s\S]*?\n {2}\],/,
+      'sources: [{ adapter: "messages", type: "ui", path: "i18n/{lang}.json", library: "vue" }],',
+    ),
+  );
+  write("i18n/en.json", { mail: "Write to a@b.c", hi: "Hi {'@'}all" });
+  write("i18n/pt.json", { mail: "Write to a@b.c", hi: "Olá @all" });
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(1);
+  const err = c.stderr.join("\n");
+  expect(err).toContain(
+    "i18n/pt.json:hi: an @ that opens no link does not compile in vue-i18n, which then shows the message raw; write {'@'}",
+  );
+  expect(err).toContain(
+    "i18n/en.json:mail: an @ that opens no link does not compile in vue-i18n",
+  );
+  expect(c.stderr.at(-1)).toBe(
+    "corpus: 1 invalid translation(s), 1 warning(s)",
+  );
+  const b = ctx();
+  expect(await run(["build", "--out", path.join(repo, "s.json")], b)).toBe(0);
+  expect(b.stderr.join("\n")).toContain(
+    "i18n/en.json:mail: an @ that opens no link does not compile in vue-i18n",
+  );
+});

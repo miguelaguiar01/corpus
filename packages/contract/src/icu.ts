@@ -171,6 +171,9 @@ export type IcuParseResult =
 // bare number ({0}, {1}): a translated name is then a placeholder the
 // source lacks, not a parse error (#653).
 const NAME_RE = /^(?:[\p{L}_][\p{L}\p{M}\p{N}_]*|[0-9]+)$/u;
+// vue-i18n's own (@intlify/message-compiler's isNamedIdentifier and its
+// list index): ASCII, a hyphen or `$` inside, or a number (#1017).
+const VUE_NAME_RE = /^(?:[A-Za-z_][A-Za-z0-9_$-]*|-?[0-9]+)$/;
 // Fluent's Identifier (fluent.ebnf): ASCII, a letter first, hyphens
 // inside, as `{ $cards-per-minute }` writes it, `-` first for a term;
 // a plural is on a variable, and a select on one or on a term's
@@ -974,9 +977,11 @@ class Parser {
     if (quoted) {
       return { kind: "literal", text: quoted[1]!.replace(/\\(.)/g, "$1") };
     }
-    if (!NAME_RE.test(inner)) {
+    if (!VUE_NAME_RE.test(inner)) {
+      // A one-word name in another script, `{aquí}`, compiles to nothing:
+      // vue-i18n shows the whole message raw (#1017).
       throw new ParseFailure(
-        `invalid placeholder name ${JSON.stringify(inner)}`,
+        `invalid placeholder name ${JSON.stringify(inner)}${/^\S+$/.test(inner) ? `: {${inner}} is not a name vue-i18n compiles (a–z, digits, _, $, -); the whole message shows raw` : ""}`,
         start,
       );
     }
@@ -1915,7 +1920,9 @@ function refusal(
   // nested plural, or a type ICU has (`{n, number}`, #555), is ICU
   // whatever else the string holds, though a branch that opens with a
   // placeholder puts `{{` in it.
-  const badName = /^invalid placeholder name "(.*)"$/.exec(message);
+  const badName = /^invalid placeholder name "((?:[^"\\]|\\.)*)"(?::|$)/.exec(
+    message,
+  );
   // `{}` is easy_localization's positional placeholder (#664).
   if (library !== "easy_localization" && badName && badName[1] === "") {
     return {

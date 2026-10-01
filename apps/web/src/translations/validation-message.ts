@@ -73,6 +73,8 @@ export function validationMessage(
       });
     case "nested-count":
       return t("editor.nestedCount", { arg: error.arg });
+    case "bare-at":
+      return t("editor.bareAt", { literal: "{'@'}" });
     case "missing-category":
       return t("editor.missingCategory", { arg: error.arg, key: error.key });
     case "unexpected-category":
