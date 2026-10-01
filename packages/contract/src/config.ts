@@ -231,7 +231,6 @@ const sourceSchema = z.discriminatedUnion("adapter", [
   execSchema,
 ]);
 
-// The adapters whose sources map a language to its file's code.
 // The adapters whose source-language file may be other than the
 // pattern's: Angular's `messages.xlf`, a `.pot`, lupdate's template.
 const READS_SOURCE_PATH = new Set(["xliff", "gettext", "qt-ts"]);
@@ -247,13 +246,14 @@ function fileCodeIn(pattern: string, file: string): string | undefined {
       part === "{lang}"
         ? "([^/]+)"
         : part === "{ns}"
-          ? "(?:\\{ns\\}|[^/]+)"
+          ? "(?:\\{ns\\}|[^/]+(?:/[^/]+)*)"
           : escape(part),
     )
     .join("");
   return new RegExp(`^${source}$`).exec(file)?.[1];
 }
 
+// The adapters whose sources map a language to its file's code.
 const MAPS_LANGUAGE_FILES: string[] = sourceInputSchema.options.flatMap(
   (option) =>
     "languageFiles" in option.shape ? [option.shape.adapter.value] : [],
@@ -357,19 +357,17 @@ export const corpusConfigSchema = z
       const given = (source as { sourcePath?: unknown }).sourcePath;
       if (typeof given === "string" && !READS_SOURCE_PATH.has(source.adapter)) {
         const pattern = (source as { path?: unknown }).path;
-        const code = fileCodeIn(
-          typeof pattern === "string"
-            ? pattern
-            : Array.isArray(pattern)
-              ? String(pattern[0])
-              : "",
-          given,
-        );
+        const code = (Array.isArray(pattern) ? pattern : [pattern])
+          .filter((p): p is string => typeof p === "string")
+          .map((p) => fileCodeIn(p, given))
+          .find((found) => found !== undefined);
         ctx.addIssue({
           code: "custom",
-          message: MAPS_LANGUAGE_FILES.includes(source.adapter)
-            ? `${source.adapter} reads no sourcePath; map the source language with languageFiles: { ${c.sourceLanguage}: "${code ?? "<its file's code>"}" }`
-            : `${source.adapter} reads no sourcePath`,
+          message: !MAPS_LANGUAGE_FILES.includes(source.adapter)
+            ? `${source.adapter} reads no sourcePath`
+            : code === c.sourceLanguage
+              ? `${source.adapter} reads no sourcePath; this one is the pattern's own source file, so drop it`
+              : `${source.adapter} reads no sourcePath; map the source language with languageFiles: { ${c.sourceLanguage}: "${code ?? "<its file's code>"}" }`,
           path: ["sources", index, "sourcePath"],
         });
       }

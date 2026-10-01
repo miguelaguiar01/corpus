@@ -1745,3 +1745,51 @@ export default defineCorpus({
     ),
   ).toContain('<string name="title">Neue Post</string>');
 });
+
+test("a yaml source whose source language languageFiles maps pulls into the mapped root, proposals too (#994)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en-US",
+  languages: ["en-US", "de"],
+  sources: [{ adapter: "yaml", type: "ui", path: "config/locales/{lang}.yml", languageFiles: { "en-US": "en" } }],
+});
+`,
+  );
+  mkdirSync(path.join(repo, "config", "locales"), { recursive: true });
+  writeFileSync(
+    path.join(repo, "config", "locales", "en.yml"),
+    "en:\n  hi: Hello\n",
+  );
+  writeFileSync(
+    path.join(repo, "config", "locales", "de.yml"),
+    "de:\n  hi: Hallo\n",
+  );
+  await serve(200, {
+    ...PAYLOAD,
+    sourceLanguage: "en-US",
+    types: { hi: "ui" },
+    translations: { de: { hi: "Hallo!" } },
+    minState: "untranslated",
+    sourceChanges: [
+      {
+        kind: "add",
+        id: "bye",
+        type: "ui",
+        file: "config/locales/en.yml",
+        text: "Bye",
+      },
+    ],
+  });
+  const c = ctx();
+  expect(await run(["pull", "--min-state", "untranslated"], c)).toBe(0);
+  expect(read("config/locales/de.yml")).toBe("de:\n  hi: Hallo!\n");
+  // A new key is written double-quoted, as yaml's writer does (#1021).
+  expect(read("config/locales/en.yml")).toBe(
+    'en:\n  hi: Hello\n  bye: "Bye"\n',
+  );
+});

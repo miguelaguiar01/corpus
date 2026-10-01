@@ -599,4 +599,44 @@ test("a source that reads no sourcePath refuses one by name (#994)", () => {
       sourcePath: "po/app.pot",
     }),
   ).toEqual([]);
+  // The pattern's own source file needs no mapping; a {ns} spans
+  // directories; each pattern of a list is tried.
+  expect(
+    issues({
+      adapter: "fluent",
+      type: "ui",
+      path: "l/{lang}/main.ftl",
+      sourcePath: "l/en/main.ftl",
+    }),
+  ).toEqual([
+    "fluent reads no sourcePath; this one is the pattern's own source file, so drop it",
+  ]);
+  expect(
+    issues({
+      adapter: "messages",
+      type: "ui",
+      path: "src/{ns}/i18n/{lang}.json",
+      sourcePath: "src/Card/Header/i18n/base.json",
+    }),
+  ).toEqual([
+    'messages reads no sourcePath; map the source language with languageFiles: { en: "base" }',
+  ]);
+  expect(
+    issues({
+      adapter: "messages",
+      type: "ui",
+      path: ["a/{lang}.json", "b/{lang}.json"],
+      sourcePath: "b/root.json",
+    }),
+  ).toEqual([
+    'messages reads no sourcePath; map the source language with languageFiles: { en: "root" }',
+  ]);
+  expect(
+    issues({
+      adapter: "android",
+      type: "ui",
+      path: "res",
+      sourcePath: "res/values/strings.xml",
+    }),
+  ).toEqual(["android reads no sourcePath"]);
 });

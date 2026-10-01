@@ -346,8 +346,9 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     if (kept.length === 0) continue;
     for (const op of kept) written.add(`${op.kind}\u0000${op.id}`);
     // Each file with the language code its root key is, for yaml.
+    // The source's own file is rooted at its code too (#994).
     const files: [string, SourceOp[], string][] = [
-      [file, kept, config.sourceLanguage],
+      [file, kept, fileCodeOf(source, config.sourceLanguage)],
     ];
     const removals = kept.filter((o) => o.kind === "delete");
     // The source's plurals before its proposals, which say what a target's
@@ -556,7 +557,10 @@ function writeTarget(
         template,
         translations,
         existing,
-        { source: config.sourceLanguage, code: fileCodeOf(source, language) },
+        {
+          source: fileCodeOf(source, config.sourceLanguage),
+          code: fileCodeOf(source, language),
+        },
         (id, _text, why) =>
           err(
             why === "plural"
