@@ -1011,6 +1011,25 @@ test("a removal takes the lines under its key, comments and whitespace-only ones
     const out = applyYamlOps(file, [{ kind: "delete", id: "t" }], "pl");
     expect(out).toBe("pl:\n  s: |-\n    b\n  u: U\n");
   }
+  // Past an empty line too: the block would read on through it.
+  for (const file of [
+    "pl:\n  s: |-\n    b\n  t: T\n\n    # c\n  u: U\n",
+    "pl:\n  s: |-\n    b\n  t:\n    x: X\n\n    # c\n  u: U\n",
+    "pl:\n  s: |-\n    b\n  t: T\n\n      \n  u: U\n",
+  ])
+    expect(applyYamlOps(file, [{ kind: "delete", id: "t" }], "pl")).toBe(
+      "pl:\n  s: |-\n    b\n  u: U\n",
+    );
+  // A pull that drops a form does not take a comment into the one before.
+  const pulled = entriesToYaml(
+    "en:\n  f:\n    one: one\n    other: many\n",
+    { f: "{count, plural, one {x} other {yy}}" },
+    "pl:\n  f:\n    one: |-\n      a\n    few: q\n\n      # c\n    other: yy\n",
+    { source: "en", code: "pl" },
+  );
+  expect(yamlTranslations(pulled, "pl")[0]?.source).toBe(
+    "{count, plural, one {x} other {yy}}",
+  );
   // A comment at the key's own indent, or at column 0, stays.
   expect(
     applyYamlOps(
