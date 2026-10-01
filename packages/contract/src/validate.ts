@@ -796,19 +796,27 @@ export function validateTranslation(
           errors.push({ code: "unpaired-tag", name });
     }
   } else {
-    // Compared as HTML reads them, said as each side writes them.
-    const keys = (set: Set<string>) => new Set([...set].map(tagKey));
-    const actualTags = keys(actual.tags);
-    const actualPairs = keys(actual.pairs);
-    const expectedTags = keys(expected.tags);
+    // Compared as HTML reads them, an Android verb by the position it
+    // takes (#956), said as each side writes them.
+    const keysOf = (shape: Shape, name: string) =>
+      [...(shape.tagKeys.get(name) ?? [name])].map(tagKey);
+    const keys = (shape: Shape, set: Set<string>) =>
+      new Set([...set].flatMap((name) => keysOf(shape, name)));
+    const actualTags = keys(actual, actual.tags);
+    const actualPairs = keys(actual, actual.pairs);
+    const expectedTags = keys(expected, expected.tags);
     for (const name of expected.tags) {
-      if (!actualTags.has(tagKey(name)))
+      const want = keysOf(expected, name);
+      if (want.some((key) => !actualTags.has(key)))
         errors.push({ code: "missing-tag", name });
-      else if (expected.pairs.has(name) && !actualPairs.has(tagKey(name)))
+      else if (
+        expected.pairs.has(name) &&
+        want.some((key) => !actualPairs.has(key))
+      )
         errors.push({ code: "unpaired-tag", name });
     }
     for (const name of actual.tags) {
-      if (!expectedTags.has(tagKey(name)))
+      if (keysOf(actual, name).some((key) => !expectedTags.has(key)))
         errors.push({ code: "unexpected-tag", name });
     }
   }

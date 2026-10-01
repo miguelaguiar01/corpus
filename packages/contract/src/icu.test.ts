@@ -934,3 +934,19 @@ test("under android a printf verb in a tag's attribute takes its place in the ar
     ],
   });
 });
+
+test("easy_localization reads no tags, so a {} in an attribute counts in the text's order (#956)", () => {
+  expect(
+    parseIcu('<a href="{}">{}</a> {}', "easy_localization", { html: true }),
+  ).toMatchObject({
+    ok: true,
+    nodes: [
+      { kind: "literal", text: '<a href="' },
+      { kind: "placeholder", name: "0" },
+      { kind: "literal", text: '">' },
+      { kind: "placeholder", name: "1" },
+      { kind: "literal", text: "</a> " },
+      { kind: "placeholder", name: "2" },
+    ],
+  });
+});
