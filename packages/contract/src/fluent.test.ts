@@ -214,3 +214,26 @@ test("a NUMBER() or DATETIME() format keeps its type, and a translation may chan
     parseIcu('On {d, date, month: "long", day: "numeric"}', "fluent").ok,
   ).toBe(true);
 });
+
+test("a format's style under fluent is Fluent's options, and there is no time format (#990 review)", () => {
+  for (const ok of [
+    "{n, number}",
+    "{n, number, minimumIntegerDigits: 2}",
+    '{n, number, style: "percent", maximumFractionDigits: 1}',
+    '{d, date, month: "long", day: "numeric"}',
+  ])
+    expect(parseIcu(ok, "fluent").ok).toBe(true);
+  for (const bad of [
+    "{n, number, ::percent}",
+    "{n, number, style: 'percent'}",
+    "{n, number, percent}",
+    "{d, date, short}",
+    "{t, time}",
+    '{n, number, x: "{"}',
+  ]) {
+    const read = parseIcu(bad, "fluent");
+    expect(read.ok, bad).toBe(false);
+  }
+  // ICU keeps its own styles.
+  expect(parseIcu("{n, number, ::percent}", "icu").ok).toBe(true);
+});

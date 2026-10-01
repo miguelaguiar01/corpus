@@ -19,6 +19,7 @@ export {
   refusalAdvice,
   refusalCause,
   WHOLE_PLURAL_LIBRARIES,
+  FLUENT_OPTIONS_RE,
   type IcuError,
   type IcuNode,
   type IcuParseResult,

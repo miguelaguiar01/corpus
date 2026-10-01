@@ -516,3 +516,21 @@ day = Em { DATETIME($d) }
   );
   expect(still).toEqual(["a", "b", "c", "d"]);
 });
+
+test("a # in a format's option within a plural's variant is no count; only spaces may precede a call (#990 review)", () => {
+  const ftl = `a = { $n ->
+    [one] { NUMBER($n, x: "#") } y
+   *[other] z
+  }
+b = { NUMBER\t($n) }
+`;
+  const refused: string[] = [];
+  const read = Object.fromEntries(
+    fluentToEntries(ftl, {
+      type: "ui",
+      onRefused: (id) => refused.push(id),
+    }).map((e) => [e.id, e.source]),
+  );
+  expect(read.a).toBe('{n, plural, one {{n, number, x: "#"} y} other {z}}');
+  expect(refused).toEqual(["b"]);
+});

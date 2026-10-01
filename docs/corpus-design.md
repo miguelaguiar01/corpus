@@ -186,23 +186,24 @@ export default defineCorpus({
     //    built-in functions read as ICU formats, their options kept as
     //    the style: `{ NUMBER($s, minimumIntegerDigits: 2) }` is
     //    `{s, number, minimumIntegerDigits: 2}` and `{ DATETIME($d) }`
-    //    is `{d, date}`, written back as the functions (`time` as
-    //    `DATETIME`). A message's attributes, any other function, a
-    //    function on anything but a variable or as a selector, and
-    //    number literals are refused by name, a message at a time, as
-    //    is a
+    //    is `{d, date}`, written back as the functions; the `fluent`
+    //    reading takes a style only as Fluent's options (`name: "value"`
+    //    or `name: number`) and no `time`, which DATETIME cannot mean.
+    //    A message's attributes, any other function, a function on
+    //    anything but a variable, as a selector, with its arguments
+    //    across lines or with braces in its options, and number
+    //    literals are refused by name, a message at a time, as is a
     //    message Fluent's own parser reads as Junk (a variant or a
     //    select's `}` not on a line of its own, no `*` default or two):
     //    a source's refused message is left out of the snapshot as a
     //    string that does not parse is, a target's is not seeded, named
     //    by `build` and as a `validate` warning, and left by a pull as
-    //    the file has it, the file's other messages read (#991). A pull rewrites a changed message in its own layout
+    //    the file has it, the file's other messages read (#991). A pull
+    //    rewrites a changed message in its own layout
     //    (placeable spacing, a value on its own line, the variants' and
     //    the closing brace's indentation, the file's line endings),
     //    writes an empty pattern as `{""}` and escapes a line that starts
-    //    with `.`, `[` or `*`, and appends a new message at the end; a
-    //    format a translation writes (`{n, number}`) has no Fluent form
-    //    without a function and is written as the bare variable.
+    //    with `.`, `[` or `*`, and appends a new message at the end.
     { adapter: "fluent", type: "ui", path: "i18n/{lang}/app.ftl" },
 
     // 5. Custom exporter hook: a script in the client repo that emits
