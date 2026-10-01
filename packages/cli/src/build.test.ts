@@ -1810,3 +1810,52 @@ test("an Android language falls back to its language's directory only where that
   expect(fileOf(source!, "pa-PK", "en")).toBe("res/values-pa-rPK/strings.xml");
   expect(fileOf(source!, "es-419", "en")).toBe("res/values-es/strings.xml");
 });
+
+test("a yaml source may list its patterns, one catalogue as Rails loads them: a shared id with one text is one string, two texts a conflict or the later's (#1024)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-yaml-list-"));
+  writeFileSync(
+    path.join(dir, "en.yml"),
+    "en:\n  hello: Hello\n  shared: Same\n  clash: First\n",
+  );
+  writeFileSync(
+    path.join(dir, "devise.en.yml"),
+    "en:\n  devise:\n    ok: OK\n  shared: Same\n  clash: Second\n",
+  );
+  const build = (merge?: "last-wins") =>
+    buildSnapshotReport(
+      config({
+        sources: [
+          {
+            adapter: "yaml",
+            type: "ui",
+            path: ["{lang}.yml", "devise.{lang}.yml"],
+            ...(merge && { merge }),
+          },
+        ],
+      }),
+      dir,
+    );
+  await expect(build()).rejects.toThrow(
+    /duplicate id clash in en\.yml and devise\.en\.yml, with different text/,
+  );
+  // Without the clash, strict takes a shared id of one text as one string.
+  writeFileSync(
+    path.join(dir, "devise.en.yml"),
+    "en:\n  devise:\n    ok: OK\n  shared: Same\n",
+  );
+  expect(
+    (await build()).snapshot.strings.filter((s) => s.id === "shared"),
+  ).toHaveLength(1);
+  writeFileSync(
+    path.join(dir, "devise.en.yml"),
+    "en:\n  devise:\n    ok: OK\n  shared: Same\n  clash: Second\n",
+  );
+  const { snapshot } = await build("last-wins");
+  expect(snapshot.strings.map((s) => [s.id, s.source]).sort()).toEqual([
+    ["clash", "Second"],
+    ["devise.ok", "OK"],
+    ["hello", "Hello"],
+    ["shared", "Same"],
+  ]);
+  rmSync(dir, { recursive: true, force: true });
+});

@@ -2194,9 +2194,20 @@ test("files beside the catalogue that are catalogues of their own are said as fa
   expect(await run(initFor("y/{lang}.yml"), p.ctx)).toBe(0);
   const said = p.err.join("\n");
   expect(said).toContain(
-    'corpus: 2 other catalogue(s) beside y/{lang}.yml, 4 file(s) (y/devise.{lang}.yml, y/sf.{lang}.yml): each is its own source, as { adapter: "yaml", type: "ui", path: "y/devise.{lang}.yml" }',
+    // A Rails app's families are one tree: one source lists them (#1024).
+    'corpus: 2 other catalogue(s) beside y/{lang}.yml, 4 file(s) (y/devise.{lang}.yml, y/sf.{lang}.yml): where the app loads them into one catalogue, as Rails does, list them in the source\'s path in the order it loads them, path: ["y/{lang}.yml", "y/devise.{lang}.yml", "y/sf.{lang}.yml"]; otherwise each is its own source',
   );
   expect(said).not.toMatch(/sf\.en\.yml/);
+  // A source that takes one pattern says each is its own.
+  const po = project();
+  const poText =
+    'msgid ""\nmsgstr ""\n"Content-Type: text/plain; charset=UTF-8\\n"\n\nmsgid "Hi"\nmsgstr ""\n';
+  for (const name of ["en", "de", "app.en", "app.de"])
+    write(po.dir, `po/${name}.po`, poText);
+  expect(await run(initFor("po/{lang}.po"), po.ctx)).toBe(0);
+  expect(po.err.join("\n")).toContain(
+    'corpus: 1 other catalogue(s) beside po/{lang}.po, 2 file(s) (po/app.{lang}.po): each is its own source, as { adapter: "gettext", type: "ui", path: "po/app.{lang}.po" }',
+  );
   // A language and a region with a dot are a code, not a family.
   const dotted = project();
   for (const name of ["en", "de", "pt.BR"])

@@ -1802,6 +1802,59 @@ export default defineCorpus({
   expect(existsSync(path.join(repo, "a/res/values-ta-rIN"))).toBe(false);
 });
 
+test("a yaml source of several patterns pulls each id into the files that hold it, a shared one into each (#1024)", async () => {
+  const put = (rel: string, text: string) => {
+    mkdirSync(path.dirname(path.join(repo, rel)), { recursive: true });
+    writeFileSync(path.join(repo, rel), text);
+  };
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de"],
+  sources: [{ adapter: "yaml", type: "ui", path: ["config/locales/{lang}.yml", "config/locales/devise.{lang}.yml"] }],
+});
+`,
+  );
+  put("config/locales/en.yml", "en:\n  hello: Hello\n  shared: Same\n");
+  put(
+    "config/locales/devise.en.yml",
+    "en:\n  devise:\n    ok: OK\n  shared: Same\n",
+  );
+  put("config/locales/de.yml", "de:\n  hello: Hallo\n  shared: Gleich\n");
+  put(
+    "config/locales/devise.de.yml",
+    "de:\n  devise:\n    ok: OK\n  shared: Gleich\n",
+  );
+  const before = {
+    main: read("config/locales/de.yml"),
+    devise: read("config/locales/devise.de.yml"),
+  };
+  const serveDe = async (de: Record<string, string>) => {
+    await serve(200, {
+      ...PAYLOAD,
+      types: { hello: "ui", shared: "ui", "devise.ok": "ui" },
+      translations: { de },
+    });
+    expect(await run(["pull"], ctx())).toBe(0);
+    active?.close();
+  };
+  await serveDe({ hello: "Hallo", shared: "Gleich", "devise.ok": "OK" });
+  expect(read("config/locales/de.yml")).toBe(before.main);
+  expect(read("config/locales/devise.de.yml")).toBe(before.devise);
+  await serveDe({ hello: "Hallo", shared: "Dasselbe", "devise.ok": "Gut" });
+  expect(read("config/locales/de.yml")).toBe(
+    "de:\n  hello: Hallo\n  shared: Dasselbe\n",
+  );
+  expect(read("config/locales/devise.de.yml")).toBe(
+    "de:\n  devise:\n    ok: Gut\n  shared: Dasselbe\n",
+  );
+});
+
 test("a yaml source whose source language languageFiles maps pulls into the mapped root, proposals too (#994)", async () => {
   writeFileSync(
     path.join(repo, "corpus.config.ts"),
