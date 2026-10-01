@@ -1845,7 +1845,5 @@ export default defineCorpus({
   expect(await run(["pull", "--min-state", "untranslated"], c)).toBe(0);
   expect(read("config/locales/de.yml")).toBe("de:\n  hi: Hallo!\n");
   // A new key is written double-quoted, as yaml's writer does (#1021).
-  expect(read("config/locales/en.yml")).toBe(
-    'en:\n  hi: Hello\n  bye: Bye\n',
-  );
+  expect(read("config/locales/en.yml")).toBe("en:\n  hi: Hello\n  bye: Bye\n");
 });

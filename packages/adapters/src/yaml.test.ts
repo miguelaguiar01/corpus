@@ -312,10 +312,10 @@ test("the writer's hard cases: YAML 1.1 keys and values, the source's shape, blo
   );
   // 9: a `{}` stub and a null parent take their keys as a block.
   expect(entriesToYaml(en, { "g.h": "H" }, "de: {}\n", L)).toBe(
-    'de:\n  g:\n    h: H\n',
+    "de:\n  g:\n    h: H\n",
   );
   expect(entriesToYaml(en, { "g.h": "H" }, "de:\n  g:\n", L)).toBe(
-    'de:\n  g:\n    h: H\n',
+    "de:\n  g:\n    h: H\n",
   );
 });
 
