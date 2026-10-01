@@ -6,6 +6,7 @@ import {
   type Snapshot,
   richTextFor,
   type TextReading,
+  isFluentTermId,
 } from "@corpus/contract";
 import type { Db } from "@/db";
 import {
@@ -65,13 +66,15 @@ function seedInvalid(
   text: string,
   language: string,
   library: Library,
-  richText?: TextReading,
-  passed?: string[],
+  richText: TextReading | undefined,
+  passed: string[] | undefined,
+  id: string,
 ): boolean {
   if (text === source || (PLAIN.test(source) && PLAIN.test(text))) return false;
   return !validateTranslation(source, text, language, library, {
     richText,
     ...(passed && { arguments: passed }),
+    ...(library === "fluent" && isFluentTermId(id) && { term: true }),
   }).ok;
 }
 
@@ -211,6 +214,7 @@ function stringWrites(
         libraryOf(entry),
         richTextFor(entry.type, entry.id, libraryOf(entry), richText),
         entry.arguments,
+        entry.id,
       );
     });
   const refresh = tx
@@ -768,6 +772,7 @@ function applySeeds(
           string.syntax ?? "icu",
           richTextFor(string.type, stringId, string.syntax ?? "icu", richText),
           string.arguments ?? undefined,
+          stringId,
         );
       // A seed the row already holds is nothing: no write, no count, and
       // the editor's "changed since you opened it" stays quiet. Its mark
@@ -894,6 +899,7 @@ function remarkSeeds(
         row.syntax ?? "icu",
         richTextFor(row.type, row.key, row.syntax ?? "icu", richText),
         row.arguments ?? undefined,
+        row.key,
       );
       if (invalid !== row.invalid)
         mark.run({

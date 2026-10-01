@@ -54,6 +54,7 @@ export async function GET(request: Request): Promise<Response> {
                   richTextFor(type, key, syntax ?? "icu", project.richText) ??
                     null,
                   args,
+                  key,
                 ),
         }),
       }),

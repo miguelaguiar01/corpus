@@ -156,8 +156,9 @@ export type DraftResponse = {
   state: "translated";
   text: string;
   actor: string;
-  // What the saved plural still lacks, a category the runtime picks,
-  // one message per branch; absent when nothing is (#556).
+  // What the saved text still lacks without being invalid: a plural's
+  // category the runtime picks (#556), or a Fluent select on a variable
+  // the source never passes (#1032); one message each, absent when none.
   incomplete?: string[];
 };
 

@@ -4,6 +4,7 @@ import {
   type Library,
   type ValidationError,
   type TextReading,
+  isFluentTermId,
 } from "@corpus/contract";
 import { chipText } from "@/components/source-view";
 import { t } from "@/i18n";
@@ -47,6 +48,8 @@ export function validationMessage(
       return t("editor.unexpectedBranch", { arg: error.arg, key: error.key });
     case "unknown-plural":
       return t("editor.unknownPlural", { arg: error.arg });
+    case "unpassed-selector":
+      return t("editor.unpassedSelector", { arg: error.arg });
     case "changed-nesting":
       return t("editor.changedNesting", {
         outer: error.outer,
@@ -88,11 +91,13 @@ export function problemOf(
   language: string,
   syntax: Library,
   richText: TextReading | null,
-  passed?: string[] | null,
+  passed: string[] | null | undefined,
+  key: string,
 ): string | null {
   const check = validateTranslation(source, text, language, syntax, {
     richText: richText ?? undefined,
     ...(passed && { arguments: passed }),
+    ...(syntax === "fluent" && isFluentTermId(key) && { term: true }),
   });
   return check.ok
     ? null

@@ -15,6 +15,7 @@ import {
   type Library,
   type TextReading,
   partsOf,
+  isFluentTermId,
 } from "@corpus/contract";
 import { chipText } from "@/components/source-view";
 import { sourceStamp } from "@/translations/stamp";
@@ -228,6 +229,8 @@ export function TargetPane({
         richText: richText ?? undefined,
         ...(passed && { arguments: passed }),
         ...(pluralForms && { pluralForms }),
+        // A Fluent term selects on what its callers pass (#1032).
+        ...(syntax === "fluent" && isFluentTermId(stringKey) && { term: true }),
       });
   const errors = validation.ok ? [] : validation.errors;
   // A plural missing a category the runtime picks saves with a warning

@@ -4,6 +4,7 @@ import { createJiti } from "jiti";
 import {
   libraryOf,
   isDroppedPlural,
+  isFluentTermId,
   messageKind,
   nestedCountsOf,
   parseIcu,
@@ -468,6 +469,8 @@ export function describe(
       return `plural on {${error.arg}} lacks the ${error.key} branch the runtime picks in its language`;
     case "unexpected-category":
       return `plural on {${error.arg}} has the branch ${error.key}, which the runtime never picks in its language`;
+    case "unpassed-selector":
+      return `selects on {${error.arg}}, which the source never passes: Fluent renders the default`;
     case "unexpected-format":
       return error.actual === null
         ? `{${error.name}} is a ${error.expected} in the source; write it {${error.name}, ${error.expected}}`
@@ -693,13 +696,16 @@ function checkTranslation(
     ...(entry.pluralForms?.[language] && {
       pluralForms: entry.pluralForms[language],
     }),
+    ...(library === "fluent" && isFluentTermId(key) && { term: true }),
   });
+  // A select on what the source never passes is Fluent's default, a
+  // warning; the rest of the list is incomplete plurals (#1032).
   const findings: Finding[] = (result.incomplete ?? []).map((error) => ({
     file,
     key,
     language,
     code: error.code,
-    severity: "incomplete",
+    severity: error.code === "unpassed-selector" ? "warning" : "incomplete",
     message: describe(error, library),
   }));
   if (result.ok) return findings;

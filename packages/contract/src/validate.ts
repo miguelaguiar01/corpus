@@ -15,6 +15,7 @@
 // own message catalog.
 import {
   argPositions,
+  branchingNodes,
   parseIcu,
   readIcu,
   printfPluralError,
@@ -30,7 +31,13 @@ import {
   type Shape,
   shapeOf,
 } from "./icu";
-import { EXACT_KEY, readsAsIcu, type Library, type RichText } from "./strings";
+import {
+  EXACT_KEY,
+  PLURAL_CATEGORIES,
+  readsAsIcu,
+  type Library,
+  type RichText,
+} from "./strings";
 
 export type ValidationError =
   | {
@@ -47,6 +54,9 @@ export type ValidationError =
   | { code: "missing-branch"; arg: string; key: string }
   | { code: "unexpected-branch"; arg: string; key: string }
   | { code: "unknown-plural"; arg: string }
+  // A Fluent translation's select or plural on a variable its source
+  // never has: Fluent renders the default (#1032).
+  | { code: "unpassed-selector"; arg: string }
   // A select and plural nested as the source does not nest them (#764).
   | { code: "changed-nesting"; outer: string; inner: string }
   // `#` in a select within a plural, text to FormatJS and ICU and the
@@ -289,10 +299,13 @@ export function validateTranslation(
   // `pluralForms`: the categories the runtime picks where they are not
   // the language's CLDR ones: a gettext file's `Plural-Forms`' (#951),
   // rails-i18n's (#983).
+  // `term`: the string is a Fluent term, whose variables are what its
+  // callers pass, so a select on one is never unpassed (#1032).
   options: {
     richText?: TextReading;
     arguments?: string[];
     pluralForms?: readonly string[];
+    term?: boolean;
   } = {},
 ): ValidationResult {
   const html = tagMode(syntax, options.richText);
@@ -648,11 +661,80 @@ export function validateTranslation(
             position: Math.max(0, target.indexOf(`<${tag.name} ${tag.attrs}`)),
           });
   }
+  // Fluent selects asymmetrically (#1032): a translation may select on
+  // whatever it is passed, a key it lacks falls back to its `*` default,
+  // and one on a variable never passed renders that default, a warning.
+  // A term's attribute is the locale's to select on. What is passed is
+  // the source's whole, a flattened plural's value included.
+  const wholeValues = valuesOf(whole);
+  const unpassed = (arg: string): ValidationError[] =>
+    wholeValues.has(arg) ||
+    whole.selects.has(arg) ||
+    passed.has(arg) ||
+    arg.startsWith("-") ||
+    options.term
+      ? []
+      : [{ code: "unpassed-selector", arg }];
+  // The keys Fluent never matches, each select of the translation on
+  // `arg` by itself; the `*` default is chosen whatever its key, and the
+  // reader carries it as `other` beside it with its text, so a key whose
+  // text is `other`'s is the default, never a finding.
+  const fluentSelectErrors = (arg: string): ValidationError[] => {
+    const sourceKeys = whole.selects.get(arg);
+    const counted = whole.plurals.has(arg);
+    const out = new Map<string, ValidationError>();
+    const add = (error: ValidationError & { key: string }) =>
+      out.set(`${error.code} ${error.key}`, error);
+    if (!counted && !sourceKeys)
+      for (const error of unpassed(arg)) out.set(error.code, error);
+    for (const node of branchingNodes(parsedTarget.nodes)) {
+      if (node.kind !== "select" || node.arg !== arg) continue;
+      const fallback = JSON.stringify(node.branches.other);
+      const own = Object.entries(node.branches)
+        .filter(([k, b]) => k !== "other" && JSON.stringify(b) !== fallback)
+        .map(([k]) => k);
+      // A count selected on a word never matches it: Fluent compares a
+      // number with categories and numbers only (gl `[unha]`, #597).
+      if (counted) {
+        for (const key of own)
+          if (
+            !(PLURAL_CATEGORIES as readonly string[]).includes(key) &&
+            !/^\d+$/.test(key)
+          )
+            add({ code: "unexpected-branch", arg, key });
+        continue;
+      }
+      // A term's keys are its locale's, which that locale's messages
+      // pass (cs `[lower]` for en's `[lowercase]`).
+      if (!sourceKeys || options.term) continue;
+      // A key the source's in another case never matches it (ga-IE
+      // `[Seconds]` for `[seconds]`), and two keys or more of its own and
+      // none of the source's are the source's translated (da `[sekunder]`
+      // for `[seconds]`); keeping some, as fi does, or collapsing to the
+      // default, as de does, is Fluent's way.
+      for (const key of own) {
+        const meant = [...sourceKeys].find(
+          (s) =>
+            s !== key &&
+            s.toLowerCase() === key.toLowerCase() &&
+            !Object.hasOwn(node.branches, s),
+        );
+        if (meant) add({ code: "missing-branch", arg, key: meant });
+      }
+      if (own.length >= 2 && own.every((k) => !sourceKeys.has(k)))
+        for (const key of sourceKeys)
+          if (key !== "other") add({ code: "missing-branch", arg, key });
+    }
+    return [...out.values()];
+  };
   errors.push(
     ...pluralErrors(
       actual,
       expectedValues,
       passed,
+      syntax === "fluent"
+        ? { unpassed, sourcePlurals: new Set(whole.plurals.keys()) }
+        : undefined,
       language === undefined
         ? { required: [], allowed: [] }
         : pluralCategoriesFor(language, syntax, options.pluralForms),
@@ -669,6 +751,10 @@ export function validateTranslation(
       errors.push({ code: "nested-count", arg });
   for (const [arg, keys] of actual.selects) {
     const sourceKeys = expected.selects.get(arg);
+    if (syntax === "fluent") {
+      errors.push(...fluentSelectErrors(arg));
+      continue;
+    }
     if (!sourceKeys) {
       errors.push({ code: "unknown-select", arg });
       continue;
@@ -685,7 +771,9 @@ export function validateTranslation(
   // A category missing falls back to `other`, and one the language never
   // selects is dead text: neither breaks the message (#556, #651).
   const warning = (e: ValidationError) =>
-    e.code === "missing-category" || e.code === "unexpected-category";
+    e.code === "missing-category" ||
+    e.code === "unexpected-category" ||
+    e.code === "unpassed-selector";
   const incomplete = errors.filter(warning);
   const invalid = errors.filter((e) => !warning(e));
   if (invalid.length === 0) {
@@ -778,15 +866,31 @@ function pluralErrors(
   actual: Shape,
   expectedValues: Set<string>,
   passed: Map<string, string>,
+  // Fluent's rules: a plural on a value the source has none of, and a
+  // select of its `*[other]` alone, which reads as a plural, on a value
+  // the source never counts: no categories to pick (#1032).
+  fluent:
+    | {
+        unpassed: (arg: string) => ValidationError[];
+        sourcePlurals: ReadonlySet<string>;
+      }
+    | undefined,
   categories: { required: string[]; allowed: string[] },
   language: string | undefined,
 ): ValidationError[] {
   const out: ValidationError[] = [];
   for (const [arg, keys] of actual.plurals) {
     if (!expectedValues.has(arg) && !passed.has(arg)) {
-      out.push({ code: "unknown-plural", arg });
+      out.push(...(fluent?.unpassed(arg) ?? [{ code: "unknown-plural", arg }]));
       continue;
     }
+    if (
+      fluent &&
+      keys.size === 1 &&
+      keys.has("other") &&
+      !fluent.sourcePlurals.has(arg)
+    )
+      continue;
     if (categories.required.length === 0) continue;
     // `=01` is not `=1` to the runtimes, which match the key as written.
     const exact = new Set(

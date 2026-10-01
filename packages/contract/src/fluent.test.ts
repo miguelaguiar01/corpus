@@ -239,3 +239,161 @@ test("a format's style under fluent is Fluent's options, and there is no time fo
   // ICU keeps its own styles.
   expect(parseIcu("{n, number, ::percent}", "icu").ok).toBe(true);
 });
+
+test("a Fluent translation selects on what it likes: missing and extra keys take the default, an unpassed variable is a warning (#1032)", () => {
+  const v = (source: string, target: string, options = {}) =>
+    validateTranslation(source, target, "de", "fluent", options);
+  // de genders the user the source only prints.
+  expect(
+    v(
+      "{user} shared a file",
+      "{user_gender, select, female {{user} hat eine Datei geteilt (sie)} other {{user} hat eine Datei geteilt}}",
+    ),
+  ).toEqual({
+    ok: true,
+    incomplete: [{ code: "unpassed-selector", arg: "user_gender" }],
+  });
+  // de collapses a capitalization, fi selects on one key of two.
+  const account =
+    "{capitalization, select, lowercase {account} uppercase {Account} other {account}}";
+  expect(v(account, "{capitalization, select, other {Konto}}")).toEqual({
+    ok: true,
+  });
+  // As the adapter reads `*[other] Konto` alone: a plural of one branch,
+  // on a value the source never counts, has no categories to lack.
+  expect(v(account, "{capitalization, plural, other {Konto}}")).toEqual({
+    ok: true,
+  });
+  // On a count, it still lacks the categories the language picks.
+  expect(
+    v(
+      "{n, plural, one {# card} other {# cards}}",
+      "{n, plural, other {# Karten}}",
+    ),
+  ).toEqual({
+    ok: true,
+    incomplete: [{ code: "missing-category", arg: "n", key: "one" }],
+  });
+  expect(
+    v(account, "{capitalization, select, uppercase {Tili} other {tili}}"),
+  ).toEqual({ ok: true });
+  // A select on a value the source prints, or on a term's attribute, is
+  // no warning.
+  expect(
+    v("{n} files", "{n, select, zero {keine Dateien} other {{n} Dateien}}"),
+  ).toEqual({ ok: true });
+  expect(
+    v(
+      "{-brand} is gone",
+      "{-brand.gender, select, masculine {{-brand} byl} other {{-brand} bylo}}",
+    ),
+  ).toEqual({ ok: true });
+  // A term's own string selects on its callers' arguments.
+  expect(
+    v("Firefox", "{case, select, gen {Firefoxu} other {Firefox}}", {
+      term: true,
+    }),
+  ).toEqual({ ok: true });
+  // A plural the source never has a value for is the same warning.
+  expect(v("Files", "{count, plural, one {Datei} other {Dateien}}")).toEqual({
+    ok: true,
+    incomplete: [{ code: "unpassed-selector", arg: "count" }],
+  });
+  // Keys of its own and none of the source's are the source's
+  // translated, which the code's value never matches (da's `[sekunder]`).
+  const unit =
+    "{unit, select, seconds {{n} s} minutes {{n} min} hours {{n} h} other {{n} h}}";
+  const da = v(
+    unit,
+    "{unit, select, sekunder {{n} s} minutter {{n} min} timer {{n} t} other {{n} t}}",
+  );
+  expect(da.ok ? [] : da.errors.map((e) => "key" in e && e.key)).toEqual([
+    "seconds",
+    "minutes",
+    "hours",
+  ]);
+  expect(v(unit, "{unit, select, seconds {{n} s} other {{n} t}}")).toEqual({
+    ok: true,
+  });
+  expect(
+    v(
+      "{capitalization, select, lowercase {account} uppercase {Account} other {account}}",
+      "{capitalization, select, lower {účet} upper {Účet} other {Účet}}",
+      { term: true },
+    ),
+  ).toEqual({ ok: true });
+  // A count selected on words never matches them, but the default is
+  // chosen whatever its key: gl's `[unha]` is a finding, es-MX's
+  // `*[otro]`, which the reader carries as `other`, is not.
+  const count = "{items, plural, one {# item} other {# items}}";
+  const gl = v(
+    count,
+    "{items, select, unha {{items} elemento} outra {{items} elementos} other {{items} elementos}}",
+  );
+  expect(gl.ok ? [] : gl.errors).toEqual([
+    { code: "unexpected-branch", arg: "items", key: "unha" },
+  ]);
+  expect(
+    v(
+      count,
+      "{items, select, 1 {un elemento} otro {{items} elementos} other {{items} elementos}}",
+    ),
+  ).toEqual({ ok: true });
+  // Printing what the source does not pass, or dropping what it does,
+  // is still invalid.
+  expect(v("{user} shared", "{number} geteilt").ok).toBe(false);
+  // ICU's rules stand everywhere else.
+  expect(
+    validateTranslation(
+      account,
+      "{capitalization, select, other {Konto}}",
+      "de",
+      "icu",
+    ).ok,
+  ).toBe(false);
+});
+
+test("a select collapsed to a word default, a key in another case, one key of its own, and the same key twice (#1032 review)", () => {
+  const v = (source: string, target: string) =>
+    validateTranslation(source, target, "de", "fluent");
+  const gender = "{g, select, male {his} female {her} other {their}}";
+  // `*[neutral] ihr` alone: the reader adds `other` with its text.
+  expect(v(gender, "{g, select, neutral {ihr} other {ihr}}")).toEqual({
+    ok: true,
+  });
+  // ga-IE's `[Seconds]` never matches `seconds`.
+  const unit =
+    "{unit, select, seconds {{n} s} minutes {{n} min} other {{n} h}}";
+  const ga = v(
+    unit,
+    "{unit, select, Seconds {{n} s} minutes {{n} n} other {{n} u}}",
+  );
+  expect(ga.ok ? [] : ga.errors).toEqual([
+    { code: "missing-branch", arg: "unit", key: "seconds" },
+  ]);
+  // Beside the source's own spelling, another case is a key of its own.
+  expect(
+    v(
+      unit,
+      "{unit, select, seconds {{n} s} Seconds {{n} S} minutes {{n} m} other {{n} h}}",
+    ),
+  ).toEqual({ ok: true });
+  // One key of its own is Fluent's asymmetry, not a translated key.
+  expect(
+    v(
+      "{os, select, windows {Ctrl} other {Ctrl}}",
+      "{os, select, macos {Cmd} other {Strg}}",
+    ),
+  ).toEqual({ ok: true });
+  // The same select twice, in a branch and in its `other` copy, says
+  // its finding once.
+  const count =
+    "{unit, select, seconds {{amount, plural, one {# s} other {# s}}} other {{amount, plural, one {# h} other {# h}}}}";
+  const da = v(
+    count,
+    "{unit, select, sekunder {{amount, select, en {{amount} sekund} other {{amount} sekunder}}} timer {{amount, select, en {{amount} time} other {{amount} timer}}} other {{amount, select, en {{amount} time} other {{amount} timer}}}}",
+  );
+  expect(da.ok ? [] : da.errors).toEqual([
+    { code: "unexpected-branch", arg: "amount", key: "en" },
+  ]);
+});
