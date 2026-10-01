@@ -24,6 +24,7 @@ contract (`corpus/1`) is the only one.
 - `corpus validate --server` checks the instance's translations, an exec source's drafts included, and plain `validate` no longer calls a partly checked exec source valid (#1074).
 - Fluent's own syntax reads: hyphenated names, nested plurals and selects, string literals, a `#` in a variant, terms, `NUMBER()` and `DATETIME()` (#990).
 - A Fluent translation may select on its own variables and keys, as Fluent allows; a select on a variable the source never passes is a warning (#1032).
+- A translation that writes a plural as one text, where the source never prints the count, is incomplete rather than invalid (#992).
 
 ## [0.21.0] - 2026-09-29
 
