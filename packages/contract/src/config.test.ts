@@ -716,3 +716,19 @@ test("a path array on a source that takes one pattern is refused by the rule's n
     }),
   ).toEqual(["gettext takes one sourcePath per source"]);
 });
+
+test("a yaml source may list its patterns; {ns} in one is refused at its index (#1024)", () => {
+  const parse = (path: unknown) =>
+    corpusConfigSchema.safeParse({
+      project: "p",
+      server: "http://localhost:3000",
+      sourceLanguage: "en",
+      languages: ["en", "de"],
+      sources: [{ adapter: "yaml", type: "ui", path, merge: "last-wins" }],
+    });
+  expect(parse(["{lang}.yml", "devise.{lang}.yml"]).success).toBe(true);
+  const ns = parse(["{lang}.yml", "{ns}.{lang}.yml"]);
+  expect(ns.success).toBe(false);
+  if (!ns.success)
+    expect(ns.error.issues[0]?.path).toEqual(["sources", 0, "path", 1]);
+});

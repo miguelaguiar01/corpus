@@ -154,8 +154,13 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   if (families.size > 0) {
     const patterns = [...families.keys()].sort();
     const count = [...families.values()].reduce((a, b) => a + b, 0);
+    const named = `${patterns.slice(0, 5).join(", ")}${patterns.length > 5 ? ", …" : ""}`;
+    // A source that takes a list holds them as one catalogue, as Rails
+    // loads a yaml family (#1024); any other takes one each.
     ctx.err(
-      `corpus: ${patterns.length} other catalogue(s) beside ${messages}, ${count} file(s) (${patterns.slice(0, 5).join(", ")}${patterns.length > 5 ? ", …" : ""}): each is its own source, as { adapter: ${JSON.stringify(adapter)}, type: ${JSON.stringify(type)}, path: ${JSON.stringify(patterns[0])} }`,
+      LISTS_PATTERNS.has(adapter)
+        ? `corpus: ${patterns.length} other catalogue(s) beside ${messages}, ${count} file(s) (${named}): where the app loads them into one catalogue, as Rails does, list them in the source's path, path: ${JSON.stringify([messages, ...patterns]).replace(/","/g, '", "')}; otherwise each is its own source`
+        : `corpus: ${patterns.length} other catalogue(s) beside ${messages}, ${count} file(s) (${named}): each is its own source, as { adapter: ${JSON.stringify(adapter)}, type: ${JSON.stringify(type)}, path: ${JSON.stringify(patterns[0])} }`,
     );
   }
   for (const { file, code } of loose.slice(0, 5))
@@ -320,6 +325,14 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   nextSteps(ctx, project, server, option(args, "--server") === undefined);
   return 0;
 }
+
+// The sources whose path may list several patterns (#661, #1024).
+const LISTS_PATTERNS: ReadonlySet<InitSource["adapter"]> = new Set([
+  "messages",
+  "fluent",
+  "android",
+  "yaml",
+]);
 
 // The formats whose interface is never JSX, TSX or Vue, by what it is;
 // a .po catalogue may be a Lingui or Vue app's, an XLIFF one not always

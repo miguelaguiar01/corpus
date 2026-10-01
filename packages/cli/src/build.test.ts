@@ -1838,6 +1838,18 @@ test("a yaml source may list its patterns, one catalogue as Rails loads them: a 
   await expect(build()).rejects.toThrow(
     /duplicate id clash in en\.yml and devise\.en\.yml, with different text/,
   );
+  // Without the clash, strict takes a shared id of one text as one string.
+  writeFileSync(
+    path.join(dir, "devise.en.yml"),
+    "en:\n  devise:\n    ok: OK\n  shared: Same\n",
+  );
+  expect(
+    (await build()).snapshot.strings.filter((s) => s.id === "shared"),
+  ).toHaveLength(1);
+  writeFileSync(
+    path.join(dir, "devise.en.yml"),
+    "en:\n  devise:\n    ok: OK\n  shared: Same\n  clash: Second\n",
+  );
   const { snapshot } = await build("last-wins");
   expect(snapshot.strings.map((s) => [s.id, s.source]).sort()).toEqual([
     ["clash", "Second"],
