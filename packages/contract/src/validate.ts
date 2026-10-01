@@ -179,7 +179,8 @@ function qtFilled(
   targetText: string,
   sourceText: string,
 ): Shape {
-  // `%1` to `%99`: a `%0` is no marker .arg() ranks, kept to be named.
+  // `%1` to `%99`, the markers a source's .arg() calls count on; a `%0`
+  // a translation writes is kept, to be named.
   const numbered = (shape: Shape) =>
     [...shape.placeholders].filter((n) => /^\d+$/.test(n) && n !== "0");
   const k = numbered(source).length;
@@ -434,9 +435,14 @@ export function validateTranslation(
     syntax === "qt"
       ? qtFilled(shapeOf(targetNodes), whole, target, source)
       : shapeOf(targetNodes);
-  // A lookalike percent before a marker is text Qt prints (#1003).
+  // A lookalike percent before one of the source's markers is text Qt
+  // prints (#1003), a space after it as well.
   if (syntax === "qt") {
-    const mangled = /([٪％])(L?(?:\d|n))/.exec(target);
+    const mangled = [...target.matchAll(/[٪％] ?(L?)(\d\d?|n)/g)].find(
+      (m) =>
+        whole.placeholders.has(m[2] === "n" ? "n" : String(Number(m[2]))) ||
+        (m[2] === "n" && whole.plurals.size > 0),
+    );
     if (mangled)
       return {
         ok: false,
@@ -444,7 +450,7 @@ export function validateTranslation(
           {
             code: "invalid-icu",
             where: "target",
-            message: `writes ${mangled[0]}, which Qt prints as text; write %${mangled[2]}`,
+            message: `writes ${mangled[0]}, which Qt prints as text; write %${mangled[1]}${mangled[2]}`,
             position: mangled.index,
           },
         ],
@@ -551,11 +557,13 @@ export function validateTranslation(
   for (const name of required) {
     if (actualValues.has(name)) continue;
     // `%n` shows the count a dropped `%1` would have (#1003).
-    // Only where the source counts through `.arg()` alone, with no `%n`
-    // of its own: KeePassXC's `over %1 year(s)`.
+    // Only where the source counts through one `.arg()` marker alone,
+    // with no `%n` of its own: KeePassXC's `over %1 year(s)`. With two,
+    // `%n` may stand where the name was (`'%1' … %2 time(s)`).
     if (
       numerus &&
       !whole.placeholders.has("n") &&
+      [...whole.placeholders].filter((n) => /^\d+$/.test(n)).length === 1 &&
       /^\d+$/.test(name) &&
       actual.placeholders.has("n")
     ) {

@@ -2672,6 +2672,24 @@ test("Qt: a marker no .arg() fills is text; %n in a numerus message is its count
     ok: true,
     incomplete: [{ code: "count-for-marker", name: "1", written: "%1" }],
   });
+  // With two markers, %n where one was is no count's place: the name is
+  // lost, or lands where the count belongs.
+  const leaked =
+    "{count, plural, other {Password for '%1' has been leaked %2 time(s)!}}";
+  expect(
+    qt(leaked, "{count, plural, other {Salasana on vuotanut %n kertaa!}}", "fi")
+      .ok,
+  ).toBe(false);
+  expect(
+    qt(
+      leaked,
+      "{count, plural, other {Salasana '%n' on vuotanut %2 kertaa!}}",
+      "fi",
+    ).ok,
+  ).toBe(false);
+  // A lookalike before a number the source has no marker for is text.
+  expect(qt("50% done", "٪50 مكتمل", "ar")).toEqual({ ok: true });
+  expect(qt("%1 done", "٪ 1 مكتمل", "ar").ok).toBe(false);
   // ar: U+066A before n is no marker at all.
   const ar = qt(
     "{count, plural, other {%n row(s)}}",
