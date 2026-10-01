@@ -212,22 +212,26 @@ export class RuinedBuild extends CliError {
   }
 }
 
-// What the build refuses, as an agent's tools say it (#1011); a build
-// that fails for another reason refuses nothing it can name.
+// What the build refuses, as an agent's tools say it (#1011): read once
+// a process, the first time it is asked for, so a session sees the
+// repository as it was then; a build that fails for another reason
+// refuses nothing it can name.
 export function refusalsIn(config: CorpusConfig, cwd: string): Refusals {
-  return async () => {
-    let refused: Refused[];
-    try {
-      refused = (await buildSnapshotReport(config, cwd)).refused;
-    } catch (error) {
-      if (!(error instanceof RuinedBuild)) return [];
-      refused = error.refused;
-    }
-    return refused.map((entry) => ({
-      id: entry.id,
-      reason: `${describeRefused(entry)}${entry.hint}`,
-    }));
-  };
+  let read: ReturnType<Refusals> | undefined;
+  return () =>
+    (read ??= (async () => {
+      let refused: Refused[];
+      try {
+        refused = (await buildSnapshotReport(config, cwd)).refused;
+      } catch (error) {
+        if (!(error instanceof RuinedBuild)) return undefined;
+        refused = error.refused;
+      }
+      return refused.map((entry) => ({
+        id: entry.id,
+        reason: describeRefused(entry),
+      }));
+    })());
 }
 
 export function describeRefused({ file, id, message }: Refused): string {
