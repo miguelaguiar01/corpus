@@ -1219,3 +1219,22 @@ test("a null, number or list the file holds is left as it is; a translation unde
     applyMessagesOps(template, [{ kind: "edit", id: "a", text: "Apples" }]),
   ).toBe(template.replace('"Apple"', '"Apples"'));
 });
+
+test("removing a plural id takes a target's object of categories whole, other or not; an object with another key stays (#959)", () => {
+  const remove = (text: string, id = "r") =>
+    applyMessagesOps(text, [{ kind: "delete", id }], { plurals: true });
+  expect(
+    remove('{\n  "r": { "one": "a", "other": "b" },\n  "k": "v"\n}\n'),
+  ).toBe('{\n  "k": "v"\n}\n');
+  expect(remove('{\n  "r": { "one": "a", "few": "b" },\n  "k": "v"\n}\n')).toBe(
+    '{\n  "k": "v"\n}\n',
+  );
+  expect(
+    remove(
+      '{\n  "m.room": { "one": "a", "few": "b" },\n  "k": "v"\n}\n',
+      "m.room",
+    ),
+  ).toBe('{\n  "k": "v"\n}\n');
+  const section = '{\n  "r": { "one": "a", "label": "b" },\n  "k": "v"\n}\n';
+  expect(remove(section)).toBe(section);
+});
