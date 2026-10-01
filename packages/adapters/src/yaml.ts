@@ -296,10 +296,15 @@ function isBlock(rendered: string): boolean {
 // lines after it when the new text is a keep-chomped block, which reads
 // them as its own (#1128), so they are its text and not added to it.
 function blockEnd(base: string, end: number, out: string): number {
-  if (!/^[|>][1-9]?\+/.test(out)) return end;
-  const blank = /^(?:[ \t]*\r?\n)*/.exec(base.slice(end))![0];
-  return end + blank.length;
+  return KEEP_BLOCK.test(out) ? pastBlankLines(base, end) : end;
 }
+
+// The offset past the blank lines that start at `at`.
+function pastBlankLines(text: string, at: number): number {
+  return at + /^(?:[ \t]*\r?\n)*/.exec(text.slice(at))![0].length;
+}
+
+const KEEP_BLOCK = /^[|>][1-9]?\+/;
 
 // A text in the style of the scalar it replaces: plain, single- or
 // double-quoted, or a `|`/`>` block at its own indentation with its
@@ -771,6 +776,9 @@ function patchPluralHash(
   }
   const inner = lineIndent(base, (value.items[0]!.key as Node).range![0]);
   const order = file.formOrder;
+  // The forms rewritten, as keep-chomped blocks or not: a removal after
+  // a keep block must not hand it its blank lines (#1130).
+  const written = new Map<Pair, boolean>();
   for (const c of order) {
     if (!Object.hasOwn(forms, c)) continue;
     const p = held.get(c);
@@ -782,6 +790,7 @@ function patchPluralHash(
         // keeps it, so the next form keeps its line (#1126).
         const out = styled(base, v, forms[c]!, inner, eol);
         const wasBlock = isBlock(base.slice(v.range[0]));
+        written.set(p, KEEP_BLOCK.test(out));
         patches.push({
           start: v.range[0],
           end: blockEnd(base, v.range[1], out),
@@ -826,12 +835,17 @@ function patchPluralHash(
   }
   // A form the text no longer has goes, with its comment, so the hash
   // holds the text's forms (#759).
-  for (const [c, p] of held)
-    if (
-      (PLURAL_CATEGORIES as readonly string[]).includes(c) &&
-      !Object.hasOwn(forms, c)
-    )
-      patches.push(pairRemoval(base, value, p));
+  const dropped = new Set(
+    [...held]
+      .filter(
+        ([c]) =>
+          (PLURAL_CATEGORIES as readonly string[]).includes(c) &&
+          !Object.hasOwn(forms, c),
+      )
+      .map(([, p]) => p),
+  );
+  for (const p of dropped)
+    patches.push(pairRemoval(base, value, p, written, dropped));
 }
 
 // Keys the file lacks, each under the deepest container it has, in the
@@ -991,6 +1005,18 @@ function nodeEnd(text: string, range: readonly number[]): number {
   return end;
 }
 
+// The pair whose value a pair's lines end with once `removed` is gone:
+// its own, or its map's last kept one, as deep as it goes; the pair
+// itself where its map keeps none.
+function lastPair(pair: Pair, removed: ReadonlySet<Pair>): Pair {
+  const value = pair.value as Node | null;
+  if (!isMap(value) || value.flow) return pair;
+  const last = [...value.items]
+    .reverse()
+    .find((p) => !removed.has(p as Pair)) as Pair | undefined;
+  return last ? lastPair(last, removed) : pair;
+}
+
 // Where a pair's content ends: a map's last item's, since the library
 // lets a map's range take the comment lines after it (#804).
 function contentEnd(text: string, pair: Pair): number {
@@ -1004,7 +1030,15 @@ function contentEnd(text: string, pair: Pair): number {
 
 // A pair's lines, removed: from its key's line, or the comment lines
 // just above it, through the line its value ends on.
-function pairRemoval(text: string, map: YAMLMap, pair: Pair): Patch {
+function pairRemoval(
+  text: string,
+  map: YAMLMap,
+  pair: Pair,
+  // The pairs the same write rewrites, as keep-chomped blocks or not,
+  // and the pairs of the map it removes too.
+  written: ReadonlyMap<Pair, boolean> = new Map(),
+  removed: ReadonlySet<Pair> = new Set([pair]),
+): Patch {
   const keyStart = (pair.key as Node).range![0];
   let start = text.lastIndexOf("\n", keyStart - 1) + 1;
   // Comment lines above go with it, never a line of the value before
@@ -1019,7 +1053,24 @@ function pairRemoval(text: string, map: YAMLMap, pair: Pair): Patch {
   }
   const end = contentEnd(text, pair);
   const nl = text[end - 1] === "\n" ? end : text.indexOf("\n", end) + 1;
-  return { start, end: nl <= 0 ? text.length : nl, text: "" };
+  const stop = nl <= 0 ? text.length : nl;
+  // A keep-chomped block before the pair, past any pair this write also
+  // removes and at the end of a map's last value, would read the blank
+  // lines it leaves as its own text (#1130): they go with it.
+  const kept = map.items
+    .slice(0, index)
+    .reverse()
+    .find((p) => !removed.has(p as Pair)) as Pair | undefined;
+  const last = kept && lastPair(kept, removed);
+  const value = last?.value as Node | null | undefined;
+  const keep =
+    last !== undefined &&
+    (written.get(last) ??
+      (isScalar(value) &&
+        value.range !== undefined &&
+        value.range !== null &&
+        KEEP_BLOCK.test(text.slice(value.range[0]))));
+  return { start, end: keep ? pastBlankLines(text, stop) : stop, text: "" };
 }
 
 // A proposal into a Rails catalogue (§11), the source file or, for a
@@ -1078,13 +1129,26 @@ export function applyYamlOps(
   if (removals.length === 0) return out;
   const root = rootPairOf(parseDocument(out, { uniqueKeys: false }), out, code);
   const spans: Patch[] = [];
+  // Every pair the batch removes, at any depth, so a removal looks past
+  // all of them for the value before it (#1130).
+  const gone = new Set<Pair>();
+  const collect = (map: YAMLMap, path: string[]) => {
+    for (const pair of map.items) {
+      const key = keyOf(pair, out);
+      if (key === undefined) continue;
+      const id = [...path, key].join(".");
+      if (removals.includes(id)) gone.add(pair);
+      else if (isMap(pair.value) && !pair.value.flow)
+        collect(pair.value, [...path, key]);
+    }
+  };
   const walk = (map: YAMLMap, path: string[]) => {
     for (const pair of map.items) {
       const key = keyOf(pair, out);
       if (key === undefined) continue;
       const id = [...path, key].join(".");
       if (removals.includes(id)) {
-        spans.push(pairRemoval(out, map, pair));
+        spans.push(pairRemoval(out, map, pair, new Map(), gone));
       } else if (isMap(pair.value) && pair.value.flow) {
         const inside = removals.find((r) => r.startsWith(`${id}.`));
         if (inside)
@@ -1094,6 +1158,7 @@ export function applyYamlOps(
       } else if (isMap(pair.value)) walk(pair.value, [...path, key]);
     }
   };
+  if (root && isMap(root.value) && !root.value.flow) collect(root.value, []);
   if (root && isMap(root.value) && root.value.flow) {
     // A root written inline cannot lose a line either (#865).
     const keys = root.value.items.flatMap((pair) => keyOf(pair, out) ?? []);

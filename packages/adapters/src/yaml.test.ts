@@ -924,3 +924,80 @@ test("a keep-chomped block takes the blank lines after it into its own text, and
     entriesToYaml(en, { s: "zz\nyy" }, "pl:\n  s: |- # note\n    b\n", L),
   ).toBe("pl:\n  s: |- # note\n    zz\n    yy\n");
 });
+
+test("removing a pair after a keep-chomped block takes the blank lines after it, so the block reads as written (#1130)", () => {
+  const en = "en:\n  f:\n    one: one\n    other: many\n";
+  const L = { source: "en", code: "pl" };
+  const tr = { f: "{count, plural, one {x\n\n} other {yy}}" };
+  const once = entriesToYaml(
+    en,
+    tr,
+    "pl:\n  f:\n    one: |-\n      a\n    few: q\n\n    other: yy\n",
+    L,
+  );
+  expect(yamlTranslations(once, "pl")[0]?.source).toBe(tr.f);
+  expect(entriesToYaml(en, tr, once, L)).toBe(once);
+  // An untouched keep block keeps its text when the pair after it goes.
+  const deleted = applyYamlOps(
+    "pl:\n  s: |+\n    b\n\n  t: T\n\n  u: U\n",
+    [{ kind: "delete", id: "t" }],
+    "pl",
+  );
+  expect(yamlTranslations(deleted, "pl").map((e) => [e.id, e.source])).toEqual([
+    ["s", "b\n\n"],
+    ["u", "U"],
+  ]);
+  // Two removals in a row after the block, as a language going from four
+  // forms to two, and a block as the last value inside the pair before.
+  const twice = entriesToYaml(
+    en,
+    tr,
+    "pl:\n  f:\n    one: |-\n      a\n    few: q\n    many: r\n\n    other: yy\n",
+    L,
+  );
+  expect(yamlTranslations(twice, "pl")[0]?.source).toBe(tr.f);
+  expect(entriesToYaml(en, tr, twice, L)).toBe(twice);
+  const both = applyYamlOps(
+    "pl:\n  s: |+\n    b\n\n  t: T\n  t2: T2\n\n  u: U\n",
+    [
+      { kind: "delete", id: "t" },
+      { kind: "delete", id: "t2" },
+    ],
+    "pl",
+  );
+  expect(yamlTranslations(both, "pl")[0]?.source).toBe("b\n\n");
+  const nested = applyYamlOps(
+    "pl:\n  a:\n    s: |+\n      b\n\n  t: T\n\n  u: U\n",
+    [{ kind: "delete", id: "t" }],
+    "pl",
+  );
+  expect(yamlTranslations(nested, "pl")[0]?.source).toBe("b\n\n");
+  // The last value inside is one the batch keeps.
+  const deep = applyYamlOps(
+    "pl:\n  a:\n    s: |+\n      b\n\n    v: V\n\n  t: T\n\n  u: U\n",
+    [
+      { kind: "delete", id: "a.v" },
+      { kind: "delete", id: "t" },
+    ],
+    "pl",
+  );
+  expect(yamlTranslations(deep, "pl")[0]?.source).toBe("b\n\n");
+  // A keep block this write rewrites as a strip one keeps the blank
+  // line after the dropped form, as the file had it.
+  expect(
+    entriesToYaml(
+      en,
+      { f: "{count, plural, one {x} other {yy}}" },
+      "pl:\n  f:\n    one: |+\n      a\n\n    few: q\n\n    other: yy\n",
+      L,
+    ),
+  ).toBe("pl:\n  f:\n    one: |-\n      x\n\n    other: yy\n");
+  // After a plain value or a strip block the blank lines stay.
+  expect(
+    applyYamlOps(
+      "pl:\n  s: S\n  t: T\n\n  u: U\n",
+      [{ kind: "delete", id: "t" }],
+      "pl",
+    ),
+  ).toBe("pl:\n  s: S\n\n  u: U\n");
+});
