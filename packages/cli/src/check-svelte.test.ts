@@ -66,6 +66,19 @@ test("a finding names the line its text starts on, indented or after an expressi
   expect(found("<!-- do not use { here -->\n<p>Not lost</p>\n")).toEqual([
     [2, "Not lost"],
   ]);
+  // A comment opener in a script string opens nothing; a quote in an
+  // expression's comment ends no string.
+  expect(
+    found(
+      '<script>\n  const open = "<!--";\n</script>\n<p>Not lost</p>\n<!-- a note -->\n<p>Also kept</p>\n',
+    ),
+  ).toEqual([
+    [4, "Not lost"],
+    [6, "Also kept"],
+  ]);
+  expect(found("<p>{x /* don't */}</p>\n<p>Not lost</p>\n")).toEqual([
+    [2, "Not lost"],
+  ]);
   // A component named Script is markup, not a script block.
   expect(found("<Script>\n  Shown text\n</Script>\n")).toEqual([
     [2, "Shown text"],

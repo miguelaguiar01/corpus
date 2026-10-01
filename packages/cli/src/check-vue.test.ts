@@ -191,3 +191,11 @@ test("a text that is wholly a URL is no finding, and a component's label holding
     "name",
   ]);
 });
+
+test("a component named Code or Pre is markup, as any component is (#1025)", () => {
+  expect(
+    texts(
+      "<template>\n  <Code>Shown text</Code>\n  <pre>Hidden</pre>\n</template>\n",
+    ),
+  ).toEqual(["Shown text"]);
+});
