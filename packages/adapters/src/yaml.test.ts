@@ -897,7 +897,7 @@ test("a block plural form changed to a text no block holds keeps the next form o
       pl,
       { source: "en", code: "pl" },
     );
-    expect(out).toMatch(/^pl:\n  f:\n    one: "[^\n]*"\n    other: y\n$/);
+    expect(out).toMatch(/^pl:\n {2}f:\n {4}one: "[^\n]*"\n {4}other: y\n$/);
     expect(yamlTranslations(out, "pl")).toEqual([
       expect.objectContaining({
         id: "f",
