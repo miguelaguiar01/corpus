@@ -1001,3 +1001,22 @@ test("removing a pair after a keep-chomped block takes the blank lines after it,
     ),
   ).toBe("pl:\n  s: S\n\n  u: U\n");
 });
+
+test("a removal takes the lines under its key, comments and whitespace-only ones, which the block before would read as text (#1132)", () => {
+  for (const file of [
+    "pl:\n  s: |-\n    b\n  t:\n    x: X\n    # c\n  u: U\n",
+    "pl:\n  s: |-\n    b\n  t: T\n    # c\n  u: U\n",
+    "pl:\n  s: |-\n    b\n  t: T\n      \n  u: U\n",
+  ]) {
+    const out = applyYamlOps(file, [{ kind: "delete", id: "t" }], "pl");
+    expect(out).toBe("pl:\n  s: |-\n    b\n  u: U\n");
+  }
+  // A comment at the key's own indent, or at column 0, stays.
+  expect(
+    applyYamlOps(
+      "pl:\n  s: S\n  t: T\n  # own\n# top\n  u: U\n",
+      [{ kind: "delete", id: "t" }],
+      "pl",
+    ),
+  ).toBe("pl:\n  s: S\n  # own\n# top\n  u: U\n");
+});
