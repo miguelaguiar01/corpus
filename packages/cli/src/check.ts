@@ -34,6 +34,24 @@ export const SKIP_DIRS = new Set(["node_modules", ".next", "dist", ".git"]);
 export const DEFAULT_INCLUDE = ["src"];
 export const LETTERS = /\p{L}.*\p{L}/su;
 
+// A text that is wholly a URL, an example endpoint in a placeholder, is
+// never translated (#1019); one that holds a URL among words still is.
+export function isWholeUrl(text: string): boolean {
+  return /^[a-z][a-z0-9+.-]*:\/\/\S*$/i.test(text);
+}
+
+// A Vue component's `label` holding one lowercase identifier names the
+// field it shows (VueMultiselect's `label="name"`), not a caption
+// (#1019); in JSX a label is a caption, a React library's as much as a
+// native element's.
+export function namesAField(
+  component: boolean,
+  prop: string,
+  value: string,
+): boolean {
+  return component && prop === "label" && /^[a-z_][a-z0-9_]*$/.test(value);
+}
+
 // An entity is markup, not letters: without this `&nbsp;` and `&middot;`
 // read as words and a spacing-only text is a finding (43 of Outline's
 // 142). Only the letters test sees the decoded text; a finding still
@@ -151,6 +169,7 @@ export function findLiterals(
   const report = (pos: number, raw: string, markup = true) => {
     const text = raw.trim();
     if (!LETTERS.test(markup ? decoded(text) : text)) return;
+    if (isWholeUrl(text)) return;
     if (options.allow?.some((pattern) => pattern.test(text))) return;
     const line = sf.getLineAndCharacterOfPosition(pos).line + 1;
     if (silenced.has(line)) return;

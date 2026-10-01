@@ -567,3 +567,24 @@ test("check says how many test files it skipped (#656)", async () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("in JSX a text that is wholly a URL is no finding, a label always text (#1019)", () => {
+  const source = `export const A = () => (
+  <>
+    <input placeholder="https://example.com/webhook" />
+    <input placeholder={"wss://127.0.0.1:7777/"} />
+    <input placeholder="See https://example.com" />
+    <input placeholder="https://" />
+    <a>https://example.com/docs</a>
+    <TextField label="username" />
+    <option label="name">x</option>
+  </>
+);`;
+  // In JSX a label is a caption, a React library's TextField's as much
+  // as a native element's: only the URL rule applies.
+  expect(findLiterals(source, "a.tsx").map((f) => f.text)).toEqual([
+    "See https://example.com",
+    "username",
+    "name",
+  ]);
+});

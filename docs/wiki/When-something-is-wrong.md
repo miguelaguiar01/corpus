@@ -66,7 +66,7 @@ One entry is missing while others were scanned. The run carries on with what it 
 
 A codebase that has never had `check` run usually has real findings and a long tail of things that are not interface text: product names, codes, units, test fixtures, component stories. `check.allow` takes regular expressions for the text, `check.ignore` takes path prefixes and globs. The first pass is a pull request of its own.
 
-On a Vue project two things account for most of it. Stories are not the application: `check.ignore: ["**/*.story.vue"]` covers Histoire and Storybook, as `**/*.test.tsx` does elsewhere. And a component prop named `label` often names a field rather than saying anything — `label="title"` on a select — which `check.allow` is for.
+On a Vue project two things account for most of it. Stories are not the application: `check.ignore: ["**/*.story.vue"]` covers Histoire and Storybook, as `**/*.test.tsx` does elsewhere. And a component prop named `label` often names a field rather than saying anything — `label="title"` on a VueMultiselect — which `check` skips when the value is one lowercase identifier on a component in a template; `check.allow` covers the rest.
 
 `check` says so itself when the shape suggests it: with five findings or more, when at least half of them are single words with no whitespace, it prints how many and points at `check.allow`.
 

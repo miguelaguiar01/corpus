@@ -172,3 +172,22 @@ const s = "</scriptx <template><p>trap</p></template>";
 </template>`;
   expect(texts(tricky)).toEqual(["Still real"]);
 });
+
+test("a text that is wholly a URL is no finding, and a component's label holding one field name names a field (#1019)", () => {
+  const source = `<template>
+  <input placeholder="https://your-instance.halopsa.com/api/v1/webhook">
+  <input placeholder="wss://127.0.0.1:7777/">
+  <input placeholder="See https://example.com">
+  <input placeholder="https://">
+  <a href="x">https://example.com/docs</a>
+  <VueMultiselect label="name" />
+  <vue-multiselect label="title_text" />
+  <VueMultiselect label="Pick a monitor" />
+  <option label="name">x</option>
+</template>`;
+  expect(texts(source)).toEqual([
+    "See https://example.com",
+    "Pick a monitor",
+    "name",
+  ]);
+});
