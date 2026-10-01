@@ -101,3 +101,53 @@ test("fluent is the adapter's reading, never a config's", () => {
   expect(configSchema.safeParse(config("icu")).success).toBe(true);
   expect(configSchema.safeParse(config("fluent")).success).toBe(false);
 });
+
+test("a string literal is text under fluent, escapes read; a # inside one is no count (#990)", () => {
+  const read = parseIcu('This is a {"{{c1::"}sample{"}}"} cloze.', "fluent");
+  expect(read.ok && read.nodes).toEqual([
+    { kind: "literal", text: "This is a {{c1::sample}} cloze." },
+  ]);
+  expect(parseIcu('This is a {"{{c1::"}sample', "icu").ok).toBe(false);
+  const escaped = parseIcu(
+    '5{"\\u00A0"}km {"\\U01F602"} {"a \\" b \\\\ c"}',
+    "fluent",
+  );
+  expect(escaped.ok && escaped.nodes).toEqual([
+    { kind: "literal", text: '5 km 😂 a " b \\ c' },
+  ]);
+  expect(parseIcu('{"\\q"}', "fluent").ok).toBe(false);
+  expect(parseIcu('{"open', "fluent").ok).toBe(false);
+  const plural = parseIcu(
+    '{n, plural, one {Nueva {"#"}{n}} other {Nuevas {"#"}{n} #}}',
+    "fluent",
+  );
+  expect(plural.ok).toBe(true);
+  expect(
+    JSON.stringify(plural.ok && plural.nodes).match(/"kind":"count"/g),
+  ).toHaveLength(1);
+  // Literals are text: a translation may write its own, or none.
+  expect(
+    validateTranslation(
+      "Required for AnkiDroid <= 2.14",
+      'Kerak AnkiDroid {"<="} 2.14',
+      "uz",
+      "fluent",
+    ).ok,
+  ).toBe(true);
+  expect(
+    validateTranslation(
+      'Use {"{{Field}}"} in a template.',
+      'Use {"{{欄位}}"} 在模板中。',
+      "zh",
+      "fluent",
+    ).ok,
+  ).toBe(true);
+});
+
+test("an escape past Unicode is a parse error, a lone surrogate reads as U+FFFD (#990 review)", () => {
+  const past = parseIcu('{"\\UFFFFFF"}', "fluent");
+  expect(past.ok).toBe(false);
+  expect(past.ok ? "" : past.errors[0]?.message).toMatch(/code point/);
+  const lone = parseIcu('{"\\uD800"}', "fluent");
+  expect(lone.ok && lone.nodes).toEqual([{ kind: "literal", text: "�" }]);
+});

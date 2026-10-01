@@ -1,7 +1,8 @@
 // Fluent `.ftl` (§3, #597): messages with a value, `{$var}` and message
-// references as placeholders, a select on a variable as an ICU plural or
-// select. Attributes, terms, functions and string literals are refused
-// by name, a message at a time (#991). A file is patched message by
+// references as placeholders, a select on a variable as an ICU plural
+// or select, a string literal as written (#990). Attributes, terms,
+// functions and number literals are refused by name, a message at a
+// time (#991). A file is patched message by
 // message, so an unchanged pull writes the same bytes and a changed
 // message keeps its layout.
 import { PLURAL_CATEGORIES, type StringEntry } from "@corpus/contract";
@@ -36,6 +37,12 @@ const DEFAULT_STYLE: Style = {
 };
 const CATEGORIES = new Set<string>(PLURAL_CATEGORIES);
 const KEY_RE = /^(?:[A-Za-z_][A-Za-z0-9_]*|[0-9]+)$/;
+// A string literal as Fluent writes one, its quotes and escapes kept,
+// and the placeable's close.
+const STRING_LITERAL_RE =
+  /^("(?:[^"\\\n]|\\(?:["\\]|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{6}))*")\s*\}/;
+// The literals of an ICU view, `{"…"}`, which a `#` inside is not.
+const VIEW_LITERAL_RE = /\{"(?:[^"\\\n]|\\.)*"\}/g;
 
 class Refusal extends Error {}
 
@@ -137,11 +144,18 @@ function parsePlaceable(s: string, i: number, id: string): [string, number] {
   const c = s[j];
   if (c === "-") throw new Refusal(`${id} refers to a term`);
   // `{""}` is an empty pattern and `{"."}` the escape for a line that
-  // starts with a special character; other literals are refused.
-  const literal = /^"([.[*]?)"\s*\}/.exec(s.slice(j));
-  if (literal) return [literal[1]!, j + literal[0].length];
-  if (c === '"' || c === "{" || (c && /[0-9]/.test(c)))
-    throw new Refusal(`${id} has a string literal`);
+  // starts with a special character, read as their text; any other
+  // literal is kept as written, `{"{{c1::"}`, which the fluent reading
+  // takes as its text (#990).
+  const escape = /^"([.[*]?)"\s*\}/.exec(s.slice(j));
+  if (escape) return [escape[1]!, j + escape[0].length];
+  const literal = STRING_LITERAL_RE.exec(s.slice(j));
+  if (literal) return [`{${literal[1]}}`, j + literal[0].length];
+  if (c === '"')
+    throw new Refusal(`${id} has a string literal Corpus does not read`);
+  if (c && /[0-9]/.test(c)) throw new Refusal(`${id} has a number literal`);
+  if (c === "{")
+    throw new Refusal(`${id} has a placeable Corpus does not read`);
   const variable = c === "$";
   if (variable) j++;
   const name = /^[A-Za-z][\w-]*/.exec(s.slice(j))?.[0];
@@ -191,21 +205,34 @@ function parsePlaceable(s: string, i: number, id: string): [string, number] {
   );
   if (!variants.every((v) => KEY_RE.test(v.key)))
     throw new Refusal(`${id} has a variant key Corpus does not read`);
-  if (plural && variants.some((v) => v.text.includes("#")))
-    throw new Refusal(`${id} has a # in a plural variant`);
+  // A `#` in a plural's variant is Fluent's text, where ICU's would be
+  // the count: the view writes it as the literal `{"#"}` (#990).
+  const text = (v: { text: string }) =>
+    plural ? hashesAsLiterals(v.text) : v.text;
   const branches = variants.map(
-    (v) => `${plural && /^\d+$/.test(v.key) ? `=${v.key}` : v.key} {${v.text}}`,
+    (v) =>
+      `${plural && /^\d+$/.test(v.key) ? `=${v.key}` : v.key} {${text(v)}}`,
   );
   // The default carries over as `other`, which is what ICU falls back
   // to; a select keeps its own keys beside it.
   if (!variants.some((v) => v.key === "other")) {
     const fallback = variants.find((v) => v.fallback) ?? variants.at(-1)!;
-    branches.push(`other {${fallback.text}}`);
+    branches.push(`other {${text(fallback)}}`);
   }
   return [
     `{${name}, ${plural ? "plural" : "select"}, ${branches.join(" ")}}`,
     j,
   ];
+}
+
+function hashesAsLiterals(text: string): string {
+  let out = "";
+  let at = 0;
+  for (const m of text.matchAll(VIEW_LITERAL_RE)) {
+    out += text.slice(at, m.index).replaceAll("#", '{"#"}') + m[0];
+    at = m.index + m[0].length;
+  }
+  return out + text.slice(at).replaceAll("#", '{"#"}');
 }
 
 function toIcu(text: string, message: Message): string {
@@ -285,10 +312,13 @@ function render(icu: string, style: Style, refs: Set<string>): string {
     style.spaced ? `{ ${inner} }` : `{${inner}}`;
   // A line that starts with `.`, `[` or `*` would read as an attribute
   // or a variant; Fluent's escape is a string literal.
+  // `inPlural`: within a plural's variant, a select's in one included,
+  // where the reader made a plain `#` the literal `{"#"}`.
   const seq = (
     i: number,
     count?: string,
     lineStart = false,
+    inPlural = false,
   ): [string, number] => {
     let out = "";
     let atStart = lineStart;
@@ -308,7 +338,7 @@ function render(icu: string, style: Style, refs: Set<string>): string {
         out += place(`$${count}`);
         i++;
       } else if (c === "{") {
-        const [text, next] = arg(i + 1);
+        const [text, next] = arg(i + 1, inPlural);
         out += text;
         i = next;
       } else if (c === "\n") {
@@ -322,7 +352,15 @@ function render(icu: string, style: Style, refs: Set<string>): string {
     }
     return [out, i];
   };
-  const arg = (i: number): [string, number] => {
+  const arg = (i: number, inPlural: boolean): [string, number] => {
+    // A literal is written back as read, but the `#` a plural's variant
+    // holds as one, which is Fluent's plain text there.
+    const literal = /^\s*("(?:[^"\\\n]|\\.)*")\s*\}/.exec(icu.slice(i));
+    if (literal)
+      return [
+        inPlural && literal[1] === '"#"' ? "#" : place(literal[1]!),
+        i + literal[0].length,
+      ];
     const head = /^\s*([A-Za-z0-9_-]+)\s*(?:,\s*(plural|select)\s*,)?/.exec(
       icu.slice(i),
     )!;
@@ -341,7 +379,13 @@ function render(icu: string, style: Style, refs: Set<string>): string {
       }
       const key = /^=?[\w]+/.exec(icu.slice(j))![0];
       j = skipSpace(icu, j + key.length) + 1;
-      const [text, next] = seq(j, head[2] === "plural" ? name : undefined);
+      const plural = head[2] === "plural";
+      const [text, next] = seq(
+        j,
+        plural ? name : undefined,
+        false,
+        inPlural || plural,
+      );
       branches.push([key.replace(/^=/, ""), text]);
       j = next + 1;
     }

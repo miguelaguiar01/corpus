@@ -89,6 +89,40 @@ const NAME_RE = /^(?:[\p{L}_][\p{L}\p{M}\p{N}_]*|[0-9]+)$/u;
 // Fluent's Identifier (fluent.ebnf): ASCII, a letter first, hyphens
 // inside, as `{ $cards-per-minute }` writes it (#990).
 const FLUENT_NAME_RE = /^[A-Za-z][A-Za-z0-9_-]*$/;
+
+// A Fluent string literal at the start of `text`, `{"…"}`, as its text
+// and the length it spans; undefined where `text` opens no literal.
+// Fluent escapes `\"`, `\\` and `\uXXXX` or `\UXXXXXX`, nothing else.
+function fluentLiteral(
+  text: string,
+  at: number,
+): { text: string; length: number } | undefined {
+  if (!/^\{\s*"/.test(text)) return undefined;
+  const read = /^\{\s*"((?:[^"\\\n]|\\.)*)"\s*\}/.exec(text);
+  if (!read) throw new ParseFailure("unclosed string literal", at);
+  const value = read[1]!.replace(
+    /\\(?:u([0-9A-Fa-f]{4})|U([0-9A-Fa-f]{6})|(["\\])|(.))/g,
+    (_, u4: string, u6: string, plain: string, other: string) => {
+      if (other !== undefined)
+        throw new ParseFailure(
+          `unknown escape \\${other} in a string literal`,
+          at,
+        );
+      if (plain !== undefined) return plain;
+      const point = parseInt(u4 ?? u6, 16);
+      if (point > 0x10ffff)
+        throw new ParseFailure(
+          `\\U${u6} is past the last Unicode code point`,
+          at,
+        );
+      // A lone surrogate is no character: @fluent/bundle reads U+FFFD.
+      return point >= 0xd800 && point <= 0xdfff
+        ? "\uFFFD"
+        : String.fromCodePoint(point);
+    },
+  );
+  return { text: value, length: read[0].length };
+}
 // A branch key is a word, or a bare number (`1 {marca} other {marcas}`).
 const KEY_RE = /^(?:[A-Za-z_][A-Za-z0-9_]*|[0-9]+)$/;
 // A plural branch is a CLDR category or an exact number (`=1 {…}`).
@@ -491,6 +525,14 @@ class Parser {
         });
         seq.literalStart = this.pos;
         continue;
+      }
+      if (ch === "{" && this.syntax === "fluent") {
+        // Fluent's string literal is its text (#990), written as read.
+        const literal = fluentLiteral(this.source.slice(this.pos), this.pos);
+        if (literal) {
+          this.text(seq, literal.text, literal.length);
+          continue;
+        }
       }
       if (ch === "{") {
         // vue-i18n: `{name}` is a placeholder and `{'…'}` is the escape
