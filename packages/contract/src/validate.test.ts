@@ -553,6 +553,33 @@ describe("rich-text tags", () => {
 });
 
 describe("android library", () => {
+  test("a verb in a tag's attribute takes its place in the argument order, as getString formats it before fromHtml (#956)", () => {
+    const de = (source: string, target: string) =>
+      validateTranslation(source, target, "de", "android");
+    const link = '<a href="%s">%s</a>';
+    expect(de(link, link)).toEqual({ ok: true });
+    expect(de(link, '<a href="%1$s">%2$s</a>')).toEqual({ ok: true });
+    expect(de(link, '<a href="%s">%s</a> (%2$s)')).toEqual({ ok: true });
+    // The link's text would show the URL.
+    expect(de(link, '<a href="%s">%1$s</a>')).toMatchObject({ ok: false });
+    expect(de('<a href="%s">x</a>', '<a href="%d">x</a>')).toMatchObject({
+      ok: false,
+    });
+    expect(
+      de('<a href="%1$s">x</a> %2$s', '<a href="">x</a> %2$s'),
+    ).toMatchObject({ ok: false });
+    // Two tags that read alike are two arguments.
+    const two = '<a href="%s">x</a> <a href="%s">y</a>';
+    expect(de(two, '<a href="%2$s">y</a> <a href="%1$s">x</a>')).toEqual({
+      ok: true,
+    });
+    expect(de(two, '<a href="%1$s">y</a> <a href="%1$s">x</a>')).toMatchObject({
+      ok: false,
+    });
+    // A chip inserts the source's tag as written.
+    expect(partsOf(link, "android").tags).toEqual(new Set(['a href="%s"']));
+  });
+
   test("a dropped verb, a changed verb and an added tag are named; a plural keeps its verbs per branch (#596)", () => {
     const source = "Logged in as %1$s on %2$s.";
     expect(errorsOf(source, "Kevreet evel %1$s.", "br", "android")).toEqual([
