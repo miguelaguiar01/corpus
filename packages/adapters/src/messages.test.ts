@@ -440,3 +440,25 @@ test("a natural key's family of blanks is one string whose key is its text; a so
     },
   ]);
 });
+
+test("a null, number or boolean is no string and is skipped; a list is refused by name, the rest read (#1026)", () => {
+  const read = (data: unknown) => {
+    const refused: [string, string][] = [];
+    const entries = messagesToEntries(data, {
+      type: "ui",
+      onRefused: (id, reason) => refused.push([id, reason]),
+    });
+    return { ids: entries.map((e) => e.id), refused };
+  };
+  for (const value of [3, true, null])
+    expect(read({ a: "A", b: value, c: "C" })).toEqual({
+      ids: ["a", "c"],
+      refused: [],
+    });
+  const listed = read({ a: "A", b: ["x"], c: { d: "D", e: [] } });
+  expect(listed.ids).toEqual(["a", "c.d"]);
+  expect(listed.refused.map(([id]) => id)).toEqual(["b", "c.e"]);
+  expect(listed.refused[0]![1]).toMatch(/list/);
+  // The file itself must still be an object.
+  expect(() => read(["x"])).toThrow(/got array/);
+});

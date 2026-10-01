@@ -731,3 +731,73 @@ test("a source's comments are no part of the inline elements an edit copies (#93
     `<target state="translated">Neu <ph id="1">&lt;b&gt;</ph></target>`,
   );
 });
+
+test("a unit that does not read is refused by name and the file's other units read; a pull leaves its bytes alone (#1026)", () => {
+  const file20 = (units: string) =>
+    `<?xml version="1.0"?>\n<xliff version="2.0" srcLang="en" trgLang="de"><file id="f">\n${units}\n</file></xliff>\n`;
+  const target = file20(
+    [
+      `<unit id="u1"><segment state="translated"><source>One</source><target>Eins</target></segment></unit>`,
+      `<unit id="u2"><segment><source>A</source><target>A2</target></segment><segment><source>B</source></segment></unit>`,
+      `<unit id="u3"><segment state="translated"><source>Three</source><target>Drei</target></segment></unit>`,
+    ].join("\n"),
+  );
+  const refused: [string, string][] = [];
+  const onRefused = (id: string, reason: string) => refused.push([id, reason]);
+  expect(xliffTranslations(target, onRefused).map((e) => e.id)).toEqual([
+    "u1",
+    "u3",
+  ]);
+  expect(refused).toEqual([
+    ["u2", "xliff: unit u2 has 2 segments; a unit is read as one text"],
+  ]);
+  refused.length = 0;
+  expect(
+    xliffToEntries(target, { type: "ui", onRefused }).map((e) => e.id),
+  ).toEqual(["u1", "u3"]);
+  expect(refused.map(([id]) => id)).toEqual(["u2"]);
+  // 1.2: a target that does not close.
+  const file12 = (units: string) =>
+    `<?xml version="1.0"?>\n<xliff version="1.2"><file source-language="en" target-language="de" datatype="plaintext" original="x"><body>\n${units}\n</body></file></xliff>\n`;
+  const broken = file12(
+    [
+      `<trans-unit id="a"><source>A</source><target state="translated">A!</target></trans-unit>`,
+      `<trans-unit id="b"><source>B</source><target state="x>B!</target></trans-unit>`,
+    ].join("\n"),
+  );
+  refused.length = 0;
+  expect(xliffTranslations(broken, onRefused).map((e) => e.id)).toEqual(["a"]);
+  expect(refused).toEqual([
+    ["b", "xliff: unit b: its <target> does not parse or close"],
+  ]);
+  // Without a callback the refusal is still the file's error.
+  expect(() => xliffTranslations(broken)).toThrow(
+    "xliff: unit b: its <target> does not parse or close",
+  );
+  // A pull with no edits changes nothing; a translation for a refused
+  // unit is named, not written, and no second unit of its id is added.
+  const template = file20(
+    [
+      `<unit id="u1"><segment><source>One</source></segment></unit>`,
+      `<unit id="u2"><segment><source>Two</source></segment></unit>`,
+      `<unit id="u3"><segment><source>Three</source></segment></unit>`,
+    ].join("\n"),
+  );
+  expect(
+    entriesToXliff(template, { u1: "Eins", u3: "Drei" }, target, "de"),
+  ).toBe(target);
+  refused.length = 0;
+  const pulled = entriesToXliff(
+    template,
+    { u1: "Eins!", u2: "Zwei", u3: "Drei" },
+    target,
+    "de",
+    onRefused,
+  );
+  expect(pulled).toBe(target.replace("Eins", "Eins!"));
+  expect(refused.map(([id]) => id)).toEqual(["u2"]);
+  // A source proposal leaves a refused unit alone too.
+  expect(applyXliffOps(target, [{ kind: "edit", id: "u2", text: "x" }])).toBe(
+    target,
+  );
+});
