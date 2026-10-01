@@ -617,18 +617,24 @@ function entryField(file: string): string | undefined {
     return undefined;
   const entries = Object.entries(data).filter(([key]) => key !== "smartling");
   if (entries.length === 0) return undefined;
-  return ENTRY_FIELDS.find((field) =>
-    entries.every(([, value]) => {
+  // The text field on every entry, and on nine in ten nothing else but
+  // metadata: Signal's one `descrption` decides nothing, and a catalogue
+  // whose sections merely share a key is no such file.
+  return ENTRY_FIELDS.find((field) => {
+    let plain = 0;
+    for (const [, value] of entries) {
       if (value === null || typeof value !== "object") return false;
       const record = value as Record<string, unknown>;
-      return (
-        typeof record[field] === "string" &&
+      if (typeof record[field] !== "string") return false;
+      if (
         Object.keys(record).every(
           (key) => key === field || ENTRY_METADATA.has(key),
         )
-      );
-    }),
-  );
+      )
+        plain += 1;
+    }
+    return plain >= entries.length * 0.9;
+  });
 }
 
 function nextSteps(
