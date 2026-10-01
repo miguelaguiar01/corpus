@@ -47,6 +47,7 @@
   "editor.unexpectedPlaceholder": "Unexpected {name}",
   "editor.unexpectedTag": "Unexpected <{name}> tag",
   "editor.unknownPlural": "The source has no value {arg} to count",
+  "editor.flattenedPlural": "The plural on {arg} is written as one text, so every count reads the same form",
   "editor.unpassedSelector": "The source never passes {arg}, so Fluent shows this select's default",
   "editor.unknownSelect": "The source has no select on {arg}",
   "editor.changedNesting": "{inner} sits inside a branch of {outer}, where the source does not put it",

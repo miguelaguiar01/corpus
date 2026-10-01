@@ -54,6 +54,10 @@ export type ValidationError =
   | { code: "missing-branch"; arg: string; key: string }
   | { code: "unexpected-branch"; arg: string; key: string }
   | { code: "unknown-plural"; arg: string }
+  // A plural whose count the source never prints, written as one text:
+  // no value is lost, but a language that inflects reads one form for
+  // every count (#992).
+  | { code: "flattened-plural"; arg: string }
   // A Fluent translation's select or plural on a variable its source
   // never has: Fluent renders the default (#1032).
   | { code: "unpassed-selector"; arg: string }
@@ -154,6 +158,21 @@ export function nestedCountsOf(
 
 // The values a message uses: its placeholders and the counts it
 // pluralises on. A select's argument is not one; it picks a branch.
+// What a text prints: its placeholders and the counts its plurals'
+// branches write as `#`, through tags, branches and forms.
+function printedIn(nodes: IcuNode[], out = new Set<string>()): Set<string> {
+  for (const node of nodes) {
+    if (node.kind === "placeholder") out.add(node.name);
+    else if (node.kind === "count") out.add(node.arg);
+    else if (node.kind === "tag") printedIn(node.children, out);
+    else if (node.kind === "select" || node.kind === "plural")
+      for (const branch of Object.values(node.branches)) printedIn(branch, out);
+    else if (node.kind === "forms")
+      for (const branch of node.branches) printedIn(branch, out);
+  }
+  return out;
+}
+
 function valuesOf(shape: Shape): Set<string> {
   return new Set([...shape.placeholders, ...shape.plurals.keys()]);
 }
@@ -396,13 +415,28 @@ export function validateTranslation(
           ),
         )
       : expectedValues;
+  // In ICU a plural on a count the source never prints is a selector,
+  // as a select's argument is: a translation that writes it as one text
+  // misses no value, though where the language has forms to tell apart
+  // it is incomplete (#992). A library whose text is one plural read
+  // whole prints its count through a verb or a placeholder of its own.
+  const sourcePrints = printedIn(sourceNodes);
   for (const name of required) {
-    if (!actualValues.has(name))
-      errors.push({
-        code: "missing-placeholder",
-        name,
-        ...writtenAs(expected, name),
-      });
+    if (actualValues.has(name)) continue;
+    if (
+      readsAsIcu(syntax) &&
+      expected.plurals.has(name) &&
+      !sourcePrints.has(name)
+    ) {
+      if (categories.length > 1)
+        errors.push({ code: "flattened-plural", arg: name });
+      continue;
+    }
+    errors.push({
+      code: "missing-placeholder",
+      name,
+      ...writtenAs(expected, name),
+    });
   }
   // Outside ICU, whose `#` prints it, a plural on a value prints nothing:
   // a count the source writes is shown only where a form writes it too
@@ -773,7 +807,8 @@ export function validateTranslation(
   const warning = (e: ValidationError) =>
     e.code === "missing-category" ||
     e.code === "unexpected-category" ||
-    e.code === "unpassed-selector";
+    e.code === "unpassed-selector" ||
+    e.code === "flattened-plural";
   const incomplete = errors.filter(warning);
   const invalid = errors.filter((e) => !warning(e));
   if (invalid.length === 0) {

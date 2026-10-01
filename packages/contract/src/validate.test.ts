@@ -751,7 +751,9 @@ test("an other-only language may write a plural as the plain text of its other b
     ok: true,
     incomplete: [{ code: "unexpected-category", arg: "count", key: "one" }],
   });
-  // A language with categories still needs the count.
+  // A language with categories writing a count the source never prints
+  // as one text loses no value, but reads one form for every count
+  // (#992).
   expect(
     validateTranslation(
       "{count, plural, one {One post by {name}} other {Posts by {name}}}",
@@ -759,8 +761,8 @@ test("an other-only language may write a plural as the plain text of its other b
       "de",
     ),
   ).toEqual({
-    ok: false,
-    errors: [{ code: "missing-placeholder", name: "count" }],
+    ok: true,
+    incomplete: [{ code: "flattened-plural", arg: "count" }],
   });
   // Not on Android: a <string> in values-zh is not the <plurals> the
   // code asks for, and Chinese users would get the default's text.
@@ -2489,5 +2491,42 @@ test("in an _html key a quote inside a quoted value is no open quote, and #948's
   ).toMatchObject({
     ok: false,
     errors: [{ code: "missing-placeholder", name: "url" }],
+  });
+});
+
+test("a plural whose count the source never prints is a selector: writing it as one text misses no value, and is incomplete where the language inflects (#992)", () => {
+  const source =
+    "{count, plural, one {card from the deck} other {cards from the deck}}";
+  expect(validateTranslation(source, "kort fra kortsættet", "da")).toEqual({
+    ok: true,
+    incomplete: [{ code: "flattened-plural", arg: "count" }],
+  });
+  // One category: nothing to vary.
+  expect(validateTranslation(source, "デッキのカード", "ja")).toEqual({
+    ok: true,
+  });
+  // A count the source prints is still a value to keep.
+  const printed = validateTranslation(
+    "{count, plural, one {# card} other {# cards}}",
+    "karty",
+    "pl",
+  );
+  expect(printed.ok ? [] : printed.errors).toEqual([
+    expect.objectContaining({ code: "missing-placeholder", name: "count" }),
+  ]);
+  const outside = validateTranslation(
+    "{count} {count, plural, one {card} other {cards}}",
+    "karty",
+    "pl",
+  );
+  expect(outside.ok ? [] : outside.errors).toEqual([
+    expect.objectContaining({ code: "missing-placeholder", name: "count" }),
+  ]);
+  // Fluent's sources select on a count they never print, as Anki's do.
+  expect(
+    validateTranslation(source, "kort fra kortsættet", "da", "fluent"),
+  ).toEqual({
+    ok: true,
+    incomplete: [{ code: "flattened-plural", arg: "count" }],
   });
 });
