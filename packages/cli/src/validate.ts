@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { createJiti } from "jiti";
 import {
@@ -19,7 +19,7 @@ import {
   stringEntrySchema,
   type StringEntry,
 } from "@corpus/contract";
-import { isBlank } from "@corpus/adapters";
+import { isBlank, qtShortForms } from "@corpus/adapters";
 import { printable } from "./printable";
 import type { RunContext } from "./cli";
 import {
@@ -58,6 +58,7 @@ export type Finding = {
     | "orphan"
     | "unread-plural"
     | "unread-message"
+    | "short-numerus"
     | "shared-differs";
   // A plural missing a category the runtime picks, or with one it never
   // selects, is incomplete, not invalid (#556, #651): printed apart, and
@@ -326,6 +327,22 @@ export async function validateRepo(
         pluralIds,
       );
       if (translations === undefined) continue;
+      // A numerus translation short of Qt's forms is the file's defect:
+      // a count past them shows the source text (#1004).
+      if (source.adapter === "qt-ts")
+        for (const { id, have, want } of qtShortForms(
+          readFileSync(path.join(cwd, file), "utf8"),
+          language,
+        ))
+          if (sources.has(id))
+            findings.push({
+              file,
+              key: id,
+              language,
+              code: "short-numerus",
+              severity: "warning",
+              message: `Qt's rule for ${language} has ${want} forms; the file has ${have}, so a count past them shows the source text`,
+            });
       const group = "group" in source ? source.group : undefined;
       if (lastWins(source) && typeof group === "number") {
         const earlier =

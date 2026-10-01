@@ -98,7 +98,7 @@ test("the service's refusals: unchanged, invalid ICU, a source pull cannot write
   expect(keyed.status).toBe(422);
   expect(await keyed.json()).toEqual({
     error: "not-writable",
-    message: `the text of ${HEARD} is its key: change it in the code that calls t(), and the catalogue follows`,
+    message: `the text of ${HEARD} is its key: change it in the code that calls t() or tr(), and the catalogue follows`,
   });
   db.update(strings)
     .set({ keyIsText: false })

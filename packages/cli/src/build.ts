@@ -11,6 +11,7 @@ import {
   xcstringsToEntries,
   xcstringsTranslations,
   qtTsToEntries,
+  qtShortForms,
   qtTsTranslations,
   yamlToEntries,
   yamlTranslations,
@@ -275,7 +276,9 @@ export async function buildSnapshotReport(
     // A msgid is its key by nature, not an empty value (#718), and so is
     // a String Catalog key with no source-language unit (#727).
     const keyed =
-      source.adapter === "gettext" || source.adapter === "xcstrings"
+      source.adapter === "gettext" ||
+      source.adapter === "xcstrings" ||
+      source.adapter === "qt-ts"
         ? 0
         : entries.filter((entry) => entry.keyIsText).length;
     if (keyed > 0) {
@@ -798,7 +801,7 @@ const OWN_FORMAT = new Set<FileSource["adapter"]>([
 // The adapters whose keys are the code's own (a msgid, a String Catalog
 // key, a `tr()` literal): no proposal is taken on their strings (#719,
 // #728, #741).
-const CODE_KEYED_ADAPTERS = ["gettext", "xcstrings", "qt-ts"] as const;
+export const CODE_KEYED_ADAPTERS = ["gettext", "xcstrings", "qt-ts"] as const;
 type CodeKeyed = (typeof CODE_KEYED_ADAPTERS)[number];
 const CODE_KEYED = new Set<FileSource["adapter"]>(CODE_KEYED_ADAPTERS);
 
@@ -879,7 +882,10 @@ export async function readEntries(
     }
     case "qt-ts":
       return sourceFile
-        ? qtTsToEntries(text(), { type: source.type })
+        ? qtTsToEntries(text(), {
+            type: source.type,
+            ...(language !== undefined && { language }),
+          })
         : typed(
             qtTsTranslations(text(), languageOfFile(file, source), onUnread),
           );
@@ -1405,6 +1411,21 @@ async function readSeeds(
           notes.push(
             `${file}: ${unread.length} translation(s) not seeded: ${source.adapter === "fluent" ? "a message Corpus cannot read" : "a numerus form Corpus cannot read as one plural"}, left as the file has it (${unread.map(printable).join(", ")})`,
           );
+        // The file's defect, not Corpus's: a count past its forms shows
+        // the source text in the app (#1004).
+        if (source.adapter === "qt-ts") {
+          const short = qtShortForms(
+            readFileSync(path.join(cwd, file), "utf8"),
+            lang,
+          ).filter((s) => ids.has(s.id));
+          if (short.length > 0)
+            notes.push(
+              `${file}: ${short.length} numerus translation(s) hold fewer than the ${short[0]!.want} forms Qt's rule for ${lang} has, so a count past them shows the source text (${short
+                .slice(0, 3)
+                .map((s) => printable(s.id))
+                .join(", ")}${short.length > 3 ? ", …" : ""})`,
+            );
+        }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         errors.push(`${file}: ${message}`);
