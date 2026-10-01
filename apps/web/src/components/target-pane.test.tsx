@@ -854,3 +854,22 @@ test("a tag the source writes closed on itself is inserted so (#986)", () => {
     "<0/>",
   );
 });
+
+test("an ordinal chip inserts a selectordinal with the language's ordinal keys (#995)", () => {
+  render(
+    <TargetPane
+      action={vi.fn()}
+      source="{age, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} birthday"
+      slots={[]}
+      language="fr"
+      initialText=""
+      slug="mm"
+      stringKey="k"
+      openedVersion={1}
+      sourceLanguage="en"
+    />,
+  );
+  const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
+  fireEvent.click(screen.getByRole("button", { name: "{age, selectordinal}" }));
+  expect(textarea.value).toBe("{age, selectordinal, one {#} other {#}}");
+});
