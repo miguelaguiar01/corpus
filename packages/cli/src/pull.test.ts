@@ -948,7 +948,8 @@ export default defineCorpus({
   expect(snapshot.strings.map((s) => s.id)).toEqual(["hello", "bye"]);
   expect(snapshot.seedTranslations).toEqual({ uz: { bye: "Xayr" } });
   const checked = ctx();
-  await run(["validate"], checked);
+  // A refused message that is no term is an invalid finding (#1081).
+  expect(await run(["validate"], checked)).toBe(1);
   const found = checked.output.join("\n");
   expect(found).toContain("i18n/en/app.ftl:size: invalid Fluent message");
   expect(found).toContain(
@@ -1000,7 +1001,7 @@ export default defineCorpus({
   );
   const valid = ctx();
   expect(await run(["validate"], valid)).toBe(0);
-  expect(valid.output.join("\n")).not.toContain("-brand");
+  expect(valid.output.join("\n")).not.toMatch(/-brand|-relay/);
   expect(valid.output.join("\n")).toContain(
     "validate: every translation is valid",
   );
