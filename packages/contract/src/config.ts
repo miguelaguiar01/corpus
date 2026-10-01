@@ -36,7 +36,7 @@ const onePattern = (adapter: string) =>
     .string({
       error: (issue) =>
         Array.isArray(issue.input)
-          ? `${adapter} takes one path pattern per source; declare one source per pattern (only messages, table, fluent and android take an array)`
+          ? `${adapter} takes one path pattern per source; declare one source per pattern (only messages, table, fluent, android and yaml take an array)`
           : undefined,
     })
     .refine((p) => p.includes("{lang}"), "path must contain {lang}");
@@ -147,13 +147,14 @@ const qtTsSchema = z.looseObject({
 
 // Rails I18n's YAML (#752): a file per language, the language as its
 // root key; rails's placeholders unless the library says else.
-const yamlSchema = z.looseObject({
+// A source may list several patterns, the files Rails' `I18n.load_path`
+// merges into one tree (#1024).
+const yamlFields = {
   adapter: z.literal("yaml"),
   type: identifier(),
-  path: noNamespace("yaml", onePattern("yaml")),
   library: configLibrarySchema.optional(),
   languageFiles,
-});
+};
 
 // Apple's String Catalog (#727): one `.xcstrings` holding every
 // language, so its path has no {lang}; printf unless the library says
@@ -212,7 +213,11 @@ const sourceInputSchema = z.discriminatedUnion("adapter", [
   gettextSchema,
   xcstringsSchema,
   qtTsSchema,
-  yamlSchema,
+  z.looseObject({
+    ...yamlFields,
+    path: patterns(noNamespace("yaml", langPattern)),
+    ...mergeField,
+  }),
   execSchema,
 ]);
 
@@ -254,7 +259,12 @@ const sourceSchema = z.discriminatedUnion("adapter", [
   gettextSchema,
   xcstringsSchema,
   qtTsSchema,
-  yamlSchema,
+  z.looseObject({
+    ...yamlFields,
+    path: noNamespace("yaml", langPattern),
+    ...expanded,
+    ...mergeField,
+  }),
   execSchema,
 ]);
 

@@ -51,6 +51,7 @@ contract (`corpus/1`) is the only one.
 - YAML: removing a key after a keep-chomped block no longer changes that block's text (#1130).
 - YAML: removing a key takes the comment and blank lines under it, which the block before it read as text (#1132).
 - Tag attributes compare as HTML reads them, spacing, quotes and order aside; a placeholder moved out of a broken tag is one finding (#1022).
+- A `yaml` source's `path` may list several patterns, a Rails app's families as one catalogue (#1024).
 
 ## [0.21.0] - 2026-09-29
 

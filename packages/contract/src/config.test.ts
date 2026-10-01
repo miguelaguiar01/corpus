@@ -664,7 +664,8 @@ test("a source that reads no sourcePath refuses one by name (#994)", () => {
 });
 
 test("a path array on a source that takes one pattern is refused by the rule's name (#1020)", () => {
-  for (const adapter of ["yaml", "gettext", "xliff", "qt-ts"]) {
+  // yaml takes a list since #1024.
+  for (const adapter of ["gettext", "xliff", "qt-ts"]) {
     const parsed = corpusConfigSchema.safeParse({
       project: "p",
       server: "http://localhost:3000",
@@ -684,7 +685,7 @@ test("a path array on a source that takes one pattern is refused by the rule's n
     expect(parsed.success).toBe(false);
     if (!parsed.success)
       expect(parsed.error.issues.map((i) => i.message)).toEqual([
-        `${adapter} takes one path pattern per source; declare one source per pattern (only messages, table, fluent and android take an array)`,
+        `${adapter} takes one path pattern per source; declare one source per pattern (only messages, table, fluent, android and yaml take an array)`,
       ]);
   }
   const issues = (source: Record<string, unknown>) => {
