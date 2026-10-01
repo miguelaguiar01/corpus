@@ -35,11 +35,16 @@ export function validationMessage(
             actual: error.actual,
             indexed: error.indexed,
           })
-        : t("editor.changedVerbType", {
-            name: error.name,
-            expected: error.expected,
-            actual: error.actual,
-          });
+        : /^\d+$/.test(error.name)
+          ? t("editor.changedVerbType", {
+              name: error.name,
+              expected: error.expected,
+              actual: error.actual,
+            })
+          : t("editor.changedVerbNamed", {
+              expected: error.expected,
+              actual: error.actual,
+            });
     case "unknown-select":
       return t("editor.unknownSelect", { arg: error.arg });
     case "missing-branch":

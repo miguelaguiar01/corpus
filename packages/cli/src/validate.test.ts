@@ -295,6 +295,16 @@ export default defineCorpus({
 test("describe words every error code", () => {
   expect(
     describe({
+      code: "changed-verb",
+      name: "n",
+      expected: "%(n)d",
+      actual: "%(n)s",
+      indexed: "%n$s",
+      moved: false,
+    }),
+  ).toBe("%(n)s where the source has %(n)d");
+  expect(
+    describe({
       code: "invalid-icu",
       where: "target",
       message: "unclosed brace",

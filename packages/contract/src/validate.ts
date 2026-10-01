@@ -1066,9 +1066,12 @@ function verbErrors(
       expected: written,
       actual: got,
       indexed: indexFor(verbOf(got)),
-      moved: expected.verbs.some(
-        ([other, w]) => other !== name && verbOf(w) === verbOf(got),
-      ),
+      // A Python key is found by its name, wherever it is (#1012).
+      moved:
+        /^\d+$/.test(name) &&
+        expected.verbs.some(
+          ([other, w]) => other !== name && verbOf(w) === verbOf(got),
+        ),
     });
   }
   // One dropped verb shifts every verb after it one place: read by
@@ -1181,6 +1184,7 @@ function droppedVerb(
 ): ValidationError | undefined {
   if (actual.count !== expected.count - 1 || changed.length === 0) return;
   const positions = [...expected.written.keys()].map(Number);
+  if (positions.some(Number.isNaN)) return;
   const last = Math.max(...positions);
   const missing = errors.filter((e) => e.code === "missing-placeholder");
   if (errors.length !== missing.length) return;

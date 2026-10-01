@@ -2713,3 +2713,56 @@ test("Qt: a marker no .arg() fills is text; %n in a numerus message is its count
     }),
   ]);
 });
+
+test("under printf a Python mapping key, %(name)s, is a placeholder named by its key, its conversion kept (#1012)", () => {
+  expect(
+    validateTranslation(
+      "Organization type: %(organization_type)s",
+      "Typ: %(typ)s",
+      "cs",
+      "printf",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [
+      {
+        code: "missing-placeholder",
+        name: "organization_type",
+        written: "%(organization_type)s",
+      },
+      { code: "unexpected-placeholder", name: "typ" },
+    ],
+  });
+  expect(
+    validateTranslation(
+      "%(n).1f MB of %(total)s",
+      "%(total)s: %(n).1f MB",
+      "de",
+      "printf",
+    ),
+  ).toEqual({ ok: true });
+  expect(
+    validateTranslation("%(n)d files", "%(n)s Dateien", "de", "printf"),
+  ).toMatchObject({
+    ok: false,
+    errors: [
+      { code: "changed-verb", name: "n", expected: "%(n)d", actual: "%(n)s" },
+    ],
+  });
+  // The space flag stays out, as for a verb: prose, not a key.
+  expect([...partsOf("50%(approx) of", "printf").placeholders]).toEqual([]);
+  // A C verb beside it counts on by position as before.
+  expect([...partsOf("%(a)s %s %d", "printf").placeholders]).toEqual([
+    "a",
+    "1",
+    "2",
+  ]);
+  // A key is found by its name: one that changed conversion did not
+  // move, and needs no index.
+  expect(
+    validateTranslation("%(a)s, %(b)d", "%(b)s, %(a)s", "de", "printf"),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "changed-verb", name: "b", moved: false }],
+  });
+});
