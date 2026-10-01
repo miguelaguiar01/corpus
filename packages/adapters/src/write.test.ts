@@ -1220,21 +1220,27 @@ test("a null, number or list the file holds is left as it is; a translation unde
   ).toBe(template.replace('"Apple"', '"Apples"'));
 });
 
-test("removing a plural id takes a target's object of categories whole, other or not; an object with another key stays (#959)", () => {
-  const remove = (text: string, id = "r") =>
-    applyMessagesOps(text, [{ kind: "delete", id }], { plurals: true });
-  expect(
-    remove('{\n  "r": { "one": "a", "other": "b" },\n  "k": "v"\n}\n'),
-  ).toBe('{\n  "k": "v"\n}\n');
-  expect(remove('{\n  "r": { "one": "a", "few": "b" },\n  "k": "v"\n}\n')).toBe(
-    '{\n  "k": "v"\n}\n',
-  );
+test("removing a plural id takes a target's object of categories whole, other or not, where the source reads the id as a plural; elsewhere it is a section (#959, #984)", () => {
+  const remove = (text: string, id: string, pluralIds: string[]) =>
+    applyMessagesOps(text, [{ kind: "delete", id }], {
+      plurals: true,
+      pluralIds: new Set(pluralIds),
+    });
+  for (const forms of ['"one": "a", "other": "b"', '"one": "a", "few": "b"'])
+    expect(remove(`{\n  "r": { ${forms} },\n  "k": "v"\n}\n`, "r", ["r"])).toBe(
+      '{\n  "k": "v"\n}\n',
+    );
   expect(
     remove(
       '{\n  "m.room": { "one": "a", "few": "b" },\n  "k": "v"\n}\n',
       "m.room",
+      ["m.room"],
     ),
   ).toBe('{\n  "k": "v"\n}\n');
+  // An object with another key is a section, and so is one at an id the
+  // source holds as a string: `r.one` may be a string of its own.
   const section = '{\n  "r": { "one": "a", "label": "b" },\n  "k": "v"\n}\n';
-  expect(remove(section)).toBe(section);
+  expect(remove(section, "r", ["r"])).toBe(section);
+  const plain = '{\n  "r": { "one": "a", "few": "b" },\n  "k": "v"\n}\n';
+  expect(remove(plain, "r", [])).toBe(plain);
 });
