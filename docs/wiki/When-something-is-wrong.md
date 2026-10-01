@@ -91,7 +91,7 @@ In the editor the structural problems are listed under the box and the save butt
 
 ## A language shows as untranslated though its file is full
 
-The file's text is identical to the source text. A push seeds a translation from the repository, but a seed that repeats the source stays untranslated, because a catalogue full of English is a catalogue nobody has translated. Outline's `en_GB` went from "99% translated" to an honest 1,863 untranslated on its first push for exactly this reason.
+The file's text is identical to the source text. A push seeds a translation from the repository, but a seed that repeats the source stays untranslated, because a catalogue full of English is a catalogue nobody has translated. Outline's `en_GB` went from "99% translated" to an honest 1,863 untranslated on its first push for exactly this reason. Under ICU the comparison is by meaning, not bytes: Signal Desktop's TMS fills each language with an English copy whose plural is hoisted over the sentence (`{n, plural, one {You have {n,number} unread message.} …}` for `You have {n, plural, one {# unread message} …}.`), and those 935 copies stay untranslated too, open to an agent's draft.
 
 ## `corpus: … has no {lang}: its translations cannot be written back`
 
