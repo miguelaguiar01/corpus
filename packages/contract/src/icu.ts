@@ -841,8 +841,14 @@ class Parser {
     // a translation keeps it, and the chip writes it as the source does.
     // A brace inside is an ICU branch read under the wrong library, which
     // is refused so the refusal can say so.
+    // A dash before a name that is not `{{-name}}`'s own, `{{ -name }}`,
+    // is a slip that would otherwise meet that name, and is refused.
     const content = inner.trim();
-    if (key === "" || /[{}]/.test(content))
+    if (
+      key === "" ||
+      /[{}]/.test(content) ||
+      (key.startsWith("-") && I18NEXT_NAME_RE.test(key.slice(1).trim()))
+    )
       throw new ParseFailure(
         `invalid placeholder name ${JSON.stringify(key)}`,
         start,

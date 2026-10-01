@@ -566,11 +566,12 @@ test("i18next's unescaped form {{- name}} is its own placeholder, -name, since i
     ).placeholders,
   ]).toEqual(["-name", "-user.name", "-date"]);
   expect(parseIcu("{{-}}", "i18next").ok).toBe(false);
-  // i18next reads {{ - name }} as the key "- name", no name it is passed,
-  // and prints it as written (#1008).
-  expect([...partsOf("{{ - name }}", "i18next").placeholders]).toEqual([
-    "- name",
-  ]);
+  // i18next reads {{ - name }} and {{ -name }} as the key "- name" or
+  // "-name", which it prints as written: a dash that is no unescape is a
+  // slip, refused, never a name to meet {{-name}} (#1008).
+  expect(parseIcu("{{ - name }}", "i18next").ok).toBe(false);
+  expect(parseIcu("{{ -name }}", "i18next").ok).toBe(false);
+  expect(parseIcu("{{ -user.name, short }}", "i18next").ok).toBe(false);
   expect(
     validateTranslation("Hi {{- name}}", "Olá {{name}}", "pt-PT", "i18next"),
   ).toMatchObject({
