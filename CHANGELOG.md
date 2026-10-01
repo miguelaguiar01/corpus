@@ -21,6 +21,7 @@ contract (`corpus/1`) is the only one.
 - An Android app's modules are one project: an `android` source's `path` may list its `res` directories, with `merge`, and a `{ns}` captures a Compose Multiplatform module (#989).
 - A Fluent message Corpus cannot read is refused on its own instead of failing its whole file, and the build goes on (#991).
 - A glossary term finds its regular inflections (`assassino`: `assassinos`, `assassina`), and `match: "exact"` turns that off for an entry (#1073).
+- `corpus validate --server` checks the instance's translations, an exec source's drafts included, and plain `validate` no longer calls a partly checked exec source valid (#1074).
 
 ## [0.21.0] - 2026-09-29
 

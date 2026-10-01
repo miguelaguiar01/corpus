@@ -22,7 +22,7 @@ The [wiki](https://github.com/miguelaguiar01/corpus/wiki) is the manual: install
 - `corpus push [--dry-run]`: the repository's strings into Corpus by id; the translations the repository's target-language catalogues already hold travel too, and so does what an `exec` exporter emits as `translations`; both land where Corpus has no edit of its own.
 - `corpus pull [--min-state <s>] [--lang <l>]... [--check]`: verified translations (or looser) back into the files, and pending source proposals into the source files; `--check` lists what would change and exits 1 if anything would. An `exec` source's `importCommand` receives on stdin only the rows this pull selected, never the whole catalogue, so it must merge them into its file and leave every other entry alone: a command that rewrites its file from the payload loses every row the pull did not select.
 - `corpus status [--json]`: the dashboard's numbers, the writable sources, the pending proposals.
-- `corpus validate [--json]`: every translation still fits its source, offline. `corpus check`: no user-facing literal outside the declared sources, over `.jsx`, `.tsx` and `.vue`.
+- `corpus validate [--server] [--json]`: every translation still fits its source, offline; `--server` checks the instance's translations, an exec source's drafts included. `corpus check`: no user-facing literal outside the declared sources, over `.jsx`, `.tsx` and `.vue`.
 - `corpus build [--out <file>]`: the snapshot with no server, for authoring the config.
 - `corpus project create | rotate-token`, `corpus init`, `corpus workbench`.
 

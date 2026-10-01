@@ -7,6 +7,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
+import { createServer, type Server } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, expect, test } from "vitest";
@@ -112,14 +113,49 @@ test("a string type read as HTML validates without comparing tags, in a file or 
   expect(dropped.stderr.join("\n")).toContain("i18n/pt.json:greeting:");
 });
 
-test("a clean repository is valid, exec sources are named as not validated, missing keys are not findings", async () => {
+test("a clean repository is valid, an exec source whose translations are elsewhere is named as not checked, missing keys are not findings", async () => {
   write("i18n/pt.json", { greeting: "Olá {name}" });
   const c = ctx();
   expect(await run(["validate"], c)).toBe(0);
-  expect(c.stdout.join("\n")).toMatch(/every translation is valid/);
-  expect(c.stderr.join("\n")).toMatch(
-    /exec "node scripts\/export.mjs" is not validated: its exporter emits no translations/,
+  expect(c.stdout.join("\n")).toBe(
+    'validate: every translation checked is valid; not checked: what exec "node scripts/export.mjs" does not hand over (`corpus validate --server` checks it)',
   );
+  expect(c.stderr.join("\n")).toContain(
+    'corpus: exec "node scripts/export.mjs" hands over no translations; the instance holds any others, unchecked here: `corpus validate --server` checks them',
+  );
+});
+
+test("an exporter that hands over some of its translations is named with the count (#1074)", async () => {
+  writeFileSync(
+    path.join(repo, "scripts", "export.mjs"),
+    `console.log(JSON.stringify({
+      strings: [
+        { id: "exec.bye", type: "computed", source: "Bye {who}" },
+        { id: "exec.hi", type: "computed", source: "Hi {who}" },
+      ],
+      translations: { pt: { "exec.bye": "Adeus {who}" } },
+    }))`,
+  );
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(0);
+  expect(c.stderr.join("\n")).toContain(
+    'corpus: exec "node scripts/export.mjs" hands over 1 of the 2 translations its strings can have; the instance holds any others, unchecked here: `corpus validate --server` checks them',
+  );
+  expect(c.stdout.join("\n")).toMatch(
+    /^validate: every translation checked is valid; not checked: what exec/,
+  );
+  // Every translation handed over: nothing left unchecked.
+  writeFileSync(
+    path.join(repo, "scripts", "export.mjs"),
+    `console.log(JSON.stringify({
+      strings: [{ id: "exec.bye", type: "computed", source: "Bye {who}" }],
+      translations: { pt: { "exec.bye": "Adeus {who}" } },
+    }))`,
+  );
+  const full = ctx();
+  expect(await run(["validate"], full)).toBe(0);
+  expect(full.stdout.join("\n")).toBe("validate: every translation is valid");
+  expect(full.stderr.join("\n")).not.toMatch(/hands over/);
 });
 
 test("an exec source's translations are validated from its exporter, the command standing for the file (#560)", async () => {
@@ -419,7 +455,7 @@ test("a plural missing a category its language uses is incomplete: printed apart
   );
   expect(err).not.toMatch(/invalid translation/);
   expect(c.stdout.join("\n")).toBe(
-    "validate: no invalid translation; 1 incomplete plural(s) listed above",
+    'validate: no invalid translation checked; 1 incomplete plural(s) listed above; not checked: what exec "node scripts/export.mjs" does not hand over (`corpus validate --server` checks it)',
   );
 
   write("i18n/pt.json", {
@@ -942,4 +978,108 @@ test("a Rails _html key's translation writes its own tags, closed; a plain key's
   expect(said).toContain("config/locales/ja.yml:link_html:");
   expect(said).toContain("unclosed <a>");
   expect(said).toContain("config/locales/ja.yml:plain: missing the <em> tag");
+});
+
+// The instance's translations (#1074): what an exec source drafted there
+// never reaches the repository, so only the server can check it.
+async function instance(
+  translations: Record<string, Record<string, string>>,
+  status = 200,
+) {
+  const calls: { url: string; auth?: string }[] = [];
+  const server: Server = createServer((req, res) => {
+    calls.push({ url: req.url ?? "", auth: req.headers.authorization });
+    res.writeHead(status, { "content-type": "application/json" });
+    res.end(
+      JSON.stringify(
+        status === 200
+          ? {
+              contract: "corpus/1",
+              project: "pull-fixture",
+              sourceLanguage: "en",
+              minState: "translated",
+              types: {},
+              translations,
+            }
+          : { error: "unauthorized", message: "no" },
+      ),
+    );
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  const port = typeof address === "object" && address ? address.port : 0;
+  process.env.CORPUS_SERVER = `http://127.0.0.1:${port}`;
+  return { calls, close: () => server.close() };
+}
+
+test("--server checks the instance's translations against the repository's sources, an exec source's included (#1074)", async () => {
+  const server = await instance({
+    en: { greeting: "Hello {name}", "exec.bye": "Bye {who}" },
+    pt: {
+      greeting: "Olá",
+      "exec.bye": "Adeus",
+      "gone.key": "Desaparecido",
+    },
+  });
+  try {
+    const c = { ...ctx(), env: { CORPUS_TOKEN: "good" } };
+    expect(await run(["validate", "--server"], c)).toBe(1);
+    expect(server.calls[0]).toEqual({
+      url: "/api/pull?minState=translated",
+      auth: "Bearer good",
+    });
+    const err = c.stderr.join("\n");
+    expect(err).toContain("i18n/pt.json:greeting: missing {name}");
+    expect(err).toContain(
+      "exec:node scripts/export.mjs [exec.bye] pt: missing {who}",
+    );
+    // An id the sources dropped is one warning; the next push archives it.
+    expect(err).toMatch(
+      /\[gone\.key\] pt: the instance holds a translation of this id, which the sources no longer have; the next push archives it/,
+    );
+    expect(err).toMatch(/corpus: 2 invalid translation\(s\), 1 warning\(s\)$/);
+    // The repository has no pt file: plain validate finds nothing.
+    expect(await run(["validate"], ctx())).toBe(0);
+
+    const j = { ...ctx(), env: { CORPUS_TOKEN: "good" } };
+    expect(await run(["validate", "--server", "--json"], j)).toBe(1);
+    expect(JSON.parse(j.stdout.join("\n"))).toContainEqual({
+      file: "exec:node scripts/export.mjs",
+      sourceFile: "exec:node scripts/export.mjs",
+      key: "exec.bye",
+      language: "pt",
+      code: "missing-placeholder",
+      severity: "invalid",
+      message: "missing {who}",
+      where: "server",
+    });
+  } finally {
+    server.close();
+    delete process.env.CORPUS_SERVER;
+  }
+});
+
+test("--server on a valid instance says how many it checked, and a refused token is said (#1074)", async () => {
+  const server = await instance({
+    pt: { greeting: "Olá {name}", "exec.bye": "Adeus {who}" },
+  });
+  try {
+    const c = { ...ctx(), env: { CORPUS_TOKEN: "good" } };
+    expect(await run(["validate", "--server"], c)).toBe(0);
+    expect(c.stdout.join("\n")).toBe(
+      "validate --server: every translation on the instance is valid (2 checked)",
+    );
+    expect(c.stderr.join("\n")).not.toMatch(/hands over/);
+  } finally {
+    server.close();
+  }
+  const refused = await instance({}, 401);
+  try {
+    const c = { ...ctx(), env: { CORPUS_TOKEN: "bad" } };
+    expect(await run(["validate", "--server"], c)).toBe(1);
+    expect(c.stderr.join("\n")).toMatch(/^corpus: /);
+  } finally {
+    refused.close();
+    delete process.env.CORPUS_SERVER;
+  }
 });

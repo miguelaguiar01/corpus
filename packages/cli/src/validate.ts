@@ -34,11 +34,13 @@ import {
   sourceWritesBack,
   runExporter,
   sourceLibrary,
+  buildSnapshotReport,
 } from "./build";
+import { download } from "./pull";
 import { unreadableFile } from "./catalogue-format";
-import { CliError, loadConfig } from "./config";
+import { CliError, loadConfig, requireToken } from "./config";
 
-export const VALIDATE_USAGE = "corpus validate [--json]";
+export const VALIDATE_USAGE = "corpus validate [--server] [--json]";
 
 export type Finding = {
   file: string;
@@ -59,7 +61,13 @@ export type Finding = {
   severity: "invalid" | "incomplete" | "warning";
   message: string;
   sourceFile?: string;
+  // A translation the instance holds, checked by --server (#1074).
+  where?: "server";
 };
+
+// An exec source whose translations the repository does not hold all of:
+// what its drafts on the instance are, offline, unchecked (#1074).
+export type Unchecked = { source: string; reason: string };
 
 // `corpus validate` (§3): the editor's checks (§5, §7) over the target
 // files of every source with {lang} that pull writes back, and every
@@ -69,7 +77,12 @@ export type Finding = {
 // names it after the key, since the command stands for every language,
 // and so does a String Catalog's, one file holding them all (#727).
 function oneForAll(f: Finding): boolean {
-  return f.file.startsWith("exec:") || /\.xcstrings$/i.test(f.file);
+  return (
+    f.file.startsWith("exec:") ||
+    /\.xcstrings$/i.test(f.file) ||
+    // An instance's translation of a file without {lang}.
+    (f.where === "server" && f.file === f.sourceFile)
+  );
 }
 
 function line(f: Finding): string {
@@ -83,14 +96,21 @@ export async function validate(
   ctx: RunContext,
 ): Promise<number> {
   const config = await loadConfig(ctx.cwd);
-  const { findings, unvalidated } = await validateRepo(config, ctx.cwd);
+  const server = args.includes("--server");
+  const result = server
+    ? await validateServer(config, ctx)
+    : await validateRepo(config, ctx.cwd);
+  if (result === undefined) return 1;
+  const { findings, unchecked } = result;
   const json = args.includes("--json");
   const invalid = findings.filter(
     (f) => f.code !== "orphan" && f.severity === "invalid",
   );
   const incomplete = findings.filter((f) => f.severity === "incomplete");
   const warnings = findings.filter((f) => f.severity === "warning");
-  const orphans = findings.filter((f) => f.code === "orphan");
+  const orphans = findings.filter(
+    (f) => f.code === "orphan" && f.severity === "invalid",
+  );
   const byKey = orphansByKey(orphans);
   if (json) ctx.out(JSON.stringify(findings, null, 2));
   else {
@@ -104,9 +124,9 @@ export async function validate(
     for (const f of warnings) ctx.err(line(f));
   }
   for (const note of deprecations(config)) ctx.err(`corpus: ${note}`);
-  for (const command of unvalidated) {
+  for (const { source, reason } of unchecked) {
     ctx.err(
-      `corpus: exec "${command}" is not validated: its exporter emits no translations`,
+      `corpus: exec "${source}" ${reason}; the instance holds any others, unchecked here: \`corpus validate --server\` checks them`,
     );
   }
   if (findings.length > 0) {
@@ -124,11 +144,27 @@ export async function validate(
     if (invalid.length > 0 || orphans.length > 0) return 1;
   }
   if (!json) {
-    ctx.out(
-      incomplete.length > 0
-        ? `validate: no invalid translation; ${incomplete.length} incomplete plural(s) listed above`
-        : "validate: every translation is valid",
-    );
+    const listed = `${incomplete.length} incomplete plural(s) listed above`;
+    if (server && "checked" in result) {
+      const checked = `(${result.checked} checked)`;
+      ctx.out(
+        incomplete.length > 0
+          ? `validate --server: no invalid translation on the instance ${checked}; ${listed}`
+          : `validate --server: every translation on the instance is valid ${checked}`,
+      );
+    } else {
+      const notChecked =
+        unchecked.length > 0
+          ? `; not checked: what ${unchecked.map((u) => `exec "${u.source}"`).join(" and ")} ${unchecked.length === 1 ? "does" : "do"} not hand over (\`corpus validate --server\` checks it)`
+          : "";
+      ctx.out(
+        incomplete.length > 0
+          ? `validate: no invalid translation${unchecked.length > 0 ? " checked" : ""}; ${listed}${notChecked}`
+          : unchecked.length > 0
+            ? `validate: every translation checked is valid${notChecked}`
+            : "validate: every translation is valid",
+      );
+    }
   }
   return 0;
 }
@@ -158,10 +194,10 @@ function orphansByKey(
 export async function validateRepo(
   config: CorpusConfig,
   cwd: string,
-): Promise<{ findings: Finding[]; unvalidated: string[] }> {
+): Promise<{ findings: Finding[]; unchecked: Unchecked[] }> {
   const jiti = createJiti(import.meta.url);
   const findings: Finding[] = [];
-  const unvalidated: string[] = [];
+  const unchecked: Unchecked[] = [];
   const targets = config.languages.filter((l) => l !== config.sourceLanguage);
   // Under last-wins, the translations each group's earlier files hold,
   // by language (#953).
@@ -176,7 +212,14 @@ export async function validateRepo(
         config.richText ?? {},
       );
       findings.push(...exec.findings);
-      if (!exec.validated) unvalidated.push(source.command);
+      if (exec.handedOver < exec.possible)
+        unchecked.push({
+          source: source.command,
+          reason:
+            exec.handedOver === 0
+              ? "hands over no translations"
+              : `hands over ${exec.handedOver} of the ${exec.possible} translations its strings can have`,
+        });
       continue;
     }
     if (!hasLanguages(source)) continue;
@@ -338,7 +381,7 @@ export async function validateRepo(
       }
     }
   }
-  return { findings, unvalidated };
+  return { findings, unchecked };
 }
 
 // A catalogue's id → text through the source's own adapter, so the keys
@@ -426,19 +469,21 @@ export function describe(
 
 // An exec source's translations are what its exporter hands over (§3):
 // validated like a target file's, the command standing for the file
-// (#560). The exporter runs once; one that emits no translations is
-// named as not validated.
+// (#560). The exporter runs once; how many it handed over of the
+// translations its strings can have says what the instance may hold
+// that nothing here checked (#1074).
 function validateExec(
   command: string,
   cwd: string,
   targets: string[],
   sourceLanguage: string,
   richText: Record<string, RichText>,
-): { findings: Finding[]; validated: boolean } {
+): { findings: Finding[]; handedOver: number; possible: number } {
   const ran = runExporter(command, cwd);
   if (!ran.ok) throw new CliError(ran.error);
+  const possible = (ran.output.strings ?? []).length * targets.length;
   if (ran.output.translations === undefined) {
-    return { findings: [], validated: false };
+    return { findings: [], handedOver: 0, possible };
   }
   const parsed = execTranslationsSchema.safeParse(ran.output.translations);
   if (!parsed.success) {
@@ -455,11 +500,13 @@ function validateExec(
   const file = `exec:${command}`;
   findings.push(...nestedCounts(file, sourceLanguage, sources, libraryOf));
   const brokenSources = new Set<string>();
+  let handedOver = 0;
   for (const [language, texts] of Object.entries(parsed.data)) {
     if (!targets.includes(language)) continue;
     for (const [key, target] of Object.entries(texts)) {
       if (target.trim() === "") continue;
       const entry = sources.get(key);
+      if (entry) handedOver += 1;
       if (!entry) {
         findings.push({
           file,
@@ -486,7 +533,95 @@ function validateExec(
       );
     }
   }
-  return { findings, validated: true };
+  return { findings, handedOver, possible };
+}
+
+// `corpus validate --server` (§3, #1074): the instance's translations
+// at translated or above, each against its string as the repository's
+// sources build it, exporters run, so what an exec source drafted on
+// the instance and never wrote back is checked too. A finding's file is
+// where pull would write it.
+async function validateServer(
+  config: CorpusConfig,
+  ctx: RunContext,
+): Promise<
+  { findings: Finding[]; unchecked: Unchecked[]; checked: number } | undefined
+> {
+  const { snapshot, refused, origin } = await buildSnapshotReport(
+    config,
+    ctx.cwd,
+  );
+  const token = requireToken(ctx.env, ctx.cwd);
+  const payload = await download(config, token, "translated", [], ctx);
+  if (payload === undefined) return undefined;
+  const sourceLanguage = config.sourceLanguage;
+  // A source string the build refuses is the repository's finding, once.
+  const findings: Finding[] = refused
+    .filter((r) => !r.term)
+    .map((r) => ({
+      file: r.file,
+      key: r.id,
+      language: sourceLanguage,
+      code: "invalid-icu",
+      severity: "invalid",
+      message: r.message,
+    }));
+  const refusedIds = new Set(refused.map((r) => r.id));
+  const strings = new Map(snapshot.strings.map((e) => [e.id, e]));
+  const fileSources = new Map<string, FileSource>();
+  for (const source of config.sources)
+    if (source.adapter !== "exec")
+      fileSources.set(fileOf(source, sourceLanguage, sourceLanguage), source);
+  const orphans = new Map<string, string[]>();
+  const brokenSources = new Set<string>();
+  let checked = 0;
+  for (const language of config.languages) {
+    if (language === sourceLanguage) continue;
+    for (const [key, target] of Object.entries(
+      payload.translations[language] ?? {},
+    )) {
+      if (isBlank(target)) continue;
+      const entry = strings.get(key);
+      if (entry === undefined) {
+        if (!refusedIds.has(key))
+          orphans.set(key, [...(orphans.get(key) ?? []), language]);
+        continue;
+      }
+      const sourceFile = origin.get(key)!;
+      const source = fileSources.get(sourceFile);
+      const file =
+        source && hasLanguages(source)
+          ? fileOf(source, language, sourceLanguage)
+          : sourceFile;
+      const library = libraryOf(entry);
+      checked += 1;
+      findings.push(
+        ...checkTranslation(entry, target, {
+          file,
+          sourceFile,
+          key,
+          language,
+          sourceLanguage,
+          library,
+          richText: richTextFor(entry.type, key, library, config.richText),
+          brokenSources,
+        }).map((f) => ({ ...f, sourceFile, where: "server" as const })),
+      );
+    }
+  }
+  for (const [key, languages] of orphans)
+    findings.push({
+      file: config.server,
+      sourceFile: config.server,
+      key,
+      language: languages.join(", "),
+      code: "orphan",
+      severity: "warning",
+      message:
+        "the instance holds a translation of this id, which the sources no longer have; the next push archives it",
+      where: "server",
+    });
+  return { findings, unchecked: [], checked };
 }
 
 // A source's nested counts, a warning on each string where it is.

@@ -59,7 +59,7 @@ export const COMMANDS: readonly Command[] = [
     flags: ["--server"],
   },
   { name: "status", usage: STATUS_USAGE, flags: ["--json"] },
-  { name: "validate", usage: VALIDATE_USAGE, flags: ["--json"] },
+  { name: "validate", usage: VALIDATE_USAGE, flags: ["--server", "--json"] },
   { name: "mcp", usage: MCP_USAGE, flags: [] },
   { name: "agent", usage: AGENT_USAGE, flags: "own" },
 ];

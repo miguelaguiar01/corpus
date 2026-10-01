@@ -727,7 +727,9 @@ test("the exec example's exporter hands over its strings and translations, and i
         out: (line) => validating.push(line),
       }),
     ).toBe(0);
-    expect(validating.join("\n")).toMatch(/every translation is valid/);
+    // Its exporter hands over the translations it has, not one per
+    // string and language, so the rest are said not checked (#1074).
+    expect(validating.join("\n")).toMatch(/every translation checked is valid/);
 
     const env = { CORPUS_TOKEN: "t" };
     const before = readFileSync(at("content/tips.json"), "utf8");
