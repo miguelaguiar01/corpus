@@ -963,8 +963,8 @@ export default defineCorpus({
   });
   expect(await run(["pull"], ctx())).toBe(0);
   expect(read("i18n/uz/app.ftl")).toBe(uz);
-  // A file of terms Corpus cannot read is listed, and builds the rest:
-  // a term is not the strings a ruined file would archive.
+  // Terms are strings (#990): a file of terms Corpus cannot read is a
+  // ruined file like any, since pushing the rest would archive them.
   writeFileSync(
     path.join(repo, "i18n", "en", "brands.ftl"),
     "-brand = { PLATFORM() }\n-relay = { OS() }\n",
@@ -981,12 +981,12 @@ export default defineCorpus({
   expect(terms.output.join("\n")).toContain(
     "i18n/en/brands.ftl [-brand]: invalid Fluent message: -brand calls a function",
   );
-  expect(terms.output.join("\n")).not.toContain(
-    "every string in the file was refused",
+  expect(terms.output.join("\n")).toContain(
+    "i18n/en/brands.ftl: every string in the file was refused (2)",
   );
-  expect(terms.output.join("\n")).not.toContain("no snapshot was built");
-  // Nor is a refused term a translation validate can find invalid, in
-  // the source or in a target, as --server leaves it out (#1081).
+  expect(terms.output.join("\n")).toContain("no snapshot was built");
+  // A source term Corpus cannot read is that file's invalid finding, as
+  // a message is; its translation in a target is no orphan.
   writeFileSync(
     path.join(repo, "i18n", "en", "app.ftl"),
     "hello = Hello\nbye = Bye\n",
@@ -1000,11 +1000,11 @@ export default defineCorpus({
     "-brand = Firefox\n",
   );
   const valid = ctx();
-  expect(await run(["validate"], valid)).toBe(0);
-  expect(valid.output.join("\n")).not.toMatch(/-brand|-relay/);
+  expect(await run(["validate"], valid)).toBe(1);
   expect(valid.output.join("\n")).toContain(
-    "validate: every translation is valid",
+    "i18n/en/brands.ftl:-brand: invalid Fluent message: -brand calls a function",
   );
+  expect(valid.output.join("\n")).not.toContain("uz/brands.ftl");
   // A term Corpus reads is a string like any message, seeded and
   // pulled; a target's own term, which no source defines, is the
   // locale's and no orphan (#990).

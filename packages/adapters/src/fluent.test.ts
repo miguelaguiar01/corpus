@@ -60,7 +60,7 @@ b = {$g ->
 test("attributes, functions and number literals are refused by name, a message at a time, and the rest read (#991)", () => {
   const ftl = `login = Log in
     .title = Log in to your account
-size = { NUMBER($n) } bytes
+size = { PLATFORM() } bytes
 num = { 5 } items
 ok = Fine
 `;
@@ -468,4 +468,51 @@ test("a new target file takes a term's value, not the source's attributes (#990 
       undefined,
     ),
   ).toBe("-brand = Relais\nhi = Salut { -brand }\n");
+});
+
+test("NUMBER() and DATETIME() read as ICU formats, options kept as the style, and write back as Fluent's functions (#990)", () => {
+  const ftl = `left = { NUMBER($remaining_seconds, minimumIntegerDigits: 2) } s
+count = { NUMBER($n) } items
+when = On { DATETIME($d, month: "long", day: "numeric") }
+day = On { DATETIME($d) }
+`;
+  const refused: string[] = [];
+  const read = Object.fromEntries(
+    fluentToEntries(ftl, {
+      type: "ui",
+      onRefused: (id) => refused.push(id),
+    }).map((e) => [e.id, e.source]),
+  );
+  expect(refused).toEqual([]);
+  expect(read).toEqual({
+    left: "{remaining_seconds, number, minimumIntegerDigits: 2} s",
+    count: "{n, number} items",
+    when: 'On {d, date, month: "long", day: "numeric"}',
+    day: "On {d, date}",
+  });
+  expect(entriesToFluent(ftl, read, ftl)).toBe(ftl);
+  const out = entriesToFluent(
+    ftl,
+    {
+      left: "{remaining_seconds, number, minimumIntegerDigits: 3} s restantes",
+      count: "{n, number} elementos",
+      when: 'Em {d, date, day: "numeric", month: "long"}',
+      day: "Em {d, date}",
+    },
+    ftl,
+  );
+  expect(out)
+    .toBe(`left = { NUMBER($remaining_seconds, minimumIntegerDigits: 3) } s restantes
+count = { NUMBER($n) } elementos
+when = Em { DATETIME($d, day: "numeric", month: "long") }
+day = Em { DATETIME($d) }
+`);
+  // Any other function, a function on a literal, and a function as a
+  // selector are still refused.
+  const still: string[] = [];
+  fluentToEntries(
+    'a = { PLATFORM() }\nb = { NUMBER(5) }\nc = { NUMBER($n) ->\n   *[other] x\n  }\nd = { NUMBER($n, x: "{") }\n',
+    { type: "ui", onRefused: (id) => still.push(id) },
+  );
+  expect(still).toEqual(["a", "b", "c", "d"]);
 });

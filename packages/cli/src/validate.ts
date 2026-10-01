@@ -256,8 +256,6 @@ export async function validateRepo(
       config.sourceLanguage,
       (key, reason) => {
         refusedSource.add(key);
-        // A term is no translation to find invalid (#1081).
-        if (isFluentTerm(source, key)) return;
         findings.push({
           file: sourceFile,
           key,
@@ -581,16 +579,14 @@ async function validateServer(
   if (payload === undefined) return undefined;
   const sourceLanguage = config.sourceLanguage;
   // A source string the build refuses is the repository's finding, once.
-  const findings: Finding[] = refused
-    .filter((r) => !r.term)
-    .map((r) => ({
-      file: r.file,
-      key: r.id,
-      language: sourceLanguage,
-      code: "invalid-icu",
-      severity: "invalid",
-      message: r.message,
-    }));
+  const findings: Finding[] = refused.map((r) => ({
+    file: r.file,
+    key: r.id,
+    language: sourceLanguage,
+    code: "invalid-icu",
+    severity: "invalid",
+    message: r.message,
+  }));
   const refusedIds = new Set(refused.map((r) => r.id));
   const strings = new Map(snapshot.strings.map((e) => [e.id, e]));
   const fileSources = new Map<string, FileSource>();
