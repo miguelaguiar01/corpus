@@ -1883,7 +1883,11 @@ test("a file's own plural forms hold for its whole-count plurals, a source's plu
   // A source's declared rules hold for every plural, over the file's.
   const declared = {
     ...gettext,
-    pluralRules: { ru: ["one", "few", "many", "other"] },
+    pluralRules: {
+      ru: ["one", "few", "many", "other"] as (
+        "one" | "few" | "many" | "other"
+      )[],
+    },
   };
   expect(entryPluralForms(inside, declared, own)).toEqual({
     ru: ["one", "few", "many", "other"],

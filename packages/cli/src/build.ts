@@ -23,6 +23,7 @@ import {
   xliffTranslations,
   isBlank,
   messagesToEntries,
+  pluralBranches,
   pluralObjectIds,
   suffixPluralIds,
   type PluralObjects,
@@ -369,8 +370,7 @@ export async function buildSnapshotReport(
       validateEntry(
         {
           ...entry,
-          ...(pluralForms &&
-            takesPluralForms(entry, source) && { pluralForms }),
+          ...withPluralForms(entryPluralForms(entry, source, pluralForms)),
           // A key-is-text entry carries no file: a proposal would rewrite
           // the key, which is the code's, not the catalogue's.
           ...(writable && !entry.keyIsText ? { file } : {}),
@@ -1020,8 +1020,7 @@ export function unreadKind(source: FileSource): string {
 
 // Per target language, the plural categories a source's runtime picks
 // where they are not the language's CLDR ones: a gettext file's
-// `Plural-Forms` (#951), rails-i18n's rule for a Rails catalogue (#983),
-// and over them the source's own `pluralRules` (#997).
+// `Plural-Forms` (#951), rails-i18n's rule for a Rails catalogue (#983).
 export function pluralFormsOf(
   cwd: string,
   source: FileSource,
@@ -1034,24 +1033,33 @@ export function pluralFormsOf(
       : source.adapter === "yaml" && sourceLibrary(source) === "rails"
         ? railsPluralForms(cwd, source, config, onNote)
         : undefined;
-  // A source's own table wins for the languages it names (#997).
-  const declared = (source as { pluralRules?: Record<string, string[]> })
-    .pluralRules;
-  return declared ? { ...own, ...declared } : own;
+  return own;
 }
 
 // Whether an entry's plural is checked by its source's plural forms: a
 // plural in the source's own library, not a Rails `*_MF` key's ICU.
-export function takesPluralForms(
+// An entry's plural forms, per language, in the source's own library:
+// the file's (`pluralFormsOf`) for a text that is the plural, as a
+// gettext or Rails plural is, never an ICU plural inside a msgid, which
+// its formatter picks by CLDR; and over them the source's declared
+// `pluralRules` for any plural it writes (#997).
+const withPluralForms = (forms: Record<string, string[]> | undefined) =>
+  forms ? { pluralForms: forms } : {};
+
+export function entryPluralForms(
   entry: StringEntry,
   source: FileSource,
-): boolean {
-  // Any plural argument: gettext's and Rails' are the whole text, and a
-  // source's own pluralRules (#997) hold for every plural it writes.
-  return (
-    PLURAL_ARGUMENT_RE.test(entry.source) &&
-    (entry.library === undefined || entry.library === sourceLibrary(source))
-  );
+  own: Record<string, string[]> | undefined,
+): Record<string, string[]> | undefined {
+  if (entry.library !== undefined && entry.library !== sourceLibrary(source))
+    return undefined;
+  const declared = (source as { pluralRules?: Record<string, string[]> })
+    .pluralRules;
+  const forms = {
+    ...(own && pluralBranches(entry.source) !== undefined && own),
+    ...(declared && PLURAL_ARGUMENT_RE.test(entry.source) && declared),
+  };
+  return Object.keys(forms).length > 0 ? forms : undefined;
 }
 
 const PLURAL_ARGUMENT_RE = /\{\s*[^{},\s]+\s*,\s*plural\s*,/;

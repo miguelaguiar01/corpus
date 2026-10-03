@@ -33,7 +33,7 @@ import {
   nestedCountMessage,
   BARE_AT_MESSAGE,
   pluralFormsOf,
-  takesPluralForms,
+  entryPluralForms,
   lastWins,
   sourcePluralIds,
   readEntries,
@@ -405,9 +405,9 @@ export async function validateRepo(
         }
         findings.push(
           ...checkTranslation(
-            pluralForms && takesPluralForms(entry, source)
-              ? { ...entry, pluralForms }
-              : entry,
+            ((forms) => (forms ? { ...entry, pluralForms: forms } : entry))(
+              entryPluralForms(entry, source, pluralForms),
+            ),
             target,
             {
               file,

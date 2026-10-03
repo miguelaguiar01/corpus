@@ -74,6 +74,9 @@ const pluralRules = z
       .refine((categories) => categories.includes("other"), {
         message:
           "a plural's categories include other, which every runtime falls back to",
+      })
+      .refine((categories) => new Set(categories).size === categories.length, {
+        message: "a category is named once",
       }),
   )
   .optional();
@@ -92,6 +95,7 @@ const tableFields = {
   adapter: z.literal("table"),
   type: identifier(),
   library: configLibrarySchema.optional(),
+  pluralRules,
   syntax: configLibrarySchema.optional(),
   // The module's default export, or the named export `export` names.
   export: z.string().min(1).optional(),
@@ -202,6 +206,7 @@ const xcstringsSchema = z.looseObject({
       }),
   ),
   library: configLibrarySchema.optional(),
+  pluralRules,
 });
 
 // How the patterns of one source merge an id two of them hold (#953):
@@ -399,6 +404,13 @@ export const corpusConfigSchema = z
     c.sources.forEach((source, index) => {
       const rules = (source as { pluralRules?: Record<string, unknown> })
         .pluralRules;
+      if (source.adapter === "exec" && rules !== undefined)
+        ctx.addIssue({
+          code: "custom",
+          message:
+            "an exec source's entries carry their own plural forms; pluralRules does not apply",
+          path: ["sources", index, "pluralRules"],
+        });
       for (const language of Object.keys(rules ?? {}))
         if (!c.languages.includes(language))
           ctx.addIssue({
