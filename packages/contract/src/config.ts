@@ -7,6 +7,7 @@ import {
   identifier,
   languageCode,
   configLibrarySchema,
+  PLURAL_CATEGORIES,
   richTextSchema,
 } from "./strings";
 
@@ -61,6 +62,22 @@ const languageFiles = z
   )
   .optional();
 
+// A target language's plural categories, where its runtime picks others
+// than CLDR's tolerant reading (#997): `{ he: ["one", "two", "many",
+// "other"] }`, `other` always among them.
+const pluralRules = z
+  .record(
+    languageCode(),
+    z
+      .array(z.enum(PLURAL_CATEGORIES))
+      .min(1)
+      .refine((categories) => categories.includes("other"), {
+        message:
+          "a plural's categories include other, which every runtime falls back to",
+      }),
+  )
+  .optional();
+
 const messagesFields = {
   adapter: z.literal("messages"),
   type: identifier(),
@@ -69,6 +86,7 @@ const messagesFields = {
   library: configLibrarySchema.optional(),
   syntax: configLibrarySchema.optional(),
   languageFiles,
+  pluralRules,
 };
 const tableFields = {
   adapter: z.literal("table"),
@@ -103,6 +121,7 @@ const execSchema = z.looseObject({
 const androidFields = {
   adapter: z.literal("android"),
   type: identifier(),
+  pluralRules,
 };
 
 // Fluent `.ftl` (#597): messages as ICU, a select as a plural or select.
@@ -110,6 +129,7 @@ const fluentFields = {
   adapter: z.literal("fluent"),
   type: identifier(),
   languageFiles,
+  pluralRules,
 };
 
 // XLIFF 1.2 and 2.0 (#667): a file per language; Angular's source file
@@ -120,6 +140,7 @@ const xliffSchema = z.looseObject({
   path: noNamespace("xliff", onePattern("xliff")),
   sourcePath: noNamespace("xliff", oneSourcePath("xliff")).optional(),
   languageFiles,
+  pluralRules,
 });
 
 // gettext `.po` (#668): a file per language, the `.pot` or the source
@@ -131,6 +152,7 @@ const gettextSchema = z.looseObject({
   sourcePath: noNamespace("gettext", oneSourcePath("gettext")).optional(),
   library: configLibrarySchema.optional(),
   languageFiles,
+  pluralRules,
 });
 
 // Qt Linguist `.ts` (#740): a file per language, `lupdate`'s template
@@ -143,6 +165,7 @@ const qtTsSchema = z.looseObject({
   sourcePath: noNamespace("qt-ts", oneSourcePath("qt-ts")).optional(),
   library: configLibrarySchema.optional(),
   languageFiles,
+  pluralRules,
 });
 
 // Rails I18n's YAML (#752): a file per language, the language as its
@@ -154,6 +177,7 @@ const yamlFields = {
   type: identifier(),
   library: configLibrarySchema.optional(),
   languageFiles,
+  pluralRules,
 };
 
 // Apple's String Catalog (#727): one `.xcstrings` holding every
@@ -373,6 +397,15 @@ export const corpusConfigSchema = z
           path: ["sourceVariants"],
         });
     c.sources.forEach((source, index) => {
+      const rules = (source as { pluralRules?: Record<string, unknown> })
+        .pluralRules;
+      for (const language of Object.keys(rules ?? {}))
+        if (!c.languages.includes(language))
+          ctx.addIssue({
+            code: "custom",
+            message: `pluralRules names ${language}, which languages does not list`,
+            path: ["sources", index, "pluralRules", language],
+          });
       if (
         "merge" in source &&
         source.merge !== undefined &&

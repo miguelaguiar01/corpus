@@ -23,7 +23,6 @@ import {
   xliffTranslations,
   isBlank,
   messagesToEntries,
-  pluralBranches,
   pluralObjectIds,
   suffixPluralIds,
   type PluralObjects,
@@ -1021,18 +1020,24 @@ export function unreadKind(source: FileSource): string {
 
 // Per target language, the plural categories a source's runtime picks
 // where they are not the language's CLDR ones: a gettext file's
-// `Plural-Forms` (#951), rails-i18n's rule for a Rails catalogue (#983).
+// `Plural-Forms` (#951), rails-i18n's rule for a Rails catalogue (#983),
+// and over them the source's own `pluralRules` (#997).
 export function pluralFormsOf(
   cwd: string,
   source: FileSource,
   config: CorpusConfig,
   onNote?: (note: string) => void,
 ): Record<string, string[]> | undefined {
-  if (source.adapter === "gettext")
-    return gettextPluralForms(cwd, source, config);
-  if (source.adapter === "yaml" && sourceLibrary(source) === "rails")
-    return railsPluralForms(cwd, source, config, onNote);
-  return undefined;
+  const own =
+    source.adapter === "gettext"
+      ? gettextPluralForms(cwd, source, config)
+      : source.adapter === "yaml" && sourceLibrary(source) === "rails"
+        ? railsPluralForms(cwd, source, config, onNote)
+        : undefined;
+  // A source's own table wins for the languages it names (#997).
+  const declared = (source as { pluralRules?: Record<string, string[]> })
+    .pluralRules;
+  return declared ? { ...own, ...declared } : own;
 }
 
 // Whether an entry's plural is checked by its source's plural forms: a
@@ -1041,11 +1046,15 @@ export function takesPluralForms(
   entry: StringEntry,
   source: FileSource,
 ): boolean {
+  // Any plural argument: gettext's and Rails' are the whole text, and a
+  // source's own pluralRules (#997) hold for every plural it writes.
   return (
-    pluralBranches(entry.source) !== undefined &&
+    PLURAL_ARGUMENT_RE.test(entry.source) &&
     (entry.library === undefined || entry.library === sourceLibrary(source))
   );
 }
+
+const PLURAL_ARGUMENT_RE = /\{\s*[^{},\s]+\s*,\s*plural\s*,/;
 
 // Per target language, the plural keys rails-i18n registers for a Rails
 // catalogue's locale, where the repository's Gemfile.lock lists the gem
