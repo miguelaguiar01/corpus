@@ -2113,3 +2113,58 @@ export default defineCorpus({
   expect(read("l/en.json")).not.toContain('"b"');
   expect(read("l/fr.json")).not.toContain('"b"');
 });
+
+test("pull checks a target reads before it writes: a source that does not read fails it, an unreadable target is left whatever the writer would do, an empty one is filled (#1028)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de", "fr"],
+  sources: [{ adapter: "messages", type: "ui", path: "l/{lang}.json" }],
+});
+`,
+  );
+  mkdirSync(path.join(repo, "l"), { recursive: true });
+  writeFileSync(
+    path.join(repo, "l", "en.json"),
+    `{ "a": { "b": "AB" }, "c": "C" }\n`,
+  );
+  // A key written twice reads as no file, though the writer takes it.
+  const de = `{ "a": { "b": "AB-de" }, "a.b": "AB2-de" }\n`;
+  writeFileSync(path.join(repo, "l", "de.json"), de);
+  writeFileSync(path.join(repo, "l", "fr.json"), "");
+  const out = path.join(repo, "snapshot.json");
+  const built = ctx();
+  expect(await run(["build", "--out", out], built)).toBe(0);
+  // An empty file is one with no translations yet, never unreadable.
+  expect(built.output.join("\n")).not.toContain("l/fr.json");
+  expect(built.output.join("\n")).toContain("l/de.json: does not read");
+  const server = ctx();
+  await serve(200, {
+    ...PAYLOAD,
+    types: { "a.b": "ui", c: "ui" },
+    translations: { de: { c: "C-de" }, fr: { c: "C-fr" } },
+    minState: "translated",
+  });
+  expect(await run(["validate", "--server"], server)).toBe(1);
+  expect(server.output.join("\n")).toMatch(/l\/de\.json: does not read: /);
+  await serve(200, {
+    ...PAYLOAD,
+    types: { "a.b": "ui", c: "ui" },
+    translations: { de: { c: "C-de" }, fr: { c: "C-fr" } },
+    minState: "untranslated",
+  });
+  const pulled = ctx();
+  expect(await run(["pull"], pulled)).toBe(0);
+  expect(read("l/de.json")).toBe(de);
+  expect(read("l/fr.json")).toContain('"c": "C-fr"');
+  // A source file that does not read fails the pull.
+  writeFileSync(path.join(repo, "l", "en.json"), "{ broken");
+  const failed = ctx();
+  expect(await run(["pull"], failed)).toBe(1);
+  expect(failed.output.join("\n")).toContain("l/en.json");
+});
