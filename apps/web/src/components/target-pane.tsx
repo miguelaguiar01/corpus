@@ -420,21 +420,27 @@ export function TargetPane({
             {t("editor.previewHeading", { language: previewLanguage })}
           </h3>
           <ul className="space-y-1.5">
-            {previews(text, blank, examples, resolved, language, syntax).map(
-              (segments, index) => (
-                <li key={index} className="text-base leading-relaxed">
-                  {segments.map((segment, i) =>
-                    segment.value ? (
-                      <span key={i} className="text-muted-foreground">
-                        {segment.text}
-                      </span>
-                    ) : (
-                      <span key={i}>{segment.text}</span>
-                    ),
-                  )}
-                </li>
-              ),
-            )}
+            {previews(
+              text,
+              blank,
+              examples,
+              resolved,
+              language,
+              syntax,
+              pluralForms ?? undefined,
+            ).map((segments, index) => (
+              <li key={index} className="text-base leading-relaxed">
+                {segments.map((segment, i) =>
+                  segment.value ? (
+                    <span key={i} className="text-muted-foreground">
+                      {segment.text}
+                    </span>
+                  ) : (
+                    <span key={i}>{segment.text}</span>
+                  ),
+                )}
+              </li>
+            ))}
           </ul>
         </section>
       )}
@@ -482,6 +488,7 @@ function previews(
   resolved: ReturnType<typeof exampleValues>[],
   language: string,
   syntax: Library,
+  pluralForms?: string[],
 ): PreviewSegment[][] {
   return examples.flatMap((example, index) => {
     if (blank) return [[{ text: example.rendered, value: false }]];
@@ -489,7 +496,7 @@ function previews(
       text,
       resolved[index]!.values,
       language,
-      { syntax },
+      { syntax, ...(pluralForms && { pluralForms }) },
     );
     return result.ok ? [result.segments] : [];
   });

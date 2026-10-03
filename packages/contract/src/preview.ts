@@ -63,6 +63,8 @@ function render(
   out: PreviewSegment[],
   language: string | undefined,
   unset: Unset,
+  library?: Library,
+  picked?: readonly string[],
 ): void {
   for (const node of nodes) {
     if (node.kind === "literal") out.push({ text: node.text, value: false });
@@ -85,7 +87,7 @@ function render(
       );
     } else if (node.kind === "tag") {
       // The component is the client's; the preview shows what it wraps.
-      render(node.children, values, out, language, unset);
+      render(node.children, values, out, language, unset, library, picked);
     } else if (node.kind === "forms") {
       // vue-i18n picks a form by the count passed at render time, by
       // position. A preview has no count, so it shows the last form,
@@ -96,14 +98,28 @@ function render(
         out,
         language,
         unset,
+        library,
+        picked,
       );
     } else if (node.kind === "plural") {
       const value = own(values, node.arg);
       const key =
         value === undefined
           ? "other"
-          : pluralBranch(node.branches, value, language, node.ordinal);
-      render(own(node.branches, key) ?? [], values, out, language, unset);
+          : pluralBranch(node.branches, value, language, {
+              ordinal: node.ordinal,
+              ...(library && { library }),
+              ...(picked && { picked }),
+            });
+      render(
+        own(node.branches, key) ?? [],
+        values,
+        out,
+        language,
+        unset,
+        library,
+        picked,
+      );
     } else {
       const value = own(values, node.arg);
       const branch =
@@ -111,7 +127,7 @@ function render(
         node.branches.other ??
         Object.values(node.branches)[0] ??
         [];
-      render(branch, values, out, language, unset);
+      render(branch, values, out, language, unset, library, picked);
     }
   }
 }
@@ -119,7 +135,13 @@ function render(
 // The engine habit of §7, a value that opens the sentence capitalised,
 // is for previews of a project's text; chrome rendered through the same
 // engine keeps its values as given.
-export type RenderOptions = { capitalise?: boolean; syntax?: Library };
+// `pluralForms`: the categories the source's own rule picks for the
+// language, which validation checks a plural by (§5, #963).
+export type RenderOptions = {
+  capitalise?: boolean;
+  syntax?: Library;
+  pluralForms?: readonly string[];
+};
 
 // A printf plural on a named count, as a gettext plural reads whole,
 // is `printf(ngettext(…, n), n)`: with no value for the count, it takes
@@ -159,6 +181,8 @@ export function renderPreviewSegments(
     segments,
     language,
     options.syntax === "i18next" ? i18nextUnset : icuUnset,
+    options.syntax,
+    options.pluralForms,
   );
   // Capitalise the first character of the whole render, wherever it
   // falls: an empty leading value must not stop it.

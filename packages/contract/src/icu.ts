@@ -1810,7 +1810,8 @@ export function pluralCategoriesOf(
 // `picked`, the source's own: a gettext file's `Plural-Forms`, the
 // categories it reads a form for, and `other`, a form for any other
 // being one the file cannot hold (#973); rails-i18n's rule for a Rails
-// catalogue's locale (#983), beside `zero`.
+// catalogue's locale (#983), beside `zero`. pluralBranch picks by the
+// same rules, so a preview shows the form the runtime does (#963).
 export function pluralCategoriesFor(
   language: string,
   library: Library,
@@ -1894,23 +1895,54 @@ export function pluralCategoryCovered(
 }
 
 // The branch a plural takes for a value (§7): an exact `=N` first, then
-// the language's category, then `other`.
+// the category the library's runtime picks (#963), then `other`, by the
+// rules pluralCategoriesFor checks: counterpart and easy_localization
+// read no `=N` (#964) and pick by their own rules; Rails and i18next
+// take `zero` for 0 where it is written; the rest CLDR's category, or
+// `other` where `picked`, the source's own forms (a gettext file's
+// `Plural-Forms`, rails-i18n's table), has none for it.
 export function pluralBranch(
   branches: Record<string, unknown>,
   value: string,
   language?: string,
-  ordinal = false,
+  {
+    ordinal = false,
+    library,
+    picked,
+  }: {
+    ordinal?: boolean;
+    library?: Library;
+    picked?: readonly string[];
+  } = {},
 ): string {
   // An empty value is no count at all, not zero (#859).
   if (value.trim() === "") return "other";
+  const own = library === "counterpart" || library === "easy_localization";
   const exact = `=${value.trim()}`;
-  if (Object.hasOwn(branches, exact)) return exact;
+  if (!own && Object.hasOwn(branches, exact)) return exact;
   const n = Number(value);
+  const written = (category: string | undefined) =>
+    category !== undefined && Object.hasOwn(branches, category)
+      ? category
+      : "other";
+  if (Number.isFinite(n) && !ordinal) {
+    if (library === "counterpart")
+      return written(n === 0 ? "zero" : n === 1 ? "one" : undefined);
+    if (library === "easy_localization")
+      return written(["zero", "one", "two"][n]);
+    if (
+      (library === "rails" || library === "i18next") &&
+      n === 0 &&
+      Object.hasOwn(branches, "zero")
+    )
+      return "zero";
+  }
   if (Number.isFinite(n) && (language === undefined || known(language))) {
     const category = new Intl.PluralRules(
       language === undefined ? undefined : localeOf(language),
       { type: ordinal ? "ordinal" : "cardinal" },
     ).select(n);
+    if (!ordinal && picked && !picked.includes(category)) return "other";
     if (Object.hasOwn(branches, category)) return category;
   }
   return "other";
