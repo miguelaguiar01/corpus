@@ -676,16 +676,22 @@ export const corpusConfigSchema = z
             ? undefined
             : c.languages.find((t) => fileCode(t) === code);
         const src = c.sourceLanguage;
+        const lib = source as { library?: unknown; syntax?: unknown };
         const advice =
           tag === src
             ? "this one is the pattern's own source file, so drop it"
             : tag !== undefined
-              ? source.adapter === "messages"
+              ? source.adapter === "messages" &&
+                typeof source.path === "string" &&
+                !source.path.includes("{ns}") &&
+                (lib.library ?? lib.syntax) !== "chrome"
                 ? `add it where the keys of ${tag}'s file are the source text`
                 : `it is ${tag}'s file, which cannot be the source's too`
-              : Object.hasOwn(files, src)
-                ? `languageFiles maps ${src} to "${files[src]}"; map it to "${code ?? "<its file's code>"}" instead`
-                : `map the source language with languageFiles: { ${src}: "${code ?? "<its file's code>"}" }`;
+              : code === undefined
+                ? `${given} is no file the pattern names, so no languageFiles mapping makes it the source's`
+                : Object.hasOwn(files, src)
+                  ? `languageFiles maps ${src} to "${files[src]}"; map it to "${code ?? "<its file's code>"}" instead`
+                  : `map the source language with languageFiles: { ${src}: "${code ?? "<its file's code>"}" }`;
         ctx.addIssue({
           code: "custom",
           message: !MAPS_LANGUAGE_FILES.includes(source.adapter)

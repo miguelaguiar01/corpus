@@ -580,6 +580,10 @@ function formatOf(
     missing && /\.json$/i.test(messages) && !messages.includes("{ns}")
       ? textKeyedTarget(ctx.cwd, messages, sourceLanguage)
       : undefined;
+  if (keyed && "other" in keyed)
+    ctx.err(
+      `corpus: no ${relative}; ${keyed.other} names no language, so init cannot tell whose keys are the text: set sourcePath and keyIsText: true yourself if a committed target's keys are the source text`,
+    );
   if (keyed && "aside" in keyed)
     ctx.err(
       `corpus: no ${relative}; ${keyed.aside} may be the source language's file under another code: pass --source ${keyed.tag} if so, or, where its keys are the text, set sourcePath to a committed target with keyIsText: true`,
@@ -1265,6 +1269,8 @@ function gitIgnored(ctx: RunContext, rel: string): void {
     );
 }
 
+const PLURAL_SUFFIX = /_(?:zero|one|two|few|many|other)$/;
+
 // The target to read as the source where every JSON target holds one
 // key set, most of it sentences (#999): the one with the most text, so
 // what it seeds is the most. None where any file the pattern fills is
@@ -1278,8 +1284,26 @@ function textKeyedTarget(
   pattern: string,
   sourceLanguage: string,
 ):
-  { file: string; files: number } | { aside: string; tag: string } | undefined {
-  const base = (tag: string) => tag.split(/[-_]/)[0]!.toLowerCase();
+  | { file: string; files: number }
+  | { aside: string; tag: string }
+  | { other: string }
+  | undefined {
+  // The language and, where both write one, the script: zh_Hant is not
+  // zh-Hans's file under another code.
+  const parts = (tag: string) => {
+    const [language, ...rest] = tag.toLowerCase().split(/[-_]/);
+    return { language, script: rest.find((p) => /^[a-z]{4}$/.test(p)) };
+  };
+  const same = (a: string, b: string) => {
+    const x = parts(a);
+    const y = parts(b);
+    return (
+      x.language === y.language &&
+      (x.script === undefined ||
+        y.script === undefined ||
+        x.script === y.script)
+    );
+  };
   const read: {
     file: string;
     tag: string;
@@ -1293,7 +1317,7 @@ function textKeyedTarget(
   if (filling.length < 2) return undefined;
   for (const { code, file } of filling) {
     const tag = posixTag(code) ?? (LANGUAGE_RE.test(code) ? code : undefined);
-    if (tag === undefined) return undefined;
+    if (tag === undefined) return { other: file };
     let data: unknown;
     try {
       data = JSON.parse(stripBom(readFileSync(path.join(cwd, file), "utf8")));
@@ -1318,9 +1342,13 @@ function textKeyedTarget(
     });
   }
   if (read.some((r) => r.keys !== read[0]!.keys)) return undefined;
+  // A plural's forms are keys of their own (`{count} item_one`), whose
+  // English no key holds (#999).
+  if (read[0]!.keys.split("\0").some((k) => PLURAL_SUFFIX.test(k)))
+    return undefined;
   if (read[0]!.size === 0 || read[0]!.sentences * 2 < read[0]!.size)
     return undefined;
-  const own = read.filter((r) => base(r.tag) === base(sourceLanguage));
+  const own = read.filter((r) => same(r.tag, sourceLanguage));
   const source = own.find(
     (r) => r.filled === 0 || r.filled === r.size || r.echoed * 2 <= r.filled,
   );

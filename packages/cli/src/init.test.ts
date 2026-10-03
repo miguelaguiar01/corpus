@@ -2515,6 +2515,42 @@ test("init with no source-language JSON, where every target holds one key set of
     if (existsSync(written))
       expect(readFileSync(written, "utf8")).not.toContain("keyIsText");
   }
+  // i18next's plural suffixes are forms whose English no key holds.
+  const pl = project();
+  for (const lang of ["de", "fr"])
+    write(
+      pl.dir,
+      `locales/${lang}.json`,
+      JSON.stringify({ "{count} month_one": "", "{count} month_other": "" }),
+    );
+  expect(await run(initFor("locales/{lang}.json"), pl.ctx)).toBe(0);
+  expect(
+    readFileSync(path.join(pl.dir, "corpus.config.mjs"), "utf8"),
+  ).not.toContain("keyIsText");
+  // A file named for no language is named.
+  const nb = project();
+  write(nb.dir, "locales/de.json", JSON.stringify({ "Log out": "Abmelden" }));
+  write(nb.dir, "locales/fr.json", JSON.stringify({ "Log out": "" }));
+  write(nb.dir, "locales/base.json", JSON.stringify({ "Log out": "Sign out" }));
+  await run(initFor("locales/{lang}.json"), nb.ctx);
+  expect(nb.err.join("\n")).toContain(
+    "corpus: no locales/en.json; locales/base.json names no language",
+  );
+  // Another script of the source's language is a target.
+  const zh = project();
+  for (const [lang, text] of [
+    ["zh_Hant", "登出"],
+    ["de", "Abmelden"],
+  ])
+    write(
+      zh.dir,
+      `locales/${lang}.json`,
+      JSON.stringify({ "Log out": text, "Save changes": "" }),
+    );
+  expect(await run(initFor("locales/{lang}.json", "zh-Hans"), zh.ctx)).toBe(0);
+  expect((await loadConfig(zh.dir)).sources[0]).toMatchObject({
+    keyIsText: true,
+  });
   // A variant whose values are mostly its keys, Zulip's en_GB, is a
   // target, never the one chosen.
   const z = project();

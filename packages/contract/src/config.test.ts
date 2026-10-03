@@ -1115,6 +1115,28 @@ test("a messages source's sourcePath names a committed target whose keys are the
   ).toEqual([
     "fluent reads no sourcePath; it is fr's file, which cannot be the source's too",
   ]);
+  // A source that cannot take keyIsText is not told to add it, and a file
+  // outside the pattern is told no mapping helps.
+  expect(
+    issues({
+      adapter: "messages",
+      type: "ui",
+      path: ["a/{lang}.json", "b/{lang}.json"],
+      sourcePath: "a/fr.json",
+    }),
+  ).toEqual([
+    "messages reads no sourcePath without keyIsText: true, which reads its keys as the text; it is fr's file, which cannot be the source's too",
+  ]);
+  expect(
+    issues({
+      adapter: "fluent",
+      type: "ui",
+      path: "l/{lang}/main.ftl",
+      sourcePath: "elsewhere/main.ftl",
+    }),
+  ).toEqual([
+    "fluent reads no sourcePath; elsewhere/main.ftl is no file the pattern names, so no languageFiles mapping makes it the source's",
+  ]);
   // Through languageFiles: a mapped file is its language's, and an
   // existing mapping of the source language is named.
   expect(

@@ -22,7 +22,7 @@ Where the source language's file is generated and git ignores it, as Zulip's `ma
 { adapter: "messages", type: "ui", path: "locale/{lang}/translations.json", sourcePath: "locale/de/translations.json", keyIsText: true }
 ```
 
-Every key of `de/translations.json` is then a string whose text is the key, and its values are German translations as any target's are. Since the code holds the text, a proposal on one of these strings is refused, saying to change it in the code, and the source takes no new string. A pull writes `de/translations.json` only as the German file it is, and a new language's file holds its translations alone. `corpus init` writes this where the source language has no file and the targets all hold one set of sentence keys.
+Every key of `de/translations.json` is then a string whose text is the key, and its values are German translations as any target's are. Since the code holds the text, a proposal on one of these strings is refused, saying to change it in the code, and the source takes no new string. A pull writes `de/translations.json` only as the German file it is, and a new language's file holds its translations alone. `corpus init` writes this where the source language has no file and the targets all hold one set of sentence keys. It stands aside, saying why, where a key carries a plural suffix (`{count} month_one`), whose English no key holds; where a file names no language (`base.json`); and where a file of the source's language under another code, `en-US.json` beside a source language of `en`, may be the source itself; a variant such as Zulip's `en_GB`, partly filled and mostly with its keys as its values, is a target like the rest.
 
 The path may put the language anywhere, including in a directory:
 

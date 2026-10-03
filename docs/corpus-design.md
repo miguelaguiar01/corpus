@@ -142,10 +142,12 @@ export default defineCorpus({
     //    partly filled and mostly with its keys as its values, a variant
     //    as Zulip's en_GB is, is a target; and where any file the
     //    pattern fills is no language's (#994's `base.json`) or does not
-    //    read as flat strings. A plural object or an i18next
-    //    suffix family in that file is one string whose text is its bare
-    //    key, not a plural, since the key is all the text the file
-    //    holds; under a `namespace` the id takes the prefix and the text
+    //    read as flat strings. A plural object in that file, or under
+    //    `library: "i18next"` a suffix family, is one string whose text
+    //    is its bare key, not a plural, since the key is all the text the
+    //    file holds, and under any other library each suffixed key is a
+    //    string whose text is the key as written, so init stands aside
+    //    where a key carries a plural suffix (`{count} month_one`); under a `namespace` the id takes the prefix and the text
     //    does not. `keyIsText` takes one pattern with no `{ns}`, and no
     //    `library: "chrome"`, whose keys are message names.
     //    A null, number or boolean value is no string, as in yaml, and
