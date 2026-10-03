@@ -4,7 +4,7 @@ import { strings, stringTranslations } from "@/db/schema";
 
 // A string takes a language unless it names the ones it takes (#1006).
 const takes = (language: string) =>
-  sql`(${strings.languages} is null or ${language} in (select value from json_each(${strings.languages})))`;
+  sql`(${strings.languages} is null or instr(${strings.languages}, ${JSON.stringify(language)}) > 0)`;
 
 // Every active string has a row per project language (§11). Push creates
 // them for the strings it inserts; this fills the gaps for a language
@@ -50,11 +50,10 @@ export function dropUntakenRows(db: Db, projectId: number): void {
         where ${strings.projectId} = ${projectId}
           and ${strings.languages} is not null
       )
-      and ${stringTranslations.language} not in (
-        select value from json_each((
-          select ${strings.languages} from ${strings}
-          where ${strings.id} = ${stringTranslations.stringId}
-        ))
-      )
+      and instr(
+        (select ${strings.languages} from ${strings}
+          where ${strings.id} = ${stringTranslations.stringId}),
+        '"' || ${stringTranslations.language} || '"'
+      ) = 0
   `);
 }

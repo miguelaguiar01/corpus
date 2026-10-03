@@ -1182,6 +1182,7 @@ function railsPluralForms(
   const kept = new Map<string, string>();
   for (const lang of config.languages) {
     if (lang === config.sourceLanguage) continue;
+    if (!takesLanguage(source, config, lang)) continue;
     const code = fileCodeOf(source, lang);
     const cldr = pluralCategoriesOf(lang);
     if (cldr.length === 0) continue;
@@ -1528,6 +1529,9 @@ async function readSeeds(
   }
   const seededFrom: Record<string, Record<string, string>> = {};
   const seededOwner = new Map<string, unknown>();
+  // The files of languages their source does not take, by its set: one
+  // note per set, where a {ns} source would make one per file (#1006).
+  const untaken = new Map<string, string[]>();
   for (const source of config.sources) {
     if (source.adapter === "exec" || !hasLanguages(source)) continue;
     if (!sourceWritesBack(source)) continue;
@@ -1545,10 +1549,10 @@ async function readSeeds(
       if (!existsSync(path.join(cwd, file))) continue;
       if (!takesLanguage(source, config, lang)) {
         // A String Catalog holds every language in its one file.
-        if (source.adapter !== "xcstrings")
-          notes.push(
-            `${file}: ${lang} is not among the source's languages (${sourceTargets(source, config)!.join(", ")}), so none of its translations are read`,
-          );
+        if (source.adapter !== "xcstrings") {
+          const set = sourceTargets(source, config)!.join(", ");
+          untaken.set(set, [...(untaken.get(set) ?? []), file]);
+        }
         continue;
       }
       const unread: string[] = [];
@@ -1630,5 +1634,10 @@ async function readSeeds(
         `${source.path}: ${overridden} translation(s) differ from an earlier pattern's of the source; this later one's is seeded, as merge: "last-wins" says, and validate names each`,
       );
   }
+  for (const [set, files] of untaken)
+    notes.push(
+      `${files.length} file(s) of languages their source does not take are not read, since it takes ${set === "" ? "the source language alone" : set}: ${files.slice(0, 3).join(", ")}${files.length > 3 ? ", …" : ""}`,
+    );
+
   return seeds;
 }

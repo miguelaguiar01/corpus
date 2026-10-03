@@ -20,6 +20,7 @@ import {
 } from "@/db/schema";
 import { reconcileProposals } from "@/proposals/service";
 import { ensureTranslationRows, dropUntakenRows } from "@/translations/rows";
+import { takenRow } from "@/translations/taken";
 import {
   diffSnapshot,
   STALE_STATES,
@@ -191,7 +192,9 @@ function stringWrites(
   const seeded = (entry: Entry, k: number) =>
     Object.fromEntries(
       targetLanguages.flatMap((language, i) => {
-        const texts = seeds[language];
+        // A language outside the string's own takes no seed (#1006): its
+        // row goes once the batch is in.
+        const texts = takes(entry, language) ? seeds[language] : undefined;
         const text =
           texts && Object.hasOwn(texts, entry.id) ? texts[entry.id] : undefined;
         const translated =
@@ -218,6 +221,7 @@ function stringWrites(
     .prepare();
   const invalidSeeds = (entry: Entry) =>
     targetLanguages.filter((language) => {
+      if (!takes(entry, language)) return false;
       const texts = seeds[language];
       if (!texts || !Object.hasOwn(texts, entry.id)) return false;
       const text = texts[entry.id]!;
@@ -303,6 +307,10 @@ function stringWrites(
     },
   };
 }
+
+// Whether an entry takes a target language (#1006).
+const takes = (entry: Entry, language: string) =>
+  !entry.languages || entry.languages.includes(language);
 
 // Apply a validated snapshot to a project in one transaction (§8). The
 // whole thing rolls back if any step throws, so a push is all-or-nothing.
@@ -525,6 +533,8 @@ function loadCurrent(
         eq(strings.projectId, projectId),
         ne(stringTranslations.language, sourceLanguage),
         inArray(stringTranslations.state, [...STALE_STATES]),
+        // A hidden row goes stale too, and is counted where it is seen.
+        takenRow,
       ),
     )
     .all();
@@ -630,6 +640,7 @@ function projectStrings(db: Db, projectId: number) {
       type: strings.type,
       syntax: strings.syntax,
       arguments: strings.arguments,
+      languages: strings.languages,
     })
     .from(strings)
     .where(eq(strings.projectId, projectId))
@@ -769,6 +780,7 @@ function applySeeds(
       if (
         !known ||
         string === undefined ||
+        (string.languages !== null && !string.languages.includes(language)) ||
         edited.has(rowKey(string.id, language))
       ) {
         seedsIgnored += 1;

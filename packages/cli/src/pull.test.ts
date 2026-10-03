@@ -2303,7 +2303,7 @@ export default defineCorpus({
   ]);
   expect(snapshot.seedTranslations).toEqual({ de: { "app:quit": "Beenden" } });
   expect(built.output.join("\n")).toContain(
-    "app/fr.json: fr is not among the source's languages (de, ja), so none of its translations are read",
+    "1 file(s) of languages their source does not take are not read, since it takes de, ja: app/fr.json",
   );
   rmSync(path.join(repo, "app", "fr.json"));
   await serve(200, {

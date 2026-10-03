@@ -82,6 +82,7 @@ In the editor the structural problems are listed under the box and the save butt
 - `source-row: the source text comes from the repository and is not edited here` — the source language is changed by proposing, not by translating.
 - `archived: <key> is archived` — the repository no longer has this string.
 - `unknown-language: <lang> is not a language of <project>` — the language is not in the config, so the push never created the row.
+- `not-taken: <key> does not take <lang>: its source ships <languages>` — the source's `languages` leaves the language out, so the string has no row in it; add the language there if the source now ships it.
 - `empty-text: the translation is empty` — nothing to save.
 - `invalid-translation: …` — the structural problem, named.
 

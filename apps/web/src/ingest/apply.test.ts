@@ -1475,3 +1475,31 @@ test("a string's languages bound its rows: none outside, a widened set adds them
   expect(stringRow(db, "qt.quit")?.languages).toBeNull();
   expect(languagesOf("qt.quit")).toEqual(["de", "en", "fr", "pt-PT"]);
 });
+
+test("a seed outside a string's languages is ignored, and the stale count is of the rows it takes (#1006)", () => {
+  const { db, project } = seed(["pt-PT", "en", "de", "fr"]);
+  const push = (source: string, languages: string[]) =>
+    applySnapshot(db, project.id, {
+      contract: "corpus/1",
+      project: "moonlight-manor",
+      sourceLanguage: "pt-PT",
+      entities: [],
+      strings: [{ id: "qt.quit", type: "ui", source, languages }],
+      seedTranslations: {
+        de: { "qt.quit": "Beenden" },
+        fr: { "qt.quit": "Quitter" },
+      },
+    });
+  const first = push("Sair", ["de"]);
+  expect(first.seeded).toBe(1);
+  expect(first.seedsIgnored).toBe(1);
+  expect(translationOf(db, "qt.quit", "fr")).toBeUndefined();
+  // fr's translation is kept hidden once the set narrows again.
+  push("Sair", ["de", "fr"]);
+  expect(translationOf(db, "qt.quit", "fr")?.text).toBe("Quitter");
+  const narrowed = push("Sair", ["de"]);
+  expect(narrowed.seedsIgnored).toBe(1);
+  const changed = push("Sair agora", ["de"]);
+  expect(changed.stale).toBe(1);
+  expect(queueItems(db, project.id, "stale").count).toBe(1);
+});
