@@ -2399,3 +2399,53 @@ test("init's formatjs detection applies only where the catalogue would read as i
   writeFileSync(path.join(bad.dir, "package.json"), "null");
   expect(await run(FLAGS, bad.ctx)).toBe(0);
 });
+
+test("init with no source-language JSON, where every target holds one key set of sentences, writes a sourcePath with keyIsText: true (#999)", async () => {
+  const p = project();
+  const keys = ["Save changes", "{count} unread", "Log out"];
+  write(
+    p.dir,
+    "locale/de/translations.json",
+    JSON.stringify({
+      "Save changes": "Änderungen speichern",
+      "{count} unread": "{count} ungelesen",
+      "Log out": "",
+    }),
+  );
+  write(
+    p.dir,
+    "locale/fr/translations.json",
+    JSON.stringify(Object.fromEntries(keys.map((k) => [k, ""]))),
+  );
+  expect(await run(initFor("locale/{lang}/translations.json"), p.ctx)).toBe(0);
+  const config = await loadConfig(p.dir);
+  expect(config.sources[0]).toMatchObject({
+    adapter: "messages",
+    path: "locale/{lang}/translations.json",
+    sourcePath: "locale/de/translations.json",
+    keyIsText: true,
+  });
+  expect(p.err.join("\n")).toContain(
+    "corpus: no locale/en/translations.json, and the 2 target files hold one key set of sentences: sourcePath is locale/de/translations.json, with keyIsText: true reading its keys as the text",
+  );
+  expect(await run(["build", "--out", "s.json"], p.ctx)).toBe(0);
+  const snapshot = JSON.parse(readFileSync(path.join(p.dir, "s.json"), "utf8"));
+  expect(snapshot.strings.map((s: { source: string }) => s.source)).toEqual(
+    keys,
+  );
+
+  // Key sets that differ are no such catalogue.
+  const q = project();
+  write(
+    q.dir,
+    "locale/de/translations.json",
+    JSON.stringify({ "Log out": "" }),
+  );
+  write(
+    q.dir,
+    "locale/fr/translations.json",
+    JSON.stringify({ "Log out": "", "Save changes": "" }),
+  );
+  expect(await run(initFor("locale/{lang}/translations.json"), q.ctx)).toBe(0);
+  expect((await loadConfig(q.dir)).sources[0]).not.toHaveProperty("keyIsText");
+});
