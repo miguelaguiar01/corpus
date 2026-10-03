@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import type { Library } from "./strings";
 import { moonlightManor } from "./fixtures/moonlight-manor";
+import { pluralBranch, pluralCategoriesFor } from "./icu";
 import {
   exampleValues,
   previewsFor,
@@ -394,4 +395,79 @@ test("a plural previews the branch its library's runtime picks, as validation ex
   expect(show(polish, "3", "easy_localization")).toBe("inne");
   // ICU picks by CLDR, as before.
   expect(show(polish, "3", "icu")).toBe("kilka");
+});
+
+test("preview: a plural under a table of picked forms shows other where the table has no form, as validation reads it (#963)", () => {
+  const show = (
+    text: string,
+    n: string,
+    lang: string,
+    pluralForms: string[],
+  ) => {
+    const read = renderPreview(text, { count: n }, lang, {
+      syntax: "rails",
+      pluralForms,
+    });
+    return read.ok ? read.text : read;
+  };
+  const three = "{count, plural, one {uno} many {muchos} other {otros}}";
+  expect(show(three, "1000000", "es", ["one", "other"])).toBe("otros");
+  expect(
+    show("{count, plural, one {bir} other {çox}}", "1", "az", ["other"]),
+  ).toBe("çox");
+  expect(
+    show("{count, plural, one {a} few {b} many {c} other {d}}", "1.5", "cs", [
+      "one",
+      "few",
+      "other",
+    ]),
+  ).toBe("d");
+  // zero is still Rails' at 0 where written.
+  expect(
+    show("{count, plural, zero {nic} one {a} other {d}}", "0", "cs", [
+      "one",
+      "few",
+      "other",
+    ]),
+  ).toBe("nic");
+});
+
+test("preview: the branch a plural previews is one its validation allows, for every library (#963)", () => {
+  const libraries = [
+    "icu",
+    "i18next",
+    "rails",
+    "counterpart",
+    "easy_localization",
+    "printf",
+    "vue",
+    "qt",
+    "chrome",
+    "android",
+    "fluent",
+  ] as const;
+  const languages = [
+    "en",
+    "pl",
+    "ru",
+    "ar",
+    "cy",
+    "fr",
+    "ja",
+    "cs",
+    "he",
+    "lv",
+  ];
+  const all = Object.fromEntries(
+    ["zero", "one", "two", "few", "many", "other"].map((c) => [c, []]),
+  );
+  for (const library of libraries)
+    for (const language of languages) {
+      const { allowed } = pluralCategoriesFor(language, library);
+      for (let n = 0; n < 120; n++)
+        for (const value of [String(n), `${n}.5`])
+          expect(allowed).toContain(
+            pluralBranch(all, value, language, { library }),
+          );
+    }
 });
