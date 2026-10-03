@@ -755,8 +755,9 @@ test("a nested argument is listed once, and branchingNodes reaches it unless tol
   expect(branchingNodes(parsed.nodes, false).map((n) => n.arg)).toEqual(["g"]);
 });
 
-// Linear time, not a speed (#1136): four times the input takes about
-// four times as long, under 8 where a quadratic pass takes sixteen.
+// Linear time, not a speed (#1136): eight times the input takes about
+// eight times as long, under 24 where a quadratic pass takes 64, a gap
+// wider than a CI runner's noise, which crossed 8 at four times (#1156).
 // Timed in the process's CPU time, which a loaded runner's other work
 // does not add to, the best of five runs of each size taken in turn
 // after a warm run of both, so neither is timed before the code is
@@ -773,16 +774,22 @@ function linear(
     return (user + system) / 1000;
   };
   const small = make(n);
-  const large = make(4 * n);
+  const large = make(8 * n);
   f(large);
   f(small);
-  let fastSmall = Infinity;
-  let fastLarge = Infinity;
-  for (let i = 0; i < 5; i++) {
-    fastSmall = Math.min(fastSmall, cpu(small));
-    fastLarge = Math.min(fastLarge, cpu(large));
-  }
-  expect(fastLarge / Math.max(fastSmall, 1)).toBeLessThan(8);
+  const ratio = () => {
+    let fastSmall = Infinity;
+    let fastLarge = Infinity;
+    for (let i = 0; i < 5; i++) {
+      fastSmall = Math.min(fastSmall, cpu(small));
+      fastLarge = Math.min(fastLarge, cpu(large));
+    }
+    return fastLarge / Math.max(fastSmall, 1);
+  };
+  // A collection mid-run can double one reading; a quadratic pass
+  // crosses the line every time, so a second reading decides.
+  const first = ratio();
+  expect(first < 24 ? first : Math.min(first, ratio())).toBeLessThan(24);
 }
 
 test("hostile input is read in bounded time and fails cleanly, never with a thrown error (#861)", () => {
