@@ -1895,16 +1895,25 @@ export function pluralCategoryCovered(
 }
 
 // The branch a plural takes for a value (§7): an exact `=N` first, then
-// the category the library's runtime picks (#963), then `other`.
-// counterpart and easy_localization read no `=N` (#964) and pick by
-// their own rules, those pluralCategoriesFor names; Rails and i18next
-// take `zero` for 0 where it is written; the rest CLDR's category.
+// the category the library's runtime picks (#963), then `other`, by the
+// rules pluralCategoriesFor checks: counterpart and easy_localization
+// read no `=N` (#964) and pick by their own rules; Rails and i18next
+// take `zero` for 0 where it is written; the rest CLDR's category, or
+// `other` where `picked`, the source's own forms (a gettext file's
+// `Plural-Forms`, rails-i18n's table), has none for it.
 export function pluralBranch(
   branches: Record<string, unknown>,
   value: string,
   language?: string,
-  ordinal = false,
-  library?: Library,
+  {
+    ordinal = false,
+    library,
+    picked,
+  }: {
+    ordinal?: boolean;
+    library?: Library;
+    picked?: readonly string[];
+  } = {},
 ): string {
   // An empty value is no count at all, not zero (#859).
   if (value.trim() === "") return "other";
@@ -1933,6 +1942,7 @@ export function pluralBranch(
       language === undefined ? undefined : localeOf(language),
       { type: ordinal ? "ordinal" : "cardinal" },
     ).select(n);
+    if (!ordinal && picked && !picked.includes(category)) return "other";
     if (Object.hasOwn(branches, category)) return category;
   }
   return "other";

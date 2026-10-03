@@ -37,7 +37,9 @@ test("its categories are the language's ordinal ones", () => {
     "other",
   ]);
   expect(
-    pluralBranch({ one: 1, two: 1, few: 1, other: 1 }, "22", "en", true),
+    pluralBranch({ one: 1, two: 1, few: 1, other: 1 }, "22", "en", {
+      ordinal: true,
+    }),
   ).toBe("two");
   expect(pluralBranch({ one: 1, other: 1 }, "22", "en")).toBe("other");
 });
