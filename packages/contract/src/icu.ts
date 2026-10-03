@@ -357,10 +357,10 @@ const QT_PLACEHOLDER_RE = /^%(L?)([0-9][0-9]?|n)/;
 const RAILS_PLACEHOLDER_RE =
   /^%(?:\{([^{}\s]+)\}|<([^<>\s]+)>[-+ 0#]*\d*(?:\.\d+)?[a-zA-Z])/;
 
-// Chrome i18n's `$NAME$` (#595): letters, digits and `_`, matched
+// Chrome i18n's `$NAME$` (#595): letters, digits, `_` and `@`, matched
 // case-insensitively against the `placeholders` map, so the name is
 // lowercased and the written form kept.
-const CHROME_PLACEHOLDER_RE = /^\$([A-Za-z0-9_]+)\$/;
+export const CHROME_PLACEHOLDER_RE = /^\$([A-Za-z0-9_@]+)\$/;
 
 // The verb of a printf placeholder as written, modifier and letter
 // (`ld` of `%2$-8ld`): what a translation must keep at the position,
@@ -900,10 +900,22 @@ class Parser {
 
   private lexChrome(seq: Sequence, ch: string): true {
     if (ch === "$") {
-      if (this.source[this.pos + 1] === "$") return this.text(seq, "$", 2);
-      const match = CHROME_PLACEHOLDER_RE.exec(this.source.slice(this.pos));
+      const rest = this.source.slice(this.pos);
+      // A run of n dollars shows n - 1, and what follows it is text, save
+      // a `$NAME$` its last dollar opens, as Chrome's first pass reads
+      // `$$NAME$` (#631).
+      const run = /^\$+/.exec(rest)![0].length;
+      if (run > 1) {
+        const named = CHROME_PLACEHOLDER_RE.test(rest.slice(run - 1));
+        return this.text(seq, "$".repeat(run - 1), named ? run - 1 : run);
+      }
+      const match = CHROME_PLACEHOLDER_RE.exec(rest);
       if (match)
         return this.placeholder(seq, match[1]!.toLowerCase(), match[0]);
+      // Its second pass fills $1–$9 from the arguments; `$40` is text,
+      // which the source is told of.
+      const bare = /^\$[1-9](?![0-9])/.exec(rest);
+      if (bare) return this.placeholder(seq, bare[0], bare[0]);
     }
     return this.text(seq, ch);
   }

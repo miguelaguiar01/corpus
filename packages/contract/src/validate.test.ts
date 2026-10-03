@@ -5,6 +5,7 @@ import { parseIcu, partsOf } from "./icu";
 import { renderPreview } from "./preview";
 import {
   bareAtOf,
+  chromeDollarsOf,
   nestedCountsOf,
   richTextFor,
   validateTranslation,
@@ -3165,4 +3166,58 @@ test("easy_localization's \"cldr\" asks for intl's categories, and a language in
   ).toMatchObject({
     incomplete: [{ code: "unexpected-category", key: "many" }],
   });
+});
+
+test("under chrome a bare $1–$9 is a placeholder; a lone $, a $40 and a $$NAME$ are said, as Chrome's getMessage reads them (#631)", () => {
+  const de = (source: string, target: string) =>
+    validateTranslation(source, target, "de", "chrome");
+  // Chrome fills $1–$9 from the arguments.
+  expect(
+    de("Hello $1, you have $2 items", "Hallo, du hast Artikel"),
+  ).toMatchObject({
+    ok: false,
+    errors: [
+      { code: "missing-placeholder", name: "$1" },
+      { code: "missing-placeholder", name: "$2" },
+    ],
+  });
+  expect(de("Hello $1", "Hallo $1")).toEqual({ ok: true });
+  // $$NAME$ is a $ before the NAME placeholder.
+  expect(de("Hi $$NAME$", "Hallo $NAME$")).toEqual({ ok: true });
+  expect(de("Hi $$NAME$", "Hallo")).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "name" }],
+  });
+  // A lone $ is dropped with the character after it: a warning.
+  expect(
+    validateTranslation("$$ character", "$ karakter", "hu", "chrome"),
+  ).toEqual({
+    ok: true,
+    incomplete: [{ code: "chrome-dollar", at: 0, kind: "lone", written: "$ " }],
+  });
+  // $40 is text, a price, never substitution 4.
+  expect(de("Pay $40", "Zahle $40")).toMatchObject({ ok: true });
+  expect(chromeDollarsOf("Pay $40", "chrome")).toEqual([
+    { at: 4, kind: "price", written: "$40" },
+  ]);
+  expect(chromeDollarsOf("$9 and $10", "chrome")).toEqual([
+    { at: 7, kind: "price", written: "$10" },
+  ]);
+  expect(chromeDollarsOf("Hi $$NAME$", "chrome")).toEqual([
+    { at: 3, kind: "doubled-name", written: "$$NAME$" },
+  ]);
+  // A run of n dollars shows n - 1, and what follows it is text: $$$1
+  // is $$1, no substitution; $$$ is $$, no lone dollar.
+  expect(chromeDollarsOf("$$$1 and $$$", "chrome")).toEqual([]);
+  expect(de("Cost $$$1", "Preis $$$1")).toEqual({ ok: true });
+  expect(partsOf("Cost $$$1", "chrome").placeholders).toEqual(new Set());
+  // A trailing $ and $0 are lone.
+  expect(chromeDollarsOf("a $0 b $", "chrome").map((d) => d.kind)).toEqual([
+    "lone",
+    "lone",
+  ]);
+  expect(chromeDollarsOf("Costs $$ and $1", "chrome")).toEqual([]);
+  // A placeholder name may hold @, as Chrome's do.
+  expect(de("$USER@HOST$", "$user@host$")).toEqual({ ok: true });
+  expect(chromeDollarsOf("$ x", "icu")).toEqual([]);
 });
