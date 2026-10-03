@@ -580,7 +580,11 @@ function formatOf(
     missing && /\.json$/i.test(messages) && !messages.includes("{ns}")
       ? textKeyedTarget(ctx.cwd, messages, sourceLanguage)
       : undefined;
-  if (keyed) {
+  if (keyed && "aside" in keyed)
+    ctx.err(
+      `corpus: no ${relative}; ${keyed.aside} may be the source language's file under another code: pass --source ${keyed.tag} if so, or, where its keys are the text, set sourcePath to a committed target with keyIsText: true`,
+    );
+  if (keyed && "file" in keyed) {
     ctx.err(
       `corpus: no ${relative}, and the ${keyed.files} target files hold one key set of sentences: sourcePath is ${keyed.file}, with keyIsText: true reading its keys as the text`,
     );
@@ -1263,53 +1267,64 @@ function gitIgnored(ctx: RunContext, rel: string): void {
 
 // The target to read as the source where every JSON target holds one
 // key set, most of it sentences (#999): the one with the most text, so
-// what it seeds is the most. Undefined for one file, for key sets that
-// differ, or for keys that read as paths, and where a file of the
-// source's own language under another code may be the source itself
-// (`en-US.json` for `en`, Ghost's empty-valued `en/`); a variant whose
-// values are mostly its keys, Zulip's en_GB, is a target like any.
+// what it seeds is the most. None where any file the pattern fills is
+// no language's or does not read as flat strings, or where a file of
+// the source's own language under another code may be the source
+// itself (`en-US.json` for `en`, Ghost's empty `en/`), which `aside`
+// names: only a variant partly filled and mostly with its keys as its
+// values, as Zulip's en_GB is, is a target like the rest.
 function textKeyedTarget(
   cwd: string,
   pattern: string,
   sourceLanguage: string,
-): { file: string; files: number } | undefined {
-  const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const codeRe = new RegExp(
-    `^${pattern.split("{lang}").map(escape).join("(.+?)")}$`,
-  );
-  const base = (code: string) => code.split(/[-_@]/)[0]!.toLowerCase();
-  const read = patternFiles(cwd, pattern).flatMap((file) => {
+):
+  { file: string; files: number } | { aside: string; tag: string } | undefined {
+  const base = (tag: string) => tag.split(/[-_]/)[0]!.toLowerCase();
+  const read: {
+    file: string;
+    tag: string;
+    keys: string;
+    sentences: number;
+    size: number;
+    filled: number;
+    echoed: number;
+  }[] = [];
+  const filling = filesFilling(cwd, pattern);
+  if (filling.length < 2) return undefined;
+  for (const { code, file } of filling) {
+    const tag = posixTag(code) ?? (LANGUAGE_RE.test(code) ? code : undefined);
+    if (tag === undefined) return undefined;
+    let data: unknown;
     try {
-      const data: unknown = JSON.parse(
-        stripBom(readFileSync(path.join(cwd, file), "utf8")),
-      );
-      if (data === null || typeof data !== "object" || Array.isArray(data))
-        return [];
-      const values = Object.values(data);
-      if (values.some((v) => typeof v !== "string")) return [];
-      const entries = Object.entries(data as Record<string, string>);
-      return [
-        {
-          file,
-          code: codeRe.exec(file)?.[1] ?? "",
-          keys: Object.keys(data).sort().join("\0"),
-          sentences: Object.keys(data).filter(keyIsSentence).length,
-          size: entries.length,
-          filled: values.filter((v) => (v as string).trim() !== "").length,
-          echoed: entries.filter(([k, v]) => k === v).length,
-        },
-      ];
+      data = JSON.parse(stripBom(readFileSync(path.join(cwd, file), "utf8")));
     } catch {
-      return [];
+      return undefined;
     }
-  });
-  if (read.length < 2 || read.some((r) => r.keys !== read[0]!.keys))
-    return undefined;
+    if (data === null || typeof data !== "object" || Array.isArray(data))
+      return undefined;
+    const entries = Object.entries(data);
+    if (entries.some(([, v]) => typeof v !== "string")) return undefined;
+    read.push({
+      file,
+      tag,
+      keys: entries
+        .map(([k]) => k)
+        .sort()
+        .join("\0"),
+      sentences: entries.filter(([k]) => keyIsSentence(k)).length,
+      size: entries.length,
+      filled: entries.filter(([, v]) => (v as string).trim() !== "").length,
+      echoed: entries.filter(([k, v]) => k === v).length,
+    });
+  }
+  if (read.some((r) => r.keys !== read[0]!.keys)) return undefined;
   if (read[0]!.size === 0 || read[0]!.sentences * 2 < read[0]!.size)
     return undefined;
-  const own = read.filter((r) => base(r.code) === base(sourceLanguage));
-  if (own.some((r) => r.filled === 0 || r.echoed * 2 <= r.filled))
-    return undefined;
+  const own = read.filter((r) => base(r.tag) === base(sourceLanguage));
+  const source = own.find(
+    (r) => r.filled === 0 || r.filled === r.size || r.echoed * 2 <= r.filled,
+  );
+  if (source) return { aside: source.file, tag: source.tag };
   const chosen = read
     .filter((r) => !own.includes(r))
     .sort((a, b) => b.filled - a.filled || a.file.localeCompare(b.file))[0];

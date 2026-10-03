@@ -136,11 +136,13 @@ export default defineCorpus({
     //    over a list of patterns, is refused by name; init writes the
     //    pair where the source language has no file and every target
     //    holds one key set, most of it sentences, naming the target with
-    //    the most text, and stands aside where a file of the source's
-    //    own language under another code holds its own text or none
-    //    (`en-US.json` for `en`, Ghost's empty `en/`), which may be the
-    //    source itself; a variant whose values are mostly its keys
-    //    (Zulip's en_GB) is a target. A plural object or an i18next
+    //    the most text, and stands aside, naming the file, where one of
+    //    the source's own language under another code may be the source
+    //    itself (`en-US.json` for `en`, Ghost's empty `en/`): only one
+    //    partly filled and mostly with its keys as its values, a variant
+    //    as Zulip's en_GB is, is a target; and where any file the
+    //    pattern fills is no language's (#994's `base.json`) or does not
+    //    read as flat strings. A plural object or an i18next
     //    suffix family in that file is one string whose text is its bare
     //    key, not a plural, since the key is all the text the file
     //    holds; under a `namespace` the id takes the prefix and the text
