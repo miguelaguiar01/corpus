@@ -445,3 +445,25 @@ test("an add to a source whose source-language file languageFiles maps is placed
     expect.objectContaining({ id: "ui.back", file: "src/ui/base.json" }),
   ]);
 });
+
+test("a string an extractor generates refuses proposals naming its file (#1000)", () => {
+  const { db, p, ana } = pushed();
+  applySnapshot(db, p!.id, {
+    ...FIXTURE,
+    strings: FIXTURE.strings.map((s) =>
+      s.id === "ui.continue"
+        ? { ...s, file: undefined, generated: "src/i18n/pt-PT.json" }
+        : s,
+    ),
+  });
+  const ui = row(db, "ui.continue");
+  expect(ui.generated).toBe("src/i18n/pt-PT.json");
+  expect(
+    proposeEdit(db, { stringRowId: ui.id, text: "Seguir", actor: ana }),
+  ).toEqual({ ok: false, reason: "generated", file: "src/i18n/pt-PT.json" });
+  expect(proposeDelete(db, { stringRowId: ui.id, actor: ana })).toEqual({
+    ok: false,
+    reason: "generated",
+    file: "src/i18n/pt-PT.json",
+  });
+});

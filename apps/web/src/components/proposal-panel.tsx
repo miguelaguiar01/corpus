@@ -59,6 +59,7 @@ export function ProposalPanel({
   slots,
   writable,
   keyIsText = false,
+  generated = null,
   pending,
   canWithdraw = false,
   history,
@@ -74,6 +75,8 @@ export function ProposalPanel({
   writable: boolean;
   // The text is the key (#611): the sentence says where to change it.
   keyIsText?: boolean;
+  // An extractor's output (#1000): the sentence names the file.
+  generated?: string | null;
   pending?: PendingProposal;
   canWithdraw?: boolean;
   history: ProposalRecord[];
@@ -117,6 +120,10 @@ export function ProposalPanel({
       {keyIsText ? (
         <p className="text-sm text-muted-foreground">
           {t("proposal.keyIsText")}
+        </p>
+      ) : generated ? (
+        <p className="text-sm text-muted-foreground">
+          {t("proposal.generated", { file: generated })}
         </p>
       ) : !writable ? (
         <p className="text-sm text-muted-foreground">

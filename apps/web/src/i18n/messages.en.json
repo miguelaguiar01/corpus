@@ -165,6 +165,8 @@
   "proposal.heading": "Source proposals",
   "proposal.invalidIcu": "The text must parse as a source.",
   "proposal.keyIsText": "The text of this string is its key: change it in the code that calls t() or tr(), and the catalogue follows.",
+  "proposal.generated": "This string is read from {file}, which is generated from the code: change the text in the code, and the next extract carries it.",
+  "proposal.generatedError": "This string's source file is generated from the code: change the text in the code, and the next extract carries it.",
   "proposal.kindAdd": "New string",
   "proposal.kindDelete": "Removal",
   "proposal.kindEdit": "Change",

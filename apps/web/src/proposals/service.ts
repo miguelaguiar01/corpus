@@ -31,6 +31,7 @@ export type ProposeResult =
         | "archived"
         | "not-writable"
         | "key-is-text"
+        | "generated"
         | "invalid-icu"
         | "invalid-key"
         | "unchanged"
@@ -39,6 +40,8 @@ export type ProposeResult =
       // For invalid-icu: what is wrong and what to do, when the text is
       // not empty (#552).
       message?: string;
+      // For generated: the extractor's output it is read from (#1000).
+      file?: string;
     };
 
 // Why a proposed text is refused, as the CLI would say it (#552): the
@@ -96,6 +99,8 @@ function forString(
   const { row } = found;
   if (row.archived) return { ok: false, reason: "archived" };
   if (row.keyIsText) return { ok: false, reason: "key-is-text" };
+  if (row.generated)
+    return { ok: false, reason: "generated", file: row.generated };
   if (!row.file) return { ok: false, reason: "not-writable" };
   if (kind === "edit") {
     const syntax = row.syntax ?? "icu";

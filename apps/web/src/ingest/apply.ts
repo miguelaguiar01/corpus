@@ -103,6 +103,7 @@ function stringWrites(
     pluralForms: p("pluralForms"),
     pluralRules: p("pluralRules"),
     languages: p("languages"),
+    generated: p("generated"),
     note: p("note"),
     syntax: p("syntax"),
   };
@@ -134,6 +135,7 @@ function stringWrites(
           ...entry.languages.filter((l) => l !== sourceLanguage),
         ])
       : null,
+    generated: entry.generated ?? null,
     note: entry.note ?? null,
     syntax: entryLibrary(entry),
   });

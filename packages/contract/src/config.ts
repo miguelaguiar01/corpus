@@ -142,6 +142,10 @@ const pluralRules = z
   })
   .optional();
 
+// The source file is an extractor's output, its text the code's (#1000):
+// Grafana's i18next-cli and Mastodon's formatjs extract write theirs.
+const generated = z.boolean().optional();
+
 // The target languages a source's strings take, where it ships fewer
 // than the project (#1006): Transmission's Qt client has 35 of the GTK
 // client's 89. Every string takes the source language.
@@ -169,6 +173,7 @@ const messagesFields = {
   pluralRules,
   namespace,
   languages: sourceLanguages,
+  generated,
   // A committed target file whose keys are the source text, where the
   // source language's file is generated and ignored (#999): Zulip's
   // `locale/en/translations.json` is `makemessages` output.
@@ -189,6 +194,7 @@ const tableFields = {
   pluralRules,
   namespace,
   languages: sourceLanguages,
+  generated,
   syntax: configLibrarySchema.optional(),
   // The module's default export, or the named export `export` names.
   export: z.string().min(1).optional(),
@@ -221,6 +227,7 @@ const androidFields = {
   pluralRules,
   namespace,
   languages: sourceLanguages,
+  generated,
 };
 
 // Fluent `.ftl` (#597): messages as ICU, a select as a plural or select.
@@ -231,6 +238,7 @@ const fluentFields = {
   pluralRules,
   namespace,
   languages: sourceLanguages,
+  generated,
 };
 
 // XLIFF 1.2 and 2.0 (#667): a file per language; Angular's source file
@@ -244,6 +252,7 @@ const xliffSchema = z.looseObject({
   pluralRules,
   namespace,
   languages: sourceLanguages,
+  generated,
 });
 
 // gettext `.po` (#668): a file per language, the `.pot` or the source
@@ -258,6 +267,7 @@ const gettextSchema = z.looseObject({
   pluralRules,
   namespace,
   languages: sourceLanguages,
+  generated,
 });
 
 // Qt Linguist `.ts` (#740): a file per language, `lupdate`'s template
@@ -273,6 +283,7 @@ const qtTsSchema = z.looseObject({
   pluralRules,
   namespace,
   languages: sourceLanguages,
+  generated,
 });
 
 // Rails I18n's YAML (#752): a file per language, the language as its
@@ -287,6 +298,7 @@ const yamlFields = {
   pluralRules,
   namespace,
   languages: sourceLanguages,
+  generated,
 };
 
 // Apple's String Catalog (#727): one `.xcstrings` holding every
@@ -314,6 +326,7 @@ const xcstringsSchema = z.looseObject({
   pluralRules,
   namespace,
   languages: sourceLanguages,
+  generated,
 });
 
 // How the patterns of one source merge an id two of them hold (#953):

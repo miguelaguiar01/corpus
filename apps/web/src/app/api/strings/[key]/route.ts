@@ -102,6 +102,7 @@ export async function GET(
     note: detail.string.note,
     stringNote: detail.string.stringNote,
     keyIsText: detail.string.keyIsText,
+    ...(detail.string.generated && { generated: detail.string.generated }),
     glossary: detail.string.glossary,
     entities: detail.entities,
     translations,
