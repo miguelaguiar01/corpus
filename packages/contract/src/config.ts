@@ -62,6 +62,44 @@ const languageFiles = z
   )
   .optional();
 
+// Keys a source that does not take them is told of by name, each with
+// its own reason, rather than as unknown.
+const SAID_ELSEWHERE = new Set([
+  "sourcePath",
+  "library",
+  "syntax",
+  "pluralRules",
+  "namespace",
+  "languageFiles",
+  "merge",
+]);
+
+// The known key nearest a misspelt one, two edits at most.
+function nearest(key: string, known: string[]): string | undefined {
+  const distance = (a: string, b: string) => {
+    const row = Array.from({ length: b.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= a.length; i++) {
+      let previous = row[0]!;
+      row[0] = i;
+      for (let j = 1; j <= b.length; j++) {
+        const current = row[j]!;
+        row[j] = Math.min(
+          row[j]! + 1,
+          row[j - 1]! + 1,
+          previous + (a[i - 1] === b[j - 1] ? 0 : 1),
+        );
+        previous = current;
+      }
+    }
+    return row[b.length]!;
+  };
+  const ranked = known
+    .map((k) => [k, distance(key.toLowerCase(), k.toLowerCase())] as const)
+    .filter(([, d]) => d <= 2)
+    .sort((x, y) => x[1] - y[1]);
+  return ranked[0]?.[0];
+}
+
 // A target language's plural categories, where its runtime picks others
 // than CLDR's tolerant reading (#997): `{ he: ["one", "two", "many",
 // "other"] }`, `other` always among them.
@@ -104,6 +142,17 @@ const pluralRules = z
   })
   .optional();
 
+// A prefix for every id the source reads, `server:title` (#998), so two
+// catalogues whose keys overlap share one project.
+const namespace = z
+  .string()
+  .min(1)
+  .regex(
+    /^[^:\s]+$/,
+    "a namespace holds no : or space, since : divides it from the key",
+  )
+  .optional();
+
 const messagesFields = {
   adapter: z.literal("messages"),
   type: identifier(),
@@ -113,12 +162,14 @@ const messagesFields = {
   syntax: configLibrarySchema.optional(),
   languageFiles,
   pluralRules,
+  namespace,
 };
 const tableFields = {
   adapter: z.literal("table"),
   type: identifier(),
   library: configLibrarySchema.optional(),
   pluralRules,
+  namespace,
   syntax: configLibrarySchema.optional(),
   // The module's default export, or the named export `export` names.
   export: z.string().min(1).optional(),
@@ -149,6 +200,7 @@ const androidFields = {
   adapter: z.literal("android"),
   type: identifier(),
   pluralRules,
+  namespace,
 };
 
 // Fluent `.ftl` (#597): messages as ICU, a select as a plural or select.
@@ -157,6 +209,7 @@ const fluentFields = {
   type: identifier(),
   languageFiles,
   pluralRules,
+  namespace,
 };
 
 // XLIFF 1.2 and 2.0 (#667): a file per language; Angular's source file
@@ -168,6 +221,7 @@ const xliffSchema = z.looseObject({
   sourcePath: noNamespace("xliff", oneSourcePath("xliff")).optional(),
   languageFiles,
   pluralRules,
+  namespace,
 });
 
 // gettext `.po` (#668): a file per language, the `.pot` or the source
@@ -180,6 +234,7 @@ const gettextSchema = z.looseObject({
   library: configLibrarySchema.optional(),
   languageFiles,
   pluralRules,
+  namespace,
 });
 
 // Qt Linguist `.ts` (#740): a file per language, `lupdate`'s template
@@ -193,6 +248,7 @@ const qtTsSchema = z.looseObject({
   library: configLibrarySchema.optional(),
   languageFiles,
   pluralRules,
+  namespace,
 });
 
 // Rails I18n's YAML (#752): a file per language, the language as its
@@ -205,6 +261,7 @@ const yamlFields = {
   library: configLibrarySchema.optional(),
   languageFiles,
   pluralRules,
+  namespace,
 };
 
 // Apple's String Catalog (#727): one `.xcstrings` holding every
@@ -230,6 +287,7 @@ const xcstringsSchema = z.looseObject({
   ),
   library: configLibrarySchema.optional(),
   pluralRules,
+  namespace,
 });
 
 // How the patterns of one source merge an id two of them hold (#953):
@@ -425,6 +483,40 @@ export const corpusConfigSchema = z
           path: ["sourceVariants"],
         });
     c.sources.forEach((source, index) => {
+      const raw = source as Record<string, unknown>;
+      // A key the source does not take is refused, never ignored (#998):
+      // a misspelt one would do nothing without a word.
+      const option = sourceInputSchema.options.find(
+        (o) => o.shape.adapter.value === source.adapter,
+      );
+      const known = option ? Object.keys(option.shape) : [];
+      for (const key of Object.keys(raw))
+        if (!known.includes(key) && !SAID_ELSEWHERE.has(key)) {
+          const near = nearest(key, known);
+          ctx.addIssue({
+            code: "custom",
+            message: `${key} is no key of a${/^[aeiou]/.test(source.adapter) ? "n" : ""} ${source.adapter} source${near ? `; did you mean ${near}?` : ""}`,
+            path: ["sources", index, key],
+          });
+        }
+      if (source.adapter === "exec" && raw.namespace !== undefined)
+        ctx.addIssue({
+          code: "custom",
+          message:
+            "an exec source's entries carry their own ids; namespace does not apply",
+          path: ["sources", index, "namespace"],
+        });
+      const paths = [raw.path].flat().filter((p) => typeof p === "string");
+      if (
+        raw.namespace !== undefined &&
+        paths.some((p) => (p as string).includes("{ns}"))
+      )
+        ctx.addIssue({
+          code: "custom",
+          message:
+            "namespace and a {ns} pattern each prefix the source's ids; a source takes one of them",
+          path: ["sources", index, "namespace"],
+        });
       const rules = (source as { pluralRules?: unknown }).pluralRules;
       if (source.adapter === "exec" && rules !== undefined)
         ctx.addIssue({
