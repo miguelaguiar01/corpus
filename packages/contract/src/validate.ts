@@ -50,7 +50,14 @@ export type ValidationError =
     }
   // `written` is the placeholder as the source or the target writes it
   // when that is not `{name}` (printf's `%s`), for the message.
-  | { code: "missing-placeholder"; name: string; written?: string }
+  // `quoted`: under formatjs the target's apostrophe quoted it into text
+  // (#1010), which the message says.
+  | {
+      code: "missing-placeholder";
+      name: string;
+      written?: string;
+      quoted?: true;
+    }
   | { code: "unexpected-placeholder"; name: string; written?: string }
   // A placeholder the source writes in a tag's attribute, written in the
   // text, as a broken tag leaves it (#1022): said once, as moved.
@@ -90,7 +97,7 @@ export type ValidationError =
       expected: string;
       actual: string | null;
     }
-  | { code: "missing-tag"; name: string }
+  | { code: "missing-tag"; name: string; quoted?: true }
   // The source's pair written closed on itself, `<2/>` for `<2>…</2>`,
   // which wraps nothing (#986).
   | { code: "unpaired-tag"; name: string }
@@ -451,6 +458,30 @@ export function isDroppedPlural(
   );
 }
 
+// Whether a FormatJS target's apostrophe quoted what `written` matches
+// into text: the placeholder or the tag is in its literal text (#1010).
+function quotedAway(target: string, syntax: Library, written: RegExp): boolean {
+  if (syntax !== "formatjs" || !target.includes("'")) return false;
+  const read = parseIcu(target, "formatjs");
+  if (!read.ok) return false;
+  const literals: string[] = [];
+  const walk = (nodes: IcuNode[]) => {
+    for (const node of nodes) {
+      if (node.kind === "literal") literals.push(node.text);
+      else if (node.kind === "tag") walk(node.children);
+      else if (node.kind === "plural" || node.kind === "select")
+        Object.values(node.branches).forEach(walk);
+      else if (node.kind === "forms") node.branches.forEach(walk);
+    }
+  };
+  walk(read.nodes);
+  return literals.some((text) => written.test(text));
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 export function validateTranslation(
   source: string,
   target: string,
@@ -679,6 +710,13 @@ export function validateTranslation(
       code: "missing-placeholder",
       name,
       ...writtenAs(expected, name),
+      ...(quotedAway(
+        target,
+        syntax,
+        new RegExp(`\\{\\s*${escapeRegExp(name)}\\s*[,}]`),
+      ) && {
+        quoted: true as const,
+      }),
     });
   }
   // Outside ICU, whose `#` prints it, a plural on a value prints nothing:
@@ -813,7 +851,15 @@ export function validateTranslation(
     );
     for (const name of expected.tags) {
       if (keysOf(expected, name).some((key) => !actualTags.has(key)))
-        errors.push({ code: "missing-tag", name });
+        errors.push({
+          code: "missing-tag",
+          name,
+          ...(quotedAway(
+            target,
+            syntax,
+            new RegExp(`<${escapeRegExp(name.split(" ")[0]!)}[\\s/>]`),
+          ) && { quoted: true as const }),
+        });
       else if (pairKeysOf(expected, name).some((key) => !actualPairs.has(key)))
         errors.push({ code: "unpaired-tag", name });
     }

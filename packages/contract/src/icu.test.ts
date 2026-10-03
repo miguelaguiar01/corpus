@@ -726,6 +726,7 @@ test("each library has a name for messages (#644)", () => {
     "easy_localization",
     "Rails I18n",
     "Qt",
+    "FormatJS",
     "Fluent",
   ]);
 });

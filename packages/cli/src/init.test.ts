@@ -2305,3 +2305,56 @@ test("init names exec for a catalogue of entry objects, never writing a config t
     ),
   ).toBe(0);
 });
+
+test("init writes formatjs where the package runs on a FormatJS runtime, and icu elsewhere (#1010)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "src", "i18n"), { recursive: true });
+  writeFileSync(
+    path.join(p.dir, "src", "i18n", "pt-PT.json"),
+    JSON.stringify({ a: "Olá {name}", b: "Sem nada" }),
+  );
+  writeFileSync(
+    path.join(p.dir, "package.json"),
+    JSON.stringify({ name: "x", dependencies: { "react-intl": "^7.0.0" } }),
+  );
+  expect(await run(FLAGS, p.ctx)).toBe(0);
+  expect((await loadConfig(p.dir)).sources[0]).toMatchObject({
+    library: "formatjs",
+  });
+  expect(p.out.join("\n")).toContain(
+    "library: formatjs, from react-intl in package.json",
+  );
+  const q = project();
+  stubCli(q.dir);
+  mkdirSync(path.join(q.dir, "src", "i18n"), { recursive: true });
+  writeFileSync(
+    path.join(q.dir, "src", "i18n", "pt-PT.json"),
+    JSON.stringify({ a: "Olá {name}" }),
+  );
+  writeFileSync(
+    path.join(q.dir, "package.json"),
+    JSON.stringify({ name: "x", dependencies: { "@angular/core": "^20.0.0" } }),
+  );
+  expect(await run(FLAGS, q.ctx)).toBe(0);
+  expect((await loadConfig(q.dir)).sources[0]).not.toHaveProperty("library");
+});
+
+test("init's formatjs detection skips FormatJS's Intl polyfills, which i18next projects load too (#1010)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "src", "i18n"), { recursive: true });
+  writeFileSync(
+    path.join(p.dir, "src", "i18n", "pt-PT.json"),
+    JSON.stringify({ a: "Olá {name}" }),
+  );
+  writeFileSync(
+    path.join(p.dir, "package.json"),
+    JSON.stringify({
+      name: "x",
+      dependencies: { "@formatjs/intl-durationformat": "^0.7.0" },
+    }),
+  );
+  expect(await run(FLAGS, p.ctx)).toBe(0);
+  expect((await loadConfig(p.dir)).sources[0]).not.toHaveProperty("library");
+});

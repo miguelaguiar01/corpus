@@ -59,7 +59,8 @@ export type StringResponse = {
   // translation's tags need not match the source's; null otherwise.
   richText: RichText | null;
   // The i18n library the source and its translations are written for
-  // (§5): "icu", "i18next" for {{name}} interpolation, "vue" for pipe
+  // (§5): "icu", "formatjs" for ICU with FormatJS's apostrophe quoting
+  // (#1010), "i18next" for {{name}} interpolation, "vue" for pipe
   // plurals and {'…'} literals, "printf" for %s and %[2]s verbs named
   // by position (#594), "chrome" for $NAME$ (#595), "counterpart" for
   // %(name)s and bare <tag> substitutions (#663), "easy_localization"

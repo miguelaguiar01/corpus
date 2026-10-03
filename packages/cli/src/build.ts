@@ -811,7 +811,11 @@ export function readsPluralObjects(source: FileSource): PluralObjects {
   if (source.adapter !== "messages") return false;
   const library = libraryOf(source);
   if (library === "i18next") return "several";
-  return library === "icu" || WHOLE_PLURAL_LIBRARIES.has(library);
+  return (
+    library === "icu" ||
+    library === "formatjs" ||
+    WHOLE_PLURAL_LIBRARIES.has(library)
+  );
 }
 
 // i18next's plural keys, `item_one` beside `item_other`, are one plural
