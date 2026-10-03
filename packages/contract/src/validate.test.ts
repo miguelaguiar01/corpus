@@ -3104,3 +3104,33 @@ test("under vue-i18n's default rule a translation's number of forms is the sourc
     }),
   ).toEqual({ ok: true });
 });
+
+test('under easy_localization with pluralRules: "cldr" a plural follows CLDR, as ignorePluralRules: false picks (#961)', () => {
+  const source = "{count, plural, one {{} file} other {{} files}}";
+  const pl =
+    "{count, plural, one {{} plik} few {{} pliki} many {{} plików} other {{} pliku}}";
+  // By default the package picks by value, so few and many are dead.
+  expect(
+    validateTranslation(source, pl, "pl", "easy_localization"),
+  ).toMatchObject({
+    ok: true,
+    incomplete: [
+      { code: "unexpected-category", key: "few" },
+      { code: "unexpected-category", key: "many" },
+    ],
+  });
+  const cldr = (target: string) =>
+    validateTranslation(source, target, "pl", "easy_localization", {
+      pluralRules: "cldr",
+    });
+  expect(cldr(pl)).toEqual({ ok: true });
+  expect(cldr("{count, plural, one {{} plik} other {{} pliku}}")).toMatchObject(
+    {
+      ok: true,
+      incomplete: [
+        { code: "missing-category", key: "few" },
+        { code: "missing-category", key: "many" },
+      ],
+    },
+  );
+});

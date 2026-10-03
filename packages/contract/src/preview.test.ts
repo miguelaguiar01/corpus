@@ -471,3 +471,18 @@ test("preview: the branch a plural previews is one its validation allows, for ev
           );
     }
 });
+
+test('preview: easy_localization with pluralRules: "cldr" shows CLDR\'s branch, a written zero no longer taking 0 (#961)', () => {
+  const text =
+    "{count, plural, zero {zero} one {jeden} few {kilka} many {wiele} other {inne}}";
+  const show = (n: string) => {
+    const read = renderPreview(text, { count: n }, "pl", {
+      syntax: "easy_localization",
+      pluralRules: "cldr",
+    });
+    return read.ok ? read.text : read;
+  };
+  expect(show("3")).toBe("kilka");
+  expect(show("0")).toBe("wiele");
+  expect(show("1")).toBe("jeden");
+});
