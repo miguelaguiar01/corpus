@@ -335,7 +335,9 @@ export async function buildSnapshotReport(
         : entries.filter((entry) => entry.keyIsText).length;
     if (keyed > 0) {
       notes.push(
-        `${file}: ${keyed} string(s) have an empty value and take the key as the text; a proposal on them is refused, since the text is the key`,
+        source.adapter === "messages" && source.keyIsText
+          ? `${file}: its ${keyed} key(s) are the source text, as keyIsText says, and its values are read as the translations they are; a proposal on them is refused, since the text is the key`
+          : `${file}: ${keyed} string(s) have an empty value and take the key as the text; a proposal on them is refused, since the text is the key`,
       );
     }
     // i18next reads a `</br>` no `<br>` opens as text, which `Trans`
@@ -800,7 +802,8 @@ export function fileOf(
   if (
     (source.adapter === "xliff" ||
       source.adapter === "gettext" ||
-      source.adapter === "qt-ts") &&
+      source.adapter === "qt-ts" ||
+      (source.adapter === "messages" && source.keyIsText)) &&
     source.sourcePath &&
     language === sourceLanguage
   )
@@ -902,9 +905,13 @@ export function sourceWritesBack(source: FileSource): boolean {
 }
 
 // A source a proposal can be written into (§11): one pull writes back,
-// whose keys are not the code's.
+// whose keys are not the code's, as a keyIsText source's are (#999).
 export function takesProposals(source: FileSource): boolean {
-  return sourceWritesBack(source) && !CODE_KEYED.has(source.adapter);
+  return (
+    sourceWritesBack(source) &&
+    !CODE_KEYED.has(source.adapter) &&
+    !(source.adapter === "messages" && source.keyIsText)
+  );
 }
 
 // A catalogue file through its source's adapter: the entries push would
@@ -932,6 +939,28 @@ export async function readEntries(
   // A messages value that is no string, a null, number or boolean.
   onSkipped?: (id: string) => void,
 ): Promise<StringEntry[]> {
+  // A committed target named as the source, whose keys are the text
+  // (#999): its values are a translation, never the source.
+  if (sourceFile && source.adapter === "messages" && source.keyIsText)
+    return (
+      await readEntries(
+        jiti,
+        cwd,
+        file,
+        { ...source, keyIsText: false },
+        true,
+        language,
+        onUnread,
+        pluralIds,
+        onSkipped,
+      )
+    ).map(({ id, type, ...entry }) => ({
+      ...entry,
+      id,
+      type,
+      source: id,
+      keyIsText: true,
+    }));
   const typed = <T>(entries: T[]) =>
     entries.map((e) => ({ ...e, type: source.type }));
   const own = (id: string) => namespaced(source, id);

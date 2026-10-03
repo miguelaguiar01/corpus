@@ -22,6 +22,7 @@ contract (`corpus/1`) is the only one.
 - A Fluent message Corpus cannot read is refused on its own instead of failing its whole file, and the build goes on (#991).
 - A source's `namespace` prefixes its ids, so two catalogues whose keys overlap share one project, and a key a source does not take is refused with the one you meant (#998).
 - A source's `languages` names the languages it ships, so a client with fewer than the project's no longer counts the rest as work, and pull creates no file for them (#1006).
+- A messages source can name a committed translation as its `sourcePath` with `keyIsText: true`, its keys read as the text, for a project whose source-language file is generated and ignored; `init` writes it (#999).
 - Under chrome a bare `$1`–`$9` is a placeholder a translation keeps, and a lone `$`, a `$40` or a `$$NAME$` that Chrome reads otherwise is a warning (#631).
 - A translation file that does not read no longer stops the build: the other languages push, `validate` names it, and `pull` leaves it alone (#1028).
 - `corpus validate` lists orphan keys but no longer fails on them, so it can gate CI on a project a translation platform syncs (#1023).

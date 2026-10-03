@@ -124,6 +124,19 @@ export default defineCorpus({
     //    a string carries no file, so a proposal on it is refused, and
     //    build says how many took the key. A file with no sentence key
     //    keeps its empty values empty: rows an extraction tool left.
+    //    Where the source language's file is generated and ignored, as
+    //    Zulip's makemessages writes `locale/en/translations.json`, a
+    //    `sourcePath` names a committed target with `keyIsText: true`
+    //    (#999): every key of that file is a string whose text is the
+    //    key, with no file, so a proposal on it is refused and the
+    //    source takes no new string, its values are read as that
+    //    language's translations, and pull writes it only as that
+    //    target, a new language's file taking its translations alone. A
+    //    `sourcePath` without `keyIsText`, or `keyIsText` without one or
+    //    over a list of patterns, is refused by name; init writes the
+    //    pair where the source language has no file and every target
+    //    holds one key set, most of it sentences, naming the target with
+    //    the most text.
     //    A null, number or boolean value is no string, as in yaml, and
     //    is skipped, left by a pull, a source's counted in a build note
     //    since push archives a string that became one; a list is

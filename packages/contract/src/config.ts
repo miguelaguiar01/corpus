@@ -169,6 +169,18 @@ const messagesFields = {
   pluralRules,
   namespace,
   languages: sourceLanguages,
+  // A committed target file whose keys are the source text, where the
+  // source language's file is generated and ignored (#999): Zulip's
+  // `locale/en/translations.json` is `makemessages` output.
+  sourcePath: z
+    .string()
+    .min(1)
+    .refine(
+      (p) => !p.includes("{lang}") && !p.includes("{ns}"),
+      "sourcePath names one file, with no {lang} or {ns}",
+    )
+    .optional(),
+  keyIsText: z.boolean().optional(),
 };
 const tableFields = {
   adapter: z.literal("table"),
@@ -616,7 +628,26 @@ export const corpusConfigSchema = z
       // (#994): the source language's file is the pattern's, filled
       // through languageFiles.
       const given = (source as { sourcePath?: unknown }).sourcePath;
-      if (typeof given === "string" && !READS_SOURCE_PATH.has(source.adapter)) {
+      const keyIsText = (source as { keyIsText?: unknown }).keyIsText === true;
+      if (source.adapter === "messages" && keyIsText) {
+        if (typeof given !== "string")
+          ctx.addIssue({
+            code: "custom",
+            message:
+              "keyIsText reads the keys of the file sourcePath names as the text; name a committed target file with sourcePath",
+            path: ["sources", index, "keyIsText"],
+          });
+        if (Array.isArray(source.path))
+          ctx.addIssue({
+            code: "custom",
+            message:
+              "keyIsText takes one path pattern, whose files sourcePath's keys are the text of",
+            path: ["sources", index, "path"],
+          });
+      } else if (
+        typeof given === "string" &&
+        !READS_SOURCE_PATH.has(source.adapter)
+      ) {
         const pattern = (source as { path?: unknown }).path;
         const code = (Array.isArray(pattern) ? pattern : [pattern])
           .filter((p): p is string => typeof p === "string")
@@ -626,12 +657,14 @@ export const corpusConfigSchema = z
           code: "custom",
           message: !MAPS_LANGUAGE_FILES.includes(source.adapter)
             ? `${source.adapter} reads no sourcePath`
-            : code === c.sourceLanguage ||
+            : `${source.adapter} reads no sourcePath${source.adapter === "messages" ? " unless keyIsText: true reads its keys as the text; otherwise" : ";"} ${
+                code === c.sourceLanguage ||
                 (code !== undefined &&
                   (source as { languageFiles?: Record<string, string> })
                     .languageFiles?.[c.sourceLanguage] === code)
-              ? `${source.adapter} reads no sourcePath; this one is the pattern's own source file, so drop it`
-              : `${source.adapter} reads no sourcePath; map the source language with languageFiles: { ${c.sourceLanguage}: "${code ?? "<its file's code>"}" }`,
+                  ? "this one is the pattern's own source file, so drop it"
+                  : `map the source language with languageFiles: { ${c.sourceLanguage}: "${code ?? "<its file's code>"}" }`
+              }`,
           path: ["sources", index, "sourcePath"],
         });
       }
