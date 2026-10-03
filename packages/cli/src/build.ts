@@ -403,12 +403,16 @@ export async function buildSnapshotReport(
   // error.
   const groupOf = new Map<string, number>();
   const laterWins = new Set<string>();
+  // Files whose source could still take a namespace: an exec source's
+  // entries carry their own ids, and a source has one prefix at most.
+  const unprefixed = new Set<string>();
   for (const source of config.sources) {
     if (source.adapter === "exec") continue;
     const group = "group" in source ? source.group : undefined;
     const file = fileOf(source, config.sourceLanguage, config.sourceLanguage);
     if (typeof group === "number") groupOf.set(file, group);
     if (lastWins(source)) laterWins.add(file);
+    if (!source.namespace) unprefixed.add(file);
   }
   const byId = new Map<string, Sourced>();
   const merged = new Set<Sourced>();
@@ -436,7 +440,7 @@ export async function buildSnapshotReport(
       );
     } else
       errors.push(
-        `duplicate id ${printable(entry.id)} in ${prev.file} and ${file}${oneSource ? ", with different text" : ""}`,
+        `duplicate id ${printable(entry.id)} in ${prev.file} and ${file}${oneSource ? ", with different text" : unprefixed.has(file) || unprefixed.has(prev.file) ? '; give one source a namespace, such as namespace: "web", to keep their keys apart' : ""}`,
       );
   }
   if (merged.size > 0) {
@@ -928,60 +932,64 @@ export async function readEntries(
 ): Promise<StringEntry[]> {
   const typed = <T>(entries: T[]) =>
     entries.map((e) => ({ ...e, type: source.type }));
-  const own = (id: string) =>
-    source.namespace ? `${source.namespace}:${id}` : id;
+  const own = (id: string) => namespaced(source, id);
   const text = () => readFileSync(path.join(cwd, file), "utf8");
   // An empty target file is one with no translations yet, which a pull
   // fills (#1028); a String Catalog's is its source's file.
   if (!sourceFile && source.adapter !== "xcstrings" && text().trim() === "")
     return [];
+  // A namespace prefixes every id the file holds (#998, #513), and
+  // what a reader cannot take is named by its prefixed id too.
+  const prefixed = <T extends { id: string }>(entries: T[]) =>
+    source.namespace ? entries.map((e) => ({ ...e, id: own(e.id) })) : entries;
+  const unread = (id: string, reason?: string) => onUnread?.(own(id), reason);
   switch (source.adapter) {
     case "xcstrings":
-      return sourceFile
-        ? xcstringsToEntries(text(), {
-            type: source.type,
-            ...(language !== undefined && { sourceLanguage: language }),
-          })
-        : typed(xcstringsTranslations(text(), language ?? ""));
-    case "android": {
-      const entries = androidToEntries(text(), { type: source.type });
-      // A `{ns}` module's ids are its own (#989).
-      return source.namespace
-        ? entries.map((e) => ({ ...e, id: `${source.namespace}:${e.id}` }))
-        : entries;
-    }
+      return prefixed(
+        sourceFile
+          ? xcstringsToEntries(text(), {
+              type: source.type,
+              ...(language !== undefined && { sourceLanguage: language }),
+            })
+          : typed(xcstringsTranslations(text(), language ?? "")),
+      );
+    case "android":
+      return prefixed(androidToEntries(text(), { type: source.type }));
     case "gettext":
-      return sourceFile
-        ? gettextToEntries(text(), { type: source.type })
-        : typed(gettextTranslations(text(), languageOfFile(file, source)));
+      return prefixed(
+        sourceFile
+          ? gettextToEntries(text(), { type: source.type })
+          : typed(gettextTranslations(text(), languageOfFile(file, source))),
+      );
     case "yaml": {
       // The root key is the file's own code for its language (`pt_BR`).
       const tag = sourceFile
         ? (language ?? languageOfFile(file, source))
         : languageOfFile(file, source);
       const root = fileCodeOf(source, tag);
-      return sourceFile
-        ? yamlToEntries(text(), { type: source.type, root })
-        : typed(yamlTranslations(text(), root, pluralIds));
+      return prefixed(
+        sourceFile
+          ? yamlToEntries(text(), { type: source.type, root })
+          : typed(yamlTranslations(text(), root, pluralIds)),
+      );
     }
     case "qt-ts":
-      return sourceFile
-        ? qtTsToEntries(text(), {
-            type: source.type,
-            ...(language !== undefined && { language }),
-          })
-        : typed(
-            qtTsTranslations(text(), languageOfFile(file, source), onUnread),
-          );
+      return prefixed(
+        sourceFile
+          ? qtTsToEntries(text(), {
+              type: source.type,
+              ...(language !== undefined && { language }),
+            })
+          : typed(
+              qtTsTranslations(text(), languageOfFile(file, source), unread),
+            ),
+      );
     case "xliff":
-      return sourceFile
-        ? xliffToEntries(text(), {
-            type: source.type,
-            onRefused: (id, reason) => onUnread?.(id, reason),
-          })
-        : typed(
-            xliffTranslations(text(), (id, reason) => onUnread?.(id, reason)),
-          );
+      return prefixed(
+        sourceFile
+          ? xliffToEntries(text(), { type: source.type, onRefused: unread })
+          : typed(xliffTranslations(text(), unread)),
+      );
     case "fluent": {
       const entries = fluentToEntries(text(), {
         type: source.type,
@@ -1018,6 +1026,12 @@ export async function readEntries(
         id: `${source.namespace}:${entry.id}`,
       }))
     : entries;
+}
+
+// An id as the snapshot carries it: a namespaced file's are `ns:key`
+// (#513, #998), and every reader of a raw file goes through this.
+export function namespaced(source: FileSource, id: string): string {
+  return source.namespace ? `${source.namespace}:${id}` : id;
 }
 
 // What a target file holds that Corpus cannot read, in a note or a
@@ -1407,13 +1421,15 @@ function readSuggestions(
       const file = fileOf(source, lang, config.sourceLanguage);
       if (!existsSync(path.join(cwd, file))) continue;
       const text = readFileSync(path.join(cwd, file), "utf8");
-      for (const entry of gettextSuggestions(text, lang))
+      for (const entry of gettextSuggestions(text, lang)) {
+        const id = namespaced(source, entry.id);
         if (
-          ids.has(entry.id) &&
+          ids.has(id) &&
           entry.source.trim() !== "" &&
-          seeds[lang]?.[entry.id] === undefined
+          seeds[lang]?.[id] === undefined
         )
-          (suggestions[lang] ??= {})[entry.id] = entry.source;
+          (suggestions[lang] ??= {})[id] = entry.source;
+      }
     }
   }
   const counts = Object.entries(suggestions).map(
@@ -1483,6 +1499,7 @@ async function readSeeds(
       );
   }
   const seededFrom: Record<string, Record<string, string>> = {};
+  const seededOwner = new Map<string, unknown>();
   for (const source of config.sources) {
     if (source.adapter === "exec" || !hasLanguages(source)) continue;
     if (!sourceWritesBack(source)) continue;
@@ -1520,6 +1537,13 @@ async function readSeeds(
           // two that differ could not both survive a pull (#661).
           const seeded = (seeds[lang] ??= {})[entry.id];
           const from = (seededFrom[lang] ??= {})[entry.id];
+          // Two sources holding one id is the duplicate already said;
+          // only one source's files share a string (#998).
+          const owner = source.group ?? source;
+          const ownerKey = `${lang}\u0000${entry.id}`;
+          if (from !== undefined && seededOwner.get(ownerKey) !== owner)
+            continue;
+          seededOwner.set(ownerKey, owner);
           if (seeded !== undefined && from !== undefined) {
             if (seeded !== entry.source && lastWins(source)) {
               overridden += 1;
@@ -1544,7 +1568,9 @@ async function readSeeds(
           const short = qtShortForms(
             readFileSync(path.join(cwd, file), "utf8"),
             lang,
-          ).filter((s) => ids.has(s.id));
+          )
+            .map((s) => ({ ...s, id: namespaced(source, s.id) }))
+            .filter((s) => ids.has(s.id));
           if (short.length > 0)
             notes.push(
               `${file}: ${short.length} numerus translation(s) hold fewer than the ${short[0]!.want} forms Qt's rule for ${lang} has, so a count past them shows the source text (${short

@@ -1404,3 +1404,36 @@ test("under chrome a source's lone $ or $40 is a warning, and a translation's lo
     'i18n/pt.json:sign: Chrome drops the lone $ at 0 with the character after it ("$ "): write $$ for the sign',
   );
 });
+
+test("under a namespace, a Qt numerus translation short of its forms is still a warning in validate and a note in build (#1004, #998)", async () => {
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8")
+      .replace(
+        /sources: \[[\s\S]*?\n {2}\],/,
+        'sources: [{ adapter: "qt-ts", type: "ui", path: "lang/app_{lang}.ts", namespace: "qt" }],',
+      )
+      .replace(/languages: \[[^\]]*\]/, 'languages: ["en", "km"]'),
+  );
+  const ts = (language: string, forms: string[], state = "") =>
+    `<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE TS>\n<TS version="2.1"${language ? ` language="${language}"` : ""}>\n<context>\n    <name>Main</name>\n    <message numerus="yes">\n        <source>%n file(s)</source>\n        <translation${state}>\n${forms.map((f) => `            <numerusform>${f}</numerusform>`).join("\n")}\n        </translation>\n    </message>\n</context>\n</TS>\n`;
+  mkdirSync(path.join(repo, "lang"), { recursive: true });
+  writeFileSync(
+    path.join(repo, "lang", "app_en.ts"),
+    ts("", ["", ""], ' type="unfinished"'),
+  );
+  writeFileSync(path.join(repo, "lang", "app_km.ts"), ts("km", ["%n ឯកសារ"]));
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(0);
+  expect(c.stderr.join("\n")).toContain(
+    "lang/app_km.ts:qt:Main | %n file(s): Qt's rule for km has 2 forms; the file has 1",
+  );
+  const b = ctx();
+  expect(await run(["build", "--out", "snapshot.json"], b)).toBe(0);
+  expect(b.stderr.join("\n")).toContain(
+    "lang/app_km.ts: 1 numerus translation(s) hold fewer than the 2 forms Qt's rule for km has, so a count past them shows the source text (qt:Main | %n file(s))",
+  );
+});

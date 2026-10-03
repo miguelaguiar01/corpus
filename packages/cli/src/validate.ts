@@ -45,6 +45,7 @@ import {
   runExporter,
   sourceLibrary,
   buildSnapshotReport,
+  namespaced,
 } from "./build";
 import { download } from "./pull";
 import { unreadableFile } from "./catalogue-format";
@@ -380,10 +381,11 @@ export async function validateRepo(
       // A numerus translation short of Qt's forms is the file's defect:
       // a count past them shows the source text (#1004).
       if (source.adapter === "qt-ts")
-        for (const { id, have, want } of qtShortForms(
+        for (const { id: raw, have, want } of qtShortForms(
           readFileSync(path.join(cwd, file), "utf8"),
           language,
-        ))
+        )) {
+          const id = namespaced(source, raw);
           if (sources.has(id))
             findings.push({
               file,
@@ -393,6 +395,7 @@ export async function validateRepo(
               severity: "warning",
               message: `Qt's rule for ${language} has ${want} forms; the file has ${have}, so a count past them shows the source text`,
             });
+        }
       const group = "group" in source ? source.group : undefined;
       if (lastWins(source) && typeof group === "number") {
         const earlier =

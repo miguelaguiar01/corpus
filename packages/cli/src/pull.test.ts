@@ -2168,3 +2168,100 @@ export default defineCorpus({
   expect(await run(["pull"], failed)).toBe(1);
   expect(failed.output.join("\n")).toContain("l/en.json");
 });
+
+test("two catalogues whose keys overlap share a project when one takes a namespace: ids, seeds, validate and pull all keep them apart (#998)", async () => {
+  const config = (namespaced: boolean) =>
+    writeFileSync(
+      path.join(repo, "corpus.config.ts"),
+      `import { defineCorpus } from "@corpus/contract";
+
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de"],
+  sources: [
+    { adapter: "messages", type: "ui", path: "web/{lang}.json" },
+    { adapter: "yaml", type: "server", path: "config/locales/{lang}.yml"${namespaced ? ', namespace: "server"' : ""} },
+  ],
+});
+`,
+    );
+  mkdirSync(path.join(repo, "web"), { recursive: true });
+  mkdirSync(path.join(repo, "config", "locales"), { recursive: true });
+  writeFileSync(path.join(repo, "web", "en.json"), `{ "title": "Terms" }\n`);
+  writeFileSync(
+    path.join(repo, "web", "de.json"),
+    `{ "title": "Bedingungen" }\n`,
+  );
+  writeFileSync(
+    path.join(repo, "config", "locales", "en.yml"),
+    "en:\n  title: Terms of service\n",
+  );
+  const deYml = "de:\n  title: Nutzungsbedingungen\n";
+  writeFileSync(path.join(repo, "config", "locales", "de.yml"), deYml);
+  config(false);
+  const out = path.join(repo, "snapshot.json");
+  const refused = ctx();
+  expect(await run(["build", "--out", out], refused)).toBe(1);
+  const said = refused.output.join("\n");
+  expect(said).toContain(
+    'duplicate id title in web/en.json and config/locales/en.yml; give one source a namespace, such as namespace: "web", to keep their keys apart',
+  );
+  // Two sources' seeds are two strings' rows, never one string's.
+  expect(said).not.toContain("translated otherwise");
+  config(true);
+  const built = ctx();
+  expect(await run(["build", "--out", out], built)).toBe(0);
+  const snapshot = JSON.parse(readFileSync(out, "utf8")) as {
+    strings: { id: string }[];
+    seedTranslations: Record<string, Record<string, string>>;
+  };
+  expect(snapshot.strings.map((s) => s.id).sort()).toEqual([
+    "server:title",
+    "title",
+  ]);
+  expect(snapshot.seedTranslations.de).toEqual({
+    title: "Bedingungen",
+    "server:title": "Nutzungsbedingungen",
+  });
+  const checked = ctx();
+  expect(await run(["validate"], checked)).toBe(0);
+  expect(checked.output.join("\n")).not.toContain("orphan");
+  await serve(200, {
+    ...PAYLOAD,
+    types: { title: "ui", "server:title": "server" },
+    translations: { de: { title: "Bedingungen", "server:title": "AGB" } },
+    minState: "untranslated",
+  });
+  expect(await run(["pull"], ctx())).toBe(0);
+  expect(read("config/locales/de.yml")).toBe("de:\n  title: AGB\n");
+  expect(read("web/de.json")).toBe(`{ "title": "Bedingungen" }\n`);
+  // Two files' `title` are two proposals, counted so.
+  await serve(200, {
+    ...PAYLOAD,
+    types: { title: "ui", "server:title": "server" },
+    translations: { de: {} },
+    minState: "untranslated",
+    sourceChanges: [
+      {
+        kind: "edit",
+        id: "title",
+        type: "ui",
+        file: "web/en.json",
+        text: "Terms of use",
+      },
+      {
+        kind: "edit",
+        id: "server:title",
+        type: "server",
+        file: "config/locales/en.yml",
+        text: "Terms of use",
+      },
+    ],
+  });
+  const proposed = ctx();
+  expect(await run(["pull"], proposed)).toBe(0);
+  expect(proposed.output.join("\n")).toContain("2 proposal(s) written");
+  expect(read("config/locales/en.yml")).toBe("en:\n  title: Terms of use\n");
+});

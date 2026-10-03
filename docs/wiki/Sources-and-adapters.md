@@ -340,7 +340,7 @@ Then the later file's text is the one Corpus reads: its source text where the tw
 { adapter: "messages", type: "ui", path: "public/locales/{lang}/{ns}.json" }
 ```
 
-Every file that fills `{ns}` for the source language is a source of its own, and the ids it contributes are `ns:key`, with `:` as the separator (i18next's own, not configurable), so `common.json` and `admin.json` may both hold `title`. `pull` writes each string back to the file its id names, and a target file only ever takes the ids its source-language file holds. A new string proposed into a namespaced file, from the workbench or an agent, takes the prefix by itself: `title` into `admin.json` becomes `admin:title`, `admin:title` stays as typed, a key starting with another file's namespace is refused, and a sentence key keeps its own colons; the form's file list says which prefix each file adds. `init` reads the languages and the library through a `{ns}` pattern and writes it as given. A bare `*` is not a pattern: a wildcard alone cannot say which language a file holds. `{ns}` works on `messages`, `table` and `fluent` sources; every other adapter refuses it by name.
+Every file that fills `{ns}` for the source language is a source of its own, and the ids it contributes are `ns:key`, with `:` as the separator (i18next's own, not configurable), so `common.json` and `admin.json` may both hold `title`. `pull` writes each string back to the file its id names, and a target file only ever takes the ids its source-language file holds. A new string proposed into a namespaced file, from the workbench or an agent, takes the prefix by itself: `title` into `admin.json` becomes `admin:title`, `admin:title` stays as typed, a key starting with another file's namespace is refused, and a sentence key keeps its own colons; the form's file list says which prefix each file adds. `init` reads the languages and the library through a `{ns}` pattern and writes it as given. A bare `*` is not a pattern: a wildcard alone cannot say which language a file holds. `{ns}` works on `messages`, `table`, `fluent` and `android` sources; every other adapter refuses it by name, and takes a fixed `namespace` instead (below).
 
 ## More than one source
 
@@ -378,4 +378,10 @@ export default defineCorpus({
 });
 ```
 
-Ids must be unique across all of them. Two sources holding the same id is a build error naming both files, which is what you want: it means one string has two homes and a pull would have to guess. Files the app merges into one catalogue are not two sources but one whose `path` is a list, as an Android app's modules' `res` directories are ([Your i18n library](Your-i18n-library#android-string-resources)): there an id two files hold is one string, and `merge` says which text wins where they differ.
+Ids must be unique across all of them. Two sources holding the same id is a build error naming both files, which is what you want: it means one string has two homes and a pull would have to guess. Two catalogues read by different runtimes, a React app's and its Rails server's, may well share keys that mean different things; give one of them a `namespace`, and its ids become `server:title`:
+
+```ts
+{ adapter: "yaml", type: "server", path: "config/locales/{lang}.yml", namespace: "server" }
+```
+
+The files keep their keys as they are: push adds the prefix, pull strips it, and a proposal from the workbench takes it. A namespace holds no `:` or space, and a source with a `{ns}` pattern, which prefixes its ids already, takes none. A key a source does not take is refused by name, with the one you likely meant. Files the app merges into one catalogue are not two sources but one whose `path` is a list, as an Android app's modules' `res` directories are ([Your i18n library](Your-i18n-library#android-string-resources)): there an id two files hold is one string, and `merge` says which text wins where they differ.

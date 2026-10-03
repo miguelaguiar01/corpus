@@ -905,3 +905,101 @@ test('pluralRules: "cldr" is easy_localization\'s ignorePluralRules: false, refu
   // An array is no table.
   expect(issues({ ...messages, pluralRules: ["default"] })).toHaveLength(1);
 });
+
+test("a file source's namespace prefixes its ids; refused on exec and beside {ns}; an unknown source key is refused with the near miss (#998)", () => {
+  const base = {
+    project: "p",
+    server: "http://localhost:3000",
+    sourceLanguage: "en",
+    languages: ["en", "de"],
+  };
+  const issues = (source: object) => {
+    const parsed = corpusConfigSchema.safeParse({ ...base, sources: [source] });
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  for (const source of [
+    { adapter: "messages", type: "ui", path: "l/{lang}.json" },
+    { adapter: "yaml", type: "ui", path: "config/locales/{lang}.yml" },
+    { adapter: "gettext", type: "ui", path: "po/{lang}.po" },
+    { adapter: "xliff", type: "ui", path: "x/messages.{lang}.xlf" },
+    { adapter: "android", type: "ui", path: "res" },
+    { adapter: "fluent", type: "ui", path: "f/{lang}/app.ftl" },
+    { adapter: "qt-ts", type: "ui", path: "ts/app_{lang}.ts" },
+    { adapter: "xcstrings", type: "ui", path: "L.xcstrings" },
+    {
+      adapter: "table",
+      type: "ui",
+      path: "t.json",
+      map: { id: "id", text: "text" },
+    },
+  ])
+    expect(issues({ ...source, namespace: "server" })).toEqual([]);
+  expect(
+    issues({
+      adapter: "messages",
+      type: "ui",
+      path: "l/{lang}.json",
+      namespace: "a:b",
+    }),
+  ).toEqual([
+    "a namespace holds no : or space, since : divides it from the key",
+  ]);
+  expect(
+    issues({ adapter: "exec", command: "node x.mjs", namespace: "web" }),
+  ).toEqual([
+    "an exec source's entries carry their own ids; namespace does not apply",
+  ]);
+  expect(
+    issues({
+      adapter: "messages",
+      type: "ui",
+      path: "l/{lang}/{ns}.json",
+      namespace: "web",
+    }),
+  ).toEqual([
+    "namespace and a {ns} pattern each prefix the source's ids; a source takes one of them",
+  ]);
+  expect(
+    issues({
+      adapter: "messages",
+      type: "ui",
+      path: "l/{lang}.json",
+      pluralRule: "default",
+    }),
+  ).toEqual([
+    "pluralRule is no key of a messages source; did you mean pluralRules?",
+  ]);
+  expect(
+    issues({
+      adapter: "gettext",
+      type: "ui",
+      path: "po/{lang}.po",
+      colour: "red",
+    }),
+  ).toEqual(["colour is no key of a gettext source"]);
+  expect(
+    issues({ adapter: "xliff", type: "ui", path: "x/{lang}.xlf", colour: 1 }),
+  ).toEqual(["colour is no key of an xliff source"]);
+  // A key spread in as undefined says nothing.
+  expect(
+    issues({
+      adapter: "messages",
+      type: "ui",
+      path: "l/{lang}.json",
+      colour: undefined,
+    }),
+  ).toEqual([]);
+  expect(
+    issues({
+      adapter: "messages",
+      type: "ui",
+      path: "l/{lang}.json",
+      namespace: "",
+    }),
+  ).toHaveLength(1);
+  expect(
+    issues({ adapter: "yaml", type: "ui", path: "c/{lang}/{ns}.yml" }),
+  ).toEqual([
+    'yaml does not read {ns}: only messages, table, fluent and android do; namespace: "<name>" prefixes this source\'s ids instead',
+  ]);
+});
