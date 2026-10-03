@@ -582,7 +582,11 @@ function formatOf(
       : undefined;
   if (keyed && "other" in keyed)
     ctx.err(
-      `corpus: no ${relative}; ${keyed.other} names no language, so init cannot tell whose keys are the text: set sourcePath and keyIsText: true yourself if a committed target's keys are the source text`,
+      `corpus: no ${relative}; ${keyed.other} names no language: if it is the source language's file, map it with languageFiles, or, if a committed target's keys are the source text, set sourcePath and keyIsText: true`,
+    );
+  if (keyed && "plural" in keyed)
+    ctx.err(
+      `corpus: no ${relative}; the targets' keys carry plural suffixes (_one, _other), whose English no key holds, so none is read as the source`,
     );
   if (keyed && "aside" in keyed)
     ctx.err(
@@ -1269,8 +1273,6 @@ function gitIgnored(ctx: RunContext, rel: string): void {
     );
 }
 
-const PLURAL_SUFFIX = /_(?:zero|one|two|few|many|other)$/;
-
 // The target to read as the source where every JSON target holds one
 // key set, most of it sentences (#999): the one with the most text, so
 // what it seeds is the most. None where any file the pattern fills is
@@ -1287,6 +1289,7 @@ function textKeyedTarget(
   | { file: string; files: number }
   | { aside: string; tag: string }
   | { other: string }
+  | { plural: true }
   | undefined {
   // The language and, where both write one, the script: zh_Hant is not
   // zh-Hans's file under another code.
@@ -1315,9 +1318,14 @@ function textKeyedTarget(
   }[] = [];
   const filling = filesFilling(cwd, pattern);
   if (filling.length < 2) return undefined;
+  // A file of no language is named once the files are this catalogue's.
+  let other: string | undefined;
   for (const { code, file } of filling) {
     const tag = posixTag(code) ?? (LANGUAGE_RE.test(code) ? code : undefined);
-    if (tag === undefined) return { other: file };
+    if (tag === undefined) {
+      other ??= file;
+      continue;
+    }
     let data: unknown;
     try {
       data = JSON.parse(stripBom(readFileSync(path.join(cwd, file), "utf8")));
@@ -1344,10 +1352,11 @@ function textKeyedTarget(
   if (read.some((r) => r.keys !== read[0]!.keys)) return undefined;
   // A plural's forms are keys of their own (`{count} item_one`), whose
   // English no key holds (#999).
-  if (read[0]!.keys.split("\0").some((k) => PLURAL_SUFFIX.test(k)))
-    return undefined;
   if (read[0]!.size === 0 || read[0]!.sentences * 2 < read[0]!.size)
     return undefined;
+  if (read[0]!.keys.split("\0").some((k) => PLURAL_SUFFIX_RE.test(k)))
+    return { plural: true };
+  if (other) return { other };
   const own = read.filter((r) => same(r.tag, sourceLanguage));
   const source = own.find(
     (r) => r.filled === 0 || r.filled === r.size || r.echoed * 2 <= r.filled,

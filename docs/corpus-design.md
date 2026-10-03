@@ -147,8 +147,9 @@ export default defineCorpus({
     //    is its bare key, not a plural, since the key is all the text the
     //    file holds, and under any other library each suffixed key is a
     //    string whose text is the key as written, so init stands aside
-    //    where a key carries a plural suffix (`{count} month_one`); under a `namespace` the id takes the prefix and the text
-    //    does not. `keyIsText` takes one pattern with no `{ns}`, and no
+    //    where a key carries a plural suffix (`{count} month_one`);
+    //    under a `namespace` the id takes the prefix and the text does
+    //    not. `keyIsText` takes one pattern with no `{ns}`, and no
     //    `library: "chrome"`, whose keys are message names.
     //    A null, number or boolean value is no string, as in yaml, and
     //    is skipped, left by a pull, a source's counted in a build note

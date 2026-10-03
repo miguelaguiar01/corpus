@@ -2524,6 +2524,9 @@ test("init with no source-language JSON, where every target holds one key set of
       JSON.stringify({ "{count} month_one": "", "{count} month_other": "" }),
     );
   expect(await run(initFor("locales/{lang}.json"), pl.ctx)).toBe(0);
+  expect(pl.err.join("\n")).toContain(
+    "the targets' keys carry plural suffixes (_one, _other), whose English no key holds",
+  );
   expect(
     readFileSync(path.join(pl.dir, "corpus.config.mjs"), "utf8"),
   ).not.toContain("keyIsText");
