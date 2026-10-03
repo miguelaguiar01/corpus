@@ -584,7 +584,7 @@ test("an orphan key is summarised once across the target files, listed but no fa
   // The runtime never reads a key the source no longer has (#1023).
   expect(await run(["validate"], c)).toBe(0);
   expect(c.stdout.join("\n")).toContain(
-    "validate: every translation is valid; 2 orphan key(s) listed above, which the runtime never reads",
+    "validate: every translation checked is valid; 2 orphan key(s) listed above, which the runtime never reads",
   );
   const lines = c.stderr.filter((l) => l.includes("no longer has"));
   expect(lines).toEqual([
