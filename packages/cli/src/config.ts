@@ -1,7 +1,8 @@
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { createJiti } from "jiti";
-import { androidDirOf } from "@corpus/adapters";
+import { androidDirOf, keyIsSentence, stripBom } from "@corpus/adapters";
 import {
   corpusConfigSchema,
   type CorpusConfig,
@@ -58,7 +59,9 @@ export async function loadConfig(cwd: string): Promise<CorpusConfig> {
   }
   const parsed = corpusConfigSchema.safeParse(loaded);
   if (!parsed.success) throw invalid(configPath, parsed.error.issues);
-  return expandSources(parsed.data, cwd);
+  const config = expandSources(parsed.data, cwd);
+  markGenerated(config, cwd, configPath);
+  return config;
 }
 
 type Issue = { path: PropertyKey[]; message: string };
@@ -359,4 +362,125 @@ export function namespacesOf(
       matchPattern(cwd, pattern, language).flatMap((m) => (m.ns ? [m.ns] : [])),
     ),
   ].sort();
+}
+
+type FileSource = Exclude<Source, { adapter: "exec" }>;
+
+// The file a source keeps a language in: its pattern with {lang}
+// filled, or, for Android, the `values` directory of the language.
+export function fileOf(
+  source: FileSource,
+  language: string,
+  sourceLanguage: string,
+): string {
+  if (
+    (source.adapter === "xliff" ||
+      source.adapter === "gettext" ||
+      source.adapter === "qt-ts" ||
+      (source.adapter === "messages" && source.keyIsText)) &&
+    source.sourcePath &&
+    language === sourceLanguage
+  )
+    return source.sourcePath;
+  // A String Catalog holds every language in its one file (#727).
+  if (source.adapter === "xcstrings") return source.path;
+  if (source.adapter !== "android")
+    return source.path.replaceAll("{lang}", fileCodeOf(source, language));
+  const dir =
+    language === sourceLanguage
+      ? "values"
+      : (source.languageDirs?.[language] ?? androidDirOf(language));
+  return path.posix.join(source.path, dir, "strings.xml");
+}
+
+// Why a source's file is an extractor's output, its text the code's
+// (#1000): the config says so, or the file does, as the config loads.
+// Proposals into it are refused, and a messages file's top-level
+// `_comment` is the extractor's note, not a string.
+const GENERATED = new WeakMap<object, string>();
+
+export function generatedBy(source: Source): string | undefined {
+  if (source.adapter === "exec") return undefined;
+  return source.generated ? "as the config says" : GENERATED.get(source);
+}
+
+// Angular's computed message ids: a decimal digest, or the legacy SHA-1.
+const COMPUTED_ID = /^(?:\d{8,}|[0-9a-f]{40})$/;
+// The adapters whose file takes proposals; the others' keys are the
+// code's already.
+const PROPOSABLE = new Set([
+  "messages",
+  "table",
+  "android",
+  "fluent",
+  "xliff",
+  "yaml",
+]);
+
+function markGenerated(
+  config: CorpusConfig,
+  cwd: string,
+  configPath: string,
+): void {
+  const sources = config.sources.filter(
+    (s): s is FileSource => s.adapter !== "exec" && PROPOSABLE.has(s.adapter),
+  );
+  const files = sources.map((s) =>
+    fileOf(s, config.sourceLanguage, config.sourceLanguage),
+  );
+  // A file git ignores is a build's output, unless the config is ignored
+  // too, as a project inside another repository's ignored tree is.
+  const configRel = path.relative(cwd, configPath);
+  const check = spawnSync("git", ["check-ignore", configRel, ...files], {
+    cwd,
+    encoding: "utf8",
+  });
+  const ignored = new Set(
+    check.status === 0 ? check.stdout.split("\n").filter(Boolean) : [],
+  );
+  sources.forEach((source, index) => {
+    const file = files[index]!;
+    const reason =
+      !ignored.has(configRel) && ignored.has(file)
+        ? "since git ignores it"
+        : echoesKeys(source, path.join(cwd, file))
+          ? "since every value is its key"
+          : computedIds(source, path.join(cwd, file))
+            ? "since its unit ids are the ones Angular computes"
+            : undefined;
+    if (reason) GENERATED.set(source, reason);
+  });
+}
+
+// Zulip's makemessages output: a flat file whose every value is its
+// key, sentences among them.
+function echoesKeys(source: FileSource, file: string): boolean {
+  if (source.adapter !== "messages" || !file.endsWith(".json")) return false;
+  try {
+    const data: unknown = JSON.parse(stripBom(readFileSync(file, "utf8")));
+    if (data === null || typeof data !== "object" || Array.isArray(data))
+      return false;
+    const entries = Object.entries(data);
+    return (
+      entries.length > 0 &&
+      entries.every(([key, value]) => value === key) &&
+      entries.some(([key]) => keyIsSentence(key))
+    );
+  } catch {
+    return false;
+  }
+}
+
+function computedIds(source: FileSource, file: string): boolean {
+  if (source.adapter !== "xliff") return false;
+  try {
+    const ids = [
+      ...readFileSync(file, "utf8").matchAll(
+        /<(?:trans-unit|unit)\b[^>]*?\bid="([^"]*)"/g,
+      ),
+    ].map((m) => m[1]!);
+    return ids.length > 0 && ids.every((id) => COMPUTED_ID.test(id));
+  } catch {
+    return false;
+  }
 }

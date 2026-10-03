@@ -37,6 +37,7 @@ import {
   EXEC_MAX_BUFFER,
   fileOf,
   type FileSource,
+  generatedBy,
   hasLanguages,
   isArb,
   lastWins,
@@ -361,7 +362,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     );
     if (!source || !takesProposals(source)) {
       ctx.err(
-        `corpus: proposal(s) for ${ops.map((o) => printable(o.id)).join(", ")}: ${file} matches no writable source; not written`,
+        `corpus: proposal(s) for ${ops.map((o) => printable(o.id)).join(", ")}: ${source && generatedBy(source) ? `${file} is generated from the code` : `${file} matches no writable source`}; not written`,
       );
       continue;
     }

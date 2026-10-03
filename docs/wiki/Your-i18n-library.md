@@ -50,6 +50,8 @@ A translation may use only the values the source text names: a value the code pa
 
 A placeholder may carry a format, `{count, number}`, `{d, date, short}`, `{t, time}`, with the style after a second comma: a translation keeps the name and the type and may change the style, the chip inserts the source's form, and a preview formats the example's value for the language when it can. Rich text is tags: `<link>terms</link>`, `<icon/>`, and HTML with attributes as Gitea writes it, `<a href="%s" target="_blank">docs</a>`: the attribute text is part of the tag, compared as HTML reads it, so `<a href = "x">` or `<a target="_blank" href="x">` is the source's tag while a changed `href` is not, and the chip inserts it as the source writes it; where the type is read as HTML, whose tags are not compared, a placeholder inside an attribute, `<a href='%{url}'>`, must still be kept, as the text's own are; Where the text is HTML (a type declared `richText: { ui: "html" }`, or Android's strings) and under i18next, whose `Trans` keeps them void, `<br>`, `<hr>`, `<wbr>` and `<img …>` need no closing tag and `<br></br>` counts as one; where a component renders each tag (next-intl, FormatJS), `<br></br>` is a pair like any other and a lone `<br>` is left open: write `<br/>`. Corpus checks that a translation keeps every placeholder, every branch its language needs, and every tag. That last rule is for tags a component renders, where a tag the code does not know is an error. Where the application reads the string as HTML instead (`dangerouslySetInnerHTML`, Android's `fromHtml`, an email template), a translator may rightly write `<i>` or `<br/>` the source does not have; declare the type `richText: { ui: "html" }` and tags are no longer compared, while placeholders and plurals still are, and a tag that never closes, or a stray closing one, is text, as a browser reads it. See [Types read as HTML](Metadata-types-entities-and-the-glossary#types-read-as-html). Prose that spells a tag it does not mean, Jellyfin's `https://example.com/<baseurl>`, is refused as an unclosed tag where a component renders the tags, with the same advice from `corpus push` and from the server; where the application renders the type as HTML, declare it `richText: "html"` and the brackets are text. Under `library: "formatjs"` ICU's apostrophe quoting (`'<baseurl>'`) makes them text, as FormatJS reads it; otherwise word the text so the brackets are not there.
 
+An English file `formatjs extract` writes from each `defaultMessage`, Mastodon's `en.json`, is the code's in the same way: `generated: true` on the source refuses proposals into it, and its translations still push and pull as before.
+
 ## i18next and react-i18next
 
 <!-- from: examples/i18next.config.ts -->
@@ -84,6 +86,8 @@ Four things differ from ICU, and Corpus handles all four:
 **Tags are `Trans`'s**, compared between source and translation: `<0>the docs</0>` needs its `<0>…</0>`, and `<2/>` in its place wraps nothing and is refused. A tag that never closes in the English text is text, as `t()` returns it for React to escape: `<no title>` or `"<GroupID>:<Role>"` needs no `richText`. A translation may leave as many unpaired as the source does; one more that is a closing tag, a source tag's name or HTML markup (`<ul> <li>`) is broken and refused, while `<sans titre>` is prose. So declare `richText: { ui: "html" }` only for a type the app really renders as HTML, since it stops the tag comparison. A `</br>` no `<br>` opens renders as nothing; `corpus build` names it.
 
 `<Trans>` is a catalogue call, so `corpus check` does not report the text inside it.
+
+**An extracted catalogue is the code's.** Where `i18next-cli extract` writes the English file from `t(key, defaultValue)`, as Grafana's does, an edit there is undone by the next extract. Say so on the source, `generated: true`, and a proposal on its strings is refused with the reason, "change the text in the code, and the next extract carries it"; a top-level `_comment`, Grafana's "The code is the source of truth for English phrases", is then no string. A source file git ignores is taken as generated without the key.
 
 ## vue-i18n
 
@@ -319,7 +323,7 @@ A string literal stays as written, `{"{{c1::"}`, and is text, so a translation m
 
 ## Angular
 
-Angular's i18n extracts to XLIFF, which the `xliff` source reads with no converter (see [Sources and adapters](Sources-and-adapters#xliff)). The text inside a unit is ICU: `{VAR_PLURAL, plural, …}` and `{VAR_SELECT, select, …}` are checked as plurals and selects, and Angular's inline elements are placeholders and tags, `{INTERPOLATION}` and `<LINK>…</LINK>`, so the library stays `icu`.
+Angular's i18n extracts to XLIFF, which the `xliff` source reads with no converter (see [Sources and adapters](Sources-and-adapters#xliff)). The text inside a unit is ICU: `{VAR_PLURAL, plural, …}` and `{VAR_SELECT, select, …}` are checked as plurals and selects, and Angular's inline elements are placeholders and tags, `{INTERPOLATION}` and `<LINK>…</LINK>`, so the library stays `icu`. A source file whose unit ids are the ones Angular computes, digests rather than `@@custom` ids, is the extractor's output: Corpus reads it as generated, and refuses proposals into it.
 
 ## gettext
 

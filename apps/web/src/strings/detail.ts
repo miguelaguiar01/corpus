@@ -36,6 +36,8 @@ export type StringDetail = {
     file: string | null;
     // The text is the key (§4, #611): no proposal, the code holds it.
     keyIsText: boolean;
+    // The extractor's output it is read from (#1000), or null.
+    generated: string | null;
     // The message syntax the text is written in (§5).
     syntax: Library;
     // The verbs the code passes where the key carries them (#731).
@@ -166,6 +168,7 @@ export function stringDetail(
       archived: string.archived,
       file: string.file,
       keyIsText: string.keyIsText,
+      generated: string.generated ?? null,
       syntax: string.syntax ?? "icu",
       arguments: string.arguments ?? null,
       pluralForms: string.pluralForms ?? null,

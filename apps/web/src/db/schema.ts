@@ -134,6 +134,9 @@ export const strings = sqliteTable(
     // vue-i18n's, whose forms are read by count (#1018), or "cldr",
     // easy_localization's CLDR picking (#961); null else.
     pluralRules: text("plural_rules").$type<"default" | "cldr">(),
+    // The file an extractor generates the string's source into (#1000):
+    // its text is the code's, so a proposal on it is refused.
+    generated: text("generated"),
     // The languages the string takes, the source's among them, where its
     // source ships fewer than the project (#1006); null is every one.
     languages: text("languages", { mode: "json" }).$type<string[]>(),

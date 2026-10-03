@@ -4,7 +4,6 @@ import path from "node:path";
 import { createJiti } from "jiti";
 import { z } from "zod";
 import {
-  androidDirOf,
   androidToEntries,
   fluentToEntries,
   gettextToEntries,
@@ -65,7 +64,7 @@ import {
 import type { Refusals } from "./agent-tools";
 import { printable } from "./printable";
 import { unreadableFile } from "./catalogue-format";
-import { CliError, fileCodeOf } from "./config";
+import { CliError, fileCodeOf, fileOf, generatedBy } from "./config";
 
 type Sourced = { entry: StringEntry; file: string };
 // `hint` is the advice clause, kept apart from the message so refusals
@@ -325,6 +324,21 @@ export async function buildSnapshotReport(
     // it, and only where pull can write it: a .ts catalogue carries none,
     // so a proposal on its strings is refused up front, not left pending.
     const writable = takesProposals(source);
+    const generated = generatedBy(source);
+    if (generated) {
+      notes.push(
+        `${file}: generated, ${generated}, so its text is the code's: a proposal on its strings is refused`,
+      );
+      if (
+        source.adapter === "messages" &&
+        hasComment(
+          await readModule(jiti, path.join(cwd, file)).catch(() => undefined),
+        )
+      )
+        notes.push(
+          `${file}: the top-level _comment is the extractor's note, not a string, and is not read`,
+        );
+    }
     // A msgid is its key by nature, not an empty value (#718), and so is
     // a String Catalog key with no source-language unit (#727).
     const keyed =
@@ -384,6 +398,9 @@ export async function buildSnapshotReport(
           // A key-is-text entry carries no file: a proposal would rewrite
           // the key, which is the code's, not the catalogue's.
           ...(writable && !entry.keyIsText ? { file } : {}),
+          // An extractor's output names the file a proposal cannot go
+          // into (#1000).
+          ...(generated && { generated: file }),
           ...libraryFields(source),
           // An entry that names its own library keeps it: a Rails
           // catalogue's `*_MF` keys are ICU (#752).
@@ -780,6 +797,7 @@ function libraryFields(source: FileSource): {
 }
 
 export type FileSource = Exclude<Source, { adapter: "exec" }>;
+export { fileOf, generatedBy } from "./config";
 
 export function sourceLibrary(source: FileSource): Library {
   if (source.adapter === "android") return "android";
@@ -790,33 +808,6 @@ export function sourceLibrary(source: FileSource): Library {
   if (source.adapter === "yaml") return source.library ?? "rails";
   if (source.adapter === "fluent") return "fluent";
   return source.adapter === "xliff" ? "icu" : libraryOf(source);
-}
-
-// The file a source keeps a language in: its pattern with {lang}
-// filled, or, for Android, the `values` directory of the language.
-export function fileOf(
-  source: FileSource,
-  language: string,
-  sourceLanguage: string,
-): string {
-  if (
-    (source.adapter === "xliff" ||
-      source.adapter === "gettext" ||
-      source.adapter === "qt-ts" ||
-      (source.adapter === "messages" && source.keyIsText)) &&
-    source.sourcePath &&
-    language === sourceLanguage
-  )
-    return source.sourcePath;
-  // A String Catalog holds every language in its one file (#727).
-  if (source.adapter === "xcstrings") return source.path;
-  if (source.adapter !== "android")
-    return source.path.replaceAll("{lang}", fileCodeOf(source, language));
-  const dir =
-    language === sourceLanguage
-      ? "values"
-      : (source.languageDirs?.[language] ?? androidDirOf(language));
-  return path.posix.join(source.path, dir, "strings.xml");
 }
 
 // A `{ one, other }` object is one plural string (#662) where the
@@ -909,6 +900,7 @@ export function sourceWritesBack(source: FileSource): boolean {
 export function takesProposals(source: FileSource): boolean {
   return (
     sourceWritesBack(source) &&
+    !generatedBy(source) &&
     !CODE_KEYED.has(source.adapter) &&
     !(source.adapter === "messages" && source.keyIsText)
   );
@@ -1033,11 +1025,15 @@ export async function readEntries(
       return entries.map((e) => ({ ...e, id: own(e.id) }));
     }
   }
-  const data = await readModule(
+  const read = await readModule(
     jiti,
     path.join(cwd, file),
     source.adapter === "table" ? source.export : undefined,
   );
+  const data =
+    source.adapter === "messages" && generatedBy(source)
+      ? withoutComment(read)
+      : read;
   const entries =
     source.adapter === "messages"
       ? messagesToEntries(data, {
@@ -1061,6 +1057,26 @@ export async function readEntries(
         id: `${source.namespace}:${entry.id}`,
       }))
     : entries;
+}
+
+// An extractor's note at the top of its output, Grafana's "The code is
+// the source of truth for English phrases": no string (#1000).
+function withoutComment(data: unknown): unknown {
+  if (!hasComment(data)) return data;
+  return Object.fromEntries(
+    Object.entries(data as Record<string, unknown>).filter(
+      ([key]) => key !== "_comment",
+    ),
+  );
+}
+
+function hasComment(data: unknown): boolean {
+  return (
+    data !== null &&
+    typeof data === "object" &&
+    !Array.isArray(data) &&
+    typeof (data as Record<string, unknown>)._comment === "string"
+  );
 }
 
 // Whether a source's strings take a language (#1006): every one the

@@ -81,6 +81,9 @@ export type StringResponse = {
   // pluralise on or print though the source prints none. Present only
   // where the string has them; additive (#737).
   arguments?: string[];
+  // The extractor's output the string is read from, where its text is the
+  // code's and a proposal is refused (#1000). Additive.
+  generated?: string;
   // The target languages the string takes, where its source ships fewer
   // than the project (#1006); a draft in another is refused as
   // `not-taken`. Additive.

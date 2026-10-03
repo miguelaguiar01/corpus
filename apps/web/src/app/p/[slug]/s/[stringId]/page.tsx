@@ -56,6 +56,7 @@ const PROPOSAL_ERROR_KEY: Record<string, MessageKey> = {
   "invalid-icu": "proposal.invalidIcu",
   // Reachable from a page rendered before a push marked the string (#611).
   "key-is-text": "proposal.keyIsText",
+  generated: "proposal.generatedError",
 };
 
 const ERROR_KEY: Record<string, MessageKey> = {
@@ -319,6 +320,7 @@ export default async function StringPage({
                 slots={slots}
                 writable={string.file !== null}
                 keyIsText={string.keyIsText}
+                generated={string.generated}
                 pending={pendingProposal}
                 canWithdraw={
                   pendingProposal !== undefined &&
