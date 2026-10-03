@@ -2448,4 +2448,56 @@ test("init with no source-language JSON, where every target holds one key set of
   );
   expect(await run(initFor("locale/{lang}/translations.json"), q.ctx)).toBe(0);
   expect((await loadConfig(q.dir)).sources[0]).not.toHaveProperty("keyIsText");
+
+  // A file of the source's language under another code may be the
+  // source itself: init stands aside, as it did before.
+  const r = project();
+  for (const [lang, text] of [
+    ["en-US", "Sign out"],
+    ["de", "Abmelden"],
+    ["fr", "Déconnexion"],
+  ])
+    write(
+      r.dir,
+      `locales/${lang}.json`,
+      JSON.stringify({ "Log out": text, "Save changes": "" }),
+    );
+  expect(await run(initFor("locales/{lang}.json"), r.ctx)).toBe(0);
+  expect((await loadConfig(r.dir)).sources[0]).not.toHaveProperty("keyIsText");
+  expect(r.err.join("\n")).toContain("no locales/en.json");
+  // Ghost's empty-valued en/ beside a regional source language, too.
+  const g = project();
+  for (const lang of ["en", "de", "fr"])
+    write(
+      g.dir,
+      `locales/${lang}/comments.json`,
+      JSON.stringify({ "Log out": lang === "en" ? "" : `${lang} out` }),
+    );
+  expect(
+    await run(initFor("locales/{lang}/comments.json", "en-US"), g.ctx),
+  ).toBe(0);
+  expect((await loadConfig(g.dir)).sources[0]).not.toHaveProperty("keyIsText");
+  // A variant whose values are mostly its keys, Zulip's en_GB, is a
+  // target, never the one chosen.
+  const z = project();
+  for (const [lang, values] of [
+    ["en_GB", ["Log out", "Save changes", "Colour"]],
+    ["de", ["Abmelden", "", ""]],
+    ["fr", ["", "", ""]],
+  ] as const)
+    write(
+      z.dir,
+      `locale/${lang}/translations.json`,
+      JSON.stringify({
+        "Log out": values[0],
+        "Save changes": values[1],
+        "The color": values[2],
+      }),
+    );
+  expect(await run(initFor("locale/{lang}/translations.json"), z.ctx)).toBe(0);
+  expect((await loadConfig(z.dir)).sources[0]).toMatchObject({
+    sourcePath: "locale/de/translations.json",
+    keyIsText: true,
+  });
+  expect(z.err.join("\n")).not.toContain("source values are empty");
 });

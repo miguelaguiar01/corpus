@@ -958,7 +958,11 @@ export async function readEntries(
       ...entry,
       id,
       type,
-      source: id,
+      // The key as the file writes it, never its namespace's prefix.
+      source:
+        source.namespace && id.startsWith(`${source.namespace}:`)
+          ? id.slice(source.namespace.length + 1)
+          : id,
       keyIsText: true,
     }));
   const typed = <T>(entries: T[]) =>
@@ -1578,7 +1582,12 @@ async function readSeeds(
       if (!existsSync(path.join(cwd, file))) continue;
       if (!takesLanguage(source, config, lang)) {
         // A String Catalog holds every language in its one file.
-        if (source.adapter !== "xcstrings") {
+        // The keyIsText template is read as the source, whatever its
+        // language (#999).
+        if (
+          source.adapter !== "xcstrings" &&
+          file !== fileOf(source, config.sourceLanguage, config.sourceLanguage)
+        ) {
           const set = sourceTargets(source, config)!.join(", ");
           untaken.set(set, [...(untaken.get(set) ?? []), file]);
         }

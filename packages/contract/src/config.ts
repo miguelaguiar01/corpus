@@ -637,12 +637,23 @@ export const corpusConfigSchema = z
               "keyIsText reads the keys of the file sourcePath names as the text; name a committed target file with sourcePath",
             path: ["sources", index, "keyIsText"],
           });
-        if (Array.isArray(source.path))
+        if (
+          Array.isArray(source.path) ||
+          (typeof source.path === "string" && source.path.includes("{ns}"))
+        )
           ctx.addIssue({
             code: "custom",
             message:
-              "keyIsText takes one path pattern, whose files sourcePath's keys are the text of",
+              "keyIsText takes one path pattern with no {ns}: sourcePath is one file, and its keys are the text of every file the pattern names",
             path: ["sources", index, "path"],
+          });
+        const library = source as { library?: unknown; syntax?: unknown };
+        if ((library.library ?? library.syntax) === "chrome")
+          ctx.addIssue({
+            code: "custom",
+            message:
+              "keyIsText reads a catalogue whose keys are the text; Chrome's keys are message names",
+            path: ["sources", index, "keyIsText"],
           });
       } else if (
         typeof given === "string" &&
@@ -658,12 +669,16 @@ export const corpusConfigSchema = z
           message: !MAPS_LANGUAGE_FILES.includes(source.adapter)
             ? `${source.adapter} reads no sourcePath`
             : `${source.adapter} reads no sourcePath${source.adapter === "messages" ? " unless keyIsText: true reads its keys as the text; otherwise" : ";"} ${
-                code === c.sourceLanguage ||
-                (code !== undefined &&
-                  (source as { languageFiles?: Record<string, string> })
-                    .languageFiles?.[c.sourceLanguage] === code)
-                  ? "this one is the pattern's own source file, so drop it"
-                  : `map the source language with languageFiles: { ${c.sourceLanguage}: "${code ?? "<its file's code>"}" }`
+                code !== undefined &&
+                code !== c.sourceLanguage &&
+                c.languages.includes(code)
+                  ? `${code} is a target language, whose file cannot be the source's too`
+                  : code === c.sourceLanguage ||
+                      (code !== undefined &&
+                        (source as { languageFiles?: Record<string, string> })
+                          .languageFiles?.[c.sourceLanguage] === code)
+                    ? "this one is the pattern's own source file, so drop it"
+                    : `map the source language with languageFiles: { ${c.sourceLanguage}: "${code ?? "<its file's code>"}" }`
               }`,
           path: ["sources", index, "sourcePath"],
         });

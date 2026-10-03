@@ -136,7 +136,16 @@ export default defineCorpus({
     //    over a list of patterns, is refused by name; init writes the
     //    pair where the source language has no file and every target
     //    holds one key set, most of it sentences, naming the target with
-    //    the most text.
+    //    the most text, and stands aside where a file of the source's
+    //    own language under another code holds its own text or none
+    //    (`en-US.json` for `en`, Ghost's empty `en/`), which may be the
+    //    source itself; a variant whose values are mostly its keys
+    //    (Zulip's en_GB) is a target. A plural object or an i18next
+    //    suffix family in that file is one string whose text is its bare
+    //    key, not a plural, since the key is all the text the file
+    //    holds; under a `namespace` the id takes the prefix and the text
+    //    does not. `keyIsText` takes one pattern with no `{ns}`, and no
+    //    `library: "chrome"`, whose keys are message names.
     //    A null, number or boolean value is no string, as in yaml, and
     //    is skipped, left by a pull, a source's counted in a build note
     //    since push archives a string that became one; a list is

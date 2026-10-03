@@ -578,10 +578,9 @@ function formatOf(
   // its keys, the English text (#999): Zulip's makemessages output.
   const keyed =
     missing && /\.json$/i.test(messages) && !messages.includes("{ns}")
-      ? textKeyedTarget(ctx.cwd, messages)
+      ? textKeyedTarget(ctx.cwd, messages, sourceLanguage)
       : undefined;
   if (keyed) {
-    gitIgnored(ctx, relative);
     ctx.err(
       `corpus: no ${relative}, and the ${keyed.files} target files hold one key set of sentences: sourcePath is ${keyed.file}, with keyIsText: true reading its keys as the text`,
     );
@@ -1063,7 +1062,8 @@ async function libraryFor(
         ? { note }
         : {};
   // Ghost's shape (#589): the sentence is the key and the value is "".
-  if (keyed > 0 && keyed * 2 >= texts.length) {
+  // A committed target named as the source says its own why (#999).
+  if (!textKeyed && keyed > 0 && keyed * 2 >= texts.length) {
     return {
       ...asIcu(),
       note: noted(
@@ -1261,20 +1261,23 @@ function gitIgnored(ctx: RunContext, rel: string): void {
     );
 }
 
-// The target `.po` whose msgids stand for the source's where no template
-// and no source-language file is committed (#996): among the files
-// msgmerged last, by the newest POT-Creation-Date (a file another tool
-// regenerated alone, paperless-ngx's en_US, is current where 47 stale
-// ones are not), the one holding the most msgids; and how many msgids the
-// other current files hold that it lacks.
 // The target to read as the source where every JSON target holds one
 // key set, most of it sentences (#999): the one with the most text, so
 // what it seeds is the most. Undefined for one file, for key sets that
-// differ, or for keys that read as paths.
+// differ, or for keys that read as paths, and where a file of the
+// source's own language under another code may be the source itself
+// (`en-US.json` for `en`, Ghost's empty-valued `en/`); a variant whose
+// values are mostly its keys, Zulip's en_GB, is a target like any.
 function textKeyedTarget(
   cwd: string,
   pattern: string,
+  sourceLanguage: string,
 ): { file: string; files: number } | undefined {
+  const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const codeRe = new RegExp(
+    `^${pattern.split("{lang}").map(escape).join("(.+?)")}$`,
+  );
+  const base = (code: string) => code.split(/[-_@]/)[0]!.toLowerCase();
   const read = patternFiles(cwd, pattern).flatMap((file) => {
     try {
       const data: unknown = JSON.parse(
@@ -1284,13 +1287,16 @@ function textKeyedTarget(
         return [];
       const values = Object.values(data);
       if (values.some((v) => typeof v !== "string")) return [];
+      const entries = Object.entries(data as Record<string, string>);
       return [
         {
           file,
+          code: codeRe.exec(file)?.[1] ?? "",
           keys: Object.keys(data).sort().join("\0"),
           sentences: Object.keys(data).filter(keyIsSentence).length,
-          size: Object.keys(data).length,
+          size: entries.length,
           filled: values.filter((v) => (v as string).trim() !== "").length,
+          echoed: entries.filter(([k, v]) => k === v).length,
         },
       ];
     } catch {
@@ -1301,12 +1307,21 @@ function textKeyedTarget(
     return undefined;
   if (read[0]!.size === 0 || read[0]!.sentences * 2 < read[0]!.size)
     return undefined;
-  const chosen = [...read].sort(
-    (a, b) => b.filled - a.filled || a.file.localeCompare(b.file),
-  )[0]!;
-  return { file: chosen.file, files: read.length };
+  const own = read.filter((r) => base(r.code) === base(sourceLanguage));
+  if (own.some((r) => r.filled === 0 || r.echoed * 2 <= r.filled))
+    return undefined;
+  const chosen = read
+    .filter((r) => !own.includes(r))
+    .sort((a, b) => b.filled - a.filled || a.file.localeCompare(b.file))[0];
+  return chosen && { file: chosen.file, files: read.length };
 }
 
+// The target `.po` whose msgids stand for the source's where no template
+// and no source-language file is committed (#996): among the files
+// msgmerged last, by the newest POT-Creation-Date (a file another tool
+// regenerated alone, paperless-ngx's en_US, is current where 47 stale
+// ones are not), the one holding the most msgids; and how many msgids the
+// other current files hold that it lacks.
 function sourceFromTargets(
   cwd: string,
   pattern: string,

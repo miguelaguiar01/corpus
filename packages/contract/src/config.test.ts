@@ -1084,7 +1084,7 @@ test("a messages source's sourcePath names a committed target whose keys are the
   };
   expect(issues(zulip)).toEqual([]);
   expect(issues({ ...zulip, keyIsText: undefined })).toEqual([
-    'messages reads no sourcePath unless keyIsText: true reads its keys as the text; otherwise map the source language with languageFiles: { en: "de" }',
+    "messages reads no sourcePath unless keyIsText: true reads its keys as the text; otherwise de is a target language, whose file cannot be the source's too",
   ]);
   expect(issues({ ...zulip, sourcePath: undefined })).toEqual([
     "keyIsText reads the keys of the file sourcePath names as the text; name a committed target file with sourcePath",
@@ -1095,7 +1095,25 @@ test("a messages source's sourcePath names a committed target whose keys are the
       path: ["locale/{lang}/a.json", "locale/{lang}/b.json"],
     }),
   ).toEqual([
-    "keyIsText takes one path pattern, whose files sourcePath's keys are the text of",
+    "keyIsText takes one path pattern with no {ns}: sourcePath is one file, and its keys are the text of every file the pattern names",
+  ]);
+  expect(issues({ ...zulip, path: "locale/{lang}/{ns}.json" })).toEqual([
+    "keyIsText takes one path pattern with no {ns}: sourcePath is one file, and its keys are the text of every file the pattern names",
+  ]);
+  expect(issues({ ...zulip, library: "chrome" })).toEqual([
+    "keyIsText reads a catalogue whose keys are the text; Chrome's keys are message names",
+  ]);
+  // The advice for a target language's file is never a mapping the
+  // schema refuses.
+  expect(
+    issues({
+      adapter: "fluent",
+      type: "ui",
+      path: "l/{lang}/main.ftl",
+      sourcePath: "l/fr/main.ftl",
+    }),
+  ).toEqual([
+    "fluent reads no sourcePath; fr is a target language, whose file cannot be the source's too",
   ]);
   expect(issues({ ...zulip, sourcePath: "locale/{lang}/x.json" })).toHaveLength(
     1,
