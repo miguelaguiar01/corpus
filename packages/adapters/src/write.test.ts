@@ -1244,3 +1244,54 @@ test("removing a plural id takes a target's object of categories whole, other or
   const plain = '{\n  "r": { "one": "a", "few": "b" },\n  "k": "v"\n}\n';
   expect(remove(plain, "r", [])).toBe(plain);
 });
+
+test("an entry-object catalogue takes a translation into its text field only, every other byte kept (#1001)", () => {
+  const template = `{
+  "smartling": {
+    "translate_paths": [{ "path": "*/messageformat" }]
+  },
+  "icu:Greeting": {
+    "messageformat": "Hello {name}",
+    "description": "Shown on the home screen",
+    "ignoreUnused": true
+  },
+  "icu:Bye": {
+    "messageformat": "Bye",
+    "description": "Leaving"
+  }
+}
+`;
+  const existing = `{
+  "icu:Greeting": {
+    "messageformat": "Hallo {name}",
+    "description": "Shown on the home screen",
+    "ignoreUnused": true
+  }
+}
+`;
+  const entries = { text: "messageformat", note: "description" };
+  expect(
+    entriesToMessages(template, { "icu:Greeting": "Hallo {name}" }, existing, {
+      entries,
+    }),
+  ).toBe(existing);
+  expect(
+    entriesToMessages(
+      template,
+      { "icu:Greeting": "Servus {name}", "icu:Bye": "Tschüss" },
+      existing,
+      { entries },
+    ),
+  ).toBe(`{
+  "icu:Greeting": {
+    "messageformat": "Servus {name}",
+    "description": "Shown on the home screen",
+    "ignoreUnused": true
+  },
+  "icu:Bye": {
+    "messageformat": "Tschüss",
+    "description": "Leaving"
+  }
+}
+`);
+});

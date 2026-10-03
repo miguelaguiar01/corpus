@@ -1217,3 +1217,52 @@ test("a file source may say generated: true, its file an extractor's output (#10
     issues({ adapter: "exec", command: "node x.mjs", generated: true }),
   ).toEqual(["generated is no key of an exec source"]);
 });
+
+test("a messages source's entries names its text field and its note field; not under chrome or keyIsText (#1001)", () => {
+  const base = {
+    project: "p",
+    server: "http://localhost:3000",
+    sourceLanguage: "en",
+    languages: ["en", "de"],
+  };
+  const issues = (source: object) => {
+    const parsed = corpusConfigSchema.safeParse({ ...base, sources: [source] });
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  const signal = {
+    adapter: "messages",
+    type: "ui",
+    path: "_locales/{lang}/messages.json",
+    entries: { text: "messageformat", note: "description" },
+  };
+  expect(issues(signal)).toEqual([]);
+  expect(issues({ ...signal, entries: { text: "defaultMessage" } })).toEqual(
+    [],
+  );
+  expect(issues({ ...signal, entries: { note: "description" } })).toHaveLength(
+    1,
+  );
+  expect(
+    issues({ ...signal, entries: { text: "message", notes: "x" } }),
+  ).toHaveLength(1);
+  expect(issues({ ...signal, library: "chrome" })).toEqual([
+    "entries does not apply under library chrome, which reads its own { message, description } entries",
+  ]);
+  expect(
+    issues({
+      ...signal,
+      keyIsText: true,
+      sourcePath: "_locales/de/messages.json",
+    }),
+  ).toEqual([
+    "entries and keyIsText each say where the text is; a source takes one",
+  ]);
+  expect(
+    issues({
+      adapter: "yaml",
+      type: "ui",
+      path: "c/{lang}.yml",
+      entries: { text: "t" },
+    }),
+  ).toEqual(["entries is no key of a yaml source"]);
+});
