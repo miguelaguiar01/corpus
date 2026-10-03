@@ -1502,4 +1502,11 @@ test("a seed outside a string's languages is ignored, and the stale count is of 
   const changed = push("Sair agora", ["de"]);
   expect(changed.stale).toBe(1);
   expect(queueItems(db, project.id, "stale").count).toBe(1);
+  // One push that changes the set and the source counts by the new set.
+  const widened = push("Sair já", ["de", "fr"]);
+  expect(widened.stale).toBe(2);
+  expect(queueItems(db, project.id, "stale").count).toBe(2);
+  const narrowed2 = push("Sair", ["de"]);
+  expect(narrowed2.stale).toBe(1);
+  expect(queueItems(db, project.id, "stale").count).toBe(1);
 });

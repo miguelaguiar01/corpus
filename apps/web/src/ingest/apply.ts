@@ -20,7 +20,6 @@ import {
 } from "@/db/schema";
 import { reconcileProposals } from "@/proposals/service";
 import { ensureTranslationRows, dropUntakenRows } from "@/translations/rows";
-import { takenRow } from "@/translations/taken";
 import {
   diffSnapshot,
   STALE_STATES,
@@ -368,13 +367,27 @@ export function applySnapshot(
         .where(eq(projects.id, projectId))
         .run();
 
-      const current = loadCurrent(tx, projectId, project.sourceLanguage);
+      const bySnapshotId = new Map(snapshot.strings.map((s) => [s.id, s]));
+      // A hidden row goes stale too, but the count is of the rows the
+      // string takes once this push lands (#1006).
+      const current = loadCurrent(tx, projectId, project.sourceLanguage).map(
+        (c) => {
+          const entry = bySnapshotId.get(c.stringId);
+          return entry
+            ? {
+                ...c,
+                translatedTargets: c.translatedTargets.filter((l) =>
+                  takes(entry, l),
+                ),
+              }
+            : c;
+        },
+      );
       const plan = diffSnapshot(
         { sourceLanguage: project.sourceLanguage, targetLanguages },
         current,
         snapshot.strings.map((s) => ({ id: s.id, source: s.source })),
       );
-      const bySnapshotId = new Map(snapshot.strings.map((s) => [s.id, s]));
       const currentRowId = new Map(current.map((c) => [c.stringId, c.rowId]));
 
       // What the project reads as HTML once this push lands.
@@ -533,8 +546,6 @@ function loadCurrent(
         eq(strings.projectId, projectId),
         ne(stringTranslations.language, sourceLanguage),
         inArray(stringTranslations.state, [...STALE_STATES]),
-        // A hidden row goes stale too, and is counted where it is seen.
-        takenRow,
       ),
     )
     .all();
