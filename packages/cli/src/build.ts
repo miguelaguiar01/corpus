@@ -1542,8 +1542,12 @@ async function readSeeds(
             );
         }
       } catch (error) {
+        // A target file that does not read stops no other language's
+        // push (#1028): it seeds nothing, and validate names it.
         const message = error instanceof Error ? error.message : String(error);
-        errors.push(`${file}: ${message}`);
+        notes.push(
+          `${file}: does not read, so none of its translations are seeded; corpus validate names it, and pull leaves it as it is (${message})`,
+        );
       }
     }
     if (overridden > 0)

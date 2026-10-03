@@ -2099,4 +2099,17 @@ export default defineCorpus({
   expect(pulled.output.join("\n")).toMatch(
     /l\/de\.json: does not read, so pull leaves it as it is \(/,
   );
+  // A proposed removal goes into the source and fr, not de.
+  await serve(200, {
+    ...PAYLOAD,
+    types: { a: "ui", b: "ui" },
+    translations: {},
+    minState: "untranslated",
+    sourceChanges: [{ kind: "delete", id: "b", type: "ui", file: "l/en.json" }],
+  });
+  const removed = ctx();
+  expect(await run(["pull"], removed)).toBe(0);
+  expect(read("l/de.json")).toBe(de);
+  expect(read("l/en.json")).not.toContain('"b"');
+  expect(read("l/fr.json")).not.toContain('"b"');
 });

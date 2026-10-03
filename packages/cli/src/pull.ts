@@ -268,16 +268,28 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
       }
       if (existing === undefined && Object.keys(translations).length === 0)
         continue;
-      const next = writeTarget(
-        source,
-        file,
-        template,
-        translations,
-        existing,
-        language,
-        config,
-        ctx.err,
-      );
+      let next: string | undefined;
+      try {
+        next = writeTarget(
+          source,
+          file,
+          template,
+          translations,
+          existing,
+          language,
+          config,
+          ctx.err,
+        );
+      } catch (error) {
+        // A target file that does not read is left as it is, and the
+        // other languages are written (#1028).
+        const unread = await unreadable(jiti, ctx.cwd, file, source, language);
+        if (existing === undefined || unread === undefined) throw error;
+        ctx.err(
+          `corpus: ${file}: does not read, so pull leaves it as it is (${unread})`,
+        );
+        continue;
+      }
       if (next !== undefined) pending.set(file, next);
       if (next !== undefined && next !== existing) {
         if (!check) {
@@ -384,6 +396,18 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
           target === file ? undefined : pluralIds,
         );
       } catch (error) {
+        // A removal into a target file that does not read leaves it as
+        // it is (#1028); the source file's own failure stops the pull.
+        const unread =
+          target === file
+            ? undefined
+            : await unreadable(jiti, ctx.cwd, target, source);
+        if (unread !== undefined) {
+          ctx.err(
+            `corpus: ${target}: does not read, so pull leaves it as it is (${unread})`,
+          );
+          continue;
+        }
         throw new CliError(
           `${target}: proposal(s) for ${targetOps.map((o) => printable(o.id)).join(", ")}: ${(error as Error).message}`,
         );
@@ -634,6 +658,23 @@ function proposalsByFile(
     byFile.set(change.file, ops);
   }
   return byFile;
+}
+
+// Why a target file does not read through its source's adapter, or
+// undefined where it does.
+async function unreadable(
+  jiti: ReturnType<typeof createJiti>,
+  cwd: string,
+  file: string,
+  source: FileSource,
+  language?: string,
+): Promise<string | undefined> {
+  try {
+    await readEntries(jiti, cwd, file, source, false, language);
+    return undefined;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
 }
 
 function readRepoFile(cwd: string, rel: string): string | undefined {

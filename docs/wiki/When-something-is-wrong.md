@@ -130,3 +130,7 @@ The instance learns which files can take proposals from a push. Push once with a
 ## An agent drafts nothing and reports `status` only
 
 The instance is older than the CLI. The token routes the tools call arrived in 0.8.0; an older instance answers `status` and nothing else. Upgrade both packages together, or pull the matching image.
+
+## `<file>: does not read`
+
+One language's file is not valid JSON, XML, YAML or Fluent: a merge left a conflict marker in it, or a hand edit dropped a quote. Corpus skips that file and goes on with the others. `corpus push` sends the source and every other language, and seeds none of that file's translations. `corpus validate` names it and exits 1, so CI still catches it. `corpus pull` leaves it as it is. Fix the file, push again, and its translations are seeded. A source file that does not read still stops the build, since every string comes from it.
