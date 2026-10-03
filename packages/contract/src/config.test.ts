@@ -1184,3 +1184,36 @@ test("a messages source's sourcePath names a committed target whose keys are the
     }),
   ).toEqual(["keyIsText is no key of a yaml source"]);
 });
+
+test("a file source may say generated: true, its file an extractor's output (#1000)", () => {
+  const base = {
+    project: "p",
+    server: "http://localhost:3000",
+    sourceLanguage: "en",
+    languages: ["en", "de"],
+  };
+  const issues = (source: object) => {
+    const parsed = corpusConfigSchema.safeParse({ ...base, sources: [source] });
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  for (const source of [
+    { adapter: "messages", type: "ui", path: "l/{lang}.json" },
+    { adapter: "yaml", type: "ui", path: "config/locales/{lang}.yml" },
+    { adapter: "gettext", type: "ui", path: "po/{lang}.po" },
+    { adapter: "xliff", type: "ui", path: "x/messages.{lang}.xlf" },
+    { adapter: "android", type: "ui", path: "res" },
+    { adapter: "fluent", type: "ui", path: "f/{lang}/app.ftl" },
+    { adapter: "qt-ts", type: "ui", path: "ts/app_{lang}.ts" },
+    { adapter: "xcstrings", type: "ui", path: "L.xcstrings" },
+    {
+      adapter: "table",
+      type: "ui",
+      path: "t.json",
+      map: { id: "id", text: "text" },
+    },
+  ])
+    expect(issues({ ...source, generated: true })).toEqual([]);
+  expect(
+    issues({ adapter: "exec", command: "node x.mjs", generated: true }),
+  ).toEqual(["generated is no key of an exec source"]);
+});

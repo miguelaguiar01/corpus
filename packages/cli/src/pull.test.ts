@@ -2398,3 +2398,165 @@ export default defineCorpus({
     `{\n    "Log out": "Esci"\n}\n`,
   );
 });
+
+test("a generated source takes no proposal, its strings say so, and its top-level _comment is no string; another source still takes them (#1000)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de"],
+  sources: [
+    { adapter: "messages", type: "ui", path: "public/locales/{lang}/grafana.json", generated: true },
+    { adapter: "yaml", type: "server", path: "config/locales/{lang}.yml" },
+  ],
+});
+`,
+  );
+  mkdirSync(path.join(repo, "public", "locales", "en"), { recursive: true });
+  mkdirSync(path.join(repo, "public", "locales", "de"), { recursive: true });
+  mkdirSync(path.join(repo, "config", "locales"), { recursive: true });
+  const enJson = `{\n  "_comment": "The code is the source of truth for English phrases.",\n  "admin": { "orgs": { "id-header": "ID" } }\n}\n`;
+  const deJson = `{\n  "_comment": "Der Code ist die Quelle.",\n  "admin": { "orgs": { "id-header": "Kennung" } }\n}\n`;
+  writeFileSync(
+    path.join(repo, "public", "locales", "en", "grafana.json"),
+    enJson,
+  );
+  writeFileSync(
+    path.join(repo, "public", "locales", "de", "grafana.json"),
+    deJson,
+  );
+  writeFileSync(
+    path.join(repo, "config", "locales", "en.yml"),
+    "en:\n  title: Terms\n",
+  );
+  const out = path.join(repo, "snapshot.json");
+  const built = ctx();
+  expect(await run(["build", "--out", out], built)).toBe(0);
+  const snapshot = JSON.parse(readFileSync(out, "utf8")) as {
+    strings: { id: string; file?: string; generated?: string }[];
+    seedTranslations: Record<string, Record<string, string>>;
+    sources: { path: string }[];
+  };
+  expect(snapshot.strings.map((s) => [s.id, s.file, s.generated])).toEqual([
+    ["admin.orgs.id-header", undefined, "public/locales/en/grafana.json"],
+    ["title", "config/locales/en.yml", undefined],
+  ]);
+  expect(snapshot.seedTranslations).toEqual({
+    de: { "admin.orgs.id-header": "Kennung" },
+  });
+  expect(snapshot.sources.map((s) => s.path)).toEqual([
+    "config/locales/{lang}.yml",
+  ]);
+  const said = built.output.join("\n");
+  expect(said).toContain(
+    "public/locales/en/grafana.json: generated, as the config says, so its text is the code's: a proposal on its strings is refused",
+  );
+  expect(said).toContain(
+    "public/locales/en/grafana.json: the top-level _comment is the extractor's note, not a string, and is not read",
+  );
+  const checked = ctx();
+  expect(await run(["validate"], checked)).toBe(0);
+  expect(checked.output.join("\n")).not.toContain("_comment");
+  // A proposal pending from before is not written into the generated file.
+  await serve(200, {
+    ...PAYLOAD,
+    types: { "admin.orgs.id-header": "ui", title: "server" },
+    translations: { de: { "admin.orgs.id-header": "Kennung" } },
+    minState: "untranslated",
+    sourceChanges: [
+      {
+        kind: "edit",
+        id: "admin.orgs.id-header",
+        type: "ui",
+        file: "public/locales/en/grafana.json",
+        text: "Org ID",
+      },
+      {
+        kind: "edit",
+        id: "title",
+        type: "server",
+        file: "config/locales/en.yml",
+        text: "Terms of use",
+      },
+    ],
+  });
+  const pulled = ctx();
+  expect(await run(["pull"], pulled)).toBe(0);
+  expect(pulled.output.join("\n")).toContain(
+    "public/locales/en/grafana.json is generated from the code; not written",
+  );
+  expect(read("public/locales/en/grafana.json")).toBe(enJson);
+  expect(read("public/locales/de/grafana.json")).toBe(deJson);
+  expect(read("config/locales/en.yml")).toBe("en:\n  title: Terms of use\n");
+});
+
+test("a source is generated where its file says so: values that echo their keys, Angular's computed XLIFF ids (#1000)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de"],
+  sources: [
+    { adapter: "messages", type: "ui", path: "locale/{lang}/translations.json" },
+    { adapter: "xliff", type: "ng", path: "src/locale/messages.{lang}.xlf", sourcePath: "src/locale/messages.xlf" },
+    { adapter: "messages", type: "plain", path: "plain/{lang}.json" },
+  ],
+});
+`,
+  );
+  mkdirSync(path.join(repo, "locale", "en"), { recursive: true });
+  mkdirSync(path.join(repo, "src", "locale"), { recursive: true });
+  mkdirSync(path.join(repo, "plain"), { recursive: true });
+  writeFileSync(
+    path.join(repo, "locale", "en", "translations.json"),
+    JSON.stringify({
+      "Editing {file_name}": "Editing {file_name}",
+      "Log out": "Log out",
+    }),
+  );
+  writeFileSync(
+    path.join(repo, "src", "locale", "messages.xlf"),
+    `<?xml version="1.0" encoding="UTF-8" ?>\n<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">\n  <file source-language="en" datatype="plaintext" original="ng2.template">\n    <body>\n      <trans-unit id="4361788493219889364" datatype="html">\n        <source>Save</source>\n      </trans-unit>\n      <trans-unit id="a3b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7" datatype="html">\n        <source>Cancel</source>\n      </trans-unit>\n    </body>\n  </file>\n</xliff>\n`,
+  );
+  writeFileSync(
+    path.join(repo, "plain", "en.json"),
+    JSON.stringify({ "sign.in": "Sign in" }),
+  );
+  const out = path.join(repo, "snapshot.json");
+  const built = ctx();
+  expect(await run(["build", "--out", out], built)).toBe(0);
+  const snapshot = JSON.parse(readFileSync(out, "utf8")) as {
+    strings: { id: string; file?: string; generated?: string }[];
+    sources: { path: string }[];
+  };
+  expect(
+    Object.fromEntries(
+      snapshot.strings.map((s) => [s.id, s.generated ?? s.file]),
+    ),
+  ).toEqual({
+    "Editing {file_name}": "locale/en/translations.json",
+    "Log out": "locale/en/translations.json",
+    "sign.in": "plain/en.json",
+    "4361788493219889364": "src/locale/messages.xlf",
+    a3b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7: "src/locale/messages.xlf",
+  });
+  expect(
+    snapshot.strings.find((s) => s.id === "Editing {file_name}"),
+  ).toHaveProperty("generated");
+  expect(snapshot.sources.map((s) => s.path)).toEqual(["plain/{lang}.json"]);
+  const said = built.output.join("\n");
+  expect(said).toContain(
+    "locale/en/translations.json: generated, since every value is its key, so its text is the code's",
+  );
+  expect(said).toContain(
+    "src/locale/messages.xlf: generated, since its unit ids are the ones Angular computes, so its text is the code's",
+  );
+});

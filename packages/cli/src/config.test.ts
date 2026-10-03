@@ -2,7 +2,8 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
-import { CliError, loadConfig } from "./config";
+import { spawnSync } from "node:child_process";
+import { CliError, generatedBy, loadConfig } from "./config";
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -139,4 +140,44 @@ test("a hyphenated code beside a Flutter file named with an underscore is refuse
   const both = flutter(["en", "pt-PT", "fr-CA"]);
   writeFileSync(path.join(both, "l10n", "strings_pt-PT.arb"), "{}\n");
   await expect(loadConfig(both)).resolves.toMatchObject({ project: "app" });
+});
+
+test("a source file git ignores is generated, unless the config is ignored too (#1000)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-generated-"));
+  spawnSync("git", ["init", "-q"], { cwd: dir });
+  mkdirSync(path.join(dir, "locale", "en"), { recursive: true });
+  writeFileSync(
+    path.join(dir, "locale", "en", "app.json"),
+    '{ "save": "Save" }',
+  );
+  writeFileSync(path.join(dir, "web.json"), '{ "save": "Save" }');
+  writeFileSync(path.join(dir, ".gitignore"), "/locale/en\n");
+  writeFileSync(
+    path.join(dir, "corpus.config.mjs"),
+    `export default {
+  project: "p",
+  server: "http://localhost:3000",
+  sourceLanguage: "en",
+  languages: ["en", "de"],
+  sources: [
+    { adapter: "messages", type: "ui", path: "locale/{lang}/app.json" },
+    { adapter: "table", type: "web", path: "web.json", map: { id: "id", text: "text" } },
+  ],
+};
+`,
+  );
+  const config = await loadConfig(dir);
+  expect(config.sources.map((s) => generatedBy(s))).toEqual([
+    "since git ignores it",
+    undefined,
+  ]);
+  writeFileSync(
+    path.join(dir, ".gitignore"),
+    "/locale/en\n/corpus.config.mjs\n",
+  );
+  expect((await loadConfig(dir)).sources.map((s) => generatedBy(s))).toEqual([
+    undefined,
+    undefined,
+  ]);
+  rmSync(dir, { recursive: true, force: true });
 });
