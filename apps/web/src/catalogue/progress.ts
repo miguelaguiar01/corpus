@@ -1,6 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "@/db";
 import { strings, stringTranslations } from "@/db/schema";
+import { takenRow, takenRowAliased } from "@/translations/taken";
 import type { TranslationState } from "./query";
 
 export type LanguageProgress = {
@@ -68,6 +69,7 @@ export function progressCounts(
                 from ${stringTranslations} st cross join ${strings} s
                   on s.id = st.string_id
                 where s.project_id = ${projectId} and s.archived = 0
+                  and ${takenRowAliased}
                 group by st.language, st.state`,
           )
           .map((row) => ({ ...row, type: types[0]! }))
@@ -82,7 +84,11 @@ export function progressCounts(
           .from(stringTranslations)
           .innerJoin(strings, eq(strings.id, stringTranslations.stringId))
           .where(
-            and(eq(strings.projectId, projectId), eq(strings.archived, false)),
+            and(
+              eq(strings.projectId, projectId),
+              eq(strings.archived, false),
+              takenRow,
+            ),
           )
           .groupBy(
             stringTranslations.language,
@@ -116,7 +122,7 @@ export function progressCounts(
         from ${stringTranslations} st cross join ${strings} s
           on s.id = st.string_id
         where st.invalid = 1 and s.project_id = ${projectId}
-          and s.archived = 0
+          and s.archived = 0 and ${takenRowAliased}
         group by st.language, s.type`,
   );
   for (const row of invalid) {

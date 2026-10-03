@@ -250,3 +250,19 @@ test("an agent may redraft a seeded translation that fails validation (#646)", (
     false,
   );
 });
+
+test("a draft in a language the string's source does not ship is refused by name (#1006)", () => {
+  const { db, project } = pushedProject();
+  applySnapshot(db, project.id, {
+    ...FIXTURE,
+    strings: FIXTURE.strings.map((s) =>
+      s.id === CONTINUE ? { ...s, languages: [] } : s,
+    ),
+  });
+  expect(
+    agentDraft(db, { project, key: CONTINUE, language: "en", text: "Go on" }),
+  ).toEqual({ ok: false, reason: "not-taken", languages: [] });
+  expect(
+    agentDraft(db, { project, key: HEARD, language: "en", text: "Heard" }),
+  ).toMatchObject({ ok: true });
+});

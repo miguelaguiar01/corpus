@@ -2,6 +2,7 @@ import { and, asc, eq, exists, gt, inArray, sql, type SQL } from "drizzle-orm";
 import type { Db } from "@/db";
 import { strings, stringTranslations } from "@/db/schema";
 import { agentEditedRows, rowKey } from "@/agents/latest-edit";
+import { takenRow } from "@/translations/taken";
 
 import type { TranslationState } from "@/translations/state";
 
@@ -19,6 +20,8 @@ export type CatalogueRow = {
   type: string;
   source: string;
   archived: boolean;
+  // The languages it takes where it names them (#1006); null is all.
+  languages: string[] | null;
   states: Record<string, LanguageState>;
 };
 
@@ -80,6 +83,7 @@ export function listCatalogue(
           .where(
             and(
               eq(stringTranslations.stringId, strings.id),
+              takenRow,
               options.language
                 ? eq(stringTranslations.language, options.language)
                 : undefined,
@@ -109,9 +113,15 @@ export function listCatalogue(
 
   const translations = ids.length
     ? db
-        .select()
+        .select({
+          stringId: stringTranslations.stringId,
+          language: stringTranslations.language,
+          state: stringTranslations.state,
+          stale: stringTranslations.stale,
+        })
         .from(stringTranslations)
-        .where(inArray(stringTranslations.stringId, ids))
+        .innerJoin(strings, eq(strings.id, stringTranslations.stringId))
+        .where(and(inArray(stringTranslations.stringId, ids), takenRow))
         .all()
     : [];
 
@@ -134,6 +144,7 @@ export function listCatalogue(
       type: row.type,
       source: row.source,
       archived: row.archived,
+      languages: row.languages ?? null,
       states: statesByString.get(row.id) ?? {},
     })),
     nextCursor: hasMore ? (page[page.length - 1]?.id ?? null) : null,

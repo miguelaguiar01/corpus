@@ -2,6 +2,10 @@ import { sql } from "drizzle-orm";
 import type { Db } from "@/db";
 import { strings, stringTranslations } from "@/db/schema";
 
+// A string takes a language unless it names the ones it takes (#1006).
+const takes = (language: string) =>
+  sql`(${strings.languages} is null or instr(${strings.languages}, ${JSON.stringify(language)}) > 0)`;
+
 // Every active string has a row per project language (§11). Push creates
 // them for the strings it inserts; this fills the gaps for a language
 // that joined the project later, so the dashboard, the queues and the
@@ -22,6 +26,7 @@ export function ensureTranslationRows(
       from ${strings}
       where ${strings.projectId} = ${projectId}
         and ${strings.archived} = 0
+        and ${takes(language)}
         and not exists (
           select 1 from ${stringTranslations} t
           where t.string_id = ${strings.id} and t.language = ${language}
@@ -30,4 +35,25 @@ export function ensureTranslationRows(
     inserted += Number(result.changes);
   }
   return inserted;
+}
+
+// A row outside the languages its string names (#1006) that holds
+// nothing goes: an insert's, or one a push's narrowed set left. One that
+// holds a translation stays, out of every view, so a set narrowed and
+// widened again loses no work.
+export function dropUntakenRows(db: Db, projectId: number): void {
+  db.run(sql`
+    delete from ${stringTranslations}
+    where ${stringTranslations.text} is null
+      and ${stringTranslations.stringId} in (
+        select ${strings.id} from ${strings}
+        where ${strings.projectId} = ${projectId}
+          and ${strings.languages} is not null
+      )
+      and instr(
+        (select ${strings.languages} from ${strings}
+          where ${strings.id} = ${stringTranslations.stringId}),
+        '"' || ${stringTranslations.language} || '"'
+      ) = 0
+  `);
 }

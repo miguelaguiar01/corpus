@@ -91,6 +91,14 @@ A source may also say which plural categories its runtime picks for a language, 
 
 **`sourceVariants`** names target languages that are variants of the source, `["en-GB", "en-AU"]` beside `en`. A translation the repository left as the source's text is that variant's text, so it seeds as translated rather than untranslated, and a row with no translation is not listed as work, since the application falls back to the source for it. `corpus init` writes it for a target in the source's language and script it finds, `en_GB` beside `en`, and says so; remove it if those rows really are work.
 
+A source may name the target languages it ships, where the repository's clients ship different sets. Transmission's GTK client has 89 languages and its Qt client 35, so the Qt source says which:
+
+```ts
+{ adapter: "qt-ts", type: "qt", path: "qt/translations/transmission_{lang}.ts", namespace: "qt", languages: ["af", "ca", "da", …] }
+```
+
+Its strings then take only those languages, and the source language. No row of another language is created or counted as work, a file of another language is not read (build says so), and a pull creates no file for one. Every language it names must be in the project's `languages`. Without `languages`, a source takes them all.
+
 The `languages` list seeds the project's list at creation. After that the instance owns it: adding a language on the settings page makes rows for every string at once, and `corpus push` warns when the two lists have drifted rather than changing either.
 
 **`sources`** is where your text is. Each entry names an adapter, a type, and a path. [Sources and adapters](Sources-and-adapters) covers them; a config with more than one source is normal, one per shape of file.

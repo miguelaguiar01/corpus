@@ -8,6 +8,7 @@ import {
   stringTranslations,
   users,
 } from "@/db/schema";
+import { takenRow } from "@/translations/taken";
 
 // The dashboard queues (§9.1) over string × language rows, excluding
 // archived strings (§11). Items are ordered by string id then language so
@@ -118,6 +119,7 @@ function where(
       : undefined,
     eq(strings.projectId, projectId),
     eq(strings.archived, false),
+    takenRow,
     condition(kind, scope),
     filter.language != null
       ? eq(stringTranslations.language, filter.language)

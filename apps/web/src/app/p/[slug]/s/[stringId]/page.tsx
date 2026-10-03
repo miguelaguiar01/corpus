@@ -17,6 +17,7 @@ import { Siblings } from "@/components/siblings";
 import { NoteText } from "@/components/note-text";
 import { suggestionOf } from "@/translations/suggestion";
 import { siblingsOf } from "@/strings/siblings";
+import { takenLanguages } from "@/strings/languages";
 import { inPositionOrder } from "@/strings/slots";
 import { ProposalPanel } from "@/components/proposal-panel";
 import { LanguageBar } from "@/components/language-bar";
@@ -111,8 +112,11 @@ export default async function StringPage({
   // A target language selected in the URL turns the page into the editor
   // (§9.3): the source pane stays, the target pane appears. Queue links
   // select it for the untranslated and stale queues.
+  // The languages this string takes (#1006): one its source does not
+  // ship is no target, as a language the project lacks is not.
+  const languages = takenLanguages(project.languages, string.languages);
   const target =
-    language !== project.sourceLanguage && project.languages.includes(language)
+    language !== project.sourceLanguage && languages.includes(language)
       ? language
       : undefined;
   const targetRow = target ? translations[target] : undefined;
@@ -171,7 +175,7 @@ export default async function StringPage({
   );
   const languageBar = (
     <LanguageBar
-      languages={project.languages}
+      languages={languages}
       sourceLanguage={project.sourceLanguage}
       selected={actedLanguage}
       states={translations}
@@ -276,7 +280,7 @@ export default async function StringPage({
               <Banner tone="warning">{t("editor.warningSourceChanged")}</Banner>
             )}
             <StateChips
-              languages={project.languages}
+              languages={languages}
               states={translations}
               shown={[project.sourceLanguage, actedLanguage].filter(
                 (l, i, all) => all.indexOf(l) === i,
@@ -330,7 +334,7 @@ export default async function StringPage({
             </Section>
           )}
           <OtherLanguages
-            languages={project.languages}
+            languages={languages}
             exclude={[project.sourceLanguage, actedLanguage]}
             translations={translations}
           />

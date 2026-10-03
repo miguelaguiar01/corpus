@@ -46,6 +46,7 @@ import {
   sourceLibrary,
   buildSnapshotReport,
   namespaced,
+  takesLanguage,
 } from "./build";
 import { download } from "./pull";
 import { unreadableFile } from "./catalogue-format";
@@ -328,6 +329,8 @@ export async function validateRepo(
       config.sourceLanguage,
     );
     for (const language of targets) {
+      // A language the source does not ship has no file of its (#1006).
+      if (!takesLanguage(source, config, language)) continue;
       const file = fileOf(source, language, config.sourceLanguage);
       // A target file that does not read is its own finding (#1028), and
       // the others are still checked.
@@ -718,6 +721,7 @@ async function validateServer(
           orphans.set(key, [...(orphans.get(key) ?? []), language]);
         continue;
       }
+      if (entry.languages && !entry.languages.includes(language)) continue;
       const sourceFile = origin.get(key)!;
       const source = fileSources.get(sourceFile);
       const file =

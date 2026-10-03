@@ -142,6 +142,11 @@ const pluralRules = z
   })
   .optional();
 
+// The target languages a source's strings take, where it ships fewer
+// than the project (#1006): Transmission's Qt client has 35 of the GTK
+// client's 89. Every string takes the source language.
+const sourceLanguages = z.array(languageCode()).min(1).optional();
+
 // A prefix for every id the source reads, `server:title` (#998), so two
 // catalogues whose keys overlap share one project.
 const namespace = z
@@ -163,6 +168,7 @@ const messagesFields = {
   languageFiles,
   pluralRules,
   namespace,
+  languages: sourceLanguages,
 };
 const tableFields = {
   adapter: z.literal("table"),
@@ -170,6 +176,7 @@ const tableFields = {
   library: configLibrarySchema.optional(),
   pluralRules,
   namespace,
+  languages: sourceLanguages,
   syntax: configLibrarySchema.optional(),
   // The module's default export, or the named export `export` names.
   export: z.string().min(1).optional(),
@@ -201,6 +208,7 @@ const androidFields = {
   type: identifier(),
   pluralRules,
   namespace,
+  languages: sourceLanguages,
 };
 
 // Fluent `.ftl` (#597): messages as ICU, a select as a plural or select.
@@ -210,6 +218,7 @@ const fluentFields = {
   languageFiles,
   pluralRules,
   namespace,
+  languages: sourceLanguages,
 };
 
 // XLIFF 1.2 and 2.0 (#667): a file per language; Angular's source file
@@ -222,6 +231,7 @@ const xliffSchema = z.looseObject({
   languageFiles,
   pluralRules,
   namespace,
+  languages: sourceLanguages,
 });
 
 // gettext `.po` (#668): a file per language, the `.pot` or the source
@@ -235,6 +245,7 @@ const gettextSchema = z.looseObject({
   languageFiles,
   pluralRules,
   namespace,
+  languages: sourceLanguages,
 });
 
 // Qt Linguist `.ts` (#740): a file per language, `lupdate`'s template
@@ -249,6 +260,7 @@ const qtTsSchema = z.looseObject({
   languageFiles,
   pluralRules,
   namespace,
+  languages: sourceLanguages,
 });
 
 // Rails I18n's YAML (#752): a file per language, the language as its
@@ -262,6 +274,7 @@ const yamlFields = {
   languageFiles,
   pluralRules,
   namespace,
+  languages: sourceLanguages,
 };
 
 // Apple's String Catalog (#727): one `.xcstrings` holding every
@@ -288,6 +301,7 @@ const xcstringsSchema = z.looseObject({
   library: configLibrarySchema.optional(),
   pluralRules,
   namespace,
+  languages: sourceLanguages,
 });
 
 // How the patterns of one source merge an id two of them hold (#953):
@@ -484,6 +498,14 @@ export const corpusConfigSchema = z
         });
     c.sources.forEach((source, index) => {
       const raw = source as Record<string, unknown>;
+      const takes = (source as { languages?: string[] }).languages;
+      for (const language of takes ?? [])
+        if (!c.languages.includes(language))
+          ctx.addIssue({
+            code: "custom",
+            message: `the source's languages name ${language}, which the project's languages do not list`,
+            path: ["sources", index, "languages"],
+          });
       // A key the source does not take is refused, never ignored (#998):
       // a misspelt one would do nothing without a word.
       const option = sourceInputSchema.options.find(

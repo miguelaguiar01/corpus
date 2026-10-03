@@ -19,7 +19,7 @@ import {
   stringTranslations,
 } from "@/db/schema";
 import { reconcileProposals } from "@/proposals/service";
-import { ensureTranslationRows } from "@/translations/rows";
+import { ensureTranslationRows, dropUntakenRows } from "@/translations/rows";
 import {
   diffSnapshot,
   STALE_STATES,
@@ -102,6 +102,7 @@ function stringWrites(
     arguments: p("arguments"),
     pluralForms: p("pluralForms"),
     pluralRules: p("pluralRules"),
+    languages: p("languages"),
     note: p("note"),
     syntax: p("syntax"),
   };
@@ -126,6 +127,13 @@ function stringWrites(
     arguments: entry.arguments ? JSON.stringify(entry.arguments) : null,
     pluralForms: entry.pluralForms ? JSON.stringify(entry.pluralForms) : null,
     pluralRules: entry.pluralRules ?? null,
+    // Stored with the source language, which every string takes.
+    languages: entry.languages
+      ? JSON.stringify([
+          sourceLanguage,
+          ...entry.languages.filter((l) => l !== sourceLanguage),
+        ])
+      : null,
     note: entry.note ?? null,
     syntax: entryLibrary(entry),
   });
@@ -183,7 +191,9 @@ function stringWrites(
   const seeded = (entry: Entry, k: number) =>
     Object.fromEntries(
       targetLanguages.flatMap((language, i) => {
-        const texts = seeds[language];
+        // A language outside the string's own takes no seed (#1006): its
+        // row goes once the batch is in.
+        const texts = takes(entry, language) ? seeds[language] : undefined;
         const text =
           texts && Object.hasOwn(texts, entry.id) ? texts[entry.id] : undefined;
         const translated =
@@ -210,6 +220,7 @@ function stringWrites(
     .prepare();
   const invalidSeeds = (entry: Entry) =>
     targetLanguages.filter((language) => {
+      if (!takes(entry, language)) return false;
       const texts = seeds[language];
       if (!texts || !Object.hasOwn(texts, entry.id)) return false;
       const text = texts[entry.id]!;
@@ -296,6 +307,10 @@ function stringWrites(
   };
 }
 
+// Whether an entry takes a target language (#1006).
+const takes = (entry: Entry, language: string) =>
+  !entry.languages || entry.languages.includes(language);
+
 // Apply a validated snapshot to a project in one transaction (§8). The
 // whole thing rolls back if any step throws, so a push is all-or-nothing.
 // dryRun applies then rolls back, returning the exact report.
@@ -352,20 +367,29 @@ export function applySnapshot(
         .where(eq(projects.id, projectId))
         .run();
 
-      const current = loadCurrent(tx, projectId, project.sourceLanguage);
+      const bySnapshotId = new Map(snapshot.strings.map((s) => [s.id, s]));
+      // A hidden row goes stale too, but the count is of the rows the
+      // string takes once this push lands (#1006).
+      const current = loadCurrent(tx, projectId, project.sourceLanguage).map(
+        (c) => {
+          const entry = bySnapshotId.get(c.stringId);
+          return entry
+            ? {
+                ...c,
+                translatedTargets: c.translatedTargets.filter((l) =>
+                  takes(entry, l),
+                ),
+              }
+            : c;
+        },
+      );
       const plan = diffSnapshot(
         { sourceLanguage: project.sourceLanguage, targetLanguages },
         current,
         snapshot.strings.map((s) => ({ id: s.id, source: s.source })),
       );
-      const bySnapshotId = new Map(snapshot.strings.map((s) => [s.id, s]));
       const currentRowId = new Map(current.map((c) => [c.stringId, c.rowId]));
 
-      // A language added in settings before this push, or before rows
-      // were created on adding one: existing strings get their rows. The
-      // strings this push creates get every row in their insert, so it
-      // runs first and a first push has nothing to scan.
-      ensureTranslationRows(tx, projectId, targetLanguages);
       // What the project reads as HTML once this push lands.
       const richText = snapshot.richText ?? project.richText ?? {};
       // A seed identical to the source counts as translated in a variant
@@ -389,11 +413,6 @@ export function applySnapshot(
         richText,
         counts,
       );
-      writes.insert(
-        projectId,
-        plan.insert.map((id) => bySnapshotId.get(id)!),
-      );
-
       for (const id of plan.refresh)
         writes.refresh(currentRowId.get(id)!, bySnapshotId.get(id)!);
 
@@ -409,6 +428,19 @@ export function applySnapshot(
           !fromEmpty.has(id),
         );
       }
+
+      // A language added in settings before this push, or before rows
+      // were created on adding one, and one a string's languages gained
+      // (#1006): existing strings get their rows, after the refresh has
+      // set what each takes. The strings this push creates get every row
+      // in their insert, so it runs first and a first push has nothing
+      // to scan.
+      ensureTranslationRows(tx, projectId, targetLanguages);
+      writes.insert(
+        projectId,
+        plan.insert.map((id) => bySnapshotId.get(id)!),
+      );
+      dropUntakenRows(tx, projectId);
 
       if (plan.archive.length > 0) {
         tx.update(strings)
@@ -619,6 +651,7 @@ function projectStrings(db: Db, projectId: number) {
       type: strings.type,
       syntax: strings.syntax,
       arguments: strings.arguments,
+      languages: strings.languages,
     })
     .from(strings)
     .where(eq(strings.projectId, projectId))
@@ -758,6 +791,7 @@ function applySeeds(
       if (
         !known ||
         string === undefined ||
+        (string.languages !== null && !string.languages.includes(language)) ||
         edited.has(rowKey(string.id, language))
       ) {
         seedsIgnored += 1;

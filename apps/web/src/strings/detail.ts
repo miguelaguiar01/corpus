@@ -45,6 +45,9 @@ export type StringDetail = {
     // The runtime's own plural rule: vue-i18n's default (#1018), or
     // easy_localization's CLDR picking (#961).
     pluralRules: "default" | "cldr" | null;
+    // The languages it takes, the source's among them, where its source
+    // ships fewer than the project (#1006); null is every one.
+    languages: string[] | null;
     // How the text is read: its type's richText, or a Rails `_html`
     // key's (#988).
     richText: TextReading | null;
@@ -142,6 +145,7 @@ export function stringDetail(
     .from(stringTranslations)
     .where(eq(stringTranslations.stringId, string.id))
     .all()) {
+    if (string.languages && !string.languages.includes(row.language)) continue;
     translations[row.language] = {
       state: row.state,
       stale: row.stale,
@@ -166,6 +170,7 @@ export function stringDetail(
       arguments: string.arguments ?? null,
       pluralForms: string.pluralForms ?? null,
       pluralRules: string.pluralRules ?? null,
+      languages: string.languages ?? null,
       richText:
         richTextFor(
           string.type,

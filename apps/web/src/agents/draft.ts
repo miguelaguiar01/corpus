@@ -13,6 +13,7 @@ import { ensureAgentActor } from "./actor";
 type DraftRefusal =
   | { reason: "not-found" }
   | { reason: "unknown-language" }
+  | { reason: "not-taken"; languages: string[] }
   | { reason: "source-row" }
   | { reason: "archived" }
   | { reason: "empty-text" }
@@ -51,6 +52,14 @@ export function agentDraft(
   const detail = stringDetail(db, project.id, key);
   if (!detail) return { ok: false, reason: "not-found" };
   if (detail.string.archived) return { ok: false, reason: "archived" };
+  // A language the string's source does not ship (#1006).
+  const takes = detail.string.languages;
+  if (takes && !takes.includes(language))
+    return {
+      ok: false,
+      reason: "not-taken",
+      languages: takes.filter((l) => l !== project.sourceLanguage),
+    };
   if (text.trim() === "") return { ok: false, reason: "empty-text" };
   const validation = validateTranslation(
     detail.string.source,

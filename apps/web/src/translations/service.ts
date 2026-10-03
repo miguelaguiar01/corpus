@@ -5,6 +5,7 @@
 import { and, eq } from "drizzle-orm";
 import type { Db } from "@/db";
 import { edits, projects, strings, stringTranslations } from "@/db/schema";
+import { takenRow } from "./taken";
 import {
   transition,
   type Actor,
@@ -45,6 +46,7 @@ export function applyTransition(db: Db, input: ApplyInput): ApplyResult {
         and(
           eq(stringTranslations.stringId, input.stringId),
           eq(stringTranslations.language, input.language),
+          takenRow,
         ),
       )
       .get();

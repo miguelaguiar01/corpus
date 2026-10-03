@@ -85,6 +85,11 @@ export async function GET(
     ...(detail.string.arguments?.length && {
       arguments: detail.string.arguments,
     }),
+    ...(detail.string.languages && {
+      languages: detail.string.languages.filter(
+        (l) => l !== project.sourceLanguage,
+      ),
+    }),
     slots: slotsOf(
       detail.string.source,
       detail.declarations,

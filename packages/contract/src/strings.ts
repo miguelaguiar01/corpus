@@ -294,6 +294,9 @@ export const stringEntrySchema = z.looseObject({
   // default, under which the forms are read by count (#1018), or
   // easy_localization's CLDR picking (#961). Additive.
   pluralRules: z.enum(["default", "cldr"]).optional(),
+  // The target languages the string takes, where its source ships fewer
+  // than the project (#1006); absent, it takes them all. Additive.
+  languages: z.array(languageCode()).optional(),
   // What the repository says about this one string, for a translator:
   // an ARB's @key.description (§4, #567). Never written back.
   note: z.string().min(1).optional(),

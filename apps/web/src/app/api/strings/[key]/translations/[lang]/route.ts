@@ -38,6 +38,12 @@ export async function PUT(
           "unknown-language",
           `${lang} is not a language of ${auth.project.slug}`,
         );
+      case "not-taken":
+        return apiError(
+          422,
+          "not-taken",
+          `${key} does not take ${lang}: its source ships ${result.languages.join(", ")}`,
+        );
       case "source-row":
         return apiError(
           422,
