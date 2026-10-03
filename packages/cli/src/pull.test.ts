@@ -2265,3 +2265,62 @@ export default defineCorpus({
   expect(proposed.output.join("\n")).toContain("2 proposal(s) written");
   expect(read("config/locales/en.yml")).toBe("en:\n  title: Terms of use\n");
 });
+
+test("a source's languages bound its strings: the snapshot carries them, a file outside is not read, and pull creates none outside (#1006)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de", "fr", "ja"],
+  sources: [
+    { adapter: "messages", type: "ui", path: "web/{lang}.json" },
+    { adapter: "messages", type: "app", path: "app/{lang}.json", namespace: "app", languages: ["ja", "de"] },
+  ],
+});
+`,
+  );
+  mkdirSync(path.join(repo, "web"), { recursive: true });
+  mkdirSync(path.join(repo, "app"), { recursive: true });
+  writeFileSync(path.join(repo, "web", "en.json"), `{ "save": "Save" }\n`);
+  writeFileSync(path.join(repo, "app", "en.json"), `{ "quit": "Quit" }\n`);
+  writeFileSync(path.join(repo, "app", "de.json"), `{ "quit": "Beenden" }\n`);
+  // A file the set leaves out is not the source's: nothing seeds from it.
+  writeFileSync(path.join(repo, "app", "fr.json"), `{ "quit": "Quitter" }\n`);
+  const out = path.join(repo, "snapshot.json");
+  const built = ctx();
+  expect(await run(["build", "--out", out], built)).toBe(0);
+  const snapshot = JSON.parse(readFileSync(out, "utf8")) as {
+    strings: { id: string; languages?: string[] }[];
+    seedTranslations: Record<string, Record<string, string>>;
+  };
+  expect(snapshot.strings.map((s) => [s.id, s.languages])).toEqual([
+    ["save", undefined],
+    ["app:quit", ["de", "ja"]],
+  ]);
+  expect(snapshot.seedTranslations).toEqual({ de: { "app:quit": "Beenden" } });
+  expect(built.output.join("\n")).toContain(
+    "app/fr.json: fr is not among the source's languages (de, ja), so none of its translations are read",
+  );
+  rmSync(path.join(repo, "app", "fr.json"));
+  await serve(200, {
+    ...PAYLOAD,
+    types: { save: "ui", "app:quit": "app" },
+    translations: {
+      de: { save: "Speichern", "app:quit": "Beenden" },
+      fr: { save: "Enregistrer", "app:quit": "Quitter" },
+      ja: { "app:quit": "終了" },
+    },
+    minState: "untranslated",
+  });
+  expect(await run(["pull"], ctx())).toBe(0);
+  expect(read("web/fr.json")).toBe(`{ "save": "Enregistrer" }\n`);
+  expect(read("app/ja.json")).toBe(`{ "quit": "終了" }\n`);
+  expect(existsSync(path.join(repo, "app", "fr.json"))).toBe(false);
+  const checked = ctx();
+  expect(await run(["validate"], checked)).toBe(0);
+  expect(checked.output.join("\n")).not.toContain("app/fr.json");
+});

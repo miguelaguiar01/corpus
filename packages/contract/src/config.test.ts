@@ -1003,3 +1003,63 @@ test("a file source's namespace prefixes its ids; refused on exec and beside {ns
     'yaml does not read {ns}: only messages, table, fluent and android do; namespace: "<name>" prefixes this source\'s ids instead',
   ]);
 });
+
+test("a file source's languages are a subset of the project's; one it does not list is refused by name (#1006)", () => {
+  const base = {
+    project: "p",
+    server: "http://localhost:3000",
+    sourceLanguage: "en",
+    languages: ["en", "de", "fr", "ja"],
+  };
+  const issues = (source: object) => {
+    const parsed = corpusConfigSchema.safeParse({ ...base, sources: [source] });
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  for (const source of [
+    { adapter: "messages", type: "ui", path: "l/{lang}.json" },
+    { adapter: "yaml", type: "ui", path: "config/locales/{lang}.yml" },
+    { adapter: "gettext", type: "ui", path: "po/{lang}.po" },
+    { adapter: "xliff", type: "ui", path: "x/messages.{lang}.xlf" },
+    { adapter: "android", type: "ui", path: "res" },
+    { adapter: "fluent", type: "ui", path: "f/{lang}/app.ftl" },
+    { adapter: "qt-ts", type: "ui", path: "ts/app_{lang}.ts" },
+    { adapter: "xcstrings", type: "ui", path: "L.xcstrings" },
+    {
+      adapter: "table",
+      type: "ui",
+      path: "t.json",
+      map: { id: "id", text: "text" },
+    },
+  ])
+    expect(issues({ ...source, languages: ["de", "ja"] })).toEqual([]);
+  // The source language may be listed; every string takes it anyway.
+  expect(
+    issues({
+      adapter: "qt-ts",
+      type: "ui",
+      path: "ts/app_{lang}.ts",
+      languages: ["en", "de"],
+    }),
+  ).toEqual([]);
+  expect(
+    issues({
+      adapter: "qt-ts",
+      type: "ui",
+      path: "ts/app_{lang}.ts",
+      languages: ["de", "pt-BR"],
+    }),
+  ).toEqual([
+    "the source's languages name pt-BR, which the project's languages do not list",
+  ]);
+  expect(
+    issues({
+      adapter: "qt-ts",
+      type: "ui",
+      path: "ts/app_{lang}.ts",
+      languages: [],
+    }),
+  ).toHaveLength(1);
+  expect(
+    issues({ adapter: "exec", command: "node x.mjs", languages: ["de"] }),
+  ).toEqual(["languages is no key of an exec source"]);
+});

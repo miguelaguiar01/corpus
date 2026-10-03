@@ -20,6 +20,9 @@ import { memoryDb } from "@/db/test-helpers";
 import { applyTransition } from "@/translations/service";
 import { queueItems } from "@/catalogue/queues";
 import { stringDetail } from "@/strings/detail";
+import { progressCounts } from "@/catalogue/progress";
+import { listCatalogue } from "@/catalogue/query";
+import { pullPayload } from "@/pull/payload";
 import { applySnapshot, suggestionClear } from "./apply";
 
 const FIXTURE = moonlightManor as Snapshot;
@@ -1375,4 +1378,100 @@ test("a Fluent term's seed selects on its locale's own keys and is no invalid ro
   );
   expect(translationOf(db, "-brand-account", "en")?.invalid).toBe(false);
   expect(translationOf(db, "ui:account", "en")?.invalid).toBe(true);
+});
+
+test("a string's languages bound its rows: none outside, a widened set adds them, a narrowed one hides a translation and drops an empty row (#1006)", () => {
+  const { db, project } = seed(["pt-PT", "en", "de", "fr"]);
+  const [ana] = db
+    .insert(users)
+    .values({ name: "ana", maintainer: true })
+    .returning()
+    .all();
+  const snapshot = (qt: string[]): Snapshot => ({
+    contract: "corpus/1",
+    project: "moonlight-manor",
+    sourceLanguage: "pt-PT",
+    entities: [],
+    strings: [
+      { id: "gtk.quit", type: "ui", source: "Sair" },
+      { id: "qt.quit", type: "ui", source: "Sair", languages: qt },
+    ],
+    seedTranslations: { de: { "qt.quit": "Beenden" } },
+  });
+  const languagesOf = (key: string) =>
+    db
+      .select({ language: stringTranslations.language })
+      .from(stringTranslations)
+      .where(eq(stringTranslations.stringId, stringRow(db, key)!.id))
+      .all()
+      .map((r) => r.language)
+      .sort();
+  const untranslated = () =>
+    queueItems(db, project.id, "untranslated").items.map(
+      (i) => `${i.key} ${i.language}`,
+    );
+
+  applySnapshot(db, project.id, snapshot(["de"]));
+  expect(stringRow(db, "qt.quit")?.languages).toEqual(["pt-PT", "de"]);
+  expect(stringRow(db, "gtk.quit")?.languages).toBeNull();
+  expect(languagesOf("gtk.quit")).toEqual(["de", "en", "fr", "pt-PT"]);
+  expect(languagesOf("qt.quit")).toEqual(["de", "pt-PT"]);
+  expect(untranslated()).toEqual(["gtk.quit de", "gtk.quit en", "gtk.quit fr"]);
+  expect(progressCounts(db, project.id).perLanguage.fr?.total).toBe(1);
+
+  applySnapshot(db, project.id, snapshot(["de", "fr"]));
+  expect(languagesOf("qt.quit")).toEqual(["de", "fr", "pt-PT"]);
+  expect(untranslated()).toContain("qt.quit fr");
+  applyTransition(db, {
+    stringId: stringRow(db, "qt.quit")!.id,
+    language: "fr",
+    action: { type: "save", text: "Quitter" },
+    actor: ana!,
+  });
+
+  // Narrowed: the translation stays in the database, out of every view.
+  applySnapshot(db, project.id, snapshot(["de"]));
+  expect(languagesOf("qt.quit")).toEqual(["de", "fr", "pt-PT"]);
+  expect(progressCounts(db, project.id).perLanguage.fr?.total).toBe(1);
+  const detail = stringDetail(db, project.id, "qt.quit");
+  expect(Object.keys(detail!.translations).sort()).toEqual(["de", "pt-PT"]);
+  expect(detail!.string.languages).toEqual(["pt-PT", "de"]);
+  const row = listCatalogue(db, project.id).rows.find(
+    (r) => r.stringId === "qt.quit",
+  );
+  expect(row?.languages).toEqual(["pt-PT", "de"]);
+  expect(Object.keys(row!.states).sort()).toEqual(["de", "pt-PT"]);
+  expect(
+    listCatalogue(db, project.id, { language: "fr" }).rows.map(
+      (r) => r.stringId,
+    ),
+  ).toEqual([]);
+  expect(pullPayload(db, project, "untranslated").translations.fr).toEqual({});
+  expect(
+    applyTransition(db, {
+      stringId: stringRow(db, "qt.quit")!.id,
+      language: "fr",
+      action: { type: "save", text: "Fermer" },
+      actor: ana!,
+    }),
+  ).toEqual({ error: "not-found" });
+
+  // Widened again, it is back as it was.
+  applySnapshot(db, project.id, snapshot(["de", "fr"]));
+  expect(translationOf(db, "qt.quit", "fr")?.text).toBe("Quitter");
+
+  // An empty row outside the set is dropped; a translated one is kept.
+  applySnapshot(db, project.id, snapshot(["de", "en"]));
+  expect(languagesOf("qt.quit")).toEqual(["de", "en", "fr", "pt-PT"]);
+  applySnapshot(db, project.id, snapshot(["de"]));
+  expect(languagesOf("qt.quit")).toEqual(["de", "fr", "pt-PT"]);
+  applySnapshot(db, project.id, {
+    ...snapshot([]),
+    strings: [
+      { id: "gtk.quit", type: "ui", source: "Sair" },
+      { id: "qt.quit", type: "ui", source: "Sair" },
+    ],
+  });
+  expect(stringRow(db, "qt.quit")?.languages).toBeNull();
+  expect(languagesOf("qt.quit")).toEqual(["de", "en", "fr", "pt-PT"]);
 });
