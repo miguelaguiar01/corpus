@@ -3071,3 +3071,30 @@ test("a placeholder an apostrophe quotes is missing, and the error says the apos
   });
   expect(!other.ok && "quoted" in other.errors[1]!).toBe(false);
 });
+
+test("under vue-i18n's default rule a translation's number of forms is the source's, each index read as the rule reads it (#1018)", () => {
+  const source = "{n} day | {n} days";
+  const pl = "{n} minuta | {n} minuty | {n} minut";
+  // Without the rule declared, the form count is the project's to know.
+  expect(validateTranslation(source, pl, "pl", "vue")).toEqual({ ok: true });
+  const declared = (target: string) =>
+    validateTranslation(source, target, "pl", "vue", {
+      pluralRules: "default",
+    });
+  expect(declared(pl)).toEqual({
+    ok: true,
+    incomplete: [{ code: "form-count", expected: 2, actual: 3 }],
+  });
+  expect(declared("{n} dzień | {n} dni")).toEqual({ ok: true });
+  // A translation collapsed to one form shows it for every count.
+  expect(declared("{n} dni")).toEqual({
+    ok: true,
+    incomplete: [{ code: "form-count", expected: 2, actual: 1 }],
+  });
+  // A plain source takes no forms either way.
+  expect(
+    validateTranslation("Save", "Zapisz", "pl", "vue", {
+      pluralRules: "default",
+    }),
+  ).toEqual({ ok: true });
+});

@@ -3,6 +3,7 @@ import path from "node:path";
 import { createJiti } from "jiti";
 import {
   libraryOf,
+  vueDefaultForms,
   isDroppedPlural,
   isFluentTermId,
   messageKind,
@@ -405,9 +406,14 @@ export async function validateRepo(
         }
         findings.push(
           ...checkTranslation(
-            ((forms) => (forms ? { ...entry, pluralForms: forms } : entry))(
-              entryPluralForms(entry, source, pluralForms),
-            ),
+            {
+              ...entry,
+              ...((forms) => forms && { pluralForms: forms })(
+                entryPluralForms(entry, source, pluralForms),
+              ),
+              ...((source as { pluralRules?: unknown }).pluralRules ===
+                "default" && { pluralRules: "default" as const }),
+            },
             target,
             {
               file,
@@ -504,6 +510,13 @@ export function describe(
       return nestedCountMessage(error.arg);
     case "bare-at":
       return BARE_AT_MESSAGE;
+    case "form-count": {
+      const read = (n: number) =>
+        vueDefaultForms(n)
+          .map((meaning) => meaning ?? "unused")
+          .join(" | ");
+      return `${error.actual} form(s) read as ${read(error.actual)} under vue-i18n's default rule, where the source's ${error.expected} are ${read(error.expected)}`;
+    }
     case "missing-category":
       return `plural on {${error.arg}} lacks the ${error.key} branch the runtime picks in its language`;
     case "unexpected-category":
@@ -757,6 +770,7 @@ function checkTranslation(
     ...(entry.pluralForms?.[language] && {
       pluralForms: entry.pluralForms[language],
     }),
+    ...(entry.pluralRules && { pluralRules: entry.pluralRules }),
     ...(library === "fluent" && isFluentTermId(key) && { term: true }),
     sourceLanguage: at.sourceLanguage,
   });

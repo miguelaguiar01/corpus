@@ -88,6 +88,9 @@ export type ValidationError =
   // (#1017); `{'@'}` writes the character.
   | { code: "bare-at" }
   | { code: "missing-category"; arg: string; key: string }
+  // Under vue-i18n's default rule, a translation's forms number other
+  // than the source's (#1018).
+  | { code: "form-count"; expected: number; actual: number }
   | { code: "unexpected-category"; arg: string; key: string }
   // A formatted placeholder written with another type, or with none
   // (`actual: null`); the style is the translator's (#555).
@@ -482,6 +485,16 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// What each of a text's vue-i18n forms is shown for under its default
+// rule (#1018), `pluralDefault` in @intlify/core-base: two forms are
+// 1 and every other count, three or more 0, 1 and every other, a form
+// past the third never (null); one form, every count.
+export function vueDefaultForms(count: number): (string | null)[] {
+  if (count <= 1) return ["other"];
+  if (count === 2) return ["=1", "other"];
+  return ["=0", "=1", "other", ...Array<null>(count - 3).fill(null)];
+}
+
 export function validateTranslation(
   source: string,
   target: string,
@@ -504,6 +517,9 @@ export function validateTranslation(
     // The source's language: a target of the same base language, en-GB
     // for en, takes the source's own plural categories (#1005).
     sourceLanguage?: string;
+    // The runtime's own rule where the source names one (#1018):
+    // vue-i18n's default, whose forms are read by count, not by CLDR.
+    pluralRules?: "default";
   } = {},
 ): ValidationResult {
   const html = tagMode(syntax, options.richText);
@@ -1143,9 +1159,25 @@ export function validateTranslation(
     }
   }
 
+  // Under vue-i18n's default rule the forms are read by their number
+  // (#1018): a translation with another count than the source's is read
+  // shifted, as zero | one | many where the source meant singular |
+  // plural, which a CLDR-minded draft writes.
+  if (syntax === "vue" && options.pluralRules === "default") {
+    const formsOf = (nodes: IcuNode[]) =>
+      nodes.length === 1 && nodes[0]!.kind === "forms"
+        ? nodes[0]!.branches.length
+        : 1;
+    const expected = formsOf(parsedSource.nodes);
+    const actual = formsOf(parsedTarget.nodes);
+    if (expected > 1 && actual !== expected)
+      errors.push({ code: "form-count", expected, actual });
+  }
+
   // A category missing falls back to `other`, and one the language never
   // selects is dead text: neither breaks the message (#556, #651).
   const warning = (e: ValidationError) =>
+    e.code === "form-count" ||
     e.code === "missing-category" ||
     e.code === "unexpected-category" ||
     e.code === "unpassed-selector" ||

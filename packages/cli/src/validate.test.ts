@@ -1332,3 +1332,23 @@ test("a source's pluralRules asks for the categories its runtime picks, beyond t
     "i18n/pt.json:marks: plural on {n} lacks the many branch the runtime picks in its language",
   );
 });
+
+test('under pluralRules: "default" a vue translation whose forms number other than the source\'s is incomplete, each index named (#1018)', async () => {
+  const config = path.join(repo, "corpus.config.ts");
+  writeFileSync(
+    config,
+    readFileSync(config, "utf8").replace(
+      '{ adapter: "messages", type: "chrome", path: "i18n/{lang}.json" }',
+      '{ adapter: "messages", type: "chrome", path: "i18n/{lang}.json", library: "vue", pluralRules: "default" }',
+    ),
+  );
+  write("i18n/en.json", { minutes: "{n} minute | {n} minutes" });
+  write("i18n/pt.json", {
+    minutes: "{n} minuto | {n} minutos | {n} de minutos",
+  });
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(0);
+  expect(c.stderr.join("\n")).toContain(
+    "i18n/pt.json:minutes: 3 form(s) read as =0 | =1 | other under vue-i18n's default rule, where the source's 2 are =1 | other",
+  );
+});

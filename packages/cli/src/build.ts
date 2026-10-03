@@ -371,6 +371,8 @@ export async function buildSnapshotReport(
         {
           ...entry,
           ...withPluralForms(entryPluralForms(entry, source, pluralForms)),
+          ...((source as { pluralRules?: unknown }).pluralRules ===
+            "default" && { pluralRules: "default" as const }),
           // A key-is-text entry carries no file: a proposal would rewrite
           // the key, which is the code's, not the catalogue's.
           ...(writable && !entry.keyIsText ? { file } : {}),
@@ -1036,16 +1038,14 @@ export function pluralFormsOf(
   return own;
 }
 
-// Whether an entry's plural is checked by its source's plural forms: a
-// plural in the source's own library, not a Rails `*_MF` key's ICU.
+const withPluralForms = (forms: Record<string, string[]> | undefined) =>
+  forms ? { pluralForms: forms } : {};
+
 // An entry's plural forms, per language, in the source's own library:
 // the file's (`pluralFormsOf`) for a text that is the plural, as a
 // gettext or Rails plural is, never an ICU plural inside a msgid, which
 // its formatter picks by CLDR; and over them the source's declared
 // `pluralRules` for any plural it writes (#997).
-const withPluralForms = (forms: Record<string, string[]> | undefined) =>
-  forms ? { pluralForms: forms } : {};
-
 export function entryPluralForms(
   entry: StringEntry,
   source: FileSource,
@@ -1053,8 +1053,11 @@ export function entryPluralForms(
 ): Record<string, string[]> | undefined {
   if (entry.library !== undefined && entry.library !== sourceLibrary(source))
     return undefined;
-  const declared = (source as { pluralRules?: Record<string, string[]> })
-    .pluralRules;
+  const rules = (source as { pluralRules?: unknown }).pluralRules;
+  const declared =
+    rules !== null && typeof rules === "object"
+      ? (rules as Record<string, string[]>)
+      : undefined;
   const forms = {
     ...(own && pluralBranches(entry.source) !== undefined && own),
     ...(declared && PLURAL_ARGUMENT_RE.test(entry.source) && declared),

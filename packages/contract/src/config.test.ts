@@ -803,3 +803,33 @@ test("pluralRules is checked on every file source and refused on an exec source 
     /an exec source's entries carry their own plural forms; pluralRules does not apply/,
   );
 });
+
+test('pluralRules: "default" declares vue-i18n\'s default rule on a vue source, and only there (#1018)', () => {
+  const base = {
+    project: "p",
+    server: "http://localhost:3000",
+    sourceLanguage: "en",
+    languages: ["en", "pl"],
+  };
+  const parse = (source: object) =>
+    corpusConfigSchema.safeParse({ ...base, sources: [source] });
+  const vue = {
+    adapter: "messages",
+    type: "ui",
+    path: "i18n/{lang}.json",
+    library: "vue",
+  };
+  expect(parse({ ...vue, pluralRules: "default" }).success).toBe(true);
+  const icu = parse({ ...vue, library: "icu", pluralRules: "default" });
+  expect(icu.success ? [] : icu.error.issues.map((i) => i.message)).toEqual([
+    "pluralRules: \"default\" is vue-i18n's default rule; this source's library is icu",
+  ]);
+  const exec = parse({
+    adapter: "exec",
+    command: "node x.mjs",
+    pluralRules: "default",
+  });
+  expect(exec.success ? [] : exec.error.issues.map((i) => i.message)).toEqual([
+    "an exec source's entries carry their own plural forms; pluralRules does not apply",
+  ]);
+});
