@@ -2453,10 +2453,7 @@ export default defineCorpus({
   ]);
   const said = built.output.join("\n");
   expect(said).toContain(
-    "public/locales/en/grafana.json: generated, as the config says, so its text is the code's: a proposal on its strings is refused",
-  );
-  expect(said).toContain(
-    "public/locales/en/grafana.json: the top-level _comment is the extractor's note, not a string, and is not read",
+    "public/locales/en/grafana.json: generated, as the config says, so its text is the code's: a proposal on its strings is refused; its top-level _comment is the extractor's note, not a string",
   );
   const checked = ctx();
   expect(await run(["validate"], checked)).toBe(0);
@@ -2519,6 +2516,7 @@ export default defineCorpus({
     path.join(repo, "locale", "en", "translations.json"),
     JSON.stringify({
       "Editing {file_name}": "Editing {file_name}",
+      "Save changes": "Save changes",
       "Log out": "Log out",
     }),
   );
@@ -2544,6 +2542,7 @@ export default defineCorpus({
   ).toEqual({
     "Editing {file_name}": "locale/en/translations.json",
     "Log out": "locale/en/translations.json",
+    "Save changes": "locale/en/translations.json",
     "sign.in": "plain/en.json",
     "4361788493219889364": "src/locale/messages.xlf",
     a3b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7: "src/locale/messages.xlf",
@@ -2557,6 +2556,44 @@ export default defineCorpus({
     "locale/en/translations.json: generated, since every value is its key, so its text is the code's",
   );
   expect(said).toContain(
-    "src/locale/messages.xlf: generated, since its unit ids are the ones Angular computes, so its text is the code's",
+    "src/locale/messages.xlf: generated, since Angular's extract-i18n wrote it, so its text is the code's",
   );
+});
+
+test("an XLIFF is Angular's extract-i18n output by most of its ids, whatever its header; a few computed ids are not (#1000)", async () => {
+  const xlf = (ids: string[]) =>
+    `<?xml version="1.0" encoding="UTF-8" ?>\n<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">\n  <file source-language="en" datatype="plaintext" original="app">\n    <body>\n${ids.map((id, i) => `      <trans-unit id="${id}">\n        <source>Text ${i}</source>\n      </trans-unit>`).join("\n")}\n    </body>\n  </file>\n</xliff>\n`;
+  for (const [ids, generated] of [
+    [["4361788493219889364", "5206857922697139278", "ngb.alert.close"], true],
+    [["4361788493219889364", "routes.about", "ngb.alert.close"], false],
+  ] as const) {
+    writeFileSync(
+      path.join(repo, "corpus.config.ts"),
+      `import { defineCorpus } from "@corpus/contract";
+
+export default defineCorpus({
+  project: "pull-fixture",
+  server: "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de"],
+  sources: [
+    { adapter: "xliff", type: "ng", path: "src/locale/messages.{lang}.xlf", sourcePath: "src/locale/messages.xlf" },
+  ],
+});
+`,
+    );
+    mkdirSync(path.join(repo, "src", "locale"), { recursive: true });
+    writeFileSync(
+      path.join(repo, "src", "locale", "messages.xlf"),
+      xlf([...ids]),
+    );
+    const out = path.join(repo, "snapshot.json");
+    expect(await run(["build", "--out", out], ctx())).toBe(0);
+    const snapshot = JSON.parse(readFileSync(out, "utf8")) as {
+      strings: { generated?: string }[];
+    };
+    expect(snapshot.strings.every((s) => s.generated !== undefined)).toBe(
+      generated,
+    );
+  }
 });

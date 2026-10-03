@@ -399,6 +399,13 @@ export function fileOf(
 // `_comment` is the extractor's note, not a string.
 const GENERATED = new WeakMap<object, string>();
 
+// A copy of a source keeps what was detected of it.
+export function withGenerated<T extends object>(copy: T, from: object): T {
+  const reason = GENERATED.get(from);
+  if (reason) GENERATED.set(copy, reason);
+  return copy;
+}
+
 export function generatedBy(source: Source): string | undefined {
   if (source.adapter === "exec") return undefined;
   return source.generated ? "as the config says" : GENERATED.get(source);
@@ -431,12 +438,15 @@ function markGenerated(
   // A file git ignores is a build's output, unless the config is ignored
   // too, as a project inside another repository's ignored tree is.
   const configRel = path.relative(cwd, configPath);
-  const check = spawnSync("git", ["check-ignore", configRel, ...files], {
+  // NUL-separated both ways, so a path outside ASCII comes back as
+  // written rather than quoted.
+  const check = spawnSync("git", ["check-ignore", "-z", "--stdin"], {
     cwd,
     encoding: "utf8",
+    input: [configRel, ...files].join("\0"),
   });
   const ignored = new Set(
-    check.status === 0 ? check.stdout.split("\n").filter(Boolean) : [],
+    check.status === 0 ? check.stdout.split("\0").filter(Boolean) : [],
   );
   sources.forEach((source, index) => {
     const file = files[index]!;
@@ -445,8 +455,8 @@ function markGenerated(
         ? "since git ignores it"
         : echoesKeys(source, path.join(cwd, file))
           ? "since every value is its key"
-          : computedIds(source, path.join(cwd, file))
-            ? "since its unit ids are the ones Angular computes"
+          : angularExtract(source, path.join(cwd, file))
+            ? "since Angular's extract-i18n wrote it"
             : undefined;
     if (reason) GENERATED.set(source, reason);
   });
@@ -462,7 +472,8 @@ function echoesKeys(source: FileSource, file: string): boolean {
       return false;
     const entries = Object.entries(data);
     return (
-      entries.length > 0 &&
+      // One echoing entry is a coincidence, not a catalogue's shape.
+      entries.length >= 3 &&
       entries.every(([key, value]) => value === key) &&
       entries.some(([key]) => keyIsSentence(key))
     );
@@ -471,15 +482,22 @@ function echoesKeys(source: FileSource, file: string): boolean {
   }
 }
 
-function computedIds(source: FileSource, file: string): boolean {
+// Angular's extract-i18n output: its `<file original="ng2.template">`
+// (XLIFF 1.2) or `"ng.template"` (2.0), or ids most of which are the
+// ones it computes, custom `@@` ids (paperless-ngx's 44 of 1,456) and
+// a library's (ng-bootstrap's `ngb.*`) beside them.
+function angularExtract(source: FileSource, file: string): boolean {
   if (source.adapter !== "xliff") return false;
   try {
+    const text = readFileSync(file, "utf8");
+    if (/<file\b[^>]*\boriginal="ng2?\.template"/.test(text)) return true;
     const ids = [
-      ...readFileSync(file, "utf8").matchAll(
-        /<(?:trans-unit|unit)\b[^>]*?\bid="([^"]*)"/g,
-      ),
+      ...text.matchAll(/<(?:trans-unit|unit)\b[^>]*?\bid="([^"]*)"/g),
     ].map((m) => m[1]!);
-    return ids.length > 0 && ids.every((id) => COMPUTED_ID.test(id));
+    return (
+      ids.length > 0 &&
+      ids.filter((id) => COMPUTED_ID.test(id)).length * 2 > ids.length
+    );
   } catch {
     return false;
   }

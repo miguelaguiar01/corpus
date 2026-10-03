@@ -64,7 +64,13 @@ import {
 import type { Refusals } from "./agent-tools";
 import { printable } from "./printable";
 import { unreadableFile } from "./catalogue-format";
-import { CliError, fileCodeOf, fileOf, generatedBy } from "./config";
+import {
+  CliError,
+  fileCodeOf,
+  fileOf,
+  generatedBy,
+  withGenerated,
+} from "./config";
 
 type Sourced = { entry: StringEntry; file: string };
 // `hint` is the advice clause, kept apart from the message so refusals
@@ -325,20 +331,17 @@ export async function buildSnapshotReport(
     // so a proposal on its strings is refused up front, not left pending.
     const writable = takesProposals(source);
     const generated = generatedBy(source);
-    if (generated) {
+    if (generated)
       notes.push(
-        `${file}: generated, ${generated}, so its text is the code's: a proposal on its strings is refused`,
+        `${file}: generated, ${generated}, so its text is the code's: a proposal on its strings is refused${
+          source.adapter === "messages" &&
+          hasComment(
+            await readModule(jiti, path.join(cwd, file)).catch(() => undefined),
+          )
+            ? "; its top-level _comment is the extractor's note, not a string"
+            : ""
+        }`,
       );
-      if (
-        source.adapter === "messages" &&
-        hasComment(
-          await readModule(jiti, path.join(cwd, file)).catch(() => undefined),
-        )
-      )
-        notes.push(
-          `${file}: the top-level _comment is the extractor's note, not a string, and is not read`,
-        );
-    }
     // A msgid is its key by nature, not an empty value (#718), and so is
     // a String Catalog key with no source-language unit (#727).
     const keyed =
@@ -939,7 +942,7 @@ export async function readEntries(
         jiti,
         cwd,
         file,
-        { ...source, keyIsText: false },
+        withGenerated({ ...source, keyIsText: false }, source),
         true,
         language,
         onUnread,
