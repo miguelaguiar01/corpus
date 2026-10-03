@@ -15,6 +15,7 @@ import {
   type Library,
   type TextReading,
   partsOf,
+  vueDefaultForms,
   isFluentTermId,
 } from "@corpus/contract";
 import { chipText } from "@/components/source-view";
@@ -377,6 +378,16 @@ export function TargetPane({
             );
           })}
         </div>
+      )}
+      {pluralRules === "default" && parts.forms > 1 && (
+        // What each form is shown for, before a count goes wrong (#1018).
+        <p className="text-sm text-muted-foreground">
+          {t("editor.formMeanings", {
+            forms: vueDefaultForms(parts.forms)
+              .map((meaning) => meaning ?? t("editor.formUnused"))
+              .join(" | "),
+          })}
+        </p>
       )}
       {tags.length > 0 && (
         <div

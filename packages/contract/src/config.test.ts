@@ -833,3 +833,44 @@ test('pluralRules: "default" declares vue-i18n\'s default rule on a vue source, 
     "an exec source's entries carry their own plural forms; pluralRules does not apply",
   ]);
 });
+
+test("pluralRules' errors say where they are, and a refusal names the source's own library (#1018)", () => {
+  const base = {
+    project: "p",
+    server: "http://localhost:3000",
+    sourceLanguage: "en",
+    languages: ["en", "pl"],
+  };
+  const issues = (source: object) => {
+    const parsed = corpusConfigSchema.safeParse({ ...base, sources: [source] });
+    return parsed.success
+      ? []
+      : parsed.error.issues.map((i) => [i.path.join("."), i.message]);
+  };
+  const messages = { adapter: "messages", type: "ui", path: "i/{lang}.json" };
+  expect(
+    issues({ ...messages, pluralRules: { pl: ["One", "other"] } })[0]?.[0],
+  ).toBe("sources.0.pluralRules.pl.0");
+  expect(issues({ ...messages, pluralRules: "Default" })).toEqual([
+    [
+      "sources.0.pluralRules",
+      'pluralRules is "default", vue-i18n\'s default rule, or a table of categories per language',
+    ],
+  ]);
+  expect(
+    issues({
+      adapter: "gettext",
+      type: "ui",
+      path: "po/{lang}.po",
+      pluralRules: "default",
+    }),
+  ).toEqual([
+    [
+      "sources.0.pluralRules",
+      "pluralRules: \"default\" is vue-i18n's default rule; this source's library is printf",
+    ],
+  ]);
+  expect(
+    issues({ ...messages, syntax: "vue", pluralRules: "default" }),
+  ).toEqual([]);
+});

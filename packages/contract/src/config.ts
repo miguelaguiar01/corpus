@@ -79,9 +79,28 @@ const pluralRulesTable = z.record(
     }),
 );
 // The table, or the runtime's own rule by name: `"default"`, vue-i18n's
-// built-in rule, under which the forms are read by count (#1018).
+// built-in rule, under which the forms are read by count (#1018). Read
+// by the input's kind, so a table's own error says where it is.
 const pluralRules = z
-  .union([z.literal("default"), pluralRulesTable])
+  .custom<"default" | z.infer<typeof pluralRulesTable>>()
+  .superRefine((value, ctx) => {
+    const read =
+      typeof value === "string"
+        ? z
+            .literal("default", {
+              error:
+                'pluralRules is "default", vue-i18n\'s default rule, or a table of categories per language',
+            })
+            .safeParse(value)
+        : pluralRulesTable.safeParse(value);
+    if (!read.success)
+      for (const issue of read.error.issues)
+        ctx.addIssue({
+          code: "custom",
+          message: issue.message,
+          path: issue.path,
+        });
+  })
   .optional();
 
 const messagesFields = {
@@ -413,17 +432,31 @@ export const corpusConfigSchema = z
             "an exec source's entries carry their own plural forms; pluralRules does not apply",
           path: ["sources", index, "pluralRules"],
         });
-      if (
-        rules === "default" &&
-        source.adapter !== "exec" &&
-        (source as { library?: string; syntax?: string }).library !== "vue" &&
-        (source as { syntax?: string }).syntax !== "vue"
-      )
-        ctx.addIssue({
-          code: "custom",
-          message: `pluralRules: "default" is vue-i18n's default rule; this source's library is ${(source as { library?: string }).library ?? (source as { syntax?: string }).syntax ?? "icu"}`,
-          path: ["sources", index, "pluralRules"],
-        });
+      if (rules === "default" && source.adapter !== "exec") {
+        const set = source as { library?: string; syntax?: string };
+        // The library the build reads the source as, its adapter's own
+        // where the config names none.
+        const library =
+          set.library ??
+          set.syntax ??
+          (
+            {
+              gettext: "printf",
+              xcstrings: "printf",
+              "qt-ts": "qt",
+              yaml: "rails",
+              android: "android",
+              fluent: "fluent",
+            } as Record<string, string>
+          )[source.adapter] ??
+          "icu";
+        if (library !== "vue")
+          ctx.addIssue({
+            code: "custom",
+            message: `pluralRules: "default" is vue-i18n's default rule; this source's library is ${library}`,
+            path: ["sources", index, "pluralRules"],
+          });
+      }
       const table =
         rules !== null && typeof rules === "object" ? Object.keys(rules) : [];
       for (const language of table)

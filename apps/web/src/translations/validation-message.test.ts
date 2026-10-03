@@ -42,4 +42,9 @@ test("a form count under vue-i18n's default rule names what each form is shown f
   ).toBe(
     "4 forms read as =0 | =1 | other | unused under vue-i18n's default rule, where the source's 2 are =1 | other",
   );
+  expect(
+    validationMessage({ code: "form-count", expected: 2, actual: 1 }, "vue"),
+  ).toBe(
+    "1 form reads as other under vue-i18n's default rule, where the source's 2 are =1 | other",
+  );
 });
