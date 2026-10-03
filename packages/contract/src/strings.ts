@@ -96,7 +96,7 @@ function notALanguageTag(code: string): string {
 // how placeholders are spelled, how plurals are written and what is
 // escaped: `icu` is plain ICU MessageFormat, an apostrophe the
 // character, as Angular, Flutter and most exporters read it; `formatjs`
-// is ICU as FormatJS reads it, react-intl, next-intl and Lingui, an
+// is ICU as FormatJS reads it, react-intl, next-intl and svelte-i18n, an
 // apostrophe quoting a brace, a tag or a plural's `#` (#1010); `i18next`
 // is its {{name}} interpolation, stored and written back as written.
 export const LIBRARIES = [

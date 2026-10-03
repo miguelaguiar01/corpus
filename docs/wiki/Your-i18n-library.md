@@ -33,7 +33,7 @@ export default defineCorpus({
 });
 ```
 
-These write ICU MessageFormat as FormatJS reads it, which is `library: "formatjs"`; `corpus init` writes it when the package.json names react-intl, next-intl, intl-messageformat, `@formatjs/intl` or a Lingui package (not FormatJS's `Intl` polyfills). Plain ICU, the default `library: "icu"`, reads the same but for one thing: under `formatjs` an apostrophe quotes, as FormatJS reads it, so `'{'0'}'` is the text `{0}`, `''` is one apostrophe, and a French `l'{name}` quotes the placeholder away, which `corpus validate` names with the advice to write `’`. Under `icu` an apostrophe is the character, as Angular, Flutter and most exporters read it. Placeholders are `{name}`. Plurals and selects are arguments:
+These write ICU MessageFormat as FormatJS reads it, which is `library: "formatjs"`; `corpus init` writes it when the package.json names react-intl, next-intl, svelte-i18n, ember-intl, intl-messageformat or `@formatjs/intl` (not FormatJS's `Intl` polyfills). Lingui writes plain ICU too, but its parser keeps an apostrophe before a brace (`l'{name}` prints `l'` and the value), so a Lingui catalogue stays `icu`. Plain ICU, the default `library: "icu"`, reads the same but for one thing: under `formatjs` an apostrophe quotes, as FormatJS reads it, so `'{'0'}'` is the text `{0}`, `''` is one apostrophe, and a French `l'{name}` quotes the placeholder away, which `corpus validate` names with the advice to write `’`. Under `icu` an apostrophe is the character, as Angular, Flutter and most exporters read it. Placeholders are `{name}`. Plurals and selects are arguments:
 
 ```
 {count, plural, one {# document} other {# documents}}

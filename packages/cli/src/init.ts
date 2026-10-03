@@ -791,13 +791,15 @@ function componentDirs(cwd: string, rel: string, depth: number): string[] {
   return out;
 }
 
-// The FormatJS-family runtime a package.json names, nearest the
-// catalogue first, then the repository's: react-intl, next-intl,
-// intl-messageformat, @formatjs/intl, its parser or its CLI, or Lingui.
-// FormatJS's `Intl` polyfills (`@formatjs/intl-pluralrules`) read no
-// messages, and i18next projects load them too.
+// The FormatJS runtime a package.json names, nearest the catalogue
+// first, then the repository's: react-intl, next-intl and its use-intl,
+// svelte-i18n, ember-intl, intl-messageformat, @formatjs/intl, its
+// parser or its CLI. FormatJS's `Intl` polyfills
+// (`@formatjs/intl-pluralrules`) read no messages, and i18next projects
+// load them too; Lingui's parser quotes otherwise (`l'{name}` keeps its
+// apostrophe), so it stays icu.
 const FORMATJS_RE =
-  /^(?:react-intl|next-intl|intl-messageformat|@formatjs\/(?:intl|icu-messageformat-parser|cli)|@lingui\/.+)$/;
+  /^(?:react-intl|next-intl|use-intl|svelte-i18n|ember-intl|intl-messageformat|@formatjs\/(?:intl|icu-messageformat-parser|cli))$/;
 
 function formatjsRuntime(
   cwd: string,
@@ -806,21 +808,22 @@ function formatjsRuntime(
   const pkg = packageOf(cwd, messages);
   for (const dir of [...(pkg ? [pkg] : []), "."]) {
     const file = path.join(cwd, dir, "package.json");
-    let manifest: Record<string, unknown>;
+    let manifest: unknown;
     try {
-      manifest = JSON.parse(readFileSync(file, "utf8")) as Record<
-        string,
-        unknown
-      >;
+      manifest = JSON.parse(readFileSync(file, "utf8"));
     } catch {
       continue;
     }
+    if (manifest === null || typeof manifest !== "object") continue;
     const names = [
       "dependencies",
       "devDependencies",
       "peerDependencies",
     ].flatMap((field) =>
-      Object.keys((manifest[field] as object | undefined) ?? {}),
+      Object.keys(
+        ((manifest as Record<string, unknown>)[field] as object | undefined) ??
+          {},
+      ),
     );
     const found = names.find((name) => FORMATJS_RE.test(name));
     if (found)
@@ -1013,13 +1016,19 @@ async function libraryFor(
   if (doubles > singles && doubles > printf && !icu)
     return { library: { value: "i18next", detected: file } };
   const noted = (note: string) => `${note} in ${file}`;
-  // ICU as FormatJS reads it, its apostrophe quoting (#1010), where the
-  // package the catalogue belongs to, or the repository, runs on it.
+  // Where the catalogue reads as icu, ICU as FormatJS reads it, its
+  // apostrophe quoting (#1010), if its package runs on FormatJS.
   const runtime = formatjsRuntime(cwd, pattern);
-  if (runtime) return { library: { value: "formatjs", ...runtime } };
+  const asIcu = (note?: string) =>
+    runtime
+      ? { library: { value: "formatjs" as const, ...runtime } }
+      : note
+        ? { note }
+        : {};
   // Ghost's shape (#589): the sentence is the key and the value is "".
   if (keyed > 0 && keyed * 2 >= texts.length) {
     return {
+      ...asIcu(),
       note: noted(
         `source values are empty: the key is the text, and a proposal on those strings is refused`,
       ),
@@ -1040,11 +1049,11 @@ async function libraryFor(
     !icu &&
     ids.some((id) => PLURAL_SUFFIX_RE.test(id))
   ) {
-    return {
-      note: noted(
+    return asIcu(
+      noted(
         "i18next keys with { } interpolation: read as icu, which checks the placeholders",
       ),
-    };
+    );
   }
   // vue-i18n: a quoted literal is enough; a pipe only where nothing else
   // in the catalogue reads as ICU.
@@ -1052,7 +1061,7 @@ async function libraryFor(
   if (doubles === 0 && !icu && (escapes || (pipes && !anyIcu))) {
     return { library: { value: "vue", detected: file } };
   }
-  return {};
+  return asIcu();
 }
 
 // The res directory `--messages` names: the directory itself, its

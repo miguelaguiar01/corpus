@@ -2358,3 +2358,44 @@ test("init's formatjs detection skips FormatJS's Intl polyfills, which i18next p
   expect(await run(FLAGS, p.ctx)).toBe(0);
   expect((await loadConfig(p.dir)).sources[0]).not.toHaveProperty("library");
 });
+
+test("init's formatjs detection applies only where the catalogue would read as icu, and Lingui, which quotes otherwise, stays icu (#1010)", async () => {
+  const write = (values: object, deps: object) => {
+    const p = project();
+    stubCli(p.dir);
+    mkdirSync(path.join(p.dir, "src", "i18n"), { recursive: true });
+    writeFileSync(
+      path.join(p.dir, "src", "i18n", "pt-PT.json"),
+      JSON.stringify(values),
+    );
+    writeFileSync(
+      path.join(p.dir, "package.json"),
+      JSON.stringify({ name: "x", dependencies: deps }),
+    );
+    return p;
+  };
+  const react = { "react-intl": "^7.0.0" };
+  for (const [values, library] of [
+    [{ a: "Olá %s", b: "%d itens", c: "%s e %s" }, "printf"],
+    [{ a: "Olá %(name)s", b: "%(count)s itens" }, "counterpart"],
+    [{ a: "um | dois", b: "{'@'} at" }, "vue"],
+  ] as const) {
+    const p = write(values, react);
+    expect(await run(FLAGS, p.ctx)).toBe(0);
+    expect((await loadConfig(p.dir)).sources[0]).toMatchObject({ library });
+  }
+  const lingui = write({ a: "Olá {name}" }, { "@lingui/core": "^5.0.0" });
+  expect(await run(FLAGS, lingui.ctx)).toBe(0);
+  expect((await loadConfig(lingui.dir)).sources[0]).not.toHaveProperty(
+    "library",
+  );
+  const svelte = write({ a: "Olá {name}" }, { "svelte-i18n": "^4.0.0" });
+  expect(await run(FLAGS, svelte.ctx)).toBe(0);
+  expect((await loadConfig(svelte.dir)).sources[0]).toMatchObject({
+    library: "formatjs",
+  });
+  // A package.json that is no object decides nothing.
+  const bad = write({ a: "Olá {name}" }, {});
+  writeFileSync(path.join(bad.dir, "package.json"), "null");
+  expect(await run(FLAGS, bad.ctx)).toBe(0);
+});

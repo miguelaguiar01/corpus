@@ -486,8 +486,9 @@ translations, so Cyrillic, Greek and Vietnamese are content.
 apostrophe as the character. A new library, `formatjs`, reads ICU as
 FormatJS does: `''` is one apostrophe, and an apostrophe before a brace,
 a tag or a plural's `#` quotes. `corpus init` writes `formatjs` when the
-catalogue's package.json, or the repository's, names react-intl,
-next-intl, intl-messageformat, `@formatjs/intl` or a Lingui package.
+catalogue's package.json, or the repository's, names a FormatJS
+runtime (react-intl, next-intl, svelte-i18n, ember-intl, intl-messageformat,
+`@formatjs/intl`). Lingui, whose parser quotes otherwise, stays `icu`.
 
 **Why:** `icu` is also what Corpus reads for "single-brace placeholders,
 runtime unknown". Angular, Flutter's gen_l10n, Ghost and the trial exec
