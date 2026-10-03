@@ -564,7 +564,7 @@ test("a plural missing a category its language uses is incomplete: printed apart
   ]);
 });
 
-test("an orphan key is summarised once across the target files; --json keeps one finding per file", async () => {
+test("an orphan key is summarised once across the target files, listed but no failure (#1023); --json keeps one finding per file", async () => {
   writeFileSync(
     path.join(repo, "corpus.config.ts"),
     readFileSync(path.join(repo, "corpus.config.ts"), "utf8").replace(
@@ -581,7 +581,11 @@ test("an orphan key is summarised once across the target files; --json keeps one
   write("i18n/de.json", { greeting: "Hallo {name}", gone: "Tschüss" });
   write("i18n/fr.json", { greeting: "Bonjour {name}", old: "Vieux" });
   const c = ctx();
-  expect(await run(["validate"], c)).toBe(1);
+  // The runtime never reads a key the source no longer has (#1023).
+  expect(await run(["validate"], c)).toBe(0);
+  expect(c.stdout.join("\n")).toContain(
+    "validate: every translation checked is valid; 2 orphan key(s) listed above, which the runtime never reads",
+  );
   const lines = c.stderr.filter((l) => l.includes("no longer has"));
   expect(lines).toEqual([
     "i18n/pt.json:gone: the source no longer has this key (i18n/en.json); 1 more target file(s) carry it",
@@ -591,7 +595,7 @@ test("an orphan key is summarised once across the target files; --json keeps one
     /corpus: 2 orphan key\(s\) in 3 file\(s\)$/m,
   );
   const j = ctx();
-  expect(await run(["validate", "--json"], j)).toBe(1);
+  expect(await run(["validate", "--json"], j)).toBe(0);
   const findings = JSON.parse(j.stdout.join("\n")) as {
     file: string;
     key: string;
@@ -665,7 +669,7 @@ test("the same orphan key under two sources is two lines, one per source", async
   write("extra/en.json", { more: "More" });
   write("extra/pt.json", { more: "Mais", gone: "Adeus" });
   const c = ctx();
-  expect(await run(["validate"], c)).toBe(1);
+  expect(await run(["validate"], c)).toBe(0);
   expect(c.stderr.filter((l) => l.includes("no longer has"))).toEqual([
     "i18n/pt.json:gone: the source no longer has this key (i18n/en.json)",
     "extra/pt.json:gone: the source no longer has this key (extra/en.json)",

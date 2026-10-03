@@ -67,8 +67,9 @@ export type Finding = {
   // A plural missing a category the runtime picks, or with one it never
   // selects, is incomplete, not invalid (#556, #651): printed apart, and
   // never the reason for exit 1. A source's warning (#767) is the same.
-  // A key the source no longer has is an `orphan` (#1013): exit 1, as an
-  // invalid one, but counted apart; under --server it is a warning.
+  // A key the source no longer has is an `orphan` (#1013), counted apart
+  // and never the reason for exit 1: the runtime never reads it, and a
+  // translation platform keeps it (#1023); under --server, a warning.
   severity: "invalid" | "orphan" | "incomplete" | "warning";
   message: string;
   sourceFile?: string;
@@ -170,16 +171,25 @@ export async function validate(
       warnings.length ? `${warnings.length} warning(s)` : "",
     ].filter(Boolean);
     ctx.err(`corpus: ${parts.join(", ")}`);
-    if (invalid.length > 0 || orphans.length > 0) return 1;
+    if (invalid.length > 0) return 1;
   }
   if (!json) {
-    const listed = `${incomplete.length} incomplete plural(s) listed above`;
+    const listed = [
+      byKey.size > 0
+        ? `${byKey.size} orphan key(s) listed above, which the runtime never reads`
+        : "",
+      incomplete.length > 0
+        ? `${incomplete.length} incomplete plural(s) listed above`
+        : "",
+    ]
+      .filter(Boolean)
+      .join("; ");
     if (server && "checked" in result) {
       const checked = `(${result.checked} checked)`;
       ctx.out(
         incomplete.length > 0
           ? `validate --server: no invalid translation on the instance ${checked}; ${listed}`
-          : `validate --server: every translation on the instance is valid ${checked}`,
+          : `validate --server: every translation on the instance is valid ${checked}${listed ? `; ${listed}` : ""}`,
       );
     } else {
       const notChecked =
@@ -190,8 +200,8 @@ export async function validate(
         incomplete.length > 0
           ? `validate: no invalid translation${unchecked.length > 0 ? " checked" : ""}; ${listed}${notChecked}`
           : unchecked.length > 0
-            ? `validate: every translation checked is valid${notChecked}`
-            : "validate: every translation is valid",
+            ? `validate: every translation checked is valid${listed ? `; ${listed}` : ""}${notChecked}`
+            : `validate: every translation is valid${listed ? `; ${listed}` : ""}`,
       );
     }
   }
