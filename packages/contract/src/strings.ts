@@ -94,9 +94,11 @@ function notALanguageTag(code: string): string {
 }
 // The i18n library a source is written for (§3, §5). One value carries
 // how placeholders are spelled, how plurals are written and what is
-// escaped: `icu` is plain ICU MessageFormat, as next-intl, FormatJS and
-// Lingui write it; `i18next` is its {{name}} interpolation, stored and
-// written back as written.
+// escaped: `icu` is plain ICU MessageFormat, an apostrophe the
+// character, as Angular, Flutter and most exporters read it; `formatjs`
+// is ICU as FormatJS reads it, react-intl, next-intl and svelte-i18n, an
+// apostrophe quoting a brace, a tag or a plural's `#` (#1010); `i18next`
+// is its {{name}} interpolation, stored and written back as written.
 export const LIBRARIES = [
   "icu",
   "i18next",
@@ -108,6 +110,7 @@ export const LIBRARIES = [
   "easy_localization",
   "rails",
   "qt",
+  "formatjs",
   // The fluent adapter's reading (#990): ICU with Fluent's identifiers
   // and nesting. A config never names it.
   "fluent",
@@ -155,6 +158,7 @@ const LIBRARY_NAMES: Record<Library, string> = {
   rails: "Rails I18n",
   qt: "Qt",
   fluent: "Fluent",
+  formatjs: "FormatJS",
 };
 
 export function libraryName(library: Library): string {
@@ -164,7 +168,9 @@ export function libraryName(library: Library): string {
 // What a text that does not parse is called in a message (#644):
 // "invalid ICU", "invalid vue-i18n message".
 export function messageKind(library: Library): string {
-  return library === "icu" ? "ICU" : `${libraryName(library)} message`;
+  return library === "icu" || library === "formatjs"
+    ? "ICU"
+    : `${libraryName(library)} message`;
 }
 
 // A Fluent term's id, `-brand`, under its file's namespace or not: its
@@ -173,10 +179,11 @@ export function isFluentTermId(id: string): boolean {
   return id.split(":").at(-1)!.startsWith("-");
 }
 
-// ICU MessageFormat's own semantics: plain ICU, and Fluent read as ICU,
+// ICU MessageFormat's own semantics: plain ICU, FormatJS's, whose
+// difference is apostrophe quoting (#1010), and Fluent read as ICU,
 // whose differences are names and nesting (#990).
 export function readsAsIcu(library: Library): boolean {
-  return library === "icu" || library === "fluent";
+  return library === "icu" || library === "formatjs" || library === "fluent";
 }
 
 // A string type whose text an HTML renderer reads (#622): its tags are

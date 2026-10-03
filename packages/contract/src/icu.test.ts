@@ -10,6 +10,7 @@ import {
   refusalAdvice,
   refusalCause,
   printfPluralError,
+  sameMessage,
 } from "./icu";
 import { LIBRARIES, libraryName } from "./strings";
 
@@ -725,6 +726,7 @@ test("each library has a name for messages (#644)", () => {
     "easy_localization",
     "Rails I18n",
     "Qt",
+    "FormatJS",
     "Fluent",
   ]);
 });
@@ -949,4 +951,99 @@ test("easy_localization reads no tags, so a {} in an attribute counts in the tex
       { kind: "placeholder", name: "2" },
     ],
   });
+});
+
+test("under formatjs an apostrophe quotes a brace, a tag or a plural's #, and '' is one apostrophe, as FormatJS reads them (#1010)", () => {
+  const literal = (text: string) => {
+    const result = parseIcu(text, "formatjs");
+    if (!result.ok) throw new Error(result.errors[0]!.message);
+    return result.nodes;
+  };
+  expect(literal("envoyée à '{'0'}' utilisateur")).toEqual([
+    { kind: "literal", text: "envoyée à {0} utilisateur" },
+  ]);
+  expect([
+    ...partsOf("Failed to upload %'{file}'", "formatjs").placeholders,
+  ]).toEqual([]);
+  expect(literal("It''s {n}")).toEqual([
+    { kind: "literal", text: "It's " },
+    { kind: "placeholder", name: "n" },
+  ]);
+  expect(literal("{n, plural, one {'#' one} other {# x}}")).toEqual([
+    {
+      kind: "plural",
+      arg: "n",
+      branches: {
+        one: [{ kind: "literal", text: "# one" }],
+        other: [
+          { kind: "count", arg: "n" },
+          { kind: "literal", text: " x" },
+        ],
+      },
+    },
+  ]);
+  // A # in a select within the plural is no count, so its apostrophe is
+  // the character.
+  expect(literal("{n, plural, other {{g, select, other {'# y}}}}")).toEqual([
+    {
+      kind: "plural",
+      arg: "n",
+      branches: {
+        other: [
+          {
+            kind: "select",
+            arg: "g",
+            branches: { other: [{ kind: "literal", text: "'# y" }] },
+          },
+        ],
+      },
+    },
+  ]);
+  expect(literal("a '<b>x</b>' c")).toEqual([
+    { kind: "literal", text: "a <b>x</b> c" },
+  ]);
+  // Any other apostrophe is the character; a quote never closed runs to
+  // the end.
+  expect(literal("don't '' it's")).toEqual([
+    { kind: "literal", text: "don't ' it's" },
+  ]);
+  expect(literal("a'b'{n}")).toEqual([{ kind: "literal", text: "a'b{n}" }]);
+  expect(literal("x '} y")).toEqual([{ kind: "literal", text: "x } y" }]);
+  expect(literal("'{a''b}'")).toEqual([{ kind: "literal", text: "{a'b}" }]);
+  expect(literal("{n, plural, other {it''s #}}")).toEqual([
+    {
+      kind: "plural",
+      arg: "n",
+      branches: {
+        other: [
+          { kind: "literal", text: "it's " },
+          { kind: "count", arg: "n" },
+        ],
+      },
+    },
+  ]);
+});
+
+test("apostrophe quoting is FormatJS's alone: icu, printf, rails, i18next and fluent keep the apostrophe (#1010)", () => {
+  expect([...partsOf("l'%{name}", "rails").placeholders]).toEqual(["name"]);
+  expect([...partsOf("l'{{name}}", "i18next").placeholders]).toEqual(["name"]);
+  expect([...partsOf("l'%s", "printf").placeholders]).toEqual(["1"]);
+  expect([...partsOf("l'{name}", "fluent").placeholders]).toEqual(["name"]);
+  expect([...partsOf("l'{name}", "icu").placeholders]).toEqual(["name"]);
+  expect([...partsOf("l'{name}", "formatjs").placeholders]).toEqual([]);
+  // A quoted pair is the same message as the source it quotes nothing of.
+  expect(
+    sameMessage(
+      "{n, plural, one {'#' a} other {'#' b}}",
+      "{n, plural, one {'{n,number}' a} other {'{n,number}' b}}",
+      "formatjs",
+    ),
+  ).toBe(false);
+  expect(
+    sameMessage(
+      "{n, plural, one {# a} other {# b}}",
+      "{n, plural, one {{n, number} a} other {{n, number} b}}",
+      "formatjs",
+    ),
+  ).toBe(true);
 });

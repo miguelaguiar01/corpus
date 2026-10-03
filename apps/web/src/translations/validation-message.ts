@@ -20,9 +20,12 @@ export function validationMessage(
     case "missing-placeholder":
       if (isDroppedPlural(error, syntax))
         return t("editor.pluralDropped", { name: error.name });
-      return t("editor.missingPlaceholder", {
-        name: chipText(error.name, syntax, null, error.written),
-      });
+      return t(
+        error.quoted
+          ? "editor.missingPlaceholderQuoted"
+          : "editor.missingPlaceholder",
+        { name: chipText(error.name, syntax, null, error.written) },
+      );
     case "unexpected-placeholder":
       return t("editor.unexpectedPlaceholder", {
         name: chipText(error.name, syntax, null, error.written),
@@ -93,7 +96,9 @@ export function validationMessage(
             actual: error.actual,
           });
     case "missing-tag":
-      return t("editor.missingTag", { name: error.name });
+      return t(error.quoted ? "editor.missingTagQuoted" : "editor.missingTag", {
+        name: error.name,
+      });
     case "unpaired-tag":
       return t("editor.unpairedTag", {
         name: error.name,

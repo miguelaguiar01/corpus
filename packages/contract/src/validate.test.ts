@@ -2988,3 +2988,82 @@ test("a placeholder in a tag's attribute list is one token, compared by name and
         .ok,
     ).toBe(false);
 });
+
+test("a placeholder an apostrophe quotes is missing, and the error says the apostrophe did it (#1010)", () => {
+  expect(
+    validateTranslation("Open {name}", "Ouvrir l'{name}", "fr", "formatjs"),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "name", quoted: true }],
+  });
+  expect(
+    validateTranslation("Open {name}", "Ouvrir l’{name}", "fr", "formatjs"),
+  ).toEqual({
+    ok: true,
+  });
+  expect(
+    validateTranslation("Open {name}", "Ouvrir l''{name}", "fr", "formatjs"),
+  ).toEqual({
+    ok: true,
+  });
+  // Elsewhere the apostrophe is the character.
+  expect(
+    validateTranslation("Open {name}", "Ouvrir l'{name}", "fr", "icu"),
+  ).toEqual({ ok: true });
+  // A tag too: Mastodon's Italian `l'<a>…</a>` prints the tag as text.
+  expect(
+    validateTranslation(
+      "see the <a>policy</a>",
+      "consulta l'<a>policy</a>",
+      "it",
+      "formatjs",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-tag", name: "a", quoted: true }],
+  });
+  expect(
+    validateTranslation(
+      "Failed to upload %'{file}'",
+      "Échec %{file}",
+      "fr",
+      "formatjs",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "unexpected-placeholder", name: "file" }],
+  });
+  // The hint only where the quote took that placeholder.
+  expect(
+    validateTranslation(
+      "Open {name} and {count}",
+      "Ouvrir l''{name}",
+      "fr",
+      "formatjs",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "count" }],
+  });
+  const renamed = validateTranslation(
+    "Open {name}",
+    "Ouvrir l''{nom}",
+    "fr",
+    "formatjs",
+  );
+  expect(renamed.ok || renamed.errors.some((e) => "quoted" in e)).toBe(false);
+  const other = validateTranslation(
+    "Open {name} for {who}",
+    "Ouvrir l'{name} pour",
+    "fr",
+    "formatjs",
+  );
+  expect(other).toMatchObject({
+    ok: false,
+    errors: [
+      { code: "missing-placeholder", name: "name", quoted: true },
+      { code: "missing-placeholder", name: "who" },
+    ],
+  });
+  expect(!other.ok && "quoted" in other.errors[1]!).toBe(false);
+});

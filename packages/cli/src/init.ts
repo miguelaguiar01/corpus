@@ -52,7 +52,7 @@ import {
 import { ignoreCorpusDir } from "./corpus-dir";
 
 export const INIT_USAGE =
-  "corpus init --project <slug> --source <lang> --messages <path with {lang}, a .xcstrings or an Android res directory> [--languages <a,b>] [--server <url>] [--type <name>] [--library <icu|i18next|vue|printf|chrome|counterpart|easy_localization|rails|qt>]";
+  "corpus init --project <slug> --source <lang> --messages <path with {lang}, a .xcstrings or an Android res directory> [--languages <a,b>] [--server <url>] [--type <name>] [--library <icu|formatjs|i18next|vue|printf|chrome|counterpart|easy_localization|rails|qt>]";
 
 // `corpus init` writes the config from flags alone, so it scripts;
 // it validates the config before writing and never overwrites one.
@@ -276,7 +276,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       : `wrote ${filename}`,
   );
   if (library && (library.value !== "icu" || adapter !== "messages")) {
-    const why = library.detected && DETECTED_BY[library.value];
+    const why = library.detected && (library.why ?? DETECTED_BY[library.value]);
     ctx.out(
       `library: ${library.value}${why ? `, from ${why} in ${library.detected}` : ""}`,
     );
@@ -791,6 +791,47 @@ function componentDirs(cwd: string, rel: string, depth: number): string[] {
   return out;
 }
 
+// The FormatJS runtime a package.json names, nearest the catalogue
+// first, then the repository's: react-intl, next-intl and its use-intl,
+// svelte-i18n, ember-intl, intl-messageformat, @formatjs/intl, its
+// parser or its CLI. FormatJS's `Intl` polyfills
+// (`@formatjs/intl-pluralrules`) read no messages, and i18next projects
+// load them too; Lingui's parser quotes otherwise (`l'{name}` keeps its
+// apostrophe), so it stays icu.
+const FORMATJS_RE =
+  /^(?:react-intl|next-intl|use-intl|svelte-i18n|ember-intl|intl-messageformat|@formatjs\/(?:intl|icu-messageformat-parser|cli))$/;
+
+function formatjsRuntime(
+  cwd: string,
+  messages: string,
+): { detected: string; why: string } | undefined {
+  const pkg = packageOf(cwd, messages);
+  for (const dir of [...(pkg ? [pkg] : []), "."]) {
+    const file = path.join(cwd, dir, "package.json");
+    let manifest: unknown;
+    try {
+      manifest = JSON.parse(readFileSync(file, "utf8"));
+    } catch {
+      continue;
+    }
+    if (manifest === null || typeof manifest !== "object") continue;
+    const names = [
+      "dependencies",
+      "devDependencies",
+      "peerDependencies",
+    ].flatMap((field) =>
+      Object.keys(
+        ((manifest as Record<string, unknown>)[field] as object | undefined) ??
+          {},
+      ),
+    );
+    const found = names.find((name) => FORMATJS_RE.test(name));
+    if (found)
+      return { detected: path.posix.join(dir, "package.json"), why: found };
+  }
+  return undefined;
+}
+
 // The package a catalogue belongs to: the nearest directory above its
 // path, below the repository root, with a package.json.
 function packageOf(cwd: string, messages: string): string | undefined {
@@ -861,7 +902,10 @@ async function libraryFor(
   sourceLanguage: string,
   type: string,
   ctx: RunContext,
-): Promise<{ library?: { value: Library; detected?: string }; note?: string }> {
+): Promise<{
+  library?: { value: Library; detected?: string; why?: string };
+  note?: string;
+}> {
   if (args.includes("--library") && args.includes("--syntax")) {
     throw new CliError(
       `--library and --syntax are the same flag under two names; pass --library\nusage: ${INIT_USAGE}`,
@@ -972,9 +1016,19 @@ async function libraryFor(
   if (doubles > singles && doubles > printf && !icu)
     return { library: { value: "i18next", detected: file } };
   const noted = (note: string) => `${note} in ${file}`;
+  // Where the catalogue reads as icu, ICU as FormatJS reads it, its
+  // apostrophe quoting (#1010), if its package runs on FormatJS.
+  const runtime = formatjsRuntime(cwd, pattern);
+  const asIcu = (note?: string) =>
+    runtime
+      ? { library: { value: "formatjs" as const, ...runtime } }
+      : note
+        ? { note }
+        : {};
   // Ghost's shape (#589): the sentence is the key and the value is "".
   if (keyed > 0 && keyed * 2 >= texts.length) {
     return {
+      ...asIcu(),
       note: noted(
         `source values are empty: the key is the text, and a proposal on those strings is refused`,
       ),
@@ -995,11 +1049,11 @@ async function libraryFor(
     !icu &&
     ids.some((id) => PLURAL_SUFFIX_RE.test(id))
   ) {
-    return {
-      note: noted(
+    return asIcu(
+      noted(
         "i18next keys with { } interpolation: read as icu, which checks the placeholders",
       ),
-    };
+    );
   }
   // vue-i18n: a quoted literal is enough; a pipe only where nothing else
   // in the catalogue reads as ICU.
@@ -1007,7 +1061,7 @@ async function libraryFor(
   if (doubles === 0 && !icu && (escapes || (pipes && !anyIcu))) {
     return { library: { value: "vue", detected: file } };
   }
-  return {};
+  return asIcu();
 }
 
 // The res directory `--messages` names: the directory itself, its

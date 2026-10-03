@@ -20,6 +20,7 @@ contract (`corpus/1`) is the only one.
 - Rails keys ending in `_html` are read as HTML: a translation's own tags are accepted, and broken markup in them is still caught (#988).
 - An Android app's modules are one project: an `android` source's `path` may list its `res` directories, with `merge`, and a `{ns}` captures a Compose Multiplatform module (#989).
 - A Fluent message Corpus cannot read is refused on its own instead of failing its whole file, and the build goes on (#991).
+- A new `formatjs` library reads ICU's apostrophe quoting as react-intl, next-intl and svelte-i18n do, and `init` writes it when package.json names such a runtime; `icu` is unchanged (#1010).
 - A plural's preview shows the branch the string's library picks: counterpart's and easy_localization's own rules, and Rails' and i18next's `zero` (#963).
 - Under Android a printf verb in a tag's attribute counts in the argument order, so `<a href="%1$s">%2$s</a>` for `<a href="%s">%s</a>` is valid and a link whose text takes the URL is caught (#956).
 - A messages list or an xliff unit Corpus cannot read is refused on its own, numbers and booleans in a messages file are skipped, and `init` names exec for a catalogue of entry objects (#1026).
