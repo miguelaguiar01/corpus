@@ -3193,15 +3193,28 @@ test("under chrome a bare $1–$9 is a placeholder; a lone $, a $40 and a $$NAME
     validateTranslation("$$ character", "$ karakter", "hu", "chrome"),
   ).toEqual({
     ok: true,
-    incomplete: [{ code: "chrome-dollar", at: 0, kind: "lone" }],
+    incomplete: [{ code: "chrome-dollar", at: 0, kind: "lone", written: "$ " }],
   });
   // $40 is text, a price, never substitution 4.
   expect(de("Pay $40", "Zahle $40")).toMatchObject({ ok: true });
   expect(chromeDollarsOf("Pay $40", "chrome")).toEqual([
-    { at: 4, kind: "price" },
+    { at: 4, kind: "price", written: "$40" },
+  ]);
+  expect(chromeDollarsOf("$9 and $10", "chrome")).toEqual([
+    { at: 7, kind: "price", written: "$10" },
   ]);
   expect(chromeDollarsOf("Hi $$NAME$", "chrome")).toEqual([
-    { at: 3, kind: "doubled-name" },
+    { at: 3, kind: "doubled-name", written: "$$NAME$" },
+  ]);
+  // A run of n dollars shows n - 1, and what follows it is text: $$$1
+  // is $$1, no substitution; $$$ is $$, no lone dollar.
+  expect(chromeDollarsOf("$$$1 and $$$", "chrome")).toEqual([]);
+  expect(de("Cost $$$1", "Preis $$$1")).toEqual({ ok: true });
+  expect(partsOf("Cost $$$1", "chrome").placeholders).toEqual(new Set());
+  // A trailing $ and $0 are lone.
+  expect(chromeDollarsOf("a $0 b $", "chrome").map((d) => d.kind)).toEqual([
+    "lone",
+    "lone",
   ]);
   expect(chromeDollarsOf("Costs $$ and $1", "chrome")).toEqual([]);
   // A placeholder name may hold @, as Chrome's do.

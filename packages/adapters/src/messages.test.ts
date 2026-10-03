@@ -458,3 +458,22 @@ test("a null, number or boolean is no string and is skipped; a list is refused b
   // The file itself must still be an object.
   expect(() => read(["x"])).toThrow(/got array/);
 });
+
+test("a Chrome example renders as Chrome reads it: a name may hold @, $$NAME$ is a $ before the value, a run of n dollars shows n - 1 (#631)", () => {
+  const read = (message: string, placeholders: object) =>
+    messagesToEntries(
+      { k: { message, placeholders } },
+      { type: "ui", chrome: true },
+    )[0]!.examples?.[0]?.rendered;
+  expect(
+    read("Signed in as $USER@HOST$", {
+      "user@host": { content: "$1", example: "me@example.com" },
+    }),
+  ).toBe("Signed in as me@example.com");
+  expect(read("Hi $$NAME$", { name: { content: "$1", example: "Bob" } })).toBe(
+    "Hi $Bob",
+  );
+  expect(
+    read("$$$ and $NAME$", { name: { content: "$1", example: "Ann" } }),
+  ).toBe("$$ and Ann");
+});
