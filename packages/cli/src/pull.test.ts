@@ -2236,7 +2236,8 @@ export default defineCorpus({
   });
   expect(await run(["pull"], ctx())).toBe(0);
   expect(read("config/locales/de.yml")).toBe("de:\n  title: AGB\n");
-  expect(read("web/de.json")).toBe(`{ "title": "Bedingungen" }\n`); // Two files' `title` are two proposals, counted so.
+  expect(read("web/de.json")).toBe(`{ "title": "Bedingungen" }\n`);
+  // Two files' `title` are two proposals, counted so.
   await serve(200, {
     ...PAYLOAD,
     types: { title: "ui", "server:title": "server" },
