@@ -732,3 +732,74 @@ test("a yaml source may list its patterns; {ns} in one is refused at its index (
   if (!ns.success)
     expect(ns.error.issues[0]?.path).toEqual(["sources", 0, "path", 1]);
 });
+
+test("a source's pluralRules names a target language's categories, other among them (#997)", () => {
+  const config = {
+    project: "p",
+    server: "http://localhost:3000",
+    sourceLanguage: "en",
+    languages: ["en", "he"],
+    sources: [
+      {
+        adapter: "messages",
+        type: "ui",
+        path: "i18n/{lang}.json",
+        pluralRules: { he: ["one", "two", "many", "other"] },
+      },
+    ],
+  };
+  expect(corpusConfigSchema.safeParse(config).success).toBe(true);
+  const refused = (pluralRules: unknown) => {
+    const parsed = corpusConfigSchema.safeParse({
+      ...config,
+      sources: [{ ...config.sources[0], pluralRules }],
+    });
+    return parsed.success
+      ? ""
+      : parsed.error.issues.map((i) => i.message).join("; ");
+  };
+  expect(refused({ he: ["one", "two"] })).toMatch(/other/);
+  expect(refused({ he: ["one", "lots", "other"] })).not.toBe("");
+  expect(refused({ fr: ["one", "other"] })).toMatch(
+    /pluralRules names fr, which languages does not list/,
+  );
+});
+
+test("pluralRules is checked on every file source and refused on an exec source (#997)", () => {
+  const base = {
+    project: "p",
+    server: "http://localhost:3000",
+    sourceLanguage: "en",
+    languages: ["en", "fr"],
+  };
+  const parse = (source: object) =>
+    corpusConfigSchema.safeParse({ ...base, sources: [source] });
+  for (const source of [
+    { adapter: "xcstrings", type: "ui", path: "L.xcstrings" },
+    {
+      adapter: "table",
+      type: "ui",
+      path: "t.json",
+      map: { id: "id", text: "text" },
+    },
+  ]) {
+    expect(
+      parse({ ...source, pluralRules: { fr: ["one", "many", "other"] } })
+        .success,
+    ).toBe(true);
+    expect(parse({ ...source, pluralRules: { fr: "cldr" } }).success).toBe(
+      false,
+    );
+    expect(parse({ ...source, pluralRules: { fr: ["one"] } }).success).toBe(
+      false,
+    );
+  }
+  const exec = parse({
+    adapter: "exec",
+    command: "node x.mjs",
+    pluralRules: { fr: ["one", "other"] },
+  });
+  expect(exec.success ? "" : exec.error.issues[0]!.message).toMatch(
+    /an exec source's entries carry their own plural forms; pluralRules does not apply/,
+  );
+});

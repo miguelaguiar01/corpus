@@ -168,7 +168,7 @@ test("an exec source's translations are validated from its exporter, the command
         { id: "exec.marks", type: "computed", source: "{n, plural, one {# mark} other {# marks}}" },
       ],
       translations: {
-        pt: { "exec.bye": "Adeus", "exec.marks": "{n, plural, one {# marca} other {# marcas}}", "exec.gone": "x" },
+        pt: { "exec.bye": "Adeus", "exec.marks": "{n, plural, other {# marcas}}", "exec.gone": "x" },
         fr: { "exec.bye": "Au revoir" },
       },
     }))`,
@@ -183,7 +183,7 @@ test("an exec source's translations are validated from its exporter, the command
     "exec:node scripts/export.mjs [exec.bye] pt: missing {who}",
   );
   expect(err).toContain(
-    "exec:node scripts/export.mjs [exec.marks] pt: plural on {n} lacks the many branch the runtime picks in its language",
+    "exec:node scripts/export.mjs [exec.marks] pt: plural on {n} lacks the one branch the runtime picks in its language",
   );
   expect(err).not.toContain("[exec.bye] fr");
   expect(err).not.toMatch(/is not validated/);
@@ -525,17 +525,18 @@ test("a plural missing a category its language uses is incomplete: printed apart
     marks: "{n, plural, one {# mark} other {# marks}}",
     greeting: "Hello {name}",
   });
-  // Portuguese has `many` since CLDR 42, for large round numbers; every
-  // catalogue written before it lacks the branch.
+  // Portuguese picks `one` for 1. Its `many`, since CLDR 42, is for
+  // exact millions, which a count never reaches, so it is not asked for
+  // (#997), unless the source declares it in pluralRules.
   write("i18n/pt.json", {
-    marks: "{n, plural, one {# marca} other {# marcas}}",
+    marks: "{n, plural, other {# marcas}}",
     greeting: "Olá {name}",
   });
   const c = ctx();
   expect(await run(["validate"], c)).toBe(0);
   const err = c.stderr.join("\n");
   expect(err).toContain(
-    "i18n/pt.json:marks: plural on {n} lacks the many branch the runtime picks in its language",
+    "i18n/pt.json:marks: plural on {n} lacks the one branch the runtime picks in its language",
   );
   expect(err).toMatch(
     /corpus: 1 incomplete plural\(s\), a category the runtime picks/,
@@ -546,7 +547,7 @@ test("a plural missing a category its language uses is incomplete: printed apart
   );
 
   write("i18n/pt.json", {
-    marks: "{n, plural, one {# marca} other {# marcas}}",
+    marks: "{n, plural, other {# marcas}}",
     greeting: "Olá",
   });
   const d = ctx();
@@ -1307,5 +1308,27 @@ test("under vue a source's bare @ is a warning and builds, a translation's is in
   expect(await run(["build", "--out", path.join(repo, "s.json")], b)).toBe(0);
   expect(b.stderr.join("\n")).toContain(
     "i18n/en.json:mail: an @ that opens no link does not compile in vue-i18n",
+  );
+});
+
+test("a source's pluralRules asks for the categories its runtime picks, beyond the tolerant default (#997)", async () => {
+  write("i18n/en.json", { marks: "{n, plural, one {# mark} other {# marks}}" });
+  write("i18n/pt.json", {
+    marks: "{n, plural, one {# marca} other {# marcas}}",
+  });
+  // Without it, Portuguese `many` is not asked for: the #556 test above.
+  const config = path.join(repo, "corpus.config.ts");
+  const { readFileSync } = await import("node:fs");
+  writeFileSync(
+    config,
+    readFileSync(config, "utf8").replace(
+      '{ adapter: "messages", type: "chrome", path: "i18n/{lang}.json" }',
+      '{ adapter: "messages", type: "chrome", path: "i18n/{lang}.json", pluralRules: { pt: ["one", "many", "other"] } }',
+    ),
+  );
+  const declared = ctx();
+  expect(await run(["validate"], declared)).toBe(0);
+  expect(declared.stderr.join("\n")).toContain(
+    "i18n/pt.json:marks: plural on {n} lacks the many branch the runtime picks in its language",
   );
 });

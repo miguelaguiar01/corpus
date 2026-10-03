@@ -1832,6 +1832,44 @@ export function pluralCategoriesOf(
   return [...categories];
 }
 
+// The categories an integer below a million reaches (#997): what a
+// count picks, where CLDR's `many` for exact millions (French, Spanish,
+// Italian, Portuguese, Catalan) or for decimals (Czech, Slovak) is one
+// a runtime's older data lacks, and `other` serves those numbers right.
+const integerCategoriesByLanguage = new Map<string, string[]>();
+
+function integerCategoriesOf(language: string): string[] {
+  const cached = integerCategoriesByLanguage.get(language);
+  if (cached) return [...cached];
+  const cldr = pluralCategoriesOf(language);
+  let found: string[] = [];
+  if (cldr.length > 0) {
+    const rules = new Intl.PluralRules(localeOf(language));
+    const reached = new Set<string>(["other"]);
+    for (let n = 0; n <= 1000; n++) reached.add(rules.select(n));
+    for (const n of [10_000, 100_000, 999_999]) reached.add(rules.select(n));
+    found = cldr.filter((c) => reached.has(c));
+  }
+  integerCategoriesByLanguage.set(language, found);
+  return [...found];
+}
+
+// The categories CLDR has removed that runtimes still ship (#997):
+// Hebrew `many`, gone in CLDR 42 and picked by Android 6 to 13.
+const REMOVED_CATEGORIES: Record<string, readonly string[]> = {
+  he: ["many"],
+};
+
+function removedCategoriesOf(language: string): readonly string[] {
+  try {
+    return (
+      REMOVED_CATEGORIES[new Intl.Locale(localeOf(language)).language] ?? []
+    );
+  } catch {
+    return [];
+  }
+}
+
 // The categories a translation's plural must hold, and those it may,
 // by the rule its library picks a form by (#951): counterpart's is
 // English's in every language, `zero` when written; easy_localization's,
@@ -1873,9 +1911,14 @@ export function pluralCategoriesFor(
       required: cldr.filter((c) => c !== "few" && c !== "many"),
       allowed: ["zero", "one", "two", "other"],
     };
+  // CLDR's, as tolerant as the runtimes that ship older data (#997).
+  const removed = removedCategoriesOf(language);
   return {
-    required: cldr,
-    allowed: PLURAL_CATEGORIES.filter((c) => cldr.includes(c) || zero(c)),
+    required: integerCategoriesOf(language),
+    allowed: PLURAL_CATEGORIES.filter(
+      (c) =>
+        cldr.includes(c) || zero(c) || (cldr.length > 0 && removed.includes(c)),
+    ),
   };
 }
 

@@ -1856,3 +1856,47 @@ test("a yaml source may list its patterns, one catalogue as Rails loads them: a 
   ]);
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("a file's own plural forms hold for its whole-count plurals, a source's pluralRules for any plural it writes (#997)", async () => {
+  const { entryPluralForms } = await import("./build");
+  const gettext = {
+    adapter: "gettext",
+    type: "ui",
+    path: "po/{lang}.po",
+    library: "icu",
+  } as const;
+  const own = { ru: ["one", "other"] };
+  const whole = {
+    id: "a",
+    type: "ui",
+    source: "{count, plural, one {# file} other {# files}}",
+  };
+  const inside = {
+    id: "b",
+    type: "ui",
+    source: "You have {n, plural, one {# file} other {# files}}",
+  };
+  // gettext's Plural-Forms are the file's, for the plural the msgid is.
+  expect(entryPluralForms(whole, gettext, own)).toEqual(own);
+  // An ICU plural inside a msgid is picked by its formatter, by CLDR.
+  expect(entryPluralForms(inside, gettext, own)).toBeUndefined();
+  // A source's declared rules hold for every plural, over the file's.
+  const declared = {
+    ...gettext,
+    pluralRules: {
+      ru: ["one", "few", "many", "other"] as (
+        "one" | "few" | "many" | "other"
+      )[],
+    },
+  };
+  expect(entryPluralForms(inside, declared, own)).toEqual({
+    ru: ["one", "few", "many", "other"],
+  });
+  expect(entryPluralForms(whole, declared, own)).toEqual({
+    ru: ["one", "few", "many", "other"],
+  });
+  // No plural, no forms.
+  expect(
+    entryPluralForms({ id: "c", type: "ui", source: "Hi" }, declared, own),
+  ).toBeUndefined();
+});

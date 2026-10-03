@@ -757,16 +757,20 @@ test("an =1 branch is the one category where one holds only 1; not in French, wh
   expect(
     validateTranslation(
       source,
-      "{n, plural, =1 {a} =1000000 {b} =2000000 {c} other {d}}",
-      "es",
+      "{n, plural, =1 {a} =2 {b} =5 {c} other {d}}",
+      "pl",
     ),
-  ).toMatchObject({ incomplete: [{ key: "many" }] });
-  // Spanish's many is a million and up: no =N covers it.
+  ).toMatchObject({
+    incomplete: [
+      { code: "missing-category", arg: "n", key: "few" },
+      { code: "missing-category", arg: "n", key: "many" },
+    ],
+  });
+  // Spanish's many is a million and up, which no count below a million
+  // reaches: it is allowed, not asked for (#997).
   expect(
     validateTranslation(source, "{n, plural, =1 {a} other {b}}", "es"),
-  ).toMatchObject({
-    incomplete: [{ code: "missing-category", arg: "n", key: "many" }],
-  });
+  ).toEqual({ ok: true });
 });
 
 test("an other-only language may write a plural as the plain text of its other branch (#651)", () => {
@@ -1912,9 +1916,9 @@ test("a plural's categories are its library's rule: counterpart's English one, e
 test("a gettext file's Plural-Forms, where given, are the categories a plural needs; CLDR's others are allowed (#951)", () => {
   const source = "{count, plural, one {%d file} other {%d files}}";
   const it = "{count, plural, one {%d file} other {%d file}}";
-  expect(validateTranslation(source, it, "it", "printf")).toMatchObject({
+  // Italian's many is for millions alone: not asked for (#997).
+  expect(validateTranslation(source, it, "it", "printf")).toEqual({
     ok: true,
-    incomplete: [{ code: "missing-category", key: "many" }],
   });
   expect(
     validateTranslation(source, it, "it", "printf", {

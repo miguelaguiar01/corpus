@@ -5,6 +5,7 @@ import {
   partsOf,
   parseIcu,
   pluralBranch,
+  pluralCategoriesFor,
   pluralCategoriesOf,
   isVoidTag,
   refusalAdvice,
@@ -1056,4 +1057,34 @@ test("apostrophe quoting is FormatJS's alone: icu, printf, rails, i18next and fl
       "formatjs",
     ),
   ).toBe(true);
+});
+
+test("a plural requires the categories some integer reaches, and allows those older CLDR had (#997)", () => {
+  // French, Spanish, Italian, Portuguese and Catalan `many` is for exact
+  // millions alone, Czech and Slovak `many` for decimals alone.
+  for (const language of ["fr", "es", "it", "pt", "ca"]) {
+    const rules = pluralCategoriesFor(language, "icu");
+    expect(rules.required).toEqual(["one", "other"]);
+    expect(rules.allowed).toContain("many");
+  }
+  expect(pluralCategoriesFor("cs", "icu").required).toEqual([
+    "one",
+    "few",
+    "other",
+  ]);
+  expect(pluralCategoriesFor("cs", "icu").allowed).toContain("many");
+  // An integer reaches Polish and Russian `many`.
+  expect(pluralCategoriesFor("pl", "icu").required).toEqual([
+    "one",
+    "few",
+    "many",
+    "other",
+  ]);
+  // Hebrew `many`, which CLDR 42 removed and Android 6–13 still picks.
+  expect(pluralCategoriesFor("he", "icu").required).not.toContain("many");
+  expect(pluralCategoriesFor("he", "icu").allowed).toContain("many");
+  // A source's own forms still decide where it has them.
+  expect(
+    pluralCategoriesFor("he", "icu", ["one", "two", "many", "other"]).required,
+  ).toEqual(["one", "two", "many", "other"]);
 });
