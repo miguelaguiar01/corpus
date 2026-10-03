@@ -2561,11 +2561,13 @@ export default defineCorpus({
 });
 
 test("an XLIFF is Angular's extract-i18n output by most of its ids, whatever its header; a few computed ids are not (#1000)", async () => {
-  const xlf = (ids: string[]) =>
-    `<?xml version="1.0" encoding="UTF-8" ?>\n<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">\n  <file source-language="en" datatype="plaintext" original="app">\n    <body>\n${ids.map((id, i) => `      <trans-unit id="${id}">\n        <source>Text ${i}</source>\n      </trans-unit>`).join("\n")}\n    </body>\n  </file>\n</xliff>\n`;
-  for (const [ids, generated] of [
+  const xlf = (ids: string[], original = "app") =>
+    `<?xml version="1.0" encoding="UTF-8" ?>\n<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">\n  <file source-language="en" datatype="plaintext" original="${original}">\n    <body>\n${ids.map((id, i) => `      <trans-unit id="${id}">\n        <source>Text ${i}</source>\n      </trans-unit>`).join("\n")}\n    </body>\n  </file>\n</xliff>\n`;
+  for (const [ids, generated, original] of [
     [["4361788493219889364", "5206857922697139278", "ngb.alert.close"], true],
     [["4361788493219889364", "routes.about", "ngb.alert.close"], false],
+    // Angular's header alone says so, custom ids or not.
+    [["routes.about", "ngb.alert.close"], true, "ng2.template"],
   ] as const) {
     writeFileSync(
       path.join(repo, "corpus.config.ts"),
@@ -2585,7 +2587,7 @@ export default defineCorpus({
     mkdirSync(path.join(repo, "src", "locale"), { recursive: true });
     writeFileSync(
       path.join(repo, "src", "locale", "messages.xlf"),
-      xlf([...ids]),
+      xlf([...ids], original),
     );
     const out = path.join(repo, "snapshot.json");
     expect(await run(["build", "--out", out], ctx())).toBe(0);
