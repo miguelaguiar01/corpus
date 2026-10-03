@@ -732,3 +732,35 @@ test("a yaml source may list its patterns; {ns} in one is refused at its index (
   if (!ns.success)
     expect(ns.error.issues[0]?.path).toEqual(["sources", 0, "path", 1]);
 });
+
+test("a source's pluralRules names a target language's categories, other among them (#997)", () => {
+  const config = {
+    project: "p",
+    server: "http://localhost:3000",
+    sourceLanguage: "en",
+    languages: ["en", "he"],
+    sources: [
+      {
+        adapter: "messages",
+        type: "ui",
+        path: "i18n/{lang}.json",
+        pluralRules: { he: ["one", "two", "many", "other"] },
+      },
+    ],
+  };
+  expect(corpusConfigSchema.safeParse(config).success).toBe(true);
+  const refused = (pluralRules: unknown) => {
+    const parsed = corpusConfigSchema.safeParse({
+      ...config,
+      sources: [{ ...config.sources[0], pluralRules }],
+    });
+    return parsed.success
+      ? ""
+      : parsed.error.issues.map((i) => i.message).join("; ");
+  };
+  expect(refused({ he: ["one", "two"] })).toMatch(/other/);
+  expect(refused({ he: ["one", "lots", "other"] })).not.toBe("");
+  expect(refused({ fr: ["one", "other"] })).toMatch(
+    /pluralRules names fr, which languages does not list/,
+  );
+});
