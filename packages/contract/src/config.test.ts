@@ -854,7 +854,7 @@ test("pluralRules' errors say where they are, and a refusal names the source's o
   expect(issues({ ...messages, pluralRules: "Default" })).toEqual([
     [
       "sources.0.pluralRules",
-      'pluralRules is "default", vue-i18n\'s default rule, or a table of categories per language',
+      'pluralRules is "default", vue-i18n\'s default rule, "cldr", easy_localization\'s ignorePluralRules: false, or a table of categories per language',
     ],
   ]);
   expect(

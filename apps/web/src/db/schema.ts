@@ -130,9 +130,10 @@ export const strings = sqliteTable(
     pluralForms: text("plural_forms", { mode: "json" }).$type<
       Record<string, string[]>
     >(),
-    // The runtime's own plural rule where the source names one (#1018):
-    // "default", vue-i18n's, whose forms are read by count; null else.
-    pluralRules: text("plural_rules").$type<"default">(),
+    // The runtime's own plural rule where the source names one: "default",
+    // vue-i18n's, whose forms are read by count (#1018), or "cldr",
+    // easy_localization's CLDR picking (#961); null else.
+    pluralRules: text("plural_rules").$type<"default" | "cldr">(),
     // What the repository says about this string (§4, #567).
     note: text("note"),
     // The message syntax the text is written in (§5); null is ICU.

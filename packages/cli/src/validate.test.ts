@@ -1352,3 +1352,23 @@ test('under pluralRules: "default" a vue translation whose forms number other th
     "i18n/pt.json:minutes: 3 form(s) read as =0 | =1 | other under vue-i18n's default rule, where the source's 2 are =1 | other",
   );
 });
+
+test('under easy_localization with pluralRules: "cldr" a translation needs CLDR\'s categories, as ignorePluralRules: false picks (#961)', async () => {
+  const config = path.join(repo, "corpus.config.ts");
+  writeFileSync(
+    config,
+    readFileSync(config, "utf8")
+      .replace('languages: ["en", "pt"]', 'languages: ["en", "pt", "pl"]')
+      .replace(
+        '{ adapter: "messages", type: "chrome", path: "i18n/{lang}.json" }',
+        '{ adapter: "messages", type: "chrome", path: "i18n/{lang}.json", library: "easy_localization", pluralRules: "cldr" }',
+      ),
+  );
+  write("i18n/en.json", { files: { one: "{} file", other: "{} files" } });
+  write("i18n/pl.json", { files: { one: "{} plik", other: "{} pliku" } });
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(0);
+  expect(c.stderr.join("\n")).toContain(
+    "i18n/pl.json:files: plural on {count} lacks the few branch the runtime picks in its language",
+  );
+});

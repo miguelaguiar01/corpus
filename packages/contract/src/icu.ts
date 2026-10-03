@@ -1887,6 +1887,9 @@ export function pluralCategoriesFor(
   picked?: readonly string[],
   // A selectordinal's: CLDR's ordinal rule, whatever the library (#995).
   ordinal = false,
+  // The source's named rule: "cldr", easy_localization picking by CLDR
+  // where `ignorePluralRules: false` (#961).
+  rules?: "default" | "cldr",
 ): { required: string[]; allowed: string[] } {
   if (ordinal) {
     const ordinals = pluralCategoriesOf(language, true);
@@ -1906,7 +1909,7 @@ export function pluralCategoriesFor(
         (c) => picked.includes(c) || c === "other" || zero(c),
       ),
     };
-  if (library === "easy_localization" && cldr.length > 0)
+  if (library === "easy_localization" && rules !== "cldr" && cldr.length > 0)
     return {
       required: cldr.filter((c) => c !== "few" && c !== "many"),
       allowed: ["zero", "one", "two", "other"],
@@ -1983,14 +1986,19 @@ export function pluralBranch(
     ordinal = false,
     library,
     picked,
+    rules,
   }: {
     ordinal?: boolean;
     library?: Library;
     picked?: readonly string[];
+    rules?: "default" | "cldr";
   } = {},
 ): string {
   // An empty value is no count at all, not zero (#859).
   if (value.trim() === "") return "other";
+  // easy_localization with `ignorePluralRules: false` picks CLDR's
+  // category, a written zero no more than any other (#961).
+  const byValue = library === "easy_localization" && rules !== "cldr";
   const own = library === "counterpart" || library === "easy_localization";
   const exact = `=${value.trim()}`;
   if (!own && Object.hasOwn(branches, exact)) return exact;
@@ -2002,8 +2010,7 @@ export function pluralBranch(
   if (Number.isFinite(n) && !ordinal) {
     if (library === "counterpart")
       return written(n === 0 ? "zero" : n === 1 ? "one" : undefined);
-    if (library === "easy_localization")
-      return written(["zero", "one", "two"][n]);
+    if (byValue) return written(["zero", "one", "two"][n]);
     if (
       (library === "rails" || library === "i18next") &&
       n === 0 &&

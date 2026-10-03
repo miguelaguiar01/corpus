@@ -290,9 +290,10 @@ export const stringEntrySchema = z.looseObject({
         .min(1),
     )
     .optional(),
-  // The runtime's own plural rule where the source names one (#1018):
-  // vue-i18n's default, under which the forms are read by count. Additive.
-  pluralRules: z.literal("default").optional(),
+  // The runtime's own plural rule where the source names one: vue-i18n's
+  // default, under which the forms are read by count (#1018), or
+  // easy_localization's CLDR picking (#961). Additive.
+  pluralRules: z.enum(["default", "cldr"]).optional(),
   // What the repository says about this one string, for a translator:
   // an ARB's @key.description (§4, #567). Never written back.
   note: z.string().min(1).optional(),
