@@ -876,16 +876,17 @@ test("an id in two files of one source is one string when its text is the same; 
     path.join(dir, "shared", "en.json"),
     JSON.stringify({ save: "Save", close: "Close" }),
   );
-  const merged = config({
+  const input = {
     languages: ["en"],
     sources: [
       {
-        adapter: "messages",
+        adapter: "messages" as const,
         type: "ui",
         path: ["app/{lang}.json", "shared/{lang}.json"],
       },
     ],
-  });
+  };
+  const merged = config(input);
   const snapshot = await buildSnapshot(merged, dir);
   expect(snapshot.strings.map((s) => s.id).sort()).toEqual([
     "close",
@@ -903,35 +904,19 @@ test("an id in two files of one source is one string when its text is the same; 
     JSON.stringify({ save: "Salvar" }),
   );
   await expect(
-    buildSnapshot(config({ ...merged, languages: ["en", "pt"] }), dir),
+    buildSnapshot(config({ ...input, languages: ["en", "pt"] }), dir),
   ).rejects.toThrow(
     /shared\/pt\.json: save is translated otherwise in app\/pt\.json/,
   );
-  // A group written in the config merges nothing.
-  await expect(
-    buildSnapshot(
-      config({
-        languages: ["en"],
-        sources: [
-          {
-            adapter: "messages",
-            type: "ui",
-            path: "app/{lang}.json",
-            group: 0,
-          },
-          {
-            adapter: "messages",
-            type: "ui",
-            path: "shared/{lang}.json",
-            group: 0,
-          },
-        ] as never,
-      }),
-      dir,
-    ),
-  ).rejects.toThrow(
-    /duplicate id save in app\/en\.json and shared\/en\.json$/m,
-  );
+  // A group written in the config is no key of it (#998).
+  expect(() =>
+    config({
+      languages: ["en"],
+      sources: [
+        { adapter: "messages", type: "ui", path: "app/{lang}.json", group: 0 },
+      ] as never,
+    }),
+  ).toThrow(/group is no key of a messages source/);
   writeFileSync(
     path.join(dir, "shared", "en.json"),
     JSON.stringify({ save: "Save changes" }),
@@ -1783,7 +1768,6 @@ test("an Android language falls back to its language's directory only where that
           adapter: "android",
           type: "ui",
           path: "res",
-          languageDirs: { "pt-BR": "values-pt" },
         },
       ],
     }),
