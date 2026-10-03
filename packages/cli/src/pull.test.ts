@@ -2324,3 +2324,77 @@ export default defineCorpus({
   expect(await run(["validate"], checked)).toBe(0);
   expect(checked.output.join("\n")).not.toContain("app/fr.json");
 });
+
+test("a messages source whose sourcePath is a committed target reads its keys as the text: no source file needed, no proposal, and a new language takes none of the template's text (#999)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de", "fr", "it"],
+  sources: [
+    { adapter: "messages", type: "ui", path: "locale/{lang}/translations.json", sourcePath: "locale/de/translations.json", keyIsText: true },
+  ],
+});
+`,
+  );
+  mkdirSync(path.join(repo, "locale", "de"), { recursive: true });
+  mkdirSync(path.join(repo, "locale", "fr"), { recursive: true });
+  const de = `{\n    "Save changes": "Änderungen speichern",\n    "{count} unread": "",\n    "Log out": "Abmelden"\n}\n`;
+  const fr = `{\n    "Save changes": "",\n    "{count} unread": "{count} non lus",\n    "Log out": ""\n}\n`;
+  writeFileSync(path.join(repo, "locale", "de", "translations.json"), de);
+  writeFileSync(path.join(repo, "locale", "fr", "translations.json"), fr);
+  const out = path.join(repo, "snapshot.json");
+  const built = ctx();
+  expect(await run(["build", "--out", out], built)).toBe(0);
+  expect(built.output.join("\n")).toContain(
+    "locale/de/translations.json: its 3 key(s) are the source text, as keyIsText says, and its values are read as the translations they are",
+  );
+  const snapshot = JSON.parse(readFileSync(out, "utf8")) as {
+    strings: {
+      id: string;
+      source: string;
+      keyIsText?: boolean;
+      file?: string;
+    }[];
+    seedTranslations: Record<string, Record<string, string>>;
+    sources?: unknown[];
+  };
+  // Its keys are the code's: no file takes a new string either.
+  expect(snapshot.sources).toEqual([]);
+  expect(
+    snapshot.strings.map((s) => [s.id, s.source, s.keyIsText, s.file]),
+  ).toEqual([
+    ["Save changes", "Save changes", true, undefined],
+    ["{count} unread", "{count} unread", true, undefined],
+    ["Log out", "Log out", true, undefined],
+  ]);
+  expect(snapshot.seedTranslations).toEqual({
+    de: { "Save changes": "Änderungen speichern", "Log out": "Abmelden" },
+    fr: { "{count} unread": "{count} non lus" },
+  });
+  const checked = ctx();
+  expect(await run(["validate"], checked)).toBe(0);
+  await serve(200, {
+    ...PAYLOAD,
+    types: { "Save changes": "ui", "{count} unread": "ui", "Log out": "ui" },
+    translations: {
+      de: { "Save changes": "Änderungen speichern", "Log out": "Abmelden" },
+      fr: { "{count} unread": "{count} non lus" },
+      it: { "Log out": "Esci" },
+    },
+    minState: "untranslated",
+  });
+  expect(await run(["pull"], ctx())).toBe(0);
+  // The template is written only as the target it is.
+  expect(read("locale/de/translations.json")).toBe(de);
+  expect(read("locale/fr/translations.json")).toBe(fr);
+  expect(existsSync(path.join(repo, "locale", "en"))).toBe(false);
+  // A new language takes its translations alone, none of the template's.
+  expect(read("locale/it/translations.json")).toBe(
+    `{\n    "Log out": "Esci"\n}\n`,
+  );
+});

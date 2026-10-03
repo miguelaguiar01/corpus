@@ -2399,3 +2399,182 @@ test("init's formatjs detection applies only where the catalogue would read as i
   writeFileSync(path.join(bad.dir, "package.json"), "null");
   expect(await run(FLAGS, bad.ctx)).toBe(0);
 });
+
+test("init with no source-language JSON, where every target holds one key set of sentences, writes a sourcePath with keyIsText: true (#999)", async () => {
+  const p = project();
+  const keys = ["Save changes", "{count} unread", "Log out"];
+  write(
+    p.dir,
+    "locale/de/translations.json",
+    JSON.stringify({
+      "Save changes": "Änderungen speichern",
+      "{count} unread": "{count} ungelesen",
+      "Log out": "",
+    }),
+  );
+  write(
+    p.dir,
+    "locale/fr/translations.json",
+    JSON.stringify(Object.fromEntries(keys.map((k) => [k, ""]))),
+  );
+  expect(await run(initFor("locale/{lang}/translations.json"), p.ctx)).toBe(0);
+  const config = await loadConfig(p.dir);
+  expect(config.sources[0]).toMatchObject({
+    adapter: "messages",
+    path: "locale/{lang}/translations.json",
+    sourcePath: "locale/de/translations.json",
+    keyIsText: true,
+  });
+  expect(p.err.join("\n")).toContain(
+    "corpus: no locale/en/translations.json, and the 2 target files hold one key set of sentences: sourcePath is locale/de/translations.json, with keyIsText: true reading its keys as the text",
+  );
+  expect(await run(["build", "--out", "s.json"], p.ctx)).toBe(0);
+  const snapshot = JSON.parse(readFileSync(path.join(p.dir, "s.json"), "utf8"));
+  expect(snapshot.strings.map((s: { source: string }) => s.source)).toEqual(
+    keys,
+  );
+
+  // Key sets that differ are no such catalogue.
+  const q = project();
+  write(
+    q.dir,
+    "locale/de/translations.json",
+    JSON.stringify({ "Log out": "" }),
+  );
+  write(
+    q.dir,
+    "locale/fr/translations.json",
+    JSON.stringify({ "Log out": "", "Save changes": "" }),
+  );
+  expect(await run(initFor("locale/{lang}/translations.json"), q.ctx)).toBe(0);
+  expect((await loadConfig(q.dir)).sources[0]).not.toHaveProperty("keyIsText");
+
+  // A file of the source's language under another code may be the
+  // source itself: init stands aside, as it did before.
+  const r = project();
+  for (const [lang, text] of [
+    ["en-US", "Sign out"],
+    ["de", "Abmelden"],
+    ["fr", "Déconnexion"],
+  ])
+    write(
+      r.dir,
+      `locales/${lang}.json`,
+      JSON.stringify({ "Log out": text, "Save changes": "" }),
+    );
+  expect(await run(initFor("locales/{lang}.json"), r.ctx)).toBe(0);
+  expect((await loadConfig(r.dir)).sources[0]).not.toHaveProperty("keyIsText");
+  expect(r.err.join("\n")).toContain("no locales/en.json");
+  // Ghost's empty-valued en/ beside a regional source language, too.
+  const g = project();
+  for (const lang of ["en", "de", "fr"])
+    write(
+      g.dir,
+      `locales/${lang}/comments.json`,
+      JSON.stringify({ "Log out": lang === "en" ? "" : `${lang} out` }),
+    );
+  expect(
+    await run(initFor("locales/{lang}/comments.json", "en-US"), g.ctx),
+  ).toBe(0);
+  expect((await loadConfig(g.dir)).sources[0]).not.toHaveProperty("keyIsText");
+  // An en-US whose values are all filled, most of them its keys, is a
+  // natural-keys source, not a variant; init names it.
+  const u = project();
+  for (const [lang, values] of [
+    ["en-US", ["Log out", "Save changes", "Colour"]],
+    ["de", ["Abmelden", "", ""]],
+    ["fr", ["", "", ""]],
+  ] as const)
+    write(
+      u.dir,
+      `locales/${lang}.json`,
+      JSON.stringify({
+        "Log out": values[0],
+        "Save changes": values[1],
+        "The color": values[2],
+      }),
+    );
+  expect(await run(initFor("locales/{lang}.json"), u.ctx)).toBe(0);
+  expect((await loadConfig(u.dir)).sources[0]).not.toHaveProperty("keyIsText");
+  expect(u.err.join("\n")).toContain(
+    "corpus: no locales/en.json; locales/en-US.json may be the source language's file under another code: pass --source en-US if so",
+  );
+  // A file no language's (#994's base.json), or one that does not read
+  // as flat strings, is a reason to stand aside, never a target.
+  for (const extra of [
+    ["locales/base.json", JSON.stringify({ "Log out": "Sign out" })],
+    ["locales/en-GB.json", JSON.stringify({ "Log out": { one: "x" } })],
+    ["locales/en-GB.json", "{ not json"],
+  ]) {
+    const b = project();
+    write(b.dir, "locales/de.json", JSON.stringify({ "Log out": "Abmelden" }));
+    write(b.dir, "locales/fr.json", JSON.stringify({ "Log out": "" }));
+    write(b.dir, extra[0]!, extra[1]!);
+    await run(initFor("locales/{lang}.json"), b.ctx);
+    const written = path.join(b.dir, "corpus.config.mjs");
+    if (existsSync(written))
+      expect(readFileSync(written, "utf8")).not.toContain("keyIsText");
+  }
+  // i18next's plural suffixes are forms whose English no key holds.
+  const pl = project();
+  for (const lang of ["de", "fr"])
+    write(
+      pl.dir,
+      `locales/${lang}.json`,
+      JSON.stringify({ "{count} month_one": "", "{count} month_other": "" }),
+    );
+  expect(await run(initFor("locales/{lang}.json"), pl.ctx)).toBe(0);
+  expect(pl.err.join("\n")).toContain(
+    "the targets' keys carry plural suffixes (_one, _other), whose English no key holds",
+  );
+  expect(
+    readFileSync(path.join(pl.dir, "corpus.config.mjs"), "utf8"),
+  ).not.toContain("keyIsText");
+  // A file named for no language is named.
+  const nb = project();
+  write(nb.dir, "locales/de.json", JSON.stringify({ "Log out": "Abmelden" }));
+  write(nb.dir, "locales/fr.json", JSON.stringify({ "Log out": "" }));
+  write(nb.dir, "locales/base.json", JSON.stringify({ "Log out": "Sign out" }));
+  await run(initFor("locales/{lang}.json"), nb.ctx);
+  expect(nb.err.join("\n")).toContain(
+    "corpus: no locales/en.json; locales/base.json names no language",
+  );
+  // Another script of the source's language is a target.
+  const zh = project();
+  for (const [lang, text] of [
+    ["zh_Hant", "登出"],
+    ["de", "Abmelden"],
+  ])
+    write(
+      zh.dir,
+      `locales/${lang}.json`,
+      JSON.stringify({ "Log out": text, "Save changes": "" }),
+    );
+  expect(await run(initFor("locales/{lang}.json", "zh-Hans"), zh.ctx)).toBe(0);
+  expect((await loadConfig(zh.dir)).sources[0]).toMatchObject({
+    keyIsText: true,
+  });
+  // A variant whose values are mostly its keys, Zulip's en_GB, is a
+  // target, never the one chosen.
+  const z = project();
+  for (const [lang, values] of [
+    ["en_GB", ["Log out", "Save changes", ""]],
+    ["de", ["Abmelden", "", ""]],
+    ["fr", ["", "", ""]],
+  ] as const)
+    write(
+      z.dir,
+      `locale/${lang}/translations.json`,
+      JSON.stringify({
+        "Log out": values[0],
+        "Save changes": values[1],
+        "The color": values[2],
+      }),
+    );
+  expect(await run(initFor("locale/{lang}/translations.json"), z.ctx)).toBe(0);
+  expect((await loadConfig(z.dir)).sources[0]).toMatchObject({
+    sourcePath: "locale/de/translations.json",
+    keyIsText: true,
+  });
+  expect(z.err.join("\n")).not.toContain("source values are empty");
+});

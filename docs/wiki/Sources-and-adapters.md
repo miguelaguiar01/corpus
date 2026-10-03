@@ -16,6 +16,14 @@ An object whose keys are all plural categories, `other` among them, is one strin
 
 `{lang}` is required and is filled with each language in turn, so the source language's file is what push reads, and every other file is a translation it already has when the path is `.json`. Nested objects flatten to dotted keys, so `{ "editor": { "save": "Save" } }` is the string `editor.save`. A number, `true`, `false` or `null` is no string and is skipped, so a `"version": 2` beside the strings is fine; `build` counts those in the source file, since a string set to `null` is archived on the next push. A list is refused by name, since i18next's `returnObjects` lists hold text Corpus would otherwise lose without a word: in the source file it is left out and `push` exits 1 naming it, and in a translation file it is not seeded and a pull leaves it as it is. A file of entry objects, `{ "hello": { "messageformat": "Hello", "description": "…" } }` as Signal and FormatJS's extract formats write, is read by an [exec](#exec) source for now; `corpus init` says so rather than write a config that reads each field as a string.
 
+Where the source language's file is generated and git ignores it, as Zulip's `makemessages` writes `locale/en/translations.json` from the code, while every committed language's file holds the same keys, which are the English text, name one of those files as the source and say its keys are the text:
+
+```ts
+{ adapter: "messages", type: "ui", path: "locale/{lang}/translations.json", sourcePath: "locale/de/translations.json", keyIsText: true }
+```
+
+Every key of `de/translations.json` is then a string whose text is the key, and its values are German translations as any target's are. Since the code holds the text, a proposal on one of these strings is refused, saying to change it in the code, and the source takes no new string. A pull writes `de/translations.json` only as the German file it is, and a new language's file holds its translations alone. `corpus init` writes this where the source language has no file and the targets all hold one set of sentence keys. It stands aside, saying why, where a key carries a plural suffix (`{count} month_one`), whose English no key holds; where a file names no language (`base.json`); and where a file of the source's language under another code, `en-US.json` beside a source language of `en`, may be the source itself; a variant such as Zulip's `en_GB`, partly filled and mostly with its keys as its values, is a target like the rest.
+
 The path may put the language anywhere, including in a directory:
 
 ```ts

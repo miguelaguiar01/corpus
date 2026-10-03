@@ -13,6 +13,7 @@ import {
   gettextToEntries,
   androidLanguageOf,
   isChromeMessages,
+  keyIsSentence,
   parseXcstrings,
   pluralBranches,
   yamlStrings,
@@ -107,9 +108,13 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       `--messages must contain {lang}, such as src/i18n/{lang}.json`,
     );
   }
-  const { adapter, sourcePath } =
+  const { adapter, sourcePath, keyIsText } =
     res !== undefined
-      ? { adapter: "android" as const, sourcePath: undefined }
+      ? {
+          adapter: "android" as const,
+          sourcePath: undefined,
+          keyIsText: undefined,
+        }
       : formatOf(ctx, messages, sourceLanguage, catalog !== undefined);
   // An XLIFF unit's text is ICU, as a Fluent message is read as ICU,
   // and a flag that cannot apply is refused rather than dropped.
@@ -212,7 +217,15 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       !args.includes("--library") &&
       !args.includes("--syntax"))
       ? {}
-      : await libraryFor(args, ctx.cwd, messages, sourceLanguage, type, ctx);
+      : await libraryFor(
+          args,
+          ctx.cwd,
+          messages,
+          sourceLanguage,
+          type,
+          ctx,
+          keyIsText ? sourcePath : undefined,
+        );
   const library = detected.library;
   const components = checkIncludeFor(ctx.cwd, res ?? messages);
   const include = components.include;
@@ -227,6 +240,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     type,
     path: res ?? messages,
     ...(sourcePath && { sourcePath }),
+    ...(keyIsText && { keyIsText }),
     ...(library &&
       (adapter !== "messages" || library.value !== "icu") && {
         library: library.value,
@@ -356,6 +370,7 @@ type InitSource = {
   type: string;
   path: string;
   sourcePath?: string;
+  keyIsText?: boolean;
   library?: Library;
   languageFiles?: Record<string, string>;
 };
@@ -442,7 +457,7 @@ function formatOf(
   messages: string,
   sourceLanguage: string,
   catalogued: boolean,
-): { adapter: InitSource["adapter"]; sourcePath?: string } {
+): { adapter: InitSource["adapter"]; sourcePath?: string; keyIsText?: true } {
   if (catalogued) return { adapter: "xcstrings" };
   const sourceFile = path.join(
     ctx.cwd,
@@ -558,6 +573,30 @@ function formatOf(
       );
     }
     return { adapter: "qt-ts", ...(sourcePath && { sourcePath }) };
+  }
+  // A generated source file git ignores, beside targets that each hold
+  // its keys, the English text (#999): Zulip's makemessages output.
+  const keyed =
+    missing && /\.json$/i.test(messages) && !messages.includes("{ns}")
+      ? textKeyedTarget(ctx.cwd, messages, sourceLanguage)
+      : undefined;
+  if (keyed && "other" in keyed)
+    ctx.err(
+      `corpus: no ${relative}; ${keyed.other} names no language: if it is the source language's file, map it with languageFiles, or, if a committed target's keys are the source text, set sourcePath and keyIsText: true`,
+    );
+  if (keyed && "plural" in keyed)
+    ctx.err(
+      `corpus: no ${relative}; the targets' keys carry plural suffixes (_one, _other), whose English no key holds, so none is read as the source`,
+    );
+  if (keyed && "aside" in keyed)
+    ctx.err(
+      `corpus: no ${relative}; ${keyed.aside} may be the source language's file under another code: pass --source ${keyed.tag} if so, or, where its keys are the text, set sourcePath to a committed target with keyIsText: true`,
+    );
+  if (keyed && "file" in keyed) {
+    ctx.err(
+      `corpus: no ${relative}, and the ${keyed.files} target files hold one key set of sentences: sourcePath is ${keyed.file}, with keyIsText: true reading its keys as the text`,
+    );
+    return { adapter: "messages", sourcePath: keyed.file, keyIsText: true };
   }
   // Every format's build reads the source language's file (#856).
   if (
@@ -719,7 +758,7 @@ function render(plain: boolean, config: InitConfig): string {
   sourceLanguage: ${q(config.sourceLanguage)},
   languages: [${config.languages.map(q).join(", ")}],
 ${config.sourceVariants ? `  sourceVariants: [${config.sourceVariants.map(q).join(", ")}],\n` : ""}  sources: [
-    { adapter: ${q(source.adapter)}, type: ${q(source.type)}, path: ${q(source.path)}${source.sourcePath ? `, sourcePath: ${q(source.sourcePath)}` : ""}${library}${
+    { adapter: ${q(source.adapter)}, type: ${q(source.type)}, path: ${q(source.path)}${source.sourcePath ? `, sourcePath: ${q(source.sourcePath)}` : ""}${source.keyIsText ? ", keyIsText: true" : ""}${library}${
       source.languageFiles
         ? `, languageFiles: { ${Object.entries(source.languageFiles)
             .map(([tag, code]) => `${q(tag)}: ${q(code)}`)
@@ -902,6 +941,9 @@ async function libraryFor(
   sourceLanguage: string,
   type: string,
   ctx: RunContext,
+  // A committed target whose keys are the text (#999), read in place of
+  // the source language's file.
+  textKeyed?: string,
 ): Promise<{
   library?: { value: Library; detected?: string; why?: string };
   note?: string;
@@ -935,7 +977,8 @@ async function libraryFor(
         pattern.replaceAll("{ns}", ns),
       )
     : [pattern];
-  const file = concretes[0]?.replaceAll("{lang}", sourceLanguage) ?? pattern;
+  const file =
+    textKeyed ?? concretes[0]?.replaceAll("{lang}", sourceLanguage) ?? pattern;
   let texts: string[];
   let ids: string[];
   let keyed = 0;
@@ -944,11 +987,16 @@ async function libraryFor(
     texts = [];
     ids = [];
     for (const concrete of concretes) {
-      const source: FileSource = { adapter: "messages", type, path: concrete };
+      const source: FileSource = {
+        adapter: "messages",
+        type,
+        path: concrete,
+        ...(textKeyed && { sourcePath: textKeyed, keyIsText: true }),
+      };
       const entries = await readEntries(
         jiti,
         cwd,
-        concrete.replaceAll("{lang}", sourceLanguage),
+        textKeyed ?? concrete.replaceAll("{lang}", sourceLanguage),
         source,
         true,
       );
@@ -1026,7 +1074,8 @@ async function libraryFor(
         ? { note }
         : {};
   // Ghost's shape (#589): the sentence is the key and the value is "".
-  if (keyed > 0 && keyed * 2 >= texts.length) {
+  // A committed target named as the source says its own why (#999).
+  if (!textKeyed && keyed > 0 && keyed * 2 >= texts.length) {
     return {
       ...asIcu(),
       note: noted(
@@ -1222,6 +1271,101 @@ function gitIgnored(ctx: RunContext, rel: string): void {
     ctx.err(
       `corpus: ${rel} is git-ignored, so it is generated: commit it, or point the source at a file that is committed`,
     );
+}
+
+// The target to read as the source where every JSON target holds one
+// key set, most of it sentences (#999): the one with the most text, so
+// what it seeds is the most. None where any file the pattern fills is
+// no language's or does not read as flat strings, or where a file of
+// the source's own language under another code may be the source
+// itself (`en-US.json` for `en`, Ghost's empty `en/`), which `aside`
+// names: only a variant partly filled and mostly with its keys as its
+// values, as Zulip's en_GB is, is a target like the rest.
+function textKeyedTarget(
+  cwd: string,
+  pattern: string,
+  sourceLanguage: string,
+):
+  | { file: string; files: number }
+  | { aside: string; tag: string }
+  | { other: string }
+  | { plural: true }
+  | undefined {
+  // The language and, where both write one, the script: zh_Hant is not
+  // zh-Hans's file under another code.
+  const parts = (tag: string) => {
+    const [language, ...rest] = tag.toLowerCase().split(/[-_]/);
+    return { language, script: rest.find((p) => /^[a-z]{4}$/.test(p)) };
+  };
+  const same = (a: string, b: string) => {
+    const x = parts(a);
+    const y = parts(b);
+    return (
+      x.language === y.language &&
+      (x.script === undefined ||
+        y.script === undefined ||
+        x.script === y.script)
+    );
+  };
+  const read: {
+    file: string;
+    tag: string;
+    keys: string;
+    sentences: number;
+    size: number;
+    filled: number;
+    echoed: number;
+  }[] = [];
+  const filling = filesFilling(cwd, pattern);
+  if (filling.length < 2) return undefined;
+  // A file of no language is named once the files are this catalogue's.
+  let other: string | undefined;
+  for (const { code, file } of filling) {
+    const tag = posixTag(code) ?? (LANGUAGE_RE.test(code) ? code : undefined);
+    if (tag === undefined) {
+      other ??= file;
+      continue;
+    }
+    let data: unknown;
+    try {
+      data = JSON.parse(stripBom(readFileSync(path.join(cwd, file), "utf8")));
+    } catch {
+      return undefined;
+    }
+    if (data === null || typeof data !== "object" || Array.isArray(data))
+      return undefined;
+    const entries = Object.entries(data);
+    if (entries.some(([, v]) => typeof v !== "string")) return undefined;
+    read.push({
+      file,
+      tag,
+      keys: entries
+        .map(([k]) => k)
+        .sort()
+        .join("\0"),
+      sentences: entries.filter(([k]) => keyIsSentence(k)).length,
+      size: entries.length,
+      filled: entries.filter(([, v]) => (v as string).trim() !== "").length,
+      echoed: entries.filter(([k, v]) => k === v).length,
+    });
+  }
+  if (read.some((r) => r.keys !== read[0]!.keys)) return undefined;
+  // A plural's forms are keys of their own (`{count} item_one`), whose
+  // English no key holds (#999).
+  if (read[0]!.size === 0 || read[0]!.sentences * 2 < read[0]!.size)
+    return undefined;
+  if (read[0]!.keys.split("\0").some((k) => PLURAL_SUFFIX_RE.test(k)))
+    return { plural: true };
+  if (other) return { other };
+  const own = read.filter((r) => same(r.tag, sourceLanguage));
+  const source = own.find(
+    (r) => r.filled === 0 || r.filled === r.size || r.echoed * 2 <= r.filled,
+  );
+  if (source) return { aside: source.file, tag: source.tag };
+  const chosen = read
+    .filter((r) => !own.includes(r))
+    .sort((a, b) => b.filled - a.filled || a.file.localeCompare(b.file))[0];
+  return chosen && { file: chosen.file, files: read.length };
 }
 
 // The target `.po` whose msgids stand for the source's where no template

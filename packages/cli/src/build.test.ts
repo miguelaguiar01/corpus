@@ -1975,3 +1975,36 @@ test('a vue source\'s pluralRules: "default" travels on its entries (#1018)', as
   });
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("a keyIsText source under a namespace prefixes its ids, never its text (#999, #998)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-keyed-ns-"));
+  mkdirSync(path.join(dir, "locale", "de"), { recursive: true });
+  writeFileSync(
+    path.join(dir, "locale", "de", "translations.json"),
+    JSON.stringify({ "Log out": "Abmelden" }),
+  );
+  const report = await buildSnapshotReport(
+    config({
+      sourceLanguage: "en",
+      languages: ["en", "de"],
+      sources: [
+        {
+          adapter: "messages",
+          type: "ui",
+          path: "locale/{lang}/translations.json",
+          sourcePath: "locale/de/translations.json",
+          keyIsText: true,
+          namespace: "web",
+        },
+      ],
+    }),
+    dir,
+  );
+  expect(
+    report.snapshot.strings.map((s) => [s.id, s.source, s.keyIsText]),
+  ).toEqual([["web:Log out", "Log out", true]]);
+  expect(report.snapshot.seedTranslations).toEqual({
+    de: { "web:Log out": "Abmelden" },
+  });
+  rmSync(dir, { recursive: true, force: true });
+});

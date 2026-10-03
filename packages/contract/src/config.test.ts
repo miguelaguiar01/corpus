@@ -600,7 +600,7 @@ test("a source that reads no sourcePath refuses one by name (#994)", () => {
       sourcePath: "i18n/base.json",
     }),
   ).toEqual([
-    'messages reads no sourcePath; map the source language with languageFiles: { en: "base" }',
+    'messages reads no sourcePath without keyIsText: true, which reads its keys as the text; map the source language with languageFiles: { en: "base" }',
   ]);
   expect(
     issues({
@@ -641,7 +641,7 @@ test("a source that reads no sourcePath refuses one by name (#994)", () => {
       sourcePath: "src/Card/Header/i18n/base.json",
     }),
   ).toEqual([
-    'messages reads no sourcePath; map the source language with languageFiles: { en: "base" }',
+    'messages reads no sourcePath without keyIsText: true, which reads its keys as the text; map the source language with languageFiles: { en: "base" }',
   ]);
   expect(
     issues({
@@ -651,7 +651,7 @@ test("a source that reads no sourcePath refuses one by name (#994)", () => {
       sourcePath: "b/root.json",
     }),
   ).toEqual([
-    'messages reads no sourcePath; map the source language with languageFiles: { en: "root" }',
+    'messages reads no sourcePath without keyIsText: true, which reads its keys as the text; map the source language with languageFiles: { en: "root" }',
   ]);
   expect(
     issues({
@@ -1062,4 +1062,125 @@ test("a file source's languages are a subset of the project's; one it does not l
   expect(
     issues({ adapter: "exec", command: "node x.mjs", languages: ["de"] }),
   ).toEqual(["languages is no key of an exec source"]);
+});
+
+test("a messages source's sourcePath names a committed target whose keys are the text, with keyIsText: true and not without (#999)", () => {
+  const base = {
+    project: "p",
+    server: "http://localhost:3000",
+    sourceLanguage: "en",
+    languages: ["en", "de", "fr"],
+  };
+  const issues = (source: object) => {
+    const parsed = corpusConfigSchema.safeParse({ ...base, sources: [source] });
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  const zulip = {
+    adapter: "messages",
+    type: "ui",
+    path: "locale/{lang}/translations.json",
+    sourcePath: "locale/de/translations.json",
+    keyIsText: true,
+  };
+  expect(issues(zulip)).toEqual([]);
+  expect(issues({ ...zulip, keyIsText: undefined })).toEqual([
+    "messages reads no sourcePath without keyIsText: true, which reads its keys as the text; add it where the keys of de's file are the source text",
+  ]);
+  expect(issues({ ...zulip, sourcePath: undefined })).toEqual([
+    "keyIsText reads the keys of the file sourcePath names as the text; name a committed target file with sourcePath",
+  ]);
+  expect(
+    issues({
+      ...zulip,
+      path: ["locale/{lang}/a.json", "locale/{lang}/b.json"],
+    }),
+  ).toEqual([
+    "keyIsText takes one path pattern with no {ns}: sourcePath is one file, and its keys are the text of every file the pattern names",
+  ]);
+  expect(issues({ ...zulip, path: "locale/{lang}/{ns}.json" })).toEqual([
+    "keyIsText takes one path pattern with no {ns}: sourcePath is one file, and its keys are the text of every file the pattern names",
+  ]);
+  expect(issues({ ...zulip, library: "chrome" })).toEqual([
+    "keyIsText reads a catalogue whose keys are the text; Chrome's keys are message names",
+  ]);
+  // The advice for a target language's file is never a mapping the
+  // schema refuses.
+  expect(
+    issues({
+      adapter: "fluent",
+      type: "ui",
+      path: "l/{lang}/main.ftl",
+      sourcePath: "l/fr/main.ftl",
+    }),
+  ).toEqual([
+    "fluent reads no sourcePath; it is fr's file, which cannot be the source's too",
+  ]);
+  // A source that cannot take keyIsText is not told to add it, and a file
+  // outside the pattern is told no mapping helps.
+  expect(
+    issues({
+      adapter: "messages",
+      type: "ui",
+      path: ["a/{lang}.json", "b/{lang}.json"],
+      sourcePath: "a/fr.json",
+    }),
+  ).toEqual([
+    "messages reads no sourcePath without keyIsText: true, which reads its keys as the text; it is fr's file, which cannot be the source's too",
+  ]);
+  expect(
+    issues({
+      adapter: "fluent",
+      type: "ui",
+      path: "l/{lang}/main.ftl",
+      sourcePath: "elsewhere/main.ftl",
+    }),
+  ).toEqual([
+    "fluent reads no sourcePath; elsewhere/main.ftl is no file the pattern names, so no languageFiles mapping makes it the source's",
+  ]);
+  // Through languageFiles: a mapped file is its language's, and an
+  // existing mapping of the source language is named.
+  expect(
+    issues({
+      adapter: "fluent",
+      type: "ui",
+      path: "l/{lang}/main.ftl",
+      languageFiles: { fr: "fr_FR" },
+      sourcePath: "l/fr_FR/main.ftl",
+    }),
+  ).toEqual([
+    "fluent reads no sourcePath; it is fr's file, which cannot be the source's too",
+  ]);
+  expect(
+    issues({
+      adapter: "fluent",
+      type: "ui",
+      path: "l/{lang}/main.ftl",
+      languageFiles: { fr: "fr_FR" },
+      sourcePath: "l/fr/main.ftl",
+    }),
+  ).toEqual([
+    'fluent reads no sourcePath; map the source language with languageFiles: { en: "fr" }',
+  ]);
+  expect(
+    issues({
+      adapter: "fluent",
+      type: "ui",
+      path: "l/{lang}/main.ftl",
+      languageFiles: { en: "en-US" },
+      sourcePath: "l/en/main.ftl",
+    }),
+  ).toEqual([
+    'fluent reads no sourcePath; languageFiles maps en to "en-US"; map it to "en" instead',
+  ]);
+  expect(issues({ ...zulip, sourcePath: "locale/{lang}/x.json" })).toHaveLength(
+    1,
+  );
+  expect(
+    issues({
+      adapter: "yaml",
+      type: "ui",
+      path: "c/{lang}.yml",
+      keyIsText: true,
+    }),
+  ).toEqual(["keyIsText is no key of a yaml source"]);
 });

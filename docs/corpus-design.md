@@ -124,6 +124,33 @@ export default defineCorpus({
     //    a string carries no file, so a proposal on it is refused, and
     //    build says how many took the key. A file with no sentence key
     //    keeps its empty values empty: rows an extraction tool left.
+    //    Where the source language's file is generated and ignored, as
+    //    Zulip's makemessages writes `locale/en/translations.json`, a
+    //    `sourcePath` names a committed target with `keyIsText: true`
+    //    (#999): every key of that file is a string whose text is the
+    //    key, with no file, so a proposal on it is refused and the
+    //    source takes no new string, its values are read as that
+    //    language's translations, and pull writes it only as that
+    //    target, a new language's file taking its translations alone. A
+    //    `sourcePath` without `keyIsText`, or `keyIsText` without one or
+    //    over a list of patterns, is refused by name; init writes the
+    //    pair where the source language has no file and every target
+    //    holds one key set, most of it sentences, naming the target with
+    //    the most text, and stands aside, naming the file, where one of
+    //    the source's own language under another code may be the source
+    //    itself (`en-US.json` for `en`, Ghost's empty `en/`): only one
+    //    partly filled and mostly with its keys as its values, a variant
+    //    as Zulip's en_GB is, is a target; and where any file the
+    //    pattern fills is no language's (#994's `base.json`) or does not
+    //    read as flat strings. A plural object in that file, or under
+    //    `library: "i18next"` a suffix family, is one string whose text
+    //    is its bare key, not a plural, since the key is all the text the
+    //    file holds, and under any other library each suffixed key is a
+    //    string whose text is the key as written, so init stands aside
+    //    where a key carries a plural suffix (`{count} month_one`);
+    //    under a `namespace` the id takes the prefix and the text does
+    //    not. `keyIsText` takes one pattern with no `{ns}`, and no
+    //    `library: "chrome"`, whose keys are message names.
     //    A null, number or boolean value is no string, as in yaml, and
     //    is skipped, left by a pull, a source's counted in a build note
     //    since push archives a string that became one; a list is
