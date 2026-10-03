@@ -63,7 +63,8 @@ export type Finding = {
     | "unread-plural"
     | "unread-message"
     | "short-numerus"
-    | "shared-differs";
+    | "shared-differs"
+    | "unreadable-file";
   // A plural missing a category the runtime picks, or with one it never
   // selects, is incomplete, not invalid (#556, #651): printed apart, and
   // never the reason for exit 1. A source's warning (#767) is the same.
@@ -98,6 +99,7 @@ function oneForAll(f: Finding): boolean {
 }
 
 function line(f: Finding): string {
+  if (f.code === "unreadable-file") return `${f.file}: ${f.message}`;
   return oneForAll(f)
     ? `${f.file} [${printable(f.key)}] ${f.language}: ${f.message}`
     : `${f.file}:${printable(f.key)}: ${f.message}`;
@@ -127,7 +129,10 @@ export async function validate(
   const isSource = (f: Finding) =>
     f.code === "invalid-icu" && f.language === config.sourceLanguage;
   const sources = invalid.filter(isSource);
-  const problems = invalid.filter((f) => !isSource(f));
+  const unreadable = invalid.filter((f) => f.code === "unreadable-file");
+  const problems = invalid.filter(
+    (f) => !isSource(f) && f.code !== "unreadable-file",
+  );
   // A translation is a string's row in a language, as the server holds
   // it: an id two files of one source share is one (#1013).
   const translations = new Set(
@@ -161,6 +166,9 @@ export async function validate(
         : "",
       sources.length
         ? `${sources.length} source string(s) that do not parse, which build refuses`
+        : "",
+      unreadable.length
+        ? `${unreadable.length} target file(s) that do not read`
         : "",
       orphans.length
         ? `${byKey.size} orphan key(s) in ${new Set(orphans.map((f) => f.file)).size} file(s)`
@@ -318,6 +326,8 @@ export async function validateRepo(
     );
     for (const language of targets) {
       const file = fileOf(source, language, config.sourceLanguage);
+      // A target file that does not read is its own finding (#1028), and
+      // the others are still checked.
       const translations = await texts(
         jiti,
         cwd,
@@ -353,7 +363,17 @@ export async function validateRepo(
                 },
           ),
         pluralIds,
-      );
+      ).catch((error: unknown) => {
+        findings.push({
+          file,
+          key: "",
+          language,
+          code: "unreadable-file",
+          severity: "invalid",
+          message: `does not read: ${(error as Error).message.replace(`${file}: `, "")}`,
+        });
+        return undefined;
+      });
       if (translations === undefined) continue;
       // A numerus translation short of Qt's forms is the file's defect:
       // a count past them shows the source text (#1004).
@@ -643,7 +663,7 @@ async function validateServer(
 ): Promise<
   { findings: Finding[]; unchecked: Unchecked[]; checked: number } | undefined
 > {
-  const { snapshot, refused, origin } = await buildSnapshotReport(
+  const { snapshot, refused, origin, unreadable } = await buildSnapshotReport(
     config,
     ctx.cwd,
   );
@@ -660,6 +680,16 @@ async function validateServer(
     severity: "invalid",
     message: r.message,
   }));
+  // A target file that does not read is the repository's too (#1028).
+  for (const { file, language, message } of unreadable)
+    findings.push({
+      file,
+      key: "",
+      language,
+      code: "unreadable-file",
+      severity: "invalid",
+      message: `does not read: ${message}`,
+    });
   const refusedIds = new Set(refused.map((r) => r.id));
   const strings = new Map(snapshot.strings.map((e) => [e.id, e]));
   const fileSources = new Map<string, FileSource>();
