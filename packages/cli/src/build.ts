@@ -371,12 +371,14 @@ export async function buildSnapshotReport(
     const pluralForms = pluralFormsOf(cwd, source, config, (note) => {
       if (!notes.includes(note)) notes.push(note);
     });
+    const targets = sourceTargets(source, config);
     for (const entry of entries) {
       validateEntry(
         {
           ...entry,
           ...withPluralForms(entryPluralForms(entry, source, pluralForms)),
           ...namedPluralRules(source),
+          ...(targets && { languages: targets }),
           // A key-is-text entry carries no file: a proposal would rewrite
           // the key, which is the code's, not the catalogue's.
           ...(writable && !entry.keyIsText ? { file } : {}),
@@ -1028,6 +1030,30 @@ export async function readEntries(
     : entries;
 }
 
+// Whether a source's strings take a language (#1006): every one the
+// project lists, unless the source lists the ones it ships; the source
+// language always.
+export function takesLanguage(
+  source: Source,
+  config: CorpusConfig,
+  language: string,
+): boolean {
+  const own = source.adapter === "exec" ? undefined : source.languages;
+  return !own || language === config.sourceLanguage || own.includes(language);
+}
+
+// The target languages a source names, in the project's order; none
+// where it takes them all.
+export function sourceTargets(
+  source: Source,
+  config: CorpusConfig,
+): string[] | undefined {
+  if (source.adapter === "exec" || !source.languages) return undefined;
+  return config.languages.filter(
+    (l) => l !== config.sourceLanguage && takesLanguage(source, config, l),
+  );
+}
+
 // An id as the snapshot carries it: a namespaced file's are `ns:key`
 // (#513, #998), and every reader of a raw file goes through this.
 export function namespaced(source: FileSource, id: string): string {
@@ -1198,6 +1224,7 @@ function gettextPluralForms(
   const out: Record<string, string[]> = {};
   for (const lang of config.languages) {
     if (lang === config.sourceLanguage) continue;
+    if (!takesLanguage(source, config, lang)) continue;
     const rel = fileOf(source, lang, config.sourceLanguage);
     const file = path.join(cwd, rel);
     const tag = languageOfFile(rel, source);
@@ -1418,6 +1445,7 @@ function readSuggestions(
     if (source.adapter !== "gettext") continue;
     for (const lang of config.languages) {
       if (lang === config.sourceLanguage) continue;
+      if (!takesLanguage(source, config, lang)) continue;
       const file = fileOf(source, lang, config.sourceLanguage);
       if (!existsSync(path.join(cwd, file))) continue;
       const text = readFileSync(path.join(cwd, file), "utf8");
@@ -1515,6 +1543,14 @@ async function readSeeds(
       if (lang === config.sourceLanguage) continue;
       const file = fileOf(source, lang, config.sourceLanguage);
       if (!existsSync(path.join(cwd, file))) continue;
+      if (!takesLanguage(source, config, lang)) {
+        // A String Catalog holds every language in its one file.
+        if (source.adapter !== "xcstrings")
+          notes.push(
+            `${file}: ${lang} is not among the source's languages (${sourceTargets(source, config)!.join(", ")}), so none of its translations are read`,
+          );
+        continue;
+      }
       const unread: string[] = [];
       try {
         for (const entry of await readEntries(

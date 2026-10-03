@@ -7,6 +7,7 @@ import {
 } from "@corpus/contract";
 import type { Db } from "@/db";
 import { strings, stringTranslations } from "@/db/schema";
+import { takenRow } from "@/translations/taken";
 import { sourceChangesFor } from "@/proposals/service";
 
 const RANK: Record<MinState, number> = Object.fromEntries(
@@ -38,7 +39,13 @@ export function pullPayload(
     })
     .from(stringTranslations)
     .innerJoin(strings, eq(strings.id, stringTranslations.stringId))
-    .where(and(eq(strings.projectId, project.id), eq(strings.archived, false)))
+    .where(
+      and(
+        eq(strings.projectId, project.id),
+        eq(strings.archived, false),
+        takenRow,
+      ),
+    )
     .all();
 
   // Keys come from pushed data; null-prototype maps keep a key such as

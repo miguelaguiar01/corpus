@@ -46,6 +46,7 @@ import {
   readsPluralObjects,
   readsSuffixPlurals,
   sourceWritesBack,
+  takesLanguage,
   takesProposals,
   writeBackRefusal,
 } from "./build";
@@ -183,6 +184,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
         config.sourceLanguage,
       ).catch(() => undefined);
       for (const language of targets) {
+        if (!takesLanguage(member, config, language)) continue;
         const file = fileOf(member, language, config.sourceLanguage);
         if (targetTexts.has(file)) continue;
         targetTexts.set(
@@ -263,6 +265,8 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     );
     const members = membersOf(source);
     for (const language of targets) {
+      // A language the source does not ship gets no file (#1006).
+      if (!takesLanguage(source, config, language)) continue;
       const file = fileOf(source, language, config.sourceLanguage);
       // A String Catalog is one file for every language: each language
       // writes into what the one before it left.
@@ -387,6 +391,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
         : undefined;
     if (removals.length > 0 && hasLanguages(source)) {
       for (const language of allTargets) {
+        if (!takesLanguage(source, config, language)) continue;
         files.push([
           fileOf(source, language, config.sourceLanguage),
           removals,

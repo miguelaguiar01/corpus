@@ -25,6 +25,7 @@ import { PendingAdds } from "@/components/pending-adds";
 import { Banner } from "@/components/ui/banner";
 import { buttonVariants } from "@/components/ui/button";
 import { stringPath } from "@/strings/paths";
+import { takenLanguages } from "@/strings/languages";
 import { t } from "@/i18n";
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -166,7 +167,7 @@ export default async function CataloguePage({
                   stringId={row.stringId}
                   type={row.type}
                   source={row.source}
-                  languages={project.languages}
+                  languages={takenLanguages(project.languages, row.languages)}
                   states={row.states}
                   shown={filteredLanguage ? [filteredLanguage] : undefined}
                   pending={pending.has(row.stringId)}

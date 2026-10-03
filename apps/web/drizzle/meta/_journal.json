@@ -197,6 +197,13 @@
       "when": 1791051685371,
       "tag": "0027_string-plural-rules",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "6",
+      "when": 1791061888019,
+      "tag": "0028_string-languages",
+      "breakpoints": true
     }
   ]
 }

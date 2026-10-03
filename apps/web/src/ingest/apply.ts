@@ -19,7 +19,7 @@ import {
   stringTranslations,
 } from "@/db/schema";
 import { reconcileProposals } from "@/proposals/service";
-import { ensureTranslationRows } from "@/translations/rows";
+import { ensureTranslationRows, dropUntakenRows } from "@/translations/rows";
 import {
   diffSnapshot,
   STALE_STATES,
@@ -102,6 +102,7 @@ function stringWrites(
     arguments: p("arguments"),
     pluralForms: p("pluralForms"),
     pluralRules: p("pluralRules"),
+    languages: p("languages"),
     note: p("note"),
     syntax: p("syntax"),
   };
@@ -126,6 +127,13 @@ function stringWrites(
     arguments: entry.arguments ? JSON.stringify(entry.arguments) : null,
     pluralForms: entry.pluralForms ? JSON.stringify(entry.pluralForms) : null,
     pluralRules: entry.pluralRules ?? null,
+    // Stored with the source language, which every string takes.
+    languages: entry.languages
+      ? JSON.stringify([
+          sourceLanguage,
+          ...entry.languages.filter((l) => l !== sourceLanguage),
+        ])
+      : null,
     note: entry.note ?? null,
     syntax: entryLibrary(entry),
   });
@@ -361,11 +369,6 @@ export function applySnapshot(
       const bySnapshotId = new Map(snapshot.strings.map((s) => [s.id, s]));
       const currentRowId = new Map(current.map((c) => [c.stringId, c.rowId]));
 
-      // A language added in settings before this push, or before rows
-      // were created on adding one: existing strings get their rows. The
-      // strings this push creates get every row in their insert, so it
-      // runs first and a first push has nothing to scan.
-      ensureTranslationRows(tx, projectId, targetLanguages);
       // What the project reads as HTML once this push lands.
       const richText = snapshot.richText ?? project.richText ?? {};
       // A seed identical to the source counts as translated in a variant
@@ -389,11 +392,6 @@ export function applySnapshot(
         richText,
         counts,
       );
-      writes.insert(
-        projectId,
-        plan.insert.map((id) => bySnapshotId.get(id)!),
-      );
-
       for (const id of plan.refresh)
         writes.refresh(currentRowId.get(id)!, bySnapshotId.get(id)!);
 
@@ -409,6 +407,19 @@ export function applySnapshot(
           !fromEmpty.has(id),
         );
       }
+
+      // A language added in settings before this push, or before rows
+      // were created on adding one, and one a string's languages gained
+      // (#1006): existing strings get their rows, after the refresh has
+      // set what each takes. The strings this push creates get every row
+      // in their insert, so it runs first and a first push has nothing
+      // to scan.
+      ensureTranslationRows(tx, projectId, targetLanguages);
+      writes.insert(
+        projectId,
+        plan.insert.map((id) => bySnapshotId.get(id)!),
+      );
+      dropUntakenRows(tx, projectId);
 
       if (plan.archive.length > 0) {
         tx.update(strings)

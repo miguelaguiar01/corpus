@@ -81,6 +81,10 @@ export type StringResponse = {
   // pluralise on or print though the source prints none. Present only
   // where the string has them; additive (#737).
   arguments?: string[];
+  // The target languages the string takes, where its source ships fewer
+  // than the project (#1006); a draft in another is refused as
+  // `not-taken`. Additive.
+  languages?: string[];
   // Every value the source takes, placeholders then counts, in source
   // order (under printf, in position order, #739), with the type's declaration for the slot and the first
   // example's value per language (§5, §7); additive.

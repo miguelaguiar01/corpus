@@ -6,6 +6,7 @@
 import { and, eq, gte, inArray, lt, ne } from "drizzle-orm";
 import type { Db } from "@/db";
 import { strings, stringTranslations } from "@/db/schema";
+import { takenRow } from "@/translations/taken";
 import type { TranslationState } from "@/translations/state";
 
 const SIBLINGS_SHOWN = 10;
@@ -127,12 +128,22 @@ export function siblingsOf(
   const shown = nearest(rows, string.key);
   const translations = shown.length
     ? db
-        .select()
+        .select({
+          stringId: stringTranslations.stringId,
+          language: stringTranslations.language,
+          state: stringTranslations.state,
+          stale: stringTranslations.stale,
+          text: stringTranslations.text,
+        })
         .from(stringTranslations)
+        .innerJoin(strings, eq(strings.id, stringTranslations.stringId))
         .where(
-          inArray(
-            stringTranslations.stringId,
-            shown.map((s) => s.id),
+          and(
+            inArray(
+              stringTranslations.stringId,
+              shown.map((s) => s.id),
+            ),
+            takenRow,
           ),
         )
         .all()
