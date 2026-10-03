@@ -811,7 +811,7 @@ test("hostile input is read in bounded time and fails cleanly, never with a thro
     `{n, plural, other {${"<b>{g, select, a {</b>} other {x}} ".repeat(150)}}} `.repeat(
       n,
     );
-  linear(shallow, 2, (text) => {
+  linear(shallow, 3, (text) => {
     const result = parseIcu(text, "icu", { html: "markup" });
     expect(!result.ok && result.errors[0]?.message).toMatch(/too many tags/);
   });
