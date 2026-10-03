@@ -941,7 +941,7 @@ test("an id in two files of one source is one string when its text is the same; 
       dir,
     ),
   ).rejects.toThrow(
-    /duplicate id save in app\/en\.json and shared\/en\.json$/m,
+    /duplicate id save in app\/en\.json and shared\/en\.json; give one source a namespace, such as namespace: "web", to keep their keys apart$/m,
   );
   rmSync(dir, { recursive: true, force: true });
 });

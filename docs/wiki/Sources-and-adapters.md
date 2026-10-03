@@ -378,4 +378,10 @@ export default defineCorpus({
 });
 ```
 
-Ids must be unique across all of them. Two sources holding the same id is a build error naming both files, which is what you want: it means one string has two homes and a pull would have to guess. Files the app merges into one catalogue are not two sources but one whose `path` is a list, as an Android app's modules' `res` directories are ([Your i18n library](Your-i18n-library#android-string-resources)): there an id two files hold is one string, and `merge` says which text wins where they differ.
+Ids must be unique across all of them. Two sources holding the same id is a build error naming both files, which is what you want: it means one string has two homes and a pull would have to guess. Two catalogues read by different runtimes, a React app's and its Rails server's, may well share keys that mean different things; give one of them a `namespace`, and its ids become `server:title`:
+
+```ts
+{ adapter: "yaml", type: "server", path: "config/locales/{lang}.yml", namespace: "server" }
+```
+
+The files keep their keys as they are: push adds the prefix, pull strips it, and a proposal from the workbench takes it. A namespace holds no `:` or space, and a source with a `{ns}` pattern, which prefixes its ids already, takes none. A key a source does not take is refused by name, with the one you likely meant. Files the app merges into one catalogue are not two sources but one whose `path` is a list, as an Android app's modules' `res` directories are ([Your i18n library](Your-i18n-library#android-string-resources)): there an id two files hold is one string, and `merge` says which text wins where they differ.

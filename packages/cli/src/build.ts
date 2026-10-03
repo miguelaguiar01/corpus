@@ -436,7 +436,7 @@ export async function buildSnapshotReport(
       );
     } else
       errors.push(
-        `duplicate id ${printable(entry.id)} in ${prev.file} and ${file}${oneSource ? ", with different text" : ""}`,
+        `duplicate id ${printable(entry.id)} in ${prev.file} and ${file}${oneSource ? ", with different text" : '; give one source a namespace, such as namespace: "web", to keep their keys apart'}`,
       );
   }
   if (merged.size > 0) {
@@ -935,53 +935,58 @@ export async function readEntries(
   // fills (#1028); a String Catalog's is its source's file.
   if (!sourceFile && source.adapter !== "xcstrings" && text().trim() === "")
     return [];
+  // A namespace prefixes every id the file holds (#998, #513), and
+  // what a reader cannot take is named by its prefixed id too.
+  const prefixed = <T extends { id: string }>(entries: T[]) =>
+    source.namespace ? entries.map((e) => ({ ...e, id: own(e.id) })) : entries;
+  const unread = (id: string, reason?: string) => onUnread?.(own(id), reason);
   switch (source.adapter) {
     case "xcstrings":
-      return sourceFile
-        ? xcstringsToEntries(text(), {
-            type: source.type,
-            ...(language !== undefined && { sourceLanguage: language }),
-          })
-        : typed(xcstringsTranslations(text(), language ?? ""));
-    case "android": {
-      const entries = androidToEntries(text(), { type: source.type });
-      // A `{ns}` module's ids are its own (#989).
-      return source.namespace
-        ? entries.map((e) => ({ ...e, id: `${source.namespace}:${e.id}` }))
-        : entries;
-    }
+      return prefixed(
+        sourceFile
+          ? xcstringsToEntries(text(), {
+              type: source.type,
+              ...(language !== undefined && { sourceLanguage: language }),
+            })
+          : typed(xcstringsTranslations(text(), language ?? "")),
+      );
+    case "android":
+      return prefixed(androidToEntries(text(), { type: source.type }));
     case "gettext":
-      return sourceFile
-        ? gettextToEntries(text(), { type: source.type })
-        : typed(gettextTranslations(text(), languageOfFile(file, source)));
+      return prefixed(
+        sourceFile
+          ? gettextToEntries(text(), { type: source.type })
+          : typed(gettextTranslations(text(), languageOfFile(file, source))),
+      );
     case "yaml": {
       // The root key is the file's own code for its language (`pt_BR`).
       const tag = sourceFile
         ? (language ?? languageOfFile(file, source))
         : languageOfFile(file, source);
       const root = fileCodeOf(source, tag);
-      return sourceFile
-        ? yamlToEntries(text(), { type: source.type, root })
-        : typed(yamlTranslations(text(), root, pluralIds));
+      return prefixed(
+        sourceFile
+          ? yamlToEntries(text(), { type: source.type, root })
+          : typed(yamlTranslations(text(), root, pluralIds)),
+      );
     }
     case "qt-ts":
-      return sourceFile
-        ? qtTsToEntries(text(), {
-            type: source.type,
-            ...(language !== undefined && { language }),
-          })
-        : typed(
-            qtTsTranslations(text(), languageOfFile(file, source), onUnread),
-          );
+      return prefixed(
+        sourceFile
+          ? qtTsToEntries(text(), {
+              type: source.type,
+              ...(language !== undefined && { language }),
+            })
+          : typed(
+              qtTsTranslations(text(), languageOfFile(file, source), unread),
+            ),
+      );
     case "xliff":
-      return sourceFile
-        ? xliffToEntries(text(), {
-            type: source.type,
-            onRefused: (id, reason) => onUnread?.(id, reason),
-          })
-        : typed(
-            xliffTranslations(text(), (id, reason) => onUnread?.(id, reason)),
-          );
+      return prefixed(
+        sourceFile
+          ? xliffToEntries(text(), { type: source.type, onRefused: unread })
+          : typed(xliffTranslations(text(), unread)),
+      );
     case "fluent": {
       const entries = fluentToEntries(text(), {
         type: source.type,
@@ -1483,6 +1488,7 @@ async function readSeeds(
       );
   }
   const seededFrom: Record<string, Record<string, string>> = {};
+  const seededOwner = new Map<string, unknown>();
   for (const source of config.sources) {
     if (source.adapter === "exec" || !hasLanguages(source)) continue;
     if (!sourceWritesBack(source)) continue;
@@ -1520,6 +1526,13 @@ async function readSeeds(
           // two that differ could not both survive a pull (#661).
           const seeded = (seeds[lang] ??= {})[entry.id];
           const from = (seededFrom[lang] ??= {})[entry.id];
+          // Two sources holding one id is the duplicate already said;
+          // only one source's files share a string (#998).
+          const owner = source.group ?? source;
+          const ownerKey = `${lang}\u0000${entry.id}`;
+          if (from !== undefined && seededOwner.get(ownerKey) !== owner)
+            continue;
+          seededOwner.set(ownerKey, owner);
           if (seeded !== undefined && from !== undefined) {
             if (seeded !== entry.source && lastWins(source)) {
               overridden += 1;

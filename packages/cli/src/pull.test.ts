@@ -2206,7 +2206,7 @@ export default defineCorpus({
   expect(await run(["build", "--out", out], refused)).toBe(1);
   const said = refused.output.join("\n");
   expect(said).toContain(
-    'duplicate id title in web/en.json and config/locales/en.yml; give one source a namespace (namespace: "web") to keep their keys apart',
+    'duplicate id title in web/en.json and config/locales/en.yml; give one source a namespace, such as namespace: "web", to keep their keys apart',
   );
   // Two sources' seeds are two strings' rows, never one string's.
   expect(said).not.toContain("translated otherwise");
