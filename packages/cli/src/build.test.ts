@@ -1900,3 +1900,33 @@ test("a file's own plural forms hold for its whole-count plurals, a source's plu
     entryPluralForms({ id: "c", type: "ui", source: "Hi" }, declared, own),
   ).toBeUndefined();
 });
+
+test('a vue source\'s pluralRules: "default" travels on its entries (#1018)', async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-vue-rule-"));
+  mkdirSync(path.join(dir, "i18n"));
+  writeFileSync(
+    path.join(dir, "i18n", "en.json"),
+    JSON.stringify({ minutes: "{n} minute | {n} minutes" }),
+  );
+  const snapshot = await buildSnapshot(
+    config({
+      languages: ["en"],
+      sources: [
+        {
+          adapter: "messages",
+          type: "ui",
+          path: "i18n/{lang}.json",
+          library: "vue",
+          pluralRules: "default",
+        },
+      ],
+    }),
+    dir,
+  );
+  expect(snapshot.strings[0]).toMatchObject({
+    id: "minutes",
+    library: "vue",
+    pluralRules: "default",
+  });
+  rmSync(dir, { recursive: true, force: true });
+});

@@ -873,3 +873,31 @@ test("an ordinal chip inserts a selectordinal with the language's ordinal keys (
   fireEvent.click(screen.getByRole("button", { name: "{age, selectordinal}" }));
   expect(textarea.value).toBe("{age, selectordinal, one {#} other {#}}");
 });
+
+test("under vue-i18n's default rule the editor says what each form is shown for, before any count goes wrong (#1018)", () => {
+  const show = (pluralRules?: "default") =>
+    render(
+      <TargetPane
+        action={vi.fn()}
+        source="{n} minute | {n} minutes"
+        syntax="vue"
+        {...(pluralRules && { pluralRules })}
+        slots={[]}
+        language="pl"
+        initialText=""
+        slug="mm"
+        stringKey="k"
+        openedVersion={1}
+        sourceLanguage="en"
+      />,
+    );
+  show("default");
+  expect(
+    screen.getByText(
+      "Under vue-i18n's default rule, write as many forms as the source, shown for =1 | other",
+    ),
+  ).toBeTruthy();
+  cleanup();
+  show();
+  expect(screen.queryByText(/vue-i18n's default rule/)).toBeNull();
+});

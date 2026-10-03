@@ -53,6 +53,11 @@ export type StringResponse = {
   // How many vue-i18n pipe forms the source has, 0 when it has none
   // (#660); additive.
   forms: number;
+  // Under vue-i18n's default rule, which the source names (#1018), what
+  // each of a translation's forms is shown for, by the source's count:
+  // ["=1", "other"] for two forms, ["=0", "=1", "other"] for three;
+  // absent elsewhere. Additive.
+  formMeanings?: string[];
   // The rich-text tags the source wraps text in (§5); additive.
   tags: string[];
   // "html" when the string's type is read by an HTML renderer (#622): a

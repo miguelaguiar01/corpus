@@ -230,3 +230,43 @@ test("get_string carries a language's suggestion, the row's state unchanged; a l
   applySnapshot(db, project.id, FIXTURE);
   expect("suggestion" in (await read()).translations.en!).toBe(false);
 });
+
+test("a vue string under vue-i18n's default rule says what each form is shown for, and an agent's draft of another count saves with the warning (#1018)", async () => {
+  const { db, project, token } = seeded;
+  const minutes = "vue.minutes";
+  applySnapshot(db, project.id, {
+    ...FIXTURE,
+    strings: [
+      ...FIXTURE.strings,
+      {
+        id: minutes,
+        type: FIXTURE.strings[0]!.type,
+        source: "{n} minute | {n} minutes",
+        library: "vue",
+        syntax: "vue",
+        pluralRules: "default",
+      },
+    ],
+  });
+  const body = (await (await string(token, minutes)).json()) as StringResponse;
+  expect(body.forms).toBe(2);
+  expect(body.formMeanings).toEqual(["=1", "other"]);
+  const plain = (await (await string(token, CONTINUE)).json()) as Record<
+    string,
+    unknown
+  >;
+  expect("formMeanings" in plain).toBe(false);
+  // A CLDR-minded Polish draft of three forms, which the rule reads
+  // shifted, saves and says so.
+  const draft = agentDraft(db, {
+    project,
+    key: minutes,
+    language: "en",
+    text: "{n} minuta | {n} minuty | {n} minut",
+  });
+  expect(draft).toMatchObject({
+    ok: true,
+    incomplete: [expect.stringContaining("3 forms read as =0 | =1 | other")],
+  });
+  applySnapshot(db, project.id, FIXTURE);
+});

@@ -65,20 +65,42 @@ const languageFiles = z
 // A target language's plural categories, where its runtime picks others
 // than CLDR's tolerant reading (#997): `{ he: ["one", "two", "many",
 // "other"] }`, `other` always among them.
+const pluralRulesTable = z.record(
+  languageCode(),
+  z
+    .array(z.enum(PLURAL_CATEGORIES))
+    .min(1)
+    .refine((categories) => categories.includes("other"), {
+      message:
+        "a plural's categories include other, which every runtime falls back to",
+    })
+    .refine((categories) => new Set(categories).size === categories.length, {
+      message: "a category is named once",
+    }),
+);
+// The table, or the runtime's own rule by name: `"default"`, vue-i18n's
+// built-in rule, under which the forms are read by count (#1018). Read
+// by the input's kind, so a table's own error says where it is.
 const pluralRules = z
-  .record(
-    languageCode(),
-    z
-      .array(z.enum(PLURAL_CATEGORIES))
-      .min(1)
-      .refine((categories) => categories.includes("other"), {
-        message:
-          "a plural's categories include other, which every runtime falls back to",
-      })
-      .refine((categories) => new Set(categories).size === categories.length, {
-        message: "a category is named once",
-      }),
-  )
+  .custom<"default" | z.infer<typeof pluralRulesTable>>()
+  .superRefine((value, ctx) => {
+    const read =
+      typeof value === "string"
+        ? z
+            .literal("default", {
+              error:
+                'pluralRules is "default", vue-i18n\'s default rule, or a table of categories per language',
+            })
+            .safeParse(value)
+        : pluralRulesTable.safeParse(value);
+    if (!read.success)
+      for (const issue of read.error.issues)
+        ctx.addIssue({
+          code: "custom",
+          message: issue.message,
+          path: issue.path,
+        });
+  })
   .optional();
 
 const messagesFields = {
@@ -402,8 +424,7 @@ export const corpusConfigSchema = z
           path: ["sourceVariants"],
         });
     c.sources.forEach((source, index) => {
-      const rules = (source as { pluralRules?: Record<string, unknown> })
-        .pluralRules;
+      const rules = (source as { pluralRules?: unknown }).pluralRules;
       if (source.adapter === "exec" && rules !== undefined)
         ctx.addIssue({
           code: "custom",
@@ -411,7 +432,34 @@ export const corpusConfigSchema = z
             "an exec source's entries carry their own plural forms; pluralRules does not apply",
           path: ["sources", index, "pluralRules"],
         });
-      for (const language of Object.keys(rules ?? {}))
+      if (rules === "default" && source.adapter !== "exec") {
+        const set = source as { library?: string; syntax?: string };
+        // The library the build reads the source as, its adapter's own
+        // where the config names none.
+        const library =
+          set.library ??
+          set.syntax ??
+          (
+            {
+              gettext: "printf",
+              xcstrings: "printf",
+              "qt-ts": "qt",
+              yaml: "rails",
+              android: "android",
+              fluent: "fluent",
+            } as Record<string, string>
+          )[source.adapter] ??
+          "icu";
+        if (library !== "vue")
+          ctx.addIssue({
+            code: "custom",
+            message: `pluralRules: "default" is vue-i18n's default rule; this source's library is ${library}`,
+            path: ["sources", index, "pluralRules"],
+          });
+      }
+      const table =
+        rules !== null && typeof rules === "object" ? Object.keys(rules) : [];
+      for (const language of table)
         if (!c.languages.includes(language))
           ctx.addIssue({
             code: "custom",

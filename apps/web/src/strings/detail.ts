@@ -42,6 +42,8 @@ export type StringDetail = {
     arguments: string[] | null;
     // Per target language, a gettext file's plural categories (#951).
     pluralForms: Record<string, string[]> | null;
+    // The runtime's own plural rule, vue-i18n's default (#1018).
+    pluralRules: "default" | null;
     // How the text is read: its type's richText, or a Rails `_html`
     // key's (#988).
     richText: TextReading | null;
@@ -162,6 +164,7 @@ export function stringDetail(
       syntax: string.syntax ?? "icu",
       arguments: string.arguments ?? null,
       pluralForms: string.pluralForms ?? null,
+      pluralRules: string.pluralRules ?? null,
       richText:
         richTextFor(
           string.type,

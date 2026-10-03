@@ -1286,6 +1286,31 @@ test("a gettext plural's categories per language are kept on the row and reach t
   expect(stringRow(db, "%d note")?.pluralForms).toBeNull();
 });
 
+test("a vue string's plural rule is kept on the row, reaches its detail, and a push without it clears it (#1018)", () => {
+  const { db, project } = seed();
+  const snapshot: Snapshot = {
+    ...structuredClone(FIXTURE),
+    strings: [
+      {
+        id: "minutes",
+        type: FIXTURE.strings[0]!.type,
+        source: "{n} minute | {n} minutes",
+        library: "vue",
+        pluralRules: "default",
+      },
+    ],
+  };
+  applySnapshot(db, project.id, snapshot);
+  expect(stringRow(db, "minutes")?.pluralRules).toBe("default");
+  expect(stringDetail(db, project.id, "minutes")?.string.pluralRules).toBe(
+    "default",
+  );
+  const bare = structuredClone(snapshot);
+  delete bare.strings[0]!.pluralRules;
+  applySnapshot(db, project.id, bare);
+  expect(stringRow(db, "minutes")?.pluralRules).toBeNull();
+});
+
 test("a push's seed of a Rails _html key writes its own tags, but a tag it leaves unclosed is marked invalid (#988)", () => {
   const { db, project } = seed();
   const strings = [

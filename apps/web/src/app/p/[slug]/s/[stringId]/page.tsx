@@ -372,6 +372,7 @@ export default async function StringPage({
                 syntax={string.syntax}
                 passed={string.arguments}
                 pluralForms={string.pluralForms?.[target]}
+                pluralRules={string.pluralRules}
                 richText={string.richText}
                 slots={slots}
                 language={target}
