@@ -48,6 +48,16 @@ step "corpus validate (self catalog)"
 # The committed Portuguese catalogue must still satisfy its source's
 # placeholders and selects (§3), offline.
 node packages/cli/dist/bin.js validate
+# A key the English catalogue no longer has fails no project's validate
+# (#1023), but this catalogue keeps none (#1165).
+node packages/cli/dist/bin.js validate --json 2>/dev/null | node -e '
+  const orphans = JSON.parse(require("fs").readFileSync(0, "utf8")).filter(
+    (f) => f.severity === "orphan",
+  );
+  for (const f of orphans)
+    console.error(`${f.file}:${f.key}: the source no longer has this key`);
+  process.exit(orphans.length > 0 ? 1 : 0);
+'
 
 echo
 echo "=== gate: PASS ==="
