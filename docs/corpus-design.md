@@ -151,6 +151,23 @@ export default defineCorpus({
     //    under a `namespace` the id takes the prefix and the text does
     //    not. `keyIsText` takes one pattern with no `{ns}`, and no
     //    `library: "chrome"`, whose keys are message names.
+    //    A catalogue of entry objects, each its text in one field and
+    //    its note in another, as Signal's `{ messageformat, description }`
+    //    and FormatJS's extract formats write (`defaultMessage`,
+    //    `message`, `string`, `translation`), says so with
+    //    `entries: { text: "messageformat", note: "description" }`
+    //    (#1001): each top-level value whose text field is a string is
+    //    one string, read under the source's library, its note field its
+    //    note; other fields (`ignoreUnused`, `limit`) are the tool's and
+    //    not read, a top-level value that is no entry (Smartling's
+    //    `smartling` config) is skipped with a build note, and a pull or
+    //    a proposal writes the text field alone, every other byte kept,
+    //    a new entry taking the source's other string fields. `entries`
+    //    is refused under `library: "chrome"`, whose `{ message }`
+    //    entries are its own, and beside `keyIsText`; init writes it
+    //    where every value is an object holding one text field, the note
+    //    field the one of `description`, `developer_comment` and `notes`
+    //    most entries hold.
     //    A null, number or boolean value is no string, as in yaml, and
     //    is skipped, left by a pull, a source's counted in a build note
     //    since push archives a string that became one; a list is

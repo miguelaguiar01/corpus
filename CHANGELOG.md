@@ -24,6 +24,7 @@ contract (`corpus/1`) is the only one.
 - A source's `languages` names the languages it ships, so a client with fewer than the project's no longer counts the rest as work, and pull creates no file for them (#1006).
 - A messages source can name a committed translation as its `sourcePath` with `keyIsText: true`, its keys read as the text, for a project whose source-language file is generated and ignored; `init` writes it (#999).
 - A source can say `generated: true`, and an ignored, echoing or Angular-computed source file is detected as one: proposals into an extractor's output are refused with the reason, and Grafana's top-level `_comment` is no string (#1000).
+- A messages source of entry objects, Signal's `{ messageformat, description }` or FormatJS's extract formats, names its fields with `entries`, and `init` writes it where it used to point to an exec source (#1001).
 - Under chrome a bare `$1`–`$9` is a placeholder a translation keeps, and a lone `$`, a `$40` or a `$$NAME$` that Chrome reads otherwise is a warning (#631).
 - A translation file that does not read no longer stops the build: the other languages push, `validate` names it, and `pull` leaves it alone (#1028).
 - `corpus validate` lists orphan keys but no longer fails on them, so it can gate CI on a project a translation platform syncs (#1023).

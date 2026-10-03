@@ -321,7 +321,7 @@ export async function buildSnapshotReport(
     // it: said, so that is never silent (#1026).
     if (skipped.length > 0)
       notes.push(
-        `${file}: ${skipped.length} value(s) are no string (a number, true, false or null) and are not read (${skipped
+        `${file}: ${skipped.length} ${source.adapter === "messages" && source.entries ? `top-level value(s) are no entry with a string ${source.entries.text}` : "value(s) are no string (a number, true, false or null)"} and are not read (${skipped
           .slice(0, 3)
           .map(printable)
           .join(", ")}${skipped.length > 3 ? ", …" : ""})`,
@@ -1043,6 +1043,7 @@ export async function readEntries(
           type: source.type,
           arb: isArb(file),
           chrome: libraryOf(source) === "chrome",
+          ...(source.entries && { entries: source.entries }),
           keyIsText: sourceFile,
           plurals: readsPluralObjects(source),
           suffixPlurals: readsSuffixPlurals(source),

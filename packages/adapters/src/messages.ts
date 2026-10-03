@@ -30,9 +30,16 @@ export type MessagesOptions = {
   // A list Corpus cannot read as text, named with why and left out
   // (#1026); without this, the file's error.
   onRefused?: (id: string, reason: string) => void;
-  // A null, number or boolean, skipped.
+  // A null, number or boolean, skipped; and, in entry objects, a value
+  // that is no entry.
   onSkipped?: (id: string) => void;
+  // Entry objects, each its text in one field and its note in another
+  // (#1001): Signal's `{ messageformat, description }`, FormatJS's
+  // extract formats.
+  entries?: EntryFields;
 };
+
+export type EntryFields = { text: string; note?: string };
 
 const SUFFIX = /^(.+)_(zero|one|two|few|many|other)$/;
 
@@ -336,6 +343,7 @@ export function messagesToEntries(
   options: MessagesOptions,
 ): StringEntry[] {
   if (options.chrome) return chromeEntries(data, options.type);
+  if (options.entries) return fieldEntries(data, options, options.entries);
   const entries: StringEntry[] = [];
   if (
     options.arb &&
@@ -389,6 +397,37 @@ export function isChromeMessages(
         typeof (value as { message?: unknown }).message === "string",
     )
   );
+}
+
+// Each top-level value whose text field is a string is a string; any
+// other, a Smartling config object, is skipped and named. Fields beside
+// the two (`ignoreUnused`, `limit`) are the tool's, not read.
+function fieldEntries(
+  data: unknown,
+  options: MessagesOptions,
+  fields: EntryFields,
+): StringEntry[] {
+  if (data === null || typeof data !== "object" || Array.isArray(data))
+    throw new Error(
+      `messages: entries reads an object of entries, each its text in ${fields.text}`,
+    );
+  const entries: StringEntry[] = [];
+  for (const [id, value] of Object.entries(data)) {
+    const record =
+      value !== null && typeof value === "object" && !Array.isArray(value)
+        ? (value as Record<string, unknown>)
+        : undefined;
+    const text = record?.[fields.text];
+    if (typeof text !== "string") {
+      options.onSkipped?.(id);
+      continue;
+    }
+    const entry: StringEntry = { id, type: options.type, source: text };
+    const note = fields.note ? record![fields.note] : undefined;
+    if (typeof note === "string" && note.trim() !== "") entry.note = note;
+    entries.push(entry);
+  }
+  return entries;
 }
 
 function chromeEntries(data: unknown, type: string): StringEntry[] {

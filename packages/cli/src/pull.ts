@@ -562,6 +562,7 @@ function writeTarget(
       return entriesToMessages(template, translations, existing, {
         ...(isArb(file) && { locale: language }),
         chrome: libraryOf(source) === "chrome",
+        ...(source.entries && { entries: source.entries }),
         plurals: readsPluralObjects(source),
         suffixPlurals: readsSuffixPlurals(source),
         sourceLanguage: config.sourceLanguage,
@@ -650,6 +651,7 @@ function applyOps(
     case "messages":
       return applyMessagesOps(existing, ops, {
         chrome: libraryOf(source) === "chrome",
+        ...(source.entries && { entries: source.entries }),
         plurals: readsPluralObjects(source),
         suffixPlurals: readsSuffixPlurals(source),
         sourceLanguage,

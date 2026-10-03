@@ -24,6 +24,14 @@ Where the source language's file is generated and git ignores it, as Zulip's `ma
 
 Every key of `de/translations.json` is then a string whose text is the key, and its values are German translations as any target's are. Since the code holds the text, a proposal on one of these strings is refused, saying to change it in the code, and the source takes no new string. A pull writes `de/translations.json` only as the German file it is, and a new language's file holds its translations alone. `corpus init` writes this where the source language has no file and the targets all hold one set of sentence keys. It stands aside, saying why, where a key carries a plural suffix (`{count} month_one`), whose English no key holds; where a file names no language (`base.json`); and where a file of the source's language under another code, `en-US.json` beside a source language of `en`, may be the source itself; a variant such as Zulip's `en_GB`, partly filled and mostly with its keys as its values, is a target like the rest.
 
+A catalogue whose every value is an entry object, its text in one field and a note for the translator in another, as Signal Desktop's `_locales/{lang}/messages.json` and FormatJS's `extract --format` output are, names the two fields:
+
+```ts
+{ adapter: "messages", type: "ui", path: "_locales/{lang}/messages.json", entries: { text: "messageformat", note: "description" } }
+```
+
+Each entry's `messageformat` is the string, read as the source's library reads text, and its `description` the note the editor shows. Other fields, Signal's `ignoreUnused` or `limit`, are left as they are, and a top-level value that is no entry, Smartling's `smartling` config, is skipped with a note. A pull or a proposal changes the text field alone. `corpus init` writes `entries` when it finds the shape: FormatJS's formats name the text `defaultMessage`, `message`, `string` or `translation`. Chrome's `_locales` is `library: "chrome"` instead, which reads its own `{ message, description }` entries.
+
 The path may put the language anywhere, including in a directory:
 
 ```ts

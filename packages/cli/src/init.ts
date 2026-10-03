@@ -108,12 +108,13 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       `--messages must contain {lang}, such as src/i18n/{lang}.json`,
     );
   }
-  const { adapter, sourcePath, keyIsText } =
+  const { adapter, sourcePath, keyIsText, entries } =
     res !== undefined
       ? {
           adapter: "android" as const,
           sourcePath: undefined,
           keyIsText: undefined,
+          entries: undefined,
         }
       : formatOf(ctx, messages, sourceLanguage, catalog !== undefined);
   // An XLIFF unit's text is ICU, as a Fluent message is read as ICU,
@@ -225,6 +226,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
           type,
           ctx,
           keyIsText ? sourcePath : undefined,
+          entries,
         );
   const library = detected.library;
   const components = checkIncludeFor(ctx.cwd, res ?? messages);
@@ -241,6 +243,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     path: res ?? messages,
     ...(sourcePath && { sourcePath }),
     ...(keyIsText && { keyIsText }),
+    ...(entries && { entries }),
     ...(library &&
       (adapter !== "messages" || library.value !== "icu") && {
         library: library.value,
@@ -371,6 +374,7 @@ type InitSource = {
   path: string;
   sourcePath?: string;
   keyIsText?: boolean;
+  entries?: { text: string; note?: string };
   library?: Library;
   languageFiles?: Record<string, string>;
 };
@@ -457,7 +461,12 @@ function formatOf(
   messages: string,
   sourceLanguage: string,
   catalogued: boolean,
-): { adapter: InitSource["adapter"]; sourcePath?: string; keyIsText?: true } {
+): {
+  adapter: InitSource["adapter"];
+  sourcePath?: string;
+  keyIsText?: true;
+  entries?: { text: string; note?: string };
+} {
   if (catalogued) return { adapter: "xcstrings" };
   const sourceFile = path.join(
     ctx.cwd,
@@ -613,11 +622,13 @@ function formatOf(
   if (/\.ftl$/i.test(messages)) return { adapter: "fluent" };
   const unreadable = unreadableFile(sourceFile);
   if (unreadable) throw new CliError(`--messages ${messages}: ${unreadable}`);
-  const field = entryField(sourceFile);
-  if (field)
-    throw new CliError(
-      `--messages ${messages}: each value is an entry object with its text in ${field}, which the messages source would read as a string per field; an exec source converts it`,
+  const entries = entryFields(sourceFile);
+  if (entries) {
+    ctx.err(
+      `corpus: each value is an entry object: entries reads its text from ${entries.text}${entries.note ? ` and its note from ${entries.note}` : ""}`,
     );
+    return { adapter: "messages", entries };
+  }
   return { adapter: "messages" };
 }
 
@@ -643,6 +654,30 @@ const ENTRY_METADATA = new Set([
   "id",
   "meaning",
 ]);
+
+// The note field beside the text: the one of ENTRY_NOTES the most
+// entries hold as a string.
+const ENTRY_NOTES = ["description", "developer_comment", "notes"] as const;
+
+function entryFields(
+  file: string,
+): { text: string; note?: string } | undefined {
+  const text = entryField(file);
+  if (!text) return undefined;
+  const data = JSON.parse(stripBom(readFileSync(file, "utf8"))) as Record<
+    string,
+    Record<string, unknown>
+  >;
+  const values = Object.values(data).filter(
+    (v) => v !== null && typeof v === "object",
+  );
+  const counts = ENTRY_NOTES.map(
+    (note) =>
+      [note, values.filter((v) => typeof v[note] === "string").length] as const,
+  ).filter(([, n]) => n > 0);
+  const note = counts.sort((a, b) => b[1] - a[1])[0]?.[0];
+  return { text, ...(note && { note }) };
+}
 
 function entryField(file: string): string | undefined {
   if (!file.endsWith(".json") || chromeShaped(file)) return undefined;
@@ -758,7 +793,7 @@ function render(plain: boolean, config: InitConfig): string {
   sourceLanguage: ${q(config.sourceLanguage)},
   languages: [${config.languages.map(q).join(", ")}],
 ${config.sourceVariants ? `  sourceVariants: [${config.sourceVariants.map(q).join(", ")}],\n` : ""}  sources: [
-    { adapter: ${q(source.adapter)}, type: ${q(source.type)}, path: ${q(source.path)}${source.sourcePath ? `, sourcePath: ${q(source.sourcePath)}` : ""}${source.keyIsText ? ", keyIsText: true" : ""}${library}${
+    { adapter: ${q(source.adapter)}, type: ${q(source.type)}, path: ${q(source.path)}${source.sourcePath ? `, sourcePath: ${q(source.sourcePath)}` : ""}${source.keyIsText ? ", keyIsText: true" : ""}${source.entries ? `, entries: { text: ${q(source.entries.text)}${source.entries.note ? `, note: ${q(source.entries.note)}` : ""} }` : ""}${library}${
       source.languageFiles
         ? `, languageFiles: { ${Object.entries(source.languageFiles)
             .map(([tag, code]) => `${q(tag)}: ${q(code)}`)
@@ -944,6 +979,8 @@ async function libraryFor(
   // A committed target whose keys are the text (#999), read in place of
   // the source language's file.
   textKeyed?: string,
+  // Entry objects (#1001): their text field is the text.
+  entryObjects?: { text: string; note?: string },
 ): Promise<{
   library?: { value: Library; detected?: string; why?: string };
   note?: string;
@@ -992,6 +1029,7 @@ async function libraryFor(
         type,
         path: concrete,
         ...(textKeyed && { sourcePath: textKeyed, keyIsText: true }),
+        ...(entryObjects && { entries: entryObjects }),
       };
       const entries = await readEntries(
         jiti,
