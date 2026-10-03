@@ -1170,7 +1170,11 @@ export function validateTranslation(
         : 1;
     const expected = formsOf(parsedSource.nodes);
     const actual = formsOf(parsedTarget.nodes);
-    if (expected > 1 && actual !== expected)
+    // One form in a language whose every count reads alike (Japanese,
+    // Chinese) is that language's plural.
+    const oneCategory =
+      language !== undefined && pluralCategoriesOf(language).length === 1;
+    if (expected > 1 && actual !== expected && !(actual === 1 && oneCategory))
       errors.push({ code: "form-count", expected, actual });
   }
 

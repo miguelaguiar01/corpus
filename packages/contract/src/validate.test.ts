@@ -3091,6 +3091,12 @@ test("under vue-i18n's default rule a translation's number of forms is the sourc
     ok: true,
     incomplete: [{ code: "form-count", expected: 2, actual: 1 }],
   });
+  // One form is right where the language reads every count alike.
+  expect(
+    validateTranslation(source, "{n}日", "ja", "vue", {
+      pluralRules: "default",
+    }),
+  ).toEqual({ ok: true });
   // A plain source takes no forms either way.
   expect(
     validateTranslation("Save", "Zapisz", "pl", "vue", {

@@ -186,6 +186,7 @@ export function TargetPane({
   richText = null,
   passed,
   pluralForms,
+  pluralRules,
   slots,
   language,
   initialText,
@@ -206,6 +207,8 @@ export function TargetPane({
   // The plural categories the runtime picks where they are not CLDR's:
   // a gettext file's `Plural-Forms`' (#951), rails-i18n's (#983).
   pluralForms?: string[] | null;
+  // The runtime's own plural rule, vue-i18n's default (#1018).
+  pluralRules?: "default" | null;
   slots: Slot[];
   language: string;
   initialText: string;
@@ -241,6 +244,7 @@ export function TargetPane({
         richText: richText ?? undefined,
         ...(passed && { arguments: passed }),
         ...(pluralForms && { pluralForms }),
+        ...(pluralRules && { pluralRules }),
         // A Fluent term selects on what its callers pass (#1032).
         ...(syntax === "fluent" && isFluentTermId(stringKey) && { term: true }),
         sourceLanguage,

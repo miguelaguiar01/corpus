@@ -1,6 +1,7 @@
 import {
   isDroppedPlural,
   validateTranslation,
+  vueDefaultForms,
   type Library,
   type ValidationError,
   type TextReading,
@@ -83,6 +84,18 @@ export function validationMessage(
       return t("editor.nestedCount", { arg: error.arg });
     case "bare-at":
       return t("editor.bareAt", { literal: "{'@'}" });
+    case "form-count": {
+      const read = (n: number) =>
+        vueDefaultForms(n)
+          .map((meaning) => meaning ?? t("editor.formUnused"))
+          .join(" | ");
+      return t("editor.formCount", {
+        actual: error.actual,
+        actualForms: read(error.actual),
+        expected: error.expected,
+        expectedForms: read(error.expected),
+      });
+    }
     case "missing-category":
       return t("editor.missingCategory", { arg: error.arg, key: error.key });
     case "unexpected-category":

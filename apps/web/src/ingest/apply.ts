@@ -101,6 +101,7 @@ function stringWrites(
     keyIsText: p("keyIsText"),
     arguments: p("arguments"),
     pluralForms: p("pluralForms"),
+    pluralRules: p("pluralRules"),
     note: p("note"),
     syntax: p("syntax"),
   };
@@ -124,6 +125,7 @@ function stringWrites(
     // What the push says, as keyIsText: a push without it clears it.
     arguments: entry.arguments ? JSON.stringify(entry.arguments) : null,
     pluralForms: entry.pluralForms ? JSON.stringify(entry.pluralForms) : null,
+    pluralRules: entry.pluralRules ?? null,
     note: entry.note ?? null,
     syntax: entryLibrary(entry),
   });

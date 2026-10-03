@@ -1,4 +1,9 @@
-import { partsOf, type StringResponse, isHtml } from "@corpus/contract";
+import {
+  partsOf,
+  type StringResponse,
+  isHtml,
+  vueDefaultForms,
+} from "@corpus/contract";
 import { getDb } from "@/db";
 import { authenticateProject } from "@/api/bearer";
 import { apiError } from "@/api/body";
@@ -65,6 +70,12 @@ export async function GET(
     selects: [...parts.selects],
     plurals: [...parts.plurals],
     forms: parts.forms,
+    ...(detail.string.pluralRules === "default" &&
+      parts.forms > 1 && {
+        formMeanings: vueDefaultForms(parts.forms).map(
+          (meaning) => meaning ?? "unused",
+        ),
+      }),
     tags: [...parts.tags],
     // An agent reads either HTML reading as "html" (#988).
     richText: isHtml(detail.string.richText ?? undefined) ? "html" : null,

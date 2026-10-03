@@ -20,6 +20,7 @@ contract (`corpus/1`) is the only one.
 - Rails keys ending in `_html` are read as HTML: a translation's own tags are accepted, and broken markup in them is still caught (#988).
 - An Android app's modules are one project: an `android` source's `path` may list its `res` directories, with `merge`, and a `{ns}` captures a Compose Multiplatform module (#989).
 - A Fluent message Corpus cannot read is refused on its own instead of failing its whole file, and the build goes on (#991).
+- A vue source with `pluralRules: "default"` has a translation with another number of forms than the source's named, with what each form is shown for under vue-i18n's default rule (#1018).
 - A plural no longer needs a category only exact millions or decimals reach (French `many`), allows Hebrew `many`, and a source's `pluralRules` names the categories its runtime picks (#997).
 - A new `formatjs` library reads ICU's apostrophe quoting as react-intl, next-intl and svelte-i18n do, and `init` writes it when package.json names such a runtime; `icu` is unchanged (#1010).
 - A plural's preview shows the branch the string's library picks: counterpart's and easy_localization's own rules, and Rails' and i18next's `zero` (#963).

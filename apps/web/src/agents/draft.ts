@@ -66,6 +66,9 @@ export function agentDraft(
       ...(detail.string.pluralForms?.[language] && {
         pluralForms: detail.string.pluralForms[language],
       }),
+      ...(detail.string.pluralRules && {
+        pluralRules: detail.string.pluralRules,
+      }),
     },
   );
   if (!validation.ok) {
