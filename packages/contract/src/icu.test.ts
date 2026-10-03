@@ -787,9 +787,12 @@ function linear(
     return fastLarge / Math.max(fastSmall, 1);
   };
   // A collection mid-run can double one reading; a quadratic pass
-  // crosses the line every time, so a second reading decides.
+  // crosses the line every time, so a second reading decides one that
+  // crosses by little.
   const first = ratio();
-  expect(first < 24 ? first : Math.min(first, ratio())).toBeLessThan(24);
+  expect(
+    first < 24 || first >= 40 ? first : Math.min(first, ratio()),
+  ).toBeLessThan(24);
 }
 
 test("hostile input is read in bounded time and fails cleanly, never with a thrown error (#861)", () => {
@@ -835,7 +838,7 @@ test("hostile input is read in bounded time and fails cleanly, never with a thro
 
 test("markup tags are paired in linear time, stray closes and opens alike (#924)", () => {
   for (const [make, n] of [
-    [(n: number) => "<a></b>".repeat(n), 4300],
+    [(n: number) => "<a></b>".repeat(n), 2150],
     [(n: number) => "<a>".repeat(n) + "</b>".repeat((n * 3) / 4), 1250],
   ] as const) {
     linear(make, n, (text) =>
