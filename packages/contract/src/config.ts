@@ -41,11 +41,11 @@ const onePattern = (adapter: string) =>
           : undefined,
     })
     .refine((p) => p.includes("{lang}"), "path must contain {lang}");
-// `{ns}` only where the ids are prefixed with it, and a pull strips it
-// again (#854).
+// `{ns}` only where a catalogue is laid out one file per namespace
+// (#854); any other source takes a fixed `namespace` (#998).
 const noNamespace = <T extends z.ZodType<string>>(adapter: string, path: T) =>
   path.refine((p) => !p.includes("{ns}"), {
-    message: `${adapter} does not read {ns}: only messages, table, fluent and android do`,
+    message: `${adapter} does not read {ns}: only messages, table, fluent and android do; namespace: "<name>" prefixes this source's ids instead`,
   });
 const patterns = <T extends z.ZodType<string>>(pattern: T) =>
   z.union([pattern, z.array(pattern).min(1)]);
@@ -148,7 +148,7 @@ const namespace = z
   .string()
   .min(1)
   .regex(
-    /^[^:\s]+$/,
+    /^[^:\s]*$/,
     "a namespace holds no : or space, since : divides it from the key",
   )
   .optional();
@@ -491,11 +491,15 @@ export const corpusConfigSchema = z
       );
       const known = option ? Object.keys(option.shape) : [];
       for (const key of Object.keys(raw))
-        if (!known.includes(key) && !SAID_ELSEWHERE.has(key)) {
+        if (
+          raw[key] !== undefined &&
+          !known.includes(key) &&
+          !SAID_ELSEWHERE.has(key)
+        ) {
           const near = nearest(key, known);
           ctx.addIssue({
             code: "custom",
-            message: `${key} is no key of a${/^[aeiou]/.test(source.adapter) ? "n" : ""} ${source.adapter} source${near ? `; did you mean ${near}?` : ""}`,
+            message: `${key} is no key of a${/^[aeiox]/.test(source.adapter) ? "n" : ""} ${source.adapter} source${near ? `; did you mean ${near}?` : ""}`,
             path: ["sources", index, key],
           });
         }

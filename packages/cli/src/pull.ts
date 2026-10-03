@@ -40,6 +40,7 @@ import {
   hasLanguages,
   isArb,
   lastWins,
+  namespaced,
   readEntries,
   sourcePluralIds,
   readsPluralObjects,
@@ -368,7 +369,10 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     }
     const kept = stripped.ops;
     if (kept.length === 0) continue;
-    for (const op of kept) written.add(`${op.kind}\u0000${op.id}`);
+    // Counted by the id the server holds, its namespace kept: two files'
+    // `title` are two proposals.
+    for (const op of kept)
+      written.add(`${op.kind}\u0000${namespaced(source, op.id)}`);
     // Each file with the language code its root key is, for yaml.
     // The source's own file is rooted at its code too (#994).
     const files: [string, SourceOp[], string][] = [

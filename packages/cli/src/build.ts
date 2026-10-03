@@ -403,12 +403,16 @@ export async function buildSnapshotReport(
   // error.
   const groupOf = new Map<string, number>();
   const laterWins = new Set<string>();
+  // Files whose source could still take a namespace: an exec source's
+  // entries carry their own ids, and a source has one prefix at most.
+  const unprefixed = new Set<string>();
   for (const source of config.sources) {
     if (source.adapter === "exec") continue;
     const group = "group" in source ? source.group : undefined;
     const file = fileOf(source, config.sourceLanguage, config.sourceLanguage);
     if (typeof group === "number") groupOf.set(file, group);
     if (lastWins(source)) laterWins.add(file);
+    if (!source.namespace) unprefixed.add(file);
   }
   const byId = new Map<string, Sourced>();
   const merged = new Set<Sourced>();
@@ -436,7 +440,7 @@ export async function buildSnapshotReport(
       );
     } else
       errors.push(
-        `duplicate id ${printable(entry.id)} in ${prev.file} and ${file}${oneSource ? ", with different text" : '; give one source a namespace, such as namespace: "web", to keep their keys apart'}`,
+        `duplicate id ${printable(entry.id)} in ${prev.file} and ${file}${oneSource ? ", with different text" : unprefixed.has(file) || unprefixed.has(prev.file) ? '; give one source a namespace, such as namespace: "web", to keep their keys apart' : ""}`,
       );
   }
   if (merged.size > 0) {
@@ -928,8 +932,7 @@ export async function readEntries(
 ): Promise<StringEntry[]> {
   const typed = <T>(entries: T[]) =>
     entries.map((e) => ({ ...e, type: source.type }));
-  const own = (id: string) =>
-    source.namespace ? `${source.namespace}:${id}` : id;
+  const own = (id: string) => namespaced(source, id);
   const text = () => readFileSync(path.join(cwd, file), "utf8");
   // An empty target file is one with no translations yet, which a pull
   // fills (#1028); a String Catalog's is its source's file.
@@ -1023,6 +1026,12 @@ export async function readEntries(
         id: `${source.namespace}:${entry.id}`,
       }))
     : entries;
+}
+
+// An id as the snapshot carries it: a namespaced file's are `ns:key`
+// (#513, #998), and every reader of a raw file goes through this.
+export function namespaced(source: FileSource, id: string): string {
+  return source.namespace ? `${source.namespace}:${id}` : id;
 }
 
 // What a target file holds that Corpus cannot read, in a note or a
@@ -1412,13 +1421,15 @@ function readSuggestions(
       const file = fileOf(source, lang, config.sourceLanguage);
       if (!existsSync(path.join(cwd, file))) continue;
       const text = readFileSync(path.join(cwd, file), "utf8");
-      for (const entry of gettextSuggestions(text, lang))
+      for (const entry of gettextSuggestions(text, lang)) {
+        const id = namespaced(source, entry.id);
         if (
-          ids.has(entry.id) &&
+          ids.has(id) &&
           entry.source.trim() !== "" &&
-          seeds[lang]?.[entry.id] === undefined
+          seeds[lang]?.[id] === undefined
         )
-          (suggestions[lang] ??= {})[entry.id] = entry.source;
+          (suggestions[lang] ??= {})[id] = entry.source;
+      }
     }
   }
   const counts = Object.entries(suggestions).map(
@@ -1557,7 +1568,9 @@ async function readSeeds(
           const short = qtShortForms(
             readFileSync(path.join(cwd, file), "utf8"),
             lang,
-          ).filter((s) => ids.has(s.id));
+          )
+            .map((s) => ({ ...s, id: namespaced(source, s.id) }))
+            .filter((s) => ids.has(s.id));
           if (short.length > 0)
             notes.push(
               `${file}: ${short.length} numerus translation(s) hold fewer than the ${short[0]!.want} forms Qt's rule for ${lang} has, so a count past them shows the source text (${short

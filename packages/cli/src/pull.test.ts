@@ -2236,5 +2236,31 @@ export default defineCorpus({
   });
   expect(await run(["pull"], ctx())).toBe(0);
   expect(read("config/locales/de.yml")).toBe("de:\n  title: AGB\n");
-  expect(read("web/de.json")).toBe(`{ "title": "Bedingungen" }\n`);
+  expect(read("web/de.json")).toBe(`{ "title": "Bedingungen" }\n`); // Two files' `title` are two proposals, counted so.
+  await serve(200, {
+    ...PAYLOAD,
+    types: { title: "ui", "server:title": "server" },
+    translations: { de: {} },
+    minState: "untranslated",
+    sourceChanges: [
+      {
+        kind: "edit",
+        id: "title",
+        type: "ui",
+        file: "web/en.json",
+        text: "Terms of use",
+      },
+      {
+        kind: "edit",
+        id: "server:title",
+        type: "server",
+        file: "config/locales/en.yml",
+        text: "Terms of use",
+      },
+    ],
+  });
+  const proposed = ctx();
+  expect(await run(["pull"], proposed)).toBe(0);
+  expect(proposed.output.join("\n")).toContain("2 proposal(s) written");
+  expect(read("config/locales/en.yml")).toBe("en:\n  title: Terms of use\n");
 });

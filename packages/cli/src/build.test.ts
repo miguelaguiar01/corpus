@@ -943,6 +943,31 @@ test("an id in two files of one source is one string when its text is the same; 
   ).rejects.toThrow(
     /duplicate id save in app\/en\.json and shared\/en\.json; give one source a namespace, such as namespace: "web", to keep their keys apart$/m,
   );
+  // Two sources that both carry a namespace cannot be told to take one.
+  await expect(
+    buildSnapshot(
+      config({
+        languages: ["en"],
+        sources: [
+          {
+            adapter: "messages",
+            type: "ui",
+            path: "app/{lang}.json",
+            namespace: "web",
+          },
+          {
+            adapter: "messages",
+            type: "ui",
+            path: "shared/{lang}.json",
+            namespace: "web",
+          },
+        ],
+      }),
+      dir,
+    ),
+  ).rejects.toThrow(
+    /duplicate id web:save in app\/en\.json and shared\/en\.json$/m,
+  );
   rmSync(dir, { recursive: true, force: true });
 });
 
@@ -1147,6 +1172,42 @@ test("a gettext source reads a .pot and its .po files: msgids, fuzzy rows, plura
   expect(report.notes).toContain(
     "ru 1 fuzzy row(s) carried as suggestions, not translations",
   );
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("a namespaced gettext source's fuzzy rows are its own strings' suggestions, never another source's of the same key (#721, #998)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-gettext-ns-"));
+  mkdirSync(path.join(dir, "locales"));
+  mkdirSync(path.join(dir, "web"));
+  writeFileSync(path.join(dir, "web", "en.json"), `{ "Config": "Config" }\n`);
+  writeFileSync(
+    path.join(dir, "locales", "app.pot"),
+    `msgid ""\nmsgstr ""\n\nmsgid "Config"\nmsgstr ""\n\nmsgid "Hello"\nmsgstr ""\n`,
+  );
+  writeFileSync(
+    path.join(dir, "locales", "de.po"),
+    `msgid ""\nmsgstr ""\n"Language: de\\n"\n\n#, fuzzy\nmsgid "Config"\nmsgstr "Konfiguration"\n\n#, fuzzy\nmsgid "Hello"\nmsgstr "Hallo"\n`,
+  );
+  const report = await buildSnapshotReport(
+    config({
+      sourceLanguage: "en",
+      languages: ["en", "de"],
+      sources: [
+        { adapter: "messages", type: "ui", path: "web/{lang}.json" },
+        {
+          adapter: "gettext",
+          type: "server",
+          path: "locales/{lang}.po",
+          sourcePath: "locales/app.pot",
+          namespace: "server",
+        },
+      ],
+    }),
+    dir,
+  );
+  expect(report.snapshot.seedSuggestions).toEqual({
+    de: { "server:Config": "Konfiguration", "server:Hello": "Hallo" },
+  });
   rmSync(dir, { recursive: true, force: true });
 });
 

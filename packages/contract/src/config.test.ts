@@ -977,4 +977,29 @@ test("a file source's namespace prefixes its ids; refused on exec and beside {ns
       colour: "red",
     }),
   ).toEqual(["colour is no key of a gettext source"]);
+  expect(
+    issues({ adapter: "xliff", type: "ui", path: "x/{lang}.xlf", colour: 1 }),
+  ).toEqual(["colour is no key of an xliff source"]);
+  // A key spread in as undefined says nothing.
+  expect(
+    issues({
+      adapter: "messages",
+      type: "ui",
+      path: "l/{lang}.json",
+      colour: undefined,
+    }),
+  ).toEqual([]);
+  expect(
+    issues({
+      adapter: "messages",
+      type: "ui",
+      path: "l/{lang}.json",
+      namespace: "",
+    }),
+  ).toHaveLength(1);
+  expect(
+    issues({ adapter: "yaml", type: "ui", path: "c/{lang}/{ns}.yml" }),
+  ).toEqual([
+    'yaml does not read {ns}: only messages, table, fluent and android do; namespace: "<name>" prefixes this source\'s ids instead',
+  ]);
 });
