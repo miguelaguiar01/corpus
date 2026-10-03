@@ -2048,3 +2048,55 @@ export default defineCorpus({
     "l/en.json: 2 value(s) are no string (a number, true, false or null) and are not read (v, n)",
   );
 });
+
+test("a target file that does not read is skipped with a note: build seeds the rest, validate fails naming it, pull leaves it as it is (#1028)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de", "fr"],
+  sources: [{ adapter: "messages", type: "ui", path: "l/{lang}.json" }],
+});
+`,
+  );
+  mkdirSync(path.join(repo, "l"), { recursive: true });
+  writeFileSync(path.join(repo, "l", "en.json"), `{ "a": "A", "b": "B" }\n`);
+  const de = `{ "a": "A-de", "b": \n`;
+  writeFileSync(path.join(repo, "l", "de.json"), de);
+  writeFileSync(path.join(repo, "l", "fr.json"), `{ "a": "A-fr" }\n`);
+  const out = path.join(repo, "snapshot.json");
+  const built = ctx();
+  expect(await run(["build", "--out", out], built)).toBe(0);
+  const notes = built.output.join("\n");
+  expect(notes).toMatch(
+    /l\/de\.json: does not read, so none of its translations are seeded; corpus validate names it, and pull leaves it as it is \(/,
+  );
+  expect(notes.match(/l\/de\.json/g)).toHaveLength(1);
+  const snapshot = JSON.parse(readFileSync(out, "utf8")) as {
+    seedTranslations: Record<string, Record<string, string>>;
+  };
+  expect(snapshot.seedTranslations).toEqual({ fr: { a: "A-fr" } });
+  const checked = ctx();
+  expect(await run(["validate"], checked)).toBe(1);
+  expect(checked.output.join("\n")).toMatch(/l\/de\.json: does not read: /);
+  expect(checked.output.join("\n")).toContain(
+    "1 target file(s) that do not read",
+  );
+  await serve(200, {
+    ...PAYLOAD,
+    types: { a: "ui", b: "ui" },
+    translations: { de: { a: "A-de!" }, fr: { a: "A-fr", b: "B-fr" } },
+    minState: "untranslated",
+  });
+  const pulled = ctx();
+  expect(await run(["pull"], pulled)).toBe(0);
+  expect(read("l/de.json")).toBe(de);
+  expect(read("l/fr.json")).toContain('"b": "B-fr"');
+  expect(pulled.output.join("\n")).toMatch(
+    /l\/de\.json: does not read, so pull leaves it as it is \(/,
+  );
+});
