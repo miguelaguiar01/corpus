@@ -428,11 +428,17 @@ function chromeExamples(placeholders: unknown): Record<string, string> {
   return values;
 }
 
+// As Chrome reads the text (#631): a run of n dollars shows n - 1, and a
+// `$NAME$` its last dollar opens is the value, `@` allowed in the name.
 function renderChrome(message: string, values: Record<string, string>): string {
   return message.replace(
-    /\$\$|\$([A-Za-z0-9_]+)\$/g,
-    (written, name?: string) =>
-      name === undefined ? "$" : (values[name.toLowerCase()] ?? written),
+    /(\$+)(?:([A-Za-z0-9_@]+)\$)?/g,
+    (written, run: string, name?: string) => {
+      const dollars = "$".repeat(Math.max(run.length - 1, 0));
+      if (name === undefined) return run.length > 1 ? dollars : written;
+      const value = values[name.toLowerCase()];
+      return value === undefined ? written : dollars + value;
+    },
   );
 }
 

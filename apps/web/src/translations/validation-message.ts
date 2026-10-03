@@ -85,13 +85,15 @@ export function validationMessage(
     case "bare-at":
       return t("editor.bareAt", { literal: "{'@'}" });
     case "chrome-dollar":
-      return t(
-        error.kind === "lone"
-          ? "editor.chromeDollarLone"
-          : error.kind === "price"
-            ? "editor.chromeDollarPrice"
-            : "editor.chromeDollarNamed",
-      );
+      return error.kind === "lone"
+        ? t("editor.chromeDollarLone", { written: error.written })
+        : error.kind === "price"
+          ? t("editor.chromeDollarPrice", {
+              written: error.written,
+              digit: error.written[1] ?? "",
+              rest: error.written.slice(2),
+            })
+          : t("editor.chromeDollarNamed", { written: error.written });
     case "form-count": {
       const read = (n: number) =>
         vueDefaultForms(n)

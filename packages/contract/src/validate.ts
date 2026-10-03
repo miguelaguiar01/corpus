@@ -90,12 +90,8 @@ export type ValidationError =
   | { code: "bare-at" }
   | { code: "missing-category"; arg: string; key: string }
   // Under chrome, a `$` Chrome reads otherwise than it looks (#631): a
-  // lone one it drops with the next character, `$$NAME$`.
-  | {
-      code: "chrome-dollar";
-      at: number;
-      kind: "lone" | "price" | "doubled-name";
-    }
+  // lone one, a `$40`, a `$$NAME$`.
+  | ({ code: "chrome-dollar" } & ChromeDollar)
   // Under vue-i18n's default rule, a translation's forms number other
   // than the source's (#1018).
   | { code: "form-count"; expected: number; actual: number }
@@ -493,36 +489,43 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// Each `$` Chrome's getMessage reads otherwise than it looks (#631): a
-// lone `$`, which it drops with the character after it; `$40`, which it
-// reads as substitution 4 and a 0; and `$$NAME$`, a `$` before the NAME
-// placeholder, which it drops with the value's first character.
-export function chromeDollarsOf(
-  text: string,
-  syntax: Library,
-): { at: number; kind: "lone" | "price" | "doubled-name" }[] {
+// Each `$` Chrome's getMessage reads otherwise than it looks (#631), as
+// written: a lone `$`, which it drops with the character after it;
+// `$40`, which it reads as substitution 4 and a 0; and `$$NAME$`, a `$`
+// before the NAME placeholder, which its second pass then reads with the
+// value's start. A run of n dollars shows n - 1, and what follows it is
+// text.
+export type ChromeDollar = {
+  at: number;
+  kind: "lone" | "price" | "doubled-name";
+  written: string;
+};
+
+export function chromeDollarsOf(text: string, syntax: Library): ChromeDollar[] {
   if (syntax !== "chrome") return [];
-  const out: { at: number; kind: "lone" | "price" | "doubled-name" }[] = [];
+  const out: ChromeDollar[] = [];
   for (let at = 0; at < text.length; at++) {
     if (text[at] !== "$") continue;
     const rest = text.slice(at);
-    const named = (from: number) =>
-      CHROME_PLACEHOLDER_RE.exec(rest.slice(from));
-    if (rest[1] === "$") {
-      const after = named(1);
-      if (after) {
-        out.push({ at, kind: "doubled-name" });
-        at += after[0].length;
-      } else at += 1;
+    const run = /^\$+/.exec(rest)![0].length;
+    const named = CHROME_PLACEHOLDER_RE.exec(rest.slice(run - 1));
+    if (run > 1) {
+      if (named)
+        out.push({
+          at,
+          kind: "doubled-name",
+          written: rest.slice(0, run - 1 + named[0].length),
+        });
+      at += run - 1 + (named ? named[0].length - 1 : 0);
       continue;
     }
-    const own = named(0);
-    if (own) at += own[0].length - 1;
-    else if (/^\$[1-9][0-9]/.test(rest)) {
-      out.push({ at, kind: "price" });
-      at += 1;
+    const price = /^\$[1-9][0-9]+/.exec(rest);
+    if (named) at += named[0].length - 1;
+    else if (price) {
+      out.push({ at, kind: "price", written: price[0] });
+      at += price[0].length - 1;
     } else if (/^\$[1-9]/.test(rest)) at += 1;
-    else out.push({ at, kind: "lone" });
+    else out.push({ at, kind: "lone", written: rest.slice(0, 2) });
   }
   return out;
 }

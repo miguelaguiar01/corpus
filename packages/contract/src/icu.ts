@@ -357,7 +357,7 @@ const QT_PLACEHOLDER_RE = /^%(L?)([0-9][0-9]?|n)/;
 const RAILS_PLACEHOLDER_RE =
   /^%(?:\{([^{}\s]+)\}|<([^<>\s]+)>[-+ 0#]*\d*(?:\.\d+)?[a-zA-Z])/;
 
-// Chrome i18n's `$NAME$` (#595): letters, digits and `_`, matched
+// Chrome i18n's `$NAME$` (#595): letters, digits, `_` and `@`, matched
 // case-insensitively against the `placeholders` map, so the name is
 // lowercased and the written form kept.
 export const CHROME_PLACEHOLDER_RE = /^\$([A-Za-z0-9_@]+)\$/;
@@ -901,14 +901,14 @@ class Parser {
   private lexChrome(seq: Sequence, ch: string): true {
     if (ch === "$") {
       const rest = this.source.slice(this.pos);
-      // `$$NAME$` is a `$` before the placeholder, as Chrome's first pass
-      // reads it (#631); `$$` alone is the sign.
-      if (rest[1] === "$")
-        return this.text(
-          seq,
-          "$",
-          CHROME_PLACEHOLDER_RE.test(rest.slice(1)) ? 1 : 2,
-        );
+      // A run of n dollars shows n - 1, and what follows it is text, save
+      // a `$NAME$` its last dollar opens, as Chrome's first pass reads
+      // `$$NAME$` (#631).
+      const run = /^\$+/.exec(rest)![0].length;
+      if (run > 1) {
+        const named = CHROME_PLACEHOLDER_RE.test(rest.slice(run - 1));
+        return this.text(seq, "$".repeat(run - 1), named ? run - 1 : run);
+      }
       const match = CHROME_PLACEHOLDER_RE.exec(rest);
       if (match)
         return this.placeholder(seq, match[1]!.toLowerCase(), match[0]);

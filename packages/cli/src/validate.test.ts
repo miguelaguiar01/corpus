@@ -1398,9 +1398,9 @@ test("under chrome a source's lone $ or $40 is a warning, and a translation's lo
   expect(await run(["validate"], c)).toBe(0);
   const err = c.stderr.join("\n");
   expect(err).toContain(
-    "i18n/en.json:price: Chrome reads $ and a digit as a substitution, so $40 shows the fourth argument and a 0: write $$40 for a price",
+    'i18n/en.json:price: Chrome reads $40 at 4 as substitution 4 then "0": write $$40 for a price',
   );
   expect(err).toContain(
-    "i18n/pt.json:sign: Chrome drops a lone $ with the character after it: write $$ for the sign",
+    'i18n/pt.json:sign: Chrome drops the lone $ at 0 with the character after it ("$ "): write $$ for the sign',
   );
 });

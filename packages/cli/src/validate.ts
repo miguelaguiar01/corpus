@@ -4,6 +4,7 @@ import { createJiti } from "jiti";
 import {
   libraryOf,
   chromeDollarsOf,
+  type ChromeDollar,
   vueDefaultForms,
   isDroppedPlural,
   isFluentTermId,
@@ -542,7 +543,7 @@ export function describe(
     case "bare-at":
       return BARE_AT_MESSAGE;
     case "chrome-dollar":
-      return chromeDollarMessage(error.kind);
+      return chromeDollarMessage(error);
     case "form-count": {
       const read = (n: number) =>
         vueDefaultForms(n)
@@ -756,16 +757,18 @@ async function validateServer(
   return { findings, unchecked: [], checked };
 }
 
-// A source's warnings, nested counts and vue-i18n's unlinked `@`, each
-// on the string where it is.
-function chromeDollarMessage(kind: "lone" | "price" | "doubled-name"): string {
-  return kind === "lone"
-    ? "Chrome drops a lone $ with the character after it: write $$ for the sign"
-    : kind === "price"
-      ? "Chrome reads $ and a digit as a substitution, so $40 shows the fourth argument and a 0: write $$40 for a price"
-      : "Chrome reads $$NAME$ as a $ before the placeholder, then drops that $ with the first character of its value";
+function chromeDollarMessage({ at, kind, written }: ChromeDollar): string {
+  if (kind === "lone")
+    return written.length < 2
+      ? `Chrome drops the lone $ that ends the text: write $$ for the sign`
+      : `Chrome drops the lone $ at ${at} with the character after it (${JSON.stringify(written)}): write $$ for the sign`;
+  if (kind === "price")
+    return `Chrome reads ${written} at ${at} as substitution ${written[1]} then ${JSON.stringify(written.slice(2))}: write $${written} for a price`;
+  return `Chrome reads ${written} at ${at} as a $ before the placeholder, then reads that $ with the start of its value, so Bob shows as ob and $1 as a literal $1: put a space between, or the $ in the placeholder's content`;
 }
 
+// A source's warnings, nested counts, Chrome's dollars and vue-i18n's
+// unlinked `@`, each on the string where it is.
 function sourceWarnings(
   file: string,
   language: string,
@@ -782,13 +785,13 @@ function sourceWarnings(
       message: nestedCountMessage(arg),
     })),
     // Chrome's `$` a source writes that it reads otherwise (#631).
-    ...chromeDollarsOf(entry.source, libraryFor(entry)).map(({ kind }) => ({
+    ...chromeDollarsOf(entry.source, libraryFor(entry)).map((dollar) => ({
       file,
       key,
       language,
       code: "chrome-dollar" as const,
       severity: "warning" as const,
-      message: chromeDollarMessage(kind),
+      message: chromeDollarMessage(dollar),
     })),
     // vue-i18n's unlinked `@`, said where the source writes it (#1017).
     ...(bareAtOf(entry.source, libraryFor(entry))
