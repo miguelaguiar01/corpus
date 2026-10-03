@@ -755,8 +755,9 @@ test("a nested argument is listed once, and branchingNodes reaches it unless tol
   expect(branchingNodes(parsed.nodes, false).map((n) => n.arg)).toEqual(["g"]);
 });
 
-// Linear time, not a speed (#1136): four times the input takes about
-// four times as long, under 8 where a quadratic pass takes sixteen.
+// Linear time, not a speed (#1136): eight times the input takes about
+// eight times as long, under 24 where a quadratic pass takes 64, a gap
+// wider than a CI runner's noise, which crossed 8 at four times (#1156).
 // Timed in the process's CPU time, which a loaded runner's other work
 // does not add to, the best of five runs of each size taken in turn
 // after a warm run of both, so neither is timed before the code is
@@ -773,16 +774,25 @@ function linear(
     return (user + system) / 1000;
   };
   const small = make(n);
-  const large = make(4 * n);
+  const large = make(8 * n);
   f(large);
   f(small);
-  let fastSmall = Infinity;
-  let fastLarge = Infinity;
-  for (let i = 0; i < 5; i++) {
-    fastSmall = Math.min(fastSmall, cpu(small));
-    fastLarge = Math.min(fastLarge, cpu(large));
-  }
-  expect(fastLarge / Math.max(fastSmall, 1)).toBeLessThan(8);
+  const ratio = () => {
+    let fastSmall = Infinity;
+    let fastLarge = Infinity;
+    for (let i = 0; i < 5; i++) {
+      fastSmall = Math.min(fastSmall, cpu(small));
+      fastLarge = Math.min(fastLarge, cpu(large));
+    }
+    return fastLarge / Math.max(fastSmall, 1);
+  };
+  // A collection mid-run can double one reading; a quadratic pass
+  // crosses the line every time, so a second reading decides one that
+  // crosses by little.
+  const first = ratio();
+  expect(
+    first < 24 || first >= 40 ? first : Math.min(first, ratio()),
+  ).toBeLessThan(24);
 }
 
 test("hostile input is read in bounded time and fails cleanly, never with a thrown error (#861)", () => {
@@ -804,7 +814,7 @@ test("hostile input is read in bounded time and fails cleanly, never with a thro
     `{n, plural, other {${"<b>{g, select, a {</b>} other {x}} ".repeat(150)}}} `.repeat(
       n,
     );
-  linear(shallow, 5, (text) => {
+  linear(shallow, 3, (text) => {
     const result = parseIcu(text, "icu", { html: "markup" });
     expect(!result.ok && result.errors[0]?.message).toMatch(/too many tags/);
   });
@@ -824,11 +834,11 @@ test("hostile input is read in bounded time and fails cleanly, never with a thro
     8000,
     (text) => parseIcu(text, "vue"),
   );
-});
+}, 20_000);
 
 test("markup tags are paired in linear time, stray closes and opens alike (#924)", () => {
   for (const [make, n] of [
-    [(n: number) => "<a></b>".repeat(n), 4300],
+    [(n: number) => "<a></b>".repeat(n), 2150],
     [(n: number) => "<a>".repeat(n) + "</b>".repeat((n * 3) / 4), 1250],
   ] as const) {
     linear(make, n, (text) =>
@@ -844,7 +854,7 @@ test("markup tags are paired in linear time, stray closes and opens alike (#924)
       { kind: "tag", name: "a", children: [{ kind: "literal", text: "<b>x" }] },
     ],
   });
-});
+}, 20_000);
 
 test("counterpart's tags and vue's unclosed braces are read in linear time (#896)", () => {
   const tags = (n: number) =>
@@ -873,7 +883,7 @@ test("counterpart's tags and vue's unclosed braces are read in linear time (#896
   });
   expect(partsOf("a {'|'} b | c", "vue").forms).toBe(2);
   expect(partsOf("a {'}'} | b {x} | c", "vue").forms).toBe(3);
-});
+}, 20_000);
 
 test("the text after a whole plural is placed after the plural as the parser reads it (#861)", () => {
   expect(
