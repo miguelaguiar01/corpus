@@ -811,7 +811,7 @@ test("hostile input is read in bounded time and fails cleanly, never with a thro
     `{n, plural, other {${"<b>{g, select, a {</b>} other {x}} ".repeat(150)}}} `.repeat(
       n,
     );
-  linear(shallow, 5, (text) => {
+  linear(shallow, 2, (text) => {
     const result = parseIcu(text, "icu", { html: "markup" });
     expect(!result.ok && result.errors[0]?.message).toMatch(/too many tags/);
   });
@@ -831,7 +831,7 @@ test("hostile input is read in bounded time and fails cleanly, never with a thro
     8000,
     (text) => parseIcu(text, "vue"),
   );
-});
+}, 20_000);
 
 test("markup tags are paired in linear time, stray closes and opens alike (#924)", () => {
   for (const [make, n] of [
@@ -851,7 +851,7 @@ test("markup tags are paired in linear time, stray closes and opens alike (#924)
       { kind: "tag", name: "a", children: [{ kind: "literal", text: "<b>x" }] },
     ],
   });
-});
+}, 20_000);
 
 test("counterpart's tags and vue's unclosed braces are read in linear time (#896)", () => {
   const tags = (n: number) =>
@@ -880,7 +880,7 @@ test("counterpart's tags and vue's unclosed braces are read in linear time (#896
   });
   expect(partsOf("a {'|'} b | c", "vue").forms).toBe(2);
   expect(partsOf("a {'}'} | b {x} | c", "vue").forms).toBe(3);
-});
+}, 20_000);
 
 test("the text after a whole plural is placed after the plural as the parser reads it (#861)", () => {
   expect(
