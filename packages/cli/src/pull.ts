@@ -239,6 +239,17 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     if (template === undefined) {
       throw new CliError(`source file ${templatePath} does not exist`);
     }
+    // A source file that does not read fails the pull, as the build.
+    const sourceUnread = await unreadable(
+      jiti,
+      ctx.cwd,
+      templatePath,
+      source,
+      true,
+      config.sourceLanguage,
+    );
+    if (sourceUnread !== undefined)
+      throw new CliError(`${templatePath}: ${sourceUnread}`);
     // A target file takes the ids its source-language file holds, under
     // the source's namespace when it has one, stripped for writing: two
     // sources of one type each write their own strings (#513).
@@ -268,28 +279,29 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
       }
       if (existing === undefined && Object.keys(translations).length === 0)
         continue;
-      let next: string | undefined;
-      try {
-        next = writeTarget(
-          source,
-          file,
-          template,
-          translations,
-          existing,
-          language,
-          config,
-          ctx.err,
-        );
-      } catch (error) {
-        // A target file that does not read is left as it is, and the
-        // other languages are written (#1028).
-        const unread = await unreadable(jiti, ctx.cwd, file, source, language);
-        if (existing === undefined || unread === undefined) throw error;
+      // A target file that does not read is left as it is, whatever its
+      // writer would make of it, and the other languages are written
+      // (#1028); a String Catalog's is the source's, read above.
+      const unread =
+        existing !== undefined && !pending.has(file)
+          ? await unreadable(jiti, ctx.cwd, file, source, false, language)
+          : undefined;
+      if (unread !== undefined) {
         ctx.err(
           `corpus: ${file}: does not read, so pull leaves it as it is (${unread})`,
         );
         continue;
       }
+      const next = writeTarget(
+        source,
+        file,
+        template,
+        translations,
+        existing,
+        language,
+        config,
+        ctx.err,
+      );
       if (next !== undefined) pending.set(file, next);
       if (next !== undefined && next !== existing) {
         if (!check) {
@@ -385,6 +397,18 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
           throw new CliError(`source file ${file} does not exist`);
         continue;
       }
+      // A removal into a target file that does not read leaves it as it
+      // is (#1028); the source file's own was read above.
+      const unread =
+        target === file
+          ? undefined
+          : await unreadable(jiti, ctx.cwd, target, source, false);
+      if (unread !== undefined) {
+        ctx.err(
+          `corpus: ${target}: does not read, so pull leaves it as it is (${unread})`,
+        );
+        continue;
+      }
       let next: string;
       try {
         next = applyOps(
@@ -396,18 +420,6 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
           target === file ? undefined : pluralIds,
         );
       } catch (error) {
-        // A removal into a target file that does not read leaves it as
-        // it is (#1028); the source file's own failure stops the pull.
-        const unread =
-          target === file
-            ? undefined
-            : await unreadable(jiti, ctx.cwd, target, source);
-        if (unread !== undefined) {
-          ctx.err(
-            `corpus: ${target}: does not read, so pull leaves it as it is (${unread})`,
-          );
-          continue;
-        }
         throw new CliError(
           `${target}: proposal(s) for ${targetOps.map((o) => printable(o.id)).join(", ")}: ${(error as Error).message}`,
         );
@@ -660,17 +672,18 @@ function proposalsByFile(
   return byFile;
 }
 
-// Why a target file does not read through its source's adapter, or
-// undefined where it does.
+// Why a file does not read through its source's adapter, or undefined
+// where it does.
 async function unreadable(
   jiti: ReturnType<typeof createJiti>,
   cwd: string,
   file: string,
   source: FileSource,
+  sourceFile: boolean,
   language?: string,
 ): Promise<string | undefined> {
   try {
-    await readEntries(jiti, cwd, file, source, false, language);
+    await readEntries(jiti, cwd, file, source, sourceFile, language);
     return undefined;
   } catch (error) {
     return error instanceof Error ? error.message : String(error);

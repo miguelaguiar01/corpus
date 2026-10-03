@@ -663,7 +663,7 @@ async function validateServer(
 ): Promise<
   { findings: Finding[]; unchecked: Unchecked[]; checked: number } | undefined
 > {
-  const { snapshot, refused, origin } = await buildSnapshotReport(
+  const { snapshot, refused, origin, unreadable } = await buildSnapshotReport(
     config,
     ctx.cwd,
   );
@@ -680,6 +680,16 @@ async function validateServer(
     severity: "invalid",
     message: r.message,
   }));
+  // A target file that does not read is the repository's too (#1028).
+  for (const { file, language, message } of unreadable)
+    findings.push({
+      file,
+      key: "",
+      language,
+      code: "unreadable-file",
+      severity: "invalid",
+      message: `does not read: ${message}`,
+    });
   const refusedIds = new Set(refused.map((r) => r.id));
   const strings = new Map(snapshot.strings.map((e) => [e.id, e]));
   const fileSources = new Map<string, FileSource>();

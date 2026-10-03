@@ -89,7 +89,11 @@ export type BuildReport = {
   notes: string[];
   // Each string's source-language file, or `exec:<command>` (#1074).
   origin: Map<string, string>;
+  // The target files that did not read, which seed nothing (#1028).
+  unreadable: Unreadable[];
 };
+
+export type Unreadable = { file: string; language: string; message: string };
 // What an exporter says the repository already holds for its strings
 // (§3, §8): per target language, id to text; taken as seeds once the
 // snapshot's ids are known.
@@ -257,6 +261,7 @@ export async function buildSnapshotReport(
   const errors: string[] = [];
   const refused: Refused[] = [];
   const notes: string[] = [];
+  const unreadable: Unreadable[] = [];
 
   for (const source of config.sources) {
     if (source.adapter === "exec") {
@@ -453,6 +458,7 @@ export async function buildSnapshotReport(
     errors,
     notes,
     new Set(refused.map((r) => r.id)),
+    unreadable,
   );
   // A mark counts only for a seed that is there to import.
   const seedTranslated: Record<string, string[]> = {};
@@ -547,6 +553,7 @@ export async function buildSnapshotReport(
     refused,
     notes: [...richTextAdvice(refused), ...notes],
     origin: new Map(sourced.map((s) => [s.entry.id, s.file])),
+    unreadable,
   };
 }
 
@@ -924,6 +931,10 @@ export async function readEntries(
   const own = (id: string) =>
     source.namespace ? `${source.namespace}:${id}` : id;
   const text = () => readFileSync(path.join(cwd, file), "utf8");
+  // An empty target file is one with no translations yet, which a pull
+  // fills (#1028); a String Catalog's is its source's file.
+  if (!sourceFile && source.adapter !== "xcstrings" && text().trim() === "")
+    return [];
   switch (source.adapter) {
     case "xcstrings":
       return sourceFile
@@ -1420,9 +1431,9 @@ function readSuggestions(
 // language, and the texts travel as seeds; an exec source has no file to
 // read, so what its exporter emits as `translations` is taken under the
 // same rules. The server imports a seed as translated only where it holds
-// no edit for the row, so a push after the first is harmless; a file that
-// will not read, or a language the exporter should not name, is a build
-// error.
+// no edit for the row, so a push after the first is harmless; a language
+// the exporter should not name is a build error, and a target file that
+// will not read seeds nothing and is named (#1028).
 async function readSeeds(
   jiti: ReturnType<typeof createJiti>,
   config: CorpusConfig,
@@ -1432,6 +1443,7 @@ async function readSeeds(
   errors: string[],
   notes: string[],
   refusedIds: Set<string>,
+  unreadable: Unreadable[],
 ): Promise<Record<string, Record<string, string>>> {
   const seeds: Record<string, Record<string, string>> = {};
   for (const { command, translations } of execSeeds) {
@@ -1545,6 +1557,7 @@ async function readSeeds(
         // A target file that does not read stops no other language's
         // push (#1028): it seeds nothing, and validate names it.
         const message = error instanceof Error ? error.message : String(error);
+        unreadable.push({ file, language: lang, message });
         notes.push(
           `${file}: does not read, so none of its translations are seeded; corpus validate names it, and pull leaves it as it is (${message})`,
         );
