@@ -68,6 +68,7 @@ function branchingOf(
   language: string,
   syntax: Library,
   pluralForms?: string[] | null,
+  pluralRules?: "default" | "cldr" | null,
 ): Branching[] {
   const parsed = readIcu(source, syntax);
   if (!parsed.ok) return [];
@@ -89,6 +90,7 @@ function branchingOf(
               syntax,
               ordinal ? undefined : (pluralForms ?? undefined),
               ordinal,
+              pluralRules ?? undefined,
             ).required
           : [],
       inner: new Map<string, string[]>(),
@@ -208,8 +210,9 @@ export function TargetPane({
   // The plural categories the runtime picks where they are not CLDR's:
   // a gettext file's `Plural-Forms`' (#951), rails-i18n's (#983).
   pluralForms?: string[] | null;
-  // The runtime's own plural rule, vue-i18n's default (#1018).
-  pluralRules?: "default" | null;
+  // The runtime's own plural rule: vue-i18n's default (#1018), or
+  // easy_localization's CLDR picking (#961).
+  pluralRules?: "default" | "cldr" | null;
   slots: Slot[];
   language: string;
   initialText: string;
@@ -254,7 +257,13 @@ export function TargetPane({
   // A plural missing a category the runtime picks saves with a warning
   // (#556); the chip for the category is still offered.
   const incomplete = validation.incomplete ?? [];
-  const selects = branchingOf(source, language, syntax, pluralForms);
+  const selects = branchingOf(
+    source,
+    language,
+    syntax,
+    pluralForms,
+    pluralRules,
+  );
   const byId = new Map(selects.map((entry) => [idOf(entry), entry]));
   const parts = partsOf(source, syntax);
   const tags = [...parts.tags];
@@ -444,6 +453,7 @@ export function TargetPane({
               language,
               syntax,
               pluralForms ?? undefined,
+              pluralRules ?? undefined,
             ).map((segments, index) => (
               <li key={index} className="text-base leading-relaxed">
                 {segments.map((segment, i) =>
@@ -505,6 +515,7 @@ function previews(
   language: string,
   syntax: Library,
   pluralForms?: string[],
+  pluralRules?: "default" | "cldr",
 ): PreviewSegment[][] {
   return examples.flatMap((example, index) => {
     if (blank) return [[{ text: example.rendered, value: false }]];
@@ -512,7 +523,11 @@ function previews(
       text,
       resolved[index]!.values,
       language,
-      { syntax, ...(pluralForms && { pluralForms }) },
+      {
+        syntax,
+        ...(pluralForms && { pluralForms }),
+        ...(pluralRules && { pluralRules }),
+      },
     );
     return result.ok ? [result.segments] : [];
   });

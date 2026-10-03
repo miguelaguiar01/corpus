@@ -371,8 +371,7 @@ export async function buildSnapshotReport(
         {
           ...entry,
           ...withPluralForms(entryPluralForms(entry, source, pluralForms)),
-          ...((source as { pluralRules?: unknown }).pluralRules ===
-            "default" && { pluralRules: "default" as const }),
+          ...namedPluralRules(source),
           // A key-is-text entry carries no file: a proposal would rewrite
           // the key, which is the code's, not the catalogue's.
           ...(writable && !entry.keyIsText ? { file } : {}),
@@ -1040,6 +1039,14 @@ export function pluralFormsOf(
 
 const withPluralForms = (forms: Record<string, string[]> | undefined) =>
   forms ? { pluralForms: forms } : {};
+
+// A source's plural rule by name, which its entries carry (#1018, #961).
+export function namedPluralRules(source: FileSource): {
+  pluralRules?: "default" | "cldr";
+} {
+  const rules = (source as { pluralRules?: unknown }).pluralRules;
+  return rules === "default" || rules === "cldr" ? { pluralRules: rules } : {};
+}
 
 // An entry's plural forms, per language, in the source's own library:
 // the file's (`pluralFormsOf`) for a text that is the plural, as a

@@ -3104,3 +3104,65 @@ test("under vue-i18n's default rule a translation's number of forms is the sourc
     }),
   ).toEqual({ ok: true });
 });
+
+test('under easy_localization with pluralRules: "cldr" a plural follows CLDR, as ignorePluralRules: false picks (#961)', () => {
+  const source = "{count, plural, one {{} file} other {{} files}}";
+  const pl =
+    "{count, plural, one {{} plik} few {{} pliki} many {{} plików} other {{} pliku}}";
+  // By default the package picks by value, so few and many are dead.
+  expect(
+    validateTranslation(source, pl, "pl", "easy_localization"),
+  ).toMatchObject({
+    ok: true,
+    incomplete: [
+      { code: "unexpected-category", key: "few" },
+      { code: "unexpected-category", key: "many" },
+    ],
+  });
+  const cldr = (target: string) =>
+    validateTranslation(source, target, "pl", "easy_localization", {
+      pluralRules: "cldr",
+    });
+  expect(cldr(pl)).toEqual({ ok: true });
+  expect(cldr("{count, plural, one {{} plik} other {{} pliku}}")).toMatchObject(
+    {
+      ok: true,
+      incomplete: [
+        { code: "missing-category", key: "few" },
+        { code: "missing-category", key: "many" },
+      ],
+    },
+  );
+});
+
+test("easy_localization's \"cldr\" asks for intl's categories, and a language intl lacks for the by-value ones (#961)", () => {
+  const cldr = (target: string, language: string) =>
+    validateTranslation(
+      "{count, plural, one {{} file} other {{} files}}",
+      target,
+      language,
+      "easy_localization",
+      { pluralRules: "cldr" },
+    );
+  // Maltese two is never picked; few and many are.
+  expect(
+    cldr(
+      "{count, plural, one {{} a} two {{} b} few {{} c} many {{} d} other {{} e}}",
+      "mt",
+    ),
+  ).toMatchObject({
+    incomplete: [{ code: "unexpected-category", key: "two" }],
+  });
+  // A code intl lacks picks zero by value.
+  expect(
+    cldr("{count, plural, zero {{} a} one {{} b} other {{} c}}", "ckb"),
+  ).toEqual({
+    ok: true,
+  });
+  // French many is no category intl picks.
+  expect(
+    cldr("{count, plural, one {{} a} many {{} b} other {{} c}}", "fr"),
+  ).toMatchObject({
+    incomplete: [{ code: "unexpected-category", key: "many" }],
+  });
+});

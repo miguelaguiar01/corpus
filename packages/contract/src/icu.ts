@@ -1870,6 +1870,11 @@ function removedCategoriesOf(language: string): readonly string[] {
   }
 }
 
+import {
+  easyLocalizationCategories,
+  easyLocalizationCategory,
+} from "./easy-plural";
+
 // The categories a translation's plural must hold, and those it may,
 // by the rule its library picks a form by (#951): counterpart's is
 // English's in every language, `zero` when written; easy_localization's,
@@ -1887,6 +1892,9 @@ export function pluralCategoriesFor(
   picked?: readonly string[],
   // A selectordinal's: CLDR's ordinal rule, whatever the library (#995).
   ordinal = false,
+  // The source's named rule: "cldr", easy_localization picking by CLDR
+  // where `ignorePluralRules: false` (#961).
+  rules?: "default" | "cldr",
 ): { required: string[]; allowed: string[] } {
   if (ordinal) {
     const ordinals = pluralCategoriesOf(language, true);
@@ -1906,6 +1914,13 @@ export function pluralCategoriesFor(
         (c) => picked.includes(c) || c === "other" || zero(c),
       ),
     };
+  // With `ignorePluralRules: false`, intl's table where it has the
+  // language, by value where it does not (#961).
+  const table =
+    library === "easy_localization" && rules === "cldr"
+      ? easyLocalizationCategories(language)
+      : undefined;
+  if (table) return table;
   if (library === "easy_localization" && cldr.length > 0)
     return {
       required: cldr.filter((c) => c !== "few" && c !== "many"),
@@ -1983,14 +1998,23 @@ export function pluralBranch(
     ordinal = false,
     library,
     picked,
+    rules,
   }: {
     ordinal?: boolean;
     library?: Library;
     picked?: readonly string[];
+    rules?: "default" | "cldr";
   } = {},
 ): string {
   // An empty value is no count at all, not zero (#859).
   if (value.trim() === "") return "other";
+  // easy_localization with `ignorePluralRules: false` picks by intl's
+  // table, a written zero no more than any other, and by value where the
+  // table has no rule for the language (#961).
+  const table =
+    library === "easy_localization" && rules === "cldr" && language
+      ? (n: number) => easyLocalizationCategory(language, n)
+      : undefined;
   const own = library === "counterpart" || library === "easy_localization";
   const exact = `=${value.trim()}`;
   if (!own && Object.hasOwn(branches, exact)) return exact;
@@ -2002,8 +2026,10 @@ export function pluralBranch(
   if (Number.isFinite(n) && !ordinal) {
     if (library === "counterpart")
       return written(n === 0 ? "zero" : n === 1 ? "one" : undefined);
-    if (library === "easy_localization")
-      return written(["zero", "one", "two"][n]);
+    if (library === "easy_localization") {
+      const category = table?.(n);
+      return written(category ?? ["zero", "one", "two"][n]);
+    }
     if (
       (library === "rails" || library === "i18next") &&
       n === 0 &&

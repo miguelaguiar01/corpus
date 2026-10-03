@@ -79,17 +79,18 @@ const pluralRulesTable = z.record(
     }),
 );
 // The table, or the runtime's own rule by name: `"default"`, vue-i18n's
-// built-in rule, under which the forms are read by count (#1018). Read
+// built-in rule, under which the forms are read by count (#1018), and
+// `"cldr"`, easy_localization's `ignorePluralRules: false` (#961). Read
 // by the input's kind, so a table's own error says where it is.
 const pluralRules = z
-  .custom<"default" | z.infer<typeof pluralRulesTable>>()
+  .custom<"default" | "cldr" | z.infer<typeof pluralRulesTable>>()
   .superRefine((value, ctx) => {
     const read =
       typeof value === "string"
         ? z
-            .literal("default", {
+            .enum(["default", "cldr"], {
               error:
-                'pluralRules is "default", vue-i18n\'s default rule, or a table of categories per language',
+                'pluralRules is "default", vue-i18n\'s default rule, "cldr", easy_localization\'s ignorePluralRules: false, or a table of categories per language',
             })
             .safeParse(value)
         : pluralRulesTable.safeParse(value);
@@ -432,7 +433,10 @@ export const corpusConfigSchema = z
             "an exec source's entries carry their own plural forms; pluralRules does not apply",
           path: ["sources", index, "pluralRules"],
         });
-      if (rules === "default" && source.adapter !== "exec") {
+      if (
+        (rules === "default" || rules === "cldr") &&
+        source.adapter !== "exec"
+      ) {
         const set = source as { library?: string; syntax?: string };
         // The library the build reads the source as, its adapter's own
         // where the config names none.
@@ -450,15 +454,24 @@ export const corpusConfigSchema = z
             } as Record<string, string>
           )[source.adapter] ??
           "icu";
-        if (library !== "vue")
+        const [wants, rule] =
+          rules === "default"
+            ? ["vue", "vue-i18n's default rule"]
+            : [
+                "easy_localization",
+                "easy_localization's ignorePluralRules: false",
+              ];
+        if (library !== wants)
           ctx.addIssue({
             code: "custom",
-            message: `pluralRules: "default" is vue-i18n's default rule; this source's library is ${library}`,
+            message: `pluralRules: "${rules}" is ${rule}; this source's library is ${library}`,
             path: ["sources", index, "pluralRules"],
           });
       }
       const table =
-        rules !== null && typeof rules === "object" ? Object.keys(rules) : [];
+        rules !== null && typeof rules === "object" && !Array.isArray(rules)
+          ? Object.keys(rules)
+          : [];
       for (const language of table)
         if (!c.languages.includes(language))
           ctx.addIssue({

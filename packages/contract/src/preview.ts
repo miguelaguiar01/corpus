@@ -64,7 +64,8 @@ function render(
   language: string | undefined,
   unset: Unset,
   library?: Library,
-  picked?: readonly string[],
+  // The source's own forms and named rule, as validation reads them.
+  plural: { picked?: readonly string[]; rules?: "default" | "cldr" } = {},
 ): void {
   for (const node of nodes) {
     if (node.kind === "literal") out.push({ text: node.text, value: false });
@@ -87,7 +88,7 @@ function render(
       );
     } else if (node.kind === "tag") {
       // The component is the client's; the preview shows what it wraps.
-      render(node.children, values, out, language, unset, library, picked);
+      render(node.children, values, out, language, unset, library, plural);
     } else if (node.kind === "forms") {
       // vue-i18n picks a form by the count passed at render time, by
       // position. A preview has no count, so it shows the last form,
@@ -99,7 +100,7 @@ function render(
         language,
         unset,
         library,
-        picked,
+        plural,
       );
     } else if (node.kind === "plural") {
       const value = own(values, node.arg);
@@ -109,7 +110,7 @@ function render(
           : pluralBranch(node.branches, value, language, {
               ordinal: node.ordinal,
               ...(library && { library }),
-              ...(picked && { picked }),
+              ...plural,
             });
       render(
         own(node.branches, key) ?? [],
@@ -118,7 +119,7 @@ function render(
         language,
         unset,
         library,
-        picked,
+        plural,
       );
     } else {
       const value = own(values, node.arg);
@@ -127,7 +128,7 @@ function render(
         node.branches.other ??
         Object.values(node.branches)[0] ??
         [];
-      render(branch, values, out, language, unset, library, picked);
+      render(branch, values, out, language, unset, library, plural);
     }
   }
 }
@@ -141,6 +142,8 @@ export type RenderOptions = {
   capitalise?: boolean;
   syntax?: Library;
   pluralForms?: readonly string[];
+  // The source's named plural rule (#961): "cldr" under easy_localization.
+  pluralRules?: "default" | "cldr";
 };
 
 // A printf plural on a named count, as a gettext plural reads whole,
@@ -182,7 +185,10 @@ export function renderPreviewSegments(
     language,
     options.syntax === "i18next" ? i18nextUnset : icuUnset,
     options.syntax,
-    options.pluralForms,
+    {
+      ...(options.pluralForms && { picked: options.pluralForms }),
+      ...(options.pluralRules && { rules: options.pluralRules }),
+    },
   );
   // Capitalise the first character of the whole render, wherever it
   // falls: an empty leading value must not stop it.

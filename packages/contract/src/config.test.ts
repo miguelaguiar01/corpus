@@ -854,7 +854,7 @@ test("pluralRules' errors say where they are, and a refusal names the source's o
   expect(issues({ ...messages, pluralRules: "Default" })).toEqual([
     [
       "sources.0.pluralRules",
-      'pluralRules is "default", vue-i18n\'s default rule, or a table of categories per language',
+      'pluralRules is "default", vue-i18n\'s default rule, "cldr", easy_localization\'s ignorePluralRules: false, or a table of categories per language',
     ],
   ]);
   expect(
@@ -873,4 +873,35 @@ test("pluralRules' errors say where they are, and a refusal names the source's o
   expect(
     issues({ ...messages, syntax: "vue", pluralRules: "default" }),
   ).toEqual([]);
+});
+
+test('pluralRules: "cldr" is easy_localization\'s ignorePluralRules: false, refused elsewhere (#961)', () => {
+  const base = {
+    project: "p",
+    server: "http://localhost:3000",
+    sourceLanguage: "en",
+    languages: ["en", "pl"],
+  };
+  const issues = (source: object) => {
+    const parsed = corpusConfigSchema.safeParse({ ...base, sources: [source] });
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  const messages = { adapter: "messages", type: "ui", path: "i/{lang}.json" };
+  expect(
+    issues({ ...messages, library: "easy_localization", pluralRules: "cldr" }),
+  ).toEqual([]);
+  expect(issues({ ...messages, library: "vue", pluralRules: "cldr" })).toEqual([
+    "pluralRules: \"cldr\" is easy_localization's ignorePluralRules: false; this source's library is vue",
+  ]);
+  expect(
+    issues({
+      ...messages,
+      library: "easy_localization",
+      pluralRules: "default",
+    }),
+  ).toEqual([
+    "pluralRules: \"default\" is vue-i18n's default rule; this source's library is easy_localization",
+  ]);
+  // An array is no table.
+  expect(issues({ ...messages, pluralRules: ["default"] })).toHaveLength(1);
 });

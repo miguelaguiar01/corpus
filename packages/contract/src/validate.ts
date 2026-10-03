@@ -517,9 +517,10 @@ export function validateTranslation(
     // The source's language: a target of the same base language, en-GB
     // for en, takes the source's own plural categories (#1005).
     sourceLanguage?: string;
-    // The runtime's own rule where the source names one (#1018):
-    // vue-i18n's default, whose forms are read by count, not by CLDR.
-    pluralRules?: "default";
+    // The runtime's own rule where the source names one: vue-i18n's
+    // default, whose forms are read by count, not by CLDR (#1018), or
+    // easy_localization's CLDR picking (#961).
+    pluralRules?: "default" | "cldr";
   } = {},
 ): ValidationResult {
   const html = tagMode(syntax, options.richText);
@@ -656,7 +657,13 @@ export function validateTranslation(
     language === undefined ||
     (categories.length === 0 && syntax !== "counterpart")
       ? []
-      : pluralCategoriesFor(language, syntax, options.pluralForms).allowed;
+      : pluralCategoriesFor(
+          language,
+          syntax,
+          options.pluralForms,
+          false,
+          options.pluralRules,
+        ).allowed;
   const ordinalPicks =
     language === undefined
       ? []
@@ -1109,6 +1116,7 @@ export function validateTranslation(
               syntax,
               ordinal ? undefined : options.pluralForms,
               ordinal,
+              options.pluralRules,
             ),
       language,
       // A language of the source's base shares its grammar, so the source

@@ -35,6 +35,7 @@ import {
   BARE_AT_MESSAGE,
   pluralFormsOf,
   entryPluralForms,
+  namedPluralRules,
   lastWins,
   sourcePluralIds,
   readEntries,
@@ -411,8 +412,7 @@ export async function validateRepo(
               ...((forms) => forms && { pluralForms: forms })(
                 entryPluralForms(entry, source, pluralForms),
               ),
-              ...((source as { pluralRules?: unknown }).pluralRules ===
-                "default" && { pluralRules: "default" as const }),
+              ...namedPluralRules(source),
             },
             target,
             {
