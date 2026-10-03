@@ -470,6 +470,25 @@ test("preview: the branch a plural previews is one its validation allows, for ev
             pluralBranch(all, value, language, { library }),
           );
     }
+  // And easy_localization by intl's table (#961), a language it lacks
+  // by value.
+  for (const language of [...languages, "mt", "ckb", "pt-PT", "br"]) {
+    const { allowed } = pluralCategoriesFor(
+      language,
+      "easy_localization",
+      undefined,
+      false,
+      "cldr",
+    );
+    for (let n = 0; n < 120; n++)
+      for (const value of [String(n), `${n}.5`])
+        expect(allowed).toContain(
+          pluralBranch(all, value, language, {
+            library: "easy_localization",
+            rules: "cldr",
+          }),
+        );
+  }
 });
 
 test('preview: easy_localization with pluralRules: "cldr" shows CLDR\'s branch, a written zero no longer taking 0 (#961)', () => {
@@ -485,4 +504,26 @@ test('preview: easy_localization with pluralRules: "cldr" shows CLDR\'s branch, 
   expect(show("3")).toBe("kilka");
   expect(show("0")).toBe("wiele");
   expect(show("1")).toBe("jeden");
+});
+
+test("preview: easy_localization's \"cldr\" is intl's own table, by the language code, by value for a code it lacks (#961)", () => {
+  const show = (text: string, n: string, language: string) => {
+    const read = renderPreview(text, { count: n }, language, {
+      syntax: "easy_localization",
+      pluralRules: "cldr",
+    });
+    return read.ok ? read.text : read;
+  };
+  const all =
+    "{count, plural, zero {Z} one {O} two {T} few {F} many {M} other {X}}";
+  // Maltese: intl has no two, and picks few at 2.
+  expect(show(all, "2", "mt")).toBe("F");
+  // Portuguese is looked up as pt, whatever the region: one at 0.
+  expect(show(all, "0", "pt-PT")).toBe("O");
+  // French millions are other; Hebrew 20 is many.
+  expect(show(all, "1000000", "fr")).toBe("X");
+  expect(show(all, "20", "he")).toBe("M");
+  // A code intl lacks picks by value, as the package falls back.
+  expect(show(all, "0", "ckb-KU")).toBe("Z");
+  expect(show(all, "2", "ckb-KU")).toBe("T");
 });

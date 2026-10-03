@@ -3134,3 +3134,35 @@ test('under easy_localization with pluralRules: "cldr" a plural follows CLDR, as
     },
   );
 });
+
+test("easy_localization's \"cldr\" asks for intl's categories, and a language intl lacks for the by-value ones (#961)", () => {
+  const cldr = (target: string, language: string) =>
+    validateTranslation(
+      "{count, plural, one {{} file} other {{} files}}",
+      target,
+      language,
+      "easy_localization",
+      { pluralRules: "cldr" },
+    );
+  // Maltese two is never picked; few and many are.
+  expect(
+    cldr(
+      "{count, plural, one {{} a} two {{} b} few {{} c} many {{} d} other {{} e}}",
+      "mt",
+    ),
+  ).toMatchObject({
+    incomplete: [{ code: "unexpected-category", key: "two" }],
+  });
+  // A code intl lacks picks zero by value.
+  expect(
+    cldr("{count, plural, zero {{} a} one {{} b} other {{} c}}", "ckb"),
+  ).toEqual({
+    ok: true,
+  });
+  // French many is no category intl picks.
+  expect(
+    cldr("{count, plural, one {{} a} many {{} b} other {{} c}}", "fr"),
+  ).toMatchObject({
+    incomplete: [{ code: "unexpected-category", key: "many" }],
+  });
+});
