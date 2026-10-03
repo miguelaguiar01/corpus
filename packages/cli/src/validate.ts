@@ -3,6 +3,7 @@ import path from "node:path";
 import { createJiti } from "jiti";
 import {
   libraryOf,
+  chromeDollarsOf,
   vueDefaultForms,
   isDroppedPlural,
   isFluentTermId,
@@ -540,6 +541,8 @@ export function describe(
       return nestedCountMessage(error.arg);
     case "bare-at":
       return BARE_AT_MESSAGE;
+    case "chrome-dollar":
+      return chromeDollarMessage(error.kind);
     case "form-count": {
       const read = (n: number) =>
         vueDefaultForms(n)
@@ -755,6 +758,14 @@ async function validateServer(
 
 // A source's warnings, nested counts and vue-i18n's unlinked `@`, each
 // on the string where it is.
+function chromeDollarMessage(kind: "lone" | "price" | "doubled-name"): string {
+  return kind === "lone"
+    ? "Chrome drops a lone $ with the character after it: write $$ for the sign"
+    : kind === "price"
+      ? "Chrome reads $ and a digit as a substitution, so $40 shows the fourth argument and a 0: write $$40 for a price"
+      : "Chrome reads $$NAME$ as a $ before the placeholder, then drops that $ with the first character of its value";
+}
+
 function sourceWarnings(
   file: string,
   language: string,
@@ -769,6 +780,15 @@ function sourceWarnings(
       code: "nested-count" as const,
       severity: "warning" as const,
       message: nestedCountMessage(arg),
+    })),
+    // Chrome's `$` a source writes that it reads otherwise (#631).
+    ...chromeDollarsOf(entry.source, libraryFor(entry)).map(({ kind }) => ({
+      file,
+      key,
+      language,
+      code: "chrome-dollar" as const,
+      severity: "warning" as const,
+      message: chromeDollarMessage(kind),
     })),
     // vue-i18n's unlinked `@`, said where the source writes it (#1017).
     ...(bareAtOf(entry.source, libraryFor(entry))
@@ -821,7 +841,10 @@ function checkTranslation(
     key,
     language,
     code: error.code,
-    severity: error.code === "unpassed-selector" ? "warning" : "incomplete",
+    severity:
+      error.code === "unpassed-selector" || error.code === "chrome-dollar"
+        ? "warning"
+        : "incomplete",
     message: describe(error, library),
   }));
   if (result.ok) return findings;

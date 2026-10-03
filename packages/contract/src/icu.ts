@@ -360,7 +360,7 @@ const RAILS_PLACEHOLDER_RE =
 // Chrome i18n's `$NAME$` (#595): letters, digits and `_`, matched
 // case-insensitively against the `placeholders` map, so the name is
 // lowercased and the written form kept.
-const CHROME_PLACEHOLDER_RE = /^\$([A-Za-z0-9_]+)\$/;
+export const CHROME_PLACEHOLDER_RE = /^\$([A-Za-z0-9_@]+)\$/;
 
 // The verb of a printf placeholder as written, modifier and letter
 // (`ld` of `%2$-8ld`): what a translation must keep at the position,
@@ -900,10 +900,22 @@ class Parser {
 
   private lexChrome(seq: Sequence, ch: string): true {
     if (ch === "$") {
-      if (this.source[this.pos + 1] === "$") return this.text(seq, "$", 2);
-      const match = CHROME_PLACEHOLDER_RE.exec(this.source.slice(this.pos));
+      const rest = this.source.slice(this.pos);
+      // `$$NAME$` is a `$` before the placeholder, as Chrome's first pass
+      // reads it (#631); `$$` alone is the sign.
+      if (rest[1] === "$")
+        return this.text(
+          seq,
+          "$",
+          CHROME_PLACEHOLDER_RE.test(rest.slice(1)) ? 1 : 2,
+        );
+      const match = CHROME_PLACEHOLDER_RE.exec(rest);
       if (match)
         return this.placeholder(seq, match[1]!.toLowerCase(), match[0]);
+      // Its second pass fills $1–$9 from the arguments; `$40` is text,
+      // which the source is told of.
+      const bare = /^\$[1-9](?![0-9])/.exec(rest);
+      if (bare) return this.placeholder(seq, bare[0], bare[0]);
     }
     return this.text(seq, ch);
   }

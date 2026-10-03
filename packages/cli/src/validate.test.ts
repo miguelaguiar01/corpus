@@ -1376,3 +1376,31 @@ test('under easy_localization with pluralRules: "cldr" a translation needs CLDR\
     "i18n/pl.json:files: plural on {count} lacks the few branch the runtime picks in its language",
   );
 });
+
+test("under chrome a source's lone $ or $40 is a warning, and a translation's lone $ too, exit 0 (#631)", async () => {
+  const config = path.join(repo, "corpus.config.ts");
+  writeFileSync(
+    config,
+    readFileSync(config, "utf8").replace(
+      '{ adapter: "messages", type: "chrome", path: "i18n/{lang}.json" }',
+      '{ adapter: "messages", type: "chrome", path: "i18n/{lang}.json", library: "chrome" }',
+    ),
+  );
+  write("i18n/en.json", {
+    sign: { message: "$$ character" },
+    price: { message: "Pay $40" },
+  });
+  write("i18n/pt.json", {
+    sign: { message: "$ caractere" },
+    price: { message: "Pague $$40" },
+  });
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(0);
+  const err = c.stderr.join("\n");
+  expect(err).toContain(
+    "i18n/en.json:price: Chrome reads $ and a digit as a substitution, so $40 shows the fourth argument and a 0: write $$40 for a price",
+  );
+  expect(err).toContain(
+    "i18n/pt.json:sign: Chrome drops a lone $ with the character after it: write $$ for the sign",
+  );
+});

@@ -84,6 +84,14 @@ export function validationMessage(
       return t("editor.nestedCount", { arg: error.arg });
     case "bare-at":
       return t("editor.bareAt", { literal: "{'@'}" });
+    case "chrome-dollar":
+      return t(
+        error.kind === "lone"
+          ? "editor.chromeDollarLone"
+          : error.kind === "price"
+            ? "editor.chromeDollarPrice"
+            : "editor.chromeDollarNamed",
+      );
     case "form-count": {
       const read = (n: number) =>
         vueDefaultForms(n)

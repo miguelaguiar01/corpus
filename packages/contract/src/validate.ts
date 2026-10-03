@@ -16,6 +16,7 @@
 // own message catalog.
 import {
   argPositions,
+  CHROME_PLACEHOLDER_RE,
   branchingNodes,
   parseIcu,
   readIcu,
@@ -88,6 +89,13 @@ export type ValidationError =
   // (#1017); `{'@'}` writes the character.
   | { code: "bare-at" }
   | { code: "missing-category"; arg: string; key: string }
+  // Under chrome, a `$` Chrome reads otherwise than it looks (#631): a
+  // lone one it drops with the next character, `$$NAME$`.
+  | {
+      code: "chrome-dollar";
+      at: number;
+      kind: "lone" | "price" | "doubled-name";
+    }
   // Under vue-i18n's default rule, a translation's forms number other
   // than the source's (#1018).
   | { code: "form-count"; expected: number; actual: number }
@@ -483,6 +491,40 @@ function quotedAway(target: string, syntax: Library, written: RegExp): boolean {
 
 function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Each `$` Chrome's getMessage reads otherwise than it looks (#631): a
+// lone `$`, which it drops with the character after it; `$40`, which it
+// reads as substitution 4 and a 0; and `$$NAME$`, a `$` before the NAME
+// placeholder, which it drops with the value's first character.
+export function chromeDollarsOf(
+  text: string,
+  syntax: Library,
+): { at: number; kind: "lone" | "price" | "doubled-name" }[] {
+  if (syntax !== "chrome") return [];
+  const out: { at: number; kind: "lone" | "price" | "doubled-name" }[] = [];
+  for (let at = 0; at < text.length; at++) {
+    if (text[at] !== "$") continue;
+    const rest = text.slice(at);
+    const named = (from: number) =>
+      CHROME_PLACEHOLDER_RE.exec(rest.slice(from));
+    if (rest[1] === "$") {
+      const after = named(1);
+      if (after) {
+        out.push({ at, kind: "doubled-name" });
+        at += after[0].length;
+      } else at += 1;
+      continue;
+    }
+    const own = named(0);
+    if (own) at += own[0].length - 1;
+    else if (/^\$[1-9][0-9]/.test(rest)) {
+      out.push({ at, kind: "price" });
+      at += 1;
+    } else if (/^\$[1-9]/.test(rest)) at += 1;
+    else out.push({ at, kind: "lone" });
+  }
+  return out;
 }
 
 // What each of a text's vue-i18n forms is shown for under its default
@@ -1188,7 +1230,20 @@ export function validateTranslation(
 
   // A category missing falls back to `other`, and one the language never
   // selects is dead text: neither breaks the message (#556, #651).
+  // A `$` Chrome drops is said, never refused (#631): a translation's
+  // own, beside the source's.
+  if (syntax === "chrome") {
+    const kinds = (text: string) => chromeDollarsOf(text, syntax);
+    const sourceKinds = kinds(source).map((d) => d.kind);
+    for (const dollar of kinds(target)) {
+      const at = sourceKinds.indexOf(dollar.kind);
+      if (at >= 0) sourceKinds.splice(at, 1);
+      else errors.push({ code: "chrome-dollar", ...dollar });
+    }
+  }
+
   const warning = (e: ValidationError) =>
+    e.code === "chrome-dollar" ||
     e.code === "form-count" ||
     e.code === "missing-category" ||
     e.code === "unexpected-category" ||
