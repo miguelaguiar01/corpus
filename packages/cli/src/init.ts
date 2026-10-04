@@ -333,12 +333,12 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       `check.include: ${include.join(", ")} (the directories holding components or templates, which corpus check scans)`,
     );
   } else if (!components.found) {
-    // A UI that is never JSX, TSX, Vue or Svelte gives check nothing to read,
+    // A UI that is never JSX, TSX, Vue, Svelte or Handlebars gives check nothing to read,
     // whatever it is pointed at (#1016).
     ctx.out(
       NO_COMPONENTS[adapter]
-        ? `corpus check reads ${READS} components, which ${NO_COMPONENTS[adapter]} has none of: leave corpus check out of CI`
-        : `check.include: init found no ${EXTENSIONS.join(", ").replace(/, ([^,]*)$/, " or $1")} components where it looks; set check.include in ${filename} to where they are, or, if the UI is written in something else (C, GTK, Angular, templates), corpus check does not apply: leave it out of CI`,
+        ? `corpus check reads ${READS} components and templates, which ${NO_COMPONENTS[adapter]} has none of: leave corpus check out of CI`
+        : `check.include: init found no ${EXTENSIONS.join(", ").replace(/, ([^,]*)$/, " or $1")} components or templates where it looks; set check.include in ${filename} to where they are, or, if the UI is written in something else (C, GTK, Angular, ERB or Jinja templates), corpus check does not apply: leave it out of CI`,
     );
   }
   const siblings =
@@ -953,11 +953,12 @@ function packageOf(cwd: string, messages: string): string | undefined {
   return undefined;
 }
 
+const HANDLEBARS = [".hbs", ".handlebars"] as const;
+
 // A symlinked directory is not followed: a Dirent reports it as a link,
 // not a directory, which is what keeps a cycle from looping. `check`
 // itself does follow links, so a tree reachable only through one is
 // declared by hand.
-const HANDLEBARS = [".hbs", ".handlebars"] as const;
 
 function holdsCheckedFile(
   dir: string,
