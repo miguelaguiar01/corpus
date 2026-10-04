@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { validationMessage } from "./validation-message";
+import { problemOf, validationMessage } from "./validation-message";
 
 test("a plural's count missing under printf or android says the plural was dropped (#652)", () => {
   for (const syntax of [
@@ -88,6 +88,28 @@ test("gen-l10n's overridden branch and an =N wider than its number are said in t
   ).toBe(
     "gen-l10n reads =1 on count as one, which this language also picks for 0: write one for what they share, or give 0 its own =0",
   );
+});
+
+test("problemOf reads a plural by the file's own forms, an =N they name being none (#1051, #982)", () => {
+  const source = "{count, plural, one {%d file} other {%d files}}";
+  const text = "{count, plural, =1 {%d A} other {%d B}}";
+  expect(
+    problemOf(
+      source,
+      text,
+      "ceb",
+      "printf",
+      null,
+      undefined,
+      "k",
+      "en",
+      undefined,
+      ["=1", "other"],
+    ),
+  ).toBeNull();
+  expect(
+    problemOf(source, text, "ceb", "printf", null, undefined, "k", "en"),
+  ).toMatch(/=1 branch/);
 });
 
 test("an =N branch a plural read whole cannot hold is said in the editor (#1051)", () => {
