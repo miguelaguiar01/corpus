@@ -26,6 +26,7 @@ import {
   pluralCategoriesOf,
   pluralCategoryCovered,
   integersOf,
+  pluralBranch,
   printfVerbOf,
   proseTagsOf,
   isHtmlElement,
@@ -1284,11 +1285,11 @@ export function validateTranslation(
   // Fluent's writer renders a select inside any variant (#990).
   if (syntax !== "fluent")
     errors.push(...nestingErrors(sourceNodes, targetNodes));
+  if (language !== undefined && CLDR_PICKED.has(syntax))
+    errors.push(...fixedCounts(targetNodes, language, syntax));
   // The source's own text keeps the source's warning, not an error: a
   // translation that is the source cannot be the translator's `#` (#923),
   // nor one that is it restructured (#1009).
-  if (language !== undefined && CLDR_PICKED.has(syntax))
-    errors.push(...fixedCounts(targetNodes, language));
   // gen-l10n's `#` is text everywhere: hash-text says it.
   if (!sameMessage(source, target, syntax) && syntax !== "gen_l10n")
     for (const arg of countsInSelects(parsedTarget.nodes))
@@ -1471,7 +1472,16 @@ const CLDR_PICKED = new Set<Library>([
 // its text and prints neither `#` nor its argument, in a language whose
 // category holds other whole numbers: the app shows "1" for them.
 // gen-l10n's `=1`, read as one, is wide-exact's (#1039).
-function fixedCounts(nodes: IcuNode[], language: string): ValidationError[] {
+// A standalone 1, Latin, Arabic-Indic or full-width, and not part of a
+// time, a number or a name: `u 1:30`, `1.5`, `A1` (#1042).
+const FIXED_ONE =
+  /(?<![\p{N}\p{LC}])(?<!\p{N}[.,:])[1\u0661\u06F1\uFF11](?!\p{N}|[.,:]\p{N})/u;
+
+function fixedCounts(
+  nodes: IcuNode[],
+  language: string,
+  library: Library,
+): ValidationError[] {
   const out: ValidationError[] = [];
   const prints = (branch: IcuNode[], arg: string): boolean =>
     branch.some((node) => {
@@ -1505,10 +1515,22 @@ function fixedCounts(nodes: IcuNode[], language: string): ValidationError[] {
       if (node.kind !== "plural" || node.ordinal) continue;
       for (const [key, branch] of Object.entries(node.branches)) {
         if (key.startsWith("=") || key === "other") continue;
-        if (!/(?<!\d)1(?!\d)/.test(text(branch)) || prints(branch, node.arg))
-          continue;
+        if (!FIXED_ONE.test(text(branch)) || prints(branch, node.arg)) continue;
+        // The numbers the runtime picks this branch for: not one an `=N`
+        // takes, nor i18next's written zero (#985), nor gen-l10n's written
+        // zero or two, which take exactly 0 and 2 first (#1039).
         const values = integersOf(language, key).filter(
-          (n) => n !== 1 && !(`=${n}` in node.branches),
+          (n) =>
+            n !== 1 &&
+            pluralBranch(node.branches, String(n), language, { library }) ===
+              key &&
+            !(
+              library === "gen_l10n" &&
+              GEN_L10N_EXACT.some(
+                ([exact, category]) =>
+                  Number(exact.slice(1)) === n && category in node.branches,
+              )
+            ),
         );
         if (values.length > 0)
           out.push({

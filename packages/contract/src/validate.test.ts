@@ -3387,8 +3387,8 @@ test("a category branch that writes the number 1 and no count, where the languag
         "{count, plural, zero{aucune} one{1 semaine} other{{count} semaines}}",
         "fr",
         library,
-      ).incomplete?.filter((e) => e.code === "fixed-count"),
-    ).toBeUndefined();
+      ).incomplete?.filter((e) => e.code === "fixed-count") ?? [],
+    ).toEqual([]);
   // A 1 that is part of a time, a name or a number is no count.
   for (const one of ["u 1:30", "A1 tjedan", "1.5 tjedan", "1,5 tjedan"])
     expect(
