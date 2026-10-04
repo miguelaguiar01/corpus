@@ -1400,3 +1400,58 @@ test("a source's placeholders layer another library's tokens on its own: {{name}
   expect(shape(["printf"])).toEqual(shape());
   expect(shape()).toEqual(["one", "other"]);
 });
+
+test("a layer reads a whole plural's translation too, and a %name% example is two letters or more of ASCII, so %d%%, %s%s and CJK runs stay verbs (#1049)", () => {
+  // Godot's gettext plural with fmt's {num} in it: the source's own copy
+  // and a translation that keeps it are correct.
+  const godot = "{count, plural, one {1 color} other {{num} colors}}";
+  for (const target of [
+    godot,
+    "{count, plural, one {1 цвят} other {{num} цвята}}",
+  ])
+    expect(
+      validateTranslation(godot, target, "bg", "printf", {
+        placeholders: ["fmt"],
+      }),
+    ).toEqual({ ok: true });
+  expect(
+    validateTranslation(
+      godot,
+      "{count, plural, one {1 цвят} other {цвята}}",
+      "bg",
+      "printf",
+      { placeholders: ["fmt"] },
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "num" }],
+  });
+  expect(
+    validateTranslation(
+      "{count, plural, one {{{n}} file} other {{{n}} files}}",
+      "{count, plural, one {{{n}} fichier} other {{{n}} fichiers}}",
+      "fr",
+      "printf",
+      { placeholders: ["i18next"] },
+    ),
+  ).toEqual({ ok: true });
+  const printf = (source: string, target: string, language: string) =>
+    validateTranslation(source, target, language, "i18next", {
+      placeholders: ["printf"],
+    }).ok;
+  expect(printf("%s of %d files", "%s件中%d件のファイル", "ja")).toBe(true);
+  expect(printf("Page %s of %s", "第%s页共%s页", "zh")).toBe(true);
+  expect(printf("%s of %s", "%s개중%s개", "ko")).toBe(true);
+  expect(printf("%s min %s s", "%s분%s초", "ko")).toBe(true);
+  expect(printf("%s: %d%%", "%s : %d %%", "fr")).toBe(true);
+  expect(printf("%s%s", "%s%s", "fr")).toBe(true);
+  expect(printf("%d%s", "%s", "fr")).toBe(false);
+  expect([
+    ...partsOf("%d%% done, %s%s", "i18next", ["printf"]).placeholders,
+  ]).toEqual(["1", "2", "3"]);
+  // An example's name is still text.
+  expect([
+    ...partsOf("Use %email% or %user_name% for %s", "i18next", ["printf"])
+      .placeholders,
+  ]).toEqual(["1"]);
+});
