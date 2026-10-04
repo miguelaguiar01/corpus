@@ -766,6 +766,51 @@ test("init reads the languages and the library through a {ns} pattern and writes
   });
 });
 
+test("init detects the library from the namespaces that read, and names the ones that do not (#1046)", async () => {
+  const at = (files: Record<string, string>) => {
+    const p = project();
+    stubCli(p.dir);
+    for (const [file, text] of Object.entries(files)) {
+      mkdirSync(path.dirname(path.join(p.dir, file)), { recursive: true });
+      writeFileSync(path.join(p.dir, file), text);
+    }
+    return p;
+  };
+  const flags = [
+    "init",
+    "--project",
+    "app",
+    "--source",
+    "en",
+    "--messages",
+    "locales/{lang}/{ns}.json",
+  ];
+  // Chatwoot: a namespace that does not read hid the pipes of the rest.
+  const some = at({
+    "locales/en/a.json": JSON.stringify({ files: "one file | {n} files" }),
+    "locales/en/b.json": "{ not json",
+    "locales/en/c.json": JSON.stringify({ email: "Email {'@'} domain" }),
+    "locales/de/a.json": JSON.stringify({ files: "eine Datei | {n} Dateien" }),
+  });
+  expect(await run(flags, some.ctx)).toBe(0);
+  const config = await loadConfig(some.dir);
+  expect(
+    config.sources.map((s) => (s.adapter === "messages" ? s.library : "")),
+  ).toEqual(["vue", "vue", "vue"]);
+  expect(some.out.join("\n")).toMatch(
+    /^library: vue, from a pipe or a quoted literal in locales\/en\/a\.json \(locales\/en\/b\.json not read: .+\)$/m,
+  );
+  // None that reads is said, not silence.
+  const none = at({
+    "locales/en/b.json": "{ not json",
+    "locales/de/b.json": "{}",
+  });
+  await run(flags, none.ctx);
+  expect(none.out.join("\n")).toMatch(
+    /^library: not detected \(locales\/en\/b\.json: .+\)$/m,
+  );
+});
+
 test("init reads languages through a {ns} pattern in either order, and names sibling catalogues a plain pattern leaves out (#513)", async () => {
   const p = project();
   stubCli(p.dir);

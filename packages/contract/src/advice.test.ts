@@ -2,7 +2,7 @@
 // CLI and the server both append to a parse error, so every client
 // reads the same clause.
 import { expect, test } from "vitest";
-import { parseIcu, refusalAdvice } from "./icu";
+import { parseIcu, refusalAdvice, refusalCause } from "./icu";
 
 const adviceFor = (source: string, library: "icu" | "i18next" | "vue") => {
   const parsed = parseIcu(source, library);
@@ -29,6 +29,22 @@ test("a catalogue read under the wrong library is told which one", () => {
   expect(adviceFor("{n, plural, one {# file} other {# files}}", "vue")).toBe(
     '; {name, plural, …} is an ICU argument: declare library: "icu" on the source, or leave the field out',
   );
+});
+
+test("a quoted literal in braces is vue-i18n's literal interpolation, and builds under vue (#1046)", () => {
+  // Chatwoot's login.json and integrations.json.
+  expect(adviceFor("Email {'@'} domain", "icu")).toBe(
+    `; {'@'} is vue-i18n's literal interpolation: declare library: "vue" on the source`,
+  );
+  expect(adviceFor("e.g. https://x.io/{'{{'}id{'}}'}", "icu")).toBe(
+    `; {'{{'} is vue-i18n's literal interpolation: declare library: "vue" on the source`,
+  );
+  const parsed = parseIcu("Email {'@'} domain", "icu");
+  expect(
+    !parsed.ok &&
+      refusalCause("Email {'@'} domain", "icu", parsed.errors[0]!.message),
+  ).toBe("library");
+  expect(parseIcu("Email {'@'} domain", "vue").ok).toBe(true);
 });
 
 test("a refusal with nothing to add gets no clause", () => {
