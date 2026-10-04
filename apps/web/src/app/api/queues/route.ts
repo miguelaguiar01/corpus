@@ -33,6 +33,7 @@ export async function GET(request: Request): Promise<Response> {
       kind,
       { language, type },
       kind === "invalid",
+      kind === "untranslated",
     ).items;
     // An invalid row says what is wrong with it, as the editor would.
     const items = listed.map(
@@ -42,6 +43,7 @@ export async function GET(request: Request): Promise<Response> {
         type,
         source,
         text,
+        suggestion,
         syntax,
         arguments: args,
         placeholders,
@@ -51,6 +53,8 @@ export async function GET(request: Request): Promise<Response> {
         type,
         source,
         text,
+        // What the repository offers to start from (#1050).
+        ...(suggestion && { suggestion }),
         ...(kind === "invalid" && {
           problem:
             text === null
