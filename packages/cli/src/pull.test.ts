@@ -1460,6 +1460,12 @@ export default defineCorpus({
   await expect(buildSnapshot(await loadConfig(repo), repo)).rejects.toThrow(
     /arguments names js\.view_long, which the source does not have/,
   );
+  // Local validate says the same, rather than checking without it.
+  const typo = ctx();
+  expect(await run(["validate"], typo)).toBe(1);
+  expect(typo.output.join("\n")).toMatch(
+    /arguments names js\.view_long, which the source does not have/,
+  );
 });
 
 test("under merge: last-wins the later file's translation is seeded and written, an earlier one only where it agreed, and a pull of what was pushed changes nothing (#953)", async () => {

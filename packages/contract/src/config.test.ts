@@ -1394,6 +1394,21 @@ test("a source's arguments name values its code passes beside the source's, per 
       arguments: { greeting: ["name"] },
     }),
   ).toEqual([
-    "arguments: printf passes its values by position, so it has no names to declare",
+    "arguments: printf's arguments are its verbs by position, so it takes no names here",
   ]);
+  // A name is a value's, never the placeholder as written.
+  expect(
+    issues({ ...discourse, arguments: { "js.views_long": ["%{number}"] } }),
+  ).toEqual([
+    'arguments: "%{number}" is no value name; write the name alone, number for %{number}',
+  ]);
+  // A source without the key says so once.
+  expect(
+    issues({
+      adapter: "android",
+      type: "ui",
+      path: "app/src/main/res",
+      arguments: { title: ["n"] },
+    }),
+  ).toHaveLength(1);
 });
