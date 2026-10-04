@@ -872,7 +872,6 @@ test("under printf a text that is one ICU plural has its verbs checked per branc
   // as one, is printf text as before.
   for (const text of [
     "{n, plural, one {a} other {b}} and {c}",
-    "{n, plural, one {a {x} b} other {b}}",
     "{n, plural, one {a}}",
     "{user.count, plural, one {a} other {b}}",
   ])

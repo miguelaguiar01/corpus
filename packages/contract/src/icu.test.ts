@@ -896,14 +896,14 @@ test("the text after a whole plural is placed after the plural as the parser rea
       "printf",
     )?.position,
   ).toBe(37);
-  // A branch's brace is text there: only its close ends the branch.
+  // A form's braces are its text in pairs (#1052): a lone `{` pairs
+  // with the next `}`, as the writers split a form, so this is no one
+  // plural, and no writer could split it either.
   for (const text of [
     "{n, plural, one {a { b} other {c}} tail",
     "{n, plural, one {'{' a} other {b}} tail",
   ])
-    expect(printfPluralError(text, false, "printf")?.position).toBe(
-      text.indexOf("tail"),
-    );
+    expect(printfPluralError(text, false, "printf")).toBeDefined();
 });
 
 test("under android a printf verb in a tag's attribute takes its place in the argument order (#956)", () => {
