@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { createJiti } from "jiti";
 import {
@@ -15,6 +15,8 @@ import {
   applyYamlOps,
   entriesToXliff,
   applyMessagesOps,
+  applyStringsOps,
+  entriesToStrings,
   applyTableOps,
   entriesToMessages,
   entriesToTable,
@@ -22,6 +24,7 @@ import {
   type SourceOp,
 } from "@corpus/adapters";
 import { printable } from "./printable";
+import { readRepoTextIfAny, writeRepoText } from "./repo-text";
 import { option, options } from "./args";
 import {
   libraryOf,
@@ -315,7 +318,11 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
           mkdirSync(path.dirname(path.join(ctx.cwd, file)), {
             recursive: true,
           });
-          writeFileSync(path.join(ctx.cwd, file), next);
+          writeRepoText(
+            path.join(ctx.cwd, file),
+            next,
+            path.join(ctx.cwd, templatePath),
+          );
         }
         if (!changed.includes(file)) changed.push(file);
       }
@@ -435,7 +442,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
         );
       }
       if (next !== existing) {
-        if (!check) writeFileSync(path.join(ctx.cwd, target), next);
+        if (!check) writeRepoText(path.join(ctx.cwd, target), next);
         changed.push(target);
       }
     }
@@ -593,6 +600,8 @@ function writeTarget(
           ),
         (note) => err(`corpus: ${file}: ${note}`),
       );
+    case "strings":
+      return entriesToStrings(template, translations, existing);
     case "qt-ts":
       return entriesToQtTs(
         template,
@@ -661,6 +670,8 @@ function applyOps(
       });
     case "xliff":
       return applyXliffOps(existing, ops);
+    case "strings":
+      return applyStringsOps(existing, ops);
     case "yaml":
       return applyYamlOps(existing, ops, code);
     case "table":
@@ -705,8 +716,7 @@ async function unreadable(
 }
 
 function readRepoFile(cwd: string, rel: string): string | undefined {
-  const abs = path.join(cwd, rel);
-  return existsSync(abs) ? readFileSync(abs, "utf8") : undefined;
+  return readRepoTextIfAny(path.join(cwd, rel));
 }
 
 function forType(

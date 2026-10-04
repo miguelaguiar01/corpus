@@ -11,6 +11,8 @@ import {
   xcstringsTranslations,
   qtTsToEntries,
   qtShortForms,
+  stringsToEntries,
+  stringsTranslations,
   qtTsTranslations,
   yamlToEntries,
   yamlTranslations,
@@ -64,6 +66,7 @@ import {
 import type { Refusals } from "./agent-tools";
 import { printable } from "./printable";
 import { unreadableFile } from "./catalogue-format";
+import { readRepoText } from "./repo-text";
 import {
   CliError,
   fileCodeOf,
@@ -808,6 +811,8 @@ export function sourceLibrary(source: FileSource): Library {
   if (source.adapter === "gettext" || source.adapter === "xcstrings")
     return source.library ?? "printf";
   if (source.adapter === "qt-ts") return source.library ?? "qt";
+  // Foundation's format verbs, `%@` and `%1$@` (#1037).
+  if (source.adapter === "strings") return source.library ?? "printf";
   if (source.adapter === "yaml") return source.library ?? "rails";
   if (source.adapter === "fluent") return "fluent";
   return source.adapter === "xliff" ? "icu" : libraryOf(source);
@@ -875,6 +880,7 @@ const OWN_FORMAT = new Set<FileSource["adapter"]>([
   "xcstrings",
   "qt-ts",
   "yaml",
+  "strings",
 ]);
 
 // The adapters whose keys are the code's own (a msgid, a String Catalog
@@ -963,7 +969,7 @@ export async function readEntries(
   const typed = <T>(entries: T[]) =>
     entries.map((e) => ({ ...e, type: source.type }));
   const own = (id: string) => namespaced(source, id);
-  const text = () => readFileSync(path.join(cwd, file), "utf8");
+  const text = () => readRepoText(path.join(cwd, file));
   // An empty target file is one with no translations yet, which a pull
   // fills (#1028); a String Catalog's is its source's file.
   if (!sourceFile && source.adapter !== "xcstrings" && text().trim() === "")
@@ -1013,6 +1019,12 @@ export async function readEntries(
           : typed(
               qtTsTranslations(text(), languageOfFile(file, source), unread),
             ),
+      );
+    case "strings":
+      return prefixed(
+        sourceFile
+          ? stringsToEntries(text(), { type: source.type })
+          : typed(stringsTranslations(text())),
       );
     case "xliff":
       return prefixed(

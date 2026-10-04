@@ -131,6 +131,16 @@ The source is the source language's file, often `lupdate`'s template with every 
 
 A pull writes a changed translation into its `<translation>` and nothing else, drops its `unfinished` mark, and escapes as the file does: `&quot;` and `&#xa0;` where lupdate and Transifex wrote the file, raw quotes where it keeps them raw. A message the file lacks goes in where the source file has it, and a language with no file yet gets one made from the source file. A plural (`numerus`) message is one plural on `count`: its forms map to the language's CLDR categories through Qt's own rule for the language, so French has two forms and Polish three, and a pull writes them back in Qt's order. A form no CLDR category reads, Latvian's for zero or Filipino's for 0 and 1, is not shown in the editor: a pull keeps it as the file has it, and fills it only where it would otherwise be empty.
 
+## strings
+
+Apple's `Localizable.strings`, the format of every app localised before String Catalogs, one file per language in Xcode's `.lproj` directories:
+
+```ts
+{ adapter: "strings", type: "ui", path: "Stats/Supporting Files/{lang}.lproj/Localizable.strings" }
+```
+
+Each `"key" = "value";` is a string. The comment directly above a key is its note, as `genstrings` writes it, and a comment after the `;` on the same line stays where it is. Escapes (`\"`, `\n`, `\U00e9`) are read as the text they stand for, and a file written in UTF-16, as Xcode may write one, is read and written back in UTF-16. The library is `printf`, so Foundation's `%@` and `%1$@` are checked. A pull rewrites only the values that changed; a key a translation file lacks goes after its neighbour in the source, and a new language gets a copy of the source file with its translations in it, every key present, as Xcode writes it. Proposals edit the English file. `corpus init --messages "App/{lang}.lproj/Localizable.strings"` writes the source and reads the languages from the `.lproj` directories. `.stringsdict` plurals are not read yet.
+
 ## yaml
 
 Rails I18n's YAML catalogues, one file per language rooted at its code:
