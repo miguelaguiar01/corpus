@@ -4,6 +4,7 @@ import path from "node:path";
 import { createJiti } from "jiti";
 import {
   applyAndroidOps,
+  hasIndentedLine,
   applyFluentOps,
   entriesToAndroid,
   entriesToFluent,
@@ -310,6 +311,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
         language,
         config,
         ctx.err,
+        () => siblingIndent(ctx.cwd, source, config, language),
       );
       if (next !== undefined) pending.set(file, next);
       if (next !== undefined && next !== existing) {
@@ -546,6 +548,25 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
   return 0;
 }
 
+// The indent the source's other target files write, the first that has
+// an indented line: Weblate writes wger's with four spaces beside a
+// source with two, and an empty `{}` takes theirs (#1041).
+function siblingIndent(
+  cwd: string,
+  source: FileSource,
+  config: CorpusConfig,
+  language: string,
+): string | undefined {
+  for (const other of config.languages) {
+    if (other === language || other === config.sourceLanguage) continue;
+    const text = readRepoTextIfAny(
+      path.join(cwd, fileOf(source, other, config.sourceLanguage)),
+    );
+    if (text && hasIndentedLine(text)) return /^([ \t]+)\S/m.exec(text)![1];
+  }
+  return undefined;
+}
+
 // The target file `source` writes for `language`, with each refusal said
 // through `err`; undefined when there is no file to write.
 function writeTarget(
@@ -557,6 +578,8 @@ function writeTarget(
   language: string,
   config: CorpusConfig,
   err: (line: string) => void,
+  // The indent of the source's other target files, read when needed.
+  siblings: () => string | undefined = () => undefined,
 ): string | undefined {
   const refused = (id: string, why: string) =>
     err(`corpus: ${file}: ${printable(id)} ${why}; not written`);
@@ -570,6 +593,9 @@ function writeTarget(
         ...(isArb(file) && { locale: language }),
         chrome: libraryOf(source) === "chrome",
         ...(source.entries && { entries: source.entries }),
+        ...(existing !== undefined &&
+          !hasIndentedLine(existing) &&
+          ((indent) => indent && { indent })(siblings())),
         plurals: readsPluralObjects(source),
         suffixPlurals: readsSuffixPlurals(source),
         sourceLanguage: config.sourceLanguage,

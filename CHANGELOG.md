@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- A pull into an empty `{}` target writes one key per line, in its sibling targets' indent, not every key on one line (#1041).
 - An ARB source's placeholder examples are the string's example, and their descriptions join its note (#1040).
 - Under `gen_l10n`, `=0`, `=1` and `=2` are read as the zero, one and two categories gen-l10n takes them for: `=1` beside `one` is refused, and an `=1` whose category holds more than 1 is a warning (#1039).
 - `corpus build` notes a printf source whose strings write `%0`, `%1` that no verb reads, and suggests `library: "qt"`, which checks them (#1036).

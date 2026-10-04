@@ -89,6 +89,10 @@ export default defineCorpus({
     //    with dots; a segment may itself hold dots (`"m.room.topic"`), so
     //    pull writes a new key where the source file puts it, never by
     //    re-splitting the id, and two paths that join to one id are refused.
+    //    A pull keeps a target file's own layout; an empty one, `{}`,
+    //    takes one key a line in its sibling targets' indent, else the
+    //    source's (wger's Weblate files have four spaces beside a source
+    //    with two), and a pull with nothing to write leaves it `{}` (#1041).
     //    An object whose keys are all plural categories, `other` among
     //    them (`{ "one": "…", "other": "…" }`, as counterpart,
     //    easy_localization and Rails write a plural), is one string, an

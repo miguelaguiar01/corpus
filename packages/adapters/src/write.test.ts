@@ -346,9 +346,10 @@ describe("format-preserving edits on an inline-style file", () => {
     expect(
       applyMessagesOps('{ "a": "x" }\n', [{ kind: "delete", id: "a" }]),
     ).toBe("{}\n");
+    // An empty file's {} takes one key a line (#1041).
     expect(
       applyMessagesOps("{}\n", [{ kind: "add", id: "a", text: "x" }]),
-    ).toBe('{ "a": "x" }\n');
+    ).toBe('{\n  "a": "x"\n}\n');
   });
 
   test("a single-line file stays single-line", () => {
@@ -394,7 +395,7 @@ describe("edits that must not duplicate, and line endings", () => {
   test("an empty object with whitespace inside takes the entry in place of it", () => {
     expect(
       applyMessagesOps("{ }\n", [{ kind: "add", id: "a", text: "x" }]),
-    ).toBe('{ "a": "x" }\n');
+    ).toBe('{\n  "a": "x"\n}\n');
     expect(
       applyMessagesOps("{\n}\n", [{ kind: "add", id: "a", text: "x" }]),
     ).toBe('{\n  "a": "x"\n}\n');
@@ -1411,4 +1412,44 @@ test("a new target file is written from the source's own reading, so an object b
   expect(out).not.toMatch(/room"/);
   expect(out).toMatch(/"one": "\{\{count\}\} pokój"/);
   expect(out).toMatch(/"rooms_other": "Inne pokoje"/);
+});
+
+test("a pull into an empty {} target writes one key per line in the source's indent; a pull of nothing leaves {} as it is (#1041)", () => {
+  const source = `{\n    "a": "A",\n    "nested": {\n        "b": "B"\n    }\n}\n`;
+  expect(entriesToMessages(source, { a: "Á", "nested.b": "Bé" }, "{}\n")).toBe(
+    `{\n    "a": "Á",\n    "nested": {\n        "b": "Bé"\n    }\n}\n`,
+  );
+  expect(entriesToMessages(source, { a: "Á" }, "{}")).toBe(
+    `{\n    "a": "Á"\n}`,
+  );
+  expect(entriesToMessages(source, {}, "{}\n")).toBe("{}\n");
+  // An ARB with only its locale keeps its own layout.
+  const arb = `{\n  "@@locale": "gl"\n}\n`;
+  expect(entriesToMessages(source, { a: "Á" }, arb)).toBe(
+    `{\n  "@@locale": "gl",\n  "a": "Á"\n}\n`,
+  );
+  // A target written on one line with keys keeps its line.
+  expect(entriesToMessages(source, { a: "Á" }, `{ "z": "Z" }\n`)).toBe(
+    `{ "z": "Z", "a": "Á" }\n`,
+  );
+});
+
+test("an empty {} target of a Chrome catalogue or of entry objects takes the given indent too, else the source's (#1041 review)", () => {
+  const chrome = `{\n    "a": {\n        "message": "A"\n    }\n}\n`;
+  expect(
+    entriesToMessages(chrome, { a: "Á" }, "{}\n", {
+      chrome: true,
+      indent: "\t",
+    }),
+  ).toBe(`{\n\t"a": {\n\t\t"message": "Á"\n\t}\n}\n`);
+  expect(entriesToMessages(chrome, { a: "Á" }, "{}\n", { chrome: true })).toBe(
+    `{\n    "a": {\n        "message": "Á"\n    }\n}\n`,
+  );
+  const entries = `{\n    "a": {\n        "text": "A"\n    }\n}\n`;
+  expect(
+    entriesToMessages(entries, { a: "Á" }, "{}\n", {
+      entries: { text: "text" },
+      indent: "\t",
+    }),
+  ).toBe(`{\n\t"a": {\n\t\t"text": "Á"\n\t}\n}\n`);
 });

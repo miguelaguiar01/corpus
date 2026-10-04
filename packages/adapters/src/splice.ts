@@ -54,6 +54,14 @@ function isInline(text: string, node: Node): boolean {
   return !text.slice(node.offset, node.offset + node.length).includes("\n");
 }
 
+// Whether keys go into an object on its own line: an inline one, but an
+// empty file's `{}`, which a translation fills one key a line, as the
+// source writes them (#1041); a nested `{}` stays as the file wrote it.
+function writesInline(text: string, node: Node): boolean {
+  if (!node.parent && (node.children?.length ?? 0) === 0) return false;
+  return isInline(text, node);
+}
+
 // The nested object a run of path segments becomes, in the parent's
 // style: on one line inside an inline object, expanded otherwise.
 function render(
@@ -184,7 +192,7 @@ export function addLeaf(
   const rendered = render(
     path.slice(depth + 1),
     value,
-    isInline(text, parent),
+    writesInline(text, parent),
     last
       ? lineIndent(text, last.offset)
       : lineIndent(text, parent.offset) + unit,
@@ -217,7 +225,7 @@ function insert(
     // Whatever sat between the braces goes; the entry takes its place.
     const open = object.offset + 1;
     const close = object.offset + object.length - 1;
-    const inline = isInline(text, object);
+    const inline = writesInline(text, object);
     const body = inline
       ? ` ${entry} `
       : `${eol}${lineIndent(text, object.offset)}${unit}${entry}${eol}${lineIndent(text, object.offset)}`;
