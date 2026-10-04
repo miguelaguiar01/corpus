@@ -20,14 +20,17 @@ export function SourceView({
   source,
   syntax = "icu",
   declarations,
+  layers = null,
   className = "text-xl lg:text-2xl",
 }: {
   source: string;
   syntax?: Library;
+  // The syntaxes its source layers on the library (#1049).
+  layers?: Library[] | null;
   declarations: Record<string, FieldDeclaration>;
   className?: string;
 }) {
-  const parsed = readIcu(source, syntax);
+  const parsed = readIcu(source, syntax, layers ?? undefined);
   if (!parsed.ok) return <p className={className}>{source}</p>;
   const slots = slotDescriptions(declarations);
   const selects = branchingNodes(parsed.nodes, false);

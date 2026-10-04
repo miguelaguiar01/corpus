@@ -13,7 +13,7 @@ import {
   printfPluralError,
   sameMessage,
 } from "./icu";
-import { LIBRARIES, libraryName } from "./strings";
+import { LIBRARIES, libraryName, type Library } from "./strings";
 
 const SIGHTING =
   "{person} foi {person_gender, select, m {visto} f {vista}} à janela {room_de} às {hour} — e não estava {person_gender, select, m {sozinho} f {sozinha}}.";
@@ -1324,4 +1324,175 @@ test("under fmt each gettext form numbers its own {}, the reader's count is no f
   // B5: automatic and manual numbering do not mix.
   expect(check("{} of {}", "{} sur {1}", "fr").ok).toBe(false);
   expect(parseIcu("{} {1}", "fmt").ok).toBe(false);
+});
+
+test("a source's placeholders layer another library's tokens on its own: {{name}} on chrome, %s on i18next, {name} on printf; the base still reads structure (#1049)", () => {
+  expect([
+    ...partsOf("{{used}} used out of {{total}}, $COUNT$", "chrome", ["i18next"])
+      .placeholders,
+  ]).toEqual(["used", "total", "count"]);
+  expect(
+    validateTranslation(
+      "{{used}} used out of {{total}}",
+      "{{used}} усă курăнать",
+      "cv",
+      "chrome",
+      { placeholders: ["i18next"] },
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "total" }],
+  });
+  expect(
+    validateTranslation(
+      "Your push was sent to %s devices",
+      "Teie tõukesõnum saadeti seadmetesse",
+      "et",
+      "i18next",
+      { placeholders: ["printf"] },
+    ).ok,
+  ).toBe(false);
+  expect([
+    ...partsOf("%d files in {num} of {{name}}", "printf", ["fmt"]).placeholders,
+  ]).toEqual(["1", "num"]);
+  // Japanese runs a value into its text, as sprintf fills it.
+  expect(
+    validateTranslation(
+      "Restart in %s seconds",
+      "%s秒後に再起動",
+      "ja",
+      "i18next",
+      { placeholders: ["printf"] },
+    ).ok,
+  ).toBe(true);
+  expect(
+    validateTranslation("Took %sms", "Dauerte ms", "de", "i18next", {
+      placeholders: ["printf"],
+    }).ok,
+  ).toBe(false);
+  // An example's %name% and a percent sign are text.
+  expect([
+    ...partsOf('Map {"email": "%email%"} at 50% of %s', "i18next", ["printf"])
+      .placeholders,
+  ]).toEqual(["1"]);
+  // A layered {{name:suffix}} is the value name.
+  expect(
+    validateTranslation(
+      "Show {{input:number}} items",
+      "Zeige {{input}} Einträge",
+      "de",
+      "chrome",
+      { placeholders: ["i18next"] },
+    ).ok,
+  ).toBe(true);
+  // Without the layer the base reads its own tokens alone, as before.
+  expect([...partsOf("{{used}} of {{total}}", "chrome").placeholders]).toEqual(
+    [],
+  );
+  // A plural is the base's: the same branches with the layer as without.
+  const plural = "{count, plural, one {%s file} other {%s files}}";
+  const shape = (layers?: Library[]) => {
+    const result = parseIcu(plural, "i18next", { placeholders: layers });
+    if (!result.ok) throw new Error(result.errors[0]!.message);
+    const node = result.nodes[0]!;
+    return node.kind === "plural" ? Object.keys(node.branches) : node.kind;
+  };
+  expect(shape(["printf"])).toEqual(shape());
+  expect(shape()).toEqual(["one", "other"]);
+});
+
+test("a layer reads a whole plural's translation too, and a %name% example is two letters or more of ASCII, so %d%%, %s%s and CJK runs stay verbs (#1049)", () => {
+  // Godot's gettext plural with fmt's {num} in it: the source's own copy
+  // and a translation that keeps it are correct.
+  const godot = "{count, plural, one {1 color} other {{num} colors}}";
+  for (const target of [
+    godot,
+    "{count, plural, one {1 цвят} other {{num} цвята}}",
+  ])
+    expect(
+      validateTranslation(godot, target, "bg", "printf", {
+        placeholders: ["fmt"],
+      }),
+    ).toEqual({ ok: true });
+  expect(
+    validateTranslation(
+      godot,
+      "{count, plural, one {1 цвят} other {цвята}}",
+      "bg",
+      "printf",
+      { placeholders: ["fmt"] },
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "num" }],
+  });
+  expect(
+    validateTranslation(
+      "{count, plural, one {{{n}} file} other {{{n}} files}}",
+      "{count, plural, one {{{n}} fichier} other {{{n}} fichiers}}",
+      "fr",
+      "printf",
+      { placeholders: ["i18next"] },
+    ),
+  ).toEqual({ ok: true });
+  const printf = (source: string, target: string, language: string) =>
+    validateTranslation(source, target, language, "i18next", {
+      placeholders: ["printf"],
+    }).ok;
+  expect(printf("%s of %d files", "%s件中%d件のファイル", "ja")).toBe(true);
+  expect(printf("Page %s of %s", "第%s页共%s页", "zh")).toBe(true);
+  expect(printf("%s of %s", "%s개중%s개", "ko")).toBe(true);
+  expect(printf("%s min %s s", "%s분%s초", "ko")).toBe(true);
+  expect(printf("%s: %d%%", "%s : %d %%", "fr")).toBe(true);
+  expect(printf("%s%s", "%s%s", "fr")).toBe(true);
+  expect(printf("%d%s", "%s", "fr")).toBe(false);
+  expect([
+    ...partsOf("%d%% done, %s%s", "i18next", ["printf"]).placeholders,
+  ]).toEqual(["1", "2", "3"]);
+  // An example's name is still text.
+  expect([
+    ...partsOf("Use %email% or %user_name% for %s", "i18next", ["printf"])
+      .placeholders,
+  ]).toEqual(["1"]);
+});
+
+test("a layered printf verb is read with sprintf-js's own grammar: a named %(name)s, 'x padding and %1$s count, a C length or Go's %[1]s does not (#1049)", () => {
+  const parts = (source: string) => [
+    ...partsOf(source, "i18next", ["printf"]).placeholders,
+  ];
+  expect(parts("Hi %(user)s, %'*10s and %+05.2f")).toEqual(["user", "1", "2"]);
+  expect(parts("%2$s then %1$s")).toEqual(["2", "1"]);
+  expect(parts("%ld or %[1]s or %*d")).toEqual([]);
+  expect(
+    validateTranslation("Hi %(user)s", "Salut", "fr", "i18next", {
+      placeholders: ["printf"],
+    }),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "user" }],
+  });
+});
+
+test("a %name% is an example only where its closing % starts no sprintf verb, so %dx%d and %s_%s.png are two verbs (#1049)", () => {
+  const parts = (source: string) => [
+    ...partsOf(source, "i18next", ["printf"]).placeholders,
+  ];
+  expect(parts("Resolution: %dx%d")).toEqual(["1", "2"]);
+  expect(parts("%s_%s.png and %dh%dm%ds")).toEqual(["1", "2", "3", "4", "5"]);
+  expect(parts('{"mail": "%email%", "%team%,%department%"} %s')).toEqual(["1"]);
+  expect(parts("%firstname%, %lastname%: %curr% of %total%.")).toEqual([]);
+  expect(
+    validateTranslation(
+      "Resolution: %dx%d",
+      "Auflösung: %d × %d",
+      "de",
+      "i18next",
+      { placeholders: ["printf"] },
+    ).ok,
+  ).toBe(true);
+  expect(
+    validateTranslation("Resolution: %dx%d", "Auflösung: %d", "de", "i18next", {
+      placeholders: ["printf"],
+    }).ok,
+  ).toBe(false);
 });

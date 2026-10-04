@@ -89,6 +89,8 @@ Four things differ from ICU, and Corpus handles all four:
 
 **An extracted catalogue is the code's.** Where `i18next-cli extract` writes the English file from `t(key, defaultValue)`, as Grafana's does, an edit there is undone by the next extract. Say so on the source, `generated: true`, and a proposal on its strings is refused with the reason, "change the text in the code, and the next extract carries it"; a top-level `_comment`, Grafana's "The code is the source of truth for English phrases", is then no string. A source file git ignores is taken as generated without the key.
 
+
+**sprintf on top of i18next.** An app that installs `i18next-sprintf-postprocessor`, as Rocket.Chat does, formats some strings with `%s` too. `placeholders: ["printf"]` on the source checks those verbs as printf does, in the strings whose English writes one, read as sprintf-js reads them, `%(name)s` included: `%s秒` and `%d%%` are the value, while a `%` in any other string, `% of`, or an example's `%email%`, stays text. `corpus init` writes it when two strings or more hold printf verbs.
 ## vue-i18n
 
 <!-- from: examples/vue.config.ts -->
@@ -247,6 +249,8 @@ Under `library: "chrome"` the `messages` adapter reads each entry as Chrome does
 
 A pull writes a translation into its entry's `message` and leaves the rest of the entry, and a byte-order mark, where they were; a key new to a language copies the source's `description` and `placeholders` beside it. `init` names the library when every value in the source file is such an object; without the library, the same file reads as nested keys (`copied.message`), since a catalogue of `{ title, message }` objects has that shape too. An extension split over several apps, as Bitwarden's is, is one `{ns}` pattern per layout: `apps/{ns}/src/_locales/{lang}/messages.json`.
 
+
+**An extension's own placeholders.** Some extensions fill a syntax of their own on top of Chrome's: uBlock Origin writes `{{name}}` and replaces it in its JavaScript. Say so on the source, `library: "chrome", placeholders: ["i18next"]`, and each `{{name}}` is a placeholder a translation must keep, beside the `$NAME$` ones; `{{input:number}}` is the value `input`. `corpus init` writes it when two strings or more hold `{{name}}`. Tags are still text under `chrome`.
 ## Android string resources
 
 <!-- from: examples/android.config.ts -->

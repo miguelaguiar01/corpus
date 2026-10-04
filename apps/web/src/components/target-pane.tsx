@@ -69,8 +69,9 @@ function branchingOf(
   syntax: Library,
   pluralForms?: string[] | null,
   pluralRules?: "default" | "cldr" | null,
+  layers?: Library[] | null,
 ): Branching[] {
-  const parsed = readIcu(source, syntax);
+  const parsed = readIcu(source, syntax, layers ?? undefined);
   if (!parsed.ok) return [];
   const byId = new Map<string, Branching>();
   const sourced = new Map<string, Set<string>>();
@@ -191,6 +192,7 @@ export function TargetPane({
   action,
   source,
   syntax = "icu",
+  layers = null,
   richText = null,
   passed,
   pluralForms,
@@ -209,6 +211,8 @@ export function TargetPane({
   action: (formData: FormData) => void | Promise<void>;
   source: string;
   syntax?: Library;
+  // The syntaxes its source layers on the library (#1049).
+  layers?: Library[] | null;
   richText?: TextReading | null;
   // The verbs the code passes where the key carries them (#731).
   passed?: string[] | null;
@@ -254,6 +258,7 @@ export function TargetPane({
         ...(passed && { arguments: passed }),
         ...(pluralForms && { pluralForms }),
         ...(pluralRules && { pluralRules }),
+        ...(layers && { placeholders: layers }),
         // A Fluent term selects on what its callers pass (#1032).
         ...(syntax === "fluent" && isFluentTermId(stringKey) && { term: true }),
         sourceLanguage,
@@ -268,9 +273,10 @@ export function TargetPane({
     syntax,
     pluralForms,
     pluralRules,
+    layers,
   );
   const byId = new Map(selects.map((entry) => [idOf(entry), entry]));
-  const parts = partsOf(source, syntax);
+  const parts = partsOf(source, syntax, layers ?? undefined);
   const tags = [...parts.tags];
 
   const insert = (token: string, caretOffset?: number) => {

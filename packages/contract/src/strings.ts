@@ -311,6 +311,9 @@ export const stringEntrySchema = z.looseObject({
   // The file an extractor generates the string's source into, whose text
   // is the code's, so no proposal goes there (#1000). Additive.
   generated: z.string().min(1).optional(),
+  // The placeholder syntaxes its source layers on its library (#1049):
+  // `["i18next"]` for uBlock's `{{name}}` on Chrome's. Additive.
+  placeholders: z.array(librarySchema).optional(),
   // The target languages the string takes, where its source ships fewer
   // than the project (#1006); absent, it takes them all. Additive.
   languages: z.array(languageCode()).optional(),

@@ -38,6 +38,7 @@ export type QueueItem = {
   // Read only where asked for, to validate the row (#873).
   syntax?: Library | null;
   arguments?: string[] | null;
+  placeholders?: Library[] | null;
 };
 export type Queue = {
   kind: QueueKind;
@@ -148,6 +149,7 @@ function select(
       ...(withLibrary && {
         syntax: strings.syntax,
         arguments: strings.arguments,
+        placeholders: strings.placeholders,
       }),
     })
     .from(stringTranslations);

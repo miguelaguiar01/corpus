@@ -154,6 +154,26 @@ function nestingOf(
   return out;
 }
 
+// The layered syntaxes a source writes a token of (#1049): only those
+// strings are formatted so, Rocket.Chat's sprintf ones among its
+// i18next, so a `%` elsewhere is the text's.
+function layersIn(
+  source: string,
+  syntax: Library,
+  layers: readonly Library[] | undefined,
+): Library[] | undefined {
+  if (!layers?.length) return undefined;
+  const base = parseIcu(source, syntax);
+  if (!base.ok) return [...layers];
+  const count = (nodes: IcuNode[]) => shapeOf(nodes).placeholders.size;
+  const own = count(base.nodes);
+  const kept = layers.filter((layer) => {
+    const read = parseIcu(source, syntax, { placeholders: [layer] });
+    return !read.ok || count(read.nodes) > own;
+  });
+  return kept.length > 0 ? kept : undefined;
+}
+
 // Per plural, the `#` each of its branches' text holds (#1038).
 function hashesInPlurals(
   nodes: IcuNode[],
@@ -601,10 +621,13 @@ export function validateTranslation(
     // default, whose forms are read by count, not by CLDR (#1018), or
     // easy_localization's CLDR picking (#961).
     pluralRules?: "default" | "cldr";
+    // The placeholder syntaxes the source layers on its library (#1049).
+    placeholders?: readonly Library[];
   } = {},
 ): ValidationResult {
   const html = tagMode(syntax, options.richText);
-  const parsedSource = parseIcu(source, syntax, { html });
+  const placeholders = layersIn(source, syntax, options.placeholders);
+  const parsedSource = parseIcu(source, syntax, { html, placeholders });
   if (!parsedSource.ok) {
     return {
       ok: false,
@@ -621,14 +644,14 @@ export function validateTranslation(
   const brokenPlural =
     WHOLE_PLURAL_LIBRARIES.has(syntax) &&
     parsedSource.nodes.some((node) => node.kind === "plural")
-      ? printfPluralError(target, html, syntax)
+      ? printfPluralError(target, html, syntax, placeholders)
       : undefined;
   if (brokenPlural)
     return {
       ok: false,
       errors: [{ code: "invalid-icu", where: "target", ...brokenPlural }],
     };
-  const parsedTarget = parseIcu(target, syntax, { html });
+  const parsedTarget = parseIcu(target, syntax, { html, placeholders });
   if (!parsedTarget.ok) {
     return {
       ok: false,

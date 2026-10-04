@@ -76,6 +76,9 @@ export function transitionFlow(db: Db, input: TransitionFlowInput): FlowResult {
         ...(detail.string.pluralForms?.[language] && {
           pluralForms: detail.string.pluralForms[language],
         }),
+        ...(detail.string.placeholderSyntaxes && {
+          placeholders: detail.string.placeholderSyntaxes,
+        }),
         ...(detail.string.pluralRules && {
           pluralRules: detail.string.pluralRules,
         }),

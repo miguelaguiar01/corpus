@@ -28,6 +28,8 @@ export function slotsOf(
   examples: Example[] | null | undefined,
   sourceLanguage: string,
   syntax: Library = "icu",
+  // The syntaxes its source layers on the library (#1049).
+  layers?: readonly Library[],
 ): StringResponse["slots"] {
   const declared = Object.create(null) as Record<
     string,
@@ -38,7 +40,11 @@ export function slotsOf(
       Object.assign(declared, declaration.slots);
   }
   const example = examples?.[0];
-  const { placeholders, formats, written, plurals } = partsOf(source, syntax);
+  const { placeholders, formats, written, plurals } = partsOf(
+    source,
+    syntax,
+    layers,
+  );
   const names = [...placeholders];
   // A printf plural on `argN` is the Nth argument, one slot (#735).
   for (const plural of plurals) {

@@ -2884,3 +2884,71 @@ export default defineCorpus({
   );
   expect(de.toString("utf16le")).toBe(`\uFEFF"Done" = "Fertig";\n`);
 });
+
+test("a source's placeholders travel with its strings, and validate checks them: uBlock's {{name}} on chrome, Rocket.Chat's %s on i18next (#1049)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "cv"],
+  sources: [
+    { adapter: "messages", type: "ext", path: "_locales/{lang}/messages.json", library: "chrome", placeholders: ["i18next"] },
+    { adapter: "messages", type: "app", path: "i18n/{lang}.json", library: "i18next", placeholders: ["printf"] },
+  ],
+});
+`,
+  );
+  for (const dir of ["_locales/en", "_locales/cv", "i18n"])
+    mkdirSync(path.join(repo, dir), { recursive: true });
+  writeFileSync(
+    path.join(repo, "_locales", "en", "messages.json"),
+    JSON.stringify({
+      stats: {
+        message: "{{used}} used out of {{total}}",
+        description: "Stats",
+      },
+      hello: {
+        message: "Hello $USER$",
+        placeholders: { user: { content: "$1" } },
+      },
+    }),
+  );
+  writeFileSync(
+    path.join(repo, "_locales", "cv", "messages.json"),
+    JSON.stringify({ stats: { message: "{{used}} усă курăнать" } }),
+  );
+  writeFileSync(
+    path.join(repo, "i18n", "en.json"),
+    JSON.stringify({
+      push: "Your push was sent to %s devices",
+      hi: "Hi {{name}}",
+    }),
+  );
+  writeFileSync(
+    path.join(repo, "i18n", "cv.json"),
+    JSON.stringify({ push: "Тĕкĕм ярса панă", hi: "Салам {{name}}" }),
+  );
+  const out = path.join(repo, "snapshot.json");
+  expect(await run(["build", "--out", out], ctx())).toBe(0);
+  const snapshot = JSON.parse(readFileSync(out, "utf8")) as {
+    strings: { id: string; library?: string; placeholders?: string[] }[];
+  };
+  expect(
+    snapshot.strings.map((s) => [s.id, s.library, s.placeholders]),
+  ).toEqual([
+    ["stats", "chrome", ["i18next"]],
+    ["hello", "chrome", ["i18next"]],
+    ["push", "i18next", ["printf"]],
+    ["hi", "i18next", ["printf"]],
+  ]);
+  const checked = ctx();
+  expect(await run(["validate"], checked)).toBe(1);
+  const said = checked.output.join("\n");
+  expect(said).toContain("_locales/cv/messages.json:stats: missing {{total}}");
+  expect(said).toContain("i18n/cv.json:push: missing %s");
+  expect(said).not.toContain(":hi:");
+});

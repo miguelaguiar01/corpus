@@ -151,6 +151,47 @@ const generated = z.boolean().optional();
 // client's 89. Every string takes the source language.
 const sourceLanguages = z.array(languageCode()).min(1).optional();
 
+// Another library's placeholder tokens a source layers on its own
+// (#1049): uBlock's `{{name}}` on Chrome's catalogue, Rocket.Chat's
+// sprintf `%s` on i18next, Godot's `{num}` on printf.
+const placeholders = z
+  .array(z.enum(["i18next", "printf", "fmt", "chrome"]))
+  .min(1)
+  .optional();
+
+// The libraries whose own syntax reads `{`.
+const BRACE_READERS = new Set([
+  "icu",
+  "formatjs",
+  "gen_l10n",
+  "fluent",
+  "vue",
+  "easy_localization",
+  "fmt",
+]);
+
+// The library the build reads a source as: the config's, or its
+// adapter's own where the config names none.
+function baseLibraryOf(source: { adapter: string }): string {
+  const set = source as { library?: string; syntax?: string };
+  return (
+    set.library ??
+    set.syntax ??
+    (
+      {
+        gettext: "printf",
+        xcstrings: "printf",
+        strings: "printf",
+        "qt-ts": "qt",
+        yaml: "rails",
+        android: "android",
+        fluent: "fluent",
+      } as Record<string, string>
+    )[source.adapter] ??
+    "icu"
+  );
+}
+
 // A prefix for every id the source reads, `server:title` (#998), so two
 // catalogues whose keys overlap share one project.
 const namespace = z
@@ -168,6 +209,7 @@ const messagesFields = {
   // The library the files are written for (§3, §5); plain ICU when
   // absent. `syntax` is the old name, accepted until 1.0.
   library: configLibrarySchema.optional(),
+  placeholders,
   syntax: configLibrarySchema.optional(),
   languageFiles,
   pluralRules,
@@ -202,6 +244,7 @@ const tableFields = {
   adapter: z.literal("table"),
   type: identifier(),
   library: configLibrarySchema.optional(),
+  placeholders,
   pluralRules,
   namespace,
   languages: sourceLanguages,
@@ -274,6 +317,7 @@ const gettextSchema = z.looseObject({
   path: noNamespace("gettext", onePattern("gettext")),
   sourcePath: noNamespace("gettext", oneSourcePath("gettext")).optional(),
   library: configLibrarySchema.optional(),
+  placeholders,
   languageFiles,
   pluralRules,
   namespace,
@@ -290,6 +334,7 @@ const qtTsSchema = z.looseObject({
   path: noNamespace("qt-ts", onePattern("qt-ts")),
   sourcePath: noNamespace("qt-ts", oneSourcePath("qt-ts")).optional(),
   library: configLibrarySchema.optional(),
+  placeholders,
   languageFiles,
   pluralRules,
   namespace,
@@ -305,6 +350,7 @@ const yamlFields = {
   adapter: z.literal("yaml"),
   type: identifier(),
   library: configLibrarySchema.optional(),
+  placeholders,
   languageFiles,
   pluralRules,
   namespace,
@@ -334,6 +380,7 @@ const xcstringsSchema = z.looseObject({
       }),
   ),
   library: configLibrarySchema.optional(),
+  placeholders,
   pluralRules,
   namespace,
   languages: sourceLanguages,
@@ -347,6 +394,7 @@ const stringsSchema = z.looseObject({
   type: identifier(),
   path: noNamespace("strings", onePattern("strings")),
   library: configLibrarySchema.optional(),
+  placeholders,
   languageFiles,
   pluralRules,
   namespace,
@@ -607,23 +655,7 @@ export const corpusConfigSchema = z
         (rules === "default" || rules === "cldr") &&
         source.adapter !== "exec"
       ) {
-        const set = source as { library?: string; syntax?: string };
-        // The library the build reads the source as, its adapter's own
-        // where the config names none.
-        const library =
-          set.library ??
-          set.syntax ??
-          (
-            {
-              gettext: "printf",
-              xcstrings: "printf",
-              "qt-ts": "qt",
-              yaml: "rails",
-              android: "android",
-              fluent: "fluent",
-            } as Record<string, string>
-          )[source.adapter] ??
-          "icu";
+        const library = baseLibraryOf(source);
         const [wants, rule] =
           rules === "default"
             ? ["vue", "vue-i18n's default rule"]
@@ -668,6 +700,27 @@ export const corpusConfigSchema = z
       // (#994): the source language's file is the pattern's, filled
       // through languageFiles.
       const given = (source as { sourcePath?: unknown }).sourcePath;
+      // A layered syntax adds tokens where the library reads text: never
+      // the library's own, nor braces where the library reads braces.
+      const layers = (source as { placeholders?: string[] }).placeholders;
+      for (const layer of layers ?? []) {
+        const own = baseLibraryOf(source);
+        const message =
+          layer === own
+            ? `placeholders names ${layer}, the source's own library`
+            : (layer === "i18next" || layer === "fmt") &&
+                (BRACE_READERS.has(own) ||
+                  // fmt's `{{` is a brace, i18next's a placeholder.
+                  (layer === "fmt" && own === "i18next"))
+              ? `placeholders: ${own} reads braces itself, so ${layer === "i18next" ? "i18next's {{name}}" : "fmt's {name}"} cannot layer on it`
+              : undefined;
+        if (message)
+          ctx.addIssue({
+            code: "custom",
+            message,
+            path: ["sources", index, "placeholders"],
+          });
+      }
       const keyIsText = (source as { keyIsText?: unknown }).keyIsText === true;
       if (source.adapter === "messages" && source.entries) {
         const lib = source as { library?: unknown; syntax?: unknown };

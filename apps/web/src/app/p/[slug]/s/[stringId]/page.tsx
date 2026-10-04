@@ -142,6 +142,7 @@ export default async function StringPage({
   const { placeholders, formats, written } = partsOf(
     string.source,
     string.syntax,
+    string.placeholderSyntaxes ?? undefined,
   );
   const slots: Slot[] = inPositionOrder([...placeholders], string.syntax).map(
     (name) => ({
@@ -242,6 +243,7 @@ export default async function StringPage({
             <SourceView
               source={string.source}
               syntax={string.syntax}
+              layers={string.placeholderSyntaxes}
               declarations={declarations}
             />
             {string.stringNote && (
@@ -376,6 +378,7 @@ export default async function StringPage({
                 action={saveString}
                 source={string.source}
                 syntax={string.syntax}
+                layers={string.placeholderSyntaxes}
                 passed={string.arguments}
                 pluralForms={string.pluralForms?.[target]}
                 pluralRules={string.pluralRules}
