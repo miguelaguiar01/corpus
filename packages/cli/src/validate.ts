@@ -640,10 +640,11 @@ export function describe(
     case "overridden-branch":
       return `plural on {${error.arg}} writes ${error.key} and ${error.category}, which gen-l10n reads as one branch: it keeps the one written later and drops the other`;
     case "wide-exact": {
-      // gen-l10n has =0, =1 and =2 alone: only those are offered.
-      const own = !error.more && error.values.every((n) => n <= 2);
-      const exacts = error.values.map((n) => `=${n}`).join(" and ");
-      return `gen-l10n reads ${error.key} on {${error.arg}} as ${error.category}, which this language also picks for ${error.values.join(", ")}${error.more ? " and more" : ""}: write ${error.category} for what they share${own ? `, or give ${error.values.join(" and ")} ${error.values.length === 1 ? "its own" : "their own"} ${exacts}` : ""}`;
+      // gen-l10n has =0, =1 and =2 alone: one of those, the only case a
+      // language has (French `=1`, whose one also holds 0), is offered.
+      const value = error.values[0]!;
+      const own = !error.more && error.values.length === 1 && value <= 2;
+      return `gen-l10n reads ${error.key} on {${error.arg}} as ${error.category}, which this language also picks for ${error.values.join(", ")}${error.more ? " and more" : ""}: write ${error.category} for what they share${own ? `, or give ${value} its own =${value}` : ""}`;
     }
     case "unexpected-category":
       return `plural on {${error.arg}} has the branch ${error.key}, which the runtime never picks in its language`;
