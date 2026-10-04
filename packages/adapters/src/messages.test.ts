@@ -69,6 +69,46 @@ test("keys already containing dots are preserved as-is", () => {
   expect(entries[0]?.id).toBe("a.b.c");
 });
 
+test("a nested empty value is never a natural key, whatever its segments hold (#1044)", () => {
+  // Mealie's seed foods: "" is no plural name.
+  const entries = messagesToEntries(
+    {
+      produce: {
+        foods: {
+          garlic: { plural_name: "" },
+          "sweet corn": { plural_name: "" },
+        },
+      },
+    },
+    { type: "seed", keyIsText: true },
+  );
+  expect(entries).toEqual([
+    { id: "produce.foods.garlic.plural_name", type: "seed", source: "" },
+    { id: "produce.foods.sweet corn.plural_name", type: "seed", source: "" },
+  ]);
+  // A top-level sentence key still takes its key; a nested one beside it
+  // stays empty.
+  expect(
+    messagesToEntries(
+      { "Sign in": "", nav: { "Home page": "" } },
+      { type: "ui", keyIsText: true },
+    ),
+  ).toEqual([
+    { id: "Sign in", type: "ui", source: "Sign in", keyIsText: true },
+    { id: "nav.Home page", type: "ui", source: "" },
+  ]);
+  // A nested sentence key alone does not make the file natural-keyed.
+  expect(
+    messagesToEntries(
+      { Email: "", nav: { "Home page": "" } },
+      { type: "ui", keyIsText: true },
+    ),
+  ).toEqual([
+    { id: "Email", type: "ui", source: "" },
+    { id: "nav.Home page", type: "ui", source: "" },
+  ]);
+});
+
 test("an empty value under a sentence key reads the key as the text; a dotted key stays empty (#589)", () => {
   const entries = messagesToEntries(
     {

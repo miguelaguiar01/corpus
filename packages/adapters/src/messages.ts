@@ -321,10 +321,10 @@ export function pluralFrom(arg: string, branches: [string, string][]): string {
 }
 
 // A key that is a sentence rather than a path: whitespace, or anything
-// outside a dotted identifier. One such key with an empty value means
-// the file uses natural keys, and then every empty value takes its key
-// ("Email", "free", "Redeeming...") unless the key is a lowercase dotted
-// path ("ui.title"), which stays empty.
+// outside a dotted identifier. One such top-level key with an empty
+// value means the file uses natural keys, and then every empty top-level
+// value takes its key ("Email", "free", "Redeeming...") unless the key is
+// a lowercase dotted path ("ui.title"), which stays empty.
 export function keyIsSentence(id: string): boolean {
   return /\s/.test(id) || !/^[A-Za-z0-9_.:-]+$/.test(id);
 }
@@ -340,15 +340,23 @@ function keyIsPath(id: string): boolean {
 // the value, and the app falls back to the key (#589). Corpus reads the
 // key as the text; build drops the file from such an entry, since a
 // proposal would have nothing to write, and says how many took the key.
+// Only a key of the root object: a nested path's fallback is the dotted
+// path, never a sentence, and a catalogue of sentence keys is flat, since
+// they hold dots (#1044).
 function takeKeys(
   entries: StringEntry[],
   options: MessagesOptions,
+  paths: ReadonlyMap<string, string[]>,
 ): StringEntry[] {
   if (!options.keyIsText) return entries;
-  const empty = entries.filter((entry) => entry.source === "");
-  if (!empty.some((entry) => keyIsSentence(entry.id))) return entries;
+  const empty = new Set(
+    entries.filter(
+      (entry) => entry.source === "" && paths.get(entry.id)?.length === 1,
+    ),
+  );
+  if (![...empty].some((entry) => keyIsSentence(entry.id))) return entries;
   return entries.map((entry) => {
-    if (entry.source !== "" || keyIsPath(entry.id)) return entry;
+    if (!empty.has(entry) || keyIsPath(entry.id)) return entry;
     // i18next resolves `key_one` and falls back to the key passed to
     // t(), which carries no suffix: the text is the base sentence.
     return {
@@ -382,12 +390,13 @@ export function messagesToEntries(
     const strings = Object.fromEntries(
       Object.entries(record).filter(([key]) => !key.startsWith("@")),
     );
-    walk(strings, [], options, entries);
+    const paths = new Map<string, string[]>();
+    walk(strings, [], options, entries, paths);
     // @key.description is the string's note (#567), each placeholder's
     // description a line of it, and, in the source file, the
     // placeholders' examples the string's example, as Chrome's are
     // (#1040).
-    return takeKeys(entries, options).map((entry) => {
+    return takeKeys(entries, options, paths).map((entry) => {
       const meta = record[`@${entry.id}`];
       if (!meta || typeof meta !== "object" || Array.isArray(meta))
         return entry;
@@ -432,8 +441,9 @@ export function messagesToEntries(
       };
     });
   }
-  walk(data, [], options, entries);
-  return takeKeys(entries, options);
+  const paths = new Map<string, string[]>();
+  walk(data, [], options, entries, paths);
+  return takeKeys(entries, options, paths);
 }
 
 type ChromeMessage = {

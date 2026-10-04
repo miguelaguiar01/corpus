@@ -127,13 +127,15 @@ export default defineCorpus({
     //    `library: "vue"` for vue-i18n's {name}, pipe plurals and {'…'}
     //    interpolation, read and written back as written (§5). The old
     //    name for this field is `syntax`; it goes at 1.0. A file with an
-    //    empty value under a sentence key (whitespace, or anything outside
-    //    a dotted identifier) uses i18next's natural keys: every empty
-    //    value in it reads its key as the text ("Email", "free" too),
-    //    a plural suffix (_one, _other) dropped, unless the key is a
-    //    lowercase dotted path, which stays empty; such
+    //    empty value under a top-level sentence key (whitespace, or
+    //    anything outside a dotted identifier) uses i18next's natural
+    //    keys: every empty top-level value in it reads its key as the text
+    //    ("Email", "free" too), a plural suffix (_one, _other) dropped,
+    //    unless the key is a lowercase dotted path, which stays empty; a
+    //    nested value is never a natural key ("sweet corn" in
+    //    `foods.sweet corn.plural_name` stays empty) (#1044); such
     //    a string carries no file, so a proposal on it is refused, and
-    //    build says how many took the key. A file with no sentence key
+    //    build says how many took the key. A file with no top-level sentence key
     //    keeps its empty values empty: rows an extraction tool left.
     //    Where the source language's file is generated and ignored, as
     //    Zulip's makemessages writes `locale/en/translations.json`, a
