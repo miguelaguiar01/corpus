@@ -1412,3 +1412,23 @@ test("a new target file is written from the source's own reading, so an object b
   expect(out).toMatch(/"one": "\{\{count\}\} pokój"/);
   expect(out).toMatch(/"rooms_other": "Inne pokoje"/);
 });
+
+test("a pull into an empty {} target writes one key per line in the source's indent; a pull of nothing leaves {} as it is (#1041)", () => {
+  const source = `{\n    "a": "A",\n    "nested": {\n        "b": "B"\n    }\n}\n`;
+  expect(entriesToMessages(source, { a: "Á", "nested.b": "Bé" }, "{}\n")).toBe(
+    `{\n    "a": "Á",\n    "nested": {\n        "b": "Bé"\n    }\n}\n`,
+  );
+  expect(entriesToMessages(source, { a: "Á" }, "{}")).toBe(
+    `{\n    "a": "Á"\n}`,
+  );
+  expect(entriesToMessages(source, {}, "{}\n")).toBe("{}\n");
+  // An ARB with only its locale keeps its own layout.
+  const arb = `{\n  "@@locale": "gl"\n}\n`;
+  expect(entriesToMessages(source, { a: "Á" }, arb)).toBe(
+    `{\n  "@@locale": "gl",\n  "a": "Á"\n}\n`,
+  );
+  // A target written on one line with keys keeps its line.
+  expect(entriesToMessages(source, { a: "Á" }, `{ "z": "Z" }\n`)).toBe(
+    `{ "z": "Z", "a": "Á" }\n`,
+  );
+});
