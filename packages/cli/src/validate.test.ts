@@ -1499,3 +1499,49 @@ export default defineCorpus({
   expect(truncated.every((f) => f.severity === "incomplete")).toBe(true);
   expect(findings.find((f) => f.key === "rooms")?.sourceLacks).toBeUndefined();
 });
+
+test("a gettext msgid and msgid_plural are two forms whatever the source's language, so a Polish source pair lacks no category; an exporter that hands over nothing still has its source checked (#1029)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: "https://corpus.example",
+  sourceLanguage: "pl",
+  languages: ["pl", "de"],
+  sources: [{ adapter: "gettext", type: "ui", path: "po/{lang}.po", sourcePath: "po/messages.pot" }],
+});
+`,
+  );
+  mkdirSync(path.join(repo, "po"), { recursive: true });
+  writeFileSync(
+    path.join(repo, "po", "messages.pot"),
+    `msgid ""\nmsgstr ""\n\nmsgid "%d file"\nmsgid_plural "%d files"\nmsgstr[0] ""\nmsgstr[1] ""\n`,
+  );
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(0);
+  expect(c.stderr.join("\n")).not.toMatch(/lacks the/);
+
+  // An exporter that hands over no translations: its source is checked.
+  writeFileSync(
+    path.join(repo, "scripts", "gaps.mjs"),
+    `console.log(JSON.stringify({ strings: [{ id: "n", type: "ui", source: "{count, plural, other {# items}}" }] }));\n`,
+  );
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de"],
+  sources: [{ adapter: "exec", command: "node scripts/gaps.mjs", importCommand: "node scripts/import.mjs" }],
+});
+`,
+  );
+  const e = ctx();
+  expect(await run(["validate"], e)).toBe(0);
+  expect(e.stderr.join("\n")).toContain(
+    "exec:node scripts/gaps.mjs [n] en: plural on {count} lacks the one branch the runtime picks in en",
+  );
+});
