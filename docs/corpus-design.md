@@ -104,9 +104,9 @@ export default defineCorpus({
     //    Polish `{ one, few, many }`, a Japanese `{ other }`), which
     //    validate names for the `other` it lacks and a pull leaves as it
     //    is (#950), and whatever its forms hold, so a form with a stray
-    //    brace is named as the plural's invalid translation, never as
-    //    orphan keys (#960), a removal taking it whole, and elsewhere a
-    //    section of keys (#984); in a source the forms must read back
+    //    brace is named as the plural's, never as orphan keys (#960), a
+    //    removal taking it whole, and elsewhere a section of keys
+    //    (#984); in a source the forms must read back
     //    out of the plural, since i18next reads an object as its path.
     //    init counts
     //    such an object's forms as the file writes them, never the
