@@ -43,25 +43,26 @@ spent() {
   if grep -qiE 'secondary|abuse' <<<"$output"; then
     when="wait a minute or so (GitHub's secondary limit)"
   elif [ "$budget" = graphql ]; then
-    when="the GraphQL budget resets at $(gh api graphql -f query='{ rateLimit { resetAt } }' --jq .data.rateLimit.resetAt 2>/dev/null || echo 'the top of its hour')"
+    when="the GraphQL budget resets at $(gh api graphql -f query='{ rateLimit { resetAt } }' --jq .data.rateLimit.resetAt 2>/dev/null || echo 'some point within the hour')"
   else
-    when="the REST budget resets at $(gh api rate_limit --jq '.resources.core.reset | todate' 2>/dev/null || echo 'the top of its hour')"
+    when="the REST budget resets at $(gh api rate_limit --jq '.resources.core.reset | todate' 2>/dev/null || echo 'some point within the hour')"
   fi
   echo "bin/board: GitHub's rate limit is spent (#$ISSUE not moved): $when" >&2
   exit 2
 }
 
+ERR=$(mktemp)
+trap 'rm -f "$ERR"' EXIT
+
 # One gh call against `budget`: its output, or the reason it failed.
 call() {
-  local budget=$1 out err status
+  local budget=$1 out err="$ERR" status
   shift
-  err=$(mktemp)
   status=0
   out=$("$@" 2>"$err") || status=$?
   if [ "$status" -ne 0 ]; then
     local said
-    said="$(cat "$err")$out"
-    rm -f "$err"
+    said=$(printf '%s\n%s' "$(cat "$err")" "$out")
     if grep -qiE 'rate.?limit|RATE_LIMITED|secondary|abuse' <<<"$said"; then
       spent "$budget" "$said"
     fi
@@ -70,23 +71,22 @@ call() {
     echo "$said" >&2
     exit 1
   fi
-  rm -f "$err"
   printf '%s' "$out"
 }
 
 status=0
-ISSUE_JSON=$(call core gh api "repos/$OWNER/corpus/issues/$ISSUE" \
-  --jq '{ node_id, pull: (.pull_request != null) }') || status=$?
+ISSUE_FIELDS=$(call core gh api "repos/$OWNER/corpus/issues/$ISSUE" \
+  --jq '"\(.node_id) \(.pull_request != null)"') || status=$?
 if [ "$status" -eq 3 ]; then
   echo "bin/board: no issue #$ISSUE in $OWNER/corpus" >&2
   exit 1
 fi
 [ "$status" -eq 0 ] || exit "$status"
-if [ "$(jq -r .pull <<<"$ISSUE_JSON")" = true ]; then
+read -r NODE_ID IS_PULL <<<"$ISSUE_FIELDS"
+if [ "$IS_PULL" = true ]; then
   echo "bin/board: #$ISSUE is a pull request; the board tracks issues" >&2
   exit 1
 fi
-NODE_ID=$(jq -r .node_id <<<"$ISSUE_JSON")
 
 ITEM_ID=$(call graphql gh api graphql \
   -f query='mutation($project: ID!, $content: ID!) {
