@@ -331,6 +331,11 @@ class ParseFailure extends Error {
 const PRINTF_VERB_RE =
   /^%(?:\[(\d+)\]|(\d+)\$)?([-+0#]*(?:\d+|\*)?(?:\.(?:\d+|\*))?)((?:hh|h|ll|l|z|j|t|L|q)?[a-zA-Z@])/;
 
+// sprintf-js's verb, as its parser reads one: a `n$` position or a
+// `(name)`, then `+`, a `0` or `'x` pad, `-`, width and precision.
+const SPRINTF_JS_RE =
+  /^%(?:([1-9]\d*)\$|\(([^)]+)\))?\+?(?:0|'[^$])?-?\d*(?:\.\d+)?[b-gijostTuvxX]/;
+
 // Python's `%` operator: a mapping key in parentheses, then printf's
 // flags, width and precision and its conversion (#1012). The space flag
 // stays out, so "50%(approx) of" is prose.
@@ -423,11 +428,14 @@ export function printfPluralError(
   text: string,
   html: boolean | "markup",
   syntax: Library,
+  layers: readonly Library[] = [],
 ): IcuError | undefined {
   if (!PRINTF_PLURAL_OPENS_RE.test(text)) return undefined;
-  if (argPlurals(text, html, syntax)) return undefined;
-  const read = readPrintfPlural(text, html, syntax);
-  return "error" in read ? read.error : undefined;
+  return withLayers(layers, () => {
+    if (argPlurals(text, html, syntax)) return undefined;
+    const read = readPrintfPlural(text, html, syntax);
+    return "error" in read ? read.error : undefined;
+  });
 }
 
 // Where the text after a whole plural starts, as the parser reads the
@@ -622,19 +630,15 @@ class Parser {
       }
       if (layer === "printf" && ch === "%") {
         if (rest.startsWith("%%")) return this.text(seq, "%", 2);
-        const verb = PRINTF_VERB_RE.exec(rest);
-        // As sprintf-js reads them: no space flag and its own verbs, so
-        // `% of` and Hungarian `50%-a` are text, and a `%name%` in an
-        // example (`%email%`) is the text's too.
-        if (
-          !verb ||
-          verb[0].includes(" ") ||
-          !/[bcdefgijostTuvxX]$/.test(verb[0]) ||
-          /^%[\p{L}_][\p{L}\p{N}_]*%/u.test(rest)
-        )
-          continue;
-        const explicit = verb[1] ?? verb[2];
-        const position = explicit ? Number(explicit) : this.printfNext;
+        const verb = SPRINTF_JS_RE.exec(rest);
+        // As sprintf-js reads them, so `% of` and Hungarian `50%-a` are
+        // text, and so is an example's `%email%`, a name of two ASCII
+        // characters or more, where `%d%%`, `%s%s` and `%s件中%d件` are
+        // verbs.
+        if (!verb || /^%[A-Za-z_][A-Za-z0-9_]+%/.test(rest)) continue;
+        if (verb[2] !== undefined)
+          return this.placeholder(seq, verb[2], verb[0]);
+        const position = verb[1] ? Number(verb[1]) : this.printfNext;
         this.printfNext = position + 1;
         return this.placeholder(seq, String(position), verb[0]);
       }
@@ -1704,10 +1708,14 @@ function parseWith(
   prose?: ProseTag[],
   layers: readonly Library[] = [],
 ): IcuParseResult {
+  return withLayers(layers, () => parseLayered(source, syntax, html, prose));
+}
+
+function withLayers<T>(layers: readonly Library[], read: () => T): T {
   const outer = layering;
   layering = layers;
   try {
-    return parseLayered(source, syntax, html, prose);
+    return read();
   } finally {
     layering = outer;
   }

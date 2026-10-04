@@ -644,7 +644,7 @@ export function validateTranslation(
   const brokenPlural =
     WHOLE_PLURAL_LIBRARIES.has(syntax) &&
     parsedSource.nodes.some((node) => node.kind === "plural")
-      ? printfPluralError(target, html, syntax)
+      ? printfPluralError(target, html, syntax, placeholders)
       : undefined;
   if (brokenPlural)
     return {
