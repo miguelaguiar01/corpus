@@ -1348,6 +1348,28 @@ test("the xliff sourcePath init chose is not said to be left out for naming no l
     expect(said, messages).not.toMatch(/messages\.xlf names no language tag/);
     expect(said, messages).toMatch(/notes\.xlf names no language tag/);
   }
+  // A gettext target read as the source (#996), however its pattern
+  // spells the directory.
+  const po = (ids: string[]) =>
+    `msgid ""\nmsgstr ""\n"Content-Type: text/plain; charset=UTF-8\\n"\n"POT-Creation-Date: 2026-01-01 00:00+0000\\n"\n\n${ids.map((id) => `#: src/app.c:1\nmsgid "${id}"\nmsgstr ""\n`).join("\n")}`;
+  for (const messages of ["po/{lang}.po", "./po/{lang}.po", "po/./{lang}.po"]) {
+    const p = project();
+    stubCli(p.dir);
+    mkdirSync(path.join(p.dir, "po"), { recursive: true });
+    writeFileSync(path.join(p.dir, "po", "de.po"), po(["Hello"]));
+    writeFileSync(path.join(p.dir, "po", "messages.po"), po(["Hello", "Bye"]));
+    writeFileSync(path.join(p.dir, "po", "notes.po"), po(["Hello"]));
+    await run(
+      ["init", "--project", "app", "--source", "en", "--messages", messages],
+      p.ctx,
+    );
+    const said = p.err.join("\n");
+    expect(said, messages).toMatch(
+      /sourcePath is (\.\/)?po\/(\.\/)?messages\.po/,
+    );
+    expect(said, messages).not.toMatch(/messages\.po names no language tag/);
+    expect(said, messages).toMatch(/notes\.po names no language tag/);
+  }
 });
 
 test("init writes a gettext source for .po catalogues, the .pot beside them its source, and the config builds (#720)", async () => {
