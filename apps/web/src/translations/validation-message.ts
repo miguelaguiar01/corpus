@@ -116,13 +116,27 @@ export function validationMessage(
         key: error.key,
         category: error.category,
       });
-    case "wide-exact":
-      return t(error.more ? "editor.wideExactMore" : "editor.wideExact", {
-        arg: error.arg,
-        key: error.key,
-        category: error.category,
-        values: error.values.join(", "),
-      });
+    case "wide-exact": {
+      // gen-l10n has =0, =1 and =2 alone: only those are offered.
+      const own = !error.more && error.values.every((n) => n <= 2);
+      return t(
+        error.more
+          ? "editor.wideExactMore"
+          : !own
+            ? "editor.wideExact"
+            : error.values.length === 1
+              ? "editor.wideExactOwn"
+              : "editor.wideExactOwnSeveral",
+        {
+          arg: error.arg,
+          key: error.key,
+          category: error.category,
+          values: error.values.join(", "),
+          own: error.values.join(" and "),
+          exacts: error.values.map((n) => `=${n}`).join(" and "),
+        },
+      );
+    }
     case "unexpected-category":
       return t("editor.unexpectedCategory", { arg: error.arg, key: error.key });
     case "unexpected-format":
