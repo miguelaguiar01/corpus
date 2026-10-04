@@ -624,7 +624,7 @@ test("a Qt, Android or Apple project with no components is told corpus check doe
 });
 
 test("in a monorepo, check.include is the components directories below the root (#655)", async () => {
-  // Hoppscotch: packages/hoppscotch-common/src/components.
+  // A monorepo's components, as Excalidraw's packages/excalidraw/components.
   const p = project();
   stubCli(p.dir);
   for (const dir of [
