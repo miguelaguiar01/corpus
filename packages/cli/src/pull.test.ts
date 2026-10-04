@@ -3192,3 +3192,68 @@ export default defineCorpus({
   expect(said).toContain("i18n/cv.json:push: missing %s");
   expect(said).not.toContain(":hi:");
 });
+
+test("a translation a writer refuses is named, the rest are written, and pull and --check exit 1 (#1051)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de", "fr"],
+  sources: [{ adapter: "gettext", type: "ui", path: "po/{lang}.po", sourcePath: "po/app.pot" }],
+});
+`,
+  );
+  mkdirSync(path.join(repo, "po"), { recursive: true });
+  const po = (language: string, plural: string) =>
+    `msgid ""\nmsgstr ""\n"Language: ${language}\\n"\n"Plural-Forms: nplurals=2; plural=(n != 1);\\n"\n\nmsgid "Open"\nmsgstr ""\n\nmsgid "%d file"\nmsgid_plural "%d files"\n${plural}`;
+  writeFileSync(
+    path.join(repo, "po", "app.pot"),
+    po("", 'msgstr[0] ""\nmsgstr[1] ""\n'),
+  );
+  const de = po("de", 'msgstr[0] ""\nmsgstr[1] ""\n');
+  writeFileSync(path.join(repo, "po", "de.po"), de);
+  writeFileSync(
+    path.join(repo, "po", "fr.po"),
+    po("fr", 'msgstr[0] ""\nmsgstr[1] ""\n'),
+  );
+  const payload = {
+    ...PAYLOAD,
+    types: { Open: "ui", "%d file": "ui" },
+    minState: "translated",
+    translations: {
+      // A plain text for a plural: gettext cannot hold it.
+      de: { Open: "Öffnen", "%d file": "%d Dateien" },
+      fr: { Open: "Ouvrir" },
+    },
+  };
+  await serve(200, payload);
+  const check = ctx();
+  expect(await run(["pull", "--check"], check)).toBe(1);
+  expect(check.output.join("\n")).toContain(
+    "corpus: 1 translation(s) could not be written; fix them in Corpus",
+  );
+  const c = ctx();
+  expect(await run(["pull", "--min-state", "translated"], c)).toBe(1);
+  const said = c.output.join("\n");
+  expect(said).toMatch(/po\/de\.po: %d file is a plural .*; not written/);
+  expect(said).toContain(
+    "corpus: 1 translation(s) could not be written; fix them in Corpus",
+  );
+  // The rest are written: de's Open, and fr.
+  expect(read("po/de.po")).toContain('msgid "Open"\nmsgstr "Öffnen"');
+  expect(read("po/fr.po")).toContain('msgid "Open"\nmsgstr "Ouvrir"');
+  // With every file current, the refusal alone fails the check.
+  const again = ctx();
+  expect(await run(["pull", "--check"], again)).toBe(1);
+  expect(again.output.join("\n")).toContain("0 file(s) would change");
+  // Nothing refused, exit 0.
+  await serve(200, {
+    ...payload,
+    translations: { de: { Open: "Öffnen" }, fr: { Open: "Ouvrir" } },
+  });
+  expect(await run(["pull", "--min-state", "translated"], ctx())).toBe(0);
+});

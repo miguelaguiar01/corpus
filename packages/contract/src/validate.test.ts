@@ -3438,3 +3438,49 @@ test("a category branch that writes the number 1 and no count, where the languag
     ).ok,
   ).toBe(true);
 });
+
+test("an =N branch in a plural read whole is invalid: the catalogue's plurals hold categories only (#1051)", () => {
+  for (const [library, one, other] of [
+    ["printf", "%d file", "%d files"],
+    ["rails", "%{count} file", "%{count} files"],
+    ["qt", "%n file", "%n files"],
+    ["i18next", "{{count}} file", "{{count}} files"],
+  ] as const) {
+    const source = `{count, plural, one {${one}} other {${other}}}`;
+    expect(
+      validateTranslation(
+        source,
+        `{count, plural, =0 {keine} one {${one}} other {${other}}}`,
+        "de",
+        library,
+      ),
+      library,
+    ).toEqual({
+      ok: false,
+      errors: [
+        { code: "exact-branch", arg: "count", key: "=0", category: "other" },
+      ],
+    });
+  }
+  // A String Catalog's argN plural, printf's too.
+  expect(
+    validateTranslation(
+      "{arg1, plural, one {%lld file} other {%lld files}}",
+      "{arg1, plural, =1 {eine Datei} other {%lld Dateien}}",
+      "de",
+      "printf",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "exact-branch", arg: "arg1", key: "=1", category: "one" }],
+  });
+  // ICU's own plurals hold them.
+  expect(
+    validateTranslation(
+      "{count, plural, one {# file} other {# files}}",
+      "{count, plural, =0 {keine} one {# Datei} other {# Dateien}}",
+      "de",
+      "icu",
+    ).ok,
+  ).toBe(true);
+});
