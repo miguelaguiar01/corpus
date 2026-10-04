@@ -726,7 +726,8 @@ test("an array's items are read by index, as vue-i18n and i18next look them up; 
     ["a.list.1", "y"],
     ["b.0.name", "N"],
   ]);
-  expect(skipped).toEqual(["b.0.id"]);
+  // A number in a list's item is its data, not a string that became one.
+  expect(skipped).toEqual([]);
   // An index that is also an object's key is one id written twice.
   expect(() =>
     messagesToEntries({ x: ["a"], "x.0": "b" }, { type: "ui" }),

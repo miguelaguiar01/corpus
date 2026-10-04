@@ -1498,6 +1498,64 @@ describe("arrays (#1053)", () => {
     );
     expect(out).toEqual({ a: { list: ["x", "Ypsilon"] } });
   });
+  test("an item that lacks a key takes it inside the item, never as a dotted key at the root", () => {
+    const source = `{\n  "b": [\n    { "id": 0, "name": "N", "group": "G" }\n  ]\n}\n`;
+    const de = `{\n  "b": [\n    { "id": 0, "name": "Nd" }\n  ]\n}\n`;
+    const out = JSON.parse(
+      entriesToMessages(source, { "b.0.group": "Gd" }, de),
+    );
+    expect(out).toEqual({ b: [{ id: 0, name: "Nd", group: "Gd" }] });
+  });
+  test("a plural object inside an item is written as one in a new file, refused where it cannot be", () => {
+    const source = `{\n  "l": [\n    { "n": { "one": "# a", "other": "# as" } }\n  ]\n}\n`;
+    const out = JSON.parse(
+      entriesToMessages(
+        source,
+        { "l.0.n": "{count, plural, one {# x} other {# xs}}" },
+        undefined,
+        { plurals: true },
+      ),
+    );
+    expect(out).toEqual({ l: [{ n: { one: "# x", other: "# xs" } }] });
+    const refused: string[] = [];
+    entriesToMessages(
+      source,
+      { "l.0.n": "{count, plural, =0 {none} one {# x} other {# xs}}" },
+      undefined,
+      { plurals: true, onRefused: (id) => refused.push(id) },
+    );
+    expect(refused).toEqual(["l.0.n"]);
+  });
+  test("i18next's plural keys inside an item are one string, read and written as such", () => {
+    const source = `{\n  "opts": [\n    { "item_one": "one", "item_other": "many" }\n  ]\n}\n`;
+    expect(
+      messagesToEntries(JSON.parse(source), {
+        type: "ui",
+        suffixPlurals: true,
+        sourceLanguage: "en",
+      }).map((e) => e.id),
+    ).toEqual(["opts.0.item"]);
+    const plural = "{count, plural, one {eins} other {viele}}";
+    for (const existing of [source, undefined])
+      expect(
+        JSON.parse(
+          entriesToMessages(source, { "opts.0.item": plural }, existing, {
+            suffixPlurals: true,
+            sourceLanguage: "en",
+          }),
+        ),
+      ).toEqual({ opts: [{ item_one: "eins", item_other: "viele" }] });
+  });
+  test("a blank target takes the source's lists as a missing file does, never as objects", () => {
+    expect(
+      JSON.parse(entriesToMessages(template, { "a.list.1": "Ypsilon" }, "")),
+    ).toEqual({ a: { list: ["x", "Ypsilon"] } });
+  });
+  test("a removal of an id the file does not hold is nothing, where its path meets a list", () => {
+    expect(
+      applyMessagesOps(template, [{ kind: "delete", id: "a.list.7" }]),
+    ).toBe(template);
+  });
   test("a proposal edits an item; adding or removing one, which renumbers those after it, is refused by name", () => {
     expect(
       applyMessagesOps(template, [
