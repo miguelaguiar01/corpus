@@ -104,8 +104,11 @@ export function decodeText(bytes: Uint8Array): {
   return { text, encoding };
 }
 
+// UTF-16 is written with its byte-order mark, which tells the next read
+// it is UTF-16, whether or not the text kept one.
 export function encodeText(text: string, encoding: TextEncoding): Uint8Array {
   if (encoding === "utf8") return new TextEncoder().encode(text);
+  if (!text.startsWith("\uFEFF")) text = `\uFEFF${text}`;
   const out = new Uint8Array(text.length * 2);
   for (let i = 0; i < text.length; i++) {
     const unit = text.charCodeAt(i);

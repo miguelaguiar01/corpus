@@ -305,7 +305,8 @@ export function applyStringsOps(text: string, ops: SourceOp[]): string {
     } else if (pair) {
       out = applied(out, [valuePatch(pair, op.text)]);
     } else {
-      const lead = out.length > 0 && !out.endsWith("\n") ? eol : "";
+      // A file of nothing but a byte-order mark takes the pair at once.
+      const lead = /^\uFEFF?$/.test(out) || out.endsWith("\n") ? "" : eol;
       out = `${out}${lead}${quote(op.id)} = ${quote(op.text)};${eol}`;
     }
   }

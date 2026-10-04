@@ -196,3 +196,20 @@ test("a byte-order mark stays the file's first character: a key inserted first a
     "\0",
   );
 });
+
+test("UTF-16 is written with its byte-order mark, so a blank UTF-16 file a pull fills reads back; an add into a mark alone writes no blank line (#1037)", () => {
+  const filled = entriesToStrings(
+    `"title" = "Title";\n`,
+    { title: "Titre" },
+    "\uFEFF\n",
+  );
+  for (const encoding of ["utf16le", "utf16be"] as const) {
+    const bytes = encodeText(filled, encoding);
+    expect(
+      stringsTranslations(decodeText(bytes).text).map((e) => e.source),
+    ).toEqual(["Titre"]);
+  }
+  expect(
+    applyStringsOps("\uFEFF", [{ kind: "add", id: "new", text: "New" }]),
+  ).toBe(`\uFEFF"new" = "New";\n`);
+});
