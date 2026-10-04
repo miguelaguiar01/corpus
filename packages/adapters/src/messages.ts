@@ -142,11 +142,13 @@ export type PluralObjects = boolean | "several";
 // `{ one, other }`, as counterpart, easy_localization and Rails write a
 // plural: every key a category and `other` among them, every value a
 // string, matrix-web-i18n's own test (#662). Where the source already
-// reads the id as a plural, a target's object needs no `other` (#950).
+// reads the id as a plural, a target's object needs no `other` (#950),
+// and its forms need not read back (#960).
 export function isPluralObject(
   node: unknown,
   needsOther = true,
   mode: PluralObjects = true,
+  readBack = true,
 ): node is Record<string, string> {
   if (!mode || node === null || typeof node !== "object" || Array.isArray(node))
     return false;
@@ -161,6 +163,7 @@ export function isPluralObject(
     )
   )
     return false;
+  if (!readBack) return true;
   // Only forms that come back as they went: a form with a stray brace
   // could not be split out of the plural again, so its keys stay keys.
   const back = pluralBranches(
@@ -192,7 +195,8 @@ export function pluralObjectIds(
 
 // Whether a node at `id` is a plural: in a target whose source's plurals
 // are known, exactly where the source has one, however few its forms (a
-// Japanese `{ other }`); else by its own shape.
+// Japanese `{ other }`) and whatever they hold, so validate names a
+// broken form as the plural's (#960); else by its own shape.
 export function isPluralAt(
   node: unknown,
   id: string,
@@ -201,7 +205,7 @@ export function isPluralAt(
 ): node is Record<string, string> {
   if (!mode) return false;
   return known
-    ? known.has(id) && isPluralObject(node, false)
+    ? known.has(id) && isPluralObject(node, false, true, false)
     : isPluralObject(node, true, mode);
 }
 
