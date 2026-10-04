@@ -1164,6 +1164,90 @@ test("init finds Angular's messages.xlf where angular.json's extract-i18n writes
   );
 });
 
+test("init's search for Angular's messages.xlf: an absolute pattern, several projects, a non-XLIFF output, a commented angular.json and a git-ignored find (#1045)", async () => {
+  const { spawnSync } = await import("node:child_process");
+  const unit = `<xliff version="1.2"><file source-language="en"><body><trans-unit id="a"><source>Hello</source></trans-unit></body></file></xliff>\n`;
+  const at = (files: Record<string, string>) => {
+    const p = project();
+    stubCli(p.dir);
+    spawnSync("git", ["init", "-q"], { cwd: p.dir });
+    for (const [file, text] of Object.entries(files)) {
+      mkdirSync(path.dirname(path.join(p.dir, file)), { recursive: true });
+      writeFileSync(path.join(p.dir, file), text);
+    }
+    return p;
+  };
+  const init = (p: ReturnType<typeof project>, messages: string) =>
+    run(
+      ["init", "--project", "app", "--source", "en", "--messages", messages],
+      p.ctx,
+    );
+  const sourcePathOf = async (p: ReturnType<typeof project>) =>
+    (await loadConfig(p.dir)).sources[0] as { sourcePath?: string };
+  // An absolute pattern walks up to the config's directory, no further.
+  const absolute = at({ "loc/messages.de.xlf": unit, "messages.xlf": unit });
+  expect(
+    await init(absolute, path.join(absolute.dir, "loc/messages.{lang}.xlf")),
+  ).toBe(0);
+  expect(await sourcePathOf(absolute)).toMatchObject({
+    sourcePath: "messages.xlf",
+  });
+  // The output nearest the translations, of several projects'; one that
+  // is not XLIFF is none.
+  const extract = (options: Record<string, string>) => ({
+    architect: { "extract-i18n": { options } },
+  });
+  const projects = at({
+    "angular.json": JSON.stringify({
+      projects: {
+        a: extract({ outFile: "apps/a/locale/messages.xlf" }),
+        j: extract({ format: "json", outFile: "apps/b/source.json" }),
+        b: extract({ outFile: "apps/b/src.xlf" }),
+      },
+    }),
+    "apps/a/locale/messages.xlf": unit,
+    "apps/b/source.json": "{}",
+    "apps/b/src.xlf": unit,
+    "apps/b/locale/de.xlf": unit,
+  });
+  await init(projects, "apps/b/locale/{lang}.xlf");
+  expect(await sourcePathOf(projects)).toMatchObject({
+    sourcePath: "apps/b/src.xlf",
+  });
+  // angular.json is JSON with comments, as the Angular CLI reads it.
+  const commented = at({
+    "web/angular.json": `{\n  // the workspace\n  "projects": { "ui": { "architect": { "extract-i18n": { "options": { "outputPath": "src/i18n", }, }, }, }, },\n}\n`,
+    "web/src/i18n/messages.xlf": unit,
+    "web/src/locale/messages.de.xlf": unit,
+  });
+  await init(commented, "web/src/locale/messages.{lang}.xlf");
+  expect(await sourcePathOf(commented)).toMatchObject({
+    sourcePath: "web/src/i18n/messages.xlf",
+  });
+  // A file found is said git-ignored as a missing one is.
+  const ignored = at({
+    ".gitignore": "/web/messages.xlf\n",
+    "web/angular.json": JSON.stringify({ projects: {} }),
+    "web/messages.xlf": unit,
+    "web/src/locale/messages.de.xlf": unit,
+  });
+  await init(ignored, "./web/src/locale/messages.{lang}.xlf");
+  expect(ignored.err).toContain(
+    "corpus: web/messages.xlf is git-ignored, so it is generated: commit it, or point the source at a file that is committed",
+  );
+  // Nothing found says each place once, `./` aside.
+  const none = at({
+    "angular.json": JSON.stringify({
+      projects: { ui: extract({ outputPath: "/elsewhere" }) },
+    }),
+    "src/locale/messages.de.xlf": unit,
+  });
+  await init(none, "./src/locale/messages.{lang}.xlf");
+  expect(none.err).toContain(
+    "corpus: no src/locale/messages.en.xlf, no src/locale/messages.xlf, no /elsewhere/messages.xlf and no messages.xlf in src or above; set the xliff source's sourcePath to the file Angular extracts",
+  );
+});
+
 test("init writes a gettext source for .po catalogues, the .pot beside them its source, and the config builds (#720)", async () => {
   const p = project();
   stubCli(p.dir);
