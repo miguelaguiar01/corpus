@@ -74,8 +74,21 @@ test("a target is read under its file's code, or the tag languageFiles maps to i
   // A file with neither, or none yet, starts with its code.
   expect(yamlRootOf("ur:\n  hi: x\n", "ur_IN", "ur-IN")).toBe("ur_IN");
   expect(yamlRootOf(undefined, "sr", "sr-Latn")).toBe("sr");
+  // A null stub at the code beside the tag's strings: the tag's, as Rails
+  // stores nothing for the stub.
+  expect(yamlRootOf("sr:\nsr-Latn:\n  hi: Zdravo\n", "sr", "sr-Latn")).toBe(
+    "sr-Latn",
+  );
   expect(yamlRootOf("", "sr", "sr-Latn")).toBe("sr");
   // One rooted elsewhere says what Rails does with it, and both ways out.
+  // Rooted at a language with a file of its own, mapping is no way out.
+  expect(() =>
+    yamlTranslations("en:\n  hi: x\n", "fr", undefined, {
+      ownFile: (root) => (root === "en" ? "config/locales/en.yml" : undefined),
+    }),
+  ).toThrow(
+    "rooted at en, not fr: Rails reads it as en whatever its name, beside en's own config/locales/en.yml; if the file is meant to be fr, its root key is the fix",
+  );
   expect(() => yamlTranslations("ur:\n  hi: x\n", "ur_IN")).toThrow(
     'rooted at ur, not ur_IN: Rails reads it as ur whatever its name; if ur is the language, list it and map it, languageFiles: { "ur": "ur_IN" }; if the file is meant to be ur_IN, its root key is the fix',
   );
