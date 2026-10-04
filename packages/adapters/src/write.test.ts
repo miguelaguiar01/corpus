@@ -1396,3 +1396,19 @@ describe("under i18next a target's plural in the other shape than the source's, 
     ).toMatch(/"rooms": \{/);
   });
 });
+
+test("a new target file is written from the source's own reading, so an object beside a sibling _other key is translated as on main (#1187 review)", () => {
+  const source = `{\n  "rooms": {\n    "one": "{{count}} room",\n    "other": "{{count}} rooms"\n  },\n  "rooms_other": "Other rooms"\n}\n`;
+  const out = entriesToMessages(
+    source,
+    {
+      rooms: "{count, plural, one {{{count}} pokój} other {{{count}} pokoi}}",
+      rooms_other: "Inne pokoje",
+    },
+    undefined,
+    { plurals: "several", suffixPlurals: true, sourceLanguage: "en" },
+  );
+  expect(out).not.toMatch(/room"/);
+  expect(out).toMatch(/"one": "\{\{count\}\} pokój"/);
+  expect(out).toMatch(/"rooms_other": "Inne pokoje"/);
+});
