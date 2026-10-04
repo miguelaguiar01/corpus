@@ -338,7 +338,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     ctx.out(
       NO_COMPONENTS[adapter]
         ? `corpus check reads ${READS} components, which ${NO_COMPONENTS[adapter]} has none of: leave corpus check out of CI`
-        : `check.include: init found no ${EXTENSIONS.join(", ").replace(/, ([^,]*)$/, " or $1")} components where it looks; set check.include in ${filename} to where they are, or, if the UI is written in something else (C, GTK, Angular, Handlebars, templates), corpus check does not apply: leave it out of CI`,
+        : `check.include: init found no ${EXTENSIONS.join(", ").replace(/, ([^,]*)$/, " or $1")} components where it looks; set check.include in ${filename} to where they are, or, if the UI is written in something else (C, GTK, Angular, templates), corpus check does not apply: leave it out of CI`,
     );
   }
   const siblings =

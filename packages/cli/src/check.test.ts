@@ -372,7 +372,7 @@ test("check refuses a clean bill when it parsed nothing, and counts the files wh
       mkdirSync(path.join(two, "app"));
       mkdirSync(path.join(two, "src"));
       writeFileSync(path.join(two, "i18n", "en.json"), "{}\n");
-      writeFileSync(path.join(two, "src", "a.hbs"), `<p>Stray text</p>\n`);
+      writeFileSync(path.join(two, "src", "a.erb"), `<p>Stray text</p>\n`);
       writeFileSync(
         path.join(two, "app", "ok.tsx"),
         `export const O = () => <p>{x}</p>;\n`,
