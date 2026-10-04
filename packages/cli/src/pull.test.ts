@@ -2084,6 +2084,63 @@ export default defineCorpus({
   expect(read("config/locales/en.yml")).toBe("en:\n  hi: Hello\n  bye: Bye\n");
 });
 
+test("a yaml target rooted at the tag languageFiles maps to its file seeds, pulls and takes a removal under that root, as Rails reads it (#1048)", async () => {
+  // Chatwoot: sr.yml is rooted at sr-Latn.
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "sr-Latn", "de"],
+  sources: [{ adapter: "yaml", type: "ui", path: "config/locales/{lang}.yml", languageFiles: { "sr-Latn": "sr" } }],
+});
+`,
+  );
+  mkdirSync(path.join(repo, "config", "locales"), { recursive: true });
+  writeFileSync(
+    path.join(repo, "config", "locales", "en.yml"),
+    "en:\n  hi: Hello\n  bye: Bye\n",
+  );
+  const sr = "# Serbian, Latin script\nsr-Latn:\n  hi: Zdravo\n  bye: Ćao\n";
+  writeFileSync(path.join(repo, "config", "locales", "sr.yml"), sr);
+  const { buildSnapshot } = await import("./build");
+  const { loadConfig } = await import("./config");
+  const snapshot = await buildSnapshot(await loadConfig(repo), repo);
+  expect(snapshot.seedTranslations?.["sr-Latn"]).toEqual({
+    hi: "Zdravo",
+    bye: "Ćao",
+  });
+  await serve(200, {
+    ...PAYLOAD,
+    types: { hi: "ui", bye: "ui" },
+    translations: {
+      "sr-Latn": { hi: "Zdravo!", bye: "Ćao" },
+      de: { hi: "Hallo" },
+    },
+    minState: "untranslated",
+    sourceChanges: [
+      { kind: "delete", id: "bye", type: "ui", file: "config/locales/en.yml" },
+    ],
+  });
+  expect(await run(["pull", "--min-state", "untranslated"], ctx())).toBe(0);
+  expect(read("config/locales/sr.yml")).toBe(
+    "# Serbian, Latin script\nsr-Latn:\n  hi: Zdravo!\n",
+  );
+  expect(read("config/locales/en.yml")).toBe("en:\n  hi: Hello\n");
+  // A missing file starts at its code, as before.
+  expect(read("config/locales/de.yml")).toBe("de:\n  hi: Hallo\n");
+  // Rooted at its code, it still reads.
+  writeFileSync(
+    path.join(repo, "config", "locales", "sr.yml"),
+    "sr:\n  hi: Zdravo\n",
+  );
+  const again = await buildSnapshot(await loadConfig(repo), repo);
+  expect(again.seedTranslations?.["sr-Latn"]).toEqual({ hi: "Zdravo" });
+});
+
 test("one messages value or xliff unit Corpus cannot read is refused by itself: the rest build and seed, and a pull leaves it alone (#1026)", async () => {
   writeFileSync(
     path.join(repo, "corpus.config.ts"),

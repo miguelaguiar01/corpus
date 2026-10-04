@@ -2,6 +2,7 @@ import { expect, test } from "vitest";
 import {
   applyYamlOps,
   entriesToYaml,
+  yamlRootOf,
   yamlToEntries,
   yamlTranslations,
 } from "./yaml";
@@ -62,6 +63,22 @@ test("a Rails catalogue's strings: dotted ids under the root, plural hashes, _MF
     },
     { id: "time.am", type: "ui", source: "am" },
   ]);
+});
+
+test("a target is read under its file's code, or the tag languageFiles maps to it where the file is rooted there, as Rails reads it (#1048)", () => {
+  // Chatwoot's sr.yml is rooted at sr-Latn.
+  expect(yamlRootOf("sr-Latn:\n  hi: Zdravo\n", "sr", "sr-Latn")).toBe(
+    "sr-Latn",
+  );
+  expect(yamlRootOf("sr:\n  hi: Zdravo\n", "sr", "sr-Latn")).toBe("sr");
+  // A file with neither, or none yet, starts with its code.
+  expect(yamlRootOf("ur:\n  hi: x\n", "ur_IN", "ur-IN")).toBe("ur_IN");
+  expect(yamlRootOf(undefined, "sr", "sr-Latn")).toBe("sr");
+  expect(yamlRootOf("", "sr", "sr-Latn")).toBe("sr");
+  // One rooted elsewhere says what Rails does with it, and both ways out.
+  expect(() => yamlTranslations("ur:\n  hi: x\n", "ur_IN")).toThrow(
+    'rooted at ur, not ur_IN: Rails reads it as ur whatever its name; if ur is the language, list it and map it, languageFiles: { "ur": "ur_IN" }; if the file is meant to be ur_IN, its root key is the fix',
+  );
 });
 
 test("a target's translations are its strings under its own root key; a lone space is one (#752)", () => {
