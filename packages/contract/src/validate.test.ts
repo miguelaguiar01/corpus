@@ -3475,6 +3475,33 @@ test("an =N branch in a plural read whole is invalid: the catalogue's plurals ho
     // Named by position, as every check of a String Catalog plural is.
     errors: [{ code: "exact-branch", arg: "1", key: "=1", category: "one" }],
   });
+  // The branch advised is the one the library picks for N: i18next's,
+  // Rails' and counterpart's written zero, easy_localization's two, and
+  // among a gettext file's own forms.
+  for (const [library, one, other, key, category, language, pluralForms] of [
+    [
+      "i18next",
+      "{{count}} file",
+      "{{count}} files",
+      "=0",
+      "zero",
+      "de",
+      undefined,
+    ],
+    ["rails", "%{count} file", "%{count} files", "=0", "zero", "de", undefined],
+    ["easy_localization", "{} file", "{} files", "=2", "two", "de", undefined],
+    ["printf", "%d file", "%d files", "=5", "other", "ru", ["one", "other"]],
+  ] as const)
+    expect(
+      validateTranslation(
+        `{count, plural, one {${one}} other {${other}}}`,
+        `{count, plural, ${key} {x} one {${one}} other {${other}}}`,
+        language,
+        library,
+        pluralForms ? { pluralForms } : {},
+      ),
+      library,
+    ).toMatchObject({ errors: [{ code: "exact-branch", key, category }] });
   // ICU's own plurals hold them.
   expect(
     validateTranslation(
