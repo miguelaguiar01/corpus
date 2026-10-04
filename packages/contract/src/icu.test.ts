@@ -1472,3 +1472,27 @@ test("a layered printf verb is read with sprintf-js's own grammar: a named %(nam
     errors: [{ code: "missing-placeholder", name: "user" }],
   });
 });
+
+test("a %name% is an example only where its closing % starts no sprintf verb, so %dx%d and %s_%s.png are two verbs (#1049)", () => {
+  const parts = (source: string) => [
+    ...partsOf(source, "i18next", ["printf"]).placeholders,
+  ];
+  expect(parts("Resolution: %dx%d")).toEqual(["1", "2"]);
+  expect(parts("%s_%s.png and %dh%dm%ds")).toEqual(["1", "2", "3", "4", "5"]);
+  expect(parts('{"mail": "%email%", "%team%,%department%"} %s')).toEqual(["1"]);
+  expect(parts("%firstname%, %lastname%: %curr% of %total%.")).toEqual([]);
+  expect(
+    validateTranslation(
+      "Resolution: %dx%d",
+      "Auflösung: %d × %d",
+      "de",
+      "i18next",
+      { placeholders: ["printf"] },
+    ).ok,
+  ).toBe(true);
+  expect(
+    validateTranslation("Resolution: %dx%d", "Auflösung: %d", "de", "i18next", {
+      placeholders: ["printf"],
+    }).ok,
+  ).toBe(false);
+});
