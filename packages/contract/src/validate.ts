@@ -1296,7 +1296,13 @@ export function validateTranslation(
     parsedSource.nodes.some((node) => node.kind === "plural")
   )
     errors.push(
-      ...exactBranches(targetNodes, language, syntax, options.pluralForms),
+      ...exactBranches(
+        targetNodes,
+        language,
+        syntax,
+        options.pluralForms,
+        options.pluralRules,
+      ),
     );
   // The source's own text keeps the source's warning, not an error: a
   // translation that is the source cannot be the translator's `#` (#923),
@@ -1496,6 +1502,7 @@ function exactBranches(
   language: string | undefined,
   library: Library,
   pluralForms: readonly string[] | undefined,
+  rules: "default" | "cldr" | undefined,
 ): ValidationError[] {
   return nodes.flatMap((node) => {
     if (node.kind !== "plural") return [];
@@ -1505,7 +1512,8 @@ function exactBranches(
     const categories = Object.fromEntries(
       [
         ...(language
-          ? pluralCategoriesFor(language, library, picked, node.ordinal).allowed
+          ? pluralCategoriesFor(language, library, picked, node.ordinal, rules)
+              .allowed
           : []),
         "other",
       ].map((category) => [category, true]),
@@ -1520,6 +1528,7 @@ function exactBranches(
           ordinal: node.ordinal,
           library,
           ...(picked && { picked }),
+          ...(rules && { rules }),
         }),
       }));
   });
