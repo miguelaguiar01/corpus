@@ -601,9 +601,10 @@ export function validateTranslation(
   language?: string,
   syntax: Library = "icu",
   // `arguments`: the verbs the code passes, by position, where a key
-  // carries them (a String Catalog's `%lld`, #731): values a translation
-  // may pluralise on or print, of their type, though the source text
-  // prints none of them.
+  // carries them (a String Catalog's `%lld`, #731), or, under a library
+  // that names its values, the names its config declares (#1031):
+  // values a translation may pluralise on or print, of their type,
+  // though the source text prints none of them.
   // `pluralForms`: the categories the runtime picks where they are not
   // the language's CLDR ones: a gettext file's `Plural-Forms`' (#951),
   // rails-i18n's (#983).
@@ -739,6 +740,9 @@ export function validateTranslation(
   const numerus = syntax === "qt" && whole.plurals.size > 0;
   // A gettext plural's argument under fmt is the reader's, `count`: the
   // program passes only the fields its source writes (#1002).
+  // Elsewhere `arguments` names the values the code passes (#1031).
+  const declared =
+    syntax === "printf" ? [] : [...new Set(options.arguments ?? [])];
   const allowedValues = new Set(
     syntax === "fmt"
       ? expected.placeholders
@@ -854,7 +858,10 @@ export function validateTranslation(
   // Outside ICU, whose `#` prints it, a plural on a value prints nothing:
   // a count the source writes is shown only where a form writes it too
   // (#949).
-  if (!readsAsIcu(syntax))
+  // A value the code passes beside the count may print it instead, as
+  // Discourse's `%{number}` does for `%{count}` (#1031).
+  const printsDeclared = declared.some((name) => actual.placeholders.has(name));
+  if (!readsAsIcu(syntax) && !printsDeclared)
     for (const name of expected.placeholders)
       if (!actual.placeholders.has(name) && actualValues.has(name))
         errors.push({
@@ -867,6 +874,7 @@ export function validateTranslation(
     (options.arguments ?? []).forEach((written, i) => {
       if (written) passed.set(String(i + 1), written);
     });
+  else for (const name of declared) passed.set(name, name);
   // A Fluent translation may use a term or a message its source does
   // not: each is the locale's to define, not a value the code passes
   // (#990, #1083).

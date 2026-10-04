@@ -1419,6 +1419,79 @@ export default defineCorpus({
   }
 });
 
+test("a source's arguments carry on its strings, so validate allows a value the code passes beside the source's; one naming no string stops the build (#1031)", async () => {
+  const config = (args: string) =>
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "ja"],
+  sources: [{ adapter: "yaml", type: "ui", path: "i18n/client.{lang}.yml"${args} }],
+});
+`;
+  writeFileSync(
+    path.join(repo, "i18n", "client.en.yml"),
+    `en:\n  js:\n    views_long:\n      one: "this topic has been viewed %{count} time"\n      other: "this topic has been viewed %{count} times"\n`,
+  );
+  writeFileSync(
+    path.join(repo, "i18n", "client.ja.yml"),
+    `ja:\n  js:\n    views_long:\n      other: "このトピックは %{number} 回表示されました"\n`,
+  );
+  writeFileSync(path.join(repo, "corpus.config.ts"), config(""));
+  const before = ctx();
+  expect(await run(["validate"], before)).toBe(1);
+  expect(before.output.join("\n")).toMatch(/views_long: .*%\{number\}/);
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    config(`, arguments: { "js.views_long": ["number"] }`),
+  );
+  const { buildSnapshot } = await import("./build");
+  const { loadConfig } = await import("./config");
+  const snapshot = await buildSnapshot(await loadConfig(repo), repo);
+  expect(
+    snapshot.strings.find((s) => s.id === "js.views_long")?.arguments,
+  ).toEqual(["number"]);
+  expect(await run(["validate"], ctx())).toBe(0);
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    config(`, arguments: { "js.view_long": ["number"] }`),
+  );
+  await expect(buildSnapshot(await loadConfig(repo), repo)).rejects.toThrow(
+    /arguments names js\.view_long, which the source does not have/,
+  );
+  // A path list's patterns share the map, a module validate does not
+  // read back among them, so an id only it holds is no typo there.
+  writeFileSync(
+    path.join(repo, "i18n", "extra.en.js"),
+    `export default { en: { js: { z: "Z %{count}" } } };\n`,
+  );
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "ja"],
+  sources: [{ adapter: "messages", type: "ui", library: "rails", path: ["i18n/views.{lang}.json", "i18n/extra.{lang}.js"], arguments: { "z": ["number"] } }],
+});
+`,
+  );
+  writeFileSync(path.join(repo, "i18n", "views.en.json"), `{ "y": "Y" }\n`);
+  expect(await run(["validate"], ctx())).toBe(0);
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    config(`, arguments: { "js.view_long": ["number"] }`),
+  );
+  // Local validate says the same, rather than checking without it.
+  const typo = ctx();
+  expect(await run(["validate"], typo)).toBe(1);
+  expect(typo.output.join("\n")).toMatch(
+    /arguments names js\.view_long, which the source does not have/,
+  );
+});
+
 test("under merge: last-wins the later file's translation is seeded and written, an earlier one only where it agreed, and a pull of what was pushed changes nothing (#953)", async () => {
   writeFileSync(
     path.join(repo, "corpus.config.ts"),

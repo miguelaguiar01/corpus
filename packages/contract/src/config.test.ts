@@ -1356,3 +1356,81 @@ test("a source's placeholders layer another library's tokens on its library, and
     }),
   ).toEqual(["placeholders is no key of an android source"]);
 });
+
+test("a source's arguments name values its code passes beside the source's, per string; a library that passes values by position refuses them (#1031)", () => {
+  const base = {
+    project: "p",
+    server: "http://localhost:3000",
+    sourceLanguage: "en",
+    languages: ["en", "ja"],
+  };
+  const issues = (source: object) => {
+    const parsed = corpusConfigSchema.safeParse({ ...base, sources: [source] });
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  const discourse = {
+    adapter: "yaml",
+    type: "ui",
+    path: "config/locales/client.{lang}.yml",
+    arguments: { "js.views_long": ["number"] },
+  };
+  expect(issues(discourse)).toEqual([]);
+  expect(
+    issues({
+      adapter: "messages",
+      type: "ui",
+      path: "app/javascript/mastodon/locales/{lang}.json",
+      arguments: { "account.familiar_followers_many": ["count"] },
+    }),
+  ).toEqual([]);
+  expect(
+    issues({ ...discourse, arguments: { "js.views_long": [] } }),
+  ).toHaveLength(1);
+  expect(
+    issues({
+      adapter: "gettext",
+      type: "ui",
+      path: "po/{lang}.po",
+      arguments: { greeting: ["name"] },
+    }),
+  ).toEqual([
+    "arguments: printf's arguments are its verbs by position, so it takes no names here",
+  ]);
+  // A name is a value's, never the placeholder as written.
+  expect(
+    issues({ ...discourse, arguments: { "js.views_long": ["%{number}"] } }),
+  ).toEqual([
+    'arguments: "%{number}" is no value name; write the name alone, number for %{number}',
+  ]);
+  // The name suggested is the value's own, never the verb's letters.
+  expect(
+    issues({
+      adapter: "messages",
+      type: "ui",
+      path: "i18n/{lang}.json",
+      library: "counterpart",
+      arguments: { a: ["%(name)s"] },
+    }),
+  ).toEqual([
+    'arguments: "%(name)s" is no value name; write the name alone, name for %(name)s',
+  ]);
+  // Chrome fills its $NAME$ from a message's own placeholders.
+  expect(
+    issues({
+      adapter: "messages",
+      type: "ui",
+      path: "_locales/{lang}/messages.json",
+      library: "chrome",
+      arguments: { a: ["count"] },
+    }),
+  ).toHaveLength(1);
+  // A source without the key says so once.
+  expect(
+    issues({
+      adapter: "android",
+      type: "ui",
+      path: "app/src/main/res",
+      arguments: { title: ["n"] },
+    }),
+  ).toHaveLength(1);
+});

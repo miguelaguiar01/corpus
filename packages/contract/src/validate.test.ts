@@ -3221,3 +3221,34 @@ test("under chrome a bare $1–$9 is a placeholder; a lone $, a $40 and a $$NAME
   expect(de("$USER@HOST$", "$user@host$")).toEqual({ ok: true });
   expect(chromeDollarsOf("$ x", "icu")).toEqual([]);
 });
+
+test("a value the source's arguments declare is one a translation may print or pluralise on, and printing it shows the count (#1031)", () => {
+  // Discourse's js.views_long: d-number.js passes `number` beside `count`.
+  const source =
+    "{count, plural, one {this topic has been viewed %{count} time} other {this topic has been viewed %{count} times}}";
+  const ja =
+    "{count, plural, other {このトピックは %{number} 回表示されました}}";
+  const without = validateTranslation(source, ja, "ja", "rails");
+  expect(without.ok ? [] : without.errors.map((e) => e.code).sort()).toEqual([
+    "missing-placeholder",
+    "unexpected-placeholder",
+  ]);
+  expect(
+    validateTranslation(source, ja, "ja", "rails", { arguments: ["number"] }),
+  ).toEqual({ ok: true });
+  // A value the code does not pass is still unexpected.
+  expect(
+    validateTranslation(source, ja.replace("number", "num"), "ja", "rails", {
+      arguments: ["number"],
+    }).ok,
+  ).toBe(false);
+  // Mastodon: `{counter} you know`, a translation pluralising on the
+  // `count` its code passes too.
+  const mastodon = "{counter} you know";
+  const pl =
+    "{count, plural, one {{counter} znajomy} few {{counter} znajomych} many {{counter} znajomych} other {{counter} znajomego}}";
+  expect(
+    validateTranslation(mastodon, pl, "pl", "icu", { arguments: ["count"] }),
+  ).toEqual({ ok: true });
+  expect(validateTranslation(mastodon, pl, "pl", "icu").ok).toBe(false);
+});

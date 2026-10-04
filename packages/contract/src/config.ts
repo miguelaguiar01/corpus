@@ -159,6 +159,38 @@ const placeholders = z
   .min(1)
   .optional();
 
+// A value's name as the libraries that name them write one: a letter,
+// a digit or `_` first, then those, marks, `.` and `-`.
+const VALUE_NAME_RE = /^[\p{L}\p{N}_][\p{L}\p{M}\p{N}_.-]*$/u;
+const VALUE_NAME_IN_RE = /[\p{L}\p{N}_][\p{L}\p{M}\p{N}_.-]*/u;
+
+// Values a string's code passes beside the ones its source writes, by
+// id (#1031): Discourse's `js.views_long` prints `%{count}`, and
+// d-number.js passes `number` too. A translation may print or
+// pluralise on them.
+const passedArguments = z
+  .record(
+    z.string().min(1),
+    z
+      .array(
+        z.string().refine((name) => VALUE_NAME_RE.test(name), {
+          error: (issue) =>
+            `arguments: ${JSON.stringify(issue.input)} is no value name; write the name alone${
+              typeof issue.input === "string" &&
+              VALUE_NAME_IN_RE.test(issue.input)
+                ? `, ${VALUE_NAME_IN_RE.exec(issue.input)![0]} for ${issue.input}`
+                : ""
+            }`,
+        }),
+      )
+      .min(1),
+  )
+  .optional();
+
+// The libraries that pass their values by position, whose `arguments`
+// are verbs rather than names (#731).
+const POSITIONAL_LIBRARIES = new Set(["printf", "qt", "android", "chrome"]);
+
 // The libraries whose own syntax reads `{`.
 const BRACE_READERS = new Set([
   "icu",
@@ -210,6 +242,7 @@ const messagesFields = {
   // absent. `syntax` is the old name, accepted until 1.0.
   library: configLibrarySchema.optional(),
   placeholders,
+  arguments: passedArguments,
   syntax: configLibrarySchema.optional(),
   languageFiles,
   pluralRules,
@@ -245,6 +278,7 @@ const tableFields = {
   type: identifier(),
   library: configLibrarySchema.optional(),
   placeholders,
+  arguments: passedArguments,
   pluralRules,
   namespace,
   languages: sourceLanguages,
@@ -318,6 +352,7 @@ const gettextSchema = z.looseObject({
   sourcePath: noNamespace("gettext", oneSourcePath("gettext")).optional(),
   library: configLibrarySchema.optional(),
   placeholders,
+  arguments: passedArguments,
   languageFiles,
   pluralRules,
   namespace,
@@ -335,6 +370,7 @@ const qtTsSchema = z.looseObject({
   sourcePath: noNamespace("qt-ts", oneSourcePath("qt-ts")).optional(),
   library: configLibrarySchema.optional(),
   placeholders,
+  arguments: passedArguments,
   languageFiles,
   pluralRules,
   namespace,
@@ -351,6 +387,7 @@ const yamlFields = {
   type: identifier(),
   library: configLibrarySchema.optional(),
   placeholders,
+  arguments: passedArguments,
   languageFiles,
   pluralRules,
   namespace,
@@ -381,6 +418,7 @@ const xcstringsSchema = z.looseObject({
   ),
   library: configLibrarySchema.optional(),
   placeholders,
+  arguments: passedArguments,
   pluralRules,
   namespace,
   languages: sourceLanguages,
@@ -395,6 +433,7 @@ const stringsSchema = z.looseObject({
   path: noNamespace("strings", onePattern("strings")),
   library: configLibrarySchema.optional(),
   placeholders,
+  arguments: passedArguments,
   languageFiles,
   pluralRules,
   namespace,
@@ -513,6 +552,11 @@ function fileCodeIn(pattern: string, file: string): string | undefined {
     .join("");
   return new RegExp(`^${source}$`).exec(file)?.[1];
 }
+
+// The adapters whose sources take `arguments` (#1031).
+const ARGUMENT_SOURCES: string[] = sourceInputSchema.options.flatMap(
+  (option) => ("arguments" in option.shape ? [option.shape.adapter.value] : []),
+);
 
 // The adapters whose sources map a language to its file's code.
 const MAPS_LANGUAGE_FILES: string[] = sourceInputSchema.options.flatMap(
@@ -719,6 +763,21 @@ export const corpusConfigSchema = z
             code: "custom",
             message,
             path: ["sources", index, "placeholders"],
+          });
+      }
+      if (
+        (source as { arguments?: unknown }).arguments !== undefined &&
+        ARGUMENT_SOURCES.includes(source.adapter)
+      ) {
+        const own = baseLibraryOf(source);
+        if (POSITIONAL_LIBRARIES.has(own))
+          ctx.addIssue({
+            code: "custom",
+            message:
+              own === "chrome"
+                ? "arguments: chrome fills a message's $NAME$ from its own placeholders, by position, so it takes no names here"
+                : `arguments: ${own}'s arguments are its verbs by position, so it takes no names here`,
+            path: ["sources", index, "arguments"],
           });
       }
       const keyIsText = (source as { keyIsText?: unknown }).keyIsText === true;
