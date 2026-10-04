@@ -114,6 +114,9 @@ export const LIBRARIES = [
   // Flutter's gen-l10n (#1038): an ICU subset, `#` text, date and time
   // only with a skeleton, no number, selectordinal or offset.
   "gen_l10n",
+  // libfmt, C++20's std::format and Python's str.format (#1002): `{name}`
+  // and `{name:spec}` fields, `{}` by position, `{{` a brace.
+  "fmt",
   // The fluent adapter's reading (#990): ICU with Fluent's identifiers
   // and nesting. A config never names it.
   "fluent",
@@ -163,6 +166,7 @@ const LIBRARY_NAMES: Record<Library, string> = {
   fluent: "Fluent",
   formatjs: "FormatJS",
   gen_l10n: "gen-l10n",
+  fmt: "fmt",
 };
 
 export function libraryName(library: Library): string {

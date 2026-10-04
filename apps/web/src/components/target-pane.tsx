@@ -144,6 +144,7 @@ const COUNT_IN_BRANCH: Record<Library, (arg: string) => string> = {
   formatjs: () => "#",
   // gen-l10n prints `#` as written (#1038).
   gen_l10n: (arg) => `{${arg}}`,
+  fmt: (arg) => `{${arg}}`,
 };
 
 // A plural's branches open with that count.

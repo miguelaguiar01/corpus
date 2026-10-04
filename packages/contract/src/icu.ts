@@ -379,6 +379,7 @@ export const WHOLE_PLURAL_LIBRARIES: ReadonlySet<Library> = new Set([
   "easy_localization",
   "rails",
   "qt",
+  "fmt",
 ]);
 
 // A printf or i18next text that is one ICU plural from end to end
@@ -498,6 +499,12 @@ const GEN_L10N_DATE_FORMATS = new Set(
   ).split(" "),
 );
 
+// A libfmt or str.format replacement field (#1002): an index or a name,
+// Python's `.attr` and `[key]` after it, a `!r` conversion and a spec
+// with no brace in it.
+const FMT_FIELD_RE =
+  /^\{(\d+|[A-Za-z_][A-Za-z0-9_]*)?((?:\.[A-Za-z_][A-Za-z0-9_]*|\[[^\]{}]*\])*)(?:![rsa])?(?::[^{}]*)?\}/;
+
 // The plural cases gen-l10n's `pluralCases` takes (#1038).
 const GEN_L10N_PLURAL_KEYS = new Set([
   "=0",
@@ -515,6 +522,8 @@ class Parser {
   private pos = 0;
   // The next verb's position when none is written (#594).
   private printfNext = 1;
+  // The position the next `{}` takes under fmt, from 0 (#1002).
+  private fmtNext = 0;
   // Whether a substitution's branch has yet to write its argument (#726).
   private ownFree = false;
   // The next `{}`'s position under easy_localization (#664).
@@ -838,6 +847,8 @@ class Parser {
       case "printf":
       case "android":
         return this.lexPrintf(seq, ch, inBranch, opensPlural, pluralArg);
+      case "fmt":
+        return this.lexFmt(seq, ch, inBranch, opensPlural);
       default:
         return false;
     }
@@ -952,6 +963,50 @@ class Parser {
 
   // printf: braces, angle brackets and `#` are text; `%` opens a verb.
   // android (#596): the verbs, with ICU's plural and tags around them.
+  // libfmt and Python's str.format (#1002): a replacement field is its
+  // field, `{}` the next position; `{{` and `}}` are braces; any other
+  // brace aborts libfmt built without exceptions, as Transmission's is.
+  private lexFmt(
+    seq: Sequence,
+    ch: string,
+    inBranch: boolean,
+    opensPlural: boolean,
+  ): boolean {
+    if (ch === "{") {
+      if (this.source[this.pos + 1] === "{") return this.text(seq, "{", 2);
+      if (opensPlural) return false;
+      const field = FMT_FIELD_RE.exec(this.source.slice(this.pos));
+      if (!field)
+        throw new ParseFailure(
+          "a { that opens no fmt field: write {{ for a brace",
+          this.pos,
+        );
+      const name =
+        field[1] === undefined
+          ? String(this.fmtNext++)
+          : `${field[1]}${field[2] ?? ""}`;
+      return this.placeholder(seq, name, field[0]);
+    }
+    if (ch === "}") {
+      // A run of braces in a plural read whole: its last ones close the
+      // branch, and the plural where nothing but space follows; the rest
+      // are pairs, each one brace.
+      const run = /^\}+/.exec(this.source.slice(this.pos))![0].length;
+      const after = this.source.slice(this.pos + run);
+      const closing = !inBranch ? 0 : /^\s*$/.test(after) ? 2 : 1;
+      const literal = run - Math.min(closing, run);
+      if (literal % 2 === 1)
+        throw new ParseFailure(
+          "a } that closes no fmt field: write }} for a brace",
+          this.pos,
+        );
+      if (literal > 0) return this.text(seq, "}".repeat(literal / 2), literal);
+      return false;
+    }
+    if (opensPlural) return false;
+    return this.text(seq, ch);
+  }
+
   private lexPrintf(
     seq: Sequence,
     ch: string,
