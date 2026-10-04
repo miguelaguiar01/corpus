@@ -3472,7 +3472,8 @@ test("an =N branch in a plural read whole is invalid: the catalogue's plurals ho
     ),
   ).toMatchObject({
     ok: false,
-    errors: [{ code: "exact-branch", arg: "arg1", key: "=1", category: "one" }],
+    // Named by position, as every check of a String Catalog plural is.
+    errors: [{ code: "exact-branch", arg: "1", key: "=1", category: "one" }],
   });
   // ICU's own plurals hold them.
   expect(
