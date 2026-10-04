@@ -8,7 +8,7 @@ const ENCODING = new Map<string, TextEncoding>();
 
 export function readRepoText(abs: string): string {
   const { text, encoding } = decodeText(readFileSync(abs));
-  if (encoding !== "utf8") ENCODING.set(abs, encoding);
+  ENCODING.set(abs, encoding);
   return text;
 }
 
@@ -16,9 +16,13 @@ export function readRepoTextIfAny(abs: string): string | undefined {
   return existsSync(abs) ? readRepoText(abs) : undefined;
 }
 
+// A file read before keeps its own encoding; only one new to the
+// repository takes its template's.
 export function writeRepoText(abs: string, text: string, like?: string): void {
   const encoding =
-    ENCODING.get(abs) ?? (like !== undefined ? ENCODING.get(like) : undefined);
-  if (encoding) ENCODING.set(abs, encoding);
-  writeFileSync(abs, encodeText(text, encoding ?? "utf8"));
+    ENCODING.get(abs) ??
+    (like !== undefined && !existsSync(abs) ? ENCODING.get(like) : undefined) ??
+    "utf8";
+  ENCODING.set(abs, encoding);
+  writeFileSync(abs, encodeText(text, encoding));
 }

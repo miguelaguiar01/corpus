@@ -128,3 +128,52 @@ test("a UTF-16 file decodes with its byte order and encodes back to the same byt
   expect(decodeText(utf8)).toEqual({ text: `"a" = "Ä";\n`, encoding: "utf8" });
   expect(encodeText(`"a" = "Ä";\n`, "utf8")).toEqual(utf8);
 });
+
+test("escapes as CoreFoundation reads them: octal, \\U with up to four hex digits, the C letters, and any other character itself (#1037)", () => {
+  expect(
+    stringsToEntries(`"a" = "\\101\\U41\\Ue9\\u\\a\\v\\q";`, { type: "ui" })[0]!
+      .source,
+  ).toBe("AAéu\x07\vq");
+});
+
+test('a "key"; alone keeps its key when its value is written, and a removal never takes a pair before it on its line (#1037)', () => {
+  expect(entriesToStrings(`"Done";\n`, { Done: "Terminé" }, `"Done";\n`)).toBe(
+    `"Done" = "Terminé";\n`,
+  );
+  expect(
+    applyStringsOps(`"Done";\n`, [
+      { kind: "edit", id: "Done", text: "Finished" },
+    ]),
+  ).toBe(`"Done" = "Finished";\n`);
+  const two = `"title" = "Title"; /* the window title */\n"quit" = "Quit";\n`;
+  expect(stringsToEntries(two, { type: "ui" })).toEqual([
+    { id: "title", type: "ui", source: "Title" },
+    { id: "quit", type: "ui", source: "Quit" },
+  ]);
+  expect(applyStringsOps(two, [{ kind: "delete", id: "quit" }])).toBe(
+    `"title" = "Title"; /* the window title */\n`,
+  );
+  expect(
+    applyStringsOps(`"a" = "A"; "b" = "B";\n`, [{ kind: "delete", id: "b" }]),
+  ).toBe(`"a" = "A";\n`);
+});
+
+test("a missing key the source puts first goes before the file's first key, and many missing keys write in one pass (#1037)", () => {
+  expect(
+    entriesToStrings(`"a" = "A";\n"b" = "B";\n`, { a: "Ä" }, `"b" = "B";\n`),
+  ).toBe(`"a" = "Ä";\n"b" = "B";\n`);
+  const keys = Array.from({ length: 10_000 }, (_, i) => `key${i}`);
+  const source = keys.map((k) => `"${k}" = "${k}";`).join("\n") + "\n";
+  const target =
+    keys
+      .filter((_, i) => i % 10 !== 0)
+      .map((k) => `"${k}" = "${k}";`)
+      .join("\n") + "\n";
+  const missing = Object.fromEntries(
+    keys.filter((_, i) => i % 10 === 0).map((k) => [k, `${k}!`]),
+  );
+  const started = performance.now();
+  const out = entriesToStrings(source, missing, target);
+  expect(performance.now() - started).toBeLessThan(2000);
+  expect(stringsToEntries(out, { type: "ui" }).map((e) => e.id)).toEqual(keys);
+});

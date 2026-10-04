@@ -2842,3 +2842,45 @@ export default defineCorpus({
     en.replace("%1$@ of %2$@ used", "%1$@ of %2$@ in use"),
   );
 });
+
+test("a UTF-8 target stays UTF-8 beside a UTF-16 source, and only a new file takes the source's encoding (#1037)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "fr", "de"],
+  sources: [
+    { adapter: "strings", type: "ui", path: "App/{lang}.lproj/Localizable.strings" },
+  ],
+});
+`,
+  );
+  for (const lang of ["en", "fr"])
+    mkdirSync(path.join(repo, "App", `${lang}.lproj`), { recursive: true });
+  writeFileSync(
+    path.join(repo, "App", "en.lproj", "Localizable.strings"),
+    Buffer.from(`\uFEFF"Done" = "Done";\n`, "utf16le"),
+  );
+  writeFileSync(
+    path.join(repo, "App", "fr.lproj", "Localizable.strings"),
+    `"Done" = "Fini";\n`,
+  );
+  await serve(200, {
+    ...PAYLOAD,
+    types: { Done: "ui" },
+    translations: { fr: { Done: "Terminé" }, de: { Done: "Fertig" } },
+    minState: "untranslated",
+  });
+  expect(await run(["pull"], ctx())).toBe(0);
+  expect(read("App/fr.lproj/Localizable.strings")).toBe(
+    `"Done" = "Terminé";\n`,
+  );
+  const de = readFileSync(
+    path.join(repo, "App", "de.lproj", "Localizable.strings"),
+  );
+  expect(de.toString("utf16le")).toBe(`\uFEFF"Done" = "Fertig";\n`);
+});
