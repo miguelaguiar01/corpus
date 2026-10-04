@@ -346,9 +346,10 @@ describe("format-preserving edits on an inline-style file", () => {
     expect(
       applyMessagesOps('{ "a": "x" }\n', [{ kind: "delete", id: "a" }]),
     ).toBe("{}\n");
+    // An empty file's {} takes one key a line (#1041).
     expect(
       applyMessagesOps("{}\n", [{ kind: "add", id: "a", text: "x" }]),
-    ).toBe('{ "a": "x" }\n');
+    ).toBe('{\n  "a": "x"\n}\n');
   });
 
   test("a single-line file stays single-line", () => {
@@ -394,7 +395,7 @@ describe("edits that must not duplicate, and line endings", () => {
   test("an empty object with whitespace inside takes the entry in place of it", () => {
     expect(
       applyMessagesOps("{ }\n", [{ kind: "add", id: "a", text: "x" }]),
-    ).toBe('{ "a": "x" }\n');
+    ).toBe('{\n  "a": "x"\n}\n');
     expect(
       applyMessagesOps("{\n}\n", [{ kind: "add", id: "a", text: "x" }]),
     ).toBe('{\n  "a": "x"\n}\n');

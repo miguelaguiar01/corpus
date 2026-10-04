@@ -319,6 +319,9 @@ export function entriesToMessages(
     // A translation for a list the file holds, which Corpus does not
     // read and leaves as it is (#1026).
     onList?: (id: string) => void;
+    // The indent an empty target takes, its sibling targets' (#1041);
+    // the source's where none is given.
+    indent?: string;
   } = {},
 ): string {
   translations = ownRecord(translations);
@@ -348,7 +351,11 @@ export function entriesToMessages(
       suffix,
     );
   const baseTree = parseTree(base);
-  const style = styleOf(base);
+  // A target with no indented line, `{}`, takes its siblings', else the
+  // source's (#1041).
+  const style = /^[ \t]+\S/m.test(base)
+    ? styleOf(base)
+    : { ...styleOf(base), indent: options.indent ?? styleOf(template).indent };
   const nested = isNested(baseTree);
   const sourceTree = parseTree(template);
   const {
