@@ -505,6 +505,29 @@ const GEN_L10N_DATE_FORMATS = new Set(
 const FMT_FIELD_RE =
   /^\{(\d+|[A-Za-z_][A-Za-z0-9_]*)?((?:\.[A-Za-z_][A-Za-z0-9_]*|\[[^\]{}]*\])*)(?:![rsa])?(?::[^{}]*)?\}/;
 
+// How many of the braces starting at `at` are literal, `}}` pairs, in a
+// fmt text (#1002); undefined where the run is not pairs. In a plural
+// read whole, a gettext plural's forms, the run's last brace closes the
+// branch where a branch key follows it, and its last two the branch and
+// the plural at the text's end: its forms' own braces stay as written.
+export function fmtLiteralBraces(
+  text: string,
+  at: number,
+  inBranch: boolean,
+): number | undefined {
+  const run = /^\}+/.exec(text.slice(at))![0].length;
+  const after = text.slice(at + run);
+  const closing = !inBranch
+    ? 0
+    : /^\s*$/.test(after)
+      ? 2
+      : /^\s*(?:=\d+|zero|one|two|few|many|other)\s*\{/.test(after)
+        ? 1
+        : 0;
+  const literal = run - Math.min(closing, run);
+  return literal % 2 === 0 ? literal : undefined;
+}
+
 // The plural cases gen-l10n's `pluralCases` takes (#1038).
 const GEN_L10N_PLURAL_KEYS = new Set([
   "=0",
@@ -522,8 +545,11 @@ class Parser {
   private pos = 0;
   // The next verb's position when none is written (#594).
   private printfNext = 1;
-  // The position the next `{}` takes under fmt, from 0 (#1002).
+  // The position the next `{}` takes under fmt, from 0, and whether the
+  // format string numbers its fields itself, which libfmt and Python
+  // refuse to mix with `{}` (#1002).
   private fmtNext = 0;
+  private fmtIndexing?: "automatic" | "manual";
   // Whether a substitution's branch has yet to write its argument (#726).
   private ownFree = false;
   // The next `{}`'s position under easy_localization (#664).
@@ -627,6 +653,20 @@ class Parser {
             at += 1;
           }
           this.text(seq, quoted, at - this.pos);
+          continue;
+        }
+      }
+      // A run of braces in a fmt plural read whole: the closing ones are
+      // the branch's and the plural's, the rest literal pairs (#1002).
+      if (ch === "}" && this.syntax === "fmt") {
+        const literal = fmtLiteralBraces(this.source, this.pos, inBranch);
+        if (literal === undefined)
+          throw new ParseFailure(
+            "a } that closes no fmt field: write }} for a brace",
+            this.pos,
+          );
+        if (literal > 0) {
+          this.text(seq, "}".repeat(literal / 2), literal);
           continue;
         }
       }
@@ -981,27 +1021,25 @@ class Parser {
           "a { that opens no fmt field: write {{ for a brace",
           this.pos,
         );
+      const indexing =
+        field[1] === undefined
+          ? "automatic"
+          : /^\d+$/.test(field[1])
+            ? "manual"
+            : undefined;
+      if (indexing) {
+        if (this.fmtIndexing && this.fmtIndexing !== indexing)
+          throw new ParseFailure(
+            "fmt cannot mix {} with numbered fields such as {0}: number them all or none",
+            this.pos,
+          );
+        this.fmtIndexing = indexing;
+      }
       const name =
         field[1] === undefined
           ? String(this.fmtNext++)
           : `${field[1]}${field[2] ?? ""}`;
       return this.placeholder(seq, name, field[0]);
-    }
-    if (ch === "}") {
-      // A run of braces in a plural read whole: its last ones close the
-      // branch, and the plural where nothing but space follows; the rest
-      // are pairs, each one brace.
-      const run = /^\}+/.exec(this.source.slice(this.pos))![0].length;
-      const after = this.source.slice(this.pos + run);
-      const closing = !inBranch ? 0 : /^\s*$/.test(after) ? 2 : 1;
-      const literal = run - Math.min(closing, run);
-      if (literal % 2 === 1)
-        throw new ParseFailure(
-          "a } that closes no fmt field: write }} for a brace",
-          this.pos,
-        );
-      if (literal > 0) return this.text(seq, "}".repeat(literal / 2), literal);
-      return false;
     }
     if (opensPlural) return false;
     return this.text(seq, ch);
@@ -1505,8 +1543,12 @@ class Parser {
       this.pos += 1;
       // Each Android plural item is a string of its own: its verbs count
       // from 1.
-      if (this.syntax === "android" || this.mode === "wholePlural")
+      if (this.syntax === "android" || this.mode === "wholePlural") {
         this.printfNext = 1;
+        // Each gettext form is a format string of its own (#1002).
+        this.fmtNext = 0;
+        this.fmtIndexing = undefined;
+      }
       if (own !== undefined) {
         this.printfNext = Number(own) + 1;
         this.ownFree = true;

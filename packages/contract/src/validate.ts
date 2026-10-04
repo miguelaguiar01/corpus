@@ -714,11 +714,17 @@ export function validateTranslation(
   // runtime passes (#1005): Immich's yue `永久刪除 {count} 個項目`.
   // Qt's numerus message fills `%n` in every branch (#1003).
   const numerus = syntax === "qt" && whole.plurals.size > 0;
-  const allowedValues = new Set([
-    ...expectedValues,
-    ...[...flat].map((id) => id.slice(id.indexOf(" ") + 1)),
-    ...(numerus ? ["n"] : []),
-  ]);
+  // A gettext plural's argument under fmt is the reader's, `count`: the
+  // program passes only the fields its source writes (#1002).
+  const allowedValues = new Set(
+    syntax === "fmt"
+      ? expected.placeholders
+      : [
+          ...expectedValues,
+          ...[...flat].map((id) => id.slice(id.indexOf(" ") + 1)),
+          ...(numerus ? ["n"] : []),
+        ],
+  );
   const actualValues = valuesOf(actual);
 
   const writtenAs = (shape: Shape, name: string) => {

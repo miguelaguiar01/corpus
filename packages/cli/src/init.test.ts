@@ -2761,3 +2761,24 @@ test("init writes library fmt for a gettext catalogue whose placeholders are lib
     library: "fmt",
   });
 });
+
+test("init leaves printf where Python's %(name)s outnumbers the fields, and a C# {0} catalogue is no fmt (#1002)", async () => {
+  for (const ids of [
+    [
+      "%(count)s documents",
+      "%(name)s saved",
+      "%(n)d items",
+      "Hello {name}",
+      "Bye {name}",
+    ],
+    ["{0} files", "{0,-10} name", "{1} of {0}"],
+  ]) {
+    const p = project();
+    write(p.dir, "po/messages.pot", po("2025-01-01 10:00+0000", ids));
+    write(p.dir, "po/de.po", po("2025-01-01 10:00+0000", ["Quit"]));
+    expect(await run(initFor("po/{lang}.po"), p.ctx)).toBe(0);
+    expect((await loadConfig(p.dir)).sources[0]).not.toMatchObject({
+      library: "fmt",
+    });
+  }
+});

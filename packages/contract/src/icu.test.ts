@@ -1214,8 +1214,7 @@ test("under fmt, libfmt's and Python's str.format fields are placeholders named 
     { kind: "literal", text: " of:" },
   ]);
   expect([
-    ...partsOf("{} of {} ({0}) {mode:#o} {x!r:>10} {a.b} {a[0]}", "fmt")
-      .placeholders,
+    ...partsOf("{} of {} {mode:#o} {x!r:>10} {a.b} {a[0]}", "fmt").placeholders,
   ]).toEqual(["0", "1", "mode", "x", "a.b", "a[0]"]);
   expect(nodes("{{literal}} it's # <b>")).toEqual([
     { kind: "literal", text: "{literal} it's # <b>" },
@@ -1266,4 +1265,56 @@ test("under fmt a name the source lacks is invalid, a spec may change, and posit
   expect(check("{count:L} files", "{count} fichiers").ok).toBe(true);
   expect(check("{} of {}", "{1} sur {0}").ok).toBe(true);
   expect(check("{} of {}", "{0} sur {0}").ok).toBe(false);
+});
+
+test("under fmt each gettext form numbers its own {}, the reader's count is no field, literal braces in a form are kept, and {} with {0} is refused (#1002)", () => {
+  const check = (source: string, target: string, language = "ru") =>
+    validateTranslation(source, target, language, "fmt");
+  const plural = (one: string, other: string) =>
+    `{count, plural, one {${one}} other {${other}}}`;
+  // B1: each form's {} starts at 0.
+  expect(
+    check(
+      plural("{} file", "{} files"),
+      "{count, plural, one {{} файл} few {{} файла} many {{} файлов} other {{} файла}}",
+    ).ok,
+  ).toBe(true);
+  expect(
+    check(
+      plural("{} file", "{} files"),
+      plural("un fichier", "{} fichiers"),
+      "fr",
+    ).ok,
+  ).toBe(true);
+  // B2: the program passes {days}, never the reader's {count}.
+  const days = check(
+    plural("{days:L} day", "{days:L} days"),
+    plural("{count} jour", "{days:L} jours"),
+    "fr",
+  );
+  expect(days.ok ? [] : days.errors.map((e) => e.code)).toContain(
+    "unexpected-placeholder",
+  );
+  // B3: a form's literal braces.
+  for (const [one, other] of [
+    ["{n} set }}", "{n} sets }}"],
+    ["{{{n}}} item", "{{{n}}} items"],
+    ["{n} dict {{a}}", "{n} dicts {{a}}"],
+  ])
+    expect(parseIcu(plural(one!, other!), "fmt").ok).toBe(true);
+  expect(parseIcu(plural("{n} set }}", "{n} sets }}"), "fmt")).toMatchObject({
+    nodes: [
+      {
+        branches: {
+          one: [
+            { kind: "placeholder", name: "n" },
+            { kind: "literal", text: " set }" },
+          ],
+        },
+      },
+    ],
+  });
+  // B5: automatic and manual numbering do not mix.
+  expect(check("{} of {}", "{} sur {1}", "fr").ok).toBe(false);
+  expect(parseIcu("{} {1}", "fmt").ok).toBe(false);
 });

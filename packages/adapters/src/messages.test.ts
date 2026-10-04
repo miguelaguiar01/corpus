@@ -543,3 +543,20 @@ test("in a target, an entry with no text field yet is untranslated, and a value 
   ).toEqual([{ id: "icu:C", type: "ui", source: "Hallo" }]);
   expect(refused).toEqual(["icu:B"]);
 });
+
+test("a plural's forms split as the reader reads them: a form's own }} pairs stay in it, and an unbalanced } splits nothing (#1002)", () => {
+  expect(
+    pluralBranches("{count, plural, one {{n} set }}} other {{n} sets }}}}"),
+  ).toEqual({ one: "{n} set }}", other: "{n} sets }}" });
+  expect(
+    pluralBranches("{count, plural, one {{{{n}}} item} other {{{{n}}} items}}"),
+  ).toEqual({ one: "{{{n}}} item", other: "{{{n}}} items" });
+  expect(
+    pluralBranches(
+      "{count, plural, one {{g, select, f {x} other {y}}} other {z}}",
+    ),
+  ).toEqual({ one: "{g, select, f {x} other {y}}", other: "z" });
+  expect(pluralBranches("{count, plural, one {a } b} other {c}}")).toBe(
+    undefined,
+  );
+});
