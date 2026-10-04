@@ -5,11 +5,12 @@
 #
 # IDs come from AGENTS.md ("IDs for bin/board", project #4, owner
 # miguelaguiar01). Idempotent: an issue already on the board just gets its
-# lane updated.
+# lane updated. Two GraphQL mutations a move, the issue's node id from
+# REST, so a run of moves does not spend the hourly GraphQL budget a
+# listing of the whole board does (#1054).
 set -euo pipefail
 
 OWNER=miguelaguiar01
-PROJECT_NUMBER=4
 PROJECT_ID=PVT_kwHOAYLnWs4BiZ1K
 STATUS_FIELD_ID=PVTSSF_lAHOAYLnWs4BiZ1KzhhSBm0
 
@@ -32,18 +33,76 @@ case "$2" in
   *) usage ;;
 esac
 
-ITEM_ID=$(gh project item-list "$PROJECT_NUMBER" --owner "$OWNER" \
-  --format json --limit 200 \
-  -q ".items[] | select(.content.number == $1) | .id")
+ISSUE=$1
 
-if [ -z "$ITEM_ID" ]; then
-  ISSUE_URL=$(gh issue view "$1" -R "$OWNER/corpus" --json url -q .url)
-  ITEM_ID=$(gh project item-add "$PROJECT_NUMBER" --owner "$OWNER" \
-    --url "$ISSUE_URL" --format json --jq .id)
+# A spent budget says which, and when it comes back: GraphQL's from its
+# own rateLimit, which the REST endpoint does not track, the core one's
+# from REST, a secondary limit's within a minute or so.
+spent() {
+  local budget=$1 output=$2 when
+  if grep -qiE 'secondary|abuse' <<<"$output"; then
+    when="wait a minute or so (GitHub's secondary limit)"
+  elif [ "$budget" = graphql ]; then
+    when="the GraphQL budget resets at $(gh api graphql -f query='{ rateLimit { resetAt } }' --jq .data.rateLimit.resetAt 2>/dev/null || echo 'some point within the hour')"
+  else
+    when="the REST budget resets at $(gh api rate_limit --jq '.resources.core.reset | todate' 2>/dev/null || echo 'some point within the hour')"
+  fi
+  echo "bin/board: GitHub's rate limit is spent (#$ISSUE not moved): $when" >&2
+  exit 2
+}
+
+ERR=$(mktemp)
+trap 'rm -f "$ERR"' EXIT
+
+# One gh call against `budget`: its output, or the reason it failed.
+call() {
+  local budget=$1 out err="$ERR" status
+  shift
+  status=0
+  out=$("$@" 2>"$err") || status=$?
+  if [ "$status" -ne 0 ]; then
+    local said
+    said=$(printf '%s\n%s' "$(cat "$err")" "$out")
+    if grep -qiE 'rate.?limit|RATE_LIMITED|secondary|abuse' <<<"$said"; then
+      spent "$budget" "$said"
+    fi
+    # An issue the repository does not have is said by the caller.
+    if [ "$budget" = core ] && grep -q 'Not Found' <<<"$said"; then exit 3; fi
+    echo "$said" >&2
+    exit 1
+  fi
+  printf '%s' "$out"
+}
+
+status=0
+ISSUE_FIELDS=$(call core gh api "repos/$OWNER/corpus/issues/$ISSUE" \
+  --jq '"\(.node_id) \(.pull_request != null)"') || status=$?
+if [ "$status" -eq 3 ]; then
+  echo "bin/board: no issue #$ISSUE in $OWNER/corpus" >&2
+  exit 1
+fi
+[ "$status" -eq 0 ] || exit "$status"
+read -r NODE_ID IS_PULL <<<"$ISSUE_FIELDS"
+if [ "$IS_PULL" = true ]; then
+  echo "bin/board: #$ISSUE is a pull request; the board tracks issues" >&2
+  exit 1
 fi
 
-gh project item-edit --id "$ITEM_ID" --project-id "$PROJECT_ID" \
-  --field-id "$STATUS_FIELD_ID" --single-select-option-id "$OPTION_ID" \
-  >/dev/null
+ITEM_ID=$(call graphql gh api graphql \
+  -f query='mutation($project: ID!, $content: ID!) {
+    addProjectV2ItemById(input: { projectId: $project, contentId: $content }) { item { id } }
+  }' \
+  -f project="$PROJECT_ID" -f content="$NODE_ID" \
+  --jq .data.addProjectV2ItemById.item.id)
 
-echo "#$1 -> $2"
+call graphql gh api graphql \
+  -f query='mutation($project: ID!, $item: ID!, $field: ID!, $option: String!) {
+    updateProjectV2ItemFieldValue(input: {
+      projectId: $project, itemId: $item, fieldId: $field,
+      value: { singleSelectOptionId: $option }
+    }) { projectV2Item { id } }
+  }' \
+  -f project="$PROJECT_ID" -f item="$ITEM_ID" -f field="$STATUS_FIELD_ID" \
+  -f option="$OPTION_ID" >/dev/null
+
+echo "#$ISSUE -> $2"
