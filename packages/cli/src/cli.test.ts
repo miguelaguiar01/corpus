@@ -127,6 +127,45 @@ test("corpus build --out writes the snapshot JSON", async () => {
   }
 });
 
+test("corpus build --out creates the file's directory (#1043)", async () => {
+  const { mkdtempSync, readFileSync, rmSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const dir = mkdtempSync(join(tmpdir(), "corpus-build-"));
+  try {
+    const out = join(dir, "new", ".corpus", "snapshot.json");
+    const code = await run(
+      ["build", "--out", out],
+      ctx({ cwd: PUSH_ONLY, env: {} }),
+    );
+    expect(code).toBe(0);
+    expect(JSON.parse(readFileSync(out, "utf8")).contract).toBe("corpus/1");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("corpus build --out that cannot be written is one corpus: line and exit 1 (#1043)", async () => {
+  const { mkdtempSync, rmSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const dir = mkdtempSync(join(tmpdir(), "corpus-build-"));
+  try {
+    writeFileSync(join(dir, "file"), "");
+    for (const [out, reason] of [
+      [dir, "it is a directory"],
+      [join(dir, "file", "snapshot.json"), "a directory on its path is a file"],
+    ] as const) {
+      const c = ctx({ cwd: PUSH_ONLY, env: {} });
+      expect(await run(["build", "--out", out], c)).toBe(1);
+      expect(c.output.at(-1)).toBe(`corpus: cannot write ${out}: ${reason}`);
+      expect(c.output.join("\n")).not.toContain("built push-only");
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("corpus build names a .ts catalogue as one pull cannot write back", async () => {
   const c = ctx({
     cwd: fileURLToPath(
