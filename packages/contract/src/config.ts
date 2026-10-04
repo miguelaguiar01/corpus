@@ -162,17 +162,7 @@ const placeholders = z
 // A value's name as the libraries that name them write one: a letter,
 // a digit or `_` first, then those, marks, `.` and `-`.
 const VALUE_NAME_RE = /^[\p{L}\p{N}_][\p{L}\p{M}\p{N}_.-]*$/u;
-
-// The sources that take `arguments`, as they take `placeholders`.
-const ARGUMENT_SOURCES = new Set([
-  "messages",
-  "table",
-  "gettext",
-  "qt-ts",
-  "yaml",
-  "xcstrings",
-  "strings",
-]);
+const VALUE_NAME_IN_RE = /[\p{L}\p{N}_][\p{L}\p{M}\p{N}_.-]*/u;
 
 // Values a string's code passes beside the ones its source writes, by
 // id (#1031): Discourse's `js.views_long` prints `%{count}`, and
@@ -187,8 +177,8 @@ const passedArguments = z
           error: (issue) =>
             `arguments: ${JSON.stringify(issue.input)} is no value name; write the name alone${
               typeof issue.input === "string" &&
-              /[\p{L}\p{N}_]/u.test(issue.input)
-                ? `, ${String(issue.input).replace(/[^\p{L}\p{M}\p{N}_.-]/gu, "")} for ${issue.input}`
+              VALUE_NAME_IN_RE.test(issue.input)
+                ? `, ${VALUE_NAME_IN_RE.exec(issue.input)![0]} for ${issue.input}`
                 : ""
             }`,
         }),
@@ -199,7 +189,7 @@ const passedArguments = z
 
 // The libraries that pass their values by position, whose `arguments`
 // are verbs rather than names (#731).
-const POSITIONAL_LIBRARIES = new Set(["printf", "qt", "android"]);
+const POSITIONAL_LIBRARIES = new Set(["printf", "qt", "android", "chrome"]);
 
 // The libraries whose own syntax reads `{`.
 const BRACE_READERS = new Set([
@@ -563,6 +553,11 @@ function fileCodeIn(pattern: string, file: string): string | undefined {
   return new RegExp(`^${source}$`).exec(file)?.[1];
 }
 
+// The adapters whose sources take `arguments` (#1031).
+const ARGUMENT_SOURCES: string[] = sourceInputSchema.options.flatMap(
+  (option) => ("arguments" in option.shape ? [option.shape.adapter.value] : []),
+);
+
 // The adapters whose sources map a language to its file's code.
 const MAPS_LANGUAGE_FILES: string[] = sourceInputSchema.options.flatMap(
   (option) =>
@@ -772,13 +767,16 @@ export const corpusConfigSchema = z
       }
       if (
         (source as { arguments?: unknown }).arguments !== undefined &&
-        ARGUMENT_SOURCES.has(source.adapter)
+        ARGUMENT_SOURCES.includes(source.adapter)
       ) {
         const own = baseLibraryOf(source);
         if (POSITIONAL_LIBRARIES.has(own))
           ctx.addIssue({
             code: "custom",
-            message: `arguments: ${own}'s arguments are its verbs by position, so it takes no names here`,
+            message:
+              own === "chrome"
+                ? "arguments: chrome fills a message's $NAME$ from its own placeholders, by position, so it takes no names here"
+                : `arguments: ${own}'s arguments are its verbs by position, so it takes no names here`,
             path: ["sources", index, "arguments"],
           });
       }

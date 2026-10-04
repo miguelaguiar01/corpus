@@ -259,6 +259,8 @@ export async function validateRepo(
   // The ids each source's `arguments` names, and those its files hold,
   // as build checks them (#1031).
   const declaredIds = new Map<Record<string, string[]>, Set<string>>();
+  // A pattern validate does not read back holds ids it never sees.
+  const unseen = new Set<Record<string, string[]>>();
   for (const source of config.sources) {
     if (source.adapter === "exec") {
       const exec = validateExec(
@@ -279,7 +281,12 @@ export async function validateRepo(
         });
       continue;
     }
-    if (!hasLanguages(source)) continue;
+    const passes = (source as { arguments?: Record<string, string[]> })
+      .arguments;
+    if (!hasLanguages(source)) {
+      if (passes) unseen.add(passes);
+      continue;
+    }
     const sourceFile = fileOf(
       source,
       config.sourceLanguage,
@@ -290,7 +297,10 @@ export async function validateRepo(
       const unreadable = unreadableFile(abs);
       if (unreadable) throw new CliError(`${sourceFile}: ${unreadable}`);
     }
-    if (!sourceWritesBack(source)) continue;
+    if (!sourceWritesBack(source)) {
+      if (passes) unseen.add(passes);
+      continue;
+    }
     const library = sourceLibrary(source);
     // A source message Corpus cannot read is refused by itself (#991): a
     // finding once, and its translations are no orphans.
@@ -317,8 +327,6 @@ export async function validateRepo(
     if (sources === undefined) {
       throw new CliError(`source file ${sourceFile} does not exist`);
     }
-    const passes = (source as { arguments?: Record<string, string[]> })
-      .arguments;
     if (passes) {
       const held = declaredIds.get(passes) ?? new Set<string>();
       for (const id of [...sources.keys(), ...refusedSource]) held.add(id);
@@ -488,7 +496,9 @@ export async function validateRepo(
       }
     }
   }
-  const unknown = unknownArguments(declaredIds);
+  const unknown = unknownArguments(
+    new Map([...declaredIds].filter(([passes]) => !unseen.has(passes))),
+  );
   if (unknown.length > 0) throw new CliError(unknown.join("\n"));
   return { findings, unchecked };
 }
