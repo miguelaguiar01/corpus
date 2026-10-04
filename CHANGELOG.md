@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- An agent's `get_string` lists, under a type read as HTML, the placeholders a translation must keep inside its tags' attributes (#1030).
 - `corpus validate` names a plural category the source itself lacks once, on the source, with the translations that lack it too, rather than once per language (#1029).
 - `corpus check` reads Handlebars templates (`.hbs`, `.handlebars`), with Zulip's `{{t}}` and `{{#tr}}` as catalogue calls (#1027).
 - A gettext pull no longer fills in the missing forms of a plural entry nobody edited (#981).

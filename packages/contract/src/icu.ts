@@ -2048,6 +2048,11 @@ export type Parts = {
   // The tags the text writes closed on themselves, `<0/>`, as a chip
   // inserts them (#986).
   selfClosed: Set<string>;
+  // The placeholders a tag's attributes hold, by name, which a type read
+  // as HTML still requires (#948, #1030); and those of a tag read as
+  // prose, which `tags` does not carry.
+  attributePlaceholders: Set<string>;
+  proseAttributePlaceholders: Set<string>;
   forms: number;
 };
 
@@ -2079,6 +2084,8 @@ export function partsOf(
     selfClosed: new Set(
       [...shape.tags].filter((tag) => !shape.opened.has(tag)),
     ),
+    attributePlaceholders: new Set(shape.attrPlaceholders.keys()),
+    proseAttributePlaceholders: new Set(shape.proseAttrPlaceholders.keys()),
     forms: only?.kind === "forms" ? only.branches.length : 0,
   };
 }

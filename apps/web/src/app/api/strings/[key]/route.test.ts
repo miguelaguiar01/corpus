@@ -270,3 +270,61 @@ test("a vue string under vue-i18n's default rule says what each form is shown fo
   });
   applySnapshot(db, project.id, FIXTURE);
 });
+
+test("under a type read as HTML, the string lists the placeholders its tags' attributes hold; elsewhere a tag carries them whole, but one read as prose (#1030)", async () => {
+  const { db, project, token } = seeded;
+  const source =
+    "<a href='%{userUrl}'>%{user}</a> posted <a href='%{topicUrl}'>a topic</a>";
+  applySnapshot(db, project.id, {
+    ...FIXTURE,
+    richText: { ...(FIXTURE.richText ?? {}), html: "html" },
+    strings: [
+      ...FIXTURE.strings,
+      {
+        id: "user_posted_topic",
+        type: "html",
+        source,
+        library: "rails",
+        syntax: "rails",
+      },
+      {
+        id: "user_posted_topic_plain",
+        type: "plain",
+        source,
+        library: "rails",
+        syntax: "rails",
+      },
+    ],
+  });
+  const html = (await (
+    await string(token, "user_posted_topic")
+  ).json()) as StringResponse;
+  expect(html.placeholders).toEqual(["user"]);
+  expect(html.attributePlaceholders).toEqual(["userUrl", "topicUrl"]);
+  const plain = (await (
+    await string(token, "user_posted_topic_plain")
+  ).json()) as Record<string, unknown>;
+  expect("attributePlaceholders" in plain).toBe(false);
+  // Outside HTML a tag read as prose, which `tags` does not carry, still
+  // has its attribute's placeholder required: it is listed.
+  applySnapshot(db, project.id, {
+    ...FIXTURE,
+    strings: [
+      ...FIXTURE.strings,
+      {
+        id: "prose_title",
+        type: "plain",
+        source: '<p title="{{x}}">Hello {{name}}',
+        library: "i18next",
+        syntax: "i18next",
+      },
+    ],
+  });
+  const prose = (await (
+    await string(token, "prose_title")
+  ).json()) as StringResponse;
+  expect([prose.placeholders, prose.tags, prose.attributePlaceholders]).toEqual(
+    [["name"], [], ["x"]],
+  );
+  applySnapshot(db, project.id, FIXTURE);
+});

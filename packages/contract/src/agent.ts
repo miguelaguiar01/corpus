@@ -85,6 +85,12 @@ export type StringResponse = {
   // declares (#1031). Present only where the string has them; additive
   // (#737).
   arguments?: string[];
+  // The placeholders the source's tags hold in their attributes, which a
+  // translation writes inside its own tags' attributes (#948, #1030):
+  // every one under a type read as HTML, and elsewhere a tag read as
+  // prose's, since `tags` carries any other tag whole. Present only where
+  // there are some; additive.
+  attributePlaceholders?: string[];
   // The placeholder syntaxes its source layers on its library (#1049),
   // `["i18next"]` for `{{name}}` on a Chrome catalogue. Additive.
   placeholderSyntaxes?: Library[];
