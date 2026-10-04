@@ -100,7 +100,7 @@ export function parseStrings(text: string): Pair[] {
             const hex = /^[0-9a-fA-F]{0,4}/.exec(
               text.slice(at + 2, at + 6),
             )![0];
-            value += hex ? String.fromCharCode(parseInt(hex, 16)) : "U";
+            value += String.fromCharCode(hex ? parseInt(hex, 16) : 0);
             at += 2 + hex.length;
             continue;
           }
@@ -170,7 +170,8 @@ export function parseStrings(text: string): Pair[] {
       // A pair earlier on the same line is never part of this one.
       start: Math.max(
         lineStart(text, note ? note.start : key.start),
-        pairs.at(-1)?.end ?? 0,
+        // A byte-order mark is the file's, never the first pair's.
+        pairs.at(-1)?.end ?? (text.startsWith("\uFEFF") ? 1 : 0),
       ),
       end,
       valueStart: value.start,
@@ -246,9 +247,10 @@ export function entriesToStrings(
   }
   const eol = eolOf(text);
   const order = parseStrings(template).map((p) => p.key);
+  const inOrder = new Set(order);
   const keys = [
     ...order,
-    ...Object.keys(translations).filter((k) => !order.includes(k)),
+    ...Object.keys(translations).filter((k) => !inOrder.has(k)),
   ];
   // The lines each missing key goes at, by offset, in the source's order.
   const after = new Map<number, string[]>();
@@ -266,8 +268,9 @@ export function entriesToStrings(
     }
     if (!Object.hasOwn(translations, key)) continue;
     const line = `${quote(key)} = ${quote(translations[key]!)};`;
-    if (anchor) after.set(anchor.end, [...(after.get(anchor.end) ?? []), line]);
-    else pending.push(line);
+    if (!anchor) pending.push(line);
+    else if (after.has(anchor.end)) after.get(anchor.end)!.push(line);
+    else after.set(anchor.end, [line]);
   }
   const last = pairs.at(-1)?.end ?? text.length;
   if (pending.length > 0)
@@ -290,7 +293,11 @@ export function applyStringsOps(text: string, ops: SourceOp[]): string {
     if (op.kind === "delete") {
       if (!pair) continue;
       // A pair after another on its line leaves that line its ending.
-      const shared = pair.start > lineStart(out, pair.start);
+      const from = Math.max(
+        lineStart(out, pair.start),
+        out.startsWith("\uFEFF") ? 1 : 0,
+      );
+      const shared = pair.start > from;
       const ending = /\r?\n$/.exec(out.slice(pair.start, pair.end))?.[0] ?? "";
       out =
         out.slice(0, pair.start) +

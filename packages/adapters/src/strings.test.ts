@@ -177,3 +177,22 @@ test("a missing key the source puts first goes before the file's first key, and 
   expect(performance.now() - started).toBeLessThan(2000);
   expect(stringsToEntries(out, { type: "ui" }).map((e) => e.id)).toEqual(keys);
 });
+
+test("a byte-order mark stays the file's first character: a key inserted first and a first pair removed go after it (#1037)", () => {
+  const bom = "\uFEFF";
+  expect(
+    entriesToStrings(
+      `"a" = "A";\n"b" = "B";\n`,
+      { a: "Ä" },
+      `${bom}"b" = "B";\n`,
+    ),
+  ).toBe(`${bom}"a" = "Ä";\n"b" = "B";\n`);
+  expect(
+    applyStringsOps(`${bom}/* first */\n"a" = "A";\n"b" = "B";\n`, [
+      { kind: "delete", id: "a" },
+    ]),
+  ).toBe(`${bom}"b" = "B";\n`);
+  expect(stringsToEntries(`"a" = "\\U";`, { type: "ui" })[0]!.source).toBe(
+    "\0",
+  );
+});
