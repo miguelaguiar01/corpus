@@ -1309,13 +1309,7 @@ async function libraryFor(
     } catch (error) {
       // A plain pattern's missing source file is said where the
       // languages are read; any other file that does not read is named.
-      const { code, path: missing } = error as NodeJS.ErrnoException;
-      if (
-        code === "ENOENT" &&
-        !pattern.includes("{ns}") &&
-        missing !== undefined &&
-        path.resolve(cwd, missing) === path.resolve(cwd, at)
-      )
+      if (!pattern.includes("{ns}") && !existsSync(path.resolve(cwd, at)))
         continue;
       const reason = (error instanceof Error ? error.message : String(error))
         .split("\n")[0]!
