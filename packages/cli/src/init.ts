@@ -994,13 +994,22 @@ const CHECK_ROOTS = ["src", "app", "lib", "components", "shared"] as const;
 const COMPONENT_DEPTH = 4;
 const PACKAGE_ROOTS = ["src", "app", "pages", "components"] as const;
 
+// The directories a file-based router renders from, beside components:
+// Nuxt's `app/`, a Vite app's `src/` (#1047).
+const ROUTED = ["pages", "layouts"] as const;
+
 function checkIncludeFor(
   cwd: string,
   messages: string,
 ): { include?: string[]; found: boolean } {
-  const found = CHECK_ROOTS.filter((root) =>
+  const found: string[] = CHECK_ROOTS.filter((root) =>
     holdsCheckedFile(path.join(cwd, root)),
   );
+  // Nuxt's pages and layouts are components too (#1047).
+  if (found.includes("components"))
+    found.push(
+      ...ROUTED.filter((dir) => holdsCheckedFile(path.join(cwd, dir))),
+    );
   if (found.length > 0) {
     const isDefault =
       found.length === DEFAULT_INCLUDE.length &&
@@ -1021,6 +1030,10 @@ function checkIncludeFor(
 
 function componentDirs(cwd: string, rel: string, depth: number): string[] {
   if (depth >= COMPONENT_DEPTH) return [];
+  // Where components sit beside pages or layouts, the directory holding
+  // them is the app's root, its `app.vue` and plugins included.
+  const holds = (dir: string) => holdsCheckedFile(path.join(cwd, rel, dir));
+  if (rel !== "" && holds("components") && ROUTED.some(holds)) return [rel];
   let entries;
   try {
     entries = readdirSync(path.join(cwd, rel), { withFileTypes: true });
