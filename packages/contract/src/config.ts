@@ -159,12 +159,42 @@ const placeholders = z
   .min(1)
   .optional();
 
+// A value's name as the libraries that name them write one: a letter,
+// a digit or `_` first, then those, marks, `.` and `-`.
+const VALUE_NAME_RE = /^[\p{L}\p{N}_][\p{L}\p{M}\p{N}_.-]*$/u;
+
+// The sources that take `arguments`, as they take `placeholders`.
+const ARGUMENT_SOURCES = new Set([
+  "messages",
+  "table",
+  "gettext",
+  "qt-ts",
+  "yaml",
+  "xcstrings",
+  "strings",
+]);
+
 // Values a string's code passes beside the ones its source writes, by
 // id (#1031): Discourse's `js.views_long` prints `%{count}`, and
 // d-number.js passes `number` too. A translation may print or
 // pluralise on them.
 const passedArguments = z
-  .record(z.string().min(1), z.array(z.string().min(1)).min(1))
+  .record(
+    z.string().min(1),
+    z
+      .array(
+        z.string().refine((name) => VALUE_NAME_RE.test(name), {
+          error: (issue) =>
+            `arguments: ${JSON.stringify(issue.input)} is no value name; write the name alone${
+              typeof issue.input === "string" &&
+              /[\p{L}\p{N}_]/u.test(issue.input)
+                ? `, ${String(issue.input).replace(/[^\p{L}\p{M}\p{N}_.-]/gu, "")} for ${issue.input}`
+                : ""
+            }`,
+        }),
+      )
+      .min(1),
+  )
   .optional();
 
 // The libraries that pass their values by position, whose `arguments`
@@ -740,12 +770,15 @@ export const corpusConfigSchema = z
             path: ["sources", index, "placeholders"],
           });
       }
-      if ((source as { arguments?: unknown }).arguments !== undefined) {
+      if (
+        (source as { arguments?: unknown }).arguments !== undefined &&
+        ARGUMENT_SOURCES.has(source.adapter)
+      ) {
         const own = baseLibraryOf(source);
         if (POSITIONAL_LIBRARIES.has(own))
           ctx.addIssue({
             code: "custom",
-            message: `arguments: ${own} passes its values by position, so it has no names to declare`,
+            message: `arguments: ${own}'s arguments are its verbs by position, so it takes no names here`,
             path: ["sources", index, "arguments"],
           });
       }

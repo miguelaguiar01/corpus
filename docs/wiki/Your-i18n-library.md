@@ -208,7 +208,7 @@ Flutter's own localisation, `gen-l10n` (`flutter gen-l10n`, or `generate: true` 
 { adapter: "yaml", type: "ui", path: "config/locales/client.{lang}.yml", arguments: { "js.views_long": ["number"] } }
 ```
 
-An id no file of the source holds stops the build by name, so a typo never does nothing. The key works on any source whose library names its values; printf, Qt and Android pass theirs by position and refuse it.
+The id is the string's as `corpus build` reads it, a namespace's prefix included (`app:js.views_long` under `{ns}`), and a name is the value's alone, `number` rather than `%{number}`. An id no file of the source holds stops `build` and `validate` by name, so a typo never does nothing. The key is a `messages`, `table`, `gettext`, `qt-ts`, `yaml`, `xcstrings` or `strings` source's whose library names its values; printf and Qt pass theirs by position and refuse it.
 
 `corpus init` writes it for a JSON catalogue when `%{name}` placeholders outnumber every other shape; a yaml source is `rails` unless it names another. Where the source file has strings only HTML reads, an unclosed `<p>` or a lone `<br>`, init writes `richText: { ui: "html" }` for a yaml source read as `rails` and says so; for any other catalogue, a JSON one read as `rails` or a yaml one of another library, it names the line to add, and `corpus build` names it beside the refusals.
 

@@ -48,6 +48,7 @@ import {
   namespaced,
   placeholdersOf,
   argumentsOf,
+  unknownArguments,
   takesLanguage,
 } from "./build";
 import { download } from "./pull";
@@ -255,6 +256,9 @@ export async function validateRepo(
   // Under last-wins, the translations each group's earlier files hold,
   // by language (#953).
   const shared = new Map<string, Map<string, { file: string; text: string }>>();
+  // The ids each source's `arguments` names, and those its files hold,
+  // as build checks them (#1031).
+  const declaredIds = new Map<Record<string, string[]>, Set<string>>();
   for (const source of config.sources) {
     if (source.adapter === "exec") {
       const exec = validateExec(
@@ -312,6 +316,13 @@ export async function validateRepo(
     );
     if (sources === undefined) {
       throw new CliError(`source file ${sourceFile} does not exist`);
+    }
+    const passes = (source as { arguments?: Record<string, string[]> })
+      .arguments;
+    if (passes) {
+      const held = declaredIds.get(passes) ?? new Set<string>();
+      for (const id of [...sources.keys(), ...refusedSource]) held.add(id);
+      declaredIds.set(passes, held);
     }
     findings.push(
       ...sourceWarnings(
@@ -477,6 +488,8 @@ export async function validateRepo(
       }
     }
   }
+  const unknown = unknownArguments(declaredIds);
+  if (unknown.length > 0) throw new CliError(unknown.join("\n"));
   return { findings, unchecked };
 }
 

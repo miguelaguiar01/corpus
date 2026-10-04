@@ -298,6 +298,8 @@ export async function buildSnapshotReport(
     }
     let entries: StringEntry[];
     const skipped: string[] = [];
+    // A message the reader refuses is still the source's id.
+    const unread = new Set<string>();
     try {
       entries = await readEntries(
         jiti,
@@ -308,13 +310,15 @@ export async function buildSnapshotReport(
         config.sourceLanguage,
         // A message the source's file holds that Corpus cannot read is
         // refused by itself, as a string that does not parse is (#991).
-        (id, reason) =>
+        (id, reason) => {
+          unread.add(id);
           refused.push({
             file,
             id,
             hint: "",
             message: `invalid ${source.adapter === "fluent" ? "Fluent message" : "entry"}: ${reason ?? "not read"}`,
-          }),
+          });
+        },
         undefined,
         (id) => skipped.push(id),
       );
@@ -401,6 +405,7 @@ export async function buildSnapshotReport(
       .arguments;
     const held = passes && (declaredIds.get(passes) ?? new Set<string>());
     if (passes && held) declaredIds.set(passes, held);
+    for (const id of unread) held?.add(id);
     for (const entry of entries) {
       held?.add(entry.id);
       validateEntry(
@@ -432,16 +437,8 @@ export async function buildSnapshotReport(
       );
     }
   }
-  // An id `arguments` names that no file of its source holds is a typo
-  // the build says, never a declaration nothing reads; where a file did
-  // not read, its ids are unknown.
-  if (errors.length === 0)
-    for (const [passes, held] of declaredIds)
-      for (const id of Object.keys(passes))
-        if (!held.has(id))
-          errors.push(
-            `arguments names ${printable(id)}, which the source does not have`,
-          );
+  // Where a file did not read, its ids are unknown.
+  if (errors.length === 0) errors.push(...unknownArguments(declaredIds));
 
   // An id in two files of one source is one string when its text is the
   // same in both (#661): Element merges its app's and its shared
@@ -832,6 +829,21 @@ export function placeholdersOf(source: FileSource): {
 } {
   const own = (source as { placeholders?: Library[] }).placeholders;
   return own ? { placeholders: own } : {};
+}
+
+// An id `arguments` names that no file of its source holds is a typo,
+// said by name, never a declaration nothing reads (#1031).
+export function unknownArguments(
+  declared: ReadonlyMap<Record<string, string[]>, ReadonlySet<string>>,
+): string[] {
+  return [...declared].flatMap(([passes, held]) =>
+    Object.keys(passes)
+      .filter((id) => !held.has(id))
+      .map(
+        (id) =>
+          `arguments names ${printable(id)}, which the source does not have`,
+      ),
+  );
 }
 
 // The values a string's code passes beside its source's, as its
