@@ -1402,6 +1402,28 @@ test("a source's arguments name values its code passes beside the source's, per 
   ).toEqual([
     'arguments: "%{number}" is no value name; write the name alone, number for %{number}',
   ]);
+  // The name suggested is the value's own, never the verb's letters.
+  expect(
+    issues({
+      adapter: "messages",
+      type: "ui",
+      path: "i18n/{lang}.json",
+      library: "counterpart",
+      arguments: { a: ["%(name)s"] },
+    }),
+  ).toEqual([
+    'arguments: "%(name)s" is no value name; write the name alone, name for %(name)s',
+  ]);
+  // Chrome fills its $NAME$ from a message's own placeholders.
+  expect(
+    issues({
+      adapter: "messages",
+      type: "ui",
+      path: "_locales/{lang}/messages.json",
+      library: "chrome",
+      arguments: { a: ["count"] },
+    }),
+  ).toHaveLength(1);
   // A source without the key says so once.
   expect(
     issues({

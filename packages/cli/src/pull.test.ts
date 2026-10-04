@@ -1460,6 +1460,30 @@ export default defineCorpus({
   await expect(buildSnapshot(await loadConfig(repo), repo)).rejects.toThrow(
     /arguments names js\.view_long, which the source does not have/,
   );
+  // A path list's patterns share the map, a module validate does not
+  // read back among them, so an id only it holds is no typo there.
+  writeFileSync(
+    path.join(repo, "i18n", "extra.en.js"),
+    `export default { en: { js: { z: "Z %{count}" } } };\n`,
+  );
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "ja"],
+  sources: [{ adapter: "messages", type: "ui", library: "rails", path: ["i18n/views.{lang}.json", "i18n/extra.{lang}.js"], arguments: { "z": ["number"] } }],
+});
+`,
+  );
+  writeFileSync(path.join(repo, "i18n", "views.en.json"), `{ "y": "Y" }\n`);
+  expect(await run(["validate"], ctx())).toBe(0);
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    config(`, arguments: { "js.view_long": ["number"] }`),
+  );
   // Local validate says the same, rather than checking without it.
   const typo = ctx();
   expect(await run(["validate"], typo)).toBe(1);
