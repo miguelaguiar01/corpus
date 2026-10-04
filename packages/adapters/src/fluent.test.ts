@@ -727,3 +727,23 @@ test("a proposal that removes a message takes its comment with it, and a pull le
     `# Keep me.\nkept = Mantido\n`,
   );
 });
+
+test("a comment on a byte-order-marked file's first line is its first entry's note, and a removal takes it, the mark kept (#1034 review)", () => {
+  const bom = "﻿";
+  expect(
+    fluentToEntries(`${bom}# bom note\na = A\nb = B\n`, { type: "ui" })[0]
+      ?.note,
+  ).toBe("bom note");
+  expect(
+    applyFluentOps(`${bom}# bom note\na = A\nb = B\n`, [
+      { kind: "delete", id: "a" },
+    ]),
+  ).toBe(`${bom}b = B\n`);
+  expect(
+    entriesToFluent(
+      `${bom}# first\nfirst = First\n# term\n-brand = R\n`,
+      { "-brand": "R" },
+      undefined,
+    ),
+  ).toBe(`${bom}# term\n-brand = R\n`);
+});
