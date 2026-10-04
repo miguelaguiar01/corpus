@@ -23,7 +23,12 @@ import {
   stringEntrySchema,
   type StringEntry,
 } from "@corpus/contract";
-import { gettextPluralIds, isBlank, qtShortForms } from "@corpus/adapters";
+import {
+  fluentTerms,
+  gettextPluralIds,
+  isBlank,
+  qtShortForms,
+} from "@corpus/adapters";
 import { printable } from "./printable";
 import { readRepoText } from "./repo-text";
 import type { RunContext } from "./cli";
@@ -72,7 +77,9 @@ export type Finding = {
     | "unread-message"
     | "short-numerus"
     | "shared-differs"
-    | "unreadable-file";
+    | "unreadable-file"
+    | "unknown-term-argument"
+    | "unknown-term-attribute";
   // A plural missing a category the runtime picks, or with one it never
   // selects, is incomplete, not invalid (#556, #651): printed apart, and
   // never the reason for exit 1. A source's warning (#767) is the same.
@@ -265,6 +272,9 @@ export async function validateRepo(
   // Under last-wins, the translations each group's earlier files hold,
   // by language (#953).
   const shared = new Map<string, Map<string, { file: string; text: string }>>();
+  // Per language, the Fluent terms its files define, across every fluent
+  // source, as the runtime merges them into one bundle (#1033).
+  const terms = termsOf(cwd, config);
   // The ids each source's `arguments` names, and those its files hold,
   // as build checks them (#1031).
   const declaredIds = new Map<Record<string, string[]>, Set<string>>();
@@ -519,6 +529,16 @@ export async function validateRepo(
             brokenSources,
           }),
         );
+        if (source.adapter === "fluent")
+          findings.push(
+            ...termWarnings(target, {
+              file,
+              key,
+              language,
+              own: terms(language),
+              source: terms(config.sourceLanguage),
+            }),
+          );
       }
     }
   }
@@ -963,6 +983,91 @@ function sourceGaps(
     at.gaps.set(gapKey(at.sourceFile, entry.id, message), finding);
     lackingToo.set(finding, []);
     out.push(finding);
+  }
+  return out;
+}
+
+type Terms = ReturnType<typeof fluentTerms>;
+
+// Per language, the terms its files define across every fluent source,
+// the first definition of a name kept, read once a language.
+function termsOf(
+  cwd: string,
+  config: CorpusConfig,
+): (language: string) => Terms {
+  const read = new Map<string, Terms>();
+  return (language) => {
+    const known = read.get(language);
+    if (known) return known;
+    const merged: Terms = new Map();
+    for (const source of config.sources) {
+      if (source.adapter !== "fluent") continue;
+      const abs = path.join(
+        cwd,
+        fileOf(source, language, config.sourceLanguage),
+      );
+      if (!existsSync(abs)) continue;
+      try {
+        for (const [name, term] of fluentTerms(readRepoText(abs)))
+          if (!merged.has(name)) merged.set(name, term);
+      } catch {
+        // A file that does not read is its own finding.
+      }
+    }
+    read.set(language, merged);
+    return merged;
+  };
+}
+
+// What Fluent renders otherwise than the translation means, which no
+// check of the string alone sees (#1033): an argument the locale's term
+// never reads, which Fluent ignores, and a select on an attribute the
+// term does not define there, which renders the default variant. The
+// locale's own definition is read, else the source's.
+function termWarnings(
+  target: string,
+  at: {
+    file: string;
+    key: string;
+    language: string;
+    own: Terms;
+    source: Terms;
+  },
+): Finding[] {
+  const text = target.replace(/\{"(?:[^"\\\n]|\\.)*"\}/g, "");
+  const termOf = (name: string) => at.own.get(name) ?? at.source.get(name);
+  const out: Finding[] = [];
+  const warn = (code: Finding["code"], message: string) =>
+    out.push({
+      file: at.file,
+      key: at.key,
+      language: at.language,
+      code,
+      severity: "warning",
+      message,
+    });
+  for (const call of text.matchAll(
+    /\{\s*(-[A-Za-z][\w-]*)\(((?:[^()"\n]|"(?:[^"\\\n]|\\.)*")*)\)\s*\}/g,
+  )) {
+    const term = termOf(call[1]!);
+    if (!term) continue;
+    const args = call[2]!.replace(/"(?:[^"\\\n]|\\.)*"/g, "");
+    for (const arg of args.matchAll(/([A-Za-z][\w-]*)\s*:/g))
+      if (!term.variables.has(arg[1]!))
+        warn(
+          "unknown-term-argument",
+          `${call[1]} reads no argument ${arg[1]} in this language, so Fluent renders it as if none were passed`,
+        );
+  }
+  for (const select of text.matchAll(
+    /\{\s*(-[A-Za-z][\w-]*)\.([A-Za-z][\w-]*)\s*,\s*select\s*,/g,
+  )) {
+    const term = termOf(select[1]!);
+    if (term && !term.attributes.has(select[2]!))
+      warn(
+        "unknown-term-attribute",
+        `${select[1]} has no .${select[2]} in this language, so Fluent renders the default variant`,
+      );
   }
   return out;
 }

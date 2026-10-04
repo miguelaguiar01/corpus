@@ -1620,7 +1620,7 @@ export default defineCorpus({
   );
   const c = ctx();
   expect(await run(["validate"], c)).toBe(0);
-  const lines = c.stderr.filter((l) => /term/.test(l));
+  const lines = c.stderr.filter((l) => /reads no argument|has no \./.test(l));
   expect(lines).toEqual([
     "l10n/id/app.ftl:a: -brand reads no argument kapitalisasi in this language, so Fluent renders it as if none were passed",
     "l10n/cs/app.ftl:b: -relay has no .gender in this language, so Fluent renders the default variant",
