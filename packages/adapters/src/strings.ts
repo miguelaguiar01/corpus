@@ -236,7 +236,13 @@ export function entriesToStrings(
   existing?: string,
 ): string {
   const fresh = existing === undefined || existing.trim() === "";
-  const text = fresh ? template : existing;
+  // A blank file keeps its own byte-order mark, the template's or not.
+  const bom = (t: string) => t.startsWith("\uFEFF");
+  const text = !fresh
+    ? existing
+    : existing !== undefined && bom(existing) && !bom(template)
+      ? `\uFEFF${template}`
+      : template;
   const pairs = parseStrings(text);
   const held = new Map(pairs.map((p) => [p.key, p]));
   const patches: Patch[] = [];
