@@ -88,10 +88,10 @@ export function ProgressByType({
             <div className="flex items-baseline justify-between gap-3">
               <h3 className="shrink-0 text-base font-medium whitespace-nowrap">
                 {language}
-                <VariantLabel source={variantOf(language)} />
               </h3>
               <ProgressSummary p={p} />
             </div>
+            <VariantLabel source={variantOf(language)} />
             {types.map((type) => {
               const tp = progress.perType[type]?.[language];
               return tp ? (

@@ -55,7 +55,7 @@ export function ProjectCard({
               <div className="flex-1">
                 <ProgressBar p={p} label={language} className="h-1.5" />
                 {sourceVariants.includes(language) && (
-                  <VariantLabel source={sourceLanguage} block />
+                  <VariantLabel source={sourceLanguage} />
                 )}
               </div>
             </div>
