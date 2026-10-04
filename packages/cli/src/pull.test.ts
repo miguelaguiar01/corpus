@@ -1377,6 +1377,48 @@ export default defineCorpus({
   expect(read("i18n/pl.json")).toBe(plFile);
 });
 
+test("under i18next a target that writes its plural in the other shape than the source's is seeded as the plural and pulled back unchanged, either way (#1187)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "pl"],
+  sources: [{ adapter: "messages", type: "chrome", library: "i18next", path: "i18n/{lang}.json" }],
+});
+`,
+  );
+  const object = (forms: string[]) =>
+    `{\n  "rooms": {\n${forms.map((f) => `    "${f}": "{{count}} ${f}"`).join(",\n")}\n  }\n}\n`;
+  const suffix = (forms: string[]) =>
+    `{\n${forms.map((f) => `  "rooms_${f}": "{{count}} ${f}"`).join(",\n")}\n}\n`;
+  const { buildSnapshot } = await import("./build");
+  const { loadConfig } = await import("./config");
+  for (const [en, pl] of [
+    [suffix(["one", "other"]), object(["one", "few", "many", "other"])],
+    [object(["one", "other"]), suffix(["one", "few", "many", "other"])],
+  ] as const) {
+    writeFileSync(path.join(repo, "i18n", "en.json"), en);
+    writeFileSync(path.join(repo, "i18n", "pl.json"), pl);
+    const snapshot = await buildSnapshot(await loadConfig(repo), repo);
+    const seed = snapshot.seedTranslations?.pl?.rooms;
+    expect(seed).toBe(
+      "{count, plural, one {{{count}} one} few {{{count}} few} many {{{count}} many} other {{{count}} other}}",
+    );
+    const v = ctx();
+    expect(await run(["validate"], v)).toBe(0);
+    await serve(200, {
+      ...PAYLOAD,
+      types: { rooms: "chrome" },
+      translations: { en: {}, pl: { rooms: seed } },
+    });
+    expect(await run(["pull", "--check"], ctx())).toBe(0);
+    expect(read("i18n/pl.json")).toBe(pl);
+  }
+});
+
 test("under merge: last-wins the later file's translation is seeded and written, an earlier one only where it agreed, and a pull of what was pushed changes nothing (#953)", async () => {
   writeFileSync(
     path.join(repo, "corpus.config.ts"),

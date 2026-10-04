@@ -1347,3 +1347,52 @@ describe("a target's plural object with a broken form is the source's plural, pu
     ).toBe(target.replace("{count} pokój }", "{count} pokój"));
   });
 });
+
+describe("under i18next a target's plural in the other shape than the source's, an object or suffix keys, is written in its own shape (#1187)", () => {
+  const options = {
+    plurals: "several",
+    suffixPlurals: true,
+    sourceLanguage: "en",
+  } as const;
+  const suffixSource = `{\n  "rooms_one": "{{count}} room",\n  "rooms_other": "{{count}} rooms"\n}\n`;
+  const objectTarget = `{\n  "rooms": {\n    "one": "{{count}} pokój",\n    "few": "{{count}} pokoje",\n    "other": "{{count}} pokoi"\n  }\n}\n`;
+  const objectSource = `{\n  "rooms": {\n    "one": "{{count}} room",\n    "other": "{{count}} rooms"\n  }\n}\n`;
+  const suffixTarget = `{\n  "rooms_one": "{{count}} pokój",\n  "rooms_few": "{{count}} pokoje",\n  "rooms_other": "{{count}} pokoi"\n}\n`;
+  const plural =
+    "{count, plural, one {{{count}} pokój} few {{{count}} pokoje} other {{{count}} pokoi}}";
+  const changed = plural.replace("pokoje}", "pokoje!}");
+  test("its own text pulled back changes nothing", () => {
+    expect(
+      entriesToMessages(suffixSource, { rooms: plural }, objectTarget, options),
+    ).toBe(objectTarget);
+    expect(
+      entriesToMessages(objectSource, { rooms: plural }, suffixTarget, options),
+    ).toBe(suffixTarget);
+  });
+  test("a changed translation edits the target's own shape in place", () => {
+    expect(
+      entriesToMessages(
+        suffixSource,
+        { rooms: changed },
+        objectTarget,
+        options,
+      ),
+    ).toBe(objectTarget.replace('pokoje"', 'pokoje!"'));
+    expect(
+      entriesToMessages(
+        objectSource,
+        { rooms: changed },
+        suffixTarget,
+        options,
+      ),
+    ).toBe(suffixTarget.replace('pokoje"', 'pokoje!"'));
+  });
+  test("a target that lacks the plural takes the source's shape", () => {
+    expect(
+      entriesToMessages(suffixSource, { rooms: plural }, `{}\n`, options),
+    ).toMatch(/"rooms_few"/);
+    expect(
+      entriesToMessages(objectSource, { rooms: plural }, `{}\n`, options),
+    ).toMatch(/"rooms": \{/);
+  });
+});
