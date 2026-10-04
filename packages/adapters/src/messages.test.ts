@@ -652,3 +652,22 @@ test("an ARB source's placeholder examples are the string's example, rendered, a
     messagesToEntries(arb, { type: "ui", arb: true })[0]?.examples,
   ).toBeUndefined();
 });
+
+test("an ARB example renders as the author wrote it, never capitalised, and a placeholder named __proto__ keeps its example (#1040 review)", () => {
+  const entries = messagesToEntries(
+    {
+      legacyInvite: "{email} has invited you",
+      "@legacyInvite": {
+        placeholders: { email: { example: "family@example.com" } },
+      },
+      odd: "{__proto__} here",
+      // As a file reads: JSON.parse makes it a key of its own.
+      "@odd": JSON.parse('{"placeholders": {"__proto__": {"example": "x"}}}'),
+    },
+    { type: "ui", arb: true, sourceFile: true },
+  );
+  expect(entries[0]?.examples?.[0]?.rendered).toBe(
+    "family@example.com has invited you",
+  );
+  expect(entries[1]?.examples?.[0]?.rendered).toBe("x here");
+});
