@@ -1307,13 +1307,15 @@ async function libraryFor(
       read.push(at);
       readConcretes.push(concrete);
     } catch (error) {
+      // A missing source file is said where the languages are read.
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
       const reason = (error instanceof Error ? error.message : String(error))
         .split("\n")[0]!
         .trim();
       failed.push({ file: at, reason });
     }
   }
-  if (concretes.length === 0) return {};
+  if (concretes.length === 0 || read.length + failed.length === 0) return {};
   if (read.length === 0)
     return {
       note: `library: not detected (${failed[0]!.file}: ${failed[0]!.reason})`,
