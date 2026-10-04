@@ -2729,3 +2729,35 @@ test("init writes library gen_l10n for an .arb catalogue, Flutter's gen-l10n, an
     "l10n.yaml sets use-escaping: true, gen-l10n's apostrophe quoting, which Corpus does not read",
   );
 });
+
+test("init writes library fmt for a gettext catalogue whose placeholders are libfmt fields, and leaves printf where verbs are (#1002)", async () => {
+  const p = project();
+  write(
+    p.dir,
+    "po/messages.pot",
+    po("2025-01-01 10:00+0000", [
+      "_Show {count:L} of:",
+      "Error: {errmsg}",
+      "Couldn't read '{path}': {error} ({error_code})",
+      "Quit",
+    ]),
+  );
+  write(p.dir, "po/de.po", po("2025-01-01 10:00+0000", ["Quit"]));
+  expect(await run(initFor("po/{lang}.po"), p.ctx)).toBe(0);
+  expect((await loadConfig(p.dir)).sources[0]).toMatchObject({
+    adapter: "gettext",
+    library: "fmt",
+  });
+  expect(p.out.join("\n")).toContain("library: fmt");
+  const q = project();
+  write(
+    q.dir,
+    "po/messages.pot",
+    po("2025-01-01 10:00+0000", ["%d files", "Error: %s", "Quit"]),
+  );
+  write(q.dir, "po/de.po", po("2025-01-01 10:00+0000", ["Quit"]));
+  expect(await run(initFor("po/{lang}.po"), q.ctx)).toBe(0);
+  expect((await loadConfig(q.dir)).sources[0]).not.toMatchObject({
+    library: "fmt",
+  });
+});

@@ -1,3 +1,4 @@
+import { validateTranslation } from "@corpus/contract";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -2006,5 +2007,62 @@ test("a keyIsText source under a namespace prefixes its ids, never its text (#99
   expect(report.snapshot.seedTranslations).toEqual({
     de: { "web:Log out": "Abmelden" },
   });
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("under fmt a gettext msgid_plural is one plural whose branches' fields are checked (#1002)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-fmt-"));
+  mkdirSync(path.join(dir, "po"));
+  const entry = (forms: string[]) =>
+    `msgid "{total_size} in {file_count:L} file"\nmsgid_plural "{total_size} in {file_count:L} files"\n${forms.map((f, i) => `msgstr[${i}] "${f}"`).join("\n")}\n`;
+  writeFileSync(
+    path.join(dir, "po", "messages.pot"),
+    `msgid ""\nmsgstr ""\n\n${entry(["", ""])}`,
+  );
+  writeFileSync(
+    path.join(dir, "po", "fr.po"),
+    `msgid ""\nmsgstr ""\n"Language: fr\\n"\n"Plural-Forms: nplurals=2; plural=(n > 1);\\n"\n\n${entry(
+      [
+        "{total_size} dans {file_count:L} fichier",
+        "{total_size} dans {files:L} fichiers",
+      ],
+    )}`,
+  );
+  const report = await buildSnapshotReport(
+    config({
+      sourceLanguage: "en",
+      languages: ["en", "fr"],
+      sources: [
+        {
+          adapter: "gettext",
+          type: "ui",
+          path: "po/{lang}.po",
+          sourcePath: "po/messages.pot",
+          library: "fmt",
+        },
+      ],
+    }),
+    dir,
+  );
+  expect(report.snapshot.strings.map((s) => [s.source, s.library])).toEqual([
+    [
+      "{count, plural, one {{total_size} in {file_count:L} file} other {{total_size} in {file_count:L} files}}",
+      "fmt",
+    ],
+  ]);
+  // The other form's renamed field is invalid: it would abort libfmt.
+  const seed =
+    report.snapshot.seedTranslations!.fr![
+      "{total_size} in {file_count:L} file"
+    ]!;
+  const check = validateTranslation(
+    report.snapshot.strings[0]!.source,
+    seed,
+    "fr",
+    "fmt",
+  );
+  expect(check.ok ? [] : check.errors.map((e) => e.code)).toContain(
+    "unexpected-placeholder",
+  );
   rmSync(dir, { recursive: true, force: true });
 });
