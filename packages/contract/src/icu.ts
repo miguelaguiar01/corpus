@@ -394,6 +394,16 @@ export const WHOLE_PLURAL_LIBRARIES: ReadonlySet<Library> = new Set([
   "fmt",
 ]);
 
+// The libraries whose lexer reads a `{` as text, so a pair of them in a
+// plural read whole is a form's text (#1052); i18next's `{{name}}`,
+// easy_localization's `{}` and fmt's fields are read as their own.
+const TEXT_BRACES: ReadonlySet<Library> = new Set([
+  "printf",
+  "rails",
+  "counterpart",
+  "qt",
+]);
+
 // A printf or i18next text that is one ICU plural from end to end
 // (#652, #662): a converter's gettext plural, or a plural object read
 // as one string, its forms written in the library's own syntax.
@@ -703,6 +713,13 @@ class Parser {
       literalStart: this.pos,
       attrPlaceholders: [],
     };
+    // In a plural read whole, under a library whose `{` is text, the
+    // braces a form writes in pairs are its text: Godot's `{num}`, which
+    // String::format fills after the lookup, and only a `}` past them
+    // closes the branch, as the writers' pluralBranches counts (#1052).
+    const textBraces =
+      this.mode === "wholePlural" && inBranch && TEXT_BRACES.has(this.syntax);
+    let braces = 0;
 
     while (this.pos < this.source.length) {
       if (++this.steps > 4 * this.source.length + 10_000)
@@ -755,6 +772,11 @@ class Parser {
           continue;
         }
       }
+      if (ch === "}" && textBraces && braces > 0) {
+        braces -= 1;
+        this.text(seq, ch);
+        continue;
+      }
       if (
         ch === "}" &&
         (readsAsIcu(this.syntax) ||
@@ -774,6 +796,11 @@ class Parser {
       const opensPlural =
         this.mode === "wholePlural" && !inBranch && ch === "{";
       if (!opensPlural && this.lexLayers(seq, ch)) continue;
+      if (ch === "{" && textBraces) {
+        braces += 1;
+        this.text(seq, ch);
+        continue;
+      }
       if (this.lexLibrary(seq, ch, inBranch, opensPlural, pluralArg)) continue;
       // vue-i18n has no tag syntax: a `<` is text (#644).
       if (ch === "<" && this.syntax !== "vue") {
