@@ -11,6 +11,7 @@ export {
   parseIcu,
   partsOf,
   placeholderFormatText,
+  printfVerbAt,
   PLURAL_CATEGORIES,
   pluralCategoriesOf,
   pluralCategoriesFor,

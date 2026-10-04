@@ -46,6 +46,7 @@ import {
   nestedCountsOf,
   bareAtOf,
   parseIcu,
+  printfVerbAt,
   proseTagsOf,
   pluralCategoriesOf,
   snapshotSchema,
@@ -400,6 +401,12 @@ export async function buildSnapshotReport(
         );
       }
     }
+    const percentNote = unreadPercentNote(
+      file,
+      entries,
+      (entry) => entry.library ?? sourceLibrary(source),
+    );
+    if (percentNote) notes.push(percentNote);
     const pluralForms = pluralFormsOf(cwd, source, config, (note) => {
       if (!notes.includes(note)) notes.push(note);
     });
@@ -782,6 +789,7 @@ function collectExec(
       `exec "${command}": … and ${said.length - STDERR_LINES} more line(s) on stderr`,
     );
   const out = ran.output;
+  const emitted: StringEntry[] = [];
   for (const raw of out.strings ?? []) {
     const parsedEntry = stringEntrySchema.safeParse(raw);
     if (!parsedEntry.success) {
@@ -792,8 +800,15 @@ function collectExec(
     // pick what it rewrites, and an exec source is not rewritable.
     const entry = { ...parsedEntry.data };
     delete entry.file;
+    emitted.push(entry);
     validateEntry(entry, `exec:${command}`, sourced, refused, richText, notes);
   }
+  const percentNote = unreadPercentNote(
+    `exec "${command}"`,
+    emitted,
+    libraryOf,
+  );
+  if (percentNote) notes.push(percentNote);
   for (const raw of out.entities ?? []) {
     const entity = entitySchema.safeParse(raw);
     if (!entity.success)
@@ -814,6 +829,39 @@ function collectExec(
       );
     }
   }
+}
+
+// A printf source whose strings write `%` and a digit no verb reads, as
+// an app that substitutes `%0`, `%1` itself writes them (Stats, #1036):
+// under printf they are text, and a translation that drops one passes,
+// where qt reads them by number. One note a source.
+function unreadPercentNote(
+  where: string,
+  entries: readonly StringEntry[],
+  libraryOf: (entry: StringEntry) => Library,
+): string | undefined {
+  let count = 0;
+  let example: string | undefined;
+  for (const entry of entries) {
+    if (libraryOf(entry) !== "printf" || !/%\d/.test(entry.source)) continue;
+    let left: string | undefined;
+    const text = entry.source;
+    for (let i = text.indexOf("%"); i >= 0 && left === undefined;) {
+      if (text[i + 1] === "%") {
+        i = text.indexOf("%", i + 2);
+        continue;
+      }
+      if (/\d/.test(text[i + 1] ?? "") && !printfVerbAt(text, i))
+        left = /^%\d+/.exec(text.slice(i))![0];
+      i = text.indexOf("%", i + 1);
+    }
+    if (left === undefined) continue;
+    count += 1;
+    example ??= left;
+  }
+  return count > 0
+    ? `${where}: ${count} string(s) write % and a digit that no printf verb reads (${example}): if the app substitutes %0, %1 itself, library: "qt" checks them`
+    : undefined;
 }
 
 // A source's library travels under both names until 1.0 (§4): a server
