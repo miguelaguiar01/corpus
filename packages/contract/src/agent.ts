@@ -26,6 +26,10 @@ export type QueueItemResponse = {
   text: string | null;
   // In the invalid queue only: what is wrong with the text (#646).
   problem?: string | null;
+  // In the untranslated queue only, where the repository offers one: a
+  // gettext fuzzy row or a Qt unfinished text to start from, never a
+  // translation (#1050); additive.
+  suggestion?: string;
 };
 export type QueuesResponse = {
   project: string;

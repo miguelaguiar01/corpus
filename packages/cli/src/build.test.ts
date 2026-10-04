@@ -1296,6 +1296,83 @@ test("an xcstrings source reads one String Catalog for every language; only tran
   rmSync(dir, { recursive: true, force: true });
 });
 
+test("a qt-ts target's unfinished translations with text travel as suggestions, said apart from gettext's fuzzy rows (#1050)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-qtts-1050-"));
+  mkdirSync(path.join(dir, "lang"));
+  const file = (language: string, ok: string, cfg: string) =>
+    `<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE TS>\n<TS version="2.1"${language ? ` language="${language}"` : ""}>\n<context>\n    <name>MainWindow</name>\n    <message>\n        <source>OK</source>\n        ${ok}\n    </message>\n    <message>\n        <source>Configuration</source>\n        ${cfg}\n    </message>\n</context>\n</TS>\n`;
+  const empty = '<translation type="unfinished"></translation>';
+  writeFileSync(path.join(dir, "lang", "app_en.ts"), file("", empty, empty));
+  writeFileSync(
+    path.join(dir, "lang", "app_de.ts"),
+    file(
+      "de",
+      "<translation>OK</translation>",
+      '<translation type="unfinished">Einstellungen</translation>',
+    ),
+  );
+  const report = await buildSnapshotReport(
+    config({
+      sourceLanguage: "en",
+      languages: ["en", "de"],
+      sources: [{ adapter: "qt-ts", type: "ui", path: "lang/app_{lang}.ts" }],
+    }),
+    dir,
+  );
+  expect(report.snapshot.seedTranslations).toEqual({
+    de: { "MainWindow | OK": "OK" },
+  });
+  expect(report.snapshot.seedSuggestions).toEqual({
+    de: { "MainWindow | Configuration": "Einstellungen" },
+  });
+  expect(report.notes).toContain(
+    "de 1 unfinished row(s) carried as suggestions, not translations",
+  );
+  expect(report.notes.join("\n")).not.toMatch(/fuzzy/);
+  // Blank forms are no suggestion, as they are no seed; a UTF-16 file's
+  // suggestions read as its seeds do.
+  const blank = file(
+    "de",
+    "<translation>OK</translation>",
+    '<translation type="unfinished"> </translation>',
+  );
+  writeFileSync(
+    path.join(dir, "lang", "app_de.ts"),
+    Buffer.concat([
+      Buffer.from([0xff, 0xfe]),
+      Buffer.from(
+        blank.replace(
+          "</context>",
+          '    <message numerus="yes">\n        <source>%n file(s)</source>\n        <translation type="unfinished"><numerusform> </numerusform><numerusform> </numerusform></translation>\n    </message>\n    <message>\n        <source>Close</source>\n        <translation type="unfinished">Schließen</translation>\n    </message>\n</context>',
+        ),
+        "utf16le",
+      ),
+    ]),
+  );
+  writeFileSync(
+    path.join(dir, "lang", "app_en.ts"),
+    file("", empty, empty).replace(
+      "</context>",
+      '    <message numerus="yes">\n        <source>%n file(s)</source>\n        <translation type="unfinished"></translation>\n    </message>\n    <message>\n        <source>Close</source>\n        <translation type="unfinished"></translation>\n    </message>\n</context>',
+    ),
+  );
+  const again = await buildSnapshotReport(
+    config({
+      sourceLanguage: "en",
+      languages: ["en", "de"],
+      sources: [{ adapter: "qt-ts", type: "ui", path: "lang/app_{lang}.ts" }],
+    }),
+    dir,
+  );
+  expect(again.snapshot.seedTranslations).toEqual({
+    de: { "MainWindow | OK": "OK" },
+  });
+  expect(again.snapshot.seedSuggestions).toEqual({
+    de: { "MainWindow | Close": "Schließen" },
+  });
+  rmSync(dir, { recursive: true, force: true });
+});
+
 test("a qt-ts source reads the template and each language's finished translations under qt (#740)", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-qtts-"));
   mkdirSync(path.join(dir, "lang"));

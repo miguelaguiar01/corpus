@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- A Qt `.ts` file's unfinished translation with text is offered as a suggestion, as gettext's fuzzy rows are, and an untranslated queue item carries its suggestion (#1050).
 - A Rails yaml target rooted at the tag `languageFiles` maps to its file (`sr.yml` rooted at `sr-Latn`) is read and pulled under that root, and a file rooted elsewhere says how Rails reads it (#1048).
 - `corpus init`'s `check.include` takes an app's `pages` and `layouts` with its `components`, as Nuxt, Vite and Next routers render them (#1047).
 - `corpus init` detects the library from the namespaces that read and names the ones that do not, and a `{'@'}` refused under ICU suggests `library: "vue"` (#1046).

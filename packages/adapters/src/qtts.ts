@@ -284,9 +284,26 @@ export function qtTsTranslations(
   language = "en",
   onUnread?: (id: string) => void,
 ): StringEntry[] {
+  return qtTexts(xml, language, undefined, onUnread);
+}
+
+// A target file's unfinished translations with text, Weblate's "needs
+// editing": work, but what lrelease ships unless built with
+// -nounfinished, and what a translator may start from (#1050). Read as
+// a finished one would be; forms that do not read back are none.
+export function qtTsSuggestions(xml: string, language = "en"): StringEntry[] {
+  return qtTexts(xml, language, "unfinished");
+}
+
+function qtTexts(
+  xml: string,
+  language: string,
+  state: "unfinished" | undefined,
+  onUnread?: (id: string) => void,
+): StringEntry[] {
   const table = pluralTable(language, qtPluralForms(language));
   return live(xml).flatMap((m) => {
-    if (m.state !== undefined) return [];
+    if (m.state !== state) return [];
     if (m.numerus) {
       if (!m.forms.some((f) => f !== "")) return [];
       const text = numerusPlural(m, table);

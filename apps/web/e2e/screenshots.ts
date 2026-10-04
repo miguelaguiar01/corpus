@@ -167,7 +167,7 @@ async function main(): Promise<void> {
   const changed = structuredClone(chrome);
   const heading = changed.strings.find((s) => s.id === "entities.heading");
   if (heading) heading.source = `${heading.source} & relations`;
-  // A fuzzy guess on the string the editor shot opens (#774); every push
+  // A suggestion on the string the editor shot opens (#774); every push
   // replaces suggestions, so this one carries it.
   await pushChrome({
     ...changed,

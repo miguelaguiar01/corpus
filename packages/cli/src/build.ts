@@ -20,6 +20,7 @@ import {
   yamlRootOf,
   gettextPluralCategories,
   gettextSuggestions,
+  qtTsSuggestions,
   gettextTranslations,
   xliffToEntries,
   xliffTranslations,
@@ -1675,9 +1676,10 @@ function readGlossary(
   return glossary;
 }
 
-// Per target language, the gettext fuzzy rows: what a translator may
-// start from, never a translation (#721). Only a string the source has
-// and the language did not seed.
+// Per target language, the gettext fuzzy rows and Qt's unfinished
+// translations with text: what a translator may start from, never a
+// translation (#721, #1050). Only a string the source has and the
+// language did not seed.
 function readSuggestions(
   config: CorpusConfig,
   cwd: string,
@@ -1686,32 +1688,43 @@ function readSuggestions(
   notes: string[],
 ): Record<string, Record<string, string>> {
   const suggestions: Record<string, Record<string, string>> = {};
+  // Counted per adapter, each said in its own words.
+  const counted = { gettext: new Map<string, number>(), "qt-ts": new Map() };
   for (const source of config.sources) {
-    if (source.adapter !== "gettext") continue;
+    if (source.adapter !== "gettext" && source.adapter !== "qt-ts") continue;
+    const by = counted[source.adapter];
     for (const lang of config.languages) {
       if (lang === config.sourceLanguage) continue;
       if (!takesLanguage(source, config, lang)) continue;
       const file = fileOf(source, lang, config.sourceLanguage);
       if (!existsSync(path.join(cwd, file))) continue;
-      const text = readFileSync(path.join(cwd, file), "utf8");
-      for (const entry of gettextSuggestions(text, lang)) {
+      // Read as its seeds are, a UTF-16 file too.
+      const text = readRepoText(path.join(cwd, file));
+      const read =
+        source.adapter === "gettext"
+          ? gettextSuggestions(text, lang)
+          : qtTsSuggestions(text, lang);
+      for (const entry of read) {
         const id = namespaced(source, entry.id);
         if (
           ids.has(id) &&
-          entry.source.trim() !== "" &&
-          seeds[lang]?.[id] === undefined
-        )
+          !isBlank(entry.source) &&
+          seeds[lang]?.[id] === undefined &&
+          suggestions[lang]?.[id] === undefined
+        ) {
           (suggestions[lang] ??= {})[id] = entry.source;
+          by.set(lang, (by.get(lang) ?? 0) + 1);
+        }
       }
     }
   }
-  const counts = Object.entries(suggestions).map(
-    ([lang, texts]) => `${lang} ${Object.keys(texts).length}`,
-  );
-  if (counts.length > 0)
+  for (const [adapter, by] of Object.entries(counted)) {
+    if (by.size === 0) continue;
+    const counts = [...by].map(([lang, n]) => `${lang} ${n}`).join(", ");
     notes.push(
-      `${counts.join(", ")} fuzzy row(s) carried as suggestions, not translations`,
+      `${counts} ${adapter === "gettext" ? "fuzzy" : "unfinished"} row(s) carried as suggestions, not translations`,
     );
+  }
   return suggestions;
 }
 

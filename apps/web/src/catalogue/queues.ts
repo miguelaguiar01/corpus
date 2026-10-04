@@ -35,6 +35,8 @@ export type QueueItem = {
   type: string;
   source: string;
   text: string | null;
+  // The repository's text to start from (#1050).
+  suggestion?: string | null;
   // Read only where asked for, to validate the row (#873).
   syntax?: Library | null;
   arguments?: string[] | null;
@@ -137,6 +139,7 @@ function select(
   filter: Filter,
   limit?: number,
   withLibrary = false,
+  withSuggestion = false,
 ): QueueItem[] {
   const from = db
     .select({
@@ -146,6 +149,7 @@ function select(
       language: stringTranslations.language,
       source: strings.source,
       text: stringTranslations.text,
+      ...(withSuggestion && { suggestion: stringTranslations.suggestion }),
       ...(withLibrary && {
         syntax: strings.syntax,
         arguments: strings.arguments,
@@ -188,6 +192,8 @@ export function queueItems(
   kind: QueueKind,
   filter: Filter = {},
   withLibrary = false,
+  // The repository's text to start from, for an agent (#1050).
+  withSuggestion = false,
 ): Queue {
   const items = select(
     db,
@@ -197,6 +203,7 @@ export function queueItems(
     filter,
     undefined,
     withLibrary,
+    withSuggestion,
   );
   return { kind, count: items.length, first: items[0] ?? null, items };
 }
