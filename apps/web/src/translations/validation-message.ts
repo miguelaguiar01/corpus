@@ -110,6 +110,19 @@ export function validationMessage(
     }
     case "missing-category":
       return t("editor.missingCategory", { arg: error.arg, key: error.key });
+    case "overridden-branch":
+      return t("editor.overriddenBranch", {
+        arg: error.arg,
+        key: error.key,
+        category: error.category,
+      });
+    case "wide-exact":
+      return t(error.more ? "editor.wideExactMore" : "editor.wideExact", {
+        arg: error.arg,
+        key: error.key,
+        category: error.category,
+        values: error.values.join(", "),
+      });
     case "unexpected-category":
       return t("editor.unexpectedCategory", { arg: error.arg, key: error.key });
     case "unexpected-format":

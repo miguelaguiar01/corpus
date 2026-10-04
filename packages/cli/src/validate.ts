@@ -637,6 +637,10 @@ export function describe(
     }
     case "missing-category":
       return `plural on {${error.arg}} lacks the ${error.key} branch the runtime picks in its language`;
+    case "overridden-branch":
+      return `plural on {${error.arg}} writes ${error.key} and ${error.category}, which gen-l10n reads as one branch: it keeps one of them and drops the other`;
+    case "wide-exact":
+      return `gen-l10n reads ${error.key} on {${error.arg}} as ${error.category}, which this language also picks for ${error.values.join(", ")}${error.more ? " and more" : ""}: write ${error.category} for what they share, or give each its own =N`;
     case "unexpected-category":
       return `plural on {${error.arg}} has the branch ${error.key}, which the runtime never picks in its language`;
     case "count-for-marker":

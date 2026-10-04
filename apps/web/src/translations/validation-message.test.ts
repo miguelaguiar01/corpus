@@ -56,7 +56,7 @@ test("gen-l10n's overridden branch and an =N wider than its number are said in t
       "gen_l10n",
     ),
   ).toBe(
-    "Plural {count} writes =1 and one, which gen-l10n reads as one branch: it keeps one of them and drops the other",
+    "Plural count writes =1 and one, which gen-l10n reads as one branch: it keeps one of them and drops the other",
   );
   expect(
     validationMessage(
@@ -71,6 +71,6 @@ test("gen-l10n's overridden branch and an =N wider than its number are said in t
       "gen_l10n",
     ),
   ).toBe(
-    "gen-l10n reads =1 on {count} as one, which this language also picks for 21, 31, 41 and more: write one for what they share, or give each its own =N",
+    "gen-l10n reads =1 on count as one, which this language also picks for 21, 31, 41 and more: write one for what they share, or give each its own =N",
   );
 });

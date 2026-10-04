@@ -2355,6 +2355,17 @@ export function pluralBranch(
     ).select(n);
     if (!ordinal && picked && !picked.includes(category)) return "other";
     if (Object.hasOwn(branches, category)) return category;
+    // gen-l10n's `=0`, `=1`, `=2` are its zero, one and two (#1039).
+    const exactOf = (
+      { zero: "=0", one: "=1", two: "=2" } as Record<string, string | undefined>
+    )[category];
+    if (
+      library === "gen_l10n" &&
+      !ordinal &&
+      exactOf !== undefined &&
+      Object.hasOwn(branches, exactOf)
+    )
+      return exactOf;
   }
   return "other";
 }
