@@ -38,6 +38,36 @@ function withoutTr(source: string): string {
   return depth > 0 ? out + gap(source.slice(from)) : out + source.slice(at);
 }
 
+// Where the mustache that opens at `at` ends, past `}}` in the strings
+// it holds, an ICU plural in Zulip's `{{t "…"}}` among them: after its
+// `}}`, or `}}}` for a triple one; the text's end where it never closes.
+function mustacheEnd(source: string, at: number): number {
+  const close = source.startsWith("{{{", at) ? "}}}" : "}}";
+  for (let i = at + close.length; i < source.length; i++) {
+    const ch = source[i];
+    if (ch === '"' || ch === "'") {
+      let end = i + 1;
+      while (end < source.length && source[end] !== ch)
+        end += source[end] === "\\" ? 2 : 1;
+      i = end;
+    } else if (source.startsWith(close, i)) return i + close.length;
+  }
+  return source.length;
+}
+
+// Every mustache a gap.
+function gapped(source: string): string {
+  let out = "";
+  let at = 0;
+  for (let open = source.indexOf("{{"); open >= 0;) {
+    const end = mustacheEnd(source, open);
+    out += source.slice(at, open) + gap(source.slice(open, end));
+    at = end;
+    open = source.indexOf("{{", at);
+  }
+  return out + source.slice(at);
+}
+
 // The markup alone: comments, `<script>`, `<style>`, `{{#tr}}` blocks
 // and every expression blanked or made a gap, each character kept so a
 // finding keeps its line.
@@ -46,10 +76,7 @@ function markupOf(source: string): string {
     /\{\{~?!--[\s\S]*?--~?\}\}|\{\{~?![\s\S]*?\}\}|<!--[\s\S]*?-->|<(script|style)(?=[\s>/])[^>]*>[\s\S]*?<\/\1\s*>/g,
     blank,
   );
-  return withoutTr(quiet).replace(
-    /\{\{\{[\s\S]*?\}\}\}|\{\{[\s\S]*?\}\}/g,
-    gap,
-  );
+  return gapped(withoutTr(quiet));
 }
 
 export function findHandlebarsLiterals(
