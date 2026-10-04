@@ -344,9 +344,21 @@ function hashesAsLiterals(text: string): string {
 }
 
 // A view as read before #1083, its message references bare, `{trash}`:
-// what a server may still hold for a message nobody changed.
-function bareReferences(icu: string): string {
-  return icu.replace(/\{@([A-Za-z][\w-]*)\}/g, "{$1}");
+// what a server may still hold for a message nobody changed. Only where
+// each bare name is one the writer takes for a reference, `refs`, so a
+// reference changed to the variable of its name is a change; a string
+// literal is kept as written.
+function bareReferences(icu: string, refs: Set<string>): string | undefined {
+  let bare = true;
+  const out = icu.replace(
+    /\{"(?:[^"\\\n]|\\.)*"\}|\{@([A-Za-z][\w-]*)\}/g,
+    (match, name: string | undefined) => {
+      if (name === undefined) return match;
+      if (!refs.has(name)) bare = false;
+      return `{${name}}`;
+    },
+  );
+  return bare ? out : undefined;
 }
 
 function toIcu(text: string, message: Message): string {
@@ -585,7 +597,10 @@ function patch(text: string, changes: Change[], template: Template): string {
     } else if (message) {
       const end = whole ? message.end : message.valueEnd;
       const current = toIcu(text, message);
-      if (current === next || bareReferences(current) === next) {
+      if (
+        current === next ||
+        bareReferences(current, template.refsFor(id)) === next
+      ) {
         if (end !== message.valueEnd)
           patches.push({ start: message.valueEnd, end, text: "" });
         continue;
