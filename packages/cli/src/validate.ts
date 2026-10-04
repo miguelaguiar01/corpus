@@ -961,16 +961,15 @@ function sourceGaps(
   return out;
 }
 
-// A msgid and its msgid_plural as the gettext reader writes them, a
-// plural of one and other on count; an ICU plural a msgid writes itself
-// is checked as any.
+// A msgid and its msgid_plural as the gettext reader writes them: a
+// plural on count of one and other, or one that does not split, its
+// forms holding a brace gettext reads as text (`%d brace {`), which no
+// ICU plural can be. An ICU plural a msgid writes itself is checked as
+// any, but one written exactly in the reader's shape.
 function isMsgidPair(text: string): boolean {
+  if (!text.startsWith("{count, plural, one {")) return false;
   const forms = pluralBranches(text);
-  return (
-    text.startsWith("{count, plural, one {") &&
-    forms !== undefined &&
-    Object.keys(forms).join() === "one,other"
-  );
+  return forms === undefined || Object.keys(forms).join() === "one,other";
 }
 
 // The source's line names the translations that lack its category too,
