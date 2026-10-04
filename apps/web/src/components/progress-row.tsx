@@ -50,10 +50,10 @@ export function ProgressRow({
           ) : (
             language
           )}
-          <VariantLabel source={variantOf} />
         </th>
         <td className="py-1.5 pr-3">
           <ProgressBar p={p} label={language} className="h-1.5" />
+          <VariantLabel source={variantOf} block />
           {/* Where the counts column is hidden. */}
           <InvalidCount n={p.invalid} className="mt-0.5 block sm:hidden" />
         </td>

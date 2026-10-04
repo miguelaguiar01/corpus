@@ -52,10 +52,12 @@ export function ProjectCard({
               <span className="w-12 shrink-0 text-muted-foreground">
                 {language}
               </span>
-              <ProgressBar p={p} label={language} className="h-1.5 flex-1" />
-              {sourceVariants.includes(language) && (
-                <VariantLabel source={sourceLanguage} />
-              )}
+              <div className="flex-1">
+                <ProgressBar p={p} label={language} className="h-1.5" />
+                {sourceVariants.includes(language) && (
+                  <VariantLabel source={sourceLanguage} block />
+                )}
+              </div>
             </div>
           );
         })}

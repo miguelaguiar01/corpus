@@ -163,7 +163,7 @@ export function render(
   return lines;
 }
 
-// One table per grouping: a row per language in the project's order,
+// One table per grouping: a row per language in the order given,
 // the numbers right-aligned under their headings.
 function table(
   heading: string,

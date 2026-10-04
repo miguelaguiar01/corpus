@@ -1,12 +1,26 @@
 import { t } from "@/i18n";
 
-// A source variant's note beside its language (#699).
-export function VariantLabel({ source }: { source: string | undefined }) {
+// A source variant's note (#699): beside its language in a heading, or
+// as a line of its own under its bar, where the column is too narrow to
+// hold it and every bar keeps one width.
+export function VariantLabel({
+  source,
+  block = false,
+}: {
+  source: string | undefined;
+  block?: boolean;
+}) {
   if (source === undefined) return null;
-  return (
-    <span className="ml-2 text-xs font-normal text-muted-foreground">
-      {t("progress.variantOf", { source })}
-    </span>
+  const text = t("progress.variantOf", { source });
+  return block ? (
+    <span className="mt-0.5 block text-xs text-muted-foreground">{text}</span>
+  ) : (
+    <>
+      {" "}
+      <span className="ml-1 text-xs font-normal text-muted-foreground">
+        {text}
+      </span>
+    </>
   );
 }
 
