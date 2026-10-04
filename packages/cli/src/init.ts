@@ -138,10 +138,12 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   // Beside a JSON catalogue a file that names no language is a glossary
   // or a fixture, not a catalogue left out, unless its name carries a
   // POSIX modifier (`de@euro`), which only a language's does.
-  const unnamed =
+  // The source file init chose is no catalogue left out (#1219).
+  const unnamed = (
     adapter === "messages"
       ? files.skipped.filter(({ file }) => path.basename(file).includes("@"))
-      : files.skipped;
+      : files.skipped
+  ).filter(({ file }) => file !== sourcePath);
   // A code that is a prefix and a language, `activerecord.af` beside
   // `{lang}.yml`, is another catalogue's file (#1020): one line for the
   // family, as its own source, not a mapping a file at a time.
@@ -556,8 +558,13 @@ function angularSource(
           : path.isAbsolute(outputPath)
             ? outputPath
             : path.posix.join(workspace, outputPath);
-      const output = path.posix.join(dir, name);
-      if (!outputs.includes(output) && local(output) !== bareHere)
+      // In the config directory's terms where it lies inside it.
+      const written = path.posix.join(dir, name);
+      const output =
+        local(written) === ".." || local(written).startsWith("../")
+          ? written
+          : local(written);
+      if (!outputs.includes(output) && output !== bareHere)
         outputs.push(output);
     }
     // The one sharing the most of the translations' directory first.
