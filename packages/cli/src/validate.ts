@@ -23,7 +23,7 @@ import {
   stringEntrySchema,
   type StringEntry,
 } from "@corpus/contract";
-import { isBlank, qtShortForms } from "@corpus/adapters";
+import { isBlank, pluralBranches, qtShortForms } from "@corpus/adapters";
 import { printable } from "./printable";
 import type { RunContext } from "./cli";
 import {
@@ -189,7 +189,7 @@ export async function validate(
         ? `${byKey.size} orphan key(s) in ${new Set(orphans.map((f) => f.file)).size} file(s)`
         : "",
       incomplete.length
-        ? `${incomplete.length} incomplete plural(s), a category the runtime picks that the translation lacks, one it never picks, or a plural written as one text`
+        ? `${incomplete.length} incomplete plural(s), a category the runtime picks that a source or a translation lacks, one it never picks, or a plural written as one text`
         : "",
       warnings.length ? `${warnings.length} warning(s)` : "",
     ].filter(Boolean);
@@ -371,6 +371,7 @@ export async function validateRepo(
       if (!refusedSource.has(entry.id))
         findings.push(
           ...sourceGaps(augment(entry), {
+            gettext: source.adapter === "gettext",
             sourceFile,
             sourceLanguage: config.sourceLanguage,
             library: entry.library ?? library,
@@ -663,19 +664,10 @@ function validateExec(
     }).ok;
   };
   const possible = [...sources.values()].filter(builds).length * targets.length;
-  if (ran.output.translations === undefined) {
-    return { findings: [], handedOver: 0, possible };
-  }
-  const parsed = execTranslationsSchema.safeParse(ran.output.translations);
-  if (!parsed.success) {
-    throw new CliError(
-      `exec "${command}" emitted invalid translations: a map of language to id to text, or to { text, state: "translated" }`,
-    );
-  }
-  const findings: Finding[] = [];
   const file = `exec:${command}`;
-  findings.push(...sourceWarnings(file, sourceLanguage, sources, libraryOf));
-  const brokenSources = new Set<string>();
+  // The source is checked whether or not the exporter hands over any
+  // translation of it (#1029).
+  const findings: Finding[] = [];
   const gaps: SourceGaps = new Map();
   for (const entry of sources.values())
     findings.push(
@@ -687,6 +679,17 @@ function validateExec(
         gaps,
       }),
     );
+  if (ran.output.translations === undefined) {
+    return { findings, handedOver: 0, possible };
+  }
+  const parsed = execTranslationsSchema.safeParse(ran.output.translations);
+  if (!parsed.success) {
+    throw new CliError(
+      `exec "${command}" emitted invalid translations: a map of language to id to text, or to { text, state: "translated" }`,
+    );
+  }
+  findings.push(...sourceWarnings(file, sourceLanguage, sources, libraryOf));
+  const brokenSources = new Set<string>();
   let handedOver = 0;
   for (const [language, texts] of Object.entries(parsed.data)) {
     if (!targets.includes(language)) continue;
@@ -775,9 +778,11 @@ async function validateServer(
   const gaps: SourceGaps = new Map();
   for (const entry of snapshot.strings) {
     const library = libraryOf(entry);
+    const sourceFile = origin.get(entry.id)!;
     findings.push(
       ...sourceGaps(entry, {
-        sourceFile: origin.get(entry.id)!,
+        gettext: fileSources.get(sourceFile)?.adapter === "gettext",
+        sourceFile,
         sourceLanguage,
         library,
         richText: richTextFor(entry.type, entry.id, library, config.richText),
@@ -894,9 +899,6 @@ function sourceWarnings(
   ]);
 }
 
-// One translation against its source string: its incomplete plurals,
-// then its errors, a source that does not parse named once per key, on
-// the source's file in the source language.
 // A source plural's categories that its own language's rule picks and
 // it lacks (#1029): Element's English `{ other }` under counterpart,
 // which picks `one` at 1. One finding on the source file each, which
@@ -914,8 +916,13 @@ function sourceGaps(
     library: Library;
     richText: TextReading | undefined;
     gaps: SourceGaps;
+    // A gettext source, whose msgid and msgid_plural are the two forms
+    // gettext picks between by n == 1 in any language: no category of
+    // the language's own is theirs to lack.
+    gettext?: boolean;
   },
 ): Finding[] {
+  if (at.gettext && isMsgidPair(entry.source)) return [];
   // The source against its own language's rule: no sourceLanguage, which
   // would ask of a language of its base the source's own categories.
   const result = validateTranslation(
@@ -954,6 +961,18 @@ function sourceGaps(
   return out;
 }
 
+// A msgid and its msgid_plural as the gettext reader writes them, a
+// plural of one and other on count; an ICU plural a msgid writes itself
+// is checked as any.
+function isMsgidPair(text: string): boolean {
+  const forms = pluralBranches(text);
+  return (
+    text.startsWith("{count, plural, one {") &&
+    forms !== undefined &&
+    Object.keys(forms).join() === "one,other"
+  );
+}
+
 // The source's line names the translations that lack its category too,
 // eight of them, the rest counted.
 function withLackingToo(finding: Finding): Finding {
@@ -967,6 +986,9 @@ function withLackingToo(finding: Finding): Finding {
   };
 }
 
+// One translation against its source string: its incomplete plurals,
+// then its errors, a source that does not parse named once per key, on
+// the source's file in the source language.
 function checkTranslation(
   entry: StringEntry,
   target: string,
