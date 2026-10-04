@@ -307,7 +307,7 @@ test("checkFiles counts the files it parsed, so a clean bill can be honest", () 
   try {
     mkdirSync(path.join(dir, "src", "components"), { recursive: true });
     writeFileSync(
-      path.join(dir, "src", "components", "a.hbs"),
+      path.join(dir, "src", "components", "a.erb"),
       `<p>Stray text</p>\n`,
     );
     writeFileSync(
@@ -355,12 +355,12 @@ test("check refuses a clean bill when it parsed nothing, and counts the files wh
       path.join(dir, "corpus.config.mjs"),
       `export default { project: "p", server: "http://localhost:3000", sourceLanguage: "en", languages: ["en"], sources: [{ adapter: "messages", type: "chrome", path: "i18n/{lang}.json" }] };\n`,
     );
-    writeFileSync(path.join(dir, "src", "a.hbs"), `<p>Stray text</p>\n`);
+    writeFileSync(path.join(dir, "src", "a.erb"), `<p>Stray text</p>\n`);
     const unread = ctx();
     expect(await run(["check"], unread.c)).toBe(1);
     expect(unread.out).toEqual([]);
     expect(unread.err.join("\n")).toMatch(
-      /corpus: check parsed no files in src; it reads \.jsx, \.tsx, \.vue and \.svelte/,
+      /corpus: check parsed no files in src; it reads \.jsx, \.tsx, \.vue, \.svelte, \.hbs and \.handlebars/,
     );
 
     // A second include that does parse must not buy a clean bill for the
@@ -372,7 +372,7 @@ test("check refuses a clean bill when it parsed nothing, and counts the files wh
       mkdirSync(path.join(two, "app"));
       mkdirSync(path.join(two, "src"));
       writeFileSync(path.join(two, "i18n", "en.json"), "{}\n");
-      writeFileSync(path.join(two, "src", "a.hbs"), `<p>Stray text</p>\n`);
+      writeFileSync(path.join(two, "src", "a.erb"), `<p>Stray text</p>\n`);
       writeFileSync(
         path.join(two, "app", "ok.tsx"),
         `export const O = () => <p>{x}</p>;\n`,
@@ -587,4 +587,27 @@ test("in JSX a text that is wholly a URL is no finding, a label always text (#10
     "username",
     "name",
   ]);
+});
+
+test("check reads Handlebars templates, .hbs and .handlebars, as Zulip writes them (#1027)", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-check-"));
+  try {
+    mkdirSync(path.join(dir, "web", "templates"), { recursive: true });
+    writeFileSync(
+      path.join(dir, "web", "templates", "row.hbs"),
+      `<div>Mark all as read {{t "Cancel"}}</div>\n`,
+    );
+    writeFileSync(
+      path.join(dir, "web", "templates", "panel.handlebars"),
+      `<p>{{#tr}}Nothing to see{{/tr}}</p>\n<p>Stray</p>\n`,
+    );
+    const result = checkFiles(dir, { include: ["web"] });
+    expect(result.scanned).toEqual([{ dir: "web", parsed: 2 }]);
+    expect(result.findings.map((f) => [f.file, f.line, f.text])).toEqual([
+      ["web/templates/panel.handlebars", 2, "Stray"],
+      ["web/templates/row.hbs", 1, "Mark all as read"],
+    ]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

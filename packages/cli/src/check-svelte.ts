@@ -16,11 +16,11 @@ import {
 } from "./check";
 import { markupLiterals } from "./check-vue";
 
-const blank = (text: string) => text.replace(/[^\n]/g, " ");
+export const blank = (text: string) => text.replace(/[^\n]/g, " ");
 // An expression's place, kept so it divides the text around it as a JSX
 // expression does: `{n}% - {speed}/s` is no words (#1025).
 const GAP = "\u0001";
-const gap = (text: string) => text.replace(/[^\n]/g, GAP);
+export const gap = (text: string) => text.replace(/[^\n]/g, GAP);
 
 // The `}` that closes the `{` at `at`, past nested braces and the
 // strings an expression holds; the text's end where none does.
@@ -75,6 +75,18 @@ export function findSvelteLiterals(
   file: string,
   options: FindOptions = {},
 ): Finding[] {
+  return literalsIn(markupOf(source), source, file, options);
+}
+
+// The findings in markup whose expressions are gaps, each at its line
+// in `source`, which the markup keeps character for character: Svelte's
+// and Handlebars' (#1027).
+export function literalsIn(
+  markup: string,
+  source: string,
+  file: string,
+  options: FindOptions = {},
+): Finding[] {
   const lineAt = (offset: number) => source.slice(0, offset).split("\n").length;
   const silenced = new Set<number>();
   source.split("\n").forEach((line, index) => {
@@ -92,7 +104,7 @@ export function findSvelteLiterals(
   };
   // Each piece between expressions on its own, at its first character;
   // `raw` starts at `offset`.
-  markupLiterals(markupOf(source), 0, (offset, raw) => {
+  markupLiterals(markup, 0, (offset, raw) => {
     let at = 0;
     for (const piece of raw.split(new RegExp(`${GAP}+`))) {
       const start = raw.indexOf(piece, at);

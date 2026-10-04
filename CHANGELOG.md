@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- `corpus check` reads Handlebars templates (`.hbs`, `.handlebars`), with Zulip's `{{t}}` and `{{#tr}}` as catalogue calls (#1027).
 - A gettext pull no longer fills in the missing forms of a plural entry nobody edited (#981).
 - Switching language on a string page shows that language's own text; the editor no longer keeps the previous language's draft (#979).
 - Gettext files in Cebuano, Manx, Welsh, Filipino, Hebrew and Latvian (older rule), whose `Plural-Forms` cut across CLDR's categories, now show and write every plural form (#982).

@@ -17,7 +17,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      # Only where the UI is .jsx, .tsx, .vue or .svelte components: leave it out otherwise.
+      # Only where the UI is .jsx, .tsx, .vue or .svelte components or Handlebars templates: leave it out otherwise.
       - name: No user-facing text outside the catalogues
         run: npx corpus check
       - name: Every translation in the repository is valid
