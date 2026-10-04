@@ -282,7 +282,8 @@ export function entriesToStrings(
   if (pending.length > 0)
     after.set(last, [...(after.get(last) ?? []), ...pending]);
   for (const [at, lines] of after) {
-    const lead = at === 0 || text[at - 1] === "\n" ? "" : eol;
+    const lead =
+      /^\uFEFF?$/.test(text.slice(0, at)) || text[at - 1] === "\n" ? "" : eol;
     patches.push({ start: at, end: at, text: lead + lines.join(eol) + eol });
   }
   for (const [at, lines] of before)

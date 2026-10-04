@@ -212,6 +212,9 @@ test("UTF-16 is written with its byte-order mark, so a blank UTF-16 file a pull 
   expect(
     applyStringsOps("\uFEFF", [{ kind: "add", id: "new", text: "New" }]),
   ).toBe(`\uFEFF"new" = "New";\n`);
+  expect(entriesToStrings("\uFEFF", { extra: "X" })).toBe(
+    `\uFEFF"extra" = "X";\n`,
+  );
   // A blank UTF-8 file with a mark keeps it, filled from a source without.
   expect(entriesToStrings(`"a" = "A";\n`, { a: "Ä" }, "\uFEFF")).toBe(
     `\uFEFF"a" = "Ä";\n`,
