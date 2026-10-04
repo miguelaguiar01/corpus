@@ -1614,12 +1614,12 @@ describe("a list's items made whole (#1053)", () => {
     }
   });
   test("two lists an empty target lacks each take their own items", () => {
-    const source = `{\n  "a": { "l": [{ "k": "K", "m": "M" }] },\n  "b": { "c": { "l": ["x", "y"] } }\n}\n`;
+    // Both under one key the target lacks, so one build sees both.
+    const source = `{\n  "r": {\n    "a": { "l": [{ "k": "K", "m": "M" }] },\n    "b": { "c": { "l": ["x", "y"] } }\n  }\n}\n`;
     expect(
-      write(source, { "a.l.0.k": "Kd", "b.c.l.1": "Yd" }, "{}\n").out,
+      write(source, { "r.a.l.0.k": "Kd", "r.b.c.l.1": "Yd" }, "{}\n").out,
     ).toEqual({
-      a: { l: [{ k: "Kd", m: "M" }] },
-      b: { c: { l: ["x", "Yd"] } },
+      r: { a: { l: [{ k: "Kd", m: "M" }] }, b: { c: { l: ["x", "Yd"] } } },
     });
   });
   test("an item that lacks a plural takes it as a plural, never as an ICU text", () => {
