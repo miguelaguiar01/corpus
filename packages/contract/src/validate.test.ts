@@ -3353,6 +3353,31 @@ test("a category branch that writes the number 1 and no count, where the languag
   ).toMatchObject({
     incomplete: [{ code: "fixed-count", key: "one", values: [0] }],
   });
+  // A number an exact branch takes never reaches the category: wger's
+  // fr healthSyncStatus, whose =0 leaves one to 1 alone; hr's one still
+  // holds 21.
+  const synced =
+    "{count, plural, =0{none} one{1 entry} other{{count} entries}}";
+  for (const library of ["icu", "gen_l10n"] as const) {
+    expect(
+      validateTranslation(
+        synced,
+        "{count, plural, =0{aucune} one{1 entrée} other{{count} entrées}}",
+        "fr",
+        library,
+      ),
+    ).toEqual({ ok: true });
+    expect(
+      validateTranslation(
+        synced,
+        "{count, plural, =0{bez} one{1 unos} few{{count} unosa} other{{count} unosa}}",
+        "hr",
+        library,
+      ),
+    ).toMatchObject({
+      incomplete: [{ code: "fixed-count", values: [21, 31, 41], more: true }],
+    });
+  }
   // de's one is 1 alone; a branch that prints the count is fine; so is
   // one whose 1 is part of a number, or a count-free text.
   expect(
