@@ -567,3 +567,45 @@ test("a plural's forms split as the reader reads them: a form's own }} pairs sta
     pluralBranches("{count, plural,\n  one {{x} a}\n  other {{x} b}\n}"),
   ).toEqual({ one: "{x} a", other: "{x} b" });
 });
+
+test("in a target, an object of categories at an id the source reads as a plural is that plural whatever its forms, so a broken form is the plural's; a source's still needs its forms to read back (#960)", () => {
+  const rooms = {
+    one: "{count} pokój }",
+    few: "{count} pokoje",
+    other: "{count} pokoi",
+  };
+  for (const plurals of [true, "several"] as const) {
+    expect(
+      messagesToEntries(
+        { rooms },
+        { type: "ui", plurals, pluralIds: new Set(["rooms"]) },
+      ),
+    ).toEqual([
+      {
+        id: "rooms",
+        type: "ui",
+        source:
+          "{count, plural, one {{count} pokój }} few {{count} pokoje} other {{count} pokoi}}",
+      },
+    ]);
+    // Without other too, as #950 reads a target's.
+    expect(
+      messagesToEntries(
+        { rooms: { one: rooms.one, few: rooms.few } },
+        { type: "ui", plurals, pluralIds: new Set(["rooms"]) },
+      ).map((e) => e.id),
+    ).toEqual(["rooms"]);
+  }
+  // A source's, or a target's where the source has keys, stays keys.
+  expect(
+    messagesToEntries({ rooms }, { type: "ui", plurals: true }).map(
+      (e) => e.id,
+    ),
+  ).toEqual(["rooms.one", "rooms.few", "rooms.other"]);
+  expect(
+    messagesToEntries(
+      { rooms },
+      { type: "ui", plurals: true, pluralIds: new Set(["other"]) },
+    ).map((e) => e.id),
+  ).toEqual(["rooms.one", "rooms.few", "rooms.other"]);
+});

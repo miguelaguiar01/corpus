@@ -1317,3 +1317,33 @@ test("an entry-object catalogue takes a translation into its text field only, ev
   ).toBe(odd);
   expect(refused).toEqual(["icu:Greeting", "icu:Bye"]);
 });
+
+describe("a target's plural object with a broken form is the source's plural, pulled back unchanged or fixed in place (#960)", () => {
+  const source = `{\n  "rooms": {\n    "one": "{count} room",\n    "other": "{count} rooms"\n  }\n}\n`;
+  const target = `{\n  "rooms": {\n    "one": "{count} pokój }",\n    "few": "{count} pokoje",\n    "other": "{count} pokoi"\n  }\n}\n`;
+  const broken =
+    "{count, plural, one {{count} pokój }} few {{count} pokoje} other {{count} pokoi}}";
+  test("its own text pulled back changes nothing, and nothing is refused", () => {
+    const refused: string[] = [];
+    expect(
+      entriesToMessages(source, { rooms: broken }, target, {
+        plurals: true,
+        onRefused: (id) => refused.push(id),
+      }),
+    ).toBe(target);
+    expect(refused).toEqual([]);
+  });
+  test("a fixed translation rewrites the broken form alone", () => {
+    expect(
+      entriesToMessages(
+        source,
+        {
+          rooms:
+            "{count, plural, one {{count} pokój} few {{count} pokoje} other {{count} pokoi}}",
+        },
+        target,
+        { plurals: true },
+      ),
+    ).toBe(target.replace("{count} pokój }", "{count} pokój"));
+  });
+});

@@ -1337,6 +1337,46 @@ export default defineCorpus({
   expect(read("i18n/pl.json")).toBe(plFile);
 });
 
+test("a target's plural object with a broken form is seeded as the plural, named by validate as an invalid translation rather than orphans, and pulled back unchanged (#960)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "pl"],
+  sources: [{ adapter: "messages", type: "chrome", library: "icu", path: "i18n/{lang}.json" }],
+});
+`,
+  );
+  writeFileSync(
+    path.join(repo, "i18n", "en.json"),
+    `{\n  "rooms": {\n    "one": "{count} room",\n    "other": "{count} rooms"\n  }\n}\n`,
+  );
+  const plFile = `{\n  "rooms": {\n    "one": "{count} pokój }",\n    "few": "{count} pokoje",\n    "other": "{count} pokoi"\n  }\n}\n`;
+  writeFileSync(path.join(repo, "i18n", "pl.json"), plFile);
+  const { buildSnapshot } = await import("./build");
+  const { loadConfig } = await import("./config");
+  const snapshot = await buildSnapshot(await loadConfig(repo), repo);
+  const pl = snapshot.seedTranslations?.pl?.rooms;
+  expect(pl).toBe(
+    "{count, plural, one {{count} pokój }} few {{count} pokoje} other {{count} pokoi}}",
+  );
+  const v = ctx();
+  expect(await run(["validate"], v)).toBe(1);
+  const said = v.output.join("\n");
+  expect(said).not.toMatch(/no longer has/);
+  expect(said).toMatch(/pl\.json:rooms: /);
+  await serve(200, {
+    ...PAYLOAD,
+    types: { rooms: "chrome" },
+    translations: { en: {}, pl: { rooms: pl } },
+  });
+  expect(await run(["pull", "--check"], ctx())).toBe(0);
+  expect(read("i18n/pl.json")).toBe(plFile);
+});
+
 test("under merge: last-wins the later file's translation is seeded and written, an earlier one only where it agreed, and a pull of what was pushed changes nothing (#953)", async () => {
   writeFileSync(
     path.join(repo, "corpus.config.ts"),
