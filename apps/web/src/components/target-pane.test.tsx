@@ -901,3 +901,25 @@ test("under vue-i18n's default rule the editor says what each form is shown for,
   show();
   expect(screen.queryByText(/vue-i18n's default rule/)).toBeNull();
 });
+
+test("under gen_l10n a plural chip reads =1 as the one it stands for: the language's one, never both (#1039)", () => {
+  render(
+    <TargetPane
+      action={vi.fn()}
+      source="{count, plural, =1{One local change} other{{count} local changes}}"
+      syntax="gen_l10n"
+      slots={[]}
+      language="hr"
+      initialText=""
+      slug="mm"
+      stringKey="k"
+      openedVersion={1}
+      examples={[]}
+      sourceLanguage="en"
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "{count, plural}" }));
+  expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe(
+    "{count, plural, one {{count}} few {{count}} other {{count}}}",
+  );
+});
