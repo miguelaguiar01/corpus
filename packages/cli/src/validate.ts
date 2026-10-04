@@ -637,6 +637,8 @@ export function describe(
     }
     case "missing-category":
       return `plural on {${error.arg}} lacks the ${error.key} branch the runtime picks in its language`;
+    case "fixed-count":
+      return `the ${error.key} branch of {${error.arg}} writes 1, but this language also picks it for ${error.values.join(", ")}${error.more ? " and more" : ""}: write ${written(error.arg)} in it`;
     case "overridden-branch":
       return `plural on {${error.arg}} writes ${error.key} and ${error.category}, which gen-l10n reads as one branch: it keeps the one written later and drops the other`;
     case "wide-exact": {
@@ -1158,7 +1160,8 @@ function checkTranslation(
     severity:
       error.code === "unpassed-selector" ||
       error.code === "chrome-dollar" ||
-      error.code === "wide-exact"
+      error.code === "wide-exact" ||
+      error.code === "fixed-count"
         ? "warning"
         : "incomplete",
     message: describe(error, library),

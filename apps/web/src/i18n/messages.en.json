@@ -31,6 +31,8 @@
   "editor.formMeanings": "Under vue-i18n's default rule, write as many forms as the source, shown for {forms}",
   "editor.formUnused": "unused",
   "editor.missingCategory": "Plural {arg} is missing the {key} branch the runtime picks in this language",
+  "editor.fixedCount": "The {key} branch of {arg} writes 1, but this language also picks it for {values}: write the count in it",
+  "editor.fixedCountMore": "The {key} branch of {arg} writes 1, but this language also picks it for {values} and more: write the count in it",
   "editor.overriddenBranch": "Plural {arg} writes {key} and {category}, which gen-l10n reads as one branch: it keeps the one written later and drops the other",
   "editor.wideExact": "gen-l10n reads {key} on {arg} as {category}, which this language also picks for {values}: write {category} for what they share",
   "editor.wideExactMore": "gen-l10n reads {key} on {arg} as {category}, which this language also picks for {values} and more: write {category} for what they share",

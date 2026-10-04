@@ -26,6 +26,7 @@ import {
   pluralCategoriesOf,
   pluralCategoryCovered,
   integersOf,
+  pluralBranch,
   printfVerbOf,
   proseTagsOf,
   isHtmlElement,
@@ -97,6 +98,16 @@ export type ValidationError =
   // two (#1039): written beside the category, one overrides the other,
   // and an `=N` whose category holds more is printed for those too.
   | { code: "overridden-branch"; arg: string; key: string; category: string }
+  // A category's branch that writes the number 1 and no count, where
+  // the language puts more in the category (#1042): hr's one{1 tjedan}
+  // is printed for 21 weeks.
+  | {
+      code: "fixed-count";
+      arg: string;
+      key: string;
+      values: number[];
+      more?: true;
+    }
   | {
       code: "wide-exact";
       arg: string;
@@ -1274,6 +1285,8 @@ export function validateTranslation(
   // Fluent's writer renders a select inside any variant (#990).
   if (syntax !== "fluent")
     errors.push(...nestingErrors(sourceNodes, targetNodes));
+  if (language !== undefined && CLDR_PICKED.has(syntax))
+    errors.push(...fixedCounts(targetNodes, language, syntax));
   // The source's own text keeps the source's warning, not an error: a
   // translation that is the source cannot be the translator's `#` (#923),
   // nor one that is it restructured (#1009).
@@ -1349,6 +1362,7 @@ export function validateTranslation(
     e.code === "missing-category" ||
     e.code === "unexpected-category" ||
     e.code === "wide-exact" ||
+    e.code === "fixed-count" ||
     e.code === "unpassed-selector" ||
     e.code === "flattened-plural" ||
     e.code === "count-for-marker";
@@ -1441,6 +1455,96 @@ function verbErrors(
   // reads.
   const drop = droppedVerb(expected, actual, changed, errors, verbOf);
   return drop ? [drop] : [...errors, ...changed];
+}
+
+// The libraries whose runtime picks a plural's category by CLDR, as
+// `Intl.PluralRules` reads it (#1042): counterpart's `one` is 1 alone,
+// and the rest pick by a table of their own.
+const CLDR_PICKED = new Set<Library>([
+  "icu",
+  "formatjs",
+  "gen_l10n",
+  "i18next",
+  "fluent",
+]);
+
+// Each cardinal plural's category branch that writes a standalone 1 in
+// its text and prints neither `#` nor its argument, in a language whose
+// category holds other whole numbers: the app shows "1" for them.
+// gen-l10n's `=1`, read as one, is wide-exact's (#1039).
+// A standalone 1, Latin, Arabic-Indic or full-width, and not part of a
+// time, a number or a name: `u 1:30`, `1.5`, `A1` (#1042).
+const FIXED_ONE =
+  /(?<![\p{N}\p{LC}])(?<!\p{N}[.,:])[1\u0661\u06F1\uFF11](?!\p{N}|[.,:]\p{N})/u;
+
+function fixedCounts(
+  nodes: IcuNode[],
+  language: string,
+  library: Library,
+): ValidationError[] {
+  const out: ValidationError[] = [];
+  const prints = (branch: IcuNode[], arg: string): boolean =>
+    branch.some((node) => {
+      if (node.kind === "count") return node.arg === arg;
+      if (node.kind === "placeholder") return node.name === arg;
+      if (node.kind === "tag") return prints(node.children, arg);
+      if (node.kind === "forms")
+        return node.branches.some((b) => prints(b, arg));
+      if (node.kind === "select" || node.kind === "plural")
+        return (
+          node.arg === arg ||
+          Object.values(node.branches).some((b) => prints(b, arg))
+        );
+      return false;
+    });
+  const text = (branch: IcuNode[]): string =>
+    branch
+      .map((node) =>
+        node.kind === "literal"
+          ? node.text
+          : node.kind === "tag"
+            ? text(node.children)
+            : " ",
+      )
+      .join("");
+  const visit = (list: IcuNode[]): void => {
+    for (const node of list) {
+      if (node.kind === "tag") visit(node.children);
+      if (node.kind !== "plural" && node.kind !== "select") continue;
+      for (const branch of Object.values(node.branches)) visit(branch);
+      if (node.kind !== "plural" || node.ordinal) continue;
+      for (const [key, branch] of Object.entries(node.branches)) {
+        if (key.startsWith("=") || key === "other") continue;
+        if (!FIXED_ONE.test(text(branch)) || prints(branch, node.arg)) continue;
+        // The numbers the runtime picks this branch for: not one an `=N`
+        // takes, nor i18next's written zero (#985), nor gen-l10n's written
+        // zero or two, which take exactly 0 and 2 first (#1039).
+        const values = integersOf(language, key).filter(
+          (n) =>
+            n !== 1 &&
+            pluralBranch(node.branches, String(n), language, { library }) ===
+              key &&
+            !(
+              library === "gen_l10n" &&
+              GEN_L10N_EXACT.some(
+                ([exact, category]) =>
+                  Number(exact.slice(1)) === n && category in node.branches,
+              )
+            ),
+        );
+        if (values.length > 0)
+          out.push({
+            code: "fixed-count",
+            arg: node.arg,
+            key,
+            values: values.slice(0, 3),
+            ...(values.length > 3 && { more: true as const }),
+          });
+      }
+    }
+  };
+  visit(nodes);
+  return out;
 }
 
 // gen-l10n's exact keys and the categories it reads them as.

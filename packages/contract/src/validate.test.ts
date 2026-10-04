@@ -3323,3 +3323,118 @@ test("under gen_l10n =0, =1 and =2 are its zero, one and two: a category they st
     ],
   });
 });
+
+test("a category branch that writes the number 1 and no count, where the language's category holds more, is a warning (#1042)", () => {
+  // wger's chartRangeWeeks: English's one is 1 alone.
+  const weeks = "{count, plural, one{1 week} other{{count} weeks}}";
+  const hr =
+    "{count, plural, one{1 tjedan} few{{count} tjedna} other{{count} tjedana}}";
+  for (const library of ["icu", "gen_l10n"] as const)
+    expect(validateTranslation(weeks, hr, "hr", library)).toEqual({
+      ok: true,
+      incomplete: [
+        {
+          code: "fixed-count",
+          arg: "count",
+          key: "one",
+          values: [21, 31, 41],
+          more: true,
+        },
+      ],
+    });
+  // fr's one holds 0.
+  expect(
+    validateTranslation(
+      weeks,
+      "{count, plural, one{1 semaine} other{{count} semaines}}",
+      "fr",
+      "icu",
+    ),
+  ).toMatchObject({
+    incomplete: [{ code: "fixed-count", key: "one", values: [0] }],
+  });
+  // A number an exact branch takes never reaches the category: wger's
+  // fr healthSyncStatus, whose =0 leaves one to 1 alone; hr's one still
+  // holds 21.
+  const synced =
+    "{count, plural, =0{none} one{1 entry} other{{count} entries}}";
+  for (const library of ["icu", "gen_l10n"] as const) {
+    expect(
+      validateTranslation(
+        synced,
+        "{count, plural, =0{aucune} one{1 entrée} other{{count} entrées}}",
+        "fr",
+        library,
+      ),
+    ).toEqual({ ok: true });
+    expect(
+      validateTranslation(
+        synced,
+        "{count, plural, =0{bez} one{1 unos} few{{count} unosa} other{{count} unosa}}",
+        "hr",
+        library,
+      ),
+    ).toMatchObject({
+      incomplete: [{ code: "fixed-count", values: [21, 31, 41], more: true }],
+    });
+  }
+  // i18next takes a written zero for 0 in every language, and gen-l10n
+  // a written zero for 0 and two for 2, before the category.
+  for (const library of ["i18next", "gen_l10n"] as const)
+    expect(
+      validateTranslation(
+        "{count, plural, zero{none} one{1 week} other{{count} weeks}}",
+        "{count, plural, zero{aucune} one{1 semaine} other{{count} semaines}}",
+        "fr",
+        library,
+      ).incomplete?.filter((e) => e.code === "fixed-count") ?? [],
+    ).toEqual([]);
+  // A 1 that is part of a time, a name or a number is no count.
+  for (const one of ["u 1:30", "A1 tjedan", "1.5 tjedan", "1,5 tjedan"])
+    expect(
+      validateTranslation(
+        weeks,
+        `{count, plural, one{${one}} few{{count} tjedna} other{{count} tjedana}}`,
+        "hr",
+        "icu",
+      ),
+    ).toEqual({ ok: true });
+  // Arabic-Indic and full-width digits are the same 1.
+  for (const one of ["۱ هفته", "１ 週"])
+    expect(
+      validateTranslation(
+        weeks,
+        `{count, plural, one{${one}} few{{count} tjedna} other{{count} tjedana}}`,
+        "hr",
+        "icu",
+      ),
+    ).toMatchObject({ incomplete: [{ code: "fixed-count" }] });
+  // de's one is 1 alone; a branch that prints the count is fine; so is
+  // one whose 1 is part of a number, or a count-free text.
+  expect(
+    validateTranslation(
+      weeks,
+      "{count, plural, one{1 Woche} other{{count} Wochen}}",
+      "de",
+      "icu",
+    ),
+  ).toEqual({ ok: true });
+  for (const one of ["{count} tjedan", "# tjedan", "11 tjedana", "tjedan"])
+    expect(
+      validateTranslation(
+        weeks,
+        `{count, plural, one{${one}} few{{count} tjedna} other{{count} tjedana}}`,
+        "hr",
+        "icu",
+      ),
+    ).toEqual({ ok: true });
+  // counterpart picks one for 1 alone, whatever the language.
+  expect(
+    validateTranslation(
+      "{count, plural, one{1 week} other{%(count)s weeks}}",
+      "{count, plural, one{1 tjedan} other{%(count)s tjedana}}",
+      "hr",
+      "counterpart",
+    ).ok,
+  ).toBe(true);
+});
