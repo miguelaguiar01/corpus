@@ -1516,7 +1516,7 @@ export default defineCorpus({
   mkdirSync(path.join(repo, "po"), { recursive: true });
   writeFileSync(
     path.join(repo, "po", "messages.pot"),
-    `msgid ""\nmsgstr ""\n\nmsgid "%d file"\nmsgid_plural "%d files"\nmsgstr[0] ""\nmsgstr[1] ""\n`,
+    `msgid ""\nmsgstr ""\n\nmsgid "%d file"\nmsgid_plural "%d files"\nmsgstr[0] ""\nmsgstr[1] ""\n\n# A brace a msgid holds alone is text to gettext.\nmsgid "%d brace {"\nmsgid_plural "%d braces {"\nmsgstr[0] ""\nmsgstr[1] ""\n`,
   );
   const c = ctx();
   expect(await run(["validate"], c)).toBe(0);
