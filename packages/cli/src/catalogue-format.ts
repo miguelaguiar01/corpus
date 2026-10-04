@@ -13,7 +13,6 @@ const READ = new Set([
 ]);
 
 const NAMED: Record<string, string> = {
-  ".strings": "an Apple .strings catalogue",
   ".stringsdict": "an Apple .stringsdict catalogue",
   ".properties": "a Java .properties catalogue",
   ".resx": "a .NET .resx catalogue",
@@ -48,6 +47,8 @@ export function unreadableCatalogue(
     return `a YAML catalogue: declare it { adapter: "yaml", type, path }`;
   if (ext === ".xcstrings")
     return `a String Catalog: declare it { adapter: "xcstrings", type, path }`;
+  if (ext === ".strings")
+    return `an Apple .strings catalogue: declare it { adapter: "strings", type, path }`;
   if (ext === ".ftl")
     return `a Fluent catalogue: declare it { adapter: "fluent", type, path }`;
   if (ext === ".xml")

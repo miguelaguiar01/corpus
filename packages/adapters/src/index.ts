@@ -9,3 +9,5 @@ export * from "./xcstrings";
 export * from "./qtts";
 export * from "./yaml";
 export * from "./railsplurals";
+export * from "./strings";
+export { decodeText, encodeText, type TextEncoding } from "./text";

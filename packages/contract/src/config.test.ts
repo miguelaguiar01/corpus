@@ -367,7 +367,7 @@ test("a messages or fluent source may name the file code of a language (#657)", 
     "languageFiles names zh-cn, which languages does not list",
   ]);
   expect(refused({ "zh-CN": "cn" }, "table")).toEqual([
-    "languageFiles is for messages, fluent, xliff, gettext, qt-ts and yaml sources",
+    "languageFiles is for messages, fluent, xliff, gettext, qt-ts, strings and yaml sources",
   ]);
 });
 
@@ -1268,4 +1268,37 @@ test("a messages source's entries names its text field and its note field; not u
       entries: { text: "t" },
     }),
   ).toEqual(["entries is no key of a yaml source"]);
+});
+
+test("a strings source reads Apple's .strings, one pattern, printf unless the library says else (#1037)", () => {
+  const base = {
+    project: "p",
+    server: "http://localhost:3000",
+    sourceLanguage: "en",
+    languages: ["en", "de", "zh-Hans"],
+  };
+  const issues = (source: object) => {
+    const parsed = corpusConfigSchema.safeParse({ ...base, sources: [source] });
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  const stats = {
+    adapter: "strings",
+    type: "ui",
+    path: "Stats/Supporting Files/{lang}.lproj/Localizable.strings",
+  };
+  expect(issues(stats)).toEqual([]);
+  expect(
+    issues({
+      ...stats,
+      library: "icu",
+      languageFiles: { en: "Base" },
+      namespace: "app",
+      languages: ["de"],
+      generated: true,
+    }),
+  ).toEqual([]);
+  expect(issues({ ...stats, path: "L.strings" })).toEqual([
+    "path must contain {lang}",
+  ]);
+  expect(issues({ ...stats, path: [stats.path, stats.path] })).toHaveLength(1);
 });

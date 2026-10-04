@@ -369,7 +369,8 @@ type InitSource = {
     | "qt-ts"
     | "yaml"
     | "fluent"
-    | "android";
+    | "android"
+    | "strings";
   type: string;
   path: string;
   sourcePath?: string;
@@ -537,6 +538,17 @@ function formatOf(
       adapter: "gettext",
       ...(templates.length === 1 && { sourcePath: templates[0] }),
     };
+  }
+  // Apple's `Localizable.strings` (#1037), Xcode's `{lang}.lproj`.
+  if (/\.strings$/i.test(messages)) {
+    refuseNamespace(messages, "strings");
+    if (missing) {
+      gitIgnored(ctx, relative);
+      throw new CliError(
+        `--messages ${messages}: no ${relative} to read the source language's strings from`,
+      );
+    }
+    return { adapter: "strings" };
   }
   // Rails I18n's YAML (#754): one file per language, rooted at its code.
   // Any other YAML (Symfony's, Hugo's) is refused here, by what it holds,
