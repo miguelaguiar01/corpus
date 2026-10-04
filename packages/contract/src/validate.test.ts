@@ -3440,11 +3440,12 @@ test("a category branch that writes the number 1 and no count, where the languag
 });
 
 test("an =N branch in a plural read whole is invalid: the catalogue's plurals hold categories only (#1051)", () => {
-  for (const [library, one, other] of [
-    ["printf", "%d file", "%d files"],
-    ["rails", "%{count} file", "%{count} files"],
-    ["qt", "%n file", "%n files"],
-    ["i18next", "{{count}} file", "{{count}} files"],
+  // Rails and i18next pick a written zero for 0 (#983, #985).
+  for (const [library, one, other, zero] of [
+    ["printf", "%d file", "%d files", "other"],
+    ["rails", "%{count} file", "%{count} files", "zero"],
+    ["qt", "%n file", "%n files", "other"],
+    ["i18next", "{{count}} file", "{{count}} files", "zero"],
   ] as const) {
     const source = `{count, plural, one {${one}} other {${other}}}`;
     expect(
@@ -3458,7 +3459,7 @@ test("an =N branch in a plural read whole is invalid: the catalogue's plurals ho
     ).toEqual({
       ok: false,
       errors: [
-        { code: "exact-branch", arg: "count", key: "=0", category: "other" },
+        { code: "exact-branch", arg: "count", key: "=0", category: zero },
       ],
     });
   }

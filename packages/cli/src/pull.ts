@@ -525,7 +525,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
   const refusals = () => {
     if (notWritten > 0)
       ctx.err(
-        `corpus: ${notWritten} translation(s) could not be written; fix them in Corpus`,
+        `corpus: ${notWritten} translation(s) could not be written, each named above with why`,
       );
   };
   if (check) {

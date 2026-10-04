@@ -1499,9 +1499,14 @@ function exactBranches(
 ): ValidationError[] {
   return nodes.flatMap((node) => {
     if (node.kind !== "plural") return [];
+    // The categories the library and the file let a translation write,
+    // so the advice names a branch the runtime would pick for N.
+    const picked = pluralForms?.filter((key) => !key.startsWith("="));
     const categories = Object.fromEntries(
       [
-        ...(language ? pluralCategoriesOf(language, node.ordinal) : []),
+        ...(language
+          ? pluralCategoriesFor(language, library, picked, node.ordinal).allowed
+          : []),
         "other",
       ].map((category) => [category, true]),
     );
@@ -1514,6 +1519,7 @@ function exactBranches(
         category: pluralBranch(categories, key.slice(1), language, {
           ordinal: node.ordinal,
           library,
+          ...(picked && { picked }),
         }),
       }));
   });

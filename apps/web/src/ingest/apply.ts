@@ -72,12 +72,16 @@ function seedInvalid(
   id: string,
   sourceLanguage: string,
   placeholders?: Library[] | null,
+  // The file's own plural forms for the language, an `=N` among them
+  // being the file's (#982, #1051).
+  pluralForms?: readonly string[] | null,
 ): boolean {
   if (text === source || (PLAIN.test(source) && PLAIN.test(text))) return false;
   return !validateTranslation(source, text, language, library, {
     richText,
     ...(passed && { arguments: passed }),
     ...(placeholders && { placeholders }),
+    ...(pluralForms && { pluralForms }),
     ...(library === "fluent" && isFluentTermId(id) && { term: true }),
     sourceLanguage,
   }).ok;
@@ -242,6 +246,7 @@ function stringWrites(
         entry.id,
         sourceLanguage,
         entry.placeholders,
+        entry.pluralForms?.[language],
       );
     });
   const refresh = tx
@@ -664,6 +669,7 @@ function projectStrings(db: Db, projectId: number) {
       arguments: strings.arguments,
       languages: strings.languages,
       placeholders: strings.placeholders,
+      pluralForms: strings.pluralForms,
     })
     .from(strings)
     .where(eq(strings.projectId, projectId))
@@ -833,6 +839,7 @@ function applySeeds(
           stringId,
           snapshot.sourceLanguage,
           string.placeholders,
+          string.pluralForms?.[language],
         );
       // A seed the row already holds is nothing: no write, no count, and
       // the editor's "changed since you opened it" stays quiet. Its mark
@@ -943,6 +950,7 @@ function remarkSeeds(
         syntax: strings.syntax,
         arguments: strings.arguments,
         placeholders: strings.placeholders,
+        pluralForms: strings.pluralForms,
       })
       .from(stringTranslations)
       .innerJoin(strings, eq(strings.id, stringTranslations.stringId))
@@ -967,6 +975,7 @@ function remarkSeeds(
         row.key,
         sourceLanguage,
         row.placeholders,
+        row.pluralForms?.[row.language],
       );
       if (invalid !== row.invalid)
         mark.run({
