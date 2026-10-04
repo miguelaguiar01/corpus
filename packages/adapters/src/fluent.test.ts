@@ -29,7 +29,8 @@ dismiss = Descartar
 
 test("messages read as ICU: variables and references are placeholders, a select on a count is a plural, a multi-line value keeps its line break (#597)", () => {
   expect(fluentToEntries(SOURCE, { type: "ui" })).toEqual([
-    { id: "trash", type: "ui", source: "Trash" },
+    // Fluent attaches a comment directly above (#1034).
+    { id: "trash", type: "ui", source: "Trash", note: "Files" },
     { id: "empty-trash", type: "ui", source: "Empty {@trash}" },
     {
       id: "operations-running",
