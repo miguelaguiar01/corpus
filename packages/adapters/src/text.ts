@@ -71,3 +71,53 @@ export function ownRecord<T>(record: Record<string, T>): Record<string, T> {
 export function usedIn(locations: string[]): string[] {
   return locations.length ? [`Used in ${locations.join(" ")}`] : [];
 }
+
+// A file's text by its bytes (#1037): UTF-16 where a byte-order mark says
+// so, as Xcode may write a `.strings` file, UTF-8 otherwise; the mark is
+// kept in the text, and a write takes the encoding the read found.
+export type TextEncoding = "utf8" | "utf16le" | "utf16be";
+
+export function decodeText(bytes: Uint8Array): {
+  text: string;
+  encoding: TextEncoding;
+} {
+  const encoding: TextEncoding =
+    bytes[0] === 0xff && bytes[1] === 0xfe
+      ? "utf16le"
+      : bytes[0] === 0xfe && bytes[1] === 0xff
+        ? "utf16be"
+        : "utf8";
+  if (encoding === "utf8")
+    return {
+      text: new TextDecoder("utf-8", { ignoreBOM: true }).decode(bytes),
+      encoding,
+    };
+  // Code unit by code unit: a runtime's decoder may lack UTF-16BE.
+  const units: string[] = [];
+  for (let i = 0; i + 1 < bytes.length; i += 2) {
+    const [a, b] = [bytes[i]!, bytes[i + 1]!];
+    units.push(
+      String.fromCharCode(encoding === "utf16le" ? a | (b << 8) : (a << 8) | b),
+    );
+  }
+  const text = units.join("");
+  return { text, encoding };
+}
+
+// UTF-16 is written with its byte-order mark, which tells the next read
+// it is UTF-16, whether or not the text kept one.
+export function encodeText(text: string, encoding: TextEncoding): Uint8Array {
+  if (encoding === "utf8") return new TextEncoder().encode(text);
+  if (!text.startsWith("\uFEFF")) text = `\uFEFF${text}`;
+  const out = new Uint8Array(text.length * 2);
+  for (let i = 0; i < text.length; i++) {
+    const unit = text.charCodeAt(i);
+    const [first, second] =
+      encoding === "utf16le"
+        ? [unit & 0xff, unit >> 8]
+        : [unit >> 8, unit & 0xff];
+    out[i * 2] = first;
+    out[i * 2 + 1] = second;
+  }
+  return out;
+}

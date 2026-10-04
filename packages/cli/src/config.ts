@@ -422,6 +422,7 @@ const PROPOSABLE = new Set([
   "fluent",
   "xliff",
   "yaml",
+  "strings",
 ]);
 
 function markGenerated(

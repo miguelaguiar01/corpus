@@ -1,0 +1,3 @@
+/* The menu bar title */
+"apple.title" = "Menu";
+"apple.quit" = "Sair de %@";

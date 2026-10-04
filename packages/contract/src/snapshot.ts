@@ -29,7 +29,15 @@ export const entityTypeDeclarationSchema = z.looseObject({
 // The sources pull can rewrite in place (§4): where a new string may go.
 export const writableSourceSchema = z.looseObject({
   path: z.string().min(1),
-  adapter: z.enum(["messages", "table", "android", "fluent", "xliff", "yaml"]),
+  adapter: z.enum([
+    "messages",
+    "table",
+    "android",
+    "fluent",
+    "xliff",
+    "yaml",
+    "strings",
+  ]),
   type: identifier(),
   // The namespace a `{ns}` pattern captured for this file (#582): its
   // ids are `ns:key`, and a new string proposed into it takes the prefix.

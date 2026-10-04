@@ -340,6 +340,20 @@ const xcstringsSchema = z.looseObject({
   generated,
 });
 
+// Apple's old-style `Localizable.strings` (#1037): a file per language,
+// Xcode's `{lang}.lproj/`; printf unless the library says else.
+const stringsSchema = z.looseObject({
+  adapter: z.literal("strings"),
+  type: identifier(),
+  path: noNamespace("strings", onePattern("strings")),
+  library: configLibrarySchema.optional(),
+  languageFiles,
+  pluralRules,
+  namespace,
+  languages: sourceLanguages,
+  generated,
+});
+
 // How the patterns of one source merge an id two of them hold (#953):
 // "strict", one text in every file, or "last-wins", the later pattern's,
 // as an app that merges its catalogues in order reads them.
@@ -373,6 +387,7 @@ const sourceInputSchema = z.discriminatedUnion("adapter", [
   gettextSchema,
   xcstringsSchema,
   qtTsSchema,
+  stringsSchema,
   z.looseObject({
     ...yamlFields,
     path: patterns(noNamespace("yaml", langPattern)),
@@ -419,6 +434,7 @@ const sourceSchema = z.discriminatedUnion("adapter", [
   gettextSchema,
   xcstringsSchema,
   qtTsSchema,
+  stringsSchema,
   z.looseObject({
     ...yamlFields,
     path: noNamespace("yaml", langPattern),
