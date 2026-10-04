@@ -2441,20 +2441,22 @@ function refusal(
       advice: `; {} is easy_localization's positional placeholder: declare library: "easy_localization" on the source`,
     };
   }
-  // `{'@'}` is vue-i18n's literal interpolation (#1046), as vue reads
-  // it: not ICU's apostrophe quoting of a brace (`'{'0'}'`), and not in
-  // a Fluent text, whose literal is `{"@"}`.
+  // `{'@'}` is vue-i18n's literal interpolation (#1046), spaced or
+  // escaped as vue reads it, in a text vue reads whole: not ICU's
+  // apostrophe quoting of a brace (`'{'0'}'`), not a Fluent text, whose
+  // literal is `{"@"}`.
+  const literal = /(?<!')\{\s*'(?:[^'\\\n]|\\.)*'\s*\}/.exec(source);
   if (
     library !== "vue" &&
     library !== "fluent" &&
     badName &&
-    /^'[^']*'$/.test(badName[1]!) &&
-    source.includes(`{${badName[1]}}`) &&
-    !source.includes(`'{${badName[1]}}`)
+    /^\s*'/.test(badName[1]!) &&
+    literal &&
+    parseIcu(source, "vue").ok
   ) {
     return {
       cause: "library",
-      advice: `; {${badName[1]}} is vue-i18n's literal interpolation: declare library: "vue" on the source`,
+      advice: `; ${literal[0]} is vue-i18n's literal interpolation: declare library: "vue" on the source`,
     };
   }
   const unsupported = /^argument type "([^"]+)" is not supported/.exec(message);

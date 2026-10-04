@@ -1307,8 +1307,16 @@ async function libraryFor(
       read.push(at);
       readConcretes.push(concrete);
     } catch (error) {
-      // A missing source file is said where the languages are read.
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+      // A plain pattern's missing source file is said where the
+      // languages are read; any other file that does not read is named.
+      const { code, path: missing } = error as NodeJS.ErrnoException;
+      if (
+        code === "ENOENT" &&
+        !pattern.includes("{ns}") &&
+        missing !== undefined &&
+        path.resolve(cwd, missing) === path.resolve(cwd, at)
+      )
+        continue;
       const reason = (error instanceof Error ? error.message : String(error))
         .split("\n")[0]!
         .trim();
