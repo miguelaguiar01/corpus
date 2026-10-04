@@ -1151,7 +1151,9 @@ function checkTranslation(
     language,
     code: error.code,
     severity:
-      error.code === "unpassed-selector" || error.code === "chrome-dollar"
+      error.code === "unpassed-selector" ||
+      error.code === "chrome-dollar" ||
+      error.code === "wide-exact"
         ? "warning"
         : "incomplete",
     message: describe(error, library),
