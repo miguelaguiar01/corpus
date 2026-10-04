@@ -54,6 +54,7 @@ import {
   namespaced,
   placeholdersOf,
   argumentsOf,
+  misnamedSources,
   unknownArguments,
   takesLanguage,
 } from "./build";
@@ -265,6 +266,8 @@ export async function validateRepo(
   config: CorpusConfig,
   cwd: string,
 ): Promise<{ findings: Finding[]; unchecked: Unchecked[] }> {
+  const misnamed = misnamedSources(config);
+  if (misnamed.length > 0) throw new CliError(misnamed.join("\n"));
   const jiti = createJiti(import.meta.url);
   const findings: Finding[] = [];
   const unchecked: Unchecked[] = [];

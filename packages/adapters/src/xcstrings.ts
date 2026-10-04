@@ -39,7 +39,20 @@ type XcCatalog = {
 };
 
 export function parseXcstrings(text: string): XcCatalog {
-  const data = JSON.parse(text.replace(/^\uFEFF/, "")) as Partial<XcCatalog>;
+  const body = text.replace(/^\uFEFF/, "");
+  let data: Partial<XcCatalog>;
+  try {
+    data = JSON.parse(body) as Partial<XcCatalog>;
+  } catch (error) {
+    // One line, at the line JSON stops at, never Node's message with
+    // the file's start in it (#1035).
+    const at = /position (\d+)/.exec((error as Error).message)?.[1];
+    const line =
+      at === undefined ? 1 : body.slice(0, Number(at)).split("\n").length;
+    throw new Error(`not a String Catalog: it is not JSON (line ${line})`, {
+      cause: error,
+    });
+  }
   if (
     typeof data !== "object" ||
     data === null ||

@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- A source whose path its adapter does not read, a `.strings` file declared as a String Catalog say, is refused once, naming the file's format and the adapter that reads it (#1035).
 - A Fluent message's or term's attached `#` comment is its note, shown to translators and agents (#1034).
 - `corpus validate` warns where a Fluent translation passes a term an argument, or selects on a term attribute, that the locale's own term does not have (#1033).
 - An agent's `get_string` lists, under a type read as HTML, the placeholders a translation must keep inside its tags' attributes (#1030).
