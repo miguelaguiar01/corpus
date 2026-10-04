@@ -21,6 +21,11 @@ type Message = {
   valueStart: number;
   valueEnd: number;
   attribute?: string;
+  // The `#` comment directly above, which Fluent attaches to the entry
+  // (`##` and `###` are a group's and a resource's): where it starts, so
+  // a removal takes it, and its text, the entry's note (#1034).
+  commentStart?: number;
+  note?: string;
 };
 
 type Style = {
@@ -96,6 +101,16 @@ function messages(text: string): Message[] {
       } else if (line.trim() !== "") break;
     }
     const start = offsets[i]! + skip;
+    // A line as Fluent reads it, the first without its byte-order mark.
+    const bare = (n: number) =>
+      lines[n]!.slice(n === 0 ? bom : 0).replace(/\r$/, "");
+    let first = i;
+    while (first > 0 && /^#(?: |$)/.test(bare(first - 1))) first -= 1;
+    const comment = lines
+      .slice(first, i)
+      .map((_, k) => bare(first + k).replace(/^# ?/, ""));
+    const note =
+      comment.join("\n").trim() === "" ? undefined : comment.join("\n");
     const endOf = (line: number) =>
       offsets[line]! + lines[line]!.replace(/\r$/, "").length;
     out.push({
@@ -105,6 +120,10 @@ function messages(text: string): Message[] {
       valueStart: start + head[0].length,
       valueEnd: endOf(valueLast < 0 ? last : valueLast),
       ...(attribute && { attribute }),
+      ...(first < i && {
+        commentStart: offsets[first]! + (first === 0 ? bom : 0),
+      }),
+      ...(note !== undefined && { note }),
     });
     i = last;
   }
@@ -400,6 +419,7 @@ export function fluentToEntries(
         id: message.id,
         type: options.type,
         source: toIcu(text, message),
+        ...(message.note !== undefined && { note: message.note }),
       });
     } catch (error) {
       if (!(error instanceof Refusal)) throw error;
@@ -625,7 +645,12 @@ function patch(text: string, changes: Change[], template: Template): string {
       let end = message.end;
       if (text[end] === "\r") end++;
       if (text[end] === "\n") end++;
-      patches.push({ start: message.start, end, text: "" });
+      // Its comment goes with it, never left above the next entry.
+      patches.push({
+        start: message.commentStart ?? message.start,
+        end,
+        text: "",
+      });
     } else if (message) {
       const end = whole ? message.end : message.valueEnd;
       const current = toIcu(text, message);

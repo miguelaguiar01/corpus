@@ -29,7 +29,8 @@ dismiss = Descartar
 
 test("messages read as ICU: variables and references are placeholders, a select on a count is a plural, a multi-line value keeps its line break (#597)", () => {
   expect(fluentToEntries(SOURCE, { type: "ui" })).toEqual([
-    { id: "trash", type: "ui", source: "Trash" },
+    // Fluent attaches a comment directly above (#1034).
+    { id: "trash", type: "ui", source: "Trash", note: "Files" },
     { id: "empty-trash", type: "ui", source: "Empty {@trash}" },
     {
       id: "operations-running",
@@ -678,4 +679,71 @@ test("a term written twice in one file is its first definition, as FluentBundle 
     `-brand = { $case ->\n   *[nom] Relay\n  }\n-brand = Relay\n`,
   );
   expect([...terms.get("-brand")!.variables]).toEqual(["case"]);
+});
+
+test("the # comment directly above a message or a term is its note; one a blank line parts, and ## and ### comments, are no note (#1034)", () => {
+  const ftl = `### Resource comment
+
+## Group comment
+
+# This will be read to screen readers when focusing the button.
+# Variables:
+#   $address (string) - Mask address, e.g. wz7n0vykd@mozmail.com.
+profile-label-click-to-copy-alt = Click to copy mask { $address }.
+
+# Parted by a blank line.
+
+parted = Parted
+# The brand, never translated.
+-brand = Relay
+## Group comment above a message
+grouped = Grouped
+#
+empty-note = Empty
+`;
+  expect(
+    fluentToEntries(ftl, { type: "ui" }).map((e) => [e.id, e.note]),
+  ).toEqual([
+    [
+      "profile-label-click-to-copy-alt",
+      "This will be read to screen readers when focusing the button.\nVariables:\n  $address (string) - Mask address, e.g. wz7n0vykd@mozmail.com.",
+    ],
+    ["parted", undefined],
+    ["-brand", "The brand, never translated."],
+    ["grouped", undefined],
+    ["empty-note", undefined],
+  ]);
+});
+
+test("a proposal that removes a message takes its comment with it, and a pull leaves comments as they are (#1034)", () => {
+  const ftl = `# Keep me.\nkept = Kept\n# Remove me.\n# Two lines.\ngone = Gone\nafter = After\n`;
+  expect(applyFluentOps(ftl, [{ kind: "delete", id: "gone" }])).toBe(
+    `# Keep me.\nkept = Kept\nafter = After\n`,
+  );
+  expect(entriesToFluent(ftl, { kept: "Kept" }, ftl)).toBe(ftl);
+  // A new file from the source leaves an untranslated message out, its
+  // comment with it.
+  expect(entriesToFluent(ftl, { kept: "Mantido" }, undefined)).toBe(
+    `# Keep me.\nkept = Mantido\n`,
+  );
+});
+
+test("a comment on a byte-order-marked file's first line is its first entry's note, and a removal takes it, the mark kept (#1034 review)", () => {
+  const bom = "﻿";
+  expect(
+    fluentToEntries(`${bom}# bom note\na = A\nb = B\n`, { type: "ui" })[0]
+      ?.note,
+  ).toBe("bom note");
+  expect(
+    applyFluentOps(`${bom}# bom note\na = A\nb = B\n`, [
+      { kind: "delete", id: "a" },
+    ]),
+  ).toBe(`${bom}b = B\n`);
+  expect(
+    entriesToFluent(
+      `${bom}# first\nfirst = First\n# term\n-brand = R\n`,
+      { "-brand": "R" },
+      undefined,
+    ),
+  ).toBe(`${bom}# term\n-brand = R\n`);
 });

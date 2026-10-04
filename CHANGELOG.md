@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- A Fluent message's or term's attached `#` comment is its note, shown to translators and agents (#1034).
 - `corpus validate` warns where a Fluent translation passes a term an argument, or selects on a term attribute, that the locale's own term does not have (#1033).
 - An agent's `get_string` lists, under a type read as HTML, the placeholders a translation must keep inside its tags' attributes (#1030).
 - `corpus validate` names a plural category the source itself lacks once, on the source, with the translations that lack it too, rather than once per language (#1029).
