@@ -1306,16 +1306,14 @@ class Parser {
           `gen-l10n formats only date and time, with a ::skeleton such as {d, date, ::yMd}; write {${name}} and format it in the code`,
           start,
         );
-      // Its skeletons are intl's DateFormat constructors, joined by +.
+      // Its skeleton is one of intl's DateFormat constructors; only an
+      // `@key` placeholder's format joins several by +, never the text.
       if (
         this.syntax === "gen_l10n" &&
-        !style!
-          .slice(2)
-          .split("+")
-          .every((part) => GEN_L10N_DATE_FORMATS.has(part.trim()))
+        !GEN_L10N_DATE_FORMATS.has(style!.slice(2).trim())
       )
         throw new ParseFailure(
-          `gen-l10n has no DateFormat for ${JSON.stringify(style)}: a skeleton is one of intl's named formats, yMd, yMMMd, jm and the like, joined by +`,
+          `gen-l10n has no DateFormat for ${JSON.stringify(style)}: a skeleton is one of intl's named formats, yMd, yMMMd, jm and the like`,
           start,
         );
       // Fluent formats through NUMBER() and DATETIME(), whose options a

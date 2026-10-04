@@ -1175,8 +1175,10 @@ test("under gen_l10n a # the source writes in its text is the source's in every 
   ).toBe(true);
   const read = (text: string) => parseIcu(text, "gen_l10n").ok;
   expect(read("{d, date, ::yMMMd}")).toBe(true);
-  expect(read("{d, date, ::yMd+jm}")).toBe(true);
+  expect(read("{d, date, :: yMMMd }")).toBe(true);
   for (const text of [
+    "{d, date, ::yMd+jm}",
+    "{d, date, ::yMMMd + jm}",
     "{d, date, ::yMMM d}",
     "{d, date, ::y-MM}",
     "{d, date, ::yyyyMMdd}",
