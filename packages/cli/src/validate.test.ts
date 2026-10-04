@@ -1606,17 +1606,19 @@ export default defineCorpus({
   ftl(
     "en",
     `-brand = { $capitalization ->\n   *[lower] account\n    [upper] Account\n  }\n-relay = Relay\n    .gender = feminine\n`,
-    `a = Your { -brand(capitalization: "upper") }\nb = { -relay.gender ->\n    [feminine] She\n   *[other] It\n  }\n`,
+    `a = Your { -brand(capitalization: "upper") }\nb = { -relay.gender ->\n    [feminine] She\n   *[other] It\n  }\nc = The { -relay } service\n`,
   );
   ftl(
     "id",
     `-brand = { $capitalization ->\n   *[lower] akun\n    [upper] Akun\n  }\n-relay = Relay\n    .gender = feminine\n`,
-    `a = { -brand(kapitalisasi: "upper") } Anda\nb = { -relay.gender ->\n    [feminine] Dia\n   *[other] Itu\n  }\n`,
+    `a = { -brand(kapitalisasi: "upper") } Anda\nb = { -relay.gender ->\n    [feminine] Dia\n   *[other] Itu\n  }\nc = Layanan { -relay }\n`,
   );
   ftl(
     "cs",
     `-brand = { $capitalization ->\n   *[lower] účet\n    [upper] Účet\n  }\n-relay = Relay\n`,
-    `a = Váš { -brand(capitalization: "upper") }\nb = { -relay.gender ->\n    [feminine] Ona\n   *[other] To\n  }\n`,
+    // Relay's Czech passes case to brand terms it declines in none: the
+    // term reads no variable, so the text is the same either way.
+    `a = Váš { -brand(capitalization: "upper") }\nb = { -relay.gender ->\n    [feminine] Ona\n   *[other] To\n  }\nc = Služba { -relay(case: "gen") }\n`,
   );
   const c = ctx();
   expect(await run(["validate"], c)).toBe(0);
