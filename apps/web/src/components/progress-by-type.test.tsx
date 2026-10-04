@@ -285,7 +285,6 @@ test("a source variant sorts after every target, labelled as falling back to the
       sourceVariants={["en-GB"]}
     />,
   );
-  const headings = screen.getAllByRole("heading").map((h) => h.textContent);
   // A line of its own under the heading, so the counts beside it keep
   // their room at phone width.
   const heading = screen.getAllByRole("heading").at(-1)!;
