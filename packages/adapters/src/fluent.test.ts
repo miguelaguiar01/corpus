@@ -672,3 +672,10 @@ plain = Not a term { $n }
     "-relay": { variables: ["case"], attributes: ["gender", "short"] },
   });
 });
+
+test("a term written twice in one file is its first definition, as FluentBundle keeps it (#1033 review)", () => {
+  const terms = fluentTerms(
+    `-brand = { $case ->\n   *[nom] Relay\n  }\n-brand = Relay\n`,
+  );
+  expect([...terms.get("-brand")!.variables]).toEqual(["case"]);
+});
