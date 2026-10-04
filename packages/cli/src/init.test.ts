@@ -569,7 +569,7 @@ test("check.include is not written when src alone holds the components, nor when
   // Nothing found is said, so the first corpus check is no surprise.
   // A messages catalogue may be any UI: both ways out are said (#1016).
   expect(none.out.join("\n")).toContain(
-    "check.include: init found no .jsx, .tsx, .vue or .svelte components where it looks; set check.include in corpus.config.ts to where they are, or, if the UI is written in something else (C, GTK, Angular, Handlebars, templates), corpus check does not apply: leave it out of CI",
+    "check.include: init found no .jsx, .tsx, .vue, .svelte, .hbs or .handlebars components where it looks; set check.include in corpus.config.ts to where they are, or, if the UI is written in something else (C, GTK, Angular, templates), corpus check does not apply: leave it out of CI",
   );
 });
 
@@ -582,7 +582,7 @@ test("a Qt, Android or Apple project with no components is told corpus check doe
   );
   expect(await run(initFor("lang/app_{lang}.ts"), qt.ctx)).toBe(0);
   expect(qt.out.join("\n")).toContain(
-    "corpus check reads .jsx, .tsx, .vue and .svelte components, which a Qt interface has none of: leave corpus check out of CI",
+    "corpus check reads .jsx, .tsx, .vue, .svelte, .hbs and .handlebars components, which a Qt interface has none of: leave corpus check out of CI",
   );
   expect(qt.out.join("\n")).not.toMatch(/set check\.include/);
   const android = project();
@@ -593,7 +593,7 @@ test("a Qt, Android or Apple project with no components is told corpus check doe
   );
   expect(await run(initFor("res"), android.ctx)).toBe(0);
   expect(android.out.join("\n")).toContain(
-    "corpus check reads .jsx, .tsx, .vue and .svelte components, which an Android app has none of: leave corpus check out of CI",
+    "corpus check reads .jsx, .tsx, .vue, .svelte, .hbs and .handlebars components, which an Android app has none of: leave corpus check out of CI",
   );
   // A .po catalogue may be a Lingui or Vue app's: both ways are said.
   const po = project();
@@ -604,7 +604,7 @@ test("a Qt, Android or Apple project with no components is told corpus check doe
   );
   expect(await run(initFor("po/{lang}.po"), po.ctx)).toBe(0);
   expect(po.out.join("\n")).toMatch(
-    /init found no \.jsx, \.tsx, \.vue or \.svelte components where it looks; set check\.include .* or, if the UI is written in something else .*, corpus check does not apply/,
+    /init found no \.jsx, \.tsx, \.vue, \.svelte, \.hbs or \.handlebars components where it looks; set check\.include .* or, if the UI is written in something else .*, corpus check does not apply/,
   );
   // Components found beside a .po catalogue are what check reads.
   const vue = project();
