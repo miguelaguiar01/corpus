@@ -4,6 +4,7 @@ import type { QueueCounts } from "@/catalogue/queues";
 import { Chip } from "@/components/ui/chip";
 import { t } from "@/i18n";
 import { ProgressBar } from "./progress-bar";
+import { inVariantOrder, VariantLabel } from "./variant-label";
 import { OPTIONAL_QUEUES, QUEUE_LABEL } from "./queue-list";
 
 // One project on the home page (§9.1): where work is waiting, before a
@@ -12,6 +13,8 @@ export function ProjectCard({
   slug,
   name,
   languages,
+  sourceLanguage,
+  sourceVariants = [],
   progress,
   counts,
   pending = 0,
@@ -19,6 +22,9 @@ export function ProjectCard({
   slug: string;
   name: string;
   languages: string[];
+  sourceLanguage?: string;
+  // Targets that fall back to the source, after the rest (#699).
+  sourceVariants?: string[];
   progress: Progress["perLanguage"];
   counts: QueueCounts;
   pending?: number;
@@ -39,14 +45,19 @@ export function ProjectCard({
         </div>
       </div>
       <div className="space-y-1.5">
-        {languages.map((language) => {
+        {inVariantOrder(languages, new Set(sourceVariants)).map((language) => {
           const p = progress[language] ?? emptyProgress();
           return (
             <div key={language} className="flex items-center gap-3 text-xs">
               <span className="w-12 shrink-0 text-muted-foreground">
                 {language}
               </span>
-              <ProgressBar p={p} label={language} className="h-1.5 flex-1" />
+              <div className="flex-1">
+                <ProgressBar p={p} label={language} className="h-1.5" />
+                {sourceVariants.includes(language) && (
+                  <VariantLabel source={sourceLanguage} />
+                )}
+              </div>
             </div>
           );
         })}

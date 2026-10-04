@@ -38,6 +38,9 @@ export async function GET(request: Request): Promise<Response> {
     writableSources: writableSources(project),
     // What the last push digested per language (#601); null before one.
     seedDigests: project.seedDigests ?? null,
+    // The targets that fall back to the source (#658), whose untranslated
+    // rows are no work: counted as they are, and sorted last (#699).
+    sourceVariants: project.sourceVariants ?? [],
     progress: progressCounts(db, project.id),
   });
 }

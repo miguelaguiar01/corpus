@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { LanguageProgress } from "@/catalogue/progress";
+import { VariantLabel } from "./variant-label";
 import {
   InvalidCount,
   InvalidSlot,
@@ -14,11 +15,14 @@ import {
 // type, so a many-language project keeps the breakdown without the wall.
 export function ProgressRow({
   language,
+  variantOf,
   p,
   types,
   anyInvalid,
 }: {
   language: string;
+  // The source a variant falls back to (#699).
+  variantOf?: string;
   p: LanguageProgress;
   types: { type: string; p: LanguageProgress }[];
   anyInvalid: boolean;
@@ -49,6 +53,7 @@ export function ProgressRow({
         </th>
         <td className="py-1.5 pr-3">
           <ProgressBar p={p} label={language} className="h-1.5" />
+          <VariantLabel source={variantOf} />
           {/* Where the counts column is hidden. */}
           <InvalidCount n={p.invalid} className="mt-0.5 block sm:hidden" />
         </td>

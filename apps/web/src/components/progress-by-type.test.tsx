@@ -243,3 +243,51 @@ test("a language's invalid rows are counted beside its states, in blocks and in 
   await user.click(toggles.find((t) => t.textContent?.includes("c"))!);
   expect(screen.getAllByText("3 invalid")).toHaveLength(3);
 });
+
+test("a source variant sorts after every target, labelled as falling back to the source, its numbers raw (#699)", () => {
+  const languages = ["en", "en-GB", "de", "fr", "es", "it", "pt", "nl", "pl"];
+  const perLanguage = Object.fromEntries(
+    languages.map((l, i) => [
+      l,
+      l === "en-GB" ? counts(0, 3, 10) : counts(0, 10 - i, 10),
+    ]),
+  );
+  render(
+    <ProgressByType
+      progress={{ perLanguage, perType: {} }}
+      sourceLanguage="en"
+      sourceVariants={["en-GB"]}
+    />,
+  );
+  const rows = screen.getAllByRole("row").slice(1);
+  const heads = rows.map((r) => r.querySelector("th")?.textContent ?? "");
+  expect(heads[0]).toBe("en");
+  // The row's header is the code alone; the label sits under the bar,
+  // so the narrow column never wraps it.
+  expect(heads.at(-1)).toBe("en-GB");
+  expect(rows.at(-1)?.textContent).toContain("falls back to en");
+  expect(
+    screen.getAllByText("0 verified, 3 translated of 10"),
+  ).not.toHaveLength(0);
+  cleanup();
+  // In blocks too.
+  render(
+    <ProgressByType
+      progress={{
+        perLanguage: {
+          en: counts(0, 0, 3),
+          "en-GB": counts(0, 0, 3),
+          de: counts(0, 3, 3),
+        },
+        perType: {},
+      }}
+      sourceLanguage="en"
+      sourceVariants={["en-GB"]}
+    />,
+  );
+  // A line of its own under the heading, so the counts beside it keep
+  // their room at phone width.
+  const heading = screen.getAllByRole("heading").at(-1)!;
+  expect(heading.textContent).toBe("en-GB");
+  expect(heading.closest("section")?.textContent).toContain("falls back to en");
+});

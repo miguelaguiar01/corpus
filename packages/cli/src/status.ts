@@ -30,6 +30,9 @@ export type Status = {
   // The seed digests the last push carried per language (#601), null
   // before one and absent from an older server.
   seedDigests?: Record<string, string> | null;
+  // The targets that fall back to the source (#699); absent from an
+  // older server.
+  sourceVariants?: string[];
   progress: {
     perLanguage: Record<string, Counts>;
     perType: Record<string, Record<string, Counts>>;
@@ -124,15 +127,26 @@ export function render(
     );
   }
   const types = Object.keys(status.progress.perType).sort();
+  // A variant's untranslated rows are no work: after the targets, named
+  // so (#699).
+  const variants = new Set(status.sourceVariants ?? []);
+  const languages = [
+    ...status.languages.filter((l) => !variants.has(l)),
+    ...status.languages.filter((l) => variants.has(l)),
+  ];
+  const label = (language: string) =>
+    variants.has(language)
+      ? `${language} (falls back to ${status.sourceLanguage})`
+      : language;
   // One first column for every table, so the tables line up.
   const first = Math.max(
     "language".length,
     ...types.map((t) => t.length),
-    ...status.languages.map((l) => l.length),
+    ...languages.map((l) => label(l).length),
   );
   lines.push("");
   lines.push(
-    ...table("language", status.progress.perLanguage, status.languages, first),
+    ...table("language", status.progress.perLanguage, languages, first, label),
   );
   for (const type of types) {
     lines.push("");
@@ -140,21 +154,23 @@ export function render(
       ...table(
         type,
         status.progress.perType[type] ?? {},
-        status.languages,
+        languages,
         first,
+        label,
       ),
     );
   }
   return lines;
 }
 
-// One table per grouping: a row per language in the project's order,
+// One table per grouping: a row per language in the order given,
 // the numbers right-aligned under their headings.
 function table(
   heading: string,
   rows: Record<string, Counts>,
   languages: string[],
   first: number,
+  label: (language: string) => string = (language) => language,
 ): string[] {
   const empty: Counts = {
     untranslated: 0,
@@ -164,7 +180,7 @@ function table(
     total: 0,
   };
   const cells = languages.map((language) => [
-    language,
+    label(language),
     ...COLUMNS.map((c) => String((rows[language] ?? empty)[c] ?? 0)),
   ]);
   const head = [heading, ...COLUMNS];

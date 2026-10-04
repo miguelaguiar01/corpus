@@ -251,7 +251,7 @@ export function tools(api: Api, refusals?: Refusals): Tool[] {
       name: "status",
       op: "status",
       description:
-        "The project's numbers: strings, last push, pending proposals, the writable sources proposals can go into (null until a push declares them), progress per language and per string type, and refusedSourceStrings, how many of the repository's source strings the build refuses, which the server never receives (get_string on one says why), as the repository was when this session first asked; absent when the build fails for another reason.",
+        "The project's numbers: strings, last push, pending proposals, the writable sources proposals can go into (null until a push declares them), progress per language and per string type, sourceVariants, the target languages that fall back to the source language, whose untranslated rows are no work (their counts stay raw), and refusedSourceStrings, how many of the repository's source strings the build refuses, which the server never receives (get_string on one says why), as the repository was when this session first asked; absent when the build fails for another reason.",
       inputSchema: {
         type: "object",
         properties: {},

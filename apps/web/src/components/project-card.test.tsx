@@ -95,3 +95,26 @@ test("pending proposals are counted beside the queues, and absent when none", ()
   );
   expect(screen.queryByText("Proposals")).toBeNull();
 });
+
+test("a source variant's bar comes after the targets, labelled as falling back to the source (#699)", () => {
+  render(
+    <ProjectCard
+      slug="q"
+      name="qBittorrent"
+      languages={["en", "en-GB", "de"]}
+      sourceLanguage="en"
+      sourceVariants={["en-GB"]}
+      progress={{ ...PROGRESS, "en-GB": PROGRESS["pt-PT"], de: PROGRESS.en }}
+      counts={COUNTS}
+    />,
+  );
+  const labels = screen
+    .getAllByRole("meter")
+    .map((m) => m.getAttribute("aria-label"));
+  expect(labels).toEqual(["en", "de", "en-GB"]);
+  // Under the bar, so every bar takes the same width.
+  const label = screen.getByText("falls back to en");
+  const bar = screen.getByRole("meter", { name: "en-GB" });
+  expect(label.parentElement).toBe(bar.parentElement);
+  expect(bar.parentElement?.parentElement?.children).toHaveLength(2);
+});
