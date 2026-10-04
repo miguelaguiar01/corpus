@@ -1496,3 +1496,13 @@ test("a %name% is an example only where its closing % starts no sprintf verb, so
     }).ok,
   ).toBe(false);
 });
+
+test("partsOf lists the placeholders a tag's attributes hold apart from the text's, by name (#1030)", () => {
+  const parts = partsOf(
+    "<a href='%{userUrl}'>%{user}</a> posted <a href='%{topicUrl}'>a topic</a>",
+    "rails",
+  );
+  expect([...parts.placeholders]).toEqual(["user"]);
+  expect([...parts.attributePlaceholders]).toEqual(["userUrl", "topicUrl"]);
+  expect([...partsOf("Hello {name}", "icu").attributePlaceholders]).toEqual([]);
+});
