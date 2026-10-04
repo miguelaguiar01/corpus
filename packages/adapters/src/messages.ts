@@ -3,6 +3,8 @@ import {
   PLURAL_CATEGORIES,
   fmtLiteralBraces,
   pluralCategoriesOf,
+  renderPreview,
+  type Library,
   type StringEntry,
 } from "@corpus/contract";
 
@@ -40,6 +42,9 @@ export type MessagesOptions = {
   entries?: EntryFields;
   // The source language's file, not a target's.
   sourceFile?: boolean;
+  // The library the source is read as, an ARB's example rendered by it
+  // (#1040).
+  library?: Library;
 };
 
 export type EntryFields = { text: string; note?: string };
@@ -378,16 +383,49 @@ export function messagesToEntries(
       Object.entries(record).filter(([key]) => !key.startsWith("@")),
     );
     walk(strings, [], options, entries);
-    // @key.description is the string's note (#567).
+    // @key.description is the string's note (#567), each placeholder's
+    // description a line of it, and, in the source file, the
+    // placeholders' examples the string's example, as Chrome's are
+    // (#1040).
     return takeKeys(entries, options).map((entry) => {
       const meta = record[`@${entry.id}`];
-      const description =
-        meta && typeof meta === "object" && !Array.isArray(meta)
-          ? (meta as Record<string, unknown>).description
-          : undefined;
-      if (typeof description !== "string" || description.trim() === "")
+      if (!meta || typeof meta !== "object" || Array.isArray(meta))
         return entry;
-      return { ...entry, note: description };
+      const { description, placeholders } = meta as Record<string, unknown>;
+      const notes =
+        typeof description === "string" && description.trim() !== ""
+          ? [description]
+          : [];
+      const values: Record<string, string> = {};
+      if (
+        placeholders &&
+        typeof placeholders === "object" &&
+        !Array.isArray(placeholders)
+      )
+        for (const [name, spec] of Object.entries(placeholders)) {
+          if (!spec || typeof spec !== "object") continue;
+          const { example, description: what } = spec as Record<
+            string,
+            unknown
+          >;
+          if (typeof what === "string" && what.trim() !== "")
+            notes.push(`${name}: ${what}`);
+          if (typeof example === "string" || typeof example === "number")
+            values[name] = String(example);
+        }
+      const rendered =
+        options.sourceFile && Object.keys(values).length > 0
+          ? renderPreview(entry.source, values, options.sourceLanguage, {
+              syntax: options.library ?? "icu",
+            })
+          : undefined;
+      return {
+        ...entry,
+        ...(notes.length > 0 && { note: notes.join("\n") }),
+        ...(rendered?.ok && {
+          examples: [{ values, rendered: rendered.text }],
+        }),
+      };
     });
   }
   walk(data, [], options, entries);

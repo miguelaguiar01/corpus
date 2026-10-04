@@ -1208,6 +1208,11 @@ export async function readEntries(
           arb: isArb(file),
           chrome: libraryOf(source) === "chrome",
           ...(source.entries && { entries: source.entries, sourceFile }),
+          ...(sourceFile &&
+            isArb(file) && {
+              sourceFile,
+              library: sourceLibrary(source),
+            }),
           keyIsText: sourceFile,
           plurals: readsPluralObjects(source),
           suffixPlurals: readsSuffixPlurals(source),
