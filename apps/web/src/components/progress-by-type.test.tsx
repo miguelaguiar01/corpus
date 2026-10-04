@@ -286,5 +286,9 @@ test("a source variant sorts after every target, labelled as falling back to the
     />,
   );
   const headings = screen.getAllByRole("heading").map((h) => h.textContent);
-  expect(headings.at(-1)).toBe("en-GB falls back to en");
+  // A line of its own under the heading, so the counts beside it keep
+  // their room at phone width.
+  const heading = screen.getAllByRole("heading").at(-1)!;
+  expect(heading.textContent).toBe("en-GB");
+  expect(heading.closest("section")?.textContent).toContain("falls back to en");
 });
