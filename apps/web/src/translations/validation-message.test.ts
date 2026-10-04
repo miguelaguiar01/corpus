@@ -89,3 +89,28 @@ test("gen-l10n's overridden branch and an =N wider than its number are said in t
     "gen-l10n reads =1 on count as one, which this language also picks for 0: write one for what they share, or give 0 its own =0",
   );
 });
+
+test("a category branch that writes 1 for a count is said in the editor (#1042)", () => {
+  expect(
+    validationMessage(
+      {
+        code: "fixed-count",
+        arg: "count",
+        key: "one",
+        values: [21, 31, 41],
+        more: true,
+      },
+      "icu",
+    ),
+  ).toBe(
+    "The one branch of count writes 1, which this language also picks for 21, 31, 41 and more: write the count in it",
+  );
+  expect(
+    validationMessage(
+      { code: "fixed-count", arg: "count", key: "one", values: [0] },
+      "icu",
+    ),
+  ).toBe(
+    "The one branch of count writes 1, which this language also picks for 0: write the count in it",
+  );
+});

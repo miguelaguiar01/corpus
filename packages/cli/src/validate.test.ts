@@ -294,6 +294,25 @@ export default defineCorpus({
 
 test("describe words every error code", () => {
   expect(
+    describe({
+      code: "fixed-count",
+      arg: "count",
+      key: "one",
+      values: [21, 31, 41],
+      more: true,
+    }),
+  ).toBe(
+    "the one branch of {count} writes 1, which this language also picks for 21, 31, 41 and more: write {count} in it",
+  );
+  expect(
+    describe(
+      { code: "fixed-count", arg: "count", key: "one", values: [0] },
+      "i18next",
+    ),
+  ).toBe(
+    "the one branch of {count} writes 1, which this language also picks for 0: write {{count}} in it",
+  );
+  expect(
     describe(
       { code: "overridden-branch", arg: "count", key: "=1", category: "one" },
       "gen_l10n",
