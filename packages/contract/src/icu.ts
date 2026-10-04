@@ -633,9 +633,16 @@ class Parser {
         const verb = SPRINTF_JS_RE.exec(rest);
         // As sprintf-js reads them, so `% of` and Hungarian `50%-a` are
         // text, and so is an example's `%email%`, a name of two ASCII
-        // characters or more, where `%d%%`, `%s%s` and `%s件中%d件` are
-        // verbs.
-        if (!verb || /^%[A-Za-z_][A-Za-z0-9_]+%/.test(rest)) continue;
+        // characters or more whose closing `%` starts no verb, where
+        // `%d%%`, `%s%s`, `%dx%d` and `%s件中%d件` are verbs.
+        const example = /^%[A-Za-z_][A-Za-z0-9_]+(?=%)/.exec(rest);
+        if (
+          !verb ||
+          (example &&
+            !/^%%/.test(rest.slice(example[0].length)) &&
+            !SPRINTF_JS_RE.test(rest.slice(example[0].length)))
+        )
+          continue;
         if (verb[2] !== undefined)
           return this.placeholder(seq, verb[2], verb[0]);
         const position = verb[1] ? Number(verb[1]) : this.printfNext;
