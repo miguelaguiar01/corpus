@@ -2252,6 +2252,16 @@ const SAMPLES = [
 ];
 const samplesByLanguage = new Map<string, Map<string, number[]>>();
 
+// The whole numbers to a thousand a language puts in a cardinal
+// category, in order (#1039).
+export function integersOf(language: string, category: string): number[] {
+  if (!known(language)) return [];
+  const rules = new Intl.PluralRules(localeOf(language));
+  const out: number[] = [];
+  for (let n = 0; n <= 1000; n++) if (rules.select(n) === category) out.push(n);
+  return out;
+}
+
 // Whether a plural's `=N` branches reach every value the language puts
 // in a category, so the category's own branch would never be taken
 // (#650): `=1` is German's `one`, not French's, which holds 0 and 1.5,
@@ -2345,6 +2355,17 @@ export function pluralBranch(
     ).select(n);
     if (!ordinal && picked && !picked.includes(category)) return "other";
     if (Object.hasOwn(branches, category)) return category;
+    // gen-l10n's `=0`, `=1`, `=2` are its zero, one and two (#1039).
+    const exactOf = (
+      { zero: "=0", one: "=1", two: "=2" } as Record<string, string | undefined>
+    )[category];
+    if (
+      library === "gen_l10n" &&
+      !ordinal &&
+      exactOf !== undefined &&
+      Object.hasOwn(branches, exactOf)
+    )
+      return exactOf;
   }
   return "other";
 }

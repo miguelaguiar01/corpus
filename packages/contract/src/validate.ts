@@ -25,6 +25,7 @@ import {
   pluralCategoriesFor,
   pluralCategoriesOf,
   pluralCategoryCovered,
+  integersOf,
   printfVerbOf,
   proseTagsOf,
   isHtmlElement,
@@ -92,6 +93,19 @@ export type ValidationError =
   // translation wrote one the source does not, meaning the count.
   | { code: "hash-text"; arg: string }
   | { code: "missing-category"; arg: string; key: string }
+  // Under gen_l10n `=0`, `=1` and `=2` are the categories zero, one and
+  // two (#1039): written beside the category, one overrides the other,
+  // and an `=N` whose category holds more is printed for those too.
+  | { code: "overridden-branch"; arg: string; key: string; category: string }
+  | {
+      code: "wide-exact";
+      arg: string;
+      key: string;
+      category: string;
+      // The first three, `more` where the category holds others.
+      values: number[];
+      more?: true;
+    }
   // Under chrome, a `$` Chrome reads otherwise than it looks (#631): a
   // lone one, a `$40`, a `$$NAME$`.
   | ({ code: "chrome-dollar" } & ChromeDollar)
@@ -1244,6 +1258,7 @@ export function validateTranslation(
       sameBase
         ? { cardinal: whole.cardinalPlurals, ordinal: whole.ordinalPlurals }
         : undefined,
+      syntax,
     ),
   );
   // An ordinal is picked by another rule than a cardinal (#995): a
@@ -1333,6 +1348,7 @@ export function validateTranslation(
     e.code === "form-count" ||
     e.code === "missing-category" ||
     e.code === "unexpected-category" ||
+    e.code === "wide-exact" ||
     e.code === "unpassed-selector" ||
     e.code === "flattened-plural" ||
     e.code === "count-for-marker";
@@ -1427,6 +1443,13 @@ function verbErrors(
   return drop ? [drop] : [...errors, ...changed];
 }
 
+// gen-l10n's exact keys and the categories it reads them as.
+const GEN_L10N_EXACT = [
+  ["=0", "zero"],
+  ["=1", "one"],
+  ["=2", "two"],
+] as const;
+
 function pluralErrors(
   actual: Shape,
   expectedValues: Set<string>,
@@ -1452,6 +1475,7 @@ function pluralErrors(
     cardinal: Map<string, Set<string>>;
     ordinal: Map<string, Set<string>>;
   },
+  library?: Library,
 ): ValidationError[] {
   const out: ValidationError[] = [];
   const byKind = [
@@ -1484,14 +1508,53 @@ function pluralErrors(
       const own = (ordinal ? sourceKeys?.ordinal : sourceKeys?.cardinal)?.get(
         arg,
       );
+      // gen-l10n's `=0`, `=1`, `=2` are its zero, one and two, which
+      // Intl.pluralLogic takes for exactly that number, then for every
+      // value of the category (#1039).
+      const genL10n = library === "gen_l10n" && !ordinal;
+      const named = new Set(keys);
+      if (genL10n)
+        for (const [exactKey, category] of GEN_L10N_EXACT) {
+          if (!keys.has(exactKey)) continue;
+          if (keys.has(category))
+            out.push({
+              code: "overridden-branch",
+              arg,
+              key: exactKey,
+              category,
+            });
+          named.add(category);
+        }
       for (const key of categories.required) {
         if (own && key !== "other" && !own.has(key)) continue;
         if (
-          !keys.has(key) &&
+          !named.has(key) &&
           !(language && pluralCategoryCovered(language, key, exact, ordinal))
         )
           out.push({ code: "missing-category", arg, key });
       }
+      if (genL10n && language)
+        for (const [exactKey, category] of GEN_L10N_EXACT) {
+          if (!keys.has(exactKey) || keys.has(category)) continue;
+          // The numbers taken first, by their own `=N` or category.
+          const first = new Set(
+            GEN_L10N_EXACT.filter(([k, c]) => keys.has(k) || keys.has(c)).map(
+              ([k]) => Number(k.slice(1)),
+            ),
+          );
+          const values = integersOf(language, category).filter(
+            (n) => !first.has(n),
+          );
+          if (values.length > 0)
+            out.push({
+              code: "wide-exact",
+              arg,
+              key: exactKey,
+              category,
+              values: values.slice(0, 3),
+              ...(values.length > 3 && { more: true as const }),
+            });
+        }
       for (const key of keys) {
         if (!key.startsWith("=") && !categories.allowed.includes(key))
           out.push({ code: "unexpected-category", arg, key });

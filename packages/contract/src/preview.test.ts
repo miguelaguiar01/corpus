@@ -527,3 +527,21 @@ test("preview: easy_localization's \"cldr\" is intl's own table, by the language
   expect(show(all, "0", "ckb-KU")).toBe("Z");
   expect(show(all, "2", "ckb-KU")).toBe("T");
 });
+
+test("under gen_l10n a value of the category =0, =1 or =2 stands for takes that branch, as gen-l10n prints it (#1039)", () => {
+  const branches = { "=1": "x", few: "y", other: "z" };
+  expect(pluralBranch(branches, "21", "hr", { library: "gen_l10n" })).toBe(
+    "=1",
+  );
+  expect(pluralBranch(branches, "1", "hr", { library: "gen_l10n" })).toBe("=1");
+  expect(pluralBranch(branches, "22", "hr", { library: "gen_l10n" })).toBe(
+    "few",
+  );
+  // A written category keeps its own branch; icu reads =1 as exact.
+  expect(
+    pluralBranch({ ...branches, one: "o" }, "21", "hr", {
+      library: "gen_l10n",
+    }),
+  ).toBe("one");
+  expect(pluralBranch(branches, "21", "hr", { library: "icu" })).toBe("other");
+});

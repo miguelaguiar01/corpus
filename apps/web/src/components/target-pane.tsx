@@ -54,6 +54,12 @@ const idOf = (node: {
   arg: string;
 }) => `${node.ordinal ? "selectordinal" : node.kind} ${node.arg}`;
 
+const GEN_L10N_CATEGORY: Record<string, string> = {
+  "=0": "zero",
+  "=1": "one",
+  "=2": "two",
+};
+
 // The source's select and plural arguments, each with every key any of
 // its uses has, in source order (validation unions them the same way):
 // a chip per argument and kind inserts the whole skeleton so no braces
@@ -112,6 +118,17 @@ function branchingOf(
     }
     if (entry.kind === "plural" && !entry.keys.includes("other"))
       entry.keys.push("other");
+    // gen-l10n reads `=0`, `=1`, `=2` as its zero, one and two (#1039):
+    // where the language picks the category, its branch serves, and both
+    // would override each other.
+    if (syntax === "gen_l10n" && entry.kind === "plural" && !entry.ordinal)
+      entry.keys = entry.keys.filter(
+        (key) =>
+          !(
+            key in GEN_L10N_CATEGORY &&
+            entry.keys.includes(GEN_L10N_CATEGORY[key]!)
+          ),
+      );
     byId.set(idOf(node), entry);
   }
   // A plural's categories are the ones the runtime picks: a category the

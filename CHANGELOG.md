@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- Under `gen_l10n`, `=0`, `=1` and `=2` are read as the zero, one and two categories gen-l10n takes them for: `=1` beside `one` is refused, and an `=1` whose category holds more than 1 is a warning (#1039).
 - `corpus build` notes a printf source whose strings write `%0`, `%1` that no verb reads, and suggests `library: "qt"`, which checks them (#1036).
 - A source whose path its adapter does not read, a `.strings` file declared as a String Catalog say, is refused once, naming the file's format and the adapter that reads it (#1035).
 - A Fluent message's or term's attached `#` comment is its note, shown to translators and agents (#1034).

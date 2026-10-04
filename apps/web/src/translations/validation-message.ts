@@ -110,6 +110,31 @@ export function validationMessage(
     }
     case "missing-category":
       return t("editor.missingCategory", { arg: error.arg, key: error.key });
+    case "overridden-branch":
+      return t("editor.overriddenBranch", {
+        arg: error.arg,
+        key: error.key,
+        category: error.category,
+      });
+    case "wide-exact": {
+      // gen-l10n has =0, =1 and =2 alone: one of those, the only case a
+      // language has (French `=1`, whose one also holds 0), is offered.
+      const own = error.values.length === 1 && error.values[0]! <= 2;
+      return t(
+        error.more
+          ? "editor.wideExactMore"
+          : own
+            ? "editor.wideExactOwn"
+            : "editor.wideExact",
+        {
+          arg: error.arg,
+          key: error.key,
+          category: error.category,
+          values: error.values.join(", "),
+          value: error.values[0]!,
+        },
+      );
+    }
     case "unexpected-category":
       return t("editor.unexpectedCategory", { arg: error.arg, key: error.key });
     case "unexpected-format":
