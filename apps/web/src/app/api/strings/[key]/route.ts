@@ -54,6 +54,7 @@ export async function GET(
               detail.string.key,
               project.sourceLanguage,
               detail.string.placeholderSyntaxes,
+              detail.string.pluralForms?.[language],
             )
           : null,
       ...(row.suggestion !== null && { suggestion: row.suggestion }),

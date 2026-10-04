@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- `corpus pull` and `pull --check` exit 1 when a file cannot hold a saved translation, naming it, and an `=N` branch in a plural a catalogue reads whole is refused when saved (#1051).
 - A Qt `.ts` file's unfinished translation with text is offered as a suggestion, as gettext's fuzzy rows are, and an untranslated queue item carries its suggestion (#1050).
 - A Rails yaml target rooted at the tag `languageFiles` maps to its file (`sr.yml` rooted at `sr-Latn`) is read and pulled under that root, and a file rooted elsewhere says how Rails reads it (#1048).
 - `corpus init`'s `check.include` takes an app's `pages` and `layouts` with its `components`, as Nuxt, Vite and Next routers render them (#1047).

@@ -47,6 +47,7 @@ export async function GET(request: Request): Promise<Response> {
         syntax,
         arguments: args,
         placeholders,
+        pluralForms,
       }) => ({
         key,
         language,
@@ -70,6 +71,7 @@ export async function GET(request: Request): Promise<Response> {
                   key,
                   project.sourceLanguage,
                   placeholders,
+                  pluralForms?.[language],
                 ),
         }),
       }),

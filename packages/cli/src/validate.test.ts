@@ -295,6 +295,16 @@ export default defineCorpus({
 test("describe words every error code", () => {
   expect(
     describe({
+      code: "exact-branch",
+      arg: "count",
+      key: "=0",
+      category: "other",
+    }),
+  ).toBe(
+    "{count} has an =0 branch, which this catalogue's plurals cannot hold, as they hold categories only: write it in the other branch, which this language picks for 0",
+  );
+  expect(
+    describe({
       code: "fixed-count",
       arg: "count",
       key: "one",

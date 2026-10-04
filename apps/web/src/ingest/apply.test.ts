@@ -1289,6 +1289,39 @@ test("a gettext plural's categories per language are kept on the row and reach t
   expect(stringRow(db, "%d note")?.pluralForms).toBeNull();
 });
 
+test("a seed's =N branch its file's own Plural-Forms names is no invalid seed, on any push (#1051, #982)", () => {
+  const { db, project } = seed();
+  // A gettext rule that picks =1 apart, as Cebuano's does, and the file
+  // writes it.
+  const snapshot: Snapshot = {
+    ...structuredClone(FIXTURE),
+    strings: [
+      {
+        id: "%d file",
+        type: FIXTURE.strings[0]!.type,
+        source: "{count, plural, one {%d file} other {%d files}}",
+        library: "printf",
+        pluralForms: { en: ["=1", "other"] },
+      },
+    ],
+    seedTranslations: {
+      en: { "%d file": "{count, plural, =1 {%d A} other {%d B}}" },
+    },
+  };
+  applySnapshot(db, project.id, snapshot);
+  expect(translationOf(db, "%d file", "en")).toMatchObject({
+    state: "translated",
+    invalid: false,
+  });
+  applySnapshot(db, project.id, snapshot);
+  expect(translationOf(db, "%d file", "en")?.invalid).toBe(false);
+  // Without the file's forms, =1 is a branch no gettext plural holds.
+  const bare = structuredClone(snapshot);
+  delete bare.strings[0]!.pluralForms;
+  applySnapshot(db, project.id, bare);
+  expect(translationOf(db, "%d file", "en")?.invalid).toBe(true);
+});
+
 test("a vue string's plural rule is kept on the row, reaches its detail, and a push without it clears it (#1018)", () => {
   const { db, project } = seed();
   const snapshot: Snapshot = {

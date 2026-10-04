@@ -3438,3 +3438,102 @@ test("a category branch that writes the number 1 and no count, where the languag
     ).ok,
   ).toBe(true);
 });
+
+test("an =N branch in a plural read whole is invalid: the catalogue's plurals hold categories only (#1051)", () => {
+  // Rails and i18next pick a written zero for 0 (#983, #985).
+  for (const [library, one, other, zero] of [
+    ["printf", "%d file", "%d files", "other"],
+    ["rails", "%{count} file", "%{count} files", "zero"],
+    ["qt", "%n file", "%n files", "other"],
+    ["i18next", "{{count}} file", "{{count}} files", "zero"],
+  ] as const) {
+    const source = `{count, plural, one {${one}} other {${other}}}`;
+    expect(
+      validateTranslation(
+        source,
+        `{count, plural, =0 {keine} one {${one}} other {${other}}}`,
+        "de",
+        library,
+      ),
+      library,
+    ).toEqual({
+      ok: false,
+      errors: [
+        { code: "exact-branch", arg: "count", key: "=0", category: zero },
+      ],
+    });
+  }
+  // A String Catalog's argN plural, printf's too.
+  expect(
+    validateTranslation(
+      "{arg1, plural, one {%lld file} other {%lld files}}",
+      "{arg1, plural, =1 {eine Datei} other {%lld Dateien}}",
+      "de",
+      "printf",
+    ),
+  ).toMatchObject({
+    ok: false,
+    // Named by position, as every check of a String Catalog plural is.
+    errors: [{ code: "exact-branch", arg: "1", key: "=1", category: "one" }],
+  });
+  // The branch advised is the one the library picks for N: i18next's,
+  // Rails' and counterpart's written zero, easy_localization's two, and
+  // among a gettext file's own forms.
+  for (const [library, one, other, key, category, language, pluralForms] of [
+    [
+      "i18next",
+      "{{count}} file",
+      "{{count}} files",
+      "=0",
+      "zero",
+      "de",
+      undefined,
+    ],
+    ["rails", "%{count} file", "%{count} files", "=0", "zero", "de", undefined],
+    [
+      "counterpart",
+      "%(count)s file",
+      "%(count)s files",
+      "=0",
+      "zero",
+      "de",
+      undefined,
+    ],
+    ["easy_localization", "{} file", "{} files", "=2", "two", "de", undefined],
+    ["printf", "%d file", "%d files", "=5", "other", "ru", ["one", "other"]],
+  ] as const)
+    expect(
+      validateTranslation(
+        `{count, plural, one {${one}} other {${other}}}`,
+        `{count, plural, ${key} {x} one {${one}} other {${other}}}`,
+        language,
+        library,
+        pluralForms ? { pluralForms } : {},
+      ),
+      library,
+    ).toMatchObject({ errors: [{ code: "exact-branch", key, category }] });
+  // easy_localization picking by CLDR (#961): ru's 5 is many, de's 2 other.
+  for (const [language, key, category] of [
+    ["ru", "=5", "many"],
+    ["de", "=2", "other"],
+  ] as const)
+    expect(
+      validateTranslation(
+        "{count, plural, one {{} file} other {{} files}}",
+        `{count, plural, ${key} {x} one {{} y} other {{} z}}`,
+        language,
+        "easy_localization",
+        { pluralRules: "cldr" },
+      ),
+      language,
+    ).toMatchObject({ errors: [{ code: "exact-branch", key, category }] });
+  // ICU's own plurals hold them.
+  expect(
+    validateTranslation(
+      "{count, plural, one {# file} other {# files}}",
+      "{count, plural, =0 {keine} one {# Datei} other {# Dateien}}",
+      "de",
+      "icu",
+    ).ok,
+  ).toBe(true);
+});

@@ -43,7 +43,7 @@ The token is `CORPUS_TOKEN`, then `.corpus/token`. The instance secret is `CORPU
 
 **`corpus push`** sends the repository to the instance: strings added, changed, archived, and the translations the repository already has as seeds. `--dry-run` reports what it would do and writes nothing. A string that will not parse is refused by name and the push continues; the exit is 1 so CI notices. When a whole file is refused, or five strings are refused for one cause (a tag written as prose, or the wrong library), nothing is pushed at all: pushing the rest would archive every one.
 
-**`corpus pull`** writes translations back through the same adapters, format-preserving. `--min-state` sets the floor, `verified` by default; `--lang` narrows to one language and repeats. `--check` writes nothing and exits 1 if a pull would have changed a file, which includes a proposal waiting to land.
+**`corpus pull`** writes translations back through the same adapters, format-preserving. `--min-state` sets the floor, `verified` by default; `--lang` narrows to one language and repeats. A translation a file cannot hold is named and the rest are written, and the pull exits 1. `--check` writes nothing and exits 1 if a pull would have changed a file, which includes a proposal waiting to land, or if a translation could not be written.
 
 `corpus <command> --help` (or `-h`) prints that command's usage.
 

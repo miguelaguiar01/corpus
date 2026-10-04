@@ -41,6 +41,7 @@ export type QueueItem = {
   syntax?: Library | null;
   arguments?: string[] | null;
   placeholders?: Library[] | null;
+  pluralForms?: Record<string, string[]> | null;
 };
 export type Queue = {
   kind: QueueKind;
@@ -154,6 +155,7 @@ function select(
         syntax: strings.syntax,
         arguments: strings.arguments,
         placeholders: strings.placeholders,
+        pluralForms: strings.pluralForms,
       }),
     })
     .from(stringTranslations);

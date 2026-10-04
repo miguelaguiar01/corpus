@@ -110,6 +110,13 @@ export function validationMessage(
     }
     case "missing-category":
       return t("editor.missingCategory", { arg: error.arg, key: error.key });
+    case "exact-branch":
+      return t("editor.exactBranch", {
+        arg: error.arg,
+        key: error.key,
+        category: error.category,
+        n: error.key.slice(1),
+      });
     case "fixed-count":
       return t(error.more ? "editor.fixedCountMore" : "editor.fixedCount", {
         arg: error.arg,
@@ -180,10 +187,13 @@ export function problemOf(
   sourceLanguage: string,
   // The syntaxes its source layers on the library (#1049).
   placeholders?: Library[] | null,
+  // The file's own plural forms for the language (#982, #1051).
+  pluralForms?: readonly string[] | null,
 ): string | null {
   const check = validateTranslation(source, text, language, syntax, {
     richText: richText ?? undefined,
     ...(placeholders && { placeholders }),
+    ...(pluralForms && { pluralForms }),
     ...(passed && { arguments: passed }),
     ...(syntax === "fluent" && isFluentTermId(key) && { term: true }),
     sourceLanguage,
