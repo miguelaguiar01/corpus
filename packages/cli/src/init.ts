@@ -143,7 +143,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     adapter === "messages"
       ? files.skipped.filter(({ file }) => path.basename(file).includes("@"))
       : files.skipped
-  ).filter(({ file }) => file !== sourcePath);
+  ).filter(({ file }) => path.posix.normalize(file) !== sourcePath);
   // A code that is a prefix and a language, `activerecord.af` beside
   // `{lang}.yml`, is another catalogue's file (#1020): one line for the
   // family, as its own source, not a mapping a file at a time.
@@ -560,10 +560,8 @@ function angularSource(
             : path.posix.join(workspace, outputPath);
       // In the config directory's terms where it lies inside it.
       const written = path.posix.join(dir, name);
-      const output =
-        local(written) === ".." || local(written).startsWith("../")
-          ? written
-          : local(written);
+      const here = local(written);
+      const output = here === ".." || here.startsWith("../") ? written : here;
       if (!outputs.includes(output) && output !== bareHere)
         outputs.push(output);
     }
