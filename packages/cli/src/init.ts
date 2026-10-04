@@ -959,9 +959,10 @@ const PLURAL_SUFFIX_RE = /_(?:zero|one|two|few|many|other)$/;
 const ICU_ANY_ARGUMENT_RE = /\{\s*[^{},]+\s*,\s*[a-z]+/;
 
 // Chrome's `{ message, description }`, which FormatJS's crowdin format
-// writes too (#1001): told apart by its text, Chrome's `$NAME$` and
-// `placeholders` against ICU's `{name}`, and no Chrome text at all with
-// an ICU argument read as FormatJS's.
+// writes too (#1001): FormatJS's where its text writes a typed ICU
+// argument (`{count, plural, …}`) and no Chrome `$NAME$` or
+// `placeholders`; a bare `{name}` decides nothing, as uBlock's Chrome
+// catalogue writes `{{count}}`.
 function chromeShaped(file: string): boolean {
   if (!file.endsWith(".json")) return false;
   try {
@@ -973,7 +974,9 @@ function chromeShaped(file: string): boolean {
         v.placeholders !== undefined || /\$[A-Za-z0-9_@]+\$/.test(v.message),
     );
     const icu = values.some((v) =>
-      /\{\s*[A-Za-z_][\w.-]*\s*[,}]/.test(v.message),
+      /\{\s*[A-Za-z_][\w.-]*\s*,\s*(?:plural|select|selectordinal|number|date|time)\b/.test(
+        v.message,
+      ),
     );
     return chrome || !icu;
   } catch {

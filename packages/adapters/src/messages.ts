@@ -420,6 +420,8 @@ function fieldEntries(
         ? (value as Record<string, unknown>)
         : undefined;
     const text = record?.[fields.text];
+    // A target entry with no text yet is untranslated: pull fills it.
+    if (!options.sourceFile && record && text === undefined) continue;
     if (typeof text !== "string") {
       // In the source a tool's config object (Smartling's) is skipped;
       // in a target the value is the file's, named and left (#1028).

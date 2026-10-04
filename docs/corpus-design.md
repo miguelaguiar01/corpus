@@ -171,8 +171,11 @@ export default defineCorpus({
     //    text field and nine in ten hold nothing but it and metadata, the
     //    note field the one of `description`, `developer_comment` and
     //    `notes` most entries hold; a `{ message, description }` file is
-    //    Chrome's unless its text writes an ICU argument and no Chrome
-    //    `$NAME$` or `placeholders`, as FormatJS's crowdin format does.
+    //    Chrome's unless its text writes a typed ICU argument
+    //    (`{count, plural, …}`, `{n, number}`) and no Chrome `$NAME$` or
+    //    `placeholders`, as FormatJS's crowdin format does; a bare
+    //    `{name}` decides nothing, uBlock's Chrome text writing
+    //    `{{count}}`.
     //    A null, number or boolean value is no string, as in yaml, and
     //    is skipped, left by a pull, a source's counted in a build note
     //    since push archives a string that became one; a list is

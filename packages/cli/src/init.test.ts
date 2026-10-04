@@ -2641,6 +2641,21 @@ test("FormatJS's crowdin format, { message, description } with ICU text, is entr
     entries: { text: "message", note: "description" },
   });
   expect(source).not.toMatchObject({ library: "chrome" });
+  // uBlock's Chrome catalogue, `{{count}}` and no placeholders, stays
+  // chrome: a bare `{name}` is no ICU argument.
+  const u = project();
+  mkdirSync(path.join(u.dir, "_locales", "en"), { recursive: true });
+  writeFileSync(
+    path.join(u.dir, "_locales", "en", "messages.json"),
+    JSON.stringify({
+      blocked: { message: "{{count}} blocked", description: "Badge" },
+      open: { message: "Open {url}", description: "Link" },
+    }),
+  );
+  expect(await run(initFor("_locales/{lang}/messages.json"), u.ctx)).toBe(0);
+  expect((await loadConfig(u.dir)).sources[0]).toMatchObject({
+    library: "chrome",
+  });
   // Chrome's own, with $NAME$ and placeholders, stays chrome.
   const c = project();
   mkdirSync(path.join(c.dir, "_locales", "en"), { recursive: true });
