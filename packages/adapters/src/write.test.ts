@@ -1453,3 +1453,63 @@ test("an empty {} target of a Chrome catalogue or of entry objects takes the giv
     }),
   ).toBe(`{\n\t"a": {\n\t\t"text": "Á"\n\t}\n}\n`);
 });
+
+describe("arrays (#1053)", () => {
+  const template = `{
+  "a": {
+    "list": ["x", "y", "z"]
+  },
+  "b": [
+    {
+      "id": 0,
+      "name": "N"
+    }
+  ],
+  "c": "C"
+}
+`;
+  test("an item's change touches only its bytes", () => {
+    const de = template.replace('"x", "y"', '"X", "Y"');
+    expect(entriesToMessages(template, { "a.list.1": "Ypsilon" }, de)).toBe(
+      de.replace('"Y"', '"Ypsilon"'),
+    );
+  });
+  test("a target without the array takes it up to the last item written, the source's text before it, the source's other members kept", () => {
+    const de = `{\n  "c": "Ce"\n}\n`;
+    expect(
+      entriesToMessages(
+        template,
+        { "a.list.1": "Ypsilon", "b.0.name": "Nn" },
+        de,
+      ),
+    ).toBe(
+      `{\n  "a": {\n    "list": [\n      "x",\n      "Ypsilon"\n    ]\n  },\n  "b": [\n    {\n      "id": 0,\n      "name": "Nn"\n    }\n  ],\n  "c": "Ce"\n}\n`,
+    );
+  });
+  test("a short array is filled to the item written", () => {
+    const de = template.replace('["x", "y", "z"]', '["X"]');
+    expect(entriesToMessages(template, { "a.list.2": "Zett" }, de)).toBe(
+      template.replace('["x", "y", "z"]', '["X", "y", "Zett"]'),
+    );
+  });
+  test("a missing file keeps an array to its last translated item, and drops one with none", () => {
+    const out = JSON.parse(
+      entriesToMessages(template, { "a.list.1": "Ypsilon" }, undefined),
+    );
+    expect(out).toEqual({ a: { list: ["x", "Ypsilon"] } });
+  });
+  test("a proposal edits an item; adding or removing one, which renumbers those after it, is refused by name", () => {
+    expect(
+      applyMessagesOps(template, [
+        { kind: "edit", id: "a.list.0", text: "ex" },
+      ]),
+    ).toBe(template.replace('["x"', '["ex"'));
+    for (const op of [
+      { kind: "add", id: "a.list.3", text: "w", type: "ui" },
+      { kind: "delete", id: "a.list.1" },
+    ] as const)
+      expect(() => applyMessagesOps(template, [op as never])).toThrow(
+        /a\.list\.\d is an item of a list/,
+      );
+  });
+});

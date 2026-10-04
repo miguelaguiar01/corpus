@@ -711,3 +711,24 @@ test("an ARB example renders as the author wrote it, never capitalised, and a pl
   );
   expect(entries[1]?.examples?.[0]?.rendered).toBe("x here");
 });
+
+test("an array's items are read by index, as vue-i18n and i18next look them up; a scalar in one is skipped (#1053)", () => {
+  // Chatwoot's settings.json and report.json.
+  const data = { a: { list: ["x", "y"] }, b: [{ id: 0, name: "N" }] };
+  const skipped: string[] = [];
+  expect(
+    messagesToEntries(data, {
+      type: "ui",
+      onSkipped: (id) => skipped.push(id),
+    }).map((e) => [e.id, e.source]),
+  ).toEqual([
+    ["a.list.0", "x"],
+    ["a.list.1", "y"],
+    ["b.0.name", "N"],
+  ]);
+  expect(skipped).toEqual(["b.0.id"]);
+  // An index that is also an object's key is one id written twice.
+  expect(() =>
+    messagesToEntries({ x: ["a"], "x.0": "b" }, { type: "ui" }),
+  ).toThrow(/written twice/);
+});
