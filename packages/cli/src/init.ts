@@ -8,6 +8,7 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { createJiti } from "jiti";
+import { parse as parseJsonc, type ParseError } from "jsonc-parser";
 import {
   androidDirOf,
   gettextToEntries,
@@ -472,79 +473,110 @@ const DETECTED_BY: Partial<Record<Library, string>> = {
 
 // Angular's source file away from its translations (#1045): where the
 // nearest angular.json's extract-i18n writes it, `outputPath` from that
-// directory and `outFile`, by default messages.xlf beside angular.json;
-// else the messages.xlf nearest the translations' directory, up to the
-// config's. `tried` is the angular.json outputs that are missing, and
-// `above` the directory the walk started from.
+// directory and `outFile`, by default messages.xlf beside angular.json,
+// the output nearest the translations first; else the messages.xlf
+// nearest the translations' directory, up to the config's. `tried` is
+// the angular.json outputs that are missing, and `above` the directory
+// the walk started from.
 function angularSource(
   cwd: string,
   messages: string,
   bare: string | undefined,
 ): { sourcePath?: string; why?: string; tried: string[]; above?: string } {
+  // In the config directory's terms, whatever the pattern's.
+  const local = (file: string) =>
+    path.isAbsolute(file)
+      ? path.relative(cwd, file).split(path.sep).join("/") || "."
+      : path.posix.normalize(file);
   const prefix = messages.slice(0, messages.indexOf("{lang}"));
-  const start = prefix.endsWith("/")
-    ? path.posix.normalize(prefix.slice(0, -1) || ".")
-    : path.posix.dirname(prefix);
+  const start = local(
+    prefix.endsWith("/")
+      ? prefix.slice(0, -1) || "/"
+      : path.posix.dirname(prefix),
+  );
   const dirs: string[] = [];
-  for (let dir = start; !dir.startsWith(".."); dir = path.posix.dirname(dir)) {
+  for (let dir = start; dir !== ".." && !dir.startsWith("../");) {
     dirs.push(dir);
     if (dir === ".") break;
+    dir = path.posix.dirname(dir);
   }
-  const exists = (file: string) => existsSync(path.join(cwd, file));
+  const exists = (file: string) => existsSync(path.resolve(cwd, file));
+  const bareHere = bare === undefined ? undefined : local(bare);
+  const walked = dirs.filter(
+    (dir) => path.posix.join(dir, "messages.xlf") !== bareHere,
+  );
+  const walkedFiles = walked.map((dir) => path.posix.join(dir, "messages.xlf"));
   const tried: string[] = [];
   const workspace = dirs.find((dir) =>
     exists(path.posix.join(dir, "angular.json")),
   );
   if (workspace !== undefined) {
     const file = path.posix.join(workspace, "angular.json");
-    const outputs = new Set<string>();
-    try {
-      const { projects } = JSON.parse(
-        readFileSync(path.join(cwd, file), "utf8"),
-      ) as { projects?: Record<string, unknown> };
-      for (const project of Object.values(projects ?? {})) {
-        const targets = project as {
-          architect?: Record<string, { options?: Record<string, unknown> }>;
-          targets?: Record<string, { options?: Record<string, unknown> }>;
-        };
-        const options = (targets.architect ?? targets.targets)?.["extract-i18n"]
-          ?.options;
-        if (options === undefined) continue;
-        const { outputPath, outFile } = options;
-        outputs.add(
-          path.posix.join(
-            workspace,
-            typeof outputPath === "string" ? outputPath : "",
-            typeof outFile === "string" ? outFile : "messages.xlf",
-          ),
-        );
-      }
-    } catch {
-      // An angular.json init cannot read guesses nothing.
+    // The Angular CLI reads angular.json with comments and trailing
+    // commas; one that does not parse guesses nothing.
+    const errors: ParseError[] = [];
+    const workspaceJson = parseJsonc(
+      readFileSync(path.resolve(cwd, file), "utf8"),
+      errors,
+      { allowTrailingComma: true },
+    ) as { projects?: unknown } | undefined;
+    const projects =
+      errors.length === 0 &&
+      workspaceJson?.projects &&
+      typeof workspaceJson.projects === "object"
+        ? Object.values(workspaceJson.projects)
+        : [];
+    const outputs: string[] = [];
+    for (const project of projects) {
+      if (!project || typeof project !== "object") continue;
+      const targets = project as {
+        architect?: Record<string, { options?: Record<string, unknown> }>;
+        targets?: Record<string, { options?: Record<string, unknown> }>;
+      };
+      const options = (targets.architect ?? targets.targets)?.["extract-i18n"]
+        ?.options;
+      if (!options || typeof options !== "object") continue;
+      const { outputPath, outFile, format } = options;
+      // Only XLIFF is the xliff source's: `json`, `arb` or `xmb` is not.
+      if (typeof format === "string" && !/^(?:xlf|xlif|xliff)2?$/.test(format))
+        continue;
+      const name = typeof outFile === "string" ? outFile : "messages.xlf";
+      if (!/\.(?:xlf|xliff)$/i.test(name)) continue;
+      const dir =
+        typeof outputPath !== "string"
+          ? workspace
+          : path.isAbsolute(outputPath)
+            ? outputPath
+            : path.posix.join(workspace, outputPath);
+      const output = path.posix.join(dir, name);
+      if (!outputs.includes(output) && local(output) !== bareHere)
+        outputs.push(output);
     }
-    for (const output of outputs) {
-      if (output === bare) continue;
+    // The one sharing the most of the translations' directory first.
+    const shared = (output: string) => {
+      const a = path.posix.dirname(local(output)).split("/");
+      const b = start.split("/");
+      let n = 0;
+      while (n < a.length && a[n] === b[n]) n++;
+      return n;
+    };
+    for (const output of [...outputs].sort((x, y) => shared(y) - shared(x))) {
       if (exists(output))
         return {
           sourcePath: output,
           why: `ng extract-i18n's output, from ${file}`,
           tried,
         };
-      tried.push(output);
+      if (!walkedFiles.includes(local(output))) tried.push(output);
     }
   }
-  const walked = dirs.filter(
-    (dir) => path.posix.join(dir, "messages.xlf") !== bare,
-  );
-  for (const dir of walked) {
-    const candidate = path.posix.join(dir, "messages.xlf");
-    if (!tried.includes(candidate) && exists(candidate))
+  for (const candidate of walkedFiles)
+    if (exists(candidate))
       return {
         sourcePath: candidate,
         why: "the messages.xlf nearest the translations",
         tried,
       };
-  }
   return { tried, ...(walked[0] !== undefined && { above: walked[0] }) };
 }
 
@@ -582,9 +614,12 @@ function formatOf(
         ? path.posix.normalize(messages.replace(/[._-]?\{lang\}/, ""))
         : undefined;
     if (!missing) return { adapter: "xliff" };
-    if (bare !== undefined && existsSync(path.join(ctx.cwd, bare)))
+    if (bare !== undefined && existsSync(path.join(ctx.cwd, bare))) {
+      gitIgnored(ctx, bare);
       return { adapter: "xliff", sourcePath: bare };
+    }
     const extracted = angularSource(ctx.cwd, messages, bare);
+    if (extracted.sourcePath) gitIgnored(ctx, extracted.sourcePath);
     if (extracted.sourcePath)
       return {
         adapter: "xliff",

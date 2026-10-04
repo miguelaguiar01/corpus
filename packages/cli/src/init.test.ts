@@ -1177,9 +1177,22 @@ test("init's search for Angular's messages.xlf: an absolute pattern, several pro
     }
     return p;
   };
-  const init = (p: ReturnType<typeof project>, messages: string) =>
+  const init = (
+    p: ReturnType<typeof project>,
+    messages: string,
+    ...more: string[]
+  ) =>
     run(
-      ["init", "--project", "app", "--source", "en", "--messages", messages],
+      [
+        "init",
+        "--project",
+        "app",
+        "--source",
+        "en",
+        "--messages",
+        messages,
+        ...more,
+      ],
       p.ctx,
     );
   const sourcePathOf = async (p: ReturnType<typeof project>) =>
@@ -1187,7 +1200,12 @@ test("init's search for Angular's messages.xlf: an absolute pattern, several pro
   // An absolute pattern walks up to the config's directory, no further.
   const absolute = at({ "loc/messages.de.xlf": unit, "messages.xlf": unit });
   expect(
-    await init(absolute, path.join(absolute.dir, "loc/messages.{lang}.xlf")),
+    await init(
+      absolute,
+      path.join(absolute.dir, "loc/messages.{lang}.xlf"),
+      "--languages",
+      "en, de",
+    ),
   ).toBe(0);
   expect(await sourcePathOf(absolute)).toMatchObject({
     sourcePath: "messages.xlf",
