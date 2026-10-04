@@ -321,10 +321,10 @@ export function pluralFrom(arg: string, branches: [string, string][]): string {
 }
 
 // A key that is a sentence rather than a path: whitespace, or anything
-// outside a dotted identifier. One such key with an empty value means
-// the file uses natural keys, and then every empty value takes its key
-// ("Email", "free", "Redeeming...") unless the key is a lowercase dotted
-// path ("ui.title"), which stays empty.
+// outside a dotted identifier. One such top-level key with an empty
+// value means the file uses natural keys, and then every empty top-level
+// value takes its key ("Email", "free", "Redeeming...") unless the key is
+// a lowercase dotted path ("ui.title"), which stays empty.
 export function keyIsSentence(id: string): boolean {
   return /\s/.test(id) || !/^[A-Za-z0-9_.:-]+$/.test(id);
 }
