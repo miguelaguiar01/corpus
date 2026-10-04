@@ -2212,3 +2212,46 @@ test("a source whose adapter takes a fixed extension is refused once, by what it
   );
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("a printf source holding a % and a digit no verb reads says once that qt reads %0 by number; under qt, or with verbs alone, it says nothing (#1036)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-1036-"));
+  mkdirSync(path.join(dir, "en.lproj"), { recursive: true });
+  // Stats substitutes %0, %1 itself, as plain text.
+  writeFileSync(
+    path.join(dir, "en.lproj", "Localizable.strings"),
+    `"used" = "%0 of %1 used";\n"cores" = "%0 cores";\n"left" = "%0% remaining";\n"plain" = "%d files, %1$@ and 50%%";\n`,
+  );
+  const notes = async (library?: string) =>
+    (
+      await buildSnapshotReport(
+        expandSources(
+          defineCorpus({
+            project: "stats",
+            server: "https://corpus.example",
+            sourceLanguage: "en",
+            languages: ["en", "de"],
+            sources: [
+              {
+                adapter: "strings",
+                type: "ui",
+                path: "{lang}.lproj/Localizable.strings",
+                ...(library && { library }),
+              } as never,
+            ],
+          }),
+          dir,
+        ),
+        dir,
+      )
+    ).notes.filter((n) => /qt/.test(n));
+  expect(await notes()).toEqual([
+    'en.lproj/Localizable.strings: 3 string(s) write % and a digit that no printf verb reads (%0): if the app substitutes %0, %1 itself, library: "qt" checks them',
+  ]);
+  expect(await notes("qt")).toEqual([]);
+  writeFileSync(
+    path.join(dir, "en.lproj", "Localizable.strings"),
+    `"plain" = "%d files, %1$@ and 50%%";\n`,
+  );
+  expect(await notes()).toEqual([]);
+  rmSync(dir, { recursive: true, force: true });
+});
