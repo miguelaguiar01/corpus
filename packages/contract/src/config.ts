@@ -193,6 +193,9 @@ const messagesFields = {
       text: z.string().min(1),
       note: z.string().min(1).optional(),
     })
+    .refine((e) => e.note !== e.text, {
+      message: "entries' note names another field than its text",
+    })
     .optional(),
 };
 const tableFields = {

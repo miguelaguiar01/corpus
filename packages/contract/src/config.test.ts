@@ -1245,6 +1245,9 @@ test("a messages source's entries names its text field and its note field; not u
   expect(
     issues({ ...signal, entries: { text: "message", notes: "x" } }),
   ).toHaveLength(1);
+  expect(
+    issues({ ...signal, entries: { text: "message", note: "message" } }),
+  ).toEqual(["entries' note names another field than its text"]);
   expect(issues({ ...signal, library: "chrome" })).toEqual([
     "entries does not apply under library chrome, which reads its own { message, description } entries",
   ]);

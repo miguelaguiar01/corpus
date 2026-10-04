@@ -156,18 +156,23 @@ export default defineCorpus({
     //    and FormatJS's extract formats write (`defaultMessage`,
     //    `message`, `string`, `translation`), says so with
     //    `entries: { text: "messageformat", note: "description" }`
-    //    (#1001): each top-level value whose text field is a string is
+    //    (#1001). Each top-level value whose text field is a string is
     //    one string, read under the source's library, its note field its
     //    note; other fields (`ignoreUnused`, `limit`) are the tool's and
-    //    not read, a top-level value that is no entry (Smartling's
-    //    `smartling` config) is skipped with a build note, and a pull or
-    //    a proposal writes the text field alone, every other byte kept,
-    //    a new entry taking the source's other string fields. `entries`
-    //    is refused under `library: "chrome"`, whose `{ message }`
-    //    entries are its own, and beside `keyIsText`; init writes it
-    //    where every value is an object holding one text field, the note
-    //    field the one of `description`, `developer_comment` and `notes`
-    //    most entries hold.
+    //    not read. In the source a top-level value that is no entry
+    //    (Smartling's `smartling` config) is skipped with a build note;
+    //    in a target one is not seeded, named, and left by a pull. A pull
+    //    or a proposal writes the text field alone, every other byte
+    //    kept, and a new entry, in a file new or not, is the text field
+    //    alone, as Signal's targets hold theirs. `entries` is refused
+    //    under `library: "chrome"`, whose `{ message }` entries are its
+    //    own, beside `keyIsText`, and with a note field that is its text
+    //    field. Init writes it where every value is an object holding one
+    //    text field and nine in ten hold nothing but it and metadata, the
+    //    note field the one of `description`, `developer_comment` and
+    //    `notes` most entries hold; a `{ message, description }` file is
+    //    Chrome's unless its text writes an ICU argument and no Chrome
+    //    `$NAME$` or `placeholders`, as FormatJS's crowdin format does.
     //    A null, number or boolean value is no string, as in yaml, and
     //    is skipped, left by a pull, a source's counted in a build note
     //    since push archives a string that became one; a list is

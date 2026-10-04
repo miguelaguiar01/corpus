@@ -958,10 +958,24 @@ const PLURAL_SUFFIX_RE = /_(?:zero|one|two|few|many|other)$/;
 // in a catalogue with a stray pipe is still ICU, not vue-i18n.
 const ICU_ANY_ARGUMENT_RE = /\{\s*[^{},]+\s*,\s*[a-z]+/;
 
+// Chrome's `{ message, description }`, which FormatJS's crowdin format
+// writes too (#1001): told apart by its text, Chrome's `$NAME$` and
+// `placeholders` against ICU's `{name}`, and no Chrome text at all with
+// an ICU argument read as FormatJS's.
 function chromeShaped(file: string): boolean {
   if (!file.endsWith(".json")) return false;
   try {
-    return isChromeMessages(JSON.parse(stripBom(readFileSync(file, "utf8"))));
+    const data: unknown = JSON.parse(stripBom(readFileSync(file, "utf8")));
+    if (!isChromeMessages(data)) return false;
+    const values = Object.values(data);
+    const chrome = values.some(
+      (v) =>
+        v.placeholders !== undefined || /\$[A-Za-z0-9_@]+\$/.test(v.message),
+    );
+    const icu = values.some((v) =>
+      /\{\s*[A-Za-z_][\w.-]*\s*[,}]/.test(v.message),
+    );
+    return chrome || !icu;
   } catch {
     return false;
   }

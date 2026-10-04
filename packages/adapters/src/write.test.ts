@@ -1289,9 +1289,31 @@ test("an entry-object catalogue takes a translation into its text field only, ev
     "ignoreUnused": true
   },
   "icu:Bye": {
-    "messageformat": "Tschüss",
-    "description": "Leaving"
+    "messageformat": "Tschüss"
   }
 }
 `);
+  // A new file holds the text field alone, as a new entry does.
+  expect(
+    entriesToMessages(template, { "icu:Bye": "Tschüss" }, undefined, {
+      entries,
+    }),
+  ).toBe(`{
+  "icu:Bye": {
+    "messageformat": "Tschüss"
+  }
+}
+`);
+  // A value that is no entry is the file's: refused, and left.
+  const refused: string[] = [];
+  const odd = `{\n  "icu:Greeting": "plain",\n  "icu:Bye": { "messageformat": { "x": "y" } }\n}\n`;
+  expect(
+    entriesToMessages(
+      template,
+      { "icu:Greeting": "Hallo", "icu:Bye": "Tschüss" },
+      odd,
+      { entries, onRefused: (id) => refused.push(id) },
+    ),
+  ).toBe(odd);
+  expect(refused).toEqual(["icu:Greeting", "icu:Bye"]);
 });

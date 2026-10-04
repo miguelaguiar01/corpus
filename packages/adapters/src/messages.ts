@@ -37,6 +37,8 @@ export type MessagesOptions = {
   // (#1001): Signal's `{ messageformat, description }`, FormatJS's
   // extract formats.
   entries?: EntryFields;
+  // The source language's file, not a target's.
+  sourceFile?: boolean;
 };
 
 export type EntryFields = { text: string; note?: string };
@@ -419,7 +421,10 @@ function fieldEntries(
         : undefined;
     const text = record?.[fields.text];
     if (typeof text !== "string") {
-      options.onSkipped?.(id);
+      // In the source a tool's config object (Smartling's) is skipped;
+      // in a target the value is the file's, named and left (#1028).
+      if (options.sourceFile) options.onSkipped?.(id);
+      else options.onRefused?.(id, `is no entry with a string ${fields.text}`);
       continue;
     }
     const entry: StringEntry = { id, type: options.type, source: text };

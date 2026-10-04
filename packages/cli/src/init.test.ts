@@ -2621,3 +2621,41 @@ test("init detects the library from an entry object's text field (#1001)", async
     entries: { text: "defaultMessage", note: "description" },
   });
 });
+
+test("FormatJS's crowdin format, { message, description } with ICU text, is entries, not Chrome's (#1001)", async () => {
+  const p = project();
+  mkdirSync(path.join(p.dir, "lang"), { recursive: true });
+  writeFileSync(
+    path.join(p.dir, "lang", "en.json"),
+    JSON.stringify({
+      greeting: { message: "Hello {name}", description: "A greeting" },
+      chats: {
+        message: "{count, plural, one {# chat} other {# chats}}",
+        description: "Count",
+      },
+    }),
+  );
+  expect(await run(initFor("lang/{lang}.json"), p.ctx)).toBe(0);
+  const source = (await loadConfig(p.dir)).sources[0];
+  expect(source).toMatchObject({
+    entries: { text: "message", note: "description" },
+  });
+  expect(source).not.toMatchObject({ library: "chrome" });
+  // Chrome's own, with $NAME$ and placeholders, stays chrome.
+  const c = project();
+  mkdirSync(path.join(c.dir, "_locales", "en"), { recursive: true });
+  writeFileSync(
+    path.join(c.dir, "_locales", "en", "messages.json"),
+    JSON.stringify({
+      greeting: {
+        message: "Hello $NAME$",
+        placeholders: { name: { content: "$1" } },
+      },
+      plain: { message: "Save" },
+    }),
+  );
+  expect(await run(initFor("_locales/{lang}/messages.json"), c.ctx)).toBe(0);
+  expect((await loadConfig(c.dir)).sources[0]).toMatchObject({
+    library: "chrome",
+  });
+});

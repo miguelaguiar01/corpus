@@ -324,11 +324,12 @@ export function entriesToMessages(
   translations = ownRecord(translations);
   if (options.chrome) return chromeMessages(template, translations, existing);
   if (options.entries)
-    return chromeMessages(
+    return entryMessages(
       template,
       translations,
       existing,
       options.entries.text,
+      options.onRefused,
     );
   const plurals = options.plurals ?? false;
   const suffix: Suffix = options.suffixPlurals
@@ -433,15 +434,71 @@ function listIds(
 // Chrome i18n (#595): a translation is an entry's `message`, edited in
 // place; the rest of the entry is the source's, copied with a new key.
 // A missing or blank file starts from the source, BOM and all.
-// Chrome's `{ message }` entries, and any entry object's text field
-// (#1001): the translation goes there, every other byte kept, and a new
-// entry takes the source's other fields.
+// Entry objects (#1001): a translation goes into an entry's text field,
+// every other byte kept, and a new entry, in a file new or not, is the
+// text field alone, as Signal's targets hold theirs. A value that is no
+// entry is the file's, refused and left.
+function entryMessages(
+  template: string,
+  translations: Record<string, string>,
+  existing: string | undefined,
+  field: string,
+  onRefused?: Refusal,
+): string {
+  if (existing === undefined || existing.trim() === "") {
+    const style = styleOf(template);
+    const out: Tree = Object.create(null) as Tree;
+    const order = [
+      ...Object.keys(parseTree(template)),
+      ...Object.keys(translations),
+    ];
+    for (const id of order)
+      if (Object.hasOwn(translations, id) && !Object.hasOwn(out, id))
+        out[id] = { [field]: translations[id]! };
+    return likeFile(
+      JSON.stringify(out, null, style.indent) +
+        (style.trailingNewline ? "\n" : ""),
+      template,
+    );
+  }
+  let text = existing;
+  const base = parseTree(text);
+  const { indent } = styleOf(text);
+  for (const [id, next] of Object.entries(translations)) {
+    if (!Object.hasOwn(base, id)) {
+      text = addLeaf(text, [id, field], next, indent);
+      continue;
+    }
+    const entry = base[id];
+    const current =
+      entry !== null && typeof entry === "object" && !Array.isArray(entry)
+        ? (entry as Record<string, unknown>)[field]
+        : entry;
+    if (
+      entry === null ||
+      typeof entry !== "object" ||
+      Array.isArray(entry) ||
+      (current !== undefined && typeof current !== "string")
+    ) {
+      onRefused?.(id, next);
+      continue;
+    }
+    if (current === next) continue;
+    text =
+      editLeaf(text, [id, field], next) ??
+      addLeaf(text, [id, field], next, indent);
+  }
+  return text;
+}
+
+// Chrome's `{ message }` entries (#595): a new one takes the source's
+// description and placeholders, which Chrome reads in every language.
 function chromeMessages(
   template: string,
   translations: Record<string, string>,
   existing: string | undefined,
-  field = "message",
 ): string {
+  const field = "message";
   const fresh = existing === undefined || existing.trim() === "";
   let text = fresh ? template : existing;
   const source = parseTree(template);

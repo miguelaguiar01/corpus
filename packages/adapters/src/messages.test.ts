@@ -497,6 +497,7 @@ test("entry objects read their declared text field as the string and their note 
     {
       type: "ui",
       entries: { text: "messageformat", note: "description" },
+      sourceFile: true,
       onSkipped: (id) => skipped.push(id),
     },
   );

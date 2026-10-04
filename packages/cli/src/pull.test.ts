@@ -2706,12 +2706,30 @@ export default defineCorpus({
     "ignoreUnused": true
   },
   "icu:Chats": {
-    "messageformat": "{count, plural, one {# Chat} other {# Chats}}",
-    "description": "The chat list's count"
+    "messageformat": "{count, plural, one {# Chat} other {# Chats}}"
   }
 }
 `);
   expect(read("_locales/en/messages.json")).toBe(
     en.replace('"Hello {name}"', '"Hi {name}"'),
+  ); // A target value that is no entry is named and left, never mangled.
+  const odd = `{\n  "icu:Greeting": "Hallo {name}"\n}\n`;
+  writeFileSync(path.join(repo, "_locales", "de", "messages.json"), odd);
+  const rebuilt = ctx();
+  expect(await run(["build", "--out", out], rebuilt)).toBe(0);
+  expect(rebuilt.output.join("\n")).toContain(
+    "_locales/de/messages.json: 1 translation(s) not seeded",
   );
+  await serve(200, {
+    ...PAYLOAD,
+    types: { "icu:Greeting": "ui", "icu:Chats": "ui" },
+    translations: { de: { "icu:Greeting": "Servus {name}" } },
+    minState: "untranslated",
+  });
+  const left = ctx();
+  expect(await run(["pull"], left)).toBe(0);
+  expect(left.output.join("\n")).toContain(
+    "is no entry with a string messageformat in the file, which pull leaves as it is",
+  );
+  expect(read("_locales/de/messages.json")).toBe(odd);
 });

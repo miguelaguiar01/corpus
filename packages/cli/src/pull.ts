@@ -569,7 +569,9 @@ function writeTarget(
         onRefused: (id) =>
           refused(
             id,
-            "is a plural its object cannot hold (an =N branch, or a brace a form leaves open)",
+            source.entries
+              ? `is no entry with a string ${source.entries.text} in the file, which pull leaves as it is`
+              : "is a plural its object cannot hold (an =N branch, or a brace a form leaves open)",
           ),
         onList: (id) =>
           refused(id, "is a list in the file, which Corpus cannot read"),
