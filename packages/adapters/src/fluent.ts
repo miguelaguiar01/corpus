@@ -420,7 +420,8 @@ export function fluentTerms(
     { variables: Set<string>; attributes: Set<string> }
   >();
   for (const message of messages(text)) {
-    if (!message.id.startsWith("-")) continue;
+    // FluentBundle keeps a name's first definition.
+    if (!message.id.startsWith("-") || terms.has(message.id)) continue;
     const body = text.slice(message.valueStart, message.end);
     terms.set(message.id, {
       variables: new Set(
