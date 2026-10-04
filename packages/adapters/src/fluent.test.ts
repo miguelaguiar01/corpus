@@ -583,3 +583,29 @@ trash = Trash
     ]),
   ).toContain("added = See {trash}\n");
 });
+
+test("a pull of what a view before #1083 read, its references bare, leaves the message as the file writes it (#1083)", () => {
+  // Anki's ko statistics, a select whose default is not other, and
+  // cosmic-files' spaced placeables.
+  const target = `statistics-in-time-span-years = 년
+statistics-in = { $unit ->
+    [days] { statistics-in-time-span-days }
+   *[years] { statistics-in-time-span-years }
+  }
+emptying-trash = { trash } 비우는 중 ({ $progress })...
+`;
+  const legacy = {
+    "statistics-in":
+      "{unit, select, days {{statistics-in-time-span-days}} years {{statistics-in-time-span-years}} other {{statistics-in-time-span-years}}}",
+    "emptying-trash": "{trash} 비우는 중 ({progress})...",
+  };
+  expect(entriesToFluent(target, legacy, target)).toBe(target);
+  // A changed one is written, its references still references.
+  expect(
+    entriesToFluent(
+      target,
+      { "emptying-trash": "{trash} 비우는 중 ({progress})…" },
+      target,
+    ),
+  ).toContain("emptying-trash = { trash } 비우는 중 ({ $progress })…\n");
+});
