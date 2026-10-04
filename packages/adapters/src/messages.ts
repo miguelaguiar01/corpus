@@ -396,7 +396,8 @@ export function messagesToEntries(
         typeof description === "string" && description.trim() !== ""
           ? [description]
           : [];
-      const values: Record<string, string> = {};
+      // A key read from a file is data: `__proto__` is a name (#846).
+      const values = Object.create(null) as Record<string, string>;
       if (
         placeholders &&
         typeof placeholders === "object" &&
@@ -415,8 +416,11 @@ export function messagesToEntries(
         }
       const rendered =
         options.sourceFile && Object.keys(values).length > 0
-          ? renderPreview(entry.source, values, options.sourceLanguage, {
+          ? // As the author wrote it: an email that opens the string
+            // stays lowercase, as gen-l10n prints it (#787).
+            renderPreview(entry.source, values, options.sourceLanguage, {
               syntax: options.library ?? "icu",
+              capitalise: false,
             })
           : undefined;
       return {
