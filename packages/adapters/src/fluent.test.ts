@@ -638,3 +638,9 @@ count = {$items ->
     `a = Say {"{x}"}\n`,
   );
 });
+
+test("the old view of a message that refers to a message only the target defines pulls back unchanged; only the source message's own variables make a bare name ambiguous (#1083 review 2)", () => {
+  const source = `trash = Trash\nm2 = {trash} here\n`;
+  const target = `trash = Lixo\nz = já\nm2 = {trash} {z}\n`;
+  expect(entriesToFluent(source, { m2: "{trash} {z}" }, target)).toBe(target);
+});
