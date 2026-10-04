@@ -1263,6 +1263,37 @@ test("init's search for Angular's messages.xlf: an absolute pattern, several pro
     sourcePath: "i18n/messages.xlf",
   });
   expect(await run(["build"], absoluteOutput.ctx)).toBe(0);
+  // One outside the config's directory is written relative to it too.
+  const outside = mkdtempSync(path.join(os.tmpdir(), "corpus-init-out-"));
+  dirs.push(outside);
+  writeFileSync(path.join(outside, "messages.xlf"), unit);
+  const beyond = at({
+    "angular.json": JSON.stringify({
+      projects: { ui: extract({ outputPath: outside }) },
+    }),
+    "src/locale/messages.de.xlf": unit,
+  });
+  await init(beyond, "src/locale/messages.{lang}.xlf");
+  expect(await sourcePathOf(beyond)).toMatchObject({
+    sourcePath: path.relative(beyond.dir, path.join(outside, "messages.xlf")),
+  });
+  expect(await run(["build"], beyond.ctx)).toBe(0);
+  // A missing output inside it is named in its terms, once, however
+  // angular.json writes it.
+  const twice = at({ "src/locale/messages.de.xlf": unit });
+  writeFileSync(
+    path.join(twice.dir, "angular.json"),
+    JSON.stringify({
+      projects: {
+        a: extract({ outputPath: "i18n" }),
+        b: extract({ outputPath: path.join(twice.dir, "i18n") }),
+      },
+    }),
+  );
+  await init(twice, "src/locale/messages.{lang}.xlf");
+  expect(twice.err).toContain(
+    "corpus: no src/locale/messages.en.xlf, no src/locale/messages.xlf, no i18n/messages.xlf and no messages.xlf in src or above; set the xliff source's sourcePath to the file Angular extracts",
+  );
   // An angular.json that is no file guesses nothing.
   const directory = at({
     "angular.json/x": "",
@@ -1291,6 +1322,54 @@ test("init's search for Angular's messages.xlf: an absolute pattern, several pro
   expect(none.err).toContain(
     "corpus: no src/locale/messages.en.xlf, no src/locale/messages.xlf, no /elsewhere/messages.xlf and no messages.xlf in src or above; set the xliff source's sourcePath to the file Angular extracts",
   );
+});
+
+test("the xliff sourcePath init chose is not said to be left out for naming no language; a stray file still is (#1219)", async () => {
+  const unit = `<xliff version="1.2"><file source-language="en"><body><trans-unit id="a"><source>Hello</source></trans-unit></body></file></xliff>\n`;
+  // However the pattern spells its directory.
+  for (const messages of [
+    "src/locale/{lang}.xlf",
+    "./src/locale/{lang}.xlf",
+    "src/./locale/{lang}.xlf",
+  ]) {
+    const p = project();
+    stubCli(p.dir);
+    mkdirSync(path.join(p.dir, "src", "locale"), { recursive: true });
+    for (const name of ["de.xlf", "messages.xlf", "notes.xlf"])
+      writeFileSync(path.join(p.dir, "src", "locale", name), unit);
+    await run(
+      ["init", "--project", "app", "--source", "en", "--messages", messages],
+      p.ctx,
+    );
+    expect(p.out, messages).toContain(
+      "sourcePath: src/locale/messages.xlf (the messages.xlf nearest the translations)",
+    );
+    const said = p.err.join("\n");
+    expect(said, messages).not.toMatch(/messages\.xlf names no language tag/);
+    expect(said, messages).toMatch(/notes\.xlf names no language tag/);
+  }
+  // A gettext target read as the source (#996), however its pattern
+  // spells the directory.
+  const po = (ids: string[]) =>
+    `msgid ""\nmsgstr ""\n"Content-Type: text/plain; charset=UTF-8\\n"\n"POT-Creation-Date: 2026-01-01 00:00+0000\\n"\n\n${ids.map((id) => `#: src/app.c:1\nmsgid "${id}"\nmsgstr ""\n`).join("\n")}`;
+  for (const messages of ["po/{lang}.po", "./po/{lang}.po", "po/./{lang}.po"]) {
+    const p = project();
+    stubCli(p.dir);
+    mkdirSync(path.join(p.dir, "po"), { recursive: true });
+    writeFileSync(path.join(p.dir, "po", "de.po"), po(["Hello"]));
+    writeFileSync(path.join(p.dir, "po", "messages.po"), po(["Hello", "Bye"]));
+    writeFileSync(path.join(p.dir, "po", "notes.po"), po(["Hello"]));
+    await run(
+      ["init", "--project", "app", "--source", "en", "--messages", messages],
+      p.ctx,
+    );
+    const said = p.err.join("\n");
+    expect(said, messages).toMatch(
+      /sourcePath is (\.\/)?po\/(\.\/)?messages\.po/,
+    );
+    expect(said, messages).not.toMatch(/messages\.po names no language tag/);
+    expect(said, messages).toMatch(/notes\.po names no language tag/);
+  }
 });
 
 test("init writes a gettext source for .po catalogues, the .pot beside them its source, and the config builds (#720)", async () => {
