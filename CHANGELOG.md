@@ -16,6 +16,7 @@ contract (`corpus/1`) is the only one.
 - A target's section whose keys look like plural categories is read as keys unless the source has a plural there, and under i18next a lone `{ "other": … }` is a key; `init` picks i18next for catalogues with plural objects (#984).
 - A JSON target's plural object with a broken form is validated as that plural, not reported as orphan keys (#960).
 - i18next plural keys (`item_one`, `item_other`) are one string per family, so each language gets its own forms (Polish `few` and `many`) and `_zero` is always allowed; pull translations before the first 0.22 push, which re-reads these families from the files (#985).
+- Under i18next, a target that writes a plural as an object where the source writes suffix keys, or the other way round, pulls back unchanged (#1187).
 - Under i18next an unpaired tag such as `<no title>` is text, not a refusal, while `Trans` tags are still compared and `<2/>` for `<2>…</2>` is caught (#986).
 - Android strings with an escaped `&lt;…&gt;` or an inline CDATA read as text and build; a pull writes such text escaped (#987).
 - Rails keys ending in `_html` are read as HTML: a translation's own tags are accepted, and broken markup in them is still caught (#988).

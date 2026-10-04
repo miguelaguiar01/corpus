@@ -360,11 +360,15 @@ export function entriesToMessages(
   const fresh = existing === undefined;
   let text = base;
   const seen = new Set<string>();
+  // As the reader takes them: a target's plural in either shape, an
+  // object or suffix keys, wherever the source has one in either, and
+  // written back in the target's own (#1187).
+  const known = new Set([...sourcePlurals, ...sourceSuffix]);
   for (const [path, value, plural] of leaves(
     baseTree,
     plurals,
-    sourcePlurals,
-    suffix && { ...suffix, known: sourceSuffix },
+    known,
+    suffix && { ...suffix, known },
   )) {
     const id = path.join(".");
     seen.add(id);
