@@ -101,12 +101,14 @@ function messages(text: string): Message[] {
       } else if (line.trim() !== "") break;
     }
     const start = offsets[i]! + skip;
+    // A line as Fluent reads it, the first without its byte-order mark.
+    const bare = (n: number) =>
+      lines[n]!.slice(n === 0 ? bom : 0).replace(/\r$/, "");
     let first = i;
-    while (first > 0 && /^#(?: |$)/.test(lines[first - 1]!.replace(/\r$/, "")))
-      first -= 1;
+    while (first > 0 && /^#(?: |$)/.test(bare(first - 1))) first -= 1;
     const comment = lines
       .slice(first, i)
-      .map((line) => line.replace(/\r$/, "").replace(/^# ?/, ""));
+      .map((_, k) => bare(first + k).replace(/^# ?/, ""));
     const note =
       comment.join("\n").trim() === "" ? undefined : comment.join("\n");
     const endOf = (line: number) =>
