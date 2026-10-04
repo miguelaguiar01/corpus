@@ -1433,3 +1433,23 @@ test("a pull into an empty {} target writes one key per line in the source's ind
     `{ "z": "Z", "a": "Á" }\n`,
   );
 });
+
+test("an empty {} target of a Chrome catalogue or of entry objects takes the given indent too, else the source's (#1041 review)", () => {
+  const chrome = `{\n    "a": {\n        "message": "A"\n    }\n}\n`;
+  expect(
+    entriesToMessages(chrome, { a: "Á" }, "{}\n", {
+      chrome: true,
+      indent: "\t",
+    }),
+  ).toBe(`{\n\t"a": {\n\t\t"message": "Á"\n\t}\n}\n`);
+  expect(entriesToMessages(chrome, { a: "Á" }, "{}\n", { chrome: true })).toBe(
+    `{\n    "a": {\n        "message": "Á"\n    }\n}\n`,
+  );
+  const entries = `{\n    "a": {\n        "text": "A"\n    }\n}\n`;
+  expect(
+    entriesToMessages(entries, { a: "Á" }, "{}\n", {
+      entries: { text: "text" },
+      indent: "\t",
+    }),
+  ).toBe(`{\n\t"a": {\n\t\t"text": "Á"\n\t}\n}\n`);
+});
