@@ -116,3 +116,28 @@ test("the project's numbers with its languages, string count and last push", asy
 test("no token is 401", async () => {
   expect((await status(undefined)).status).toBe(401);
 });
+
+test("the project's source variants, which the dashboard and corpus status sort last (#699)", async () => {
+  const created = provisionProject(db, {
+    slug: "qb",
+    name: "qBittorrent",
+    sourceLanguage: "en",
+    languages: ["en", "en-GB", "de"],
+  });
+  if (!created.ok) throw new Error(created.reason);
+  const before = (await (await status(created.token)).json()) as {
+    sourceVariants: string[];
+  };
+  expect(before.sourceVariants).toEqual([]);
+  applySnapshot(db, created.project.id, {
+    contract: "corpus/1",
+    project: "qb",
+    sourceLanguage: "en",
+    sourceVariants: ["en-GB"],
+    strings: [{ id: "a", type: "ui", source: "A" }],
+  } as Snapshot);
+  const after = (await (await status(created.token)).json()) as {
+    sourceVariants: string[];
+  };
+  expect(after.sourceVariants).toEqual(["en-GB"]);
+});

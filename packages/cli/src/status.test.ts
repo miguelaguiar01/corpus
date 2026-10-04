@@ -191,3 +191,32 @@ test("a project whose sources are all the code's text says why it takes no propo
     "no writable source: proposals are not possible on this project",
   );
 });
+
+test("a source variant's row comes after the targets, marked as falling back to the source, its numbers raw (#699)", () => {
+  const lines = render(
+    {
+      ...STATUS,
+      languages: ["en", "en-GB", "pt-PT"],
+      sourceVariants: ["en-GB"],
+      progress: {
+        perLanguage: {
+          ...STATUS.progress.perLanguage,
+          "en-GB": {
+            untranslated: 2,
+            translated: 0,
+            verified: 0,
+            stale: 0,
+            total: 2,
+          },
+        },
+        perType: {},
+      },
+    },
+    "http://x",
+  );
+  const rows = lines.slice(lines.indexOf("") + 2).map((l) => l.split("  ")[0]);
+  expect(rows).toEqual(["en", "pt-PT", "en-GB (falls back to en)"]);
+  expect(lines.at(-1)).toMatch(
+    /^en-GB \(falls back to en\)\s+2\s+0\s+0\s+0\s+0\s+2$/,
+  );
+});

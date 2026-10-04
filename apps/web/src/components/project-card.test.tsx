@@ -95,3 +95,22 @@ test("pending proposals are counted beside the queues, and absent when none", ()
   );
   expect(screen.queryByText("Proposals")).toBeNull();
 });
+
+test("a source variant's bar comes after the targets, labelled as falling back to the source (#699)", () => {
+  render(
+    <ProjectCard
+      slug="q"
+      name="qBittorrent"
+      languages={["en", "en-GB", "de"]}
+      sourceLanguage="en"
+      sourceVariants={["en-GB"]}
+      progress={{ ...PROGRESS, "en-GB": PROGRESS["pt-PT"], de: PROGRESS.en }}
+      counts={COUNTS}
+    />,
+  );
+  const labels = screen
+    .getAllByRole("meter")
+    .map((m) => m.getAttribute("aria-label"));
+  expect(labels).toEqual(["en", "de", "en-GB"]);
+  expect(screen.getByText("falls back to en")).toBeTruthy();
+});
