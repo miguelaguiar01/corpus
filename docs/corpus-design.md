@@ -232,11 +232,16 @@ export default defineCorpus({
     // 4. Fluent `.ftl`: messages with a value, read as ICU under the
     //    `fluent` library (§5), whose names are Fluent's identifiers,
     //    `{$cards-per-minute}` included, and whose plurals and selects
-    //    may nest in their own kind (#990). `{$var}` is a
-    //    placeholder, a message reference `{name}` a placeholder named
-    //    after the message (written back without `$` where the source's
-    //    message writes it so, or where the name is a message the source
-    //    never uses as a variable), and a select on a variable an ICU
+    //    may nest in their own kind (#990). `{$var}` is the
+    //    placeholder `{var}`, a message reference `{ name }` the
+    //    placeholder `{@name}`, so the two read apart (#1083): a
+    //    translation may refer to a message its source does not, as a
+    //    term, and dropping one its source has is missing; a reference
+    //    never selects or formats. A bare `{name}` that a view before
+    //    #1083 wrote for a reference, which a server may still hold, is
+    //    written back without `$` where the source's message writes it
+    //    so, or where it names a message the source never uses as a
+    //    variable. A select on a variable is an ICU
     //    plural when every key is a CLDR category or a number (`[0]` is
     //    `=0`) and an ICU select otherwise; a default that is not
     //    `other` is carried as an `other` branch with its text, which is

@@ -154,7 +154,15 @@ function renderNodes(
     if (node.kind === "placeholder" || node.kind === "count") {
       const name = node.kind === "placeholder" ? node.name : node.arg;
       return (
-        <span key={index} className={PLACEHOLDER} title={slots.get(name)}>
+        <span
+          key={index}
+          className={PLACEHOLDER}
+          title={
+            [slots.get(name), chipLabel(name, syntax)]
+              .filter(Boolean)
+              .join("\n") || undefined
+          }
+        >
           {node.kind === "placeholder"
             ? chipText(
                 name,
@@ -193,6 +201,14 @@ function renderNodes(
       </span>
     );
   });
+}
+
+// What a chip is beyond its text: under fluent a message reference,
+// `{@name}`, is the locale's own message, never a value passed (#1083).
+export function chipLabel(name: string, syntax: Library): string | undefined {
+  return syntax === "fluent" && name.startsWith("@")
+    ? t("source.fluentMessage", { name: name.slice(1) })
+    : undefined;
 }
 
 // A placeholder as the source writes it, so the chip reads as the text;
