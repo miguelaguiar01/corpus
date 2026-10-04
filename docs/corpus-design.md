@@ -135,8 +135,9 @@ export default defineCorpus({
     //    nested value is never a natural key ("sweet corn" in
     //    `foods.sweet corn.plural_name` stays empty) (#1044); such
     //    a string carries no file, so a proposal on it is refused, and
-    //    build says how many took the key. A file with no top-level sentence key
-    //    keeps its empty values empty: rows an extraction tool left.
+    //    build says how many took the key. A file with no top-level
+    //    sentence key keeps its empty values empty: rows an extraction
+    //    tool left.
     //    Where the source language's file is generated and ignored, as
     //    Zulip's makemessages writes `locale/en/translations.json`, a
     //    `sourcePath` names a committed target with `keyIsText: true`
@@ -194,7 +195,8 @@ export default defineCorpus({
     //    since push archives a string that became one; a list's items
     //    are read by index, as vue-i18n's path resolver and i18next's
     //    `t('list.0.name')` look them up, `FEATURES.0` and
-    //    `DATE_RANGE.0.name` the ids, a number, flag or null in one its data, skipped and not counted in the build note
+    //    `DATE_RANGE.0.name` the ids, a number, flag or null in one
+    //    its data, skipped and not counted in the build note
     //    (#1053). A pull edits an item in place; a target that lacks the
     //    list, or holds it short, takes the source's items to the last
     //    one a translation writes, their other text and their numbers

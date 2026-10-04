@@ -27,6 +27,7 @@ import {
   addLeaf,
   appendItem,
   nodeAt,
+  replaceValue,
   truncateList,
   checkPath,
   deleteKey,
@@ -433,6 +434,31 @@ export function entriesToMessages(
     }
     if (next !== undefined) {
       if (next === value) continue;
+      // A list's item that is a string where the source has a plural
+      // object is replaced in place: removing it would renumber the
+      // items after it (#1053).
+      const item =
+        !plural &&
+        sourcePlurals.has(id) &&
+        nodeAt(parseTreeNode(text), path.slice(0, -1))?.type === "array";
+      if (item) {
+        const forms = formsOf(next);
+        if (forms)
+          text = replaceValue(
+            text,
+            path,
+            {
+              json: Object.fromEntries(
+                PLURAL_CATEGORIES.filter((c) => forms[c] !== undefined).map(
+                  (c) => [c, forms[c]!],
+                ),
+              ),
+            },
+            style.indent,
+          );
+        else onRefused?.(id, next);
+        continue;
+      }
       text =
         plural === "suffix"
           ? writeSuffix(text, path, next, style.indent, fresh, order, onRefused)
@@ -664,8 +690,22 @@ function completeLists(
   order: ReturnType<typeof keyOrder>,
   onList: (id: string) => void,
 ): string {
+  // What a write refused is said once, by the refusal.
+  const refused = new Set<string>();
+  const said = fill.onRefused;
+  fill = {
+    ...fill,
+    onRefused: (id, value) => {
+      refused.add(id);
+      said?.(id, value);
+    },
+  };
+  const name = (id: string) => {
+    if (!refused.has(id)) onList(id);
+  };
   // Each id's first missing part, grouped so a list or an object is
-  // written once for every id it holds.
+  // written once for every id it holds: a list's missing items by the
+  // list, whatever order their translations come in.
   const groups = new Map<string, { at: string[]; ids: string[] }>();
   const tree = parseTreeNode(text);
   for (const id of ids) {
@@ -675,10 +715,12 @@ function completeLists(
     let node = tree;
     let at: string[] | undefined;
     let mismatch = false;
+    let appending = false;
     for (let k = 0; k < leafParent; k++) {
       const child = node && nodeAt(node, [path[k]!]);
       if (!child) {
         at = path.slice(0, k + 1);
+        appending = node?.type === "array";
         break;
       }
       const source = valueAt(sourceTree, path.slice(0, k + 1));
@@ -693,14 +735,26 @@ function completeLists(
       }
       node = child;
     }
+    // A family goes into an object, never a string or a list an item is.
+    if (!at && suffixIds.has(id) && node?.type !== "object") mismatch = true;
     if (mismatch) {
       onList(id);
       continue;
     }
     // Every part held but the leaf: the leaf goes in as a leaf.
-    const leafAt = at ?? path.slice(0, leafParent);
-    const key = (at ? "part\u0000" : "leaf\u0000") + leafAt.join("\u0000");
-    const group = groups.get(key) ?? { at: at ?? path, ids: [] };
+    const leafAt = at
+      ? appending
+        ? at.slice(0, -1)
+        : at
+      : path.slice(0, leafParent);
+    const key =
+      (at ? (appending ? "append\u0000" : "part\u0000") : "leaf\u0000") +
+      leafAt.join("\u0000");
+    // A list's missing items are kept by the list's own path.
+    const group = groups.get(key) ?? {
+      at: appending ? leafAt : (at ?? path),
+      ids: [],
+    };
     group.ids.push(id);
     groups.set(key, group);
   }
@@ -710,8 +764,8 @@ function completeLists(
       for (const id of held) {
         const path = sourcePaths.get(id)!;
         const next = fill.translations[id]!;
-        // A plain string the target holds every part of, the leaf too,
-        // and did not read: a shape the source does not have there.
+        const was = text;
+        const leaf = nodeAt(parseTreeNode(text), path);
         if (suffixIds.has(id))
           text = writeSuffix(
             text,
@@ -722,26 +776,35 @@ function completeLists(
             order,
             fill.onRefused,
           );
-        else if (fill.pluralIds.has(id))
+        else if (fill.pluralIds.has(id) && leaf?.type === "object")
           text = writePlural(text, path, next, indent, order, fill.onRefused);
-        else onList(id);
+        // A string where the source has a plural becomes the plural, as
+        // it does outside a list (#1187).
+        else if (fill.pluralIds.has(id) && leaf?.type === "string") {
+          const forms = formsFor(fill, id, next);
+          if (forms) text = replaceValue(text, path, { json: forms }, indent);
+        }
+        // A plain string the target holds every part of, the leaf too,
+        // and did not read, or a list where the source has a plural: a
+        // shape the source does not have there.
+        if (text === was) name(id);
       }
       continue;
     }
     const leading = held.map((id) => sourcePaths.get(id)!);
-    const parent = nodeAt(parseTreeNode(text), at.slice(0, -1));
-    if (parent?.type === "array") {
+    if (key.startsWith("append\u0000")) {
       // Items the target's list lacks, from its length to the last one
       // these ids reach, appended whole.
-      const list = valueAt(sourceTree, at.slice(0, -1));
-      const heldItems = parent.children?.length ?? 0;
-      const last = Math.max(...leading.map((p) => Number(p[at.length - 1])));
+      const parent = nodeAt(parseTreeNode(text), at);
+      const list = valueAt(sourceTree, at);
+      const heldItems = parent?.children?.length ?? 0;
+      const last = Math.max(...leading.map((p) => Number(p[at.length])));
       if (Array.isArray(list))
         for (let i = heldItems; i <= last; i++)
           text = appendItem(
             text,
-            at.slice(0, -1),
-            buildFrom(list[i], [...at.slice(0, -1), String(i)], fill),
+            at,
+            buildFrom(list[i], [...at, String(i)], fill),
             indent,
           );
     } else {
@@ -749,7 +812,7 @@ function completeLists(
       if (value !== undefined)
         text = addLeaf(text, at, { json: value }, indent, order);
     }
-    if (text === before) for (const id of held) onList(id);
+    if (text === before) for (const id of held) name(id);
   }
   return text;
 }

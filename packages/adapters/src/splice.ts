@@ -131,6 +131,30 @@ function jsonText(
   return one(value);
 }
 
+// The value at `path` replaced by a JSON value in the file's style: a
+// string an item holds where the source has a plural (#1053).
+export function replaceValue(
+  text: string,
+  path: string[],
+  value: JsonValue,
+  unit: string,
+): string {
+  checkPath(path);
+  const node = nodeAt(root(text), path);
+  if (!node) return text;
+  const inline = node.parent ? isInline(text, node.parent) : false;
+  const json = jsonText(
+    value.json,
+    inline,
+    lineIndent(text, node.offset),
+    unit,
+    eolOf(text),
+  );
+  return (
+    text.slice(0, node.offset) + json + text.slice(node.offset + node.length)
+  );
+}
+
 // An item appended to the list at `path`, in its style (#1053).
 export function appendItem(
   text: string,
@@ -227,8 +251,10 @@ function removeProperty(text: string, path: string[]): string {
   const index = siblings.indexOf(property);
   if (siblings.length === 1) {
     // The last property goes with its object, unless the object is the
-    // file itself, which stays as `{}`.
-    if (path.length > 1) return removeProperty(text, path.slice(0, -1));
+    // file itself or a list's item, which stays as `{}` so the items
+    // after it keep their numbers (#1053).
+    if (path.length > 1 && object.parent?.type !== "array")
+      return removeProperty(text, path.slice(0, -1));
     return (
       text.slice(0, object.offset + 1) +
       text.slice(object.offset + object.length - 1)
