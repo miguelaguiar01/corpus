@@ -25,7 +25,7 @@ dismiss = Descartar
 test("messages read as ICU: variables and references are placeholders, a select on a count is a plural, a multi-line value keeps its line break (#597)", () => {
   expect(fluentToEntries(SOURCE, { type: "ui" })).toEqual([
     { id: "trash", type: "ui", source: "Trash" },
-    { id: "empty-trash", type: "ui", source: "Empty {trash}" },
+    { id: "empty-trash", type: "ui", source: "Empty {@trash}" },
     {
       id: "operations-running",
       type: "ui",
@@ -533,4 +533,53 @@ b = { NUMBER\t($n) }
   );
   expect(read.a).toBe('{n, plural, one {{n, number, x: "#"} y} other {z}}');
   expect(refused).toEqual(["b"]);
+});
+
+test("a message reference reads as {@name}, a variable as {name}; the writer writes each back as Fluent does, and an older view's bare reference is still one (#1083)", () => {
+  // Anki's de re-uses its own word for a message the source writes inline.
+  const de = `preferences-url-schemes = URL-Schemata
+preferences-url-scheme-prompt = Erlaubte { preferences-url-schemes } (durch Leerzeichen getrennt):
+`;
+  expect(fluentToEntries(de, { type: "ui" })[1]?.source).toBe(
+    "Erlaubte {@preferences-url-schemes} (durch Leerzeichen getrennt):",
+  );
+  const translations = Object.fromEntries(
+    fluentToEntries(de, { type: "ui" }).map((e) => [e.id, e.source]),
+  );
+  expect(entriesToFluent(de, translations, de)).toBe(de);
+  // cosmic-files' message `items` beside a variable `$items`: the view
+  // says which is which, and so does the writer.
+  const source = `items = Items
+count = {$items} {$items ->
+    [one] item
+    *[other] items
+  } in {trash}
+trash = Trash
+`;
+  expect(fluentToEntries(source, { type: "ui" })[1]?.source).toBe(
+    "{items} {items, plural, one {item} other {items}} in {@trash}",
+  );
+  expect(
+    entriesToFluent(
+      source,
+      {
+        count:
+          "{items} {items, plural, one {{@items}} other {elementos}} em {@trash}",
+      },
+      undefined,
+    ),
+  ).toContain(
+    "count = {$items} {$items ->\n    [one] {items}\n   *[other] elementos\n  } em {trash}",
+  );
+  // A reference a translation adds is written as one, spaced as the
+  // file writes its placeables.
+  expect(
+    entriesToFluent(SOURCE, { "empty-trash": "Baleirar {@trash}" }, GL),
+  ).toBe(`${GL}empty-trash = Baleirar { trash }\n`);
+  // A proposal into the source file too.
+  expect(
+    applyFluentOps(SOURCE, [
+      { kind: "add", id: "added", text: "See {@trash}" },
+    ]),
+  ).toContain("added = See {trash}\n");
 });
