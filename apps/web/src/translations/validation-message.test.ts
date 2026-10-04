@@ -90,6 +90,17 @@ test("gen-l10n's overridden branch and an =N wider than its number are said in t
   );
 });
 
+test("an =N branch a plural read whole cannot hold is said in the editor (#1051)", () => {
+  expect(
+    validationMessage(
+      { code: "exact-branch", arg: "count", key: "=0", category: "other" },
+      "printf",
+    ),
+  ).toBe(
+    "count has an =0 branch, which this catalogue's plurals cannot hold, as they hold categories only: write it in the other branch, which this language picks for 0",
+  );
+});
+
 test("a category branch that writes 1 for a count is said in the editor (#1042)", () => {
   expect(
     validationMessage(
