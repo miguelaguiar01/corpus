@@ -2152,5 +2152,37 @@ test("a source whose adapter takes a fixed extension is refused once, by what it
   expect(broken).toBe(
     "snapshot build failed:\n  Localizable.xcstrings: not a String Catalog: it is not JSON (line 4)",
   );
+  // A bad value, which V8 names without a position, is still placed.
+  writeFileSync(
+    path.join(dir, "Localizable.xcstrings"),
+    `{\n  "sourceLanguage": "en",\n  "version": "1.0",\n  "a": tru\n}\n`,
+  );
+  expect(
+    await failure({
+      adapter: "xcstrings",
+      type: "ui",
+      path: "Localizable.xcstrings",
+    }),
+  ).toBe(
+    "snapshot build failed:\n  Localizable.xcstrings: not a String Catalog: it is not JSON (line 4)",
+  );
+  // An extension no format is named for says what the adapter reads.
+  mkdirSync(path.join(dir, "po"), { recursive: true });
+  writeFileSync(path.join(dir, "po", "en.po.txt"), "");
+  expect(
+    await failure({ adapter: "gettext", type: "ui", path: "po/{lang}.po.txt" }),
+  ).toBe(
+    "snapshot build failed:\n  po/en.po.txt is not a file gettext reads: it reads .po and .pot",
+  );
+  // A Qt Linguist file is named by its first bytes.
+  writeFileSync(
+    path.join(dir, "app_en.ts"),
+    `<?xml version="1.0" encoding="utf-8"?>\n<TS version="2.1" language="en"></TS>\n`,
+  );
+  expect(
+    await failure({ adapter: "fluent", type: "ui", path: "app_{lang}.ts" }),
+  ).toContain(
+    'app_en.ts is a Qt Linguist catalogue: declare it { adapter: "qt-ts"',
+  );
   rmSync(dir, { recursive: true, force: true });
 });
