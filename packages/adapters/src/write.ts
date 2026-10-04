@@ -46,6 +46,19 @@ function styleOf(text: string): Style {
   };
 }
 
+// Whether a file has an indented line, a layout to keep: `{}` has none.
+export function hasIndentedLine(text: string): boolean {
+  return /^[ \t]+\S/m.test(text);
+}
+
+// A target's indent: its own, or for one with no indented line, `{}`,
+// the indent given, its sibling targets', else the source's (#1041).
+function indentOf(text: string, template: string, given?: string): string {
+  return hasIndentedLine(text)
+    ? styleOf(text).indent
+    : (given ?? styleOf(template).indent);
+}
+
 function parseTree(text: string): Tree {
   if (text.trim() === "") return {};
   const parsed: unknown = JSON.parse(stripBom(text));
@@ -325,7 +338,8 @@ export function entriesToMessages(
   } = {},
 ): string {
   translations = ownRecord(translations);
-  if (options.chrome) return chromeMessages(template, translations, existing);
+  if (options.chrome)
+    return chromeMessages(template, translations, existing, options.indent);
   if (options.entries)
     return entryMessages(
       template,
@@ -333,6 +347,7 @@ export function entriesToMessages(
       existing,
       options.entries.text,
       options.onRefused,
+      options.indent,
     );
   const plurals = options.plurals ?? false;
   const suffix: Suffix = options.suffixPlurals
@@ -351,11 +366,10 @@ export function entriesToMessages(
       suffix,
     );
   const baseTree = parseTree(base);
-  // A target with no indented line, `{}`, takes its siblings', else the
-  // source's (#1041).
-  const style = /^[ \t]+\S/m.test(base)
-    ? styleOf(base)
-    : { ...styleOf(base), indent: options.indent ?? styleOf(template).indent };
+  const style = {
+    ...styleOf(base),
+    indent: indentOf(base, template, options.indent),
+  };
   const nested = isNested(baseTree);
   const sourceTree = parseTree(template);
   const {
@@ -456,6 +470,7 @@ function entryMessages(
   existing: string | undefined,
   field: string,
   onRefused?: Refusal,
+  given?: string,
 ): string {
   if (existing === undefined || existing.trim() === "") {
     const style = styleOf(template);
@@ -475,7 +490,7 @@ function entryMessages(
   }
   let text = existing;
   const base = parseTree(text);
-  const { indent } = styleOf(text);
+  const indent = indentOf(text, template, given);
   for (const [id, next] of Object.entries(translations)) {
     if (!Object.hasOwn(base, id)) {
       text = addLeaf(text, [id, field], next, indent);
@@ -509,13 +524,14 @@ function chromeMessages(
   template: string,
   translations: Record<string, string>,
   existing: string | undefined,
+  given?: string,
 ): string {
   const field = "message";
   const fresh = existing === undefined || existing.trim() === "";
   let text = fresh ? template : existing;
   const source = parseTree(template);
   const base = parseTree(text);
-  const { indent } = styleOf(text);
+  const indent = indentOf(text, template, given);
   for (const [id, entry] of Object.entries(base)) {
     const next = Object.hasOwn(translations, id) ? translations[id] : undefined;
     if (next === undefined) {

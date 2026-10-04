@@ -4,6 +4,7 @@ import path from "node:path";
 import { createJiti } from "jiti";
 import {
   applyAndroidOps,
+  hasIndentedLine,
   applyFluentOps,
   entriesToAndroid,
   entriesToFluent,
@@ -561,8 +562,7 @@ function siblingIndent(
     const text = readRepoTextIfAny(
       path.join(cwd, fileOf(source, other, config.sourceLanguage)),
     );
-    const indent = text && /^([ \t]+)\S/m.exec(text)?.[1];
-    if (indent) return indent;
+    if (text && hasIndentedLine(text)) return /^([ \t]+)\S/m.exec(text)![1];
   }
   return undefined;
 }
@@ -594,7 +594,7 @@ function writeTarget(
         chrome: libraryOf(source) === "chrome",
         ...(source.entries && { entries: source.entries }),
         ...(existing !== undefined &&
-          !/^[ \t]+\S/m.test(existing) &&
+          !hasIndentedLine(existing) &&
           ((indent) => indent && { indent })(siblings())),
         plurals: readsPluralObjects(source),
         suffixPlurals: readsSuffixPlurals(source),
