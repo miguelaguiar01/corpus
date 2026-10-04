@@ -83,6 +83,9 @@ export type Finding = {
   sourceFile?: string;
   // A translation the instance holds, checked by --server (#1074).
   where?: "server";
+  // A category the translation lacks that its source lacks too: listed
+  // under the source's finding, not on its own line (#1029).
+  sourceLacks?: true;
 };
 
 // An exec source whose translations the repository does not hold all of:
@@ -128,7 +131,8 @@ export async function validate(
     ? await validateServer(config, ctx)
     : await validateRepo(config, ctx.cwd);
   if (result === undefined) return 1;
-  const { findings, unchecked } = result;
+  const { unchecked } = result;
+  const findings = result.findings.map(withLackingToo);
   const json = args.includes("--json");
   const invalid = findings.filter((f) => f.severity === "invalid");
   // A source string that does not parse is the build's refusal, not a
@@ -145,7 +149,11 @@ export async function validate(
   const translations = new Set(
     problems.map((f) => `${f.key}\u0000${f.language}`),
   ).size;
-  const incomplete = findings.filter((f) => f.severity === "incomplete");
+  // A translation's gap its source has too is counted on the source's
+  // line, and listed only in --json (#1029).
+  const incomplete = findings.filter(
+    (f) => f.severity === "incomplete" && !f.sourceLacks,
+  );
   const warnings = findings.filter((f) => f.severity === "warning");
   const orphans = findings.filter((f) => f.severity === "orphan");
   const byKey = orphansByKey(orphans);
@@ -349,6 +357,32 @@ export async function validateRepo(
       source,
       config.sourceLanguage,
     );
+    const augment = (entry: StringEntry): StringEntry => ({
+      ...entry,
+      ...((forms) => forms && { pluralForms: forms })(
+        entryPluralForms(entry, source, pluralForms),
+      ),
+      ...namedPluralRules(source),
+      ...placeholdersOf(source),
+      ...argumentsOf(source, entry.id),
+    });
+    const gaps: SourceGaps = new Map();
+    for (const entry of sources.values())
+      if (!refusedSource.has(entry.id))
+        findings.push(
+          ...sourceGaps(augment(entry), {
+            sourceFile,
+            sourceLanguage: config.sourceLanguage,
+            library: entry.library ?? library,
+            richText: richTextFor(
+              source.type,
+              entry.id,
+              entry.library ?? library,
+              config.richText,
+            ),
+            gaps,
+          }),
+        );
     for (const language of targets) {
       // A language the source does not ship has no file of its (#1006).
       if (!takesLanguage(source, config, language)) continue;
@@ -465,33 +499,22 @@ export async function validateRepo(
           continue;
         }
         findings.push(
-          ...checkTranslation(
-            {
-              ...entry,
-              ...((forms) => forms && { pluralForms: forms })(
-                entryPluralForms(entry, source, pluralForms),
-              ),
-              ...namedPluralRules(source),
-              ...placeholdersOf(source),
-              ...argumentsOf(source, entry.id),
-            },
-            target,
-            {
-              file,
-              sourceFile,
+          ...checkTranslation(augment(entry), target, {
+            gaps,
+            file,
+            sourceFile,
+            key,
+            language,
+            sourceLanguage: config.sourceLanguage,
+            library: entry.library ?? library,
+            richText: richTextFor(
+              source.type,
               key,
-              language,
-              sourceLanguage: config.sourceLanguage,
-              library: entry.library ?? library,
-              richText: richTextFor(
-                source.type,
-                key,
-                entry.library ?? library,
-                config.richText,
-              ),
-              brokenSources,
-            },
-          ),
+              entry.library ?? library,
+              config.richText,
+            ),
+            brokenSources,
+          }),
         );
       }
     }
@@ -653,6 +676,17 @@ function validateExec(
   const file = `exec:${command}`;
   findings.push(...sourceWarnings(file, sourceLanguage, sources, libraryOf));
   const brokenSources = new Set<string>();
+  const gaps: SourceGaps = new Map();
+  for (const entry of sources.values())
+    findings.push(
+      ...sourceGaps(entry, {
+        sourceFile: file,
+        sourceLanguage,
+        library: libraryOf(entry),
+        richText: richTextFor(entry.type, entry.id, libraryOf(entry), richText),
+        gaps,
+      }),
+    );
   let handedOver = 0;
   for (const [language, texts] of Object.entries(parsed.data)) {
     if (!targets.includes(language)) continue;
@@ -674,6 +708,7 @@ function validateExec(
       }
       findings.push(
         ...checkTranslation(entry, target, {
+          gaps,
           file,
           sourceFile: file,
           key,
@@ -737,6 +772,19 @@ async function validateServer(
       fileSources.set(fileOf(source, sourceLanguage, sourceLanguage), source);
   const orphans = new Map<string, string[]>();
   const brokenSources = new Set<string>();
+  const gaps: SourceGaps = new Map();
+  for (const entry of snapshot.strings) {
+    const library = libraryOf(entry);
+    findings.push(
+      ...sourceGaps(entry, {
+        sourceFile: origin.get(entry.id)!,
+        sourceLanguage,
+        library,
+        richText: richTextFor(entry.type, entry.id, library, config.richText),
+        gaps,
+      }),
+    );
+  }
   let checked = 0;
   for (const language of config.languages) {
     if (language === sourceLanguage) continue;
@@ -761,6 +809,7 @@ async function validateServer(
       checked += 1;
       findings.push(
         ...checkTranslation(entry, target, {
+          gaps,
           file,
           sourceFile,
           key,
@@ -848,6 +897,76 @@ function sourceWarnings(
 // One translation against its source string: its incomplete plurals,
 // then its errors, a source that does not parse named once per key, on
 // the source's file in the source language.
+// A source plural's categories that its own language's rule picks and
+// it lacks (#1029): Element's English `{ other }` under counterpart,
+// which picks `one` at 1. One finding on the source file each, which
+// names the translations that lack it too; theirs are kept, marked.
+type SourceGaps = Map<string, Finding>;
+const lackingToo = new WeakMap<Finding, string[]>();
+const gapKey = (sourceFile: string, key: string, message: string) =>
+  `${sourceFile}\u0000${key}\u0000${message}`;
+
+function sourceGaps(
+  entry: StringEntry,
+  at: {
+    sourceFile: string;
+    sourceLanguage: string;
+    library: Library;
+    richText: TextReading | undefined;
+    gaps: SourceGaps;
+  },
+): Finding[] {
+  // The source against its own language's rule: no sourceLanguage, which
+  // would ask of a language of its base the source's own categories.
+  const result = validateTranslation(
+    entry.source,
+    entry.source,
+    at.sourceLanguage,
+    at.library,
+    {
+      richText: at.richText,
+      ...(entry.arguments && { arguments: entry.arguments }),
+      ...(entry.pluralForms?.[at.sourceLanguage] && {
+        pluralForms: entry.pluralForms[at.sourceLanguage],
+      }),
+      ...(entry.pluralRules && { pluralRules: entry.pluralRules }),
+      ...(entry.placeholders && { placeholders: entry.placeholders }),
+      ...(at.library === "fluent" &&
+        isFluentTermId(entry.id) && { term: true }),
+    },
+  );
+  const out: Finding[] = [];
+  for (const error of result.incomplete ?? []) {
+    if (error.code !== "missing-category") continue;
+    const message = describe(error, at.library);
+    const finding: Finding = {
+      file: at.sourceFile,
+      key: entry.id,
+      language: at.sourceLanguage,
+      code: error.code,
+      severity: "incomplete",
+      message: message.replace(/ in its language$/, ` in ${at.sourceLanguage}`),
+    };
+    at.gaps.set(gapKey(at.sourceFile, entry.id, message), finding);
+    lackingToo.set(finding, []);
+    out.push(finding);
+  }
+  return out;
+}
+
+// The source's line names the translations that lack its category too,
+// eight of them, the rest counted.
+function withLackingToo(finding: Finding): Finding {
+  const languages = lackingToo.get(finding);
+  if (!languages || languages.length === 0) return finding;
+  const named = languages.slice(0, 8).join(", ");
+  const more = languages.length > 8 ? `, and ${languages.length - 8} more` : "";
+  return {
+    ...finding,
+    message: `${finding.message}; ${languages.length} translation(s) lack it too (${named}${more})`,
+  };
+}
+
 function checkTranslation(
   entry: StringEntry,
   target: string,
@@ -860,6 +979,7 @@ function checkTranslation(
     library: Library;
     richText: TextReading | undefined;
     brokenSources: Set<string>;
+    gaps?: SourceGaps;
   },
 ): Finding[] {
   const { file, key, language, library } = at;
@@ -887,6 +1007,14 @@ function checkTranslation(
         : "incomplete",
     message: describe(error, library),
   }));
+  // A category the source lacks too is the source's finding (#1029).
+  for (const finding of findings) {
+    if (finding.code !== "missing-category") continue;
+    const gap = at.gaps?.get(gapKey(at.sourceFile, key, finding.message));
+    if (!gap) continue;
+    finding.sourceLacks = true;
+    lackingToo.get(gap)?.push(language);
+  }
   if (result.ok) return findings;
   for (const error of result.errors) {
     const inSource = error.code === "invalid-icu" && error.where === "source";

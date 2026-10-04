@@ -1462,17 +1462,9 @@ export default defineCorpus({
   write("i18n/ja.json", { truncated: { other: "他 %(count)s 件" } });
   // A category the source has is the translation's own finding.
   write("i18n/pl.json", {
-    truncated: {
-      one: "i %(count)s inny",
-      few: "i %(count)s inne",
-      many: "i %(count)s innych",
-      other: "i %(count)s innego",
-    },
-    rooms: {
-      few: "%(count)s pokoje",
-      many: "%(count)s pokoi",
-      other: "%(count)s pokoju",
-    },
+    // counterpart picks one and other in every language.
+    truncated: { one: "i %(count)s inny", other: "i %(count)s innych" },
+    rooms: { other: "%(count)s pokoi" },
   });
   const c = ctx();
   expect(await run(["validate"], c)).toBe(0);
