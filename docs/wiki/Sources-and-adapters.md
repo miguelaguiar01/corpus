@@ -329,7 +329,7 @@ The repository's test suite runs these files as they are shown here: `build` rea
 
 | Source | Pushes | Takes translations back |
 |---|---|---|
-| `messages` with `{lang}`, `.json` or `.arb` (an `@key.description` is the string's note) | yes | yes |
+| `messages` with `{lang}`, `.json` or `.arb` (an `@key.description` is the string's note; `library: "gen_l10n"` for Flutter's gen-l10n) | yes | yes |
 | `table` with `{lang}`, `.json` | yes | yes |
 | `.ts` or `.js` catalogue | yes | no |
 | path without `{lang}` | yes | no |

@@ -26,6 +26,7 @@ contract (`corpus/1`) is the only one.
 - A source can say `generated: true`, and an ignored, echoing or Angular-computed source file is detected as one: proposals into an extractor's output are refused with the reason, and Grafana's top-level `_comment` is no string (#1000).
 - A messages source of entry objects, Signal's `{ messageformat, description }` or FormatJS's extract formats, names its fields with `entries`, and `init` writes it where it used to point to an exec source (#1001).
 - A `strings` source reads Apple's `Localizable.strings` with no converter: notes from comments, escapes, UTF-16 kept, and `init` writes it (#1037).
+- A new `gen_l10n` library reads Flutter's gen-l10n ICU subset, `#` as text and no `number` among them, and `init` writes it for an `.arb` catalogue (#1038).
 - Under chrome a bare `$1`–`$9` is a placeholder a translation keeps, and a lone `$`, a `$40` or a `$$NAME$` that Chrome reads otherwise is a warning (#631).
 - A translation file that does not read no longer stops the build: the other languages push, `validate` names it, and `pull` leaves it alone (#1028).
 - `corpus validate` lists orphan keys but no longer fails on them, so it can gate CI on a project a translation platform syncs (#1023).

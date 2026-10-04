@@ -88,6 +88,9 @@ export type ValidationError =
   // vue-i18n: an `@` that opens no link, which its compiler refuses
   // (#1017); `{'@'}` writes the character.
   | { code: "bare-at" }
+  // gen-l10n prints a plural branch's `#` as written (#1038): the
+  // translation wrote one the source does not, meaning the count.
+  | { code: "hash-text"; arg: string }
   | { code: "missing-category"; arg: string; key: string }
   // Under chrome, a `$` Chrome reads otherwise than it looks (#631): a
   // lone one, a `$40`, a `$$NAME$`.
@@ -152,6 +155,30 @@ function nestingOf(
 }
 
 // The plurals whose count a `#` in a select within them was meant for.
+// Per plural, how many `#` its branches' text holds (#1038).
+function hashesInPlurals(
+  nodes: IcuNode[],
+  plural?: string,
+  out = new Map<string, number>(),
+): Map<string, number> {
+  for (const node of nodes) {
+    if (node.kind === "literal" && plural !== undefined)
+      out.set(
+        plural,
+        (out.get(plural) ?? 0) + (node.text.match(/#/g)?.length ?? 0),
+      );
+    if (node.kind === "select" || node.kind === "plural")
+      for (const branch of Object.values(node.branches))
+        hashesInPlurals(
+          branch,
+          node.kind === "plural" ? node.arg : plural,
+          out,
+        );
+    if (node.kind === "tag") hashesInPlurals(node.children, plural, out);
+  }
+  return out;
+}
+
 function countsInSelects(
   nodes: IcuNode[],
   within: { plural?: string; select?: boolean } = {},
@@ -1193,6 +1220,11 @@ export function validateTranslation(
       errors.push({ code: "nested-count", arg });
   if (target !== source && bareAtOf(target, syntax))
     errors.push({ code: "bare-at" });
+  if (syntax === "gen_l10n") {
+    const own = hashesInPlurals(sourceNodes);
+    for (const [arg, n] of hashesInPlurals(targetNodes))
+      if (n > (own.get(arg) ?? 0)) errors.push({ code: "hash-text", arg });
+  }
   for (const [arg, keys] of actual.selects) {
     const sourceKeys = expected.selects.get(arg);
     if (syntax === "fluent") {

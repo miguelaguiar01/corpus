@@ -84,6 +84,8 @@ export function validationMessage(
       return t("editor.nestedCount", { arg: error.arg });
     case "bare-at":
       return t("editor.bareAt", { literal: "{'@'}" });
+    case "hash-text":
+      return t("editor.hashText", { count: `{${error.arg}}` });
     case "chrome-dollar":
       return error.kind === "lone"
         ? t("editor.chromeDollarLone", { written: error.written })

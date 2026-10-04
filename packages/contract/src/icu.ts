@@ -92,7 +92,8 @@ export function proseTagsOf(text: string, syntax: Library): ProseTag[] {
 // same bytes.
 export function sameMessage(a: string, b: string, library: Library): boolean {
   if (a === b) return true;
-  if (library !== "icu" && library !== "formatjs") return false;
+  if (library !== "icu" && library !== "formatjs" && library !== "gen_l10n")
+    return false;
   const left = parseIcu(a, library);
   const right = parseIcu(b, library);
   if (!left.ok || !right.ok) return false;
@@ -487,6 +488,19 @@ type Sequence = {
 
 const MAX_DEPTH = 200;
 
+// The plural cases gen-l10n's `pluralCases` takes (#1038).
+const GEN_L10N_PLURAL_KEYS = new Set([
+  "=0",
+  "=1",
+  "=2",
+  "zero",
+  "one",
+  "two",
+  "few",
+  "many",
+  "other",
+]);
+
 class Parser {
   private pos = 0;
   // The next verb's position when none is written (#594).
@@ -730,7 +744,13 @@ class Parser {
         this.node(seq, this.parseArgument(inBranch));
         continue;
       }
-      if (ch === "#" && pluralArg !== undefined && this.syntax !== "i18next") {
+      // gen-l10n's lexer takes `#` as text: it prints as written (#1038).
+      if (
+        ch === "#" &&
+        pluralArg !== undefined &&
+        this.syntax !== "i18next" &&
+        this.syntax !== "gen_l10n"
+      ) {
         this.flush(seq);
         seq.nodes.push({ kind: "count", arg: pluralArg });
         this.pos += 1;
@@ -1266,6 +1286,16 @@ class Parser {
       if (this.source[this.pos] !== "}") {
         throw new ParseFailure(`unclosed ${type}`, start);
       }
+      // Flutter's gen-l10n formats a date or a time by an ICU skeleton
+      // and nothing else (#1038).
+      if (
+        this.syntax === "gen_l10n" &&
+        (type === "number" || !style?.startsWith("::"))
+      )
+        throw new ParseFailure(
+          `gen-l10n formats only date and time, with a ::skeleton such as {d, date, ::yMd}; write {${name}} and format it in the code`,
+          start,
+        );
       // Fluent formats through NUMBER() and DATETIME(), whose options a
       // style is; DATETIME formats a date, so there is no time (#990).
       if (this.syntax === "fluent" && type === "time")
@@ -1295,6 +1325,11 @@ class Parser {
         start,
       );
     }
+    if (type === "selectordinal" && this.syntax === "gen_l10n")
+      throw new ParseFailure(
+        "gen-l10n has no selectordinal: its plurals are cardinal",
+        start,
+      );
     // Fluent counts an ordinal with NUMBER's option, in a select.
     if (type === "selectordinal" && this.syntax === "fluent")
       throw new ParseFailure(
@@ -1374,6 +1409,15 @@ class Parser {
       const key = this.readUntil(["{", "}"]).trim();
       if (this.source[this.pos] !== "{") {
         throw new ParseFailure(`${label} needs branches`, start);
+      }
+      if (this.syntax === "gen_l10n" && type === "plural") {
+        if (key.startsWith("offset:"))
+          throw new ParseFailure("gen-l10n has no offset", this.pos);
+        if (!GEN_L10N_PLURAL_KEYS.has(key))
+          throw new ParseFailure(
+            `invalid plural branch key ${JSON.stringify(key)}: gen-l10n's plural keys are =0, =1, =2, zero, one, two, few, many and other`,
+            this.pos,
+          );
       }
       if (!(type === "plural" ? PLURAL_KEY_RE : KEY_RE).test(key)) {
         throw new ParseFailure(

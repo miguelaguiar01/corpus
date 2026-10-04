@@ -180,6 +180,16 @@ Two things to know. **A moved verb needs its index.** Unindexed verbs are read i
 
 `corpus init` writes it when `%(name)s` placeholders outnumber every other shape. Element's own substitution leaves a tag the code does not pass as text, `<empty string>`, which Corpus cannot know, so it asks a translation to keep such a tag as written too.
 
+## gen-l10n: Flutter
+
+Flutter's own localisation, `gen-l10n` (`flutter gen-l10n`, or `generate: true` in `pubspec.yaml`), reads `.arb` files with a subset of ICU, which is `library: "gen_l10n"`; `corpus init` writes it for an `.arb` catalogue. Placeholders are `{name}`, and plurals and selects are arguments as in ICU, with these differences, each one a syntax error gen-l10n stops the whole app's generation for, or text it prints as written:
+
+- `#` is text: gen-l10n prints it as written, so a plural's branch writes the count as `{count}`. A translation that writes a `#` the source does not is refused with that advice.
+- A placeholder is formatted only as `date` or `time` with a skeleton, `{d, date, ::yMd}`. `{n, number}`, `{d, date}` and `{d, date, short}` are refused; format a number in the code, through the placeholder's `@key` metadata.
+- There is no `selectordinal` and no `offset:`.
+- A plural's keys are `=0`, `=1`, `=2`, `zero`, `one`, `two`, `few`, `many` and `other`.
+- An apostrophe is the character. A project whose `l10n.yaml` sets `use-escaping: true` quotes with it, which Corpus does not read: `init` says so.
+
 ## easy_localization: Flutter
 
 `library: "easy_localization"` is the Flutter package's syntax. `{}` is a positional placeholder, the first `{}` of a string the first argument, so a translation keeps their order, and `{name}` a named one; `@:key` links to another key's text, and `@.upper:key` (or `.lower`, `.capitalize`) links with a modifier. A translation keeps each placeholder and each link as written: a draft that drops `@:appName` is refused, and one that writes `@:appName-Konto`, which the package reads as a link to a key named `appName-Konto`, is told the link it lost and the one it made. Braces around anything else, `#` and angle brackets are text. Plurals are JSON objects, `{ "one": "{} file", "other": "{} files" }`, read as one plural whose `{}` is the count. By default the package picks a form by the value, `zero`, `one` and `two` for 0, 1 and 2 where written and `other` otherwise, so a Polish `few` is never shown and Corpus says so. An app that passes `ignorePluralRules: false` to `EasyLocalization` picks by the plural rules the package carries instead, intl's table from an older CLDR, looked up by the language code alone; say so on the source with `pluralRules: "cldr"`. A Polish plural then needs `one`, `few` and `many`, a written `zero` no longer taking 0, Maltese has no `two`, French no `many`, and a language the table lacks (Sorani `ckb`) is still picked by value. Where the app sets a fallback locale, a category the translation lacks shows the fallback locale's text for it before `other`, so a missing category matters more there.

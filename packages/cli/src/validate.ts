@@ -548,6 +548,8 @@ export function describe(
       return nestedCountMessage(error.arg);
     case "bare-at":
       return BARE_AT_MESSAGE;
+    case "hash-text":
+      return `gen-l10n prints # as written: write {${error.arg}} for the count`;
     case "chrome-dollar":
       return chromeDollarMessage(error);
     case "form-count": {
