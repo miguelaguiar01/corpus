@@ -74,7 +74,13 @@ export function yamlStrings(
   root: string,
   // A target may be a stub, `fr:` or no key yet: no translations. The
   // source may not, since reading nothing would archive every string.
-  options: { source?: boolean; pluralIds?: ReadonlySet<string> } = {},
+  options: {
+    source?: boolean;
+    pluralIds?: ReadonlySet<string>;
+    // The file of the language a root names, where it has one: a target
+    // rooted there is a copy of it, which no mapping fixes (#1048).
+    ownFile?: (root: string) => string | undefined;
+  } = {},
 ): YamlString[] {
   const body = text.replace(/^\uFEFF/, "");
   const document = parseYaml(body);
@@ -95,8 +101,11 @@ export function yamlStrings(
     // Rails reads a file by its root key, whatever its name (#1048).
     if (roots.length > 0 && !roots.includes(root)) {
       const at = roots.join(", ");
+      const own = options.ownFile?.(roots[0]!);
       throw new Error(
-        `rooted at ${at}, not ${root}: Rails reads it as ${at} whatever its name; if ${roots[0]} is the language, list it and map it, languageFiles: { ${JSON.stringify(roots[0])}: ${JSON.stringify(root)} }; if the file is meant to be ${root}, its root key is the fix`,
+        own
+          ? `rooted at ${at}, not ${root}: Rails reads it as ${at} whatever its name, beside ${roots[0]}'s own ${own}; if the file is meant to be ${root}, its root key is the fix`
+          : `rooted at ${at}, not ${root}: Rails reads it as ${at} whatever its name; if ${roots[0]} is the language, list it and map it, languageFiles: { ${JSON.stringify(roots[0])}: ${JSON.stringify(root)} }; if the file is meant to be ${root}, its root key is the fix`,
       );
     }
     return [];
@@ -177,8 +186,9 @@ export function yamlTranslations(
   text: string,
   root: string,
   pluralIds?: ReadonlySet<string>,
+  options: { ownFile?: (root: string) => string | undefined } = {},
 ): StringEntry[] {
-  return yamlStrings(text, root, { pluralIds }).flatMap((s) =>
+  return yamlStrings(text, root, { pluralIds, ...options }).flatMap((s) =>
     s.text === "" ||
     (s.plural && Object.values(s.plural).every((f) => f === ""))
       ? []
@@ -556,9 +566,12 @@ export function yamlRootOf(
   } catch {
     return code;
   }
-  return !rootPairOf(document, body, code) && rootPairOf(document, body, tag)
-    ? tag
-    : code;
+  // A stub at the code, `sr:` alone, holds nothing Rails stores.
+  const held = (key: string) => {
+    const pair = rootPairOf(document, body, key);
+    return pair !== undefined && !isEmptyValue(pair.value as Node | null);
+  };
+  return !held(code) && held(tag) ? tag : code;
 }
 
 // Rails' parser keeps the last of a repeated root key.

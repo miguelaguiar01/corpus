@@ -68,7 +68,7 @@ import {
 import type { Refusals } from "./agent-tools";
 import { printable } from "./printable";
 import { unreadableFile } from "./catalogue-format";
-import { readRepoText } from "./repo-text";
+import { readRepoText, readRepoTextIfAny } from "./repo-text";
 import {
   CliError,
   fileCodeOf,
@@ -1162,7 +1162,17 @@ export async function readEntries(
       return prefixed(
         sourceFile
           ? yamlToEntries(text(), { type: source.type, root })
-          : typed(yamlTranslations(text(), root, pluralIds)),
+          : typed(
+              yamlTranslations(text(), root, pluralIds, {
+                // The file of the language a root names, if it has one.
+                ownFile: (code) => {
+                  const own = source.path.replaceAll("{lang}", code);
+                  return own !== file && existsSync(path.join(cwd, own))
+                    ? own
+                    : undefined;
+                },
+              }),
+            ),
       );
     }
     case "qt-ts":
@@ -1409,7 +1419,14 @@ function railsPluralForms(
   for (const lang of config.languages) {
     if (lang === config.sourceLanguage) continue;
     if (!takesLanguage(source, config, lang)) continue;
-    const code = fileCodeOf(source, lang);
+    // Ruby names the locale by the file's root key (#1048).
+    const code = yamlRootOf(
+      readRepoTextIfAny(
+        path.join(cwd, fileOf(source, lang, config.sourceLanguage)),
+      ),
+      fileCodeOf(source, lang),
+      lang,
+    );
     const cldr = pluralCategoriesOf(lang);
     if (cldr.length === 0) continue;
     // The first of the locale and its parents with a rule, the app's
