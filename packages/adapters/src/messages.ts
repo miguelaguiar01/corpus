@@ -127,8 +127,14 @@ export function suffixPluralIds(
   path: string[] = [],
   out = new Set<string>(),
 ): Set<string> {
-  if (node === null || typeof node !== "object" || Array.isArray(node))
+  // A list's items too, by index (#1053).
+  if (Array.isArray(node)) {
+    node.forEach((item, i) =>
+      suffixPluralIds(item, language, [...path, String(i)], out),
+    );
     return out;
+  }
+  if (node === null || typeof node !== "object") return out;
   const record = node as Record<string, unknown>;
   for (const base of suffixFamilies(record, path, undefined, language).keys())
     out.add([...path, base].join("."));
@@ -192,7 +198,8 @@ export function pluralObjectIds(
 ): Set<string> {
   if (path.length > 0 && isPluralObject(node, true, mode))
     return out.add(path.join("."));
-  if (node !== null && typeof node === "object" && !Array.isArray(node))
+  // A list's items by index, as an object's keys (#1053).
+  if (node !== null && typeof node === "object")
     for (const [key, child] of Object.entries(node))
       pluralObjectIds(child, mode, [...path, key], out);
   return out;

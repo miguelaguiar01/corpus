@@ -459,16 +459,12 @@ export function entriesToMessages(
   const lists = listIds(baseTree);
   // The source's lists a target lacks, or holds short, by their items
   // to write (#1053).
-  const completing = new Map<string, { list: string[]; ids: string[] }>();
+  const underLists: string[] = [];
   for (const id of Object.keys(translations)) {
     if (seen.has(id)) continue;
     const inSource = sourcePaths.get(id);
-    const list = inSource && listOf(sourceLists, inSource);
-    if (list) {
-      const key = list.join("\u0000");
-      const entry = completing.get(key) ?? { list, ids: [] };
-      entry.ids.push(id);
-      completing.set(key, entry);
+    if (inSource && listOf(sourceLists, inSource)) {
+      underLists.push(id);
       continue;
     }
     const parts = id.split(".");
@@ -498,14 +494,19 @@ export function entriesToMessages(
           )
         : addLeaf(text, path, translations[id]!, style.indent, order);
   }
-  for (const { list, ids } of completing.values())
-    text = completeList(
+  if (underLists.length > 0)
+    text = completeLists(
       text,
-      list,
-      ids,
+      underLists,
       sourceTree,
       sourcePaths,
-      translations,
+      sourceSuffix,
+      {
+        translations,
+        pluralIds: sourcePlurals,
+        ...(options.sourceLanguage && { language: options.sourceLanguage }),
+        ...(onRefused && { onRefused }),
+      },
       style.indent,
       order,
       (id) => options.onList?.(id),
@@ -543,79 +544,210 @@ function valueAt(tree: unknown, path: string[]): unknown {
   return node;
 }
 
-// The source's item at `path`, its strings the translations where
-// given: a number or a flag it holds kept (#1053).
-function itemFrom(
-  item: unknown,
-  path: string[],
-  translations: Record<string, string>,
-): unknown {
-  if (typeof item === "string") return translations[path.join(".")] ?? item;
-  if (Array.isArray(item))
-    return item.map((v, i) => itemFrom(v, [...path, String(i)], translations));
-  if (item !== null && typeof item === "object")
-    return Object.fromEntries(
-      Object.entries(item).map(([k, v]) => [
-        k,
-        itemFrom(v, [...path, k], translations),
-      ]),
-    );
-  return item;
+// The context a list's missing parts are built in (#1053): the
+// translations, the source's plural objects and families, and where a
+// plural that cannot be held is said.
+type Fill = {
+  translations: Record<string, string>;
+  pluralIds: ReadonlySet<string>;
+  language?: string;
+  onRefused?: Refusal;
+};
+
+// The forms of a plural translation in CLDR's order, or undefined where
+// it cannot be held, said through `onRefused`.
+function formsFor(
+  fill: Fill,
+  id: string,
+  text: string,
+): Record<string, string> | undefined {
+  const forms = formsOf(text);
+  if (!forms) {
+    fill.onRefused?.(id, text);
+    return undefined;
+  }
+  return Object.fromEntries(
+    PLURAL_CATEGORIES.filter((c) => forms[c] !== undefined).map((c) => [
+      c,
+      forms[c]!,
+    ]),
+  );
 }
 
-// A target's list made whole to the last item a translation writes: a
-// list it lacks is the source's to that item, one it holds short takes
-// the source's items after its own, and an item it holds that lacks the
-// key takes it; a value that is no list there, or an item that is no
-// object, is the file's, named and left (#1053).
-function completeList(
+// The source's value at `path` as the target writes it: its strings the
+// translations where given, a plural object's or a family's forms the
+// translation's, its numbers kept. `leading` given, only what leads to
+// those ids: an object's other keys left out, a list up to the last item
+// they reach, its items whole; a part that leads to none is undefined.
+function buildFrom(
+  value: unknown,
+  path: string[],
+  fill: Fill,
+  leading?: string[][],
+): unknown {
+  const id = path.join(".");
+  const reaches = (at: string[]) =>
+    !leading ||
+    leading.some(
+      (p) => p.length >= at.length && at.every((seg, i) => p[i] === seg),
+    );
+  if (leading && !reaches(path)) return undefined;
+  const given = fill.translations[id];
+  if (fill.pluralIds.has(id)) {
+    const forms = given === undefined ? undefined : formsFor(fill, id, given);
+    return forms ?? (leading ? undefined : value);
+  }
+  if (typeof value === "string") return given ?? (leading ? undefined : value);
+  if (Array.isArray(value)) {
+    const last = leading
+      ? Math.max(
+          -1,
+          ...leading
+            .filter((p) => p.length > path.length && reaches(path))
+            .map((p) => Number(p[path.length])),
+        )
+      : value.length - 1;
+    if (last < 0) return undefined;
+    return value
+      .slice(0, last + 1)
+      .map((item, i) => buildFrom(item, [...path, String(i)], fill));
+  }
+  if (value !== null && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const families = suffixFamilies(record, path, undefined, fill.language);
+    const member = new Map<string, string>();
+    for (const [base, forms] of families)
+      for (const key of forms.values()) member.set(key, base);
+    const out: Record<string, unknown> = Object.create(null);
+    for (const [key, child] of Object.entries(record)) {
+      const base = member.get(key);
+      if (base !== undefined) {
+        // A family is written once, where its first form is.
+        const forms = families.get(base)!;
+        if ([...forms.values()][0] !== key) continue;
+        const familyId = [...path, base].join(".");
+        const text = fill.translations[familyId];
+        const written =
+          text === undefined ? undefined : formsFor(fill, familyId, text);
+        if (written)
+          for (const [form, t] of Object.entries(written))
+            out[`${base}_${form}`] = t;
+        else if (!leading) for (const k of forms.values()) out[k] = record[k];
+        continue;
+      }
+      const built = buildFrom(child, [...path, key], fill, leading);
+      if (built !== undefined) out[key] = built;
+    }
+    return leading && Object.keys(out).length === 0 ? undefined : out;
+  }
+  return leading ? undefined : value;
+}
+
+// The translations under a source's list a target does not hold: each
+// walked down the target along its path to the first part the target
+// lacks, which is written built from the source's (a list's missing
+// items appended, an object or a list it lacks added whole), a plural
+// there written as one; a part the target holds in another shape than
+// the source's is named and left, as is one no write could place
+// (#1053).
+function completeLists(
   text: string,
-  list: string[],
   ids: string[],
   sourceTree: Tree,
   sourcePaths: Map<string, string[]>,
-  translations: Record<string, string>,
+  suffixIds: ReadonlySet<string>,
+  fill: Fill,
   indent: string,
   order: ReturnType<typeof keyOrder>,
   onList: (id: string) => void,
 ): string {
-  const source = valueAt(sourceTree, list);
-  if (!Array.isArray(source)) return text;
-  const indexOf = (id: string) => Number(sourcePaths.get(id)![list.length]);
-  const last = Math.max(...ids.map(indexOf));
-  const at = nodeAt(parseTreeNode(text), list);
-  if (!at)
-    return addLeaf(
-      text,
-      list,
-      {
-        json: source
-          .slice(0, last + 1)
-          .map((item, i) => itemFrom(item, [...list, String(i)], translations)),
-      },
-      indent,
-      order,
-    );
-  if (at.type !== "array") {
-    for (const id of ids) onList(id);
-    return text;
-  }
-  const held = at.children?.length ?? 0;
+  // Each id's first missing part, grouped so a list or an object is
+  // written once for every id it holds.
+  const groups = new Map<string, { at: string[]; ids: string[] }>();
+  const tree = parseTreeNode(text);
   for (const id of ids) {
-    if (indexOf(id) >= held) continue;
     const path = sourcePaths.get(id)!;
-    const item = nodeAt(at, [path[list.length]!]);
-    if (item?.type === "object")
-      text = addLeaf(text, path, translations[id]!, indent, order);
-    else onList(id);
+    // A family's base is no key of its own: its parent is the leaf's.
+    const leafParent = suffixIds.has(id) ? path.length - 1 : path.length;
+    let node = tree;
+    let at: string[] | undefined;
+    let mismatch = false;
+    for (let k = 0; k < leafParent; k++) {
+      const child = node && nodeAt(node, [path[k]!]);
+      if (!child) {
+        at = path.slice(0, k + 1);
+        break;
+      }
+      const source = valueAt(sourceTree, path.slice(0, k + 1));
+      const container = Array.isArray(source)
+        ? "array"
+        : source !== null && typeof source === "object"
+          ? "object"
+          : "string";
+      if (k < leafParent - 1 && child.type !== container) {
+        mismatch = true;
+        break;
+      }
+      node = child;
+    }
+    if (mismatch) {
+      onList(id);
+      continue;
+    }
+    // Every part held but the leaf: the leaf goes in as a leaf.
+    const leafAt = at ?? path.slice(0, leafParent);
+    const key = (at ? "part\u0000" : "leaf\u0000") + leafAt.join("\u0000");
+    const group = groups.get(key) ?? { at: at ?? path, ids: [] };
+    group.ids.push(id);
+    groups.set(key, group);
   }
-  for (let i = held; i <= last; i++)
-    text = appendItem(
-      text,
-      list,
-      itemFrom(source[i], [...list, String(i)], translations),
-      indent,
-    );
+  for (const [key, { at, ids: held }] of groups) {
+    const before = text;
+    if (key.startsWith("leaf\u0000")) {
+      for (const id of held) {
+        const path = sourcePaths.get(id)!;
+        const next = fill.translations[id]!;
+        // A plain string the target holds every part of, the leaf too,
+        // and did not read: a shape the source does not have there.
+        if (suffixIds.has(id))
+          text = writeSuffix(
+            text,
+            path,
+            next,
+            indent,
+            false,
+            order,
+            fill.onRefused,
+          );
+        else if (fill.pluralIds.has(id))
+          text = writePlural(text, path, next, indent, order, fill.onRefused);
+        else onList(id);
+      }
+      continue;
+    }
+    const leading = held.map((id) => sourcePaths.get(id)!);
+    const parent = nodeAt(parseTreeNode(text), at.slice(0, -1));
+    if (parent?.type === "array") {
+      // Items the target's list lacks, from its length to the last one
+      // these ids reach, appended whole.
+      const list = valueAt(sourceTree, at.slice(0, -1));
+      const heldItems = parent.children?.length ?? 0;
+      const last = Math.max(...leading.map((p) => Number(p[at.length - 1])));
+      if (Array.isArray(list))
+        for (let i = heldItems; i <= last; i++)
+          text = appendItem(
+            text,
+            at.slice(0, -1),
+            buildFrom(list[i], [...at.slice(0, -1), String(i)], fill),
+            indent,
+          );
+    } else {
+      const value = buildFrom(valueAt(sourceTree, at), at, fill, leading);
+      if (value !== undefined)
+        text = addLeaf(text, at, { json: value }, indent, order);
+    }
+    if (text === before) for (const id of held) onList(id);
+  }
   return text;
 }
 

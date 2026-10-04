@@ -194,7 +194,7 @@ export default defineCorpus({
     //    since push archives a string that became one; a list's items
     //    are read by index, as vue-i18n's path resolver and i18next's
     //    `t('list.0.name')` look them up, `FEATURES.0` and
-    //    `DATE_RANGE.0.name` the ids, a number or flag in one skipped
+    //    `DATE_RANGE.0.name` the ids, a number, flag or null in one its data, skipped and not counted in the build note
     //    (#1053). A pull edits an item in place; a target that lacks the
     //    list, or holds it short, takes the source's items to the last
     //    one a translation writes, their other text and their numbers
