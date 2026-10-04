@@ -987,8 +987,8 @@ ${richText}${check}`;
 // is what check scans by default, so it is not written.
 const CHECK_ROOTS = ["src", "app", "lib", "components", "shared"] as const;
 
-// A monorepo keeps them deeper (#655): Hoppscotch's are in
-// packages/hoppscotch-common/src/components, so without a root that
+// A monorepo keeps them deeper (#655): Excalidraw's are in
+// packages/excalidraw/components, so without a root that
 // holds them the `components` directories to four levels down count,
 // and without those the roots of the catalogue's own package.
 const COMPONENT_DEPTH = 4;
@@ -1033,7 +1033,7 @@ function componentDirs(cwd: string, rel: string, depth: number): string[] {
   // Where components sit beside pages or layouts, the directory holding
   // them is the app's root, its `app.vue` and plugins included.
   const holds = (dir: string) => holdsCheckedFile(path.join(cwd, rel, dir));
-  if (rel !== "" && holds("components") && ROUTED.some(holds)) return [rel];
+  if (holds("components") && ROUTED.some(holds)) return [rel];
   let entries;
   try {
     entries = readdirSync(path.join(cwd, rel), { withFileTypes: true });
