@@ -3252,3 +3252,73 @@ test("a value the source's arguments declare is one a translation may print or p
   ).toEqual({ ok: true });
   expect(validateTranslation(mastodon, pl, "pl", "icu").ok).toBe(false);
 });
+
+test("under gen_l10n =0, =1 and =2 are its zero, one and two: a category they stand for is no missing one, both written is an overridden branch, and one wider than its number is a warning (#1039)", () => {
+  // wger's relativeDaysAgo: fr's one holds 0 and 1, and =0 catches 0
+  // before the category, as Intl.pluralLogic does.
+  const days =
+    "{count, plural, =0{today} =1{yesterday} other{{count} days ago}}";
+  const fr =
+    "{count, plural, =0{aujourd'hui} =1{hier} other{il y a {count} jours}}";
+  expect(validateTranslation(days, fr, "fr", "gen_l10n")).toEqual({ ok: true });
+  // Under icu nothing changes.
+  expect(validateTranslation(days, fr, "fr", "icu")).toMatchObject({
+    incomplete: [{ code: "missing-category", key: "one" }],
+  });
+  // syncStatusPendingUploads: =1 is one, which fr also picks for 0 and
+  // hr for 21.
+  const pending =
+    "{count, plural, =1{One local change} other{{count} local changes}}";
+  expect(
+    validateTranslation(
+      pending,
+      "{count, plural, =1{Une modification locale} other{{count} modifications locales}}",
+      "fr",
+      "gen_l10n",
+    ),
+  ).toEqual({
+    ok: true,
+    incomplete: [
+      {
+        code: "wide-exact",
+        arg: "count",
+        key: "=1",
+        category: "one",
+        values: [0],
+      },
+    ],
+  });
+  expect(
+    validateTranslation(
+      pending,
+      "{count, plural, =1{Jedna lokalna promjena} few{{count} lokalne promjene} other{{count} lokalnih promjena}}",
+      "hr",
+      "gen_l10n",
+    ),
+  ).toEqual({
+    ok: true,
+    incomplete: [
+      {
+        code: "wide-exact",
+        arg: "count",
+        key: "=1",
+        category: "one",
+        values: [21, 31, 41],
+      },
+    ],
+  });
+  // The ar draft: =1 and one, of which gen-l10n keeps one.
+  expect(
+    validateTranslation(
+      pending,
+      "{count, plural, =1{تغيير محلي واحد} one{{count} تغيير} other{{count} تغييرات}}",
+      "ar",
+      "gen_l10n",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [
+      { code: "overridden-branch", arg: "count", key: "=1", category: "one" },
+    ],
+  });
+});
