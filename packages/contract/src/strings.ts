@@ -286,8 +286,10 @@ export const stringEntrySchema = z.looseObject({
   keyIsText: z.boolean().optional(),
   // The printf verbs the code passes, by position, where the key carries
   // them and the text need not print them all (a String Catalog's
-  // `notifications.favorite %lld` reading "starred", #731): values a
-  // translation may pluralise on or print, of their type. Additive.
+  // `notifications.favorite %lld` reading "starred", #731), or, under a
+  // library that names its values, the names its source's `arguments`
+  // declares (#1031): values a translation may pluralise on or print, of
+  // their type. Additive.
   arguments: z.array(z.string()).optional(),
   // Per target language, the plural categories the runtime picks, where
   // they are not the language's CLDR ones: a gettext target file's

@@ -270,6 +270,9 @@ export async function buildSnapshotReport(
   const refused: Refused[] = [];
   const notes: string[] = [];
   const unreadable: Unreadable[] = [];
+  // The ids each source's `arguments` names, and those its files hold:
+  // the patterns of one source share the map (#1031).
+  const declaredIds = new Map<Record<string, string[]>, Set<string>>();
 
   for (const source of config.sources) {
     if (source.adapter === "exec") {
@@ -394,7 +397,12 @@ export async function buildSnapshotReport(
       if (!notes.includes(note)) notes.push(note);
     });
     const targets = sourceTargets(source, config);
+    const passes = (source as { arguments?: Record<string, string[]> })
+      .arguments;
+    const held = passes && (declaredIds.get(passes) ?? new Set<string>());
+    if (passes && held) declaredIds.set(passes, held);
     for (const entry of entries) {
+      held?.add(entry.id);
       validateEntry(
         {
           ...entry,
@@ -414,6 +422,7 @@ export async function buildSnapshotReport(
             library: entry.library,
             syntax: entry.library,
           }),
+          ...argumentsOf(source, entry.id),
         },
         file,
         sourced,
@@ -423,6 +432,16 @@ export async function buildSnapshotReport(
       );
     }
   }
+  // An id `arguments` names that no file of its source holds is a typo
+  // the build says, never a declaration nothing reads; where a file did
+  // not read, its ids are unknown.
+  if (errors.length === 0)
+    for (const [passes, held] of declaredIds)
+      for (const id of Object.keys(passes))
+        if (!held.has(id))
+          errors.push(
+            `arguments names ${printable(id)}, which the source does not have`,
+          );
 
   // An id in two files of one source is one string when its text is the
   // same in both (#661): Element merges its app's and its shared
@@ -813,6 +832,16 @@ export function placeholdersOf(source: FileSource): {
 } {
   const own = (source as { placeholders?: Library[] }).placeholders;
   return own ? { placeholders: own } : {};
+}
+
+// The values a string's code passes beside its source's, as its
+// source's `arguments` names them (#1031).
+export function argumentsOf(
+  source: FileSource,
+  id: string,
+): { arguments?: string[] } {
+  const passes = (source as { arguments?: Record<string, string[]> }).arguments;
+  return passes && Object.hasOwn(passes, id) ? { arguments: passes[id]! } : {};
 }
 
 export type FileSource = Exclude<Source, { adapter: "exec" }>;

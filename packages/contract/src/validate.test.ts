@@ -3246,7 +3246,7 @@ test("a value the source's arguments declare is one a translation may print or p
   // `count` its code passes too.
   const mastodon = "{counter} you know";
   const pl =
-    "{count, plural, one {{counter} znajomy} other {{counter} znajomych}}";
+    "{count, plural, one {{counter} znajomy} few {{counter} znajomych} many {{counter} znajomych} other {{counter} znajomego}}";
   expect(
     validateTranslation(mastodon, pl, "pl", "icu", { arguments: ["count"] }),
   ).toEqual({ ok: true });

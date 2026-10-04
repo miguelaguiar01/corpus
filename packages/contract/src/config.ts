@@ -159,6 +159,18 @@ const placeholders = z
   .min(1)
   .optional();
 
+// Values a string's code passes beside the ones its source writes, by
+// id (#1031): Discourse's `js.views_long` prints `%{count}`, and
+// d-number.js passes `number` too. A translation may print or
+// pluralise on them.
+const passedArguments = z
+  .record(z.string().min(1), z.array(z.string().min(1)).min(1))
+  .optional();
+
+// The libraries that pass their values by position, whose `arguments`
+// are verbs rather than names (#731).
+const POSITIONAL_LIBRARIES = new Set(["printf", "qt", "android"]);
+
 // The libraries whose own syntax reads `{`.
 const BRACE_READERS = new Set([
   "icu",
@@ -210,6 +222,7 @@ const messagesFields = {
   // absent. `syntax` is the old name, accepted until 1.0.
   library: configLibrarySchema.optional(),
   placeholders,
+  arguments: passedArguments,
   syntax: configLibrarySchema.optional(),
   languageFiles,
   pluralRules,
@@ -245,6 +258,7 @@ const tableFields = {
   type: identifier(),
   library: configLibrarySchema.optional(),
   placeholders,
+  arguments: passedArguments,
   pluralRules,
   namespace,
   languages: sourceLanguages,
@@ -318,6 +332,7 @@ const gettextSchema = z.looseObject({
   sourcePath: noNamespace("gettext", oneSourcePath("gettext")).optional(),
   library: configLibrarySchema.optional(),
   placeholders,
+  arguments: passedArguments,
   languageFiles,
   pluralRules,
   namespace,
@@ -335,6 +350,7 @@ const qtTsSchema = z.looseObject({
   sourcePath: noNamespace("qt-ts", oneSourcePath("qt-ts")).optional(),
   library: configLibrarySchema.optional(),
   placeholders,
+  arguments: passedArguments,
   languageFiles,
   pluralRules,
   namespace,
@@ -351,6 +367,7 @@ const yamlFields = {
   type: identifier(),
   library: configLibrarySchema.optional(),
   placeholders,
+  arguments: passedArguments,
   languageFiles,
   pluralRules,
   namespace,
@@ -381,6 +398,7 @@ const xcstringsSchema = z.looseObject({
   ),
   library: configLibrarySchema.optional(),
   placeholders,
+  arguments: passedArguments,
   pluralRules,
   namespace,
   languages: sourceLanguages,
@@ -395,6 +413,7 @@ const stringsSchema = z.looseObject({
   path: noNamespace("strings", onePattern("strings")),
   library: configLibrarySchema.optional(),
   placeholders,
+  arguments: passedArguments,
   languageFiles,
   pluralRules,
   namespace,
@@ -719,6 +738,15 @@ export const corpusConfigSchema = z
             code: "custom",
             message,
             path: ["sources", index, "placeholders"],
+          });
+      }
+      if ((source as { arguments?: unknown }).arguments !== undefined) {
+        const own = baseLibraryOf(source);
+        if (POSITIONAL_LIBRARIES.has(own))
+          ctx.addIssue({
+            code: "custom",
+            message: `arguments: ${own} passes its values by position, so it has no names to declare`,
+            path: ["sources", index, "arguments"],
           });
       }
       const keyIsText = (source as { keyIsText?: unknown }).keyIsText === true;

@@ -80,8 +80,10 @@ export type StringResponse = {
   syntax: Library;
   // The printf verbs the code passes by position where the key carries
   // them (a String Catalog's `%lld`, #731): values a translation may
-  // pluralise on or print though the source prints none. Present only
-  // where the string has them; additive (#737).
+  // pluralise on or print though the source prints none; under a
+  // library that names its values, the names its source's config
+  // declares (#1031). Present only where the string has them; additive
+  // (#737).
   arguments?: string[];
   // The placeholder syntaxes its source layers on its library (#1049),
   // `["i18next"]` for `{{name}}` on a Chrome catalogue. Additive.

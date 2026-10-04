@@ -47,6 +47,7 @@ import {
   buildSnapshotReport,
   namespaced,
   placeholdersOf,
+  argumentsOf,
   takesLanguage,
 } from "./build";
 import { download } from "./pull";
@@ -453,6 +454,7 @@ export async function validateRepo(
               ),
               ...namedPluralRules(source),
               ...placeholdersOf(source),
+              ...argumentsOf(source, entry.id),
             },
             target,
             {
