@@ -1291,7 +1291,8 @@ test("a gettext plural's categories per language are kept on the row and reach t
 
 test("a seed's =N branch its file's own Plural-Forms names is no invalid seed, on any push (#1051, #982)", () => {
   const { db, project } = seed();
-  // Cebuano's gettext rule picks =1 apart, and the file writes it.
+  // A gettext rule that picks =1 apart, as Cebuano's does, and the file
+  // writes it.
   const snapshot: Snapshot = {
     ...structuredClone(FIXTURE),
     strings: [

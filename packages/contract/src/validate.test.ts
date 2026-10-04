@@ -3490,6 +3490,15 @@ test("an =N branch in a plural read whole is invalid: the catalogue's plurals ho
       undefined,
     ],
     ["rails", "%{count} file", "%{count} files", "=0", "zero", "de", undefined],
+    [
+      "counterpart",
+      "%(count)s file",
+      "%(count)s files",
+      "=0",
+      "zero",
+      "de",
+      undefined,
+    ],
     ["easy_localization", "{} file", "{} files", "=2", "two", "de", undefined],
     ["printf", "%d file", "%d files", "=5", "other", "ru", ["one", "other"]],
   ] as const)
@@ -3502,6 +3511,21 @@ test("an =N branch in a plural read whole is invalid: the catalogue's plurals ho
         pluralForms ? { pluralForms } : {},
       ),
       library,
+    ).toMatchObject({ errors: [{ code: "exact-branch", key, category }] });
+  // easy_localization picking by CLDR (#961): ru's 5 is many, de's 2 other.
+  for (const [language, key, category] of [
+    ["ru", "=5", "many"],
+    ["de", "=2", "other"],
+  ] as const)
+    expect(
+      validateTranslation(
+        "{count, plural, one {{} file} other {{} files}}",
+        `{count, plural, ${key} {x} one {{} y} other {{} z}}`,
+        language,
+        "easy_localization",
+        { pluralRules: "cldr" },
+      ),
+      language,
     ).toMatchObject({ errors: [{ code: "exact-branch", key, category }] });
   // ICU's own plurals hold them.
   expect(
