@@ -1507,7 +1507,9 @@ function fixedCounts(nodes: IcuNode[], language: string): ValidationError[] {
         if (key.startsWith("=") || key === "other") continue;
         if (!/(?<!\d)1(?!\d)/.test(text(branch)) || prints(branch, node.arg))
           continue;
-        const values = integersOf(language, key).filter((n) => n !== 1);
+        const values = integersOf(language, key).filter(
+          (n) => n !== 1 && !(`=${n}` in node.branches),
+        );
         if (values.length > 0)
           out.push({
             code: "fixed-count",
