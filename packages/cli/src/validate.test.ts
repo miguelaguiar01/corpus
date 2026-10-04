@@ -1437,3 +1437,73 @@ test("under a namespace, a Qt numerus translation short of its forms is still a 
     "lang/app_km.ts: 1 numerus translation(s) hold fewer than the 2 forms Qt's rule for km has, so a count past them shows the source text (qt:Main | %n file(s))",
   );
 });
+
+test("a category the source plural lacks under its own language's rule is one finding on the source, naming the translations that lack it too; --json keeps theirs, marked (#1029)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de", "fr", "ja", "pl"],
+  sources: [{ adapter: "messages", type: "ui", library: "counterpart", path: "i18n/{lang}.json" }],
+});
+`,
+  );
+  // Element's truncated_list_n_more: English writes other alone, and
+  // counterpart picks one at 1.
+  write("i18n/en.json", {
+    truncated: { other: "and %(count)s others" },
+    rooms: { one: "%(count)s room", other: "%(count)s rooms" },
+  });
+  write("i18n/de.json", { truncated: { other: "und %(count)s weitere" } });
+  write("i18n/fr.json", { truncated: { other: "et %(count)s autres" } });
+  write("i18n/ja.json", { truncated: { other: "他 %(count)s 件" } });
+  // A category the source has is the translation's own finding.
+  write("i18n/pl.json", {
+    truncated: {
+      one: "i %(count)s inny",
+      few: "i %(count)s inne",
+      many: "i %(count)s innych",
+      other: "i %(count)s innego",
+    },
+    rooms: {
+      few: "%(count)s pokoje",
+      many: "%(count)s pokoi",
+      other: "%(count)s pokoju",
+    },
+  });
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(0);
+  const err = c.stderr.join("\n");
+  expect(err).toContain(
+    "i18n/en.json:truncated: plural on {count} lacks the one branch the runtime picks in en; 3 translation(s) lack it too (de, fr, ja)",
+  );
+  expect(err).not.toMatch(/i18n\/(de|fr|ja)\.json:truncated: plural/);
+  expect(err).toContain(
+    "i18n/pl.json:rooms: plural on {count} lacks the one branch the runtime picks in its language",
+  );
+  expect(err).toMatch(/corpus: 2 incomplete plural\(s\)/);
+
+  const j = ctx();
+  expect(await run(["validate", "--json"], j)).toBe(0);
+  const findings = JSON.parse(j.stdout.join("\n")) as {
+    file: string;
+    key: string;
+    language: string;
+    severity: string;
+    sourceLacks?: boolean;
+  }[];
+  const truncated = findings.filter((f) => f.key === "truncated");
+  expect(
+    truncated.map((f) => [f.file, f.language, f.sourceLacks ?? false]),
+  ).toEqual([
+    ["i18n/en.json", "en", false],
+    ["i18n/de.json", "de", true],
+    ["i18n/fr.json", "fr", true],
+    ["i18n/ja.json", "ja", true],
+  ]);
+  expect(truncated.every((f) => f.severity === "incomplete")).toBe(true);
+  expect(findings.find((f) => f.key === "rooms")?.sourceLacks).toBeUndefined();
+});
