@@ -1492,6 +1492,34 @@ export default defineCorpus({
   );
 });
 
+test("a pull into an empty {} target takes its sibling targets' indent, as wger's Weblate files have four spaces beside a two-space source (#1041)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de", "gl"],
+  sources: [{ adapter: "messages", type: "chrome", path: "i18n/{lang}.json" }],
+});
+`,
+  );
+  writeFileSync(
+    path.join(repo, "i18n", "en.json"),
+    `{\n  "a": "A",\n  "b": "B"\n}\n`,
+  );
+  writeFileSync(path.join(repo, "i18n", "de.json"), `{\n    "a": "Ä"\n}\n`);
+  writeFileSync(path.join(repo, "i18n", "gl.json"), "{}\n");
+  await serve(200, {
+    ...PAYLOAD,
+    types: { a: "chrome", b: "chrome" },
+    translations: { en: {}, de: { a: "Ä" }, gl: { a: "Á", b: "Bé" } },
+  });
+  expect(await run(["pull"], ctx())).toBe(0);
+  expect(read("i18n/gl.json")).toBe(`{\n    "a": "Á",\n    "b": "Bé"\n}\n`);
+});
+
 test("under merge: last-wins the later file's translation is seeded and written, an earlier one only where it agreed, and a pull of what was pushed changes nothing (#953)", async () => {
   writeFileSync(
     path.join(repo, "corpus.config.ts"),
