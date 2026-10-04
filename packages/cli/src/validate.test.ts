@@ -299,7 +299,7 @@ test("describe words every error code", () => {
       "gen_l10n",
     ),
   ).toBe(
-    "plural on {count} writes =1 and one, which gen-l10n reads as one branch: it keeps one of them and drops the other",
+    "plural on {count} writes =1 and one, which gen-l10n reads as one branch: it keeps the one written later and drops the other",
   );
   expect(
     describe(
@@ -314,7 +314,7 @@ test("describe words every error code", () => {
       "gen_l10n",
     ),
   ).toBe(
-    "gen-l10n reads =1 on {count} as one, which this language also picks for 21, 31, 41 and more: write one for what they share, or give each its own =N",
+    "gen-l10n reads =1 on {count} as one, which this language also picks for 21, 31, 41 and more: write one for what they share",
   );
   expect(
     describe(
@@ -328,7 +328,7 @@ test("describe words every error code", () => {
       "gen_l10n",
     ),
   ).toBe(
-    "gen-l10n reads =1 on {count} as one, which this language also picks for 0: write one for what they share, or give each its own =N",
+    "gen-l10n reads =1 on {count} as one, which this language also picks for 0: write one for what they share, or give 0 its own =0",
   );
   expect(
     describe({
