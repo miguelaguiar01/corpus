@@ -1244,3 +1244,76 @@ test("removing a plural id takes a target's object of categories whole, other or
   const plain = '{\n  "r": { "one": "a", "few": "b" },\n  "k": "v"\n}\n';
   expect(remove(plain, "r", [])).toBe(plain);
 });
+
+test("an entry-object catalogue takes a translation into its text field only, every other byte kept (#1001)", () => {
+  const template = `{
+  "smartling": {
+    "translate_paths": [{ "path": "*/messageformat" }]
+  },
+  "icu:Greeting": {
+    "messageformat": "Hello {name}",
+    "description": "Shown on the home screen",
+    "ignoreUnused": true
+  },
+  "icu:Bye": {
+    "messageformat": "Bye",
+    "description": "Leaving"
+  }
+}
+`;
+  const existing = `{
+  "icu:Greeting": {
+    "messageformat": "Hallo {name}",
+    "description": "Shown on the home screen",
+    "ignoreUnused": true
+  }
+}
+`;
+  const entries = { text: "messageformat", note: "description" };
+  expect(
+    entriesToMessages(template, { "icu:Greeting": "Hallo {name}" }, existing, {
+      entries,
+    }),
+  ).toBe(existing);
+  expect(
+    entriesToMessages(
+      template,
+      { "icu:Greeting": "Servus {name}", "icu:Bye": "Tschüss" },
+      existing,
+      { entries },
+    ),
+  ).toBe(`{
+  "icu:Greeting": {
+    "messageformat": "Servus {name}",
+    "description": "Shown on the home screen",
+    "ignoreUnused": true
+  },
+  "icu:Bye": {
+    "messageformat": "Tschüss"
+  }
+}
+`);
+  // A new file holds the text field alone, as a new entry does.
+  expect(
+    entriesToMessages(template, { "icu:Bye": "Tschüss" }, undefined, {
+      entries,
+    }),
+  ).toBe(`{
+  "icu:Bye": {
+    "messageformat": "Tschüss"
+  }
+}
+`);
+  // A value that is no entry is the file's: refused, and left.
+  const refused: string[] = [];
+  const odd = `{\n  "icu:Greeting": "plain",\n  "icu:Bye": { "messageformat": { "x": "y" } }\n}\n`;
+  expect(
+    entriesToMessages(
+      template,
+      { "icu:Greeting": "Hallo", "icu:Bye": "Tschüss" },
+      odd,
+      { entries, onRefused: (id) => refused.push(id) },
+    ),
+  ).toBe(odd);
+  expect(refused).toEqual(["icu:Greeting", "icu:Bye"]);
+});

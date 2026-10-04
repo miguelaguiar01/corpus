@@ -186,6 +186,17 @@ const messagesFields = {
     )
     .optional(),
   keyIsText: z.boolean().optional(),
+  // Entry objects (#1001): the field each string's text is in, and the
+  // one its note is, Signal's `{ messageformat, description }`.
+  entries: z
+    .strictObject({
+      text: z.string().min(1),
+      note: z.string().min(1).optional(),
+    })
+    .refine((e) => e.note !== e.text, {
+      message: "entries' note names another field than its text",
+    })
+    .optional(),
 };
 const tableFields = {
   adapter: z.literal("table"),
@@ -642,6 +653,23 @@ export const corpusConfigSchema = z
       // through languageFiles.
       const given = (source as { sourcePath?: unknown }).sourcePath;
       const keyIsText = (source as { keyIsText?: unknown }).keyIsText === true;
+      if (source.adapter === "messages" && source.entries) {
+        const lib = source as { library?: unknown; syntax?: unknown };
+        if ((lib.library ?? lib.syntax) === "chrome")
+          ctx.addIssue({
+            code: "custom",
+            message:
+              "entries does not apply under library chrome, which reads its own { message, description } entries",
+            path: ["sources", index, "entries"],
+          });
+        if (keyIsText)
+          ctx.addIssue({
+            code: "custom",
+            message:
+              "entries and keyIsText each say where the text is; a source takes one",
+            path: ["sources", index, "entries"],
+          });
+      }
       if (source.adapter === "messages" && keyIsText) {
         if (typeof given !== "string")
           ctx.addIssue({

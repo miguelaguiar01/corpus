@@ -308,6 +308,8 @@ export function entriesToMessages(
   options: {
     locale?: string;
     chrome?: boolean;
+    // Entry objects (#1001): the translation goes into the text field.
+    entries?: { text: string };
     plurals?: PluralObjects;
     // i18next's plural keys are one string (#985), a source's of the
     // categories its language picks.
@@ -321,6 +323,14 @@ export function entriesToMessages(
 ): string {
   translations = ownRecord(translations);
   if (options.chrome) return chromeMessages(template, translations, existing);
+  if (options.entries)
+    return entryMessages(
+      template,
+      translations,
+      existing,
+      options.entries.text,
+      options.onRefused,
+    );
   const plurals = options.plurals ?? false;
   const suffix: Suffix = options.suffixPlurals
     ? { ...(options.sourceLanguage && { language: options.sourceLanguage }) }
@@ -424,11 +434,71 @@ function listIds(
 // Chrome i18n (#595): a translation is an entry's `message`, edited in
 // place; the rest of the entry is the source's, copied with a new key.
 // A missing or blank file starts from the source, BOM and all.
+// Entry objects (#1001): a translation goes into an entry's text field,
+// every other byte kept, and a new entry, in a file new or not, is the
+// text field alone, as Signal's targets hold theirs. A value that is no
+// entry is the file's, refused and left.
+function entryMessages(
+  template: string,
+  translations: Record<string, string>,
+  existing: string | undefined,
+  field: string,
+  onRefused?: Refusal,
+): string {
+  if (existing === undefined || existing.trim() === "") {
+    const style = styleOf(template);
+    const out: Tree = Object.create(null) as Tree;
+    const order = [
+      ...Object.keys(parseTree(template)),
+      ...Object.keys(translations),
+    ];
+    for (const id of order)
+      if (Object.hasOwn(translations, id) && !Object.hasOwn(out, id))
+        out[id] = { [field]: translations[id]! };
+    return likeFile(
+      JSON.stringify(out, null, style.indent) +
+        (style.trailingNewline ? "\n" : ""),
+      template,
+    );
+  }
+  let text = existing;
+  const base = parseTree(text);
+  const { indent } = styleOf(text);
+  for (const [id, next] of Object.entries(translations)) {
+    if (!Object.hasOwn(base, id)) {
+      text = addLeaf(text, [id, field], next, indent);
+      continue;
+    }
+    const entry = base[id];
+    const current =
+      entry !== null && typeof entry === "object" && !Array.isArray(entry)
+        ? (entry as Record<string, unknown>)[field]
+        : entry;
+    if (
+      entry === null ||
+      typeof entry !== "object" ||
+      Array.isArray(entry) ||
+      (current !== undefined && typeof current !== "string")
+    ) {
+      onRefused?.(id, next);
+      continue;
+    }
+    if (current === next) continue;
+    text =
+      editLeaf(text, [id, field], next) ??
+      addLeaf(text, [id, field], next, indent);
+  }
+  return text;
+}
+
+// Chrome's `{ message }` entries (#595): a new one takes the source's
+// description and placeholders, which Chrome reads in every language.
 function chromeMessages(
   template: string,
   translations: Record<string, string>,
   existing: string | undefined,
 ): string {
+  const field = "message";
   const fresh = existing === undefined || existing.trim() === "";
   let text = fresh ? template : existing;
   const source = parseTree(template);
@@ -438,10 +508,10 @@ function chromeMessages(
     const next = Object.hasOwn(translations, id) ? translations[id] : undefined;
     if (next === undefined) {
       if (fresh) text = deleteKey(text, [id]);
-    } else if (typeof entry !== "object" || entry.message !== next) {
+    } else if (typeof entry !== "object" || entry[field] !== next) {
       text =
-        editLeaf(text, [id, "message"], next) ??
-        addLeaf(text, [id, "message"], next, indent);
+        editLeaf(text, [id, field], next) ??
+        addLeaf(text, [id, field], next, indent);
     }
   }
   for (const [id, next] of Object.entries(translations)) {
@@ -450,11 +520,14 @@ function chromeMessages(
     const fields: [string[], string][] =
       typeof model === "object"
         ? leaves(model).map(([path, value]) => [path, value])
-        : [[["message"], next]];
-    for (const [path, value] of fields) {
-      const field = path.join(".") === "message" ? next : value;
-      text = addLeaf(text, [id, ...path], field, indent);
-    }
+        : [[[field], next]];
+    for (const [path, value] of fields)
+      text = addLeaf(
+        text,
+        [id, ...path],
+        path.join(".") === field ? next : value,
+        indent,
+      );
   }
   return text;
 }
@@ -615,6 +688,7 @@ export function applyMessagesOps(
   ops: SourceOp[],
   options: {
     chrome?: boolean;
+    entries?: { text: string };
     plurals?: PluralObjects;
     // A target file's: the ids its source holds as plurals, which its
     // own objects are, whatever their forms (#984), and its families.
@@ -626,6 +700,7 @@ export function applyMessagesOps(
 ): string {
   if (text.trim() === "") text = "{}\n";
   if (options.chrome) return chromeOps(text, ops);
+  if (options.entries) return chromeOps(text, ops, options.entries.text);
   const tree = parseTree(text);
   const nested = isNested(tree);
   const plurals = options.plurals ?? false;
@@ -680,15 +755,15 @@ export function applyMessagesOps(
   return out;
 }
 
-function chromeOps(text: string, ops: SourceOp[]): string {
+function chromeOps(text: string, ops: SourceOp[], field = "message"): string {
   const { indent } = styleOf(text);
   let out = text;
   for (const op of ops) {
     out =
       op.kind === "delete"
         ? deleteKey(out, [op.id])
-        : (editLeaf(out, [op.id, "message"], op.text) ??
-          addLeaf(out, [op.id, "message"], op.text, indent));
+        : (editLeaf(out, [op.id, field], op.text) ??
+          addLeaf(out, [op.id, field], op.text, indent));
   }
   return out;
 }

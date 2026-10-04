@@ -2599,3 +2599,137 @@ export default defineCorpus({
     );
   }
 });
+
+test("an entry-object catalogue reads its text field as the string and its note field as the note, and pull and proposals write the text field alone (#1001)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de"],
+  sources: [
+    { adapter: "messages", type: "ui", path: "_locales/{lang}/messages.json", entries: { text: "messageformat", note: "description" } },
+  ],
+});
+`,
+  );
+  mkdirSync(path.join(repo, "_locales", "en"), { recursive: true });
+  mkdirSync(path.join(repo, "_locales", "de"), { recursive: true });
+  const en = `{
+  "smartling": {
+    "placeholder_format_custom": "(\\\\{\\\\w+\\\\})",
+    "translate_paths": [{ "path": "*/messageformat", "instruction": "*/description" }]
+  },
+  "icu:Greeting": {
+    "messageformat": "Hello {name}",
+    "description": "Shown on the home screen",
+    "ignoreUnused": true
+  },
+  "icu:Chats": {
+    "messageformat": "{count, plural, one {# chat} other {# chats}}",
+    "description": "The chat list's count",
+    "limit": 20
+  }
+}
+`;
+  const de = `{
+  "icu:Greeting": {
+    "messageformat": "Hallo {name}",
+    "description": "Shown on the home screen",
+    "ignoreUnused": true
+  }
+}
+`;
+  writeFileSync(path.join(repo, "_locales", "en", "messages.json"), en);
+  writeFileSync(path.join(repo, "_locales", "de", "messages.json"), de);
+  const out = path.join(repo, "snapshot.json");
+  const built = ctx();
+  expect(await run(["build", "--out", out], built)).toBe(0);
+  const snapshot = JSON.parse(readFileSync(out, "utf8")) as {
+    strings: { id: string; source: string; note?: string }[];
+    seedTranslations: Record<string, Record<string, string>>;
+  };
+  expect(snapshot.strings.map((s) => [s.id, s.source, s.note])).toEqual([
+    ["icu:Greeting", "Hello {name}", "Shown on the home screen"],
+    [
+      "icu:Chats",
+      "{count, plural, one {# chat} other {# chats}}",
+      "The chat list's count",
+    ],
+  ]);
+  expect(snapshot.seedTranslations).toEqual({
+    de: { "icu:Greeting": "Hallo {name}" },
+  });
+  expect(built.output.join("\n")).toContain(
+    "_locales/en/messages.json: 1 top-level value(s) are no entry with a string messageformat and are not read (smartling)",
+  );
+  const checked = ctx();
+  expect(await run(["validate"], checked)).toBe(0);
+  // Nothing new: nothing written.
+  await serve(200, {
+    ...PAYLOAD,
+    types: { "icu:Greeting": "ui", "icu:Chats": "ui" },
+    translations: { de: { "icu:Greeting": "Hallo {name}" } },
+    minState: "untranslated",
+  });
+  expect(await run(["pull"], ctx())).toBe(0);
+  expect(read("_locales/de/messages.json")).toBe(de);
+  // A draft and a proposal each change the text field alone.
+  await serve(200, {
+    ...PAYLOAD,
+    types: { "icu:Greeting": "ui", "icu:Chats": "ui" },
+    translations: {
+      de: {
+        "icu:Greeting": "Servus {name}",
+        "icu:Chats": "{count, plural, one {# Chat} other {# Chats}}",
+      },
+    },
+    minState: "untranslated",
+    sourceChanges: [
+      {
+        kind: "edit",
+        id: "icu:Greeting",
+        type: "ui",
+        file: "_locales/en/messages.json",
+        text: "Hi {name}",
+      },
+    ],
+  });
+  expect(await run(["pull"], ctx())).toBe(0);
+  expect(read("_locales/de/messages.json")).toBe(`{
+  "icu:Greeting": {
+    "messageformat": "Servus {name}",
+    "description": "Shown on the home screen",
+    "ignoreUnused": true
+  },
+  "icu:Chats": {
+    "messageformat": "{count, plural, one {# Chat} other {# Chats}}"
+  }
+}
+`);
+  expect(read("_locales/en/messages.json")).toBe(
+    en.replace('"Hello {name}"', '"Hi {name}"'),
+  ); // A target value that is no entry is named and left, never mangled.
+  const odd = `{\n  "icu:Greeting": "Hallo {name}"\n}\n`;
+  writeFileSync(path.join(repo, "_locales", "de", "messages.json"), odd);
+  const rebuilt = ctx();
+  expect(await run(["build", "--out", out], rebuilt)).toBe(0);
+  expect(rebuilt.output.join("\n")).toContain(
+    "_locales/de/messages.json: 1 translation(s) not seeded",
+  );
+  await serve(200, {
+    ...PAYLOAD,
+    types: { "icu:Greeting": "ui", "icu:Chats": "ui" },
+    translations: { de: { "icu:Greeting": "Servus {name}" } },
+    minState: "untranslated",
+  });
+  const left = ctx();
+  expect(await run(["pull"], left)).toBe(0);
+  expect(left.output.join("\n")).toContain(
+    "is no entry with a string messageformat in the file, which pull leaves as it is",
+  );
+  expect(read("_locales/de/messages.json")).toBe(odd);
+});

@@ -477,3 +477,69 @@ test("a Chrome example renders as Chrome reads it: a name may hold @, $$NAME$ is
     read("$$$ and $NAME$", { name: { content: "$1", example: "Ann" } }),
   ).toBe("$$ and Ann");
 });
+
+test("entry objects read their declared text field as the string and their note field as its note; a value that is no entry is skipped (#1001)", () => {
+  const skipped: string[] = [];
+  const entries = messagesToEntries(
+    {
+      smartling: { translate_paths: [{ path: "*/messageformat" }] },
+      "icu:Greeting": {
+        messageformat: "Hello {name}",
+        description: "Shown on the home screen",
+        ignoreUnused: true,
+      },
+      "icu:Count": {
+        messageformat: "{count, plural, one {# chat} other {# chats}}",
+        limit: 20,
+      },
+      "icu:Bare": { messageformat: "Bare" },
+    },
+    {
+      type: "ui",
+      entries: { text: "messageformat", note: "description" },
+      sourceFile: true,
+      onSkipped: (id) => skipped.push(id),
+    },
+  );
+  expect(entries).toEqual([
+    {
+      id: "icu:Greeting",
+      type: "ui",
+      source: "Hello {name}",
+      note: "Shown on the home screen",
+    },
+    {
+      id: "icu:Count",
+      type: "ui",
+      source: "{count, plural, one {# chat} other {# chats}}",
+    },
+    { id: "icu:Bare", type: "ui", source: "Bare" },
+  ]);
+  expect(skipped).toEqual(["smartling"]);
+  // FormatJS's default format, its note optional.
+  expect(
+    messagesToEntries(
+      { greeting: { defaultMessage: "Hi", description: "A greeting" } },
+      { type: "ui", entries: { text: "defaultMessage" } },
+    ),
+  ).toEqual([{ id: "greeting", type: "ui", source: "Hi" }]);
+});
+
+test("in a target, an entry with no text field yet is untranslated, and a value that is no entry is refused by name (#1001)", () => {
+  const refused: string[] = [];
+  expect(
+    messagesToEntries(
+      {
+        "icu:A": { description: "kept for the translator" },
+        "icu:B": "plain",
+        "icu:C": { messageformat: "Hallo" },
+      },
+      {
+        type: "ui",
+        entries: { text: "messageformat" },
+        onRefused: (id) => refused.push(id),
+      },
+    ),
+  ).toEqual([{ id: "icu:C", type: "ui", source: "Hallo" }]);
+  expect(refused).toEqual(["icu:B"]);
+});

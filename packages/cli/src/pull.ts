@@ -562,13 +562,16 @@ function writeTarget(
       return entriesToMessages(template, translations, existing, {
         ...(isArb(file) && { locale: language }),
         chrome: libraryOf(source) === "chrome",
+        ...(source.entries && { entries: source.entries }),
         plurals: readsPluralObjects(source),
         suffixPlurals: readsSuffixPlurals(source),
         sourceLanguage: config.sourceLanguage,
         onRefused: (id) =>
           refused(
             id,
-            "is a plural its object cannot hold (an =N branch, or a brace a form leaves open)",
+            source.entries
+              ? `is no entry with a string ${source.entries.text} in the file, which pull leaves as it is`
+              : "is a plural its object cannot hold (an =N branch, or a brace a form leaves open)",
           ),
         onList: (id) =>
           refused(id, "is a list in the file, which Corpus cannot read"),
@@ -650,6 +653,7 @@ function applyOps(
     case "messages":
       return applyMessagesOps(existing, ops, {
         chrome: libraryOf(source) === "chrome",
+        ...(source.entries && { entries: source.entries }),
         plurals: readsPluralObjects(source),
         suffixPlurals: readsSuffixPlurals(source),
         sourceLanguage,

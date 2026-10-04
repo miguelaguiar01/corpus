@@ -2234,7 +2234,7 @@ test("files beside the catalogue that are catalogues of their own are said as fa
   );
 });
 
-test("init names exec for a catalogue of entry objects, never writing a config that reads each field as a string (#1026)", async () => {
+test("init writes entries for a catalogue of entry objects, its text field and its note field, never reading each field as a string (#1026, #1001)", async () => {
   const p = project();
   mkdirSync(path.join(p.dir, "_locales", "en"), { recursive: true });
   writeFileSync(
@@ -2258,11 +2258,21 @@ test("init names exec for a catalogue of entry objects, never writing a config t
     "--messages",
     "_locales/{lang}/messages.json",
   ];
-  expect(await run(args, p.ctx)).toBe(1);
+  expect(await run(args, p.ctx)).toBe(0);
+  expect((await loadConfig(p.dir)).sources[0]).toMatchObject({
+    adapter: "messages",
+    entries: { text: "messageformat", note: "description" },
+  });
   expect(p.err.join("\n")).toContain(
-    "--messages _locales/{lang}/messages.json: each value is an entry object with its text in messageformat, which the messages source would read as a string per field; an exec source converts it",
+    "corpus: each value is an entry object: entries reads its text from messageformat and its note from description",
   );
-  expect(existsSync(path.join(p.dir, "corpus.config.ts"))).toBe(false);
+  expect(await run(["build", "--out", "s.json"], p.ctx)).toBe(0);
+  expect(
+    JSON.parse(readFileSync(path.join(p.dir, "s.json"), "utf8")).strings,
+  ).toMatchObject([
+    { id: "icu:hello", source: "Hello", note: "A greeting" },
+    { id: "icu:bye", source: "Bye {name}", note: "Leaving" },
+  ]);
   // One entry's stray key, as Signal's `descrption`, decides nothing.
   const stray = project();
   mkdirSync(path.join(stray.dir, "_locales", "en"), { recursive: true });
@@ -2278,8 +2288,24 @@ test("init names exec for a catalogue of entry objects, never writing a config t
       "icu:hint": { messageformat: "Hint", descrption: "typo" },
     }),
   );
-  expect(await run(args, stray.ctx)).toBe(1);
-  expect(stray.err.join("\n")).toContain("an exec source converts it");
+  expect(await run(args, stray.ctx)).toBe(0);
+  expect((await loadConfig(stray.dir)).sources[0]).toMatchObject({
+    entries: { text: "messageformat", note: "description" },
+  });
+  // FormatJS's transifex format: its own note field.
+  const tx = project();
+  mkdirSync(path.join(tx.dir, "_locales", "en"), { recursive: true });
+  writeFileSync(
+    path.join(tx.dir, "_locales", "en", "messages.json"),
+    JSON.stringify({
+      hello: { string: "Hello", developer_comment: "A greeting" },
+      bye: { string: "Bye" },
+    }),
+  );
+  expect(await run(args, tx.ctx)).toBe(0);
+  expect((await loadConfig(tx.dir)).sources[0]).toMatchObject({
+    entries: { text: "string", note: "developer_comment" },
+  });
   // A nested catalogue of namespaces is no such file.
   const q = project();
   mkdirSync(path.join(q.dir, "locales"), { recursive: true });
@@ -2577,4 +2603,74 @@ test("init with no source-language JSON, where every target holds one key set of
     keyIsText: true,
   });
   expect(z.err.join("\n")).not.toContain("source values are empty");
+});
+
+test("init detects the library from an entry object's text field (#1001)", async () => {
+  const p = project();
+  mkdirSync(path.join(p.dir, "locales"), { recursive: true });
+  writeFileSync(
+    path.join(p.dir, "locales", "en.json"),
+    JSON.stringify({
+      hello: { defaultMessage: "Hello {{name}}", description: "A greeting" },
+      bye: { defaultMessage: "Bye {{name}}", description: "Leaving" },
+    }),
+  );
+  expect(await run(initFor("locales/{lang}.json"), p.ctx)).toBe(0);
+  expect((await loadConfig(p.dir)).sources[0]).toMatchObject({
+    library: "i18next",
+    entries: { text: "defaultMessage", note: "description" },
+  });
+});
+
+test("FormatJS's crowdin format, { message, description } with ICU text, is entries, not Chrome's (#1001)", async () => {
+  const p = project();
+  mkdirSync(path.join(p.dir, "lang"), { recursive: true });
+  writeFileSync(
+    path.join(p.dir, "lang", "en.json"),
+    JSON.stringify({
+      greeting: { message: "Hello {name}", description: "A greeting" },
+      chats: {
+        message: "{count, plural, one {# chat} other {# chats}}",
+        description: "Count",
+      },
+    }),
+  );
+  expect(await run(initFor("lang/{lang}.json"), p.ctx)).toBe(0);
+  const source = (await loadConfig(p.dir)).sources[0];
+  expect(source).toMatchObject({
+    entries: { text: "message", note: "description" },
+  });
+  expect(source).not.toMatchObject({ library: "chrome" });
+  // uBlock's Chrome catalogue, `{{count}}` and no placeholders, stays
+  // chrome: a bare `{name}` is no ICU argument.
+  const u = project();
+  mkdirSync(path.join(u.dir, "_locales", "en"), { recursive: true });
+  writeFileSync(
+    path.join(u.dir, "_locales", "en", "messages.json"),
+    JSON.stringify({
+      blocked: { message: "{{count}} blocked", description: "Badge" },
+      open: { message: "Open {url}", description: "Link" },
+    }),
+  );
+  expect(await run(initFor("_locales/{lang}/messages.json"), u.ctx)).toBe(0);
+  expect((await loadConfig(u.dir)).sources[0]).toMatchObject({
+    library: "chrome",
+  });
+  // Chrome's own, with $NAME$ and placeholders, stays chrome.
+  const c = project();
+  mkdirSync(path.join(c.dir, "_locales", "en"), { recursive: true });
+  writeFileSync(
+    path.join(c.dir, "_locales", "en", "messages.json"),
+    JSON.stringify({
+      greeting: {
+        message: "Hello $NAME$",
+        placeholders: { name: { content: "$1" } },
+      },
+      plain: { message: "Save" },
+    }),
+  );
+  expect(await run(initFor("_locales/{lang}/messages.json"), c.ctx)).toBe(0);
+  expect((await loadConfig(c.dir)).sources[0]).toMatchObject({
+    library: "chrome",
+  });
 });
