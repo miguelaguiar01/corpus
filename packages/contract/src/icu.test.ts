@@ -1455,3 +1455,20 @@ test("a layer reads a whole plural's translation too, and a %name% example is tw
       .placeholders,
   ]).toEqual(["1"]);
 });
+
+test("a layered printf verb is read with sprintf-js's own grammar: a named %(name)s, 'x padding and %1$s count, a C length or Go's %[1]s does not (#1049)", () => {
+  const parts = (source: string) => [
+    ...partsOf(source, "i18next", ["printf"]).placeholders,
+  ];
+  expect(parts("Hi %(user)s, %'*10s and %+05.2f")).toEqual(["user", "1", "2"]);
+  expect(parts("%2$s then %1$s")).toEqual(["2", "1"]);
+  expect(parts("%ld or %[1]s or %*d")).toEqual([]);
+  expect(
+    validateTranslation("Hi %(user)s", "Salut", "fr", "i18next", {
+      placeholders: ["printf"],
+    }),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "user" }],
+  });
+});
