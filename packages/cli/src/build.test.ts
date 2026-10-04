@@ -1,4 +1,3 @@
-import { validateTranslation } from "@corpus/contract";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -7,6 +6,7 @@ import {
   corpusConfigSchema,
   defineCorpus,
   snapshotSchema,
+  validateTranslation,
   type CorpusConfig,
 } from "@corpus/contract";
 import { expect, test } from "vitest";
