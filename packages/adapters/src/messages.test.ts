@@ -4,7 +4,9 @@ import {
   keyIsSentence,
   messagesToEntries,
   pluralBranches,
+  pluralObjectIds,
   pluralText,
+  suffixPluralIds,
 } from "./messages";
 
 test("flat catalog maps key -> id with the configured type", () => {
@@ -54,10 +56,10 @@ test("a leaf that is no string, scalar, list or object is rejected with its path
   ).toThrow(/a\.b/);
 });
 
-test("an array leaf is rejected with its path", () => {
-  expect(() => messagesToEntries({ items: ["x"] }, { type: "chrome" })).toThrow(
-    /items/,
-  );
+test("an array's items are read by their index (#1053)", () => {
+  expect(
+    messagesToEntries({ items: ["x"] }, { type: "chrome" }).map((e) => e.id),
+  ).toEqual(["items.0"]);
 });
 
 test("empty catalog yields no entries", () => {
@@ -477,7 +479,7 @@ test("a natural key's family of blanks is one string whose key is its text; a so
   ]);
 });
 
-test("a null, number or boolean is no string and is skipped; a list is refused by name, the rest read (#1026)", () => {
+test("a null, number or boolean is no string and is skipped; a list's items are read, the rest read (#1026, #1053)", () => {
   const read = (data: unknown) => {
     const refused: [string, string][] = [];
     const entries = messagesToEntries(data, {
@@ -491,10 +493,10 @@ test("a null, number or boolean is no string and is skipped; a list is refused b
       ids: ["a", "c"],
       refused: [],
     });
+  // A list's items are messages by index (#1053); an empty one is none.
   const listed = read({ a: "A", b: ["x"], c: { d: "D", e: [] } });
-  expect(listed.ids).toEqual(["a", "c.d"]);
-  expect(listed.refused.map(([id]) => id)).toEqual(["b", "c.e"]);
-  expect(listed.refused[0]![1]).toMatch(/list/);
+  expect(listed.ids).toEqual(["a", "b.0", "c.d"]);
+  expect(listed.refused).toEqual([]);
   // The file itself must still be an object.
   expect(() => read(["x"])).toThrow(/got array/);
 });
@@ -710,4 +712,35 @@ test("an ARB example renders as the author wrote it, never capitalised, and a pl
     "family@example.com has invited you",
   );
   expect(entries[1]?.examples?.[0]?.rendered).toBe("x here");
+});
+
+test("an array's items are read by index, as vue-i18n and i18next look them up; a scalar in one is skipped (#1053)", () => {
+  // Chatwoot's settings.json and report.json.
+  const data = { a: { list: ["x", "y"] }, b: [{ id: 0, name: "N" }] };
+  const skipped: string[] = [];
+  expect(
+    messagesToEntries(data, {
+      type: "ui",
+      onSkipped: (id) => skipped.push(id),
+    }).map((e) => [e.id, e.source]),
+  ).toEqual([
+    ["a.list.0", "x"],
+    ["a.list.1", "y"],
+    ["b.0.name", "N"],
+  ]);
+  // A number in a list's item is its data, not a string that became one.
+  expect(skipped).toEqual([]);
+  // An index that is also an object's key is one id written twice.
+  expect(() =>
+    messagesToEntries({ x: ["a"], "x.0": "b" }, { type: "ui" }),
+  ).toThrow(/written twice/);
+});
+
+test("a target's plurals inside a list's items are found as the source's are (#1053)", () => {
+  expect([
+    ...pluralObjectIds({ opts: [{ n: { one: "a", other: "as" } }] }),
+  ]).toEqual(["opts.0.n"]);
+  expect([
+    ...suffixPluralIds({ opts: [{ item_one: "a", item_other: "as" }] }, "en"),
+  ]).toEqual(["opts.0.item"]);
 });

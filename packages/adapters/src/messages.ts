@@ -127,8 +127,14 @@ export function suffixPluralIds(
   path: string[] = [],
   out = new Set<string>(),
 ): Set<string> {
-  if (node === null || typeof node !== "object" || Array.isArray(node))
+  // A list's items too, by index (#1053).
+  if (Array.isArray(node)) {
+    node.forEach((item, i) =>
+      suffixPluralIds(item, language, [...path, String(i)], out),
+    );
     return out;
+  }
+  if (node === null || typeof node !== "object") return out;
   const record = node as Record<string, unknown>;
   for (const base of suffixFamilies(record, path, undefined, language).keys())
     out.add([...path, base].join("."));
@@ -192,7 +198,8 @@ export function pluralObjectIds(
 ): Set<string> {
   if (path.length > 0 && isPluralObject(node, true, mode))
     return out.add(path.join("."));
-  if (node !== null && typeof node === "object" && !Array.isArray(node))
+  // A list's items by index, as an object's keys (#1053).
+  if (node !== null && typeof node === "object")
     for (const [key, child] of Object.entries(node))
       pluralObjectIds(child, mode, [...path, key], out);
   return out;
@@ -568,6 +575,8 @@ function walk(
   options: MessagesOptions,
   out: StringEntry[],
   paths = new Map<string, string[]>(),
+  // Inside a list's item, whose numbers are its data (#1053).
+  inList = false,
 ): void {
   const type = options.type;
   if (
@@ -589,20 +598,22 @@ function walk(
     return;
   }
   if (path.length > 0) {
-    // As yaml's (§3): a null, number or boolean is no string. A list may
-    // hold text (i18next's `returnObjects`), so it is named (#1026).
+    // As yaml's (§3): a null, number or boolean is no string.
     if (
       node === null ||
       typeof node === "number" ||
       typeof node === "boolean"
     ) {
-      options.onSkipped?.(path.join("."));
+      // A number in a list's item is its data (`"id": 0`), never a
+      // string that became one (#1053).
+      if (!inList) options.onSkipped?.(path.join("."));
       return;
     }
-    if (Array.isArray(node) && options.onRefused) {
-      options.onRefused(
-        path.join("."),
-        `the value at ${path.join(".")} is a list; Corpus reads strings and nested objects`,
+    // A list's items are messages by index, as vue-i18n's path resolver
+    // and i18next's `t('list.0.name')` read them (#1053).
+    if (Array.isArray(node)) {
+      node.forEach((item, index) =>
+        walk(item, [...path, String(index)], options, out, paths, true),
       );
       return;
     }
@@ -623,14 +634,15 @@ function walk(
     if (families.has(key)) continue;
     const base = member.get(key);
     if (base === undefined) {
-      walk(child, [...path, key], options, out, paths);
+      walk(child, [...path, key], options, out, paths, inList);
       continue;
     }
     // The family reads where its first form is written.
     const forms = families.get(base)!;
     if ([...forms.values()][0] !== key) continue;
     const text = suffixText(record, forms, !options.pluralIds);
-    if (text !== undefined) walk(text, [...path, base], options, out, paths);
+    if (text !== undefined)
+      walk(text, [...path, base], options, out, paths, inList);
   }
 }
 

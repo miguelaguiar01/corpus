@@ -1453,3 +1453,273 @@ test("an empty {} target of a Chrome catalogue or of entry objects takes the giv
     }),
   ).toBe(`{\n\t"a": {\n\t\t"text": "Á"\n\t}\n}\n`);
 });
+
+describe("arrays (#1053)", () => {
+  const template = `{
+  "a": {
+    "list": ["x", "y", "z"]
+  },
+  "b": [
+    {
+      "id": 0,
+      "name": "N"
+    }
+  ],
+  "c": "C"
+}
+`;
+  test("an item's change touches only its bytes", () => {
+    const de = template.replace('"x", "y"', '"X", "Y"');
+    expect(entriesToMessages(template, { "a.list.1": "Ypsilon" }, de)).toBe(
+      de.replace('"Y"', '"Ypsilon"'),
+    );
+  });
+  test("a target without the array takes it up to the last item written, the source's text before it, the source's other members kept", () => {
+    const de = `{\n  "c": "Ce"\n}\n`;
+    expect(
+      entriesToMessages(
+        template,
+        { "a.list.1": "Ypsilon", "b.0.name": "Nn" },
+        de,
+      ),
+    ).toBe(
+      `{\n  "a": {\n    "list": [\n      "x",\n      "Ypsilon"\n    ]\n  },\n  "b": [\n    {\n      "id": 0,\n      "name": "Nn"\n    }\n  ],\n  "c": "Ce"\n}\n`,
+    );
+  });
+  test("a short array is filled to the item written", () => {
+    const de = template.replace('["x", "y", "z"]', '["X"]');
+    expect(entriesToMessages(template, { "a.list.2": "Zett" }, de)).toBe(
+      template.replace('["x", "y", "z"]', '["X", "y", "Zett"]'),
+    );
+  });
+  test("a missing file keeps an array to its last translated item, and drops one with none", () => {
+    const out = JSON.parse(
+      entriesToMessages(template, { "a.list.1": "Ypsilon" }, undefined),
+    );
+    expect(out).toEqual({ a: { list: ["x", "Ypsilon"] } });
+  });
+  test("an item that lacks a key takes it inside the item, never as a dotted key at the root", () => {
+    const source = `{\n  "b": [\n    { "id": 0, "name": "N", "group": "G" }\n  ]\n}\n`;
+    const de = `{\n  "b": [\n    { "id": 0, "name": "Nd" }\n  ]\n}\n`;
+    const out = JSON.parse(
+      entriesToMessages(source, { "b.0.group": "Gd" }, de),
+    );
+    expect(out).toEqual({ b: [{ id: 0, name: "Nd", group: "Gd" }] });
+  });
+  test("a plural object inside an item is written as one in a new file, refused where it cannot be", () => {
+    const source = `{\n  "l": [\n    { "n": { "one": "# a", "other": "# as" } }\n  ]\n}\n`;
+    const out = JSON.parse(
+      entriesToMessages(
+        source,
+        { "l.0.n": "{count, plural, one {# x} other {# xs}}" },
+        undefined,
+        { plurals: true },
+      ),
+    );
+    expect(out).toEqual({ l: [{ n: { one: "# x", other: "# xs" } }] });
+    const refused: string[] = [];
+    entriesToMessages(
+      source,
+      { "l.0.n": "{count, plural, =0 {none} one {# x} other {# xs}}" },
+      undefined,
+      { plurals: true, onRefused: (id) => refused.push(id) },
+    );
+    expect(refused).toEqual(["l.0.n"]);
+  });
+  test("i18next's plural keys inside an item are one string, read and written as such", () => {
+    const source = `{\n  "opts": [\n    { "item_one": "one", "item_other": "many" }\n  ]\n}\n`;
+    expect(
+      messagesToEntries(JSON.parse(source), {
+        type: "ui",
+        suffixPlurals: true,
+        sourceLanguage: "en",
+      }).map((e) => e.id),
+    ).toEqual(["opts.0.item"]);
+    const plural = "{count, plural, one {eins} other {viele}}";
+    for (const existing of [source, undefined])
+      expect(
+        JSON.parse(
+          entriesToMessages(source, { "opts.0.item": plural }, existing, {
+            suffixPlurals: true,
+            sourceLanguage: "en",
+          }),
+        ),
+      ).toEqual({ opts: [{ item_one: "eins", item_other: "viele" }] });
+  });
+  test("a blank target takes the source's lists as a missing file does, never as objects", () => {
+    expect(
+      JSON.parse(entriesToMessages(template, { "a.list.1": "Ypsilon" }, "")),
+    ).toEqual({ a: { list: ["x", "Ypsilon"] } });
+  });
+  test("a removal of an id the file does not hold is nothing, where its path meets a list", () => {
+    expect(
+      applyMessagesOps(template, [{ kind: "delete", id: "a.list.7" }]),
+    ).toBe(template);
+  });
+  test("a proposal edits an item; adding or removing one, which renumbers those after it, is refused by name", () => {
+    expect(
+      applyMessagesOps(template, [
+        { kind: "edit", id: "a.list.0", text: "ex" },
+      ]),
+    ).toBe(template.replace('["x"', '["ex"'));
+    for (const op of [
+      { kind: "add", id: "a.list.3", text: "w", type: "ui" },
+      { kind: "delete", id: "a.list.1" },
+    ] as const)
+      expect(() => applyMessagesOps(template, [op as never])).toThrow(
+        /a\.list\.\d is an item of a list/,
+      );
+  });
+});
+
+describe("a list's items made whole (#1053)", () => {
+  const objects = `{\n  "opts": [\n    { "name": "N", "n": { "one": "# a", "other": "# as" } }\n  ]\n}\n`;
+  const families = `{\n  "opts": [\n    { "name": "N", "item_one": "one", "item_other": "many" }\n  ]\n}\n`;
+  const tags = `{\n  "opts": [\n    { "name": "N", "tags": ["A", "B"] }\n  ]\n}\n`;
+  const write = (
+    template: string,
+    translations: Record<string, string>,
+    existing: string | undefined,
+    options: Parameters<typeof entriesToMessages>[3] = {},
+  ) => {
+    const named: string[] = [];
+    const text = entriesToMessages(template, translations, existing, {
+      ...options,
+      onList: (id) => named.push(id),
+      onRefused: (id) => named.push(id),
+    });
+    return { out: JSON.parse(text) as unknown, named };
+  };
+  const forms = "{count, plural, one {# x} other {# xs}}";
+  test("an item copied in from the source takes a plural translation as a plural, an object's or a family's", () => {
+    for (const de of [`{ "x": "Xe" }\n`, "{}\n"]) {
+      expect(
+        write(objects, { "opts.0.n": forms }, de, { plurals: true }),
+      ).toEqual({
+        out: {
+          ...(de.includes("x") && { x: "Xe" }),
+          opts: [{ name: "N", n: { one: "# x", other: "# xs" } }],
+        },
+        named: [],
+      });
+      expect(
+        write(families, { "opts.0.item": forms }, de, {
+          suffixPlurals: true,
+          sourceLanguage: "en",
+        }).out,
+      ).toEqual({
+        ...(de.includes("x") && { x: "Xe" }),
+        opts: [{ name: "N", item_one: "# x", item_other: "# xs" }],
+      });
+    }
+  });
+  test("two lists an empty target lacks each take their own items", () => {
+    // Both under one key the target lacks, so one build sees both.
+    const source = `{\n  "r": {\n    "a": { "l": [{ "k": "K", "m": "M" }] },\n    "b": { "c": { "l": ["x", "y"] } }\n  }\n}\n`;
+    expect(
+      write(source, { "r.a.l.0.k": "Kd", "r.b.c.l.1": "Yd" }, "{}\n").out,
+    ).toEqual({
+      r: { a: { l: [{ k: "Kd", m: "M" }] }, b: { c: { l: ["x", "Yd"] } } },
+    });
+  });
+  test("a short list's items written in any order are each written once, none named", () => {
+    expect(
+      write(
+        `{\n  "l": ["a", "b", "c", "d"]\n}\n`,
+        { "l.3": "D", "l.2": "C" },
+        `{\n  "l": ["A", "B"]\n}\n`,
+      ),
+    ).toEqual({ out: { l: ["A", "B", "C", "D"] }, named: [] });
+  });
+  test("a plural where an item holds a string becomes the plural, as outside a list; one where it holds a list is named", () => {
+    expect(
+      write(
+        objects,
+        { "opts.0.n": forms },
+        `{\n  "opts": [\n    { "n": "%{count} Dinge" }\n  ]\n}\n`,
+        { plurals: true },
+      ),
+    ).toEqual({
+      out: { opts: [{ n: { one: "# x", other: "# xs" } }] },
+      named: [],
+    });
+    const items = `{\n  "l": [\n    { "one": "# a", "other": "# as" }\n  ]\n}\n`;
+    expect(
+      write(items, { "l.0": forms }, `{\n  "l": ["S"]\n}\n`, { plurals: true }),
+    ).toEqual({ out: { l: [{ one: "# x", other: "# xs" }] }, named: [] });
+    expect(
+      write(
+        objects,
+        { "opts.0.n": forms },
+        `{\n  "opts": [\n    { "n": ["x", "y"] }\n  ]\n}\n`,
+        { plurals: true },
+      ).named,
+    ).toEqual(["opts.0.n"]);
+    for (const de of [`{\n  "opts": [["x"]]\n}\n`, `{\n  "opts": ["S"]\n}\n`]) {
+      const { out, named } = write(families, { "opts.0.item": forms }, de, {
+        suffixPlurals: true,
+        sourceLanguage: "en",
+      });
+      expect(named).toEqual(["opts.0.item"]);
+      expect(out).toEqual(JSON.parse(de));
+    }
+  });
+  test("a plural refused under a part the target lacks is said once", () => {
+    const nested = `{\n  "r": {\n    "opts": [\n      { "n": { "one": "# a", "other": "# as" } }\n    ]\n  }\n}\n`;
+    expect(
+      write(
+        nested,
+        { "r.opts.0.n": "{count, plural, =0 {none} one {# x} other {# xs}}" },
+        "{}\n",
+        { plurals: true },
+      ).named,
+    ).toEqual(["r.opts.0.n"]);
+  });
+  test("an item that lacks a plural takes it as a plural, never as an ICU text", () => {
+    const de = `{\n  "opts": [\n    { "name": "Nd" }\n  ]\n}\n`;
+    expect(
+      write(objects, { "opts.0.n": forms }, de, { plurals: true }).out,
+    ).toEqual({
+      opts: [{ name: "Nd", n: { one: "# x", other: "# xs" } }],
+    });
+    expect(
+      write(families, { "opts.0.item": forms }, de, {
+        suffixPlurals: true,
+        sourceLanguage: "en",
+      }).out,
+    ).toEqual({ opts: [{ name: "Nd", item_one: "# x", item_other: "# xs" }] });
+  });
+  test("a list inside an item, missing or short, takes the source's items; a shape the source does not have is named", () => {
+    expect(
+      write(
+        tags,
+        { "opts.0.tags.1": "Bd" },
+        `{\n  "opts": [\n    { "name": "Nd" }\n  ]\n}\n`,
+      ).out,
+    ).toEqual({ opts: [{ name: "Nd", tags: ["A", "Bd"] }] });
+    expect(
+      write(
+        tags,
+        { "opts.0.tags.1": "Bd" },
+        `{\n  "opts": [\n    { "name": "Nd", "tags": ["Ad"] }\n  ]\n}\n`,
+      ).out,
+    ).toEqual({ opts: [{ name: "Nd", tags: ["Ad", "Bd"] }] });
+    for (const shape of [`{ "x": "y" }`, `"T"`])
+      expect(
+        write(
+          tags,
+          { "opts.0.tags.1": "Bd" },
+          `{\n  "opts": [\n    { "name": "Nd", "tags": ${shape} }\n  ]\n}\n`,
+        ).named,
+      ).toEqual(["opts.0.tags.1"]);
+    // A string where the source has an object is named, never a flat key.
+    const sub = `{\n  "b": [\n    { "sub": { "k": "K" } }\n  ]\n}\n`;
+    const { out, named } = write(
+      sub,
+      { "b.0.sub.k": "Kd" },
+      `{\n  "b": [\n    { "sub": "S" }\n  ]\n}\n`,
+    );
+    expect(named).toEqual(["b.0.sub.k"]);
+    expect(out).toEqual({ b: [{ sub: "S" }] });
+  });
+});
