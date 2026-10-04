@@ -23,7 +23,7 @@ import {
   stringEntrySchema,
   type StringEntry,
 } from "@corpus/contract";
-import { isBlank, pluralBranches, qtShortForms } from "@corpus/adapters";
+import { gettextPluralIds, isBlank, qtShortForms } from "@corpus/adapters";
 import { printable } from "./printable";
 import type { RunContext } from "./cli";
 import {
@@ -367,11 +367,12 @@ export async function validateRepo(
       ...argumentsOf(source, entry.id),
     });
     const gaps: SourceGaps = new Map();
+    const pairs = pairsOf(cwd, source, sourceFile);
     for (const entry of sources.values())
       if (!refusedSource.has(entry.id))
         findings.push(
           ...sourceGaps(augment(entry), {
-            gettext: source.adapter === "gettext",
+            pairs,
             sourceFile,
             sourceLanguage: config.sourceLanguage,
             library: entry.library ?? library,
@@ -776,12 +777,16 @@ async function validateServer(
   const orphans = new Map<string, string[]>();
   const brokenSources = new Set<string>();
   const gaps: SourceGaps = new Map();
+  const pairsByFile = new Map<string, ReadonlySet<string> | undefined>();
   for (const entry of snapshot.strings) {
     const library = libraryOf(entry);
     const sourceFile = origin.get(entry.id)!;
+    const source = fileSources.get(sourceFile);
+    if (source && !pairsByFile.has(sourceFile))
+      pairsByFile.set(sourceFile, pairsOf(ctx.cwd, source, sourceFile));
     findings.push(
       ...sourceGaps(entry, {
-        gettext: fileSources.get(sourceFile)?.adapter === "gettext",
+        pairs: pairsByFile.get(sourceFile),
         sourceFile,
         sourceLanguage,
         library,
@@ -916,13 +921,13 @@ function sourceGaps(
     library: Library;
     richText: TextReading | undefined;
     gaps: SourceGaps;
-    // A gettext source, whose msgid and msgid_plural are the two forms
+    // A gettext source's msgid and msgid_plural pairs, the two forms
     // gettext picks between by n == 1 in any language: no category of
     // the language's own is theirs to lack.
-    gettext?: boolean;
+    pairs?: ReadonlySet<string>;
   },
 ): Finding[] {
-  if (at.gettext && isMsgidPair(entry.source)) return [];
+  if (at.pairs?.has(entry.id)) return [];
   // The source against its own language's rule: no sourceLanguage, which
   // would ask of a language of its base the source's own categories.
   const result = validateTranslation(
@@ -961,15 +966,20 @@ function sourceGaps(
   return out;
 }
 
-// A msgid and its msgid_plural as the gettext reader writes them: a
-// plural on count of one and other, or one that does not split, its
-// forms holding a brace gettext reads as text (`%d brace {`), which no
-// ICU plural can be. An ICU plural a msgid writes itself is checked as
-// any, but one written exactly in the reader's shape.
-function isMsgidPair(text: string): boolean {
-  if (!text.startsWith("{count, plural, one {")) return false;
-  const forms = pluralBranches(text);
-  return forms === undefined || Object.keys(forms).join() === "one,other";
+// A gettext source file's msgid and msgid_plural pairs, read from the
+// file rather than guessed from the text, which an ICU plural a msgid
+// writes may share; none for any other source.
+function pairsOf(
+  cwd: string,
+  source: FileSource,
+  sourceFile: string,
+): ReadonlySet<string> | undefined {
+  if (source.adapter !== "gettext") return undefined;
+  try {
+    return gettextPluralIds(readFileSync(path.join(cwd, sourceFile), "utf8"));
+  } catch {
+    return undefined;
+  }
 }
 
 // The source's line names the translations that lack its category too,
