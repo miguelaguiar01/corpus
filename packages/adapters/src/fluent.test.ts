@@ -679,3 +679,50 @@ test("a term written twice in one file is its first definition, as FluentBundle 
   );
   expect([...terms.get("-brand")!.variables]).toEqual(["case"]);
 });
+
+test("the # comment directly above a message or a term is its note; one a blank line parts, and ## and ### comments, are no note (#1034)", () => {
+  const ftl = `### Resource comment
+
+## Group comment
+
+# This will be read to screen readers when focusing the button.
+# Variables:
+#   $address (string) - Mask address, e.g. wz7n0vykd@mozmail.com.
+profile-label-click-to-copy-alt = Click to copy mask { $address }.
+
+# Parted by a blank line.
+
+parted = Parted
+# The brand, never translated.
+-brand = Relay
+## Group comment above a message
+grouped = Grouped
+#
+empty-note = Empty
+`;
+  expect(
+    fluentToEntries(ftl, { type: "ui" }).map((e) => [e.id, e.note]),
+  ).toEqual([
+    [
+      "profile-label-click-to-copy-alt",
+      "This will be read to screen readers when focusing the button.\nVariables:\n  $address (string) - Mask address, e.g. wz7n0vykd@mozmail.com.",
+    ],
+    ["parted", undefined],
+    ["-brand", "The brand, never translated."],
+    ["grouped", undefined],
+    ["empty-note", undefined],
+  ]);
+});
+
+test("a proposal that removes a message takes its comment with it, and a pull leaves comments as they are (#1034)", () => {
+  const ftl = `# Keep me.\nkept = Kept\n# Remove me.\n# Two lines.\ngone = Gone\nafter = After\n`;
+  expect(applyFluentOps(ftl, [{ kind: "delete", id: "gone" }])).toBe(
+    `# Keep me.\nkept = Kept\nafter = After\n`,
+  );
+  expect(entriesToFluent(ftl, { kept: "Kept" }, ftl)).toBe(ftl);
+  // A new file from the source leaves an untranslated message out, its
+  // comment with it.
+  expect(entriesToFluent(ftl, { kept: "Mantido" }, undefined)).toBe(
+    `# Keep me.\nkept = Mantido\n`,
+  );
+});
