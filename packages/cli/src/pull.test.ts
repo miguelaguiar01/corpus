@@ -3236,14 +3236,14 @@ export default defineCorpus({
   const check = ctx();
   expect(await run(["pull", "--check"], check)).toBe(1);
   expect(check.output.join("\n")).toContain(
-    "corpus: 1 translation(s) could not be written; fix them in Corpus",
+    "corpus: 1 translation(s) could not be written, each named above with why",
   );
   const c = ctx();
   expect(await run(["pull", "--min-state", "translated"], c)).toBe(1);
   const said = c.output.join("\n");
   expect(said).toMatch(/po\/de\.po: %d file is a plural .*; not written/);
   expect(said).toContain(
-    "corpus: 1 translation(s) could not be written; fix them in Corpus",
+    "corpus: 1 translation(s) could not be written, each named above with why",
   );
   // The rest are written: de's Open, and fr.
   expect(read("po/de.po")).toContain('msgid "Open"\nmsgstr "Öffnen"');
