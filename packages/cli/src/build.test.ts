@@ -2245,7 +2245,7 @@ test("a printf source holding a % and a digit no verb reads says once that qt re
       )
     ).notes.filter((n) => /qt/.test(n));
   expect(await notes()).toEqual([
-    'en.lproj/Localizable.strings: 3 string(s) write % and a digit that no printf verb reads (%0): if the app substitutes %0, %1 itself, library: "qt" checks them',
+    'en.lproj/Localizable.strings: 3 string(s) write % and a digit that no printf verb reads (%0: used, cores, left): if the app substitutes %0, %1 itself, library: "qt" checks them',
   ]);
   expect(await notes("qt")).toEqual([]);
   writeFileSync(
