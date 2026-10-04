@@ -305,5 +305,26 @@ test("under a type read as HTML, the string lists the placeholders its tags' att
     await string(token, "user_posted_topic_plain")
   ).json()) as Record<string, unknown>;
   expect("attributePlaceholders" in plain).toBe(false);
+  // Outside HTML a tag read as prose, which `tags` does not carry, still
+  // has its attribute's placeholder required: it is listed.
+  applySnapshot(db, project.id, {
+    ...FIXTURE,
+    strings: [
+      ...FIXTURE.strings,
+      {
+        id: "prose_title",
+        type: "plain",
+        source: '<p title="{{x}}">Hello {{name}}',
+        library: "i18next",
+        syntax: "i18next",
+      },
+    ],
+  });
+  const prose = (await (
+    await string(token, "prose_title")
+  ).json()) as StringResponse;
+  expect([prose.placeholders, prose.tags, prose.attributePlaceholders]).toEqual(
+    [["name"], [], ["x"]],
+  );
   applySnapshot(db, project.id, FIXTURE);
 });
