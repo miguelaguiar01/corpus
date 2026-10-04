@@ -1069,6 +1069,101 @@ test("init writes an xliff source for Angular's catalogues, the source file apar
   });
 });
 
+test("init finds Angular's messages.xlf where angular.json's extract-i18n writes it, and the config builds (#1045)", async () => {
+  const unit = `<xliff version="1.2"><file source-language="en"><body><trans-unit id="a"><source>Hello</source></trans-unit></body></file></xliff>\n`;
+  const initAt = async (
+    files: Record<string, string>,
+    messages: string,
+  ): Promise<{ p: ReturnType<typeof project>; code: number }> => {
+    const p = project();
+    stubCli(p.dir);
+    for (const [file, text] of Object.entries(files)) {
+      mkdirSync(path.dirname(path.join(p.dir, file)), { recursive: true });
+      writeFileSync(path.join(p.dir, file), text);
+    }
+    const code = await run(
+      ["init", "--project", "app", "--source", "en", "--messages", messages],
+      p.ctx,
+    );
+    return { p, code };
+  };
+  // paperless-ngx: no outputPath, so ng extract-i18n writes messages.xlf
+  // beside angular.json, above the translations.
+  const workspace = await initAt(
+    {
+      "web/angular.json": JSON.stringify({
+        projects: {
+          ui: {
+            architect: {
+              "extract-i18n": { options: { buildTarget: "ui:build" } },
+            },
+          },
+        },
+      }),
+      "web/messages.xlf": unit,
+      "web/src/locale/messages.de.xlf": unit,
+      "web/src/locale/messages.fr.xlf": unit,
+    },
+    "web/src/locale/messages.{lang}.xlf",
+  );
+  expect(workspace.p.err.join("\n")).toBe("");
+  expect(workspace.code).toBe(0);
+  expect((await loadConfig(workspace.p.dir)).sources[0]).toMatchObject({
+    adapter: "xliff",
+    sourcePath: "web/messages.xlf",
+  });
+  expect(workspace.p.out).toContain(
+    "sourcePath: web/messages.xlf (ng extract-i18n's output, from web/angular.json)",
+  );
+  expect(await run(["build"], workspace.p.ctx)).toBe(0);
+  // An outputPath is the directory, from angular.json's.
+  const output = await initAt(
+    {
+      "angular.json": JSON.stringify({
+        projects: {
+          ui: {
+            architect: {
+              "extract-i18n": { options: { outputPath: "src/i18n" } },
+            },
+          },
+        },
+      }),
+      "src/i18n/messages.xlf": unit,
+      "src/locale/messages.de.xlf": unit,
+    },
+    "src/locale/messages.{lang}.xlf",
+  );
+  expect((await loadConfig(output.p.dir)).sources[0]).toMatchObject({
+    sourcePath: "src/i18n/messages.xlf",
+  });
+  expect(output.p.out).toContain(
+    "sourcePath: src/i18n/messages.xlf (ng extract-i18n's output, from angular.json)",
+  );
+  // No angular.json: the messages.xlf nearest the targets, above them.
+  const above = await initAt(
+    {
+      "web/messages.xlf": unit,
+      "messages.xlf": unit,
+      "web/src/locale/messages.de.xlf": unit,
+    },
+    "web/src/locale/messages.{lang}.xlf",
+  );
+  expect((await loadConfig(above.p.dir)).sources[0]).toMatchObject({
+    sourcePath: "web/messages.xlf",
+  });
+  expect(above.p.out).toContain(
+    "sourcePath: web/messages.xlf (the messages.xlf nearest the translations)",
+  );
+  // Nothing found names where init looked.
+  const none = await initAt(
+    { "web/src/locale/messages.de.xlf": unit },
+    "web/src/locale/messages.{lang}.xlf",
+  );
+  expect(none.p.err).toContain(
+    "corpus: no web/src/locale/messages.en.xlf, no web/src/locale/messages.xlf and no messages.xlf in web/src or above; set the xliff source's sourcePath to the file Angular extracts",
+  );
+});
+
 test("init writes a gettext source for .po catalogues, the .pot beside them its source, and the config builds (#720)", async () => {
   const p = project();
   stubCli(p.dir);
@@ -1692,7 +1787,7 @@ test("an xliff pattern with {lang} twice guesses no bare source file (#930)", as
   );
   const said = p.err.join("\n");
   expect(said).toContain(
-    "corpus: no loc/en/messages.en.xlf; set the xliff source's sourcePath to the file Angular extracts",
+    "corpus: no loc/en/messages.en.xlf and no messages.xlf in loc or above; set the xliff source's sourcePath to the file Angular extracts",
   );
   expect(said).not.toContain("{lang}");
 });
