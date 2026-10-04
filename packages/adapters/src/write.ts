@@ -603,7 +603,10 @@ function buildFrom(
       ? Math.max(
           -1,
           ...leading
-            .filter((p) => p.length > path.length && reaches(path))
+            .filter(
+              (p) =>
+                p.length > path.length && path.every((seg, i) => p[i] === seg),
+            )
             .map((p) => Number(p[path.length])),
         )
       : value.length - 1;
