@@ -4,7 +4,9 @@ import {
   keyIsSentence,
   messagesToEntries,
   pluralBranches,
+  pluralObjectIds,
   pluralText,
+  suffixPluralIds,
 } from "./messages";
 
 test("flat catalog maps key -> id with the configured type", () => {
@@ -732,4 +734,13 @@ test("an array's items are read by index, as vue-i18n and i18next look them up; 
   expect(() =>
     messagesToEntries({ x: ["a"], "x.0": "b" }, { type: "ui" }),
   ).toThrow(/written twice/);
+});
+
+test("a target's plurals inside a list's items are found as the source's are (#1053)", () => {
+  expect([
+    ...pluralObjectIds({ opts: [{ n: { one: "a", other: "as" } }] }),
+  ]).toEqual(["opts.0.n"]);
+  expect([
+    ...suffixPluralIds({ opts: [{ item_one: "a", item_other: "as" }] }, "en"),
+  ]).toEqual(["opts.0.item"]);
 });

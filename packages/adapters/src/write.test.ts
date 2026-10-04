@@ -1571,3 +1571,93 @@ describe("arrays (#1053)", () => {
       );
   });
 });
+
+describe("a list's items made whole (#1053)", () => {
+  const objects = `{\n  "opts": [\n    { "name": "N", "n": { "one": "# a", "other": "# as" } }\n  ]\n}\n`;
+  const families = `{\n  "opts": [\n    { "name": "N", "item_one": "one", "item_other": "many" }\n  ]\n}\n`;
+  const tags = `{\n  "opts": [\n    { "name": "N", "tags": ["A", "B"] }\n  ]\n}\n`;
+  const write = (
+    template: string,
+    translations: Record<string, string>,
+    existing: string | undefined,
+    options: Parameters<typeof entriesToMessages>[3] = {},
+  ) => {
+    const named: string[] = [];
+    const text = entriesToMessages(template, translations, existing, {
+      ...options,
+      onList: (id) => named.push(id),
+      onRefused: (id) => named.push(id),
+    });
+    return { out: JSON.parse(text) as unknown, named };
+  };
+  const forms = "{count, plural, one {# x} other {# xs}}";
+  test("an item copied in from the source takes a plural translation as a plural, an object's or a family's", () => {
+    for (const de of [`{ "x": "Xe" }\n`, "{}\n"]) {
+      expect(
+        write(objects, { "opts.0.n": forms }, de, { plurals: true }),
+      ).toEqual({
+        out: {
+          ...(de.includes("x") && { x: "Xe" }),
+          opts: [{ name: "N", n: { one: "# x", other: "# xs" } }],
+        },
+        named: [],
+      });
+      expect(
+        write(families, { "opts.0.item": forms }, de, {
+          suffixPlurals: true,
+          sourceLanguage: "en",
+        }).out,
+      ).toEqual({
+        ...(de.includes("x") && { x: "Xe" }),
+        opts: [{ name: "N", item_one: "# x", item_other: "# xs" }],
+      });
+    }
+  });
+  test("an item that lacks a plural takes it as a plural, never as an ICU text", () => {
+    const de = `{\n  "opts": [\n    { "name": "Nd" }\n  ]\n}\n`;
+    expect(
+      write(objects, { "opts.0.n": forms }, de, { plurals: true }).out,
+    ).toEqual({
+      opts: [{ name: "Nd", n: { one: "# x", other: "# xs" } }],
+    });
+    expect(
+      write(families, { "opts.0.item": forms }, de, {
+        suffixPlurals: true,
+        sourceLanguage: "en",
+      }).out,
+    ).toEqual({ opts: [{ name: "Nd", item_one: "# x", item_other: "# xs" }] });
+  });
+  test("a list inside an item, missing or short, takes the source's items; a shape the source does not have is named", () => {
+    expect(
+      write(
+        tags,
+        { "opts.0.tags.1": "Bd" },
+        `{\n  "opts": [\n    { "name": "Nd" }\n  ]\n}\n`,
+      ).out,
+    ).toEqual({ opts: [{ name: "Nd", tags: ["A", "Bd"] }] });
+    expect(
+      write(
+        tags,
+        { "opts.0.tags.1": "Bd" },
+        `{\n  "opts": [\n    { "name": "Nd", "tags": ["Ad"] }\n  ]\n}\n`,
+      ).out,
+    ).toEqual({ opts: [{ name: "Nd", tags: ["Ad", "Bd"] }] });
+    for (const shape of [`{ "x": "y" }`, `"T"`])
+      expect(
+        write(
+          tags,
+          { "opts.0.tags.1": "Bd" },
+          `{\n  "opts": [\n    { "name": "Nd", "tags": ${shape} }\n  ]\n}\n`,
+        ).named,
+      ).toEqual(["opts.0.tags.1"]);
+    // A string where the source has an object is named, never a flat key.
+    const sub = `{\n  "b": [\n    { "sub": { "k": "K" } }\n  ]\n}\n`;
+    const { out, named } = write(
+      sub,
+      { "b.0.sub.k": "Kd" },
+      `{\n  "b": [\n    { "sub": "S" }\n  ]\n}\n`,
+    );
+    expect(named).toEqual(["b.0.sub.k"]);
+    expect(out).toEqual({ b: [{ sub: "S" }] });
+  });
+});
