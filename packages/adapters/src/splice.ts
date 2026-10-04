@@ -267,13 +267,16 @@ export function addLeaf(
   for (; depth < path.length - 1; depth++) {
     const next = nodeAt(parent, [path[depth]!]);
     if (!next) break;
-    // An object a list holds is a parent like any other (#1053).
-    if (next.type !== "object") {
+    // A list is walked into, its item an object like any other (#1053).
+    if (next.type !== "object" && next.type !== "array") {
       if (typeof value !== "string") return text;
       return addLeaf(text, [path.join(".")], value, unit, order);
     }
     parent = next;
   }
+  // A key goes into an object, never a list: one the path stops in is a
+  // shape the source does not have here, left as it is.
+  if (parent.type === "array") return text;
   const existing =
     depth === path.length - 1 ? nodeAt(parent, [path[depth]!]) : undefined;
   if (existing?.type === "object") {

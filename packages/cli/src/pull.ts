@@ -632,7 +632,7 @@ function writeTarget(
               : "is a plural its object cannot hold (an =N branch, or a brace a form leaves open)",
           ),
         onList: (id) =>
-          refused(id, "is a list in the file where the source has a string"),
+          refused(id, "is held in the file in another shape than the source's"),
       });
     case "xliff":
       return entriesToXliff(template, translations, existing, language, (id) =>

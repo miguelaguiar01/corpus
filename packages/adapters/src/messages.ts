@@ -568,6 +568,8 @@ function walk(
   options: MessagesOptions,
   out: StringEntry[],
   paths = new Map<string, string[]>(),
+  // Inside a list's item, whose numbers are its data (#1053).
+  inList = false,
 ): void {
   const type = options.type;
   if (
@@ -595,14 +597,16 @@ function walk(
       typeof node === "number" ||
       typeof node === "boolean"
     ) {
-      options.onSkipped?.(path.join("."));
+      // A number in a list's item is its data (`"id": 0`), never a
+      // string that became one (#1053).
+      if (!inList) options.onSkipped?.(path.join("."));
       return;
     }
     // A list's items are messages by index, as vue-i18n's path resolver
     // and i18next's `t('list.0.name')` read them (#1053).
     if (Array.isArray(node)) {
       node.forEach((item, index) =>
-        walk(item, [...path, String(index)], options, out, paths),
+        walk(item, [...path, String(index)], options, out, paths, true),
       );
       return;
     }
@@ -623,14 +627,15 @@ function walk(
     if (families.has(key)) continue;
     const base = member.get(key);
     if (base === undefined) {
-      walk(child, [...path, key], options, out, paths);
+      walk(child, [...path, key], options, out, paths, inList);
       continue;
     }
     // The family reads where its first form is written.
     const forms = families.get(base)!;
     if ([...forms.values()][0] !== key) continue;
     const text = suffixText(record, forms, !options.pluralIds);
-    if (text !== undefined) walk(text, [...path, base], options, out, paths);
+    if (text !== undefined)
+      walk(text, [...path, base], options, out, paths, inList);
   }
 }
 

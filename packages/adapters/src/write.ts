@@ -122,9 +122,10 @@ function leaves(
     if (typeof value === "string") out.push([at, value, false]);
     else if (isPluralAt(value, at.join("."), plurals, known))
       out.push([at, pluralText("count", value, "written"), "object"]);
-    // A list's items by index (#1053); its families are none.
+    // A list's items by index (#1053), an item's plural keys a family
+    // as anywhere.
     else if (Array.isArray(value))
-      leaves(value as unknown as Tree, plurals, known, false, at, out);
+      leaves(value as unknown as Tree, plurals, known, suffix, at, out);
     // A null, number or boolean is no string, left as it is (#1026).
     else if (value !== null && typeof value === "object")
       leaves(value, plurals, known, suffix, at, out);
@@ -357,6 +358,15 @@ export function entriesToMessages(
     ? { ...(options.sourceLanguage && { language: options.sourceLanguage }) }
     : false;
   const onRefused = options.onRefused;
+  // A blank target of a source that holds lists is written as a missing
+  // one is, from the source's text, which a list's items need (#1053).
+  const blank = existing !== undefined && existing.trim() === "";
+  const listed =
+    blank &&
+    options.locale === undefined &&
+    template.trim() !== "" &&
+    listsOf(parseTree(template)).length > 0;
+  if (listed) existing = undefined;
   const base = existing !== undefined ? existing : template;
   const missing = existing === undefined || existing.trim() === "";
   if (base.trim() === "" || (missing && options.locale !== undefined))
@@ -415,14 +425,11 @@ export function entriesToMessages(
     const next = translations[id];
     const list = fresh ? listOf(sourceLists, path) : undefined;
     if (list) {
+      // Past the last item written it goes with the cut; before it an
+      // untranslated one keeps the source's text; a translation is
+      // written as anywhere, a plural as a plural.
       const last = lastWritten.get(list.join("\u0000")) ?? -1;
-      if (
-        next !== undefined &&
-        next !== value &&
-        Number(path[list.length]) <= last
-      )
-        text = editLeaf(text, path, next) ?? text;
-      continue;
+      if (Number(path[list.length]) > last || next === undefined) continue;
     }
     if (next !== undefined) {
       if (next === value) continue;
@@ -926,6 +933,9 @@ export function applyMessagesOps(
     const path = paths.get(op.id) ?? (nested ? op.id.split(".") : [op.id]);
     // A list's items are numbered: adding or removing one renumbers the
     // ids after it, so only an edit of one it holds is written (#1053).
+    // A removal of an id the file does not hold is nothing to do.
+    if (listOf(lists, path) && op.kind === "delete" && !paths.has(op.id))
+      continue;
     if (listOf(lists, path) && (op.kind === "delete" || !paths.has(op.id)))
       throw new Error(
         `messages: ${op.id} is an item of a list, which a proposal cannot add or remove: it would renumber the items after it`,
