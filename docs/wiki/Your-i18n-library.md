@@ -90,7 +90,7 @@ Four things differ from ICU, and Corpus handles all four:
 **An extracted catalogue is the code's.** Where `i18next-cli extract` writes the English file from `t(key, defaultValue)`, as Grafana's does, an edit there is undone by the next extract. Say so on the source, `generated: true`, and a proposal on its strings is refused with the reason, "change the text in the code, and the next extract carries it"; a top-level `_comment`, Grafana's "The code is the source of truth for English phrases", is then no string. A source file git ignores is taken as generated without the key.
 
 
-**sprintf on top of i18next.** An app that installs `i18next-sprintf-postprocessor`, as Rocket.Chat does, formats some strings with `%s` too. `placeholders: ["printf"]` on the source checks those verbs as printf does, in the strings whose English writes one; a `%` in any other string, or one run into a word (`%email%`), stays text. `corpus init` writes it when two strings or more hold printf verbs.
+**sprintf on top of i18next.** An app that installs `i18next-sprintf-postprocessor`, as Rocket.Chat does, formats some strings with `%s` too. `placeholders: ["printf"]` on the source checks those verbs as printf does, in the strings whose English writes one, read as sprintf-js reads them: `%s秒` is the value, while a `%` in any other string, `% of`, or an example's `%email%`, stays text. `corpus init` writes it when two strings or more hold printf verbs.
 ## vue-i18n
 
 <!-- from: examples/vue.config.ts -->

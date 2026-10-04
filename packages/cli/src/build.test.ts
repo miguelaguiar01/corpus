@@ -2066,3 +2066,33 @@ test("under fmt a gettext msgid_plural is one plural whose branches' fields are 
   );
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("a source's layered placeholder that does not close is refused at build, by its source (#1049)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-layered-"));
+  mkdirSync(path.join(dir, "_locales", "en"), { recursive: true });
+  writeFileSync(
+    path.join(dir, "_locales", "en", "messages.json"),
+    JSON.stringify({
+      ok: { message: "{{used}} of {{total}}" },
+      broken: { message: "Open {{url" },
+    }),
+  );
+  const report = await buildSnapshotReport(
+    config({
+      sourceLanguage: "en",
+      languages: ["en"],
+      sources: [
+        {
+          adapter: "messages",
+          type: "ui",
+          path: "_locales/{lang}/messages.json",
+          library: "chrome",
+          placeholders: ["i18next"],
+        },
+      ],
+    }),
+    dir,
+  );
+  expect(report.refused.map((r) => r.id)).toEqual(["broken"]);
+  rmSync(dir, { recursive: true, force: true });
+});

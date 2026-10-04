@@ -536,6 +536,7 @@ function loadCurrent(
   type: string;
   syntax: Library | null;
   arguments: string[] | null;
+  placeholders: Library[] | null;
 })[] {
   const rows = db
     .select()
@@ -572,6 +573,7 @@ function loadCurrent(
     type: row.type,
     syntax: row.syntax,
     arguments: row.arguments,
+    placeholders: row.placeholders,
     translatedTargets: targetsByString.get(row.id) ?? [],
   }));
 }
@@ -869,6 +871,7 @@ function recheckedSeeds(
     type: string;
     syntax: Library | null;
     arguments: string[] | null;
+    placeholders: Library[] | null;
   }[],
   bySnapshotId: Map<string, Entry>,
   sourceChanged: string[],
@@ -885,6 +888,8 @@ function recheckedSeeds(
       entryLibrary(entry) !== was.syntax ||
       JSON.stringify(entry.arguments ?? null) !==
         JSON.stringify(was.arguments) ||
+      JSON.stringify(entry.placeholders ?? null) !==
+        JSON.stringify(was.placeholders) ||
       richText.after[entry.type] !== richText.before[was.type]
     )
       out.add(was.stringId);
@@ -937,6 +942,7 @@ function remarkSeeds(
         key: strings.stringId,
         syntax: strings.syntax,
         arguments: strings.arguments,
+        placeholders: strings.placeholders,
       })
       .from(stringTranslations)
       .innerJoin(strings, eq(strings.id, stringTranslations.stringId))
@@ -960,6 +966,7 @@ function remarkSeeds(
         row.arguments ?? undefined,
         row.key,
         sourceLanguage,
+        row.placeholders,
       );
       if (invalid !== row.invalid)
         mark.run({

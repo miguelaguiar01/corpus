@@ -639,6 +639,8 @@ function validateEntry(
   const syntax = libraryOf(entry);
   const reading = richTextFor(entry.type, entry.id, syntax, richText);
   const icu = parseIcu(entry.source, syntax, {
+    // Its layered syntaxes too (#1049): an unclosed `{{` is refused here.
+    ...(entry.placeholders && { placeholders: entry.placeholders }),
     html: tagMode(syntax, reading),
   });
   if (icu.ok) {

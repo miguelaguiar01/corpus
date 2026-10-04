@@ -1536,3 +1536,36 @@ test("a string's layered placeholders are stored and checked: a seed that drops 
     stringDetail(db, project.id, "stats")?.string.placeholderSyntaxes,
   ).toEqual(["i18next"]);
 });
+
+test("turning a source's placeholders on marks its pushed seeds, and a source edit keeps the mark (#1049)", () => {
+  const { db, project } = seed(["pt-PT", "en"]);
+  let first = true;
+  const push = (source: string, placeholders?: ("i18next" | "printf")[]) =>
+    applySnapshot(db, project.id, {
+      contract: "corpus/1",
+      project: "moonlight-manor",
+      sourceLanguage: "pt-PT",
+      entities: [],
+      strings: [
+        {
+          id: "stats",
+          type: "ui",
+          source,
+          library: "chrome",
+          syntax: "chrome",
+          ...(placeholders && { placeholders }),
+        },
+      ],
+      // The seeds go once; later pushes say their digest is unchanged
+      // and leave them out (#601), so only the re-check reads them.
+      ...(first && { seedTranslations: { en: { stats: "{{used}} used" } } }),
+      seedDigests: { en: "same" },
+    });
+  push("{{used}} usado de {{total}}");
+  first = false;
+  expect(translationOf(db, "stats", "en")?.invalid).toBe(false);
+  push("{{used}} usado de {{total}}", ["i18next"]);
+  expect(translationOf(db, "stats", "en")?.invalid).toBe(true);
+  push("{{used}} usados de {{total}}", ["i18next"]);
+  expect(translationOf(db, "stats", "en")?.invalid).toBe(true);
+});

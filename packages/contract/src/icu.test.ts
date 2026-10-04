@@ -1355,6 +1355,26 @@ test("a source's placeholders layer another library's tokens on its own: {{name}
   expect([
     ...partsOf("%d files in {num} of {{name}}", "printf", ["fmt"]).placeholders,
   ]).toEqual(["1", "num"]);
+  // Japanese runs a value into its text, as sprintf fills it.
+  expect(
+    validateTranslation(
+      "Restart in %s seconds",
+      "%s秒後に再起動",
+      "ja",
+      "i18next",
+      { placeholders: ["printf"] },
+    ).ok,
+  ).toBe(true);
+  expect(
+    validateTranslation("Took %sms", "Dauerte ms", "de", "i18next", {
+      placeholders: ["printf"],
+    }).ok,
+  ).toBe(false);
+  // An example's %name% and a percent sign are text.
+  expect([
+    ...partsOf('Map {"email": "%email%"} at 50% of %s', "i18next", ["printf"])
+      .placeholders,
+  ]).toEqual(["1"]);
   // A layered {{name:suffix}} is the value name.
   expect(
     validateTranslation(

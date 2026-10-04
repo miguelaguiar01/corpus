@@ -1343,6 +1343,11 @@ test("a source's placeholders layer another library's tokens on its library, and
   ]);
   expect(issues({ ...ublock, placeholders: ["vue"] })).toHaveLength(1);
   expect(
+    issues({ ...ublock, library: "i18next", placeholders: ["fmt"] }),
+  ).toEqual([
+    "placeholders: i18next reads braces itself, so fmt's {name} cannot layer on it",
+  ]);
+  expect(
     issues({
       adapter: "android",
       type: "ui",

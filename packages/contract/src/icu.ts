@@ -623,9 +623,16 @@ class Parser {
       if (layer === "printf" && ch === "%") {
         if (rest.startsWith("%%")) return this.text(seq, "%", 2);
         const verb = PRINTF_VERB_RE.exec(rest);
-        // Where `%` is the base library's prose, a verb run into a word,
-        // `%email%` in an example, is text; sprintf's own stand apart.
-        if (!verb || /[\p{L}\p{N}]/u.test(rest[verb[0].length] ?? "")) continue;
+        // As sprintf-js reads them: no space flag and its own verbs, so
+        // `% of` and Hungarian `50%-a` are text, and a `%name%` in an
+        // example (`%email%`) is the text's too.
+        if (
+          !verb ||
+          verb[0].includes(" ") ||
+          !/[bcdefgijostTuvxX]$/.test(verb[0]) ||
+          /^%[\p{L}_][\p{L}\p{N}_]*%/u.test(rest)
+        )
+          continue;
         const explicit = verb[1] ?? verb[2];
         const position = explicit ? Number(explicit) : this.printfNext;
         this.printfNext = position + 1;

@@ -708,7 +708,10 @@ export const corpusConfigSchema = z
         const message =
           layer === own
             ? `placeholders names ${layer}, the source's own library`
-            : (layer === "i18next" || layer === "fmt") && BRACE_READERS.has(own)
+            : (layer === "i18next" || layer === "fmt") &&
+                (BRACE_READERS.has(own) ||
+                  // fmt's `{{` is a brace, i18next's a placeholder.
+                  (layer === "fmt" && own === "i18next"))
               ? `placeholders: ${own} reads braces itself, so ${layer === "i18next" ? "i18next's {{name}}" : "fmt's {name}"} cannot layer on it`
               : undefined;
         if (message)
