@@ -1021,9 +1021,12 @@ function termsOf(
 
 // What Fluent renders otherwise than the translation means, which no
 // check of the string alone sees (#1033): an argument the locale's term
-// never reads, which Fluent ignores, and a select on an attribute the
-// term does not define there, which renders the default variant. The
-// locale's own definition is read, else the source's.
+// never reads where it reads others, which Fluent ignores, Indonesian's
+// `kapitalisasi` for `capitalization`, and a select on an attribute the
+// term does not define there, which renders the default variant. A term
+// that reads no variable is the same text whatever is passed, as
+// Czech's brand names are, declined in none. The locale's own
+// definition is read, else the source's.
 function termWarnings(
   target: string,
   at: {
@@ -1050,7 +1053,7 @@ function termWarnings(
     /\{\s*(-[A-Za-z][\w-]*)\(((?:[^()"\n]|"(?:[^"\\\n]|\\.)*")*)\)\s*\}/g,
   )) {
     const term = termOf(call[1]!);
-    if (!term) continue;
+    if (!term || term.variables.size === 0) continue;
     const args = call[2]!.replace(/"(?:[^"\\\n]|\\.)*"/g, "");
     for (const arg of args.matchAll(/([A-Za-z][\w-]*)\s*:/g))
       if (!term.variables.has(arg[1]!))
