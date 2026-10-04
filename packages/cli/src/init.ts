@@ -330,7 +330,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     );
   if (include) {
     ctx.out(
-      `check.include: ${include.join(", ")} (the directories holding components, which corpus check scans)`,
+      `check.include: ${include.join(", ")} (the directories holding components or templates, which corpus check scans)`,
     );
   } else if (!components.found) {
     // A UI that is never JSX, TSX, Vue or Svelte gives check nothing to read,
