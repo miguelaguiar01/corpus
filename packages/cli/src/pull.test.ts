@@ -2230,8 +2230,9 @@ export default defineCorpus({
     },
     minState: "untranslated",
   });
+  // Saved translations a file cannot hold fail the pull (#1051).
   const pulled = ctx();
-  expect(await run(["pull"], pulled)).toBe(0);
+  expect(await run(["pull"], pulled)).toBe(1);
   expect(read("l/de.json")).toBe(de);
   expect(read("x/messages.de.xlf")).toBe(xde);
   expect(pulled.output.join("\n")).toContain(
@@ -2967,7 +2968,8 @@ export default defineCorpus({
     minState: "untranslated",
   });
   const left = ctx();
-  expect(await run(["pull"], left)).toBe(0);
+  // A saved translation it cannot hold fails the pull (#1051).
+  expect(await run(["pull"], left)).toBe(1);
   expect(left.output.join("\n")).toContain(
     "is no entry with a string messageformat in the file, which pull leaves as it is",
   );

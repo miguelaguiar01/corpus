@@ -110,6 +110,13 @@ export function validationMessage(
     }
     case "missing-category":
       return t("editor.missingCategory", { arg: error.arg, key: error.key });
+    case "exact-branch":
+      return t("editor.exactBranch", {
+        arg: error.arg,
+        key: error.key,
+        category: error.category,
+        n: error.key.slice(1),
+      });
     case "fixed-count":
       return t(error.more ? "editor.fixedCountMore" : "editor.fixedCount", {
         arg: error.arg,

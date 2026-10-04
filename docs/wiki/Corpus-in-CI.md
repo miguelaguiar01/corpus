@@ -4,7 +4,7 @@ Four commands belong in CI, and they divide cleanly: two read only the repositor
 |---|---|---|---|
 | `corpus check` | no | every pull request, where the UI is `.jsx`, `.tsx`, `.vue`, `.svelte` or Handlebars | a component says something to a person without going through a catalogue |
 | `corpus validate` | no | every pull request | a translation in the repository is broken |
-| `corpus pull --check` | yes, read only | every pull request from the repository | the repository is behind what is verified, or a proposal is waiting |
+| `corpus pull --check` | yes, read only | every pull request from the repository | the repository is behind what is verified, a proposal is waiting, or a saved translation cannot be written into its file |
 | `corpus push` | yes, writes | the default branch, after merge | a string will not parse, the token is refused, the instance rejects the push, or it cannot be reached |
 
 ## The offline pair
@@ -40,7 +40,7 @@ This catches what a translator's editor already refuses, because translations ar
 
 ## The two that need the instance
 
-`corpus pull --check` performs a pull and writes nothing, exiting 1 when a pull would have changed a file ([§8](https://github.com/miguelaguiar01/corpus/blob/main/docs/corpus-design.md#8-sync-semantics)). That is the gate that keeps the repository honest: a translation was verified, nobody ran `corpus pull`, and the branch is behind. A pending proposal counts as a change, so the same gate goes red until someone pulls the proposed English in and reviews it.
+`corpus pull --check` performs a pull and writes nothing, exiting 1 when a pull would have changed a file ([§8](https://github.com/miguelaguiar01/corpus/blob/main/docs/corpus-design.md#8-sync-semantics)). That is the gate that keeps the repository honest: a translation was verified, nobody ran `corpus pull`, and the branch is behind. A pending proposal counts as a change, so the same gate goes red until someone pulls the proposed English in and reviews it. So does a translation saved on the instance that its file cannot hold, such as a plain text for a gettext plural: it is named, and fixed in Corpus.
 
 It needs `CORPUS_TOKEN`, so it cannot run on a fork's pull request, where secrets are not available. Skip it there rather than letting it fail.
 

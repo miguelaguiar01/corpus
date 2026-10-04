@@ -202,6 +202,8 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
     }
 
   const changed: string[] = [];
+  // Translations a writer refused, which fail the pull (#1051).
+  let notWritten = 0;
   const pending = new Map<string, string>();
   const claimedTypes = new Set<string>();
   // Ids the server holds that no source-language file of their type does
@@ -313,6 +315,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
         config,
         ctx.err,
         () => siblingIndent(ctx.cwd, source, config, language),
+        () => notWritten++,
       );
       if (next !== undefined) pending.set(file, next);
       if (next !== undefined && next !== existing) {
@@ -517,13 +520,22 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
       );
   }
 
+  // A translation saved in Corpus that its file cannot hold is lost
+  // silently otherwise; the rest are written all the same (#1051).
+  const refusals = () => {
+    if (notWritten > 0)
+      ctx.err(
+        `corpus: ${notWritten} translation(s) could not be written; fix them in Corpus`,
+      );
+  };
   if (check) {
     const files = [...new Set(changed)];
     for (const file of files) ctx.out(file);
     ctx.out(
       `pull --check ${config.project} at ${minState}: ${files.length} file(s) would change`,
     );
-    return files.length === 0 ? 0 : 1;
+    refusals();
+    return files.length === 0 && notWritten === 0 ? 0 : 1;
   }
 
   const importers = config.sources.filter(
@@ -553,7 +565,8 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
       `${written.size} proposal(s) written: commit and push, and the next corpus push marks them applied`,
     );
   }
-  return 0;
+  refusals();
+  return notWritten === 0 ? 0 : 1;
 }
 
 // The indent the source's other target files write, the first that has
@@ -588,9 +601,13 @@ function writeTarget(
   err: (line: string) => void,
   // The indent of the source's other target files, read when needed.
   siblings: () => string | undefined = () => undefined,
+  // Each translation the writer refuses, counted for pull's exit (#1051).
+  onRefused: () => void = () => {},
 ): string | undefined {
-  const refused = (id: string, why: string) =>
+  const refused = (id: string, why: string) => {
+    onRefused();
     err(`corpus: ${file}: ${printable(id)} ${why}; not written`);
+  };
   switch (source.adapter) {
     case "android":
       return entriesToAndroid(template, translations, existing);
@@ -658,11 +675,15 @@ function writeTarget(
           code: yamlRootOf(existing, fileCodeOf(source, language), language),
         },
         (id, _text, why) =>
-          err(
-            why === "plural"
-              ? `corpus: ${file}: ${printable(id)} is a plural a Rails hash cannot hold (an =N branch, or text beside it); not written`
-              : `corpus: ${file}: ${printable(id)}'s parent in the file is a scalar, a hash written inline or an alias; not written`,
-          ),
+          why === "plural"
+            ? refused(
+                id,
+                "is a plural a Rails hash cannot hold (an =N branch, or text beside it)",
+              )
+            : refused(
+                id,
+                "has a parent in the file that is a scalar, a hash written inline or an alias",
+              ),
       );
     case "xcstrings":
       return xcstringsInto(file, existing, translations, language, (id) =>

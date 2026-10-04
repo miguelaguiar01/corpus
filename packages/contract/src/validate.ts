@@ -98,6 +98,10 @@ export type ValidationError =
   // two (#1039): written beside the category, one overrides the other,
   // and an `=N` whose category holds more is printed for those too.
   | { code: "overridden-branch"; arg: string; key: string; category: string }
+  // An `=N` branch in a plural read whole, which no gettext, plural
+  // object, Rails hash, Qt numerus or String Catalog writer holds
+  // (#1051): `category` is the branch the language picks for N.
+  | { code: "exact-branch"; arg: string; key: string; category: string }
   // A category's branch that writes the number 1 and no count, where
   // the language puts more in the category (#1042): hr's one{1 tjedan}
   // is printed for 21 weeks.
@@ -1287,6 +1291,13 @@ export function validateTranslation(
     errors.push(...nestingErrors(sourceNodes, targetNodes));
   if (language !== undefined && CLDR_PICKED.has(syntax))
     errors.push(...fixedCounts(targetNodes, language, syntax));
+  if (
+    WHOLE_PLURAL_LIBRARIES.has(syntax) &&
+    parsedSource.nodes.some((node) => node.kind === "plural")
+  )
+    errors.push(
+      ...exactBranches(targetNodes, language, syntax, options.pluralForms),
+    );
   // The source's own text keeps the source's warning, not an error: a
   // translation that is the source cannot be the translator's `#` (#923),
   // nor one that is it restructured (#1009).
@@ -1476,6 +1487,37 @@ const CLDR_PICKED = new Set<Library>([
 // time, a number or a name: `u 1:30`, `1.5`, `A1` (#1042).
 const FIXED_ONE =
   /(?<![\p{N}\p{LC}])(?<!\p{N}[.,:])[1\u0661\u06F1\uFF11](?!\p{N}|[.,:]\p{N})/u;
+
+// Each `=N` branch of a plural, with the category the language picks
+// for N; none the file's own forms name, as a gettext Plural-Forms with
+// an exact form does (`=1` for Cebuano, #982).
+function exactBranches(
+  nodes: IcuNode[],
+  language: string | undefined,
+  library: Library,
+  pluralForms: readonly string[] | undefined,
+): ValidationError[] {
+  return nodes.flatMap((node) => {
+    if (node.kind !== "plural") return [];
+    const categories = Object.fromEntries(
+      [
+        ...(language ? pluralCategoriesOf(language, node.ordinal) : []),
+        "other",
+      ].map((category) => [category, true]),
+    );
+    return Object.keys(node.branches)
+      .filter((key) => key.startsWith("=") && !pluralForms?.includes(key))
+      .map((key) => ({
+        code: "exact-branch" as const,
+        arg: node.arg,
+        key,
+        category: pluralBranch(categories, key.slice(1), language, {
+          ordinal: node.ordinal,
+          library,
+        }),
+      }));
+  });
+}
 
 function fixedCounts(
   nodes: IcuNode[],
