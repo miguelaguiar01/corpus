@@ -8,6 +8,7 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { createJiti } from "jiti";
+import { parse as parseJsonc } from "jsonc-parser";
 import {
   androidDirOf,
   gettextToEntries,
@@ -109,13 +110,14 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       `--messages must contain {lang}, such as src/i18n/{lang}.json`,
     );
   }
-  const { adapter, sourcePath, keyIsText, entries } =
+  const { adapter, sourcePath, keyIsText, entries, found } =
     res !== undefined
       ? {
           adapter: "android" as const,
           sourcePath: undefined,
           keyIsText: undefined,
           entries: undefined,
+          found: undefined,
         }
       : formatOf(ctx, messages, sourceLanguage, catalog !== undefined);
   // An XLIFF unit's text is ICU, as a Fluent message is read as ICU,
@@ -301,6 +303,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       ? `wrote ${filename} (a plain object: @corpus-tool/cli is not installed in this repository)`
       : `wrote ${filename}`,
   );
+  if (found) ctx.out(found);
   if (library && (library.value !== "icu" || adapter !== "messages")) {
     const why = library.detected && (library.why ?? DETECTED_BY[library.value]);
     ctx.out(
@@ -468,6 +471,123 @@ const DETECTED_BY: Partial<Record<Library, string>> = {
   vue: "a pipe or a quoted literal",
 };
 
+// Angular's source file away from its translations (#1045): where the
+// nearest angular.json's extract-i18n writes it, `outputPath` from that
+// directory and `outFile`, by default messages.xlf beside angular.json,
+// the output nearest the translations first; else the messages.xlf
+// nearest the translations' directory, up to the config's. `tried` is
+// the angular.json outputs that are missing, and `above` the directory
+// the walk started from.
+function angularSource(
+  cwd: string,
+  messages: string,
+  bare: string | undefined,
+): { sourcePath?: string; why?: string; tried: string[]; above?: string } {
+  // In the config directory's terms, whatever the pattern's.
+  const local = (file: string) =>
+    path.isAbsolute(file)
+      ? path.relative(cwd, file).split(path.sep).join("/") || "."
+      : path.posix.normalize(file);
+  const prefix = messages.slice(0, messages.indexOf("{lang}"));
+  const start = local(
+    prefix.endsWith("/")
+      ? prefix.slice(0, -1) || "/"
+      : path.posix.dirname(prefix),
+  );
+  const dirs: string[] = [];
+  for (let dir = start; dir !== ".." && !dir.startsWith("../");) {
+    dirs.push(dir);
+    if (dir === ".") break;
+    dir = path.posix.dirname(dir);
+  }
+  const exists = (file: string) => existsSync(path.resolve(cwd, file));
+  const bareHere = bare === undefined ? undefined : local(bare);
+  const walked = dirs.filter(
+    (dir) => path.posix.join(dir, "messages.xlf") !== bareHere,
+  );
+  const walkedFiles = walked.map((dir) => path.posix.join(dir, "messages.xlf"));
+  const tried: string[] = [];
+  const workspace = dirs.find((dir) =>
+    exists(path.posix.join(dir, "angular.json")),
+  );
+  if (workspace !== undefined) {
+    const file = path.posix.join(workspace, "angular.json");
+    // Read as the Angular CLI reads it: comments, trailing commas and
+    // what jsonc-parser recovers from, so long as it is an object.
+    let text = "";
+    try {
+      text = readFileSync(path.resolve(cwd, file), "utf8");
+    } catch {
+      // No file to read, a directory say: it guesses nothing.
+    }
+    const workspaceJson: unknown = parseJsonc(text.replace(/^\uFEFF/, ""), [], {
+      allowTrailingComma: true,
+    });
+    const projects =
+      workspaceJson &&
+      typeof workspaceJson === "object" &&
+      "projects" in workspaceJson &&
+      workspaceJson.projects &&
+      typeof workspaceJson.projects === "object"
+        ? Object.values(workspaceJson.projects)
+        : [];
+    const outputs: string[] = [];
+    for (const project of projects) {
+      if (!project || typeof project !== "object") continue;
+      const targets = project as {
+        architect?: Record<string, { options?: Record<string, unknown> }>;
+        targets?: Record<string, { options?: Record<string, unknown> }>;
+      };
+      const options = (targets.architect ?? targets.targets)?.["extract-i18n"]
+        ?.options;
+      if (!options || typeof options !== "object") continue;
+      const { outputPath, outFile, format } = options;
+      // Only XLIFF is the xliff source's: `json`, `arb` or `xmb` is not.
+      if (
+        typeof format === "string" &&
+        !/^(?:xlf2?|xlif|xliff2?)$/.test(format)
+      )
+        continue;
+      const name = typeof outFile === "string" ? outFile : "messages.xlf";
+      if (!/\.(?:xlf|xliff)$/i.test(name)) continue;
+      const dir =
+        typeof outputPath !== "string"
+          ? workspace
+          : path.isAbsolute(outputPath)
+            ? outputPath
+            : path.posix.join(workspace, outputPath);
+      const output = path.posix.join(dir, name);
+      if (!outputs.includes(output) && local(output) !== bareHere)
+        outputs.push(output);
+    }
+    // The one sharing the most of the translations' directory first.
+    const shared = (output: string) => {
+      const a = path.posix.dirname(local(output)).split("/");
+      const b = start.split("/");
+      let n = 0;
+      while (n < a.length && a[n] === b[n]) n++;
+      return n;
+    };
+    for (const output of [...outputs].sort((x, y) => shared(y) - shared(x))) {
+      if (exists(output))
+        return {
+          sourcePath: local(output),
+          why: `ng extract-i18n's output, from ${file}`,
+          tried,
+        };
+      if (!walkedFiles.includes(local(output))) tried.push(output);
+    }
+  }
+  for (const candidate of walkedFiles)
+    if (exists(candidate))
+      return {
+        sourcePath: candidate,
+        why: "the messages.xlf nearest the translations",
+        tried,
+      };
+  return { tried, ...(walked[0] !== undefined && { above: walked[0] }) };
+}
+
 // The adapter the pattern's files take, told by their extension and,
 // for a `.ts`, their first bytes; a file the format needs and cannot
 // find is warned of, and one its adapter cannot read refused.
@@ -481,6 +601,8 @@ function formatOf(
   sourcePath?: string;
   keyIsText?: true;
   entries?: { text: string; note?: string };
+  // Where a sourcePath init guessed came from, for the line that says so.
+  found?: string;
 } {
   if (catalogued) return { adapter: "xcstrings" };
   const sourceFile = path.join(
@@ -499,21 +621,34 @@ function formatOf(
       messages.split("{lang}").length === 2
         ? path.posix.normalize(messages.replace(/[._-]?\{lang\}/, ""))
         : undefined;
-    const sourcePath =
-      missing && bare !== undefined && existsSync(path.join(ctx.cwd, bare))
-        ? bare
-        : undefined;
-    if (!sourcePath && missing) {
-      gitIgnored(ctx, relative);
-      if (bare !== undefined) gitIgnored(ctx, bare);
+    if (!missing) return { adapter: "xliff" };
+    if (bare !== undefined && existsSync(path.join(ctx.cwd, bare))) {
+      gitIgnored(ctx, bare);
+      return { adapter: "xliff", sourcePath: bare };
     }
-    if (!sourcePath && missing)
-      ctx.err(
-        bare === undefined
-          ? `corpus: no ${relative}; set the xliff source's sourcePath to the file Angular extracts`
-          : `corpus: no ${relative} and no ${bare}; set the xliff source's sourcePath to the file Angular extracts`,
+    const extracted = angularSource(ctx.cwd, messages, bare);
+    if (extracted.sourcePath) gitIgnored(ctx, extracted.sourcePath);
+    if (extracted.sourcePath)
+      return {
+        adapter: "xliff",
+        sourcePath: extracted.sourcePath,
+        found: `sourcePath: ${extracted.sourcePath} (${extracted.why})`,
+      };
+    gitIgnored(ctx, relative);
+    if (bare !== undefined) gitIgnored(ctx, bare);
+    const looked = [relative, ...(bare === undefined ? [] : [bare])]
+      .concat(extracted.tried)
+      .map((file) => `no ${file}`);
+    if (extracted.above)
+      looked.push(
+        extracted.above === "."
+          ? "no messages.xlf"
+          : `no messages.xlf in ${extracted.above} or above`,
       );
-    return { adapter: "xliff", ...(sourcePath && { sourcePath }) };
+    ctx.err(
+      `corpus: ${looked.length > 1 ? `${looked.slice(0, -1).join(", ")} and ${looked.at(-1)}` : looked[0]}; set the xliff source's sourcePath to the file Angular extracts`,
+    );
+    return { adapter: "xliff" };
   }
   // gettext too (#720): xgettext's `.pot` beside the `.po` files is the
   // source, when there is one.

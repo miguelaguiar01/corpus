@@ -48,6 +48,7 @@
   "devDependencies": {
     "@corpus/adapters": "*",
     "@corpus/contract": "*",
-    "esbuild": "^0.28.2"
+    "esbuild": "^0.28.2",
+    "jsonc-parser": "^3.3.1"
   }
 }

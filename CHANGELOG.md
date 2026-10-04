@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- `corpus init` finds an Angular project's `messages.xlf` where `angular.json` extracts it, at the workspace root by default (#1045).
 - A nested empty value whose key path holds a space stays empty, rather than reading its key path as the text (#1044).
 - `corpus build --out` creates the file's directory, and a file it cannot write is one error line, not a stack trace (#1043).
 - A plural branch that writes `1` instead of the count warns where the language's category holds other numbers (Croatian `one` holds 21) (#1042).
