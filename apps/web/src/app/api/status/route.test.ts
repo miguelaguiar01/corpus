@@ -135,6 +135,7 @@ test("the project's source variants, which the dashboard and corpus status sort 
     sourceLanguage: "en",
     sourceVariants: ["en-GB"],
     strings: [{ id: "a", type: "ui", source: "A" }],
+    entities: [],
   } as Snapshot);
   const after = (await (await status(created.token)).json()) as {
     sourceVariants: string[];

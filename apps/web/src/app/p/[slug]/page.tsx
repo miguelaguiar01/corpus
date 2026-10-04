@@ -78,6 +78,7 @@ export default async function ProjectHome({
           <ProgressByType
             progress={progress}
             sourceLanguage={project.sourceLanguage}
+            sourceVariants={project.sourceVariants ?? []}
           />
         </Section>
       </div>

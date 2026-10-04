@@ -140,6 +140,7 @@
   "progress.progressColumn": "Progress",
   "progress.summary": "{verified} verified, {translated} translated of {total}",
   "progress.summaryColumn": "Counts",
+  "progress.variantOf": "falls back to {source}",
   "proposal.addErrorExists": "A string with that key exists.",
   "proposal.addErrorKey": "That key is not a valid identifier.",
   "proposal.addErrorSource": "Pick one of the declared sources.",

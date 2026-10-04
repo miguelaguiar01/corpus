@@ -264,7 +264,9 @@ test("a source variant sorts after every target, labelled as falling back to the
   expect(heads[0]).toBe("en");
   expect(heads.at(-1)).toMatch(/^en-GB/);
   expect(heads.at(-1)).toContain("falls back to en");
-  expect(screen.getByText("0 verified, 3 translated of 10")).toBeTruthy();
+  expect(
+    screen.getAllByText("0 verified, 3 translated of 10"),
+  ).not.toHaveLength(0);
   cleanup();
   // In blocks too.
   render(

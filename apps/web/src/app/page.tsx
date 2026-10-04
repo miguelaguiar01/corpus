@@ -19,6 +19,8 @@ export default async function Home() {
     slug: project.slug,
     name: project.name,
     languages: project.languages,
+    sourceLanguage: project.sourceLanguage,
+    sourceVariants: project.sourceVariants ?? [],
     progress: progressCounts(db, project.id, { invalid: false }).perLanguage,
     counts: queueCounts(db, project.id),
     pending: pendingCount(db, project.id),
@@ -59,6 +61,8 @@ export default async function Home() {
                   slug={project.slug}
                   name={project.name}
                   languages={project.languages}
+                  sourceLanguage={project.sourceLanguage}
+                  sourceVariants={project.sourceVariants}
                   progress={project.progress}
                   counts={project.counts}
                   pending={project.pending}

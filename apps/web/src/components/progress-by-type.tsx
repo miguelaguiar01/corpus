@@ -3,6 +3,7 @@ import { t } from "@/i18n";
 import { InvalidSlot, ProgressBar, ProgressSummary } from "./progress-bar";
 import { ProgressLegend } from "./progress-legend";
 import { ProgressRow } from "./progress-row";
+import { inVariantOrder, VariantLabel } from "./variant-label";
 
 // Past this many languages the blocks become a table: a project of
 // dozens of languages with one string type is otherwise a wall of one
@@ -15,11 +16,18 @@ const TABLE_FROM_LANGUAGES = 8;
 export function ProgressByType({
   progress,
   sourceLanguage,
+  sourceVariants = [],
 }: {
   progress: Progress;
   sourceLanguage: string;
+  // Targets that fall back to the source (#658): their untranslated rows
+  // are no work, so they come after the targets, named so (#699).
+  sourceVariants?: string[];
 }) {
-  const languages = Object.keys(progress.perLanguage);
+  const variants = new Set(sourceVariants);
+  const variantOf = (language: string) =>
+    variants.has(language) ? sourceLanguage : undefined;
+  const languages = inVariantOrder(Object.keys(progress.perLanguage), variants);
   if (languages.length === 0) return null;
   const types = Object.keys(progress.perType);
   const anyInvalid = Object.values(progress.perType).some((byLanguage) =>
@@ -35,6 +43,7 @@ export function ProgressByType({
     const ordered = [...languages].sort((a, b) => {
       if (a === sourceLanguage) return -1;
       if (b === sourceLanguage) return 1;
+      if (variants.has(a) !== variants.has(b)) return variants.has(a) ? 1 : -1;
       return left(b) - left(a) || (a < b ? -1 : a > b ? 1 : 0);
     });
     return (
@@ -55,6 +64,7 @@ export function ProgressByType({
               <ProgressRow
                 key={language}
                 language={language}
+                variantOf={variantOf(language)}
                 anyInvalid={anyInvalid}
                 p={progress.perLanguage[language]!}
                 types={types.flatMap((type) => {
@@ -78,6 +88,7 @@ export function ProgressByType({
             <div className="flex items-baseline justify-between gap-3">
               <h3 className="shrink-0 text-base font-medium whitespace-nowrap">
                 {language}
+                <VariantLabel source={variantOf(language)} />
               </h3>
               <ProgressSummary p={p} />
             </div>
