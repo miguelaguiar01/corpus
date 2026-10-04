@@ -1,5 +1,10 @@
 import { expect, test } from "vitest";
-import { entriesToQtTs, qtTsToEntries, qtTsTranslations } from "./qtts";
+import {
+  entriesToQtTs,
+  qtTsSuggestions,
+  qtTsToEntries,
+  qtTsTranslations,
+} from "./qtts";
 
 // qBittorrent's shapes: lupdate's template as the source.
 const EN = `<?xml version="1.0" encoding="utf-8"?>
@@ -101,6 +106,66 @@ test("a target's translations are its finished ones; unfinished text is work (#7
       source: "„%1“ jetzt nutzen",
     },
   ]);
+});
+
+test("an unfinished translation with text is a suggestion, a numerus one's forms its plural; finished, empty and vanished ones are not (#1050)", () => {
+  // Flameshot: Weblate's "needs editing" rows, which lrelease ships.
+  const xml = `<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE TS>
+<TS version="2.1" language="de">
+<context>
+    <name>C</name>
+    <message>
+        <source>Done</source>
+        <translation>Fertig</translation>
+    </message>
+    <message>
+        <source>Configuration</source>
+        <translation type="unfinished">Einstellungen</translation>
+    </message>
+    <message>
+        <source>Empty</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Gone</source>
+        <translation type="vanished">Weg</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n file(s)</source>
+        <translation type="unfinished">
+            <numerusform>%n Datei</numerusform>
+            <numerusform>%n Dateien</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n line(s)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+</context>
+</TS>
+`;
+  expect(qtTsTranslations(xml, "de")).toEqual([
+    { id: "C | Done", type: "", source: "Fertig" },
+  ]);
+  expect(qtTsSuggestions(xml, "de")).toEqual([
+    { id: "C | Configuration", type: "", source: "Einstellungen" },
+    {
+      id: "C | %n file(s)",
+      type: "",
+      source: "{count, plural, one {%n Datei} other {%n Dateien}}",
+    },
+  ]);
+  // Forms that do not read back as one plural are no suggestion.
+  expect(
+    qtTsSuggestions(
+      xml.replace("%n Datei</numerusform>", "%n } Datei</numerusform>"),
+      "de",
+    ).map((e) => e.id),
+  ).toEqual(["C | Configuration"]);
 });
 
 test("length variants seed the first; single quotes, CRLF, relative locations, empty comments and odd references read as Qt reads them (#740)", () => {

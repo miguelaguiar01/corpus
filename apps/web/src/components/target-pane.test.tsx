@@ -727,7 +727,7 @@ test("a suggestion shows above the draft, and its button fills the draft, valida
     />,
   );
   const region = screen.getByRole("region", {
-    name: "The repository's fuzzy guess, not yet a translation",
+    name: "The repository's unfinished text, not yet a translation",
   });
   expect(region.textContent).toContain("{witness} saw {suspect}");
   const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
@@ -748,7 +748,7 @@ test("a suggestion shows above the draft, and its button fills the draft, valida
   pane();
   expect(
     screen.queryByRole("region", {
-      name: "The repository's fuzzy guess, not yet a translation",
+      name: "The repository's unfinished text, not yet a translation",
     }),
   ).toBeNull();
 });

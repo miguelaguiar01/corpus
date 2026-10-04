@@ -114,6 +114,28 @@ test("every queue, keyed by kind, with its items; a language narrows them", asyn
   expect(none.queues.untranslated.count).toBe(0);
 });
 
+test("an untranslated row carries the repository's suggestion where it has one (#1050)", async () => {
+  const { db, project, token } = seeded;
+  applySnapshot(db, project.id, {
+    ...FIXTURE,
+    seedSuggestions: { "pt-PT": { "ui.marks-left": "Faltam {count}" } },
+  });
+  const body = (await (
+    await queues(token, "?language=pt-PT")
+  ).json()) as QueuesResponse;
+  const items = body.queues.untranslated.items;
+  expect(items.find((i) => i.key === "ui.marks-left")).toMatchObject({
+    suggestion: "Faltam {count}",
+  });
+  expect(
+    items
+      .filter((i) => i.key !== "ui.marks-left")
+      .every((i) => !("suggestion" in i)),
+  ).toBe(true);
+  expect(body.queues.agentDrafts.items[0]).not.toHaveProperty("suggestion");
+  applySnapshot(db, project.id, FIXTURE);
+});
+
 test("an invalid seed is listed with what is wrong with it (#646)", async () => {
   const { db, project, token } = seeded;
   applySnapshot(db, project.id, {
