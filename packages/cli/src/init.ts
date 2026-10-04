@@ -143,7 +143,11 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     adapter === "messages"
       ? files.skipped.filter(({ file }) => path.basename(file).includes("@"))
       : files.skipped
-  ).filter(({ file }) => path.posix.normalize(file) !== sourcePath);
+  ).filter(
+    ({ file }) =>
+      sourcePath === undefined ||
+      path.posix.normalize(file) !== path.posix.normalize(sourcePath),
+  );
   // A code that is a prefix and a language, `activerecord.af` beside
   // `{lang}.yml`, is another catalogue's file (#1020): one line for the
   // family, as its own source, not a mapping a file at a time.
