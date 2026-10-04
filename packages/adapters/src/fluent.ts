@@ -267,7 +267,9 @@ function parsePlaceable(s: string, i: number, id: string): [string, number] {
       throw new Refusal(
         `${id} prints a term's attribute, which only a select reads`,
       );
-    return [`{${name}${call}}`, j + 1];
+    // A message reference is `@name` in the view, so it reads apart
+    // from a variable of the same name (#1083).
+    return [`{${term || variable ? name : `@${name}`}${call}}`, j + 1];
   }
   if (!(variable || attribute) || s.slice(j, j + 2) !== "->")
     throw new Refusal(`${id} has a placeable Corpus does not read`);
@@ -470,7 +472,7 @@ function render(icu: string, style: Style, refs: Set<string>): string {
         i + literal[0].length,
       ];
     const head =
-      /^\s*([A-Za-z0-9_.-]+)(\((?:[^()"\n]|"(?:[^"\\\n]|\\.)*")*\))?\s*(?:,\s*(plural|select)\s*,)?/.exec(
+      /^\s*(@?[A-Za-z0-9_.-]+)(\((?:[^()"\n]|"(?:[^"\\\n]|\\.)*")*\))?\s*(?:,\s*(plural|select)\s*,)?/.exec(
         icu.slice(i),
       )!;
     const name = head[1]!;
@@ -491,8 +493,12 @@ function render(icu: string, style: Style, refs: Set<string>): string {
         ];
       }
       j = icu.indexOf("}", j) + 1;
-      // A term is written as it is named, with its arguments.
+      // A term is written as it is named, with its arguments, and a
+      // message reference without its `@`; a bare name is a variable but
+      // where the source refers to a message so, as views before #1083
+      // wrote references and a server may still hold them.
       if (name.startsWith("-")) return [place(name + (head[2] ?? "")), j];
+      if (name.startsWith("@")) return [place(name.slice(1)), j];
       return [place(refs.has(name) ? name : `$${name}`), j];
     }
     const branches: [string, string][] = [];

@@ -176,10 +176,11 @@ const NAME_RE = /^(?:[\p{L}_][\p{L}\p{M}\p{N}_]*|[0-9]+)$/u;
 // list index): ASCII, a hyphen or `$` inside, or a number (#1017).
 const VUE_NAME_RE = /^(?:[A-Za-z_][A-Za-z0-9_$-]*|-?[0-9]+)$/;
 // Fluent's Identifier (fluent.ebnf): ASCII, a letter first, hyphens
-// inside, as `{ $cards-per-minute }` writes it, `-` first for a term;
-// a plural is on a variable, and a select on one or on a term's
-// attribute, `-brand.gender` (#990).
-const FLUENT_NAME_RE = /^-?[A-Za-z][A-Za-z0-9_-]*$/;
+// inside, as `{ $cards-per-minute }` writes it, `-` first for a term
+// and `@` for a message reference (#1083); a plural and a format are on
+// a variable, and a select on one or on a term's attribute,
+// `-brand.gender` (#990).
+const FLUENT_NAME_RE = /^[-@]?[A-Za-z][A-Za-z0-9_-]*$/;
 const FLUENT_VARIABLE_RE = /^[A-Za-z][A-Za-z0-9_-]*$/;
 const FLUENT_SELECTOR_RE =
   /^(?:[A-Za-z][A-Za-z0-9_-]*|-[A-Za-z][A-Za-z0-9_-]*\.[A-Za-z][A-Za-z0-9_-]*)$/;
@@ -1456,7 +1457,7 @@ class Parser {
     this.pos += 1;
     const type = this.readUntil([",", "}"]).trim();
     if (type === "number" || type === "date" || type === "time") {
-      checkName("placeholder");
+      checkName("format argument");
       let style: string | undefined;
       if (this.source[this.pos] === ",") {
         this.pos += 1;

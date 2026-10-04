@@ -867,9 +867,11 @@ export function validateTranslation(
     (options.arguments ?? []).forEach((written, i) => {
       if (written) passed.set(String(i + 1), written);
     });
-  // A Fluent translation may use a term its source does not: the term
-  // is the locale's to define, not a value the code passes (#990).
-  const ownTerm = (name: string) => syntax === "fluent" && name.startsWith("-");
+  // A Fluent translation may use a term or a message its source does
+  // not: each is the locale's to define, not a value the code passes
+  // (#990, #1083).
+  const ownTerm = (name: string) =>
+    syntax === "fluent" && (name.startsWith("-") || name.startsWith("@"));
   for (const name of actual.placeholders) {
     if (allowedValues.has(name) || passed.has(name) || ownTerm(name)) continue;
     const tag = actual.attrPlaceholders.has(name)
