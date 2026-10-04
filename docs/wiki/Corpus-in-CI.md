@@ -11,7 +11,7 @@ Four commands belong in CI, and they divide cleanly: two read only the repositor
 
 Neither needs a token, a network or an instance, so they run on a fork's pull request like any other check, and they are fast enough that nobody notices them: on this repository `check` reads 80 files in 0.7 s and `validate` finishes in 0.5 s. On Outline, 1,920 keys across 28 languages, `validate` takes 2.5 s.
 
-`corpus check` reads the `.jsx`, `.tsx`, `.vue` and `.svelte` components and `.hbs` or `.handlebars` templates your config's `check.include` names and reports text a person would read that did not come from a catalogue. Where the interface is written in something else (a Qt, GTK or C program, an Android or Apple app, Angular or Handlebars templates), check has nothing to read, and parsing nothing is an error, so leave it out of CI there; `corpus init` says so when it finds no components. It prints one line per literal and exits 1:
+`corpus check` reads the `.jsx`, `.tsx`, `.vue` and `.svelte` components and `.hbs` or `.handlebars` templates your config's `check.include` names and reports text a person would read that did not come from a catalogue. Where the interface is written in something else (a Qt, GTK or C program, an Android or Apple app, Angular, ERB or Jinja templates), check has nothing to read, and parsing nothing is an error, so leave it out of CI there; `corpus init` says so when it finds no components. It prints one line per literal and exits 1:
 
 <!-- from: recorded/check.out -->
 ```text

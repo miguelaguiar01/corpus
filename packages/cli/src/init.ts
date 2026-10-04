@@ -884,8 +884,14 @@ function componentDirs(cwd: string, rel: string, depth: number): string[] {
     if (!entry.isDirectory() || SKIP_DIRS.has(entry.name)) continue;
     if (entry.name.startsWith(".")) continue;
     const child = rel ? `${rel}/${entry.name}` : entry.name;
-    if (entry.name === "components" && holdsCheckedFile(path.join(cwd, child)))
-      out.push(child);
+    // A Handlebars app keeps its markup in `templates`, its partials
+    // below it, as Zulip's `web/templates` does (#1027).
+    const root =
+      entry.name === "components"
+        ? holdsCheckedFile(path.join(cwd, child))
+        : entry.name === "templates" &&
+          holdsCheckedFile(path.join(cwd, child), HANDLEBARS);
+    if (root) out.push(child);
     else out.push(...componentDirs(cwd, child, depth + 1));
   }
   return out;
@@ -951,7 +957,12 @@ function packageOf(cwd: string, messages: string): string | undefined {
 // not a directory, which is what keeps a cycle from looping. `check`
 // itself does follow links, so a tree reachable only through one is
 // declared by hand.
-function holdsCheckedFile(dir: string): boolean {
+const HANDLEBARS = [".hbs", ".handlebars"] as const;
+
+function holdsCheckedFile(
+  dir: string,
+  extensions: readonly string[] = EXTENSIONS,
+): boolean {
   let entries;
   try {
     entries = readdirSync(dir, { withFileTypes: true });
@@ -961,8 +972,8 @@ function holdsCheckedFile(dir: string): boolean {
   for (const entry of entries) {
     if (SKIP_DIRS.has(entry.name) || entry.name.startsWith(".")) continue;
     if (entry.isDirectory()) {
-      if (holdsCheckedFile(path.join(dir, entry.name))) return true;
-    } else if (EXTENSIONS.some((ext) => entry.name.endsWith(ext))) {
+      if (holdsCheckedFile(path.join(dir, entry.name), extensions)) return true;
+    } else if (extensions.some((ext) => entry.name.endsWith(ext))) {
       return true;
     }
   }
