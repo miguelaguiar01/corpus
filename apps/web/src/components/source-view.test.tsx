@@ -168,3 +168,17 @@ test("a nested argument inside a tag in a branch is named within the tag (#769)"
   expect(female.querySelector("[data-tag=b]")?.textContent).toBe("Ela: {n}");
   expect(female.textContent?.match(/# dela/g)).toHaveLength(2);
 });
+
+test("under fluent a message reference's chip is labelled a message, a variable's is not (#1083)", () => {
+  render(
+    <SourceView
+      source="Empty {@trash} for {n}"
+      syntax="fluent"
+      declarations={{}}
+    />,
+  );
+  expect(screen.getByText("{@trash}").getAttribute("title")).toMatch(
+    /message trash/i,
+  );
+  expect(screen.getByText("{n}").getAttribute("title")).toBeNull();
+});
