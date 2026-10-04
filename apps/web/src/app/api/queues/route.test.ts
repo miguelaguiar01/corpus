@@ -118,14 +118,14 @@ test("an untranslated row carries the repository's suggestion where it has one (
   const { db, project, token } = seeded;
   applySnapshot(db, project.id, {
     ...FIXTURE,
-    seedSuggestions: { "pt-PT": { "ui.marks-left": "Faltam {count}" } },
+    seedSuggestions: { en: { "ui.marks-left": "{count} left" } },
   });
   const body = (await (
-    await queues(token, "?language=pt-PT")
+    await queues(token, "?language=en")
   ).json()) as QueuesResponse;
   const items = body.queues.untranslated.items;
   expect(items.find((i) => i.key === "ui.marks-left")).toMatchObject({
-    suggestion: "Faltam {count}",
+    suggestion: "{count} left",
   });
   expect(
     items
