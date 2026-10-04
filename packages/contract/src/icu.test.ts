@@ -13,7 +13,7 @@ import {
   printfPluralError,
   sameMessage,
 } from "./icu";
-import { LIBRARIES, libraryName } from "./strings";
+import { LIBRARIES, libraryName, type Library } from "./strings";
 
 const SIGHTING =
   "{person} foi {person_gender, select, m {visto} f {vista}} à janela {room_de} às {hour} — e não estava {person_gender, select, m {sozinho} f {sozinha}}.";
@@ -1324,4 +1324,59 @@ test("under fmt each gettext form numbers its own {}, the reader's count is no f
   // B5: automatic and manual numbering do not mix.
   expect(check("{} of {}", "{} sur {1}", "fr").ok).toBe(false);
   expect(parseIcu("{} {1}", "fmt").ok).toBe(false);
+});
+
+test("a source's placeholders layer another library's tokens on its own: {{name}} on chrome, %s on i18next, {name} on printf; the base still reads structure (#1049)", () => {
+  expect([
+    ...partsOf("{{used}} used out of {{total}}, $COUNT$", "chrome", ["i18next"])
+      .placeholders,
+  ]).toEqual(["used", "total", "count"]);
+  expect(
+    validateTranslation(
+      "{{used}} used out of {{total}}",
+      "{{used}} усă курăнать",
+      "cv",
+      "chrome",
+      { placeholders: ["i18next"] },
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "total" }],
+  });
+  expect(
+    validateTranslation(
+      "Your push was sent to %s devices",
+      "Teie tõukesõnum saadeti seadmetesse",
+      "et",
+      "i18next",
+      { placeholders: ["printf"] },
+    ).ok,
+  ).toBe(false);
+  expect([
+    ...partsOf("%d files in {num} of {{name}}", "printf", ["fmt"]).placeholders,
+  ]).toEqual(["1", "num"]);
+  // A layered {{name:suffix}} is the value name.
+  expect(
+    validateTranslation(
+      "Show {{input:number}} items",
+      "Zeige {{input}} Einträge",
+      "de",
+      "chrome",
+      { placeholders: ["i18next"] },
+    ).ok,
+  ).toBe(true);
+  // Without the layer the base reads its own tokens alone, as before.
+  expect([...partsOf("{{used}} of {{total}}", "chrome").placeholders]).toEqual(
+    [],
+  );
+  // A plural is the base's: the same branches with the layer as without.
+  const plural = "{count, plural, one {%s file} other {%s files}}";
+  const shape = (layers?: Library[]) => {
+    const result = parseIcu(plural, "i18next", { placeholders: layers });
+    if (!result.ok) throw new Error(result.errors[0]!.message);
+    const node = result.nodes[0]!;
+    return node.kind === "plural" ? Object.keys(node.branches) : node.kind;
+  };
+  expect(shape(["printf"])).toEqual(shape());
+  expect(shape()).toEqual(["one", "other"]);
 });

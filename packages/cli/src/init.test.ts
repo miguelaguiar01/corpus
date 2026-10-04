@@ -2783,3 +2783,42 @@ test("init leaves printf where Python's %(name)s outnumbers the fields, and a C#
     });
   }
 });
+
+test("init writes placeholders where a catalogue layers a second syntax: uBlock's {{name}} on chrome, sprintf's %s on i18next (#1049)", async () => {
+  const p = project();
+  write(
+    p.dir,
+    "_locales/en/messages.json",
+    JSON.stringify({
+      stats: { message: "{{used}} used out of {{total}}" },
+      err: { message: "Cannot connect to {{msg}}" },
+      hello: {
+        message: "Hello $USER$",
+        placeholders: { user: { content: "$1" } },
+      },
+    }),
+  );
+  expect(await run(initFor("_locales/{lang}/messages.json"), p.ctx)).toBe(0);
+  expect((await loadConfig(p.dir)).sources[0]).toMatchObject({
+    library: "chrome",
+    placeholders: ["i18next"],
+  });
+  expect(p.out.join("\n")).toContain("placeholders: i18next");
+  const q = project();
+  write(
+    q.dir,
+    "i18n/en.json",
+    JSON.stringify({
+      a: "Hi {{name}}",
+      b: "Bye {{name}}",
+      c: "{{count}} new",
+      push: "Your push was sent to %s devices",
+      restart: "Restart in %s seconds",
+    }),
+  );
+  expect(await run(initFor("i18n/{lang}.json"), q.ctx)).toBe(0);
+  expect((await loadConfig(q.dir)).sources[0]).toMatchObject({
+    library: "i18next",
+    placeholders: ["printf"],
+  });
+});

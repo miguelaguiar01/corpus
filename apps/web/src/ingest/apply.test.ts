@@ -1510,3 +1510,29 @@ test("a seed outside a string's languages is ignored, and the stale count is of 
   expect(narrowed2.stale).toBe(1);
   expect(queueItems(db, project.id, "stale").count).toBe(1);
 });
+
+test("a string's layered placeholders are stored and checked: a seed that drops a {{name}} on a Chrome string is invalid (#1049)", () => {
+  const { db, project } = seed(["pt-PT", "en"]);
+  applySnapshot(db, project.id, {
+    contract: "corpus/1",
+    project: "moonlight-manor",
+    sourceLanguage: "pt-PT",
+    entities: [],
+    strings: [
+      {
+        id: "stats",
+        type: "ui",
+        source: "{{used}} usado de {{total}}",
+        library: "chrome",
+        syntax: "chrome",
+        placeholders: ["i18next"],
+      },
+    ],
+    seedTranslations: { en: { stats: "{{used}} used" } },
+  });
+  expect(stringRow(db, "stats")?.placeholders).toEqual(["i18next"]);
+  expect(translationOf(db, "stats", "en")?.invalid).toBe(true);
+  expect(
+    stringDetail(db, project.id, "stats")?.string.placeholderSyntaxes,
+  ).toEqual(["i18next"]);
+});

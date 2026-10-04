@@ -1302,3 +1302,52 @@ test("a strings source reads Apple's .strings, one pattern, printf unless the li
   ]);
   expect(issues({ ...stats, path: [stats.path, stats.path] })).toHaveLength(1);
 });
+
+test("a source's placeholders layer another library's tokens on its library, and one its library reads already is refused (#1049)", () => {
+  const base = {
+    project: "p",
+    server: "http://localhost:3000",
+    sourceLanguage: "en",
+    languages: ["en", "de"],
+  };
+  const issues = (source: object) => {
+    const parsed = corpusConfigSchema.safeParse({ ...base, sources: [source] });
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  const ublock = {
+    adapter: "messages",
+    type: "ui",
+    path: "_locales/{lang}/messages.json",
+    library: "chrome",
+    placeholders: ["i18next"],
+  };
+  expect(issues(ublock)).toEqual([]);
+  expect(
+    issues({ ...ublock, library: "i18next", placeholders: ["printf"] }),
+  ).toEqual([]);
+  expect(
+    issues({
+      adapter: "gettext",
+      type: "ui",
+      path: "po/{lang}.po",
+      placeholders: ["fmt"],
+    }),
+  ).toEqual([]);
+  expect(issues({ ...ublock, placeholders: ["chrome"] })).toEqual([
+    "placeholders names chrome, the source's own library",
+  ]);
+  expect(
+    issues({ ...ublock, library: "icu", placeholders: ["i18next"] }),
+  ).toEqual([
+    "placeholders: icu reads braces itself, so i18next's {{name}} cannot layer on it",
+  ]);
+  expect(issues({ ...ublock, placeholders: ["vue"] })).toHaveLength(1);
+  expect(
+    issues({
+      adapter: "android",
+      type: "ui",
+      path: "res",
+      placeholders: ["fmt"],
+    }),
+  ).toEqual(["placeholders is no key of an android source"]);
+});
