@@ -524,3 +524,22 @@ test("entry objects read their declared text field as the string and their note 
     ),
   ).toEqual([{ id: "greeting", type: "ui", source: "Hi" }]);
 });
+
+test("in a target, an entry with no text field yet is untranslated, and a value that is no entry is refused by name (#1001)", () => {
+  const refused: string[] = [];
+  expect(
+    messagesToEntries(
+      {
+        "icu:A": { description: "kept for the translator" },
+        "icu:B": "plain",
+        "icu:C": { messageformat: "Hallo" },
+      },
+      {
+        type: "ui",
+        entries: { text: "messageformat" },
+        onRefused: (id) => refused.push(id),
+      },
+    ),
+  ).toEqual([{ id: "icu:C", type: "ui", source: "Hallo" }]);
+  expect(refused).toEqual(["icu:B"]);
+});
