@@ -74,7 +74,13 @@ export function yamlStrings(
   root: string,
   // A target may be a stub, `fr:` or no key yet: no translations. The
   // source may not, since reading nothing would archive every string.
-  options: { source?: boolean; pluralIds?: ReadonlySet<string> } = {},
+  options: {
+    source?: boolean;
+    pluralIds?: ReadonlySet<string>;
+    // The file of the language a root names, where it has one: a target
+    // rooted there is a copy of it, which no mapping fixes (#1048).
+    ownFile?: (root: string) => string | undefined;
+  } = {},
 ): YamlString[] {
   const body = text.replace(/^\uFEFF/, "");
   const document = parseYaml(body);
@@ -92,11 +98,16 @@ export function yamlStrings(
         : `no strings under ${root}: the source language's file must hold them`,
     );
   if (!rootPair || !isMap(rootPair.value)) {
-    // A key for another language is a file named for the wrong one.
-    if (roots.length > 0 && !roots.includes(root))
+    // Rails reads a file by its root key, whatever its name (#1048).
+    if (roots.length > 0 && !roots.includes(root)) {
+      const at = roots.join(", ");
+      const own = options.ownFile?.(roots[0]!);
       throw new Error(
-        `no root key ${root}: the file's root keys are ${roots.join(", ")}; name its language's code in languageFiles`,
+        own
+          ? `rooted at ${at}, not ${root}: Rails reads it as ${at} whatever its name, beside ${roots[0]}'s own ${own}; if the file is meant to be ${root}, its root key is the fix`
+          : `rooted at ${at}, not ${root}: Rails reads it as ${at} whatever its name; if ${roots[0]} is the language, list it and map it, languageFiles: { ${JSON.stringify(roots[0])}: ${JSON.stringify(root)} }; if the file is meant to be ${root}, its root key is the fix`,
       );
+    }
     return [];
   }
   const out: YamlString[] = [];
@@ -175,8 +186,9 @@ export function yamlTranslations(
   text: string,
   root: string,
   pluralIds?: ReadonlySet<string>,
+  options: { ownFile?: (root: string) => string | undefined } = {},
 ): StringEntry[] {
-  return yamlStrings(text, root, { pluralIds }).flatMap((s) =>
+  return yamlStrings(text, root, { pluralIds, ...options }).flatMap((s) =>
     s.text === "" ||
     (s.plural && Object.values(s.plural).every((f) => f === ""))
       ? []
@@ -535,6 +547,31 @@ function parseYaml(text: string): Document {
   if (document.errors.length > 0)
     throw new Error(document.errors[0]!.message.split("\n")[0]);
   return document;
+}
+
+// The root key a target file is read and written under: its file's
+// code, or, where languageFiles maps the language's tag to that code and
+// the file is rooted at the tag, the tag, since Rails reads a file by
+// its root (#1048). A file with neither, or none yet, takes its code.
+export function yamlRootOf(
+  text: string | undefined,
+  code: string,
+  tag: string,
+): string {
+  if (text === undefined || tag === code) return code;
+  const body = text.replace(/^\uFEFF/, "");
+  let document: Document;
+  try {
+    document = parseYaml(body);
+  } catch {
+    return code;
+  }
+  // A stub at the code, `sr:` alone, holds nothing Rails stores.
+  const held = (key: string) => {
+    const pair = rootPairOf(document, body, key);
+    return pair !== undefined && !isEmptyValue(pair.value as Node | null);
+  };
+  return !held(code) && held(tag) ? tag : code;
 }
 
 // Rails' parser keeps the last of a repeated root key.

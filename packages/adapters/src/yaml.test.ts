@@ -2,6 +2,7 @@ import { expect, test } from "vitest";
 import {
   applyYamlOps,
   entriesToYaml,
+  yamlRootOf,
   yamlToEntries,
   yamlTranslations,
 } from "./yaml";
@@ -64,6 +65,35 @@ test("a Rails catalogue's strings: dotted ids under the root, plural hashes, _MF
   ]);
 });
 
+test("a target is read under its file's code, or the tag languageFiles maps to it where the file is rooted there, as Rails reads it (#1048)", () => {
+  // Chatwoot's sr.yml is rooted at sr-Latn.
+  expect(yamlRootOf("sr-Latn:\n  hi: Zdravo\n", "sr", "sr-Latn")).toBe(
+    "sr-Latn",
+  );
+  expect(yamlRootOf("sr:\n  hi: Zdravo\n", "sr", "sr-Latn")).toBe("sr");
+  // A file with neither, or none yet, starts with its code.
+  expect(yamlRootOf("ur:\n  hi: x\n", "ur_IN", "ur-IN")).toBe("ur_IN");
+  expect(yamlRootOf(undefined, "sr", "sr-Latn")).toBe("sr");
+  // A null stub at the code beside the tag's strings: the tag's, as Rails
+  // stores nothing for the stub.
+  expect(yamlRootOf("sr:\nsr-Latn:\n  hi: Zdravo\n", "sr", "sr-Latn")).toBe(
+    "sr-Latn",
+  );
+  expect(yamlRootOf("", "sr", "sr-Latn")).toBe("sr");
+  // One rooted elsewhere says what Rails does with it, and both ways out.
+  // Rooted at a language with a file of its own, mapping is no way out.
+  expect(() =>
+    yamlTranslations("en:\n  hi: x\n", "fr", undefined, {
+      ownFile: (root) => (root === "en" ? "config/locales/en.yml" : undefined),
+    }),
+  ).toThrow(
+    "rooted at en, not fr: Rails reads it as en whatever its name, beside en's own config/locales/en.yml; if the file is meant to be fr, its root key is the fix",
+  );
+  expect(() => yamlTranslations("ur:\n  hi: x\n", "ur_IN")).toThrow(
+    'rooted at ur, not ur_IN: Rails reads it as ur whatever its name; if ur is the language, list it and map it, languageFiles: { "ur": "ur_IN" }; if the file is meant to be ur_IN, its root key is the fix',
+  );
+});
+
 test("a target's translations are its strings under its own root key; a lone space is one (#752)", () => {
   const ptBR = `# WARNING: Never edit this file.\npt_BR:\n  js:\n    user_api_key:\n      deny: "Cancelar"\n      title: ""\n    number:\n      delimiter: " "\n`;
   expect(yamlTranslations(ptBR, "pt_BR")).toEqual([
@@ -72,7 +102,7 @@ test("a target's translations are its strings under its own root key; a lone spa
   ]);
   // A file with no root for its language is refused, naming its roots.
   expect(() => yamlTranslations(ptBR, "pt")).toThrow(
-    "no root key pt: the file's root keys are pt_BR",
+    "rooted at pt_BR, not pt: Rails reads it as pt_BR whatever its name",
   );
   expect(() => yamlTranslations("en: [unclosed", "en")).toThrow();
 });

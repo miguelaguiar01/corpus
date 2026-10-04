@@ -14,6 +14,7 @@ import {
   entriesToQtTs,
   entriesToYaml,
   applyYamlOps,
+  yamlRootOf,
   entriesToXliff,
   applyMessagesOps,
   applyStringsOps,
@@ -389,8 +390,13 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
       written.add(`${op.kind}\u0000${namespaced(source, op.id)}`);
     // Each file with the language code its root key is, for yaml.
     // The source's own file is rooted at its code too (#994).
-    const files: [string, SourceOp[], string][] = [
-      [file, kept, fileCodeOf(source, config.sourceLanguage)],
+    const files: [string, SourceOp[], string, string][] = [
+      [
+        file,
+        kept,
+        fileCodeOf(source, config.sourceLanguage),
+        config.sourceLanguage,
+      ],
     ];
     const removals = kept.filter((o) => o.kind === "delete");
     // The source's plurals before its proposals, which say what a target's
@@ -406,10 +412,11 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
           fileOf(source, language, config.sourceLanguage),
           removals,
           fileCodeOf(source, language),
+          language,
         ]);
       }
     }
-    for (const [target, targetOps, code] of files) {
+    for (const [target, targetOps, code, tag] of files) {
       const existing = readRepoFile(ctx.cwd, target);
       if (existing === undefined) {
         if (target === file)
@@ -434,7 +441,8 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
           source,
           existing,
           targetOps,
-          code,
+          // A target rooted at its tag takes its removals there (#1048).
+          target === file ? code : yamlRootOf(existing, code, tag),
           config.sourceLanguage,
           target === file ? undefined : pluralIds,
         );
@@ -647,7 +655,7 @@ function writeTarget(
         existing,
         {
           source: fileCodeOf(source, config.sourceLanguage),
-          code: fileCodeOf(source, language),
+          code: yamlRootOf(existing, fileCodeOf(source, language), language),
         },
         (id, _text, why) =>
           err(

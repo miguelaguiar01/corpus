@@ -1611,6 +1611,84 @@ test("under merge: last-wins a source text two files hold otherwise is the later
   rmSync(dir, { recursive: true, force: true });
 });
 
+test("a Rails target's plural rule is its root key's, as Ruby names the locale, where the file is rooted at its tag (#1048)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-1048-"));
+  mkdirSync(path.join(dir, "config", "locales"), { recursive: true });
+  const yml = (code: string) =>
+    `${code}:\n  files:\n    one: "%{count} file"\n    other: "%{count} files"\n`;
+  writeFileSync(path.join(dir, "config", "locales", "en.yml"), yml("en"));
+  // zh.yml is rooted at zh-CN, which the gem rules as other alone.
+  writeFileSync(path.join(dir, "config", "locales", "zh.yml"), yml("zh-CN"));
+  writeFileSync(
+    path.join(dir, "Gemfile.lock"),
+    "GEM\n  remote: https://rubygems.org/\n  specs:\n    i18n (1.15.2)\n    rails-i18n (8.1.0)\n      i18n (>= 0.7, < 2)\n\nDEPENDENCIES\n  rails-i18n (~> 8.0)\n",
+  );
+  const report = await buildSnapshotReport(
+    config({
+      sourceLanguage: "en",
+      languages: ["en", "zh-CN"],
+      sources: [
+        {
+          adapter: "yaml",
+          type: "ui",
+          path: "config/locales/{lang}.yml",
+          languageFiles: { "zh-CN": "zh" },
+        },
+      ],
+    }),
+    dir,
+  );
+  expect(
+    report.snapshot.strings.find((s) => s.id === "files")?.pluralForms,
+  ).toBeUndefined();
+  // A rule the app stores for the root is the one Ruby finds.
+  mkdirSync(path.join(dir, "config", "initializers"));
+  writeFileSync(
+    path.join(dir, "config", "initializers", "plural.rb"),
+    'I18n.backend.store_translations(:"zh-CN", i18n: { plural: { rule: ->(_n) { :other } } })\n',
+  );
+  const ruled = await buildSnapshotReport(
+    config({
+      sourceLanguage: "en",
+      languages: ["en", "zh-CN"],
+      sources: [
+        {
+          adapter: "yaml",
+          type: "ui",
+          path: "config/locales/{lang}.yml",
+          languageFiles: { "zh-CN": "zh" },
+        },
+      ],
+    }),
+    dir,
+  );
+  expect(ruled.notes.join("\n")).toContain(
+    "zh-CN takes a rule the app stores (config/initializers/plural.rb)",
+  );
+  // A copy rooted at a listed language's tag names that language's file,
+  // and advises no mapping that would take it away.
+  writeFileSync(path.join(dir, "config", "locales", "zh-TW.yml"), yml("zh-CN"));
+  const copied = await buildSnapshotReport(
+    config({
+      sourceLanguage: "en",
+      languages: ["en", "zh-CN", "zh-TW"],
+      sources: [
+        {
+          adapter: "yaml",
+          type: "ui",
+          path: "config/locales/{lang}.yml",
+          languageFiles: { "zh-CN": "zh" },
+        },
+      ],
+    }),
+    dir,
+  );
+  expect(copied.unreadable.map((u) => u.message).join("\n")).toContain(
+    "rooted at zh-CN, not zh-TW: Rails reads it as zh-CN whatever its name, beside zh-CN's own config/locales/zh.yml; if the file is meant to be zh-TW, its root key is the fix",
+  );
+  rmSync(dir, { recursive: true, force: true });
+});
+
 test("a Rails catalogue's plurals take rails-i18n's keys where Gemfile.lock lists the gem, CLDR's without it or where the app rules its own (#983)", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-983-"));
   mkdirSync(path.join(dir, "config", "locales"), { recursive: true });

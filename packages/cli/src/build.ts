@@ -17,6 +17,7 @@ import {
   yamlToEntries,
   yamlTranslations,
   yamlPluralIds,
+  yamlRootOf,
   gettextPluralCategories,
   gettextSuggestions,
   gettextTranslations,
@@ -67,7 +68,7 @@ import {
 import type { Refusals } from "./agent-tools";
 import { printable } from "./printable";
 import { unreadableFile } from "./catalogue-format";
-import { readRepoText } from "./repo-text";
+import { readRepoText, readRepoTextIfAny } from "./repo-text";
 import {
   CliError,
   fileCodeOf,
@@ -1150,15 +1151,29 @@ export async function readEntries(
           : typed(gettextTranslations(text(), languageOfFile(file, source))),
       );
     case "yaml": {
-      // The root key is the file's own code for its language (`pt_BR`).
+      // The root key is the file's own code for its language (`pt_BR`),
+      // or a target's tag where the file is rooted at it (#1048).
       const tag = sourceFile
         ? (language ?? languageOfFile(file, source))
         : languageOfFile(file, source);
-      const root = fileCodeOf(source, tag);
+      const root = sourceFile
+        ? fileCodeOf(source, tag)
+        : yamlRootOf(text(), fileCodeOf(source, tag), tag);
       return prefixed(
         sourceFile
           ? yamlToEntries(text(), { type: source.type, root })
-          : typed(yamlTranslations(text(), root, pluralIds)),
+          : typed(
+              yamlTranslations(text(), root, pluralIds, {
+                // The file of the language a root names, if it has one:
+                // a tag languageFiles maps, or a file's code (#1048).
+                ownFile: (root) =>
+                  [fileCodeOf(source, root), root]
+                    .map((code) => source.path.replaceAll("{lang}", code))
+                    .find(
+                      (own) => own !== file && existsSync(path.join(cwd, own)),
+                    ),
+              }),
+            ),
       );
     }
     case "qt-ts":
@@ -1405,7 +1420,14 @@ function railsPluralForms(
   for (const lang of config.languages) {
     if (lang === config.sourceLanguage) continue;
     if (!takesLanguage(source, config, lang)) continue;
-    const code = fileCodeOf(source, lang);
+    // Ruby names the locale by the file's root key (#1048).
+    const code = yamlRootOf(
+      readRepoTextIfAny(
+        path.join(cwd, fileOf(source, lang, config.sourceLanguage)),
+      ),
+      fileCodeOf(source, lang),
+      lang,
+    );
     const cldr = pluralCategoriesOf(lang);
     if (cldr.length === 0) continue;
     // The first of the locale and its parents with a rule, the app's
