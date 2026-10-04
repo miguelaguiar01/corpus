@@ -17,6 +17,7 @@ import {
   yamlToEntries,
   yamlTranslations,
   yamlPluralIds,
+  yamlRootOf,
   gettextPluralCategories,
   gettextSuggestions,
   gettextTranslations,
@@ -1150,11 +1151,14 @@ export async function readEntries(
           : typed(gettextTranslations(text(), languageOfFile(file, source))),
       );
     case "yaml": {
-      // The root key is the file's own code for its language (`pt_BR`).
+      // The root key is the file's own code for its language (`pt_BR`),
+      // or a target's tag where the file is rooted at it (#1048).
       const tag = sourceFile
         ? (language ?? languageOfFile(file, source))
         : languageOfFile(file, source);
-      const root = fileCodeOf(source, tag);
+      const root = sourceFile
+        ? fileCodeOf(source, tag)
+        : yamlRootOf(text(), fileCodeOf(source, tag), tag);
       return prefixed(
         sourceFile
           ? yamlToEntries(text(), { type: source.type, root })

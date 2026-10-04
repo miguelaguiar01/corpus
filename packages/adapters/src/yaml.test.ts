@@ -89,7 +89,7 @@ test("a target's translations are its strings under its own root key; a lone spa
   ]);
   // A file with no root for its language is refused, naming its roots.
   expect(() => yamlTranslations(ptBR, "pt")).toThrow(
-    "no root key pt: the file's root keys are pt_BR",
+    "rooted at pt_BR, not pt: Rails reads it as pt_BR whatever its name",
   );
   expect(() => yamlTranslations("en: [unclosed", "en")).toThrow();
 });
