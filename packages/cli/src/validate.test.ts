@@ -1522,6 +1522,30 @@ export default defineCorpus({
   expect(await run(["validate"], c)).toBe(0);
   expect(c.stderr.join("\n")).not.toMatch(/lacks the/);
 
+  // An ICU plural a msgid writes itself is Polish's, by CLDR, whatever
+  // its shape: trailing text, a few branch, an =0 one.
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    readFileSync(path.join(repo, "corpus.config.ts"), "utf8").replace(
+      'sourcePath: "po/messages.pot" }',
+      'sourcePath: "po/messages.pot", library: "icu" }',
+    ),
+  );
+  writeFileSync(
+    path.join(repo, "po", "messages.pot"),
+    `msgid ""\nmsgstr ""\n\nmsgid "{count, plural, one {# plik} other {# pliki}} w folderze"\nmsgstr ""\n\nmsgid "{count, plural, one {# plik} few {# pliki} other {# plików}}"\nmsgstr ""\n\nmsgid "{count, plural, one {# plik} =0 {brak} other {# pliki}}"\nmsgstr ""\n`,
+  );
+  const icu = ctx();
+  expect(await run(["validate"], icu)).toBe(0);
+  const lines = icu.stderr.join("\n");
+  expect(lines).toMatch(/w folderze: plural on \{count\} lacks the few branch/);
+  expect(lines).toMatch(
+    /plików\}\}: plural on \{count\} lacks the many branch/,
+  );
+  expect(lines).toMatch(
+    /=0 \{brak\}.*: plural on \{count\} lacks the few branch/,
+  );
+
   // An exporter that hands over no translations: its source is checked.
   writeFileSync(
     path.join(repo, "scripts", "gaps.mjs"),
