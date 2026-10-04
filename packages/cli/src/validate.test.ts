@@ -1521,6 +1521,19 @@ export default defineCorpus({
   const c = ctx();
   expect(await run(["validate"], c)).toBe(0);
   expect(c.stderr.join("\n")).not.toMatch(/lacks the/);
+  // Under a namespace too, whose prefix the ids carry.
+  const config = readFileSync(path.join(repo, "corpus.config.ts"), "utf8");
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    config.replace(
+      'sourcePath: "po/messages.pot" }',
+      'sourcePath: "po/messages.pot", namespace: "app" }',
+    ),
+  );
+  const named = ctx();
+  expect(await run(["validate"], named)).toBe(0);
+  expect(named.stderr.join("\n")).not.toMatch(/lacks the/);
+  writeFileSync(path.join(repo, "corpus.config.ts"), config);
 
   // An ICU plural a msgid writes itself is Polish's, by CLDR, whatever
   // its shape: trailing text, a few branch, an =0 one.
