@@ -2236,7 +2236,7 @@ export default defineCorpus({
   expect(read("l/de.json")).toBe(de);
   expect(read("x/messages.de.xlf")).toBe(xde);
   expect(pulled.output.join("\n")).toContain(
-    "l/de.json: d is a list in the file where the source has a string; not written",
+    "l/de.json: d is held in the file in another shape than the source's; not written",
   );
   expect(pulled.output.join("\n")).toContain(
     "x/messages.de.xlf: u2 is a unit of the file Corpus cannot read; not written",
