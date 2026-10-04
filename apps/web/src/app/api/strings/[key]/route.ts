@@ -82,10 +82,14 @@ export async function GET(
         ),
       }),
     tags: [...parts.tags],
-    ...(isHtml(detail.string.richText ?? undefined) &&
-      parts.attributePlaceholders.size > 0 && {
-        attributePlaceholders: [...parts.attributePlaceholders],
-      }),
+    // Every one under HTML, whose tags a translation writes its own way;
+    // elsewhere a tag carries its own in `tags`, but one read as prose.
+    ...((attributes) =>
+      attributes.size > 0 && { attributePlaceholders: [...attributes] })(
+      isHtml(detail.string.richText ?? undefined)
+        ? parts.attributePlaceholders
+        : parts.proseAttributePlaceholders,
+    ),
     // An agent reads either HTML reading as "html" (#988).
     richText: isHtml(detail.string.richText ?? undefined) ? "html" : null,
     library: detail.string.syntax,

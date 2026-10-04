@@ -271,7 +271,7 @@ test("a vue string under vue-i18n's default rule says what each form is shown fo
   applySnapshot(db, project.id, FIXTURE);
 });
 
-test("under a type read as HTML, the string lists the placeholders its tags' attributes hold; elsewhere the tag carries them whole (#1030)", async () => {
+test("under a type read as HTML, the string lists the placeholders its tags' attributes hold; elsewhere a tag carries them whole, but one read as prose (#1030)", async () => {
   const { db, project, token } = seeded;
   const source =
     "<a href='%{userUrl}'>%{user}</a> posted <a href='%{topicUrl}'>a topic</a>";

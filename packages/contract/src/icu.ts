@@ -2049,8 +2049,10 @@ export type Parts = {
   // inserts them (#986).
   selfClosed: Set<string>;
   // The placeholders a tag's attributes hold, by name, which a type read
-  // as HTML still requires (#948, #1030).
+  // as HTML still requires (#948, #1030); and those of a tag read as
+  // prose, which `tags` does not carry.
   attributePlaceholders: Set<string>;
+  proseAttributePlaceholders: Set<string>;
   forms: number;
 };
 
@@ -2083,6 +2085,7 @@ export function partsOf(
       [...shape.tags].filter((tag) => !shape.opened.has(tag)),
     ),
     attributePlaceholders: new Set(shape.attrPlaceholders.keys()),
+    proseAttributePlaceholders: new Set(shape.proseAttrPlaceholders.keys()),
     forms: only?.kind === "forms" ? only.branches.length : 0,
   };
 }
