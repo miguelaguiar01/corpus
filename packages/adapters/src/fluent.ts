@@ -409,6 +409,34 @@ export function fluentToEntries(
   return entries;
 }
 
+// A file's terms: the variables each one's text reads, a select's and a
+// placeable's, and the attributes it defines, as the locale's bundle
+// holds them for the messages that call it (#1033).
+export function fluentTerms(
+  text: string,
+): Map<string, { variables: Set<string>; attributes: Set<string> }> {
+  const terms = new Map<
+    string,
+    { variables: Set<string>; attributes: Set<string> }
+  >();
+  for (const message of messages(text)) {
+    // FluentBundle keeps a name's first definition.
+    if (!message.id.startsWith("-") || terms.has(message.id)) continue;
+    const body = text.slice(message.valueStart, message.end);
+    terms.set(message.id, {
+      variables: new Set(
+        [...body.matchAll(/\{\s*\$([A-Za-z][\w-]*)/g)].map((m) => m[1]!),
+      ),
+      attributes: new Set(
+        [...body.matchAll(/^[ \t]+\.([A-Za-z][\w-]*)[ \t]*=/gm)].map(
+          (m) => m[1]!,
+        ),
+      ),
+    });
+  }
+  return terms;
+}
+
 function styleOf(text: string, message: Message): Style {
   const [first = "", ...rest] = text
     .slice(message.valueStart, message.valueEnd)

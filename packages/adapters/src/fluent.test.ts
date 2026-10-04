@@ -1,5 +1,10 @@
 import { expect, test } from "vitest";
-import { applyFluentOps, entriesToFluent, fluentToEntries } from "./fluent";
+import {
+  applyFluentOps,
+  entriesToFluent,
+  fluentTerms,
+  fluentToEntries,
+} from "./fluent";
 
 const SOURCE = `# Files
 trash = Trash
@@ -643,4 +648,34 @@ test("the old view of a message that refers to a message only the target defines
   const source = `trash = Trash\nm2 = {trash} here\n`;
   const target = `trash = Lixo\nz = já\nm2 = {trash} {z}\n`;
   expect(entriesToFluent(source, { m2: "{trash} {z}" }, target)).toBe(target);
+});
+
+test("a file's terms with the variables their text reads and the attributes they define (#1033)", () => {
+  const terms = fluentTerms(`-brand = { $capitalization ->
+   *[lower] account
+    [upper] Account
+  }
+-relay = Relay
+    .gender = feminine
+    .short = { $case }
+plain = Not a term { $n }
+`);
+  expect(
+    Object.fromEntries(
+      [...terms].map(([name, t]) => [
+        name,
+        { variables: [...t.variables], attributes: [...t.attributes] },
+      ]),
+    ),
+  ).toEqual({
+    "-brand": { variables: ["capitalization"], attributes: [] },
+    "-relay": { variables: ["case"], attributes: ["gender", "short"] },
+  });
+});
+
+test("a term written twice in one file is its first definition, as FluentBundle keeps it (#1033 review)", () => {
+  const terms = fluentTerms(
+    `-brand = { $case ->\n   *[nom] Relay\n  }\n-brand = Relay\n`,
+  );
+  expect([...terms.get("-brand")!.variables]).toEqual(["case"]);
 });

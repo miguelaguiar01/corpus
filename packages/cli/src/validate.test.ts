@@ -1582,3 +1582,59 @@ export default defineCorpus({
     "exec:node scripts/gaps.mjs [n] en: plural on {count} lacks the one branch the runtime picks in en",
   );
 });
+
+test("a Fluent term argument the locale's term never reads, and a term attribute it never defines, are warnings, read across the source's files (#1033)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "id", "cs"],
+  sources: [{ adapter: "fluent", type: "ui", path: ["l10n/{lang}/brands.ftl", "l10n/{lang}/app.ftl"] }],
+});
+`,
+  );
+  const ftl = (lang: string, brands: string, app: string) => {
+    mkdirSync(path.join(repo, "l10n", lang), { recursive: true });
+    writeFileSync(path.join(repo, "l10n", lang, "brands.ftl"), brands);
+    writeFileSync(path.join(repo, "l10n", lang, "app.ftl"), app);
+  };
+  // Relay: the terms live in brands.ftl, the messages that use them in
+  // another file of the same bundle.
+  ftl(
+    "en",
+    `-brand = { $capitalization ->\n   *[lower] account\n    [upper] Account\n  }\n-relay = Relay\n    .gender = feminine\n`,
+    `a = Your { -brand(capitalization: "upper") }\nb = { -relay.gender ->\n    [feminine] She\n   *[other] It\n  }\nc = The { -relay } service\n`,
+  );
+  ftl(
+    "id",
+    `-brand = { $capitalization ->\n   *[lower] akun\n    [upper] Akun\n  }\n-relay = Relay\n    .gender = feminine\n`,
+    `a = { -brand(kapitalisasi: "upper") } Anda\nb = { -relay.gender ->\n    [feminine] Dia\n   *[other] Itu\n  }\nc = Layanan { -relay }\n`,
+  );
+  ftl(
+    "cs",
+    `-brand = { $capitalization ->\n   *[lower] účet\n    [upper] Účet\n  }\n-relay = Relay\n`,
+    // Relay's Czech passes case to brand terms it declines in none: the
+    // term reads no variable, so the text is the same either way.
+    `a = Váš { -brand(capitalization: "upper") }\nb = { -relay.gender ->\n    [feminine] Ona\n   *[other] To\n  }\nc = Služba { -relay(case: "gen") }\n`,
+  );
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(0);
+  const lines = c.stderr.filter((l) => /reads no argument|has no \./.test(l));
+  expect(lines).toEqual([
+    "l10n/id/app.ftl:a: -brand reads no argument kapitalisasi in this language, so Fluent renders it as if none were passed",
+    "l10n/cs/app.ftl:b: -relay has no .gender in this language, so Fluent renders the default variant",
+  ]);
+  expect(c.stderr.join("\n")).toMatch(/2 warning\(s\)/);
+  // Its own definition with the attribute is no finding.
+  ftl(
+    "cs",
+    `-brand = { $capitalization ->\n   *[lower] účet\n    [upper] Účet\n  }\n-relay = Relay\n    .gender = feminine\n`,
+    `a = Váš { -brand(capitalization: "upper") }\nb = { -relay.gender ->\n    [feminine] Ona\n   *[other] To\n  }\n`,
+  );
+  const d = ctx();
+  expect(await run(["validate"], d)).toBe(0);
+  expect(d.stderr.filter((l) => /\.gender/.test(l))).toEqual([]);
+});
