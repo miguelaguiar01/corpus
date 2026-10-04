@@ -559,6 +559,16 @@ export function gettextToEntries(
     });
 }
 
+// The ids of a source file's msgid and msgid_plural pairs: two forms,
+// which gettext picks between by n == 1 in any language (#1029).
+export function gettextPluralIds(text: string): Set<string> {
+  return new Set(
+    parsePo(text)
+      .filter((e) => e.msgid !== "" && e.msgidPlural !== undefined)
+      .map(poId),
+  );
+}
+
 // A target file's translations: the entries someone translated, a
 // fuzzy one being a guess still to check, a plural as one ICU plural in
 // the language's categories.

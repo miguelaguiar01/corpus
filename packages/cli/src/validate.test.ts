@@ -1437,3 +1437,148 @@ test("under a namespace, a Qt numerus translation short of its forms is still a 
     "lang/app_km.ts: 1 numerus translation(s) hold fewer than the 2 forms Qt's rule for km has, so a count past them shows the source text (qt:Main | %n file(s))",
   );
 });
+
+test("a category the source plural lacks under its own language's rule is one finding on the source, naming the translations that lack it too; --json keeps theirs, marked (#1029)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de", "fr", "ja", "pl"],
+  sources: [{ adapter: "messages", type: "ui", library: "counterpart", path: "i18n/{lang}.json" }],
+});
+`,
+  );
+  // Element's truncated_list_n_more: English writes other alone, and
+  // counterpart picks one at 1.
+  write("i18n/en.json", {
+    truncated: { other: "and %(count)s others" },
+    rooms: { one: "%(count)s room", other: "%(count)s rooms" },
+  });
+  write("i18n/de.json", { truncated: { other: "und %(count)s weitere" } });
+  write("i18n/fr.json", { truncated: { other: "et %(count)s autres" } });
+  write("i18n/ja.json", { truncated: { other: "他 %(count)s 件" } });
+  // A category the source has is the translation's own finding.
+  write("i18n/pl.json", {
+    // counterpart picks one and other in every language.
+    truncated: { one: "i %(count)s inny", other: "i %(count)s innych" },
+    rooms: { other: "%(count)s pokoi" },
+  });
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(0);
+  const err = c.stderr.join("\n");
+  expect(err).toContain(
+    "i18n/en.json:truncated: plural on {count} lacks the one branch the runtime picks in en; 3 translation(s) lack it too (de, fr, ja)",
+  );
+  expect(err).not.toMatch(/i18n\/(de|fr|ja)\.json:truncated: plural/);
+  expect(err).toContain(
+    "i18n/pl.json:rooms: plural on {count} lacks the one branch the runtime picks in its language",
+  );
+  expect(err).toMatch(/corpus: 2 incomplete plural\(s\)/);
+
+  const j = ctx();
+  expect(await run(["validate", "--json"], j)).toBe(0);
+  const findings = JSON.parse(j.stdout.join("\n")) as {
+    file: string;
+    key: string;
+    language: string;
+    severity: string;
+    sourceLacks?: boolean;
+  }[];
+  const truncated = findings.filter((f) => f.key === "truncated");
+  expect(
+    truncated.map((f) => [f.file, f.language, f.sourceLacks ?? false]),
+  ).toEqual([
+    ["i18n/en.json", "en", false],
+    ["i18n/de.json", "de", true],
+    ["i18n/fr.json", "fr", true],
+    ["i18n/ja.json", "ja", true],
+  ]);
+  expect(truncated.every((f) => f.severity === "incomplete")).toBe(true);
+  expect(findings.find((f) => f.key === "rooms")?.sourceLacks).toBeUndefined();
+});
+
+test("a gettext msgid and msgid_plural are two forms whatever the source's language, so a Polish source pair lacks no category; an exporter that hands over nothing still has its source checked (#1029)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: "https://corpus.example",
+  sourceLanguage: "pl",
+  languages: ["pl", "de"],
+  sources: [{ adapter: "gettext", type: "ui", path: "po/{lang}.po", sourcePath: "po/messages.pot" }],
+});
+`,
+  );
+  mkdirSync(path.join(repo, "po"), { recursive: true });
+  writeFileSync(
+    path.join(repo, "po", "messages.pot"),
+    `msgid ""\nmsgstr ""\n\nmsgid "%d file"\nmsgid_plural "%d files"\nmsgstr[0] ""\nmsgstr[1] ""\n\n# A brace a msgid holds alone is text to gettext.\nmsgid "%d brace {"\nmsgid_plural "%d braces {"\nmsgstr[0] ""\nmsgstr[1] ""\n`,
+  );
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(0);
+  expect(c.stderr.join("\n")).not.toMatch(/lacks the/);
+  // Under a namespace too, whose prefix the ids carry.
+  const config = readFileSync(path.join(repo, "corpus.config.ts"), "utf8");
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    config.replace(
+      'sourcePath: "po/messages.pot" }',
+      'sourcePath: "po/messages.pot", namespace: "app" }',
+    ),
+  );
+  const named = ctx();
+  expect(await run(["validate"], named)).toBe(0);
+  expect(named.stderr.join("\n")).not.toMatch(/lacks the/);
+  writeFileSync(path.join(repo, "corpus.config.ts"), config);
+
+  // An ICU plural a msgid writes itself is Polish's, by CLDR, whatever
+  // its shape: trailing text, a few branch, an =0 one.
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    readFileSync(path.join(repo, "corpus.config.ts"), "utf8").replace(
+      'sourcePath: "po/messages.pot" }',
+      'sourcePath: "po/messages.pot", library: "icu" }',
+    ),
+  );
+  writeFileSync(
+    path.join(repo, "po", "messages.pot"),
+    `msgid ""\nmsgstr ""\n\nmsgid "{count, plural, one {# plik} other {# pliki}} w folderze"\nmsgstr ""\n\nmsgid "{count, plural, one {# plik} few {# pliki} other {# plików}}"\nmsgstr ""\n\nmsgid "{count, plural, one {# plik} =0 {brak} other {# pliki}}"\nmsgstr ""\n`,
+  );
+  const icu = ctx();
+  expect(await run(["validate"], icu)).toBe(0);
+  const lines = icu.stderr.join("\n");
+  expect(lines).toMatch(/w folderze: plural on \{count\} lacks the few branch/);
+  expect(lines).toMatch(
+    /plików\}\}: plural on \{count\} lacks the many branch/,
+  );
+  expect(lines).toMatch(
+    /=0 \{brak\}.*: plural on \{count\} lacks the few branch/,
+  );
+
+  // An exporter that hands over no translations: its source is checked.
+  writeFileSync(
+    path.join(repo, "scripts", "gaps.mjs"),
+    `console.log(JSON.stringify({ strings: [{ id: "n", type: "ui", source: "{count, plural, other {# items}}" }] }));\n`,
+  );
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de"],
+  sources: [{ adapter: "exec", command: "node scripts/gaps.mjs", importCommand: "node scripts/import.mjs" }],
+});
+`,
+  );
+  const e = ctx();
+  expect(await run(["validate"], e)).toBe(0);
+  expect(e.stderr.join("\n")).toContain(
+    "exec:node scripts/gaps.mjs [n] en: plural on {count} lacks the one branch the runtime picks in en",
+  );
+});
