@@ -112,5 +112,9 @@ test("a source variant's bar comes after the targets, labelled as falling back t
     .getAllByRole("meter")
     .map((m) => m.getAttribute("aria-label"));
   expect(labels).toEqual(["en", "de", "en-GB"]);
-  expect(screen.getByText("falls back to en")).toBeTruthy();
+  // Under the bar, so every bar takes the same width.
+  const label = screen.getByText("falls back to en");
+  const bar = screen.getByRole("meter", { name: "en-GB" });
+  expect(label.parentElement).toBe(bar.parentElement);
+  expect(bar.parentElement?.parentElement?.children).toHaveLength(2);
 });

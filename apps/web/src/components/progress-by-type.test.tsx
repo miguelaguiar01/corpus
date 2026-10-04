@@ -262,8 +262,10 @@ test("a source variant sorts after every target, labelled as falling back to the
   const rows = screen.getAllByRole("row").slice(1);
   const heads = rows.map((r) => r.querySelector("th")?.textContent ?? "");
   expect(heads[0]).toBe("en");
-  expect(heads.at(-1)).toMatch(/^en-GB/);
-  expect(heads.at(-1)).toContain("falls back to en");
+  // The row's header is the code alone; the label sits under the bar,
+  // so the narrow column never wraps it.
+  expect(heads.at(-1)).toBe("en-GB");
+  expect(rows.at(-1)?.textContent).toContain("falls back to en");
   expect(
     screen.getAllByText("0 verified, 3 translated of 10"),
   ).not.toHaveLength(0);
@@ -284,5 +286,5 @@ test("a source variant sorts after every target, labelled as falling back to the
     />,
   );
   const headings = screen.getAllByRole("heading").map((h) => h.textContent);
-  expect(headings.at(-1)).toMatch(/^en-GB.*falls back to en/);
+  expect(headings.at(-1)).toBe("en-GB falls back to en");
 });
