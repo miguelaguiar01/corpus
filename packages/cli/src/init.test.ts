@@ -1242,6 +1242,33 @@ test("init's search for Angular's messages.xlf: an absolute pattern, several pro
   expect(await sourcePathOf(commented)).toMatchObject({
     sourcePath: "web/src/i18n/messages.xlf",
   });
+  // An absolute outputPath is written in the config's terms, and builds;
+  // angular.json may open with a byte-order mark, as the Angular CLI
+  // reads it.
+  const absoluteOutput = at({
+    "src/locale/messages.de.xlf": unit,
+    "i18n/messages.xlf": unit,
+  });
+  writeFileSync(
+    path.join(absoluteOutput.dir, "angular.json"),
+    "\uFEFF" +
+      JSON.stringify({
+        projects: {
+          ui: extract({ outputPath: path.join(absoluteOutput.dir, "i18n") }),
+        },
+      }),
+  );
+  await init(absoluteOutput, "src/locale/messages.{lang}.xlf");
+  expect(await sourcePathOf(absoluteOutput)).toMatchObject({
+    sourcePath: "i18n/messages.xlf",
+  });
+  expect(await run(["build"], absoluteOutput.ctx)).toBe(0);
+  // An angular.json that is no file guesses nothing.
+  const directory = at({
+    "angular.json/x": "",
+    "src/locale/messages.de.xlf": unit,
+  });
+  expect(await init(directory, "src/locale/messages.{lang}.xlf")).toBe(0);
   // A file found is said git-ignored as a missing one is.
   const ignored = at({
     ".gitignore": "/web/messages.xlf\n",
