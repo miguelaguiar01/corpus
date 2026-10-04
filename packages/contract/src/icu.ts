@@ -2441,6 +2441,37 @@ function refusal(
       advice: `; {} is easy_localization's positional placeholder: declare library: "easy_localization" on the source`,
     };
   }
+  // `{'@'}` is vue-i18n's literal interpolation (#1046), spaced or
+  // escaped as vue reads it, in a text vue reads whole: not ICU's
+  // apostrophe quoting of a brace (`'{'0'}'`), not a Fluent text, whose
+  // literal is `{"@"}`.
+  // The literal refused, where it is one, else the first; the message
+  // writes the name as JSON does.
+  const literals = [
+    ...source.matchAll(/(?<!')\{\s*'(?:[^'\\\n]|\\.)*'\s*\}/g),
+  ].map(([text]) => text);
+  let refused = badName?.[1];
+  try {
+    refused = JSON.parse(`"${refused}"`) as string;
+  } catch {
+    // As written, then.
+  }
+  const literal =
+    literals.find((text) => text.slice(1, -1).trim() === refused) ??
+    literals[0];
+  if (
+    library !== "vue" &&
+    library !== "fluent" &&
+    badName &&
+    /^\s*'/.test(badName[1]!) &&
+    literal &&
+    parseIcu(source, "vue").ok
+  ) {
+    return {
+      cause: "library",
+      advice: `; ${literal.replace(/\s+/g, " ")} is vue-i18n's literal interpolation: declare library: "vue" on the source`,
+    };
+  }
   const unsupported = /^argument type "([^"]+)" is not supported/.exec(message);
   if (
     library !== "i18next" &&

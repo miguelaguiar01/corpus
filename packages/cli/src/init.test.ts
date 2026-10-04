@@ -766,6 +766,105 @@ test("init reads the languages and the library through a {ns} pattern and writes
   });
 });
 
+test("init detects the library from the namespaces that read, and names the ones that do not (#1046)", async () => {
+  const at = (files: Record<string, string>) => {
+    const p = project();
+    stubCli(p.dir);
+    for (const [file, text] of Object.entries(files)) {
+      mkdirSync(path.dirname(path.join(p.dir, file)), { recursive: true });
+      writeFileSync(path.join(p.dir, file), text);
+    }
+    return p;
+  };
+  const flags = [
+    "init",
+    "--project",
+    "app",
+    "--source",
+    "en",
+    "--messages",
+    "locales/{lang}/{ns}.json",
+  ];
+  // Chatwoot: a namespace that does not read hid the pipes of the rest.
+  const some = at({
+    "locales/en/a.json": JSON.stringify({ files: "one file | {n} files" }),
+    "locales/en/b.json": "{ not json",
+    "locales/en/c.json": JSON.stringify({ email: "Email {'@'} domain" }),
+    "locales/de/a.json": JSON.stringify({ files: "eine Datei | {n} Dateien" }),
+  });
+  expect(await run(flags, some.ctx)).toBe(0);
+  const config = await loadConfig(some.dir);
+  expect(
+    config.sources.map((s) => (s.adapter === "messages" ? s.library : "")),
+  ).toEqual(["vue", "vue", "vue"]);
+  expect(some.out.join("\n")).toMatch(
+    /^library: vue, from a pipe or a quoted literal in locales\/en\/a\.json \(locales\/en\/b\.json not read: .+\)$/m,
+  );
+  // An icu result says it too, and more than three are counted.
+  const icu = at({
+    "locales/en/a.json": JSON.stringify({ hello: "Hello {name}" }),
+    ...Object.fromEntries(
+      ["b", "c", "d", "e"].map((ns) => [`locales/en/${ns}.json`, "{ x"]),
+    ),
+    "locales/de/a.json": "{}",
+  });
+  await run(flags, icu.ctx);
+  expect(icu.out.join("\n")).toMatch(
+    /^library: icu \(locales\/en\/b\.json, locales\/en\/c\.json, locales\/en\/d\.json, and 1 more not read: .+\)$/m,
+  );
+  // A source file that is missing is said already, not again here.
+  const missing = project();
+  stubCli(missing.dir);
+  mkdirSync(path.join(missing.dir, "locales"), { recursive: true });
+  writeFileSync(path.join(missing.dir, "locales", "de.json"), "{}");
+  await run(
+    [
+      "init",
+      "--project",
+      "app",
+      "--source",
+      "en",
+      "--messages",
+      "locales/{lang}.json",
+    ],
+    missing.ctx,
+  );
+  expect(missing.out.join("\n")).not.toMatch(/library: not detected/);
+  // A module catalogue's too, which jiti says otherwise.
+  const module = project();
+  stubCli(module.dir);
+  mkdirSync(path.join(module.dir, "l"), { recursive: true });
+  writeFileSync(path.join(module.dir, "l", "de.js"), "export default {};\n");
+  await run(
+    ["init", "--project", "app", "--source", "en", "--messages", "l/{lang}.js"],
+    module.ctx,
+  );
+  expect(module.out.join("\n")).not.toMatch(/library: not detected/);
+  // A namespace that is a broken link is a file that does not read.
+  const linked = at({
+    "locales/en/a.json": JSON.stringify({ files: "one file | {n} files" }),
+    "locales/de/a.json": "{}",
+  });
+  const { symlinkSync } = await import("node:fs");
+  symlinkSync(
+    path.join(linked.dir, "nowhere.json"),
+    path.join(linked.dir, "locales/en/b.json"),
+  );
+  await run(flags, linked.ctx);
+  expect(linked.out.join("\n")).toMatch(
+    /^library: vue, .*\(locales\/en\/b\.json not read: .+\)$/m,
+  );
+  // None that reads is said, not silence.
+  const none = at({
+    "locales/en/b.json": "{ not json",
+    "locales/de/b.json": "{}",
+  });
+  await run(flags, none.ctx);
+  expect(none.out.join("\n")).toMatch(
+    /^library: not detected \(locales\/en\/b\.json: .+\)$/m,
+  );
+});
+
 test("init reads languages through a {ns} pattern in either order, and names sibling catalogues a plain pattern leaves out (#513)", async () => {
   const p = project();
   stubCli(p.dir);
