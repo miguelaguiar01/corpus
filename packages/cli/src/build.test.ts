@@ -2166,6 +2166,31 @@ test("a source whose adapter takes a fixed extension is refused once, by what it
   ).toBe(
     "snapshot build failed:\n  Localizable.xcstrings: not a String Catalog: it is not JSON (line 4)",
   );
+  // A bad escape, which a .strings file allows (\'), is placed too.
+  writeFileSync(
+    path.join(dir, "Localizable.xcstrings"),
+    `{\n  "sourceLanguage": "en",\n  "version": "1.0",\n  "a": "it\\'s",\n  "b": "\\u12"\n}\n`,
+  );
+  expect(
+    await failure({
+      adapter: "xcstrings",
+      type: "ui",
+      path: "Localizable.xcstrings",
+    }),
+  ).toBe(
+    "snapshot build failed:\n  Localizable.xcstrings: not a String Catalog: it is not JSON (line 4)",
+  );
+  // A named format keeps its pointer.
+  writeFileSync(path.join(dir, "po", "en.properties"), "");
+  expect(
+    await failure({
+      adapter: "gettext",
+      type: "ui",
+      path: "po/{lang}.properties",
+    }),
+  ).toBe(
+    "snapshot build failed:\n  po/en.properties is not a file gettext reads: it reads .po and .pot; it is a Java .properties catalogue, which no adapter reads: an exec source converts it (the wiki's Sources and adapters, exec)",
+  );
   // An extension no format is named for says what the adapter reads.
   mkdirSync(path.join(dir, "po"), { recursive: true });
   writeFileSync(path.join(dir, "po", "en.po.txt"), "");
