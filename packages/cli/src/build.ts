@@ -1698,7 +1698,8 @@ function readSuggestions(
       if (!takesLanguage(source, config, lang)) continue;
       const file = fileOf(source, lang, config.sourceLanguage);
       if (!existsSync(path.join(cwd, file))) continue;
-      const text = readFileSync(path.join(cwd, file), "utf8");
+      // Read as its seeds are, a UTF-16 file too.
+      const text = readRepoText(path.join(cwd, file));
       const read =
         source.adapter === "gettext"
           ? gettextSuggestions(text, lang)
@@ -1707,7 +1708,7 @@ function readSuggestions(
         const id = namespaced(source, entry.id);
         if (
           ids.has(id) &&
-          entry.source.trim() !== "" &&
+          !isBlank(entry.source) &&
           seeds[lang]?.[id] === undefined &&
           suggestions[lang]?.[id] === undefined
         ) {
