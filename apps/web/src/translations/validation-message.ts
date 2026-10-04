@@ -110,6 +110,12 @@ export function validationMessage(
     }
     case "missing-category":
       return t("editor.missingCategory", { arg: error.arg, key: error.key });
+    case "fixed-count":
+      return t(error.more ? "editor.fixedCountMore" : "editor.fixedCount", {
+        arg: error.arg,
+        key: error.key,
+        values: error.values.join(", "),
+      });
     case "overridden-branch":
       return t("editor.overriddenBranch", {
         arg: error.arg,

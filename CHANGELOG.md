@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- A plural branch that writes `1` instead of the count warns where the language's category holds other numbers (Croatian `one` holds 21) (#1042).
 - A pull into an empty `{}` target writes one key per line, in its sibling targets' indent, not every key on one line (#1041).
 - An ARB source's placeholder examples are the string's example, and their descriptions join its note (#1040).
 - Under `gen_l10n`, `=0`, `=1` and `=2` are read as the zero, one and two categories gen-l10n takes them for: `=1` beside `one` is refused, and an `=1` whose category holds more than 1 is a warning (#1039).
