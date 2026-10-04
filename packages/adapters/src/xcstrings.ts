@@ -46,9 +46,7 @@ export function parseXcstrings(text: string): XcCatalog {
   } catch (error) {
     // One line, at the line JSON stops at, never Node's message with
     // the file's start in it (#1035).
-    const at = /position (\d+)/.exec((error as Error).message)?.[1];
-    const line =
-      at === undefined ? 1 : body.slice(0, Number(at)).split("\n").length;
+    const line = body.slice(0, jsonStop(body)).split("\n").length;
     throw new Error(`not a String Catalog: it is not JSON (line ${line})`, {
       cause: error,
     });
@@ -578,4 +576,81 @@ export function entriesToXcstrings(
       "the catalogue is not in Xcode's layout, so a write would move bytes it does not change; save it from Xcode first",
     );
   return bom + serializeXcstrings(catalog) + newline;
+}
+
+class Stop extends Error {
+  constructor(readonly at: number) {
+    super("stop");
+  }
+}
+
+// Where a JSON reader stops in `text`: V8 names a position for some
+// errors and none for others (`Unexpected token`), so it is found here.
+function jsonStop(text: string): number {
+  let i = 0;
+  const space = () => {
+    while (i < text.length && " \t\n\r".includes(text[i]!)) i++;
+  };
+  const stop = (): never => {
+    throw new Stop(i);
+  };
+  const string = () => {
+    i++;
+    while (i < text.length && text[i] !== '"') {
+      if (text[i]! < " ") stop();
+      i += text[i] === "\\" ? 2 : 1;
+    }
+    if (i >= text.length) stop();
+    i++;
+  };
+  const value = (): void => {
+    space();
+    const c = text[i];
+    if (c === "{" || c === "[") {
+      const close = c === "{" ? "}" : "]";
+      i++;
+      space();
+      if (text[i] === close) {
+        i++;
+        return;
+      }
+      for (;;) {
+        if (c === "{") {
+          space();
+          if (text[i] !== '"') stop();
+          string();
+          space();
+          if (text[i] !== ":") stop();
+          i++;
+        }
+        value();
+        space();
+        if (text[i] === ",") {
+          i++;
+          continue;
+        }
+        if (text[i] === close) {
+          i++;
+          return;
+        }
+        stop();
+      }
+    }
+    if (c === '"') return string();
+    const literal =
+      /^(?:true|false|null|-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?)/.exec(
+        text.slice(i),
+      );
+    if (!literal) stop();
+    i += literal![0].length;
+  };
+  try {
+    value();
+    space();
+    if (i < text.length) stop();
+  } catch (error) {
+    if (error instanceof Stop) return error.at;
+    throw error;
+  }
+  return text.length;
 }

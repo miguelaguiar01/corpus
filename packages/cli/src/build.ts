@@ -65,7 +65,7 @@ import {
 } from "@corpus/contract";
 import type { Refusals } from "./agent-tools";
 import { printable } from "./printable";
-import { unreadableCatalogue, unreadableFile } from "./catalogue-format";
+import { unreadableFile } from "./catalogue-format";
 import { readRepoText } from "./repo-text";
 import {
   CliError,
@@ -262,7 +262,7 @@ export async function buildSnapshotReport(
   // Whether the snapshot is for a push, which the refusal names.
   pushing = false,
 ): Promise<BuildReport> {
-  const misnamed = misnamedSources(config);
+  const misnamed = misnamedSources(config, cwd);
   if (misnamed.length > 0)
     throw new CliError(`snapshot build failed:\n  ${misnamed.join("\n  ")}`);
   const jiti = createJiti(import.meta.url);
@@ -865,7 +865,7 @@ const FIXED_EXTENSIONS: Partial<Record<string, readonly string[]>> = {
 // A source whose adapter takes fixed extensions and whose file has
 // another, named by what the file is (#1035): Stats' Localizable.strings
 // declared as a String Catalog would otherwise be a JSON error, twice.
-export function misnamedSources(config: CorpusConfig): string[] {
+export function misnamedSources(config: CorpusConfig, cwd: string): string[] {
   const out = new Set<string>();
   for (const source of config.sources) {
     if (source.adapter === "exec") continue;
@@ -873,10 +873,15 @@ export function misnamedSources(config: CorpusConfig): string[] {
     if (!extensions) continue;
     const file = fileOf(source, config.sourceLanguage, config.sourceLanguage);
     if (extensions.includes(path.extname(file).toLowerCase())) continue;
+    // A Qt `.ts` is told from TypeScript by its first bytes.
     const what =
-      unreadableCatalogue(file) ??
+      unreadableFile(path.join(cwd, file)) ??
       `a catalogue the messages adapter reads: declare it { adapter: "messages", type, path }`;
-    out.add(`${file} is ${what}, not as ${source.adapter}`);
+    out.add(
+      what.includes(": declare it")
+        ? `${file} is ${what}, not as ${source.adapter}`
+        : `${file} is not a file ${source.adapter} reads: it reads ${extensions.join(" and ")}`,
+    );
   }
   return [...out];
 }

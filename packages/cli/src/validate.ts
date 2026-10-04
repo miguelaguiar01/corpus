@@ -266,7 +266,7 @@ export async function validateRepo(
   config: CorpusConfig,
   cwd: string,
 ): Promise<{ findings: Finding[]; unchecked: Unchecked[] }> {
-  const misnamed = misnamedSources(config);
+  const misnamed = misnamedSources(config, cwd);
   if (misnamed.length > 0) throw new CliError(misnamed.join("\n"));
   const jiti = createJiti(import.meta.url);
   const findings: Finding[] = [];
