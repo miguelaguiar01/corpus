@@ -147,9 +147,12 @@ export function problemOf(
   passed: string[] | null | undefined,
   key: string,
   sourceLanguage: string,
+  // The syntaxes its source layers on the library (#1049).
+  placeholders?: Library[] | null,
 ): string | null {
   const check = validateTranslation(source, text, language, syntax, {
     richText: richText ?? undefined,
+    ...(placeholders && { placeholders }),
     ...(passed && { arguments: passed }),
     ...(syntax === "fluent" && isFluentTermId(key) && { term: true }),
     sourceLanguage,

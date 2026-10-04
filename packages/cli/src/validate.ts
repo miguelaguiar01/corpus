@@ -46,6 +46,7 @@ import {
   sourceLibrary,
   buildSnapshotReport,
   namespaced,
+  placeholdersOf,
   takesLanguage,
 } from "./build";
 import { download } from "./pull";
@@ -451,6 +452,7 @@ export async function validateRepo(
                 entryPluralForms(entry, source, pluralForms),
               ),
               ...namedPluralRules(source),
+              ...placeholdersOf(source),
             },
             target,
             {
@@ -843,6 +845,7 @@ function checkTranslation(
       pluralForms: entry.pluralForms[language],
     }),
     ...(entry.pluralRules && { pluralRules: entry.pluralRules }),
+    ...(entry.placeholders && { placeholders: entry.placeholders }),
     ...(library === "fluent" && isFluentTermId(key) && { term: true }),
     sourceLanguage: at.sourceLanguage,
   });

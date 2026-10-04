@@ -592,6 +592,65 @@ class Parser {
     private readonly proseOut?: ProseTag[],
   ) {}
 
+  // The placeholder syntaxes a source layers on its library (#1049),
+  // set for one parse by `parseWith`.
+  private readonly layers = layering;
+
+  // A layered syntax's token, where the base would read text: i18next's
+  // `{{name}}`, printf's verbs by position, fmt's `{name}` fields and
+  // Chrome's `$NAME$`. It adds a placeholder and never structure.
+  private lexLayers(seq: Sequence, ch: string): boolean {
+    for (const layer of this.layers) {
+      const rest = this.source.slice(this.pos);
+      if (layer === "i18next" && rest.startsWith("{{")) {
+        const start = this.pos;
+        const node = this.parseDoubleBrace();
+        // Written as the text writes it, for the base's own messages; a
+        // `:suffix` names no other value, as uBlock's `i18n.render` strips
+        // `{{input:number}}` to `{{input}}`.
+        this.node(
+          seq,
+          node.kind === "placeholder"
+            ? {
+                ...node,
+                name: node.name.split(":")[0]!,
+                written: this.source.slice(start, this.pos),
+              }
+            : node,
+        );
+        return true;
+      }
+      if (layer === "printf" && ch === "%") {
+        if (rest.startsWith("%%")) return this.text(seq, "%", 2);
+        const verb = PRINTF_VERB_RE.exec(rest);
+        // Where `%` is the base library's prose, a verb run into a word,
+        // `%email%` in an example, is text; sprintf's own stand apart.
+        if (!verb || /[\p{L}\p{N}]/u.test(rest[verb[0].length] ?? "")) continue;
+        const explicit = verb[1] ?? verb[2];
+        const position = explicit ? Number(explicit) : this.printfNext;
+        this.printfNext = position + 1;
+        return this.placeholder(seq, String(position), verb[0]);
+      }
+      if (layer === "fmt" && (rest.startsWith("{{") || rest.startsWith("}}")))
+        return this.text(seq, ch, 2);
+      if (layer === "fmt" && ch === "{") {
+        const field = FMT_FIELD_RE.exec(rest);
+        if (!field) continue;
+        const name =
+          field[1] === undefined
+            ? String(this.fmtNext++)
+            : `${field[1]}${field[2] ?? ""}`;
+        return this.placeholder(seq, name, field[0]);
+      }
+      if (layer === "chrome" && ch === "$") {
+        const named = CHROME_PLACEHOLDER_RE.exec(rest);
+        if (named)
+          return this.placeholder(seq, named[1]!.toLowerCase(), named[0]);
+      }
+    }
+    return false;
+  }
+
   // Inside a plural's branch, `#` is the number; anywhere else it is text.
   // Inside a tag, the sequence ends at its closing tag.
   parseSequence(
@@ -689,6 +748,7 @@ class Parser {
       // A plural read whole opens with the text's first brace.
       const opensPlural =
         this.mode === "wholePlural" && !inBranch && ch === "{";
+      if (!opensPlural && this.lexLayers(seq, ch)) continue;
       if (this.lexLibrary(seq, ch, inBranch, opensPlural, pluralArg)) continue;
       // vue-i18n has no tag syntax: a `<` is text (#644).
       if (ch === "<" && this.syntax !== "vue") {
@@ -1592,10 +1652,11 @@ class Parser {
 export function readIcu(
   source: string,
   syntax: Library = "icu",
+  placeholders?: readonly Library[],
 ): IcuParseResult {
-  const read = parseIcu(source, syntax);
+  const read = parseIcu(source, syntax, { placeholders });
   if (read.ok) return read;
-  const markup = parseIcu(source, syntax, { html: "markup" });
+  const markup = parseIcu(source, syntax, { html: "markup", placeholders });
   return markup.ok ? markup : read;
 }
 
@@ -1607,19 +1668,45 @@ export function readIcu(
 export function parseIcu(
   source: string,
   syntax: Library = "icu",
-  // `prose`, where the tags read as text go (#986).
-  options: { html?: boolean | "markup"; prose?: ProseTag[] } = {},
+  // `prose`, where the tags read as text go (#986); `placeholders`, the
+  // syntaxes the source layers on the library (#1049).
+  options: {
+    html?: boolean | "markup";
+    prose?: ProseTag[];
+    placeholders?: readonly Library[];
+  } = {},
 ): IcuParseResult {
+  const layers = options.placeholders ?? [];
   if (options.html === undefined) {
-    const lenient = parseWith(source, syntax, true);
+    const lenient = parseWith(source, syntax, true, undefined, layers);
     if (lenient.ok) return lenient;
-    const strict = parseWith(source, syntax, false);
+    const strict = parseWith(source, syntax, false, undefined, layers);
     return strict.ok ? strict : lenient;
   }
-  return parseWith(source, syntax, options.html, options.prose);
+  return parseWith(source, syntax, options.html, options.prose, layers);
 }
 
+// The layered placeholder syntaxes of the parse in progress (#1049): a
+// parse is synchronous, and every Parser it makes reads them.
+let layering: readonly Library[] = [];
+
 function parseWith(
+  source: string,
+  syntax: Library,
+  html: boolean | "markup",
+  prose?: ProseTag[],
+  layers: readonly Library[] = [],
+): IcuParseResult {
+  const outer = layering;
+  layering = layers;
+  try {
+    return parseLayered(source, syntax, html, prose);
+  } finally {
+    layering = outer;
+  }
+}
+
+function parseLayered(
   source: string,
   syntax: Library,
   html: boolean | "markup",
@@ -1941,8 +2028,12 @@ export type Parts = {
   forms: number;
 };
 
-export function partsOf(source: string, syntax: Library = "icu"): Parts {
-  const result = readIcu(source, syntax);
+export function partsOf(
+  source: string,
+  syntax: Library = "icu",
+  placeholders?: readonly Library[],
+): Parts {
+  const result = readIcu(source, syntax, placeholders);
   const nodes = result.ok ? result.nodes : [];
   const shape = shapeOf(nodes);
   const written = new Map<string, string>();

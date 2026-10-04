@@ -36,7 +36,16 @@ export async function GET(request: Request): Promise<Response> {
     ).items;
     // An invalid row says what is wrong with it, as the editor would.
     const items = listed.map(
-      ({ key, language, type, source, text, syntax, arguments: args }) => ({
+      ({
+        key,
+        language,
+        type,
+        source,
+        text,
+        syntax,
+        arguments: args,
+        placeholders,
+      }) => ({
         key,
         language,
         type,
@@ -56,6 +65,7 @@ export async function GET(request: Request): Promise<Response> {
                   args,
                   key,
                   project.sourceLanguage,
+                  placeholders,
                 ),
         }),
       }),

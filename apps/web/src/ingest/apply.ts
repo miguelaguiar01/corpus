@@ -71,11 +71,13 @@ function seedInvalid(
   passed: string[] | undefined,
   id: string,
   sourceLanguage: string,
+  placeholders?: Library[] | null,
 ): boolean {
   if (text === source || (PLAIN.test(source) && PLAIN.test(text))) return false;
   return !validateTranslation(source, text, language, library, {
     richText,
     ...(passed && { arguments: passed }),
+    ...(placeholders && { placeholders }),
     ...(library === "fluent" && isFluentTermId(id) && { term: true }),
     sourceLanguage,
   }).ok;
@@ -104,6 +106,7 @@ function stringWrites(
     pluralRules: p("pluralRules"),
     languages: p("languages"),
     generated: p("generated"),
+    placeholders: p("placeholders"),
     note: p("note"),
     syntax: p("syntax"),
   };
@@ -136,6 +139,9 @@ function stringWrites(
         ])
       : null,
     generated: entry.generated ?? null,
+    placeholders: entry.placeholders
+      ? JSON.stringify(entry.placeholders)
+      : null,
     note: entry.note ?? null,
     syntax: entryLibrary(entry),
   });
@@ -235,6 +241,7 @@ function stringWrites(
         entry.arguments,
         entry.id,
         sourceLanguage,
+        entry.placeholders,
       );
     });
   const refresh = tx
@@ -654,6 +661,7 @@ function projectStrings(db: Db, projectId: number) {
       syntax: strings.syntax,
       arguments: strings.arguments,
       languages: strings.languages,
+      placeholders: strings.placeholders,
     })
     .from(strings)
     .where(eq(strings.projectId, projectId))
@@ -822,6 +830,7 @@ function applySeeds(
           string.arguments ?? undefined,
           stringId,
           snapshot.sourceLanguage,
+          string.placeholders,
         );
       // A seed the row already holds is nothing: no write, no count, and
       // the editor's "changed since you opened it" stays quiet. Its mark

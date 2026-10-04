@@ -797,9 +797,20 @@ function collectExec(
 function libraryFields(source: FileSource): {
   library?: Library;
   syntax?: Library;
+  placeholders?: Library[];
 } {
   const library = sourceLibrary(source);
-  return library === "icu" ? {} : { library, syntax: library };
+  const layers = placeholdersOf(source);
+  return library === "icu" ? layers : { library, syntax: library, ...layers };
+}
+
+// The syntaxes a source layers on its library (#1049), as an entry
+// carries them.
+export function placeholdersOf(source: FileSource): {
+  placeholders?: Library[];
+} {
+  const own = (source as { placeholders?: Library[] }).placeholders;
+  return own ? { placeholders: own } : {};
 }
 
 export type FileSource = Exclude<Source, { adapter: "exec" }>;

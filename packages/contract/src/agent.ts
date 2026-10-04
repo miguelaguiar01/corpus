@@ -83,6 +83,9 @@ export type StringResponse = {
   // pluralise on or print though the source prints none. Present only
   // where the string has them; additive (#737).
   arguments?: string[];
+  // The placeholder syntaxes its source layers on its library (#1049),
+  // `["i18next"]` for `{{name}}` on a Chrome catalogue. Additive.
+  placeholderSyntaxes?: Library[];
   // The extractor's output the string is read from, where its text is the
   // code's and a proposal is refused (#1000). Additive.
   generated?: string;

@@ -38,6 +38,8 @@ export type StringDetail = {
     keyIsText: boolean;
     // The extractor's output it is read from (#1000), or null.
     generated: string | null;
+    // The placeholder syntaxes its source layers on its library (#1049).
+    placeholderSyntaxes: Library[] | null;
     // The message syntax the text is written in (§5).
     syntax: Library;
     // The verbs the code passes where the key carries them (#731).
@@ -169,6 +171,7 @@ export function stringDetail(
       file: string.file,
       keyIsText: string.keyIsText,
       generated: string.generated ?? null,
+      placeholderSyntaxes: string.placeholders ?? null,
       syntax: string.syntax ?? "icu",
       arguments: string.arguments ?? null,
       pluralForms: string.pluralForms ?? null,

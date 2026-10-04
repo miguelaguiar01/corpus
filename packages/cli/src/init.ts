@@ -251,6 +251,8 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     ...(sourcePath && { sourcePath }),
     ...(keyIsText && { keyIsText }),
     ...(entries && { entries }),
+    ...("placeholders" in detected &&
+      detected.placeholders && { placeholders: detected.placeholders }),
     ...(library &&
       (adapter !== "messages" || library.value !== "icu") && {
         library: library.value,
@@ -306,6 +308,10 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     );
   }
   if (detected.note) ctx.out(detected.note);
+  if (source.placeholders)
+    ctx.out(
+      `placeholders: ${source.placeholders.join(", ")}, ${source.placeholders.includes("i18next") ? "{{name}}" : "%s"} in the texts beside ${library?.value}'s own`,
+    );
   if (variants.length > 0)
     ctx.out(
       variants.length === 1
@@ -383,6 +389,7 @@ type InitSource = {
   sourcePath?: string;
   keyIsText?: boolean;
   entries?: { text: string; note?: string };
+  placeholders?: Library[];
   library?: Library;
   languageFiles?: Record<string, string>;
 };
@@ -812,7 +819,7 @@ function render(plain: boolean, config: InitConfig): string {
   sourceLanguage: ${q(config.sourceLanguage)},
   languages: [${config.languages.map(q).join(", ")}],
 ${config.sourceVariants ? `  sourceVariants: [${config.sourceVariants.map(q).join(", ")}],\n` : ""}  sources: [
-    { adapter: ${q(source.adapter)}, type: ${q(source.type)}, path: ${q(source.path)}${source.sourcePath ? `, sourcePath: ${q(source.sourcePath)}` : ""}${source.keyIsText ? ", keyIsText: true" : ""}${source.entries ? `, entries: { text: ${q(source.entries.text)}${source.entries.note ? `, note: ${q(source.entries.note)}` : ""} }` : ""}${library}${
+    { adapter: ${q(source.adapter)}, type: ${q(source.type)}, path: ${q(source.path)}${source.sourcePath ? `, sourcePath: ${q(source.sourcePath)}` : ""}${source.keyIsText ? ", keyIsText: true" : ""}${source.entries ? `, entries: { text: ${q(source.entries.text)}${source.entries.note ? `, note: ${q(source.entries.note)}` : ""} }` : ""}${library}${source.placeholders ? `, placeholders: [${source.placeholders.map(q).join(", ")}]` : ""}${
       source.languageFiles
         ? `, languageFiles: { ${Object.entries(source.languageFiles)
             .map(([tag, code]) => `${q(tag)}: ${q(code)}`)
@@ -1070,6 +1077,8 @@ async function libraryFor(
 ): Promise<{
   library?: { value: Library; detected?: string; why?: string };
   note?: string;
+  // A second placeholder syntax the texts write (#1049).
+  placeholders?: Library[];
 }> {
   if (args.includes("--library") && args.includes("--syntax")) {
     throw new CliError(
@@ -1145,7 +1154,13 @@ async function libraryFor(
   const chrome = concretes.every((concrete) =>
     chromeShaped(path.join(cwd, concrete.replaceAll("{lang}", sourceLanguage))),
   );
-  if (chrome) return { library: { value: "chrome", detected: file } };
+  // uBlock fills its own `{{name}}` beside Chrome's `$NAME$` (#1049).
+  const layered = (re: RegExp) => texts.filter((t) => re.test(t)).length >= 2;
+  if (chrome)
+    return {
+      library: { value: "chrome", detected: file },
+      ...(layered(/\{\{\w+\}\}/) && { placeholders: ["i18next" as const] }),
+    };
   // Flutter's easy_localization (#664), counted like every shape: `{}`
   // is its positional placeholder, and `@:key` its link, which vue-i18n
   // writes too, so a link counts only where no vue sign, a quoted
@@ -1186,7 +1201,11 @@ async function libraryFor(
   // outnumbers the single-brace and the printf strings; one {{ }} among
   // four thousand printf strings is a template, not the library (#591).
   if (doubles > singles && doubles > printf && !icu)
-    return { library: { value: "i18next", detected: file } };
+    return {
+      library: { value: "i18next", detected: file },
+      // i18next-sprintf-postprocessor's `%s` (#1049).
+      ...(printf >= 2 && { placeholders: ["printf" as const] }),
+    };
   const noted = (note: string) => `${note} in ${file}`;
   // Where the catalogue reads as icu, ICU as FormatJS reads it, its
   // apostrophe quoting (#1010), if its package runs on FormatJS.

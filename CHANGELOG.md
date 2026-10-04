@@ -28,6 +28,7 @@ contract (`corpus/1`) is the only one.
 - A `strings` source reads Apple's `Localizable.strings` with no converter: notes from comments, escapes, UTF-16 kept, and `init` writes it (#1037).
 - A new `gen_l10n` library reads Flutter's gen-l10n ICU subset, `#` as text and no `number` among them, and `init` writes it for an `.arb` catalogue (#1038).
 - A new `fmt` library reads libfmt's, `std::format`'s and Python's `str.format` `{name:spec}` fields, a gettext plural whole, and `init` writes it (#1002).
+- A source's `placeholders` layers another library's tokens on its own: uBlock's `{{name}}` on Chrome, sprintf's `%s` on i18next, Godot's `{num}` on printf (#1049).
 - Under chrome a bare `$1`–`$9` is a placeholder a translation keeps, and a lone `$`, a `$40` or a `$$NAME$` that Chrome reads otherwise is a warning (#631).
 - A translation file that does not read no longer stops the build: the other languages push, `validate` names it, and `pull` leaves it alone (#1028).
 - `corpus validate` lists orphan keys but no longer fails on them, so it can gate CI on a project a translation platform syncs (#1023).

@@ -53,12 +53,17 @@ export async function GET(
               detail.string.arguments,
               detail.string.key,
               project.sourceLanguage,
+              detail.string.placeholderSyntaxes,
             )
           : null,
       ...(row.suggestion !== null && { suggestion: row.suggestion }),
     };
   }
-  const parts = partsOf(detail.string.source, detail.string.syntax);
+  const parts = partsOf(
+    detail.string.source,
+    detail.string.syntax,
+    detail.string.placeholderSyntaxes ?? undefined,
+  );
   const body: StringResponse = {
     key: detail.string.key,
     type: detail.string.type,
@@ -96,6 +101,7 @@ export async function GET(
       detail.string.examples,
       project.sourceLanguage,
       detail.string.syntax,
+      detail.string.placeholderSyntaxes ?? undefined,
     ),
     examples: detail.string.examples ?? [],
     metadata: detail.string.metadata,
@@ -103,6 +109,9 @@ export async function GET(
     stringNote: detail.string.stringNote,
     keyIsText: detail.string.keyIsText,
     ...(detail.string.generated && { generated: detail.string.generated }),
+    ...(detail.string.placeholderSyntaxes && {
+      placeholderSyntaxes: detail.string.placeholderSyntaxes,
+    }),
     glossary: detail.string.glossary,
     entities: detail.entities,
     translations,
