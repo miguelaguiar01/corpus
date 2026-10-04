@@ -3304,6 +3304,7 @@ test("under gen_l10n =0, =1 and =2 are its zero, one and two: a category they st
         key: "=1",
         category: "one",
         values: [21, 31, 41],
+        more: true,
       },
     ],
   });
