@@ -310,12 +310,16 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       : `wrote ${filename}`,
   );
   if (found) ctx.out(found);
+  // A file detection could not read is said once, on the library's line,
+  // icu's too, which is otherwise left unsaid (#1046).
+  const unread =
+    "unread" in detected && detected.unread ? ` (${detected.unread})` : "";
   if (library && (library.value !== "icu" || adapter !== "messages")) {
     const why = library.detected && (library.why ?? DETECTED_BY[library.value]);
     ctx.out(
-      `library: ${library.value}${why ? `, from ${why} in ${library.detected}` : ""}`,
+      `library: ${library.value}${why ? `, from ${why} in ${library.detected}` : ""}${unread}`,
     );
-  }
+  } else if (unread) ctx.out(`library: ${library?.value ?? "icu"}${unread}`);
   if (detected.note) ctx.out(detected.note);
   if (source.placeholders)
     ctx.out(
@@ -1235,6 +1239,8 @@ async function libraryFor(
   note?: string;
   // A second placeholder syntax the texts write (#1049).
   placeholders?: Library[];
+  // The files detection could not read, and why (#1046).
+  unread?: string;
 }> {
   if (args.includes("--library") && args.includes("--syntax")) {
     throw new CliError(
@@ -1265,16 +1271,18 @@ async function libraryFor(
         pattern.replaceAll("{ns}", ns),
       )
     : [pattern];
-  const file =
-    textKeyed ?? concretes[0]?.replaceAll("{lang}", sourceLanguage) ?? pattern;
-  let texts: string[];
-  let ids: string[];
+  const texts: string[] = [];
+  const ids: string[] = [];
   let keyed = 0;
-  try {
-    const jiti = createJiti(import.meta.url);
-    texts = [];
-    ids = [];
-    for (const concrete of concretes) {
+  // Each file on its own, so one that does not read hides nothing the
+  // others say (#1046).
+  const read: string[] = [];
+  const readConcretes: string[] = [];
+  const failed: { file: string; reason: string }[] = [];
+  const jiti = createJiti(import.meta.url);
+  for (const concrete of concretes) {
+    const at = textKeyed ?? concrete.replaceAll("{lang}", sourceLanguage);
+    try {
       const source: FileSource = {
         adapter: "messages",
         type,
@@ -1282,13 +1290,7 @@ async function libraryFor(
         ...(textKeyed && { sourcePath: textKeyed, keyIsText: true }),
         ...(entryObjects && { entries: entryObjects }),
       };
-      const entries = await readEntries(
-        jiti,
-        cwd,
-        textKeyed ?? concrete.replaceAll("{lang}", sourceLanguage),
-        source,
-        true,
-      );
+      const entries = await readEntries(jiti, cwd, at, source, true);
       // An object's forms are what the file writes: the plural the
       // reader makes of them is no ICU argument of the catalogue's (#984).
       const objects = await sourcePluralIds(jiti, cwd, source, sourceLanguage);
@@ -1302,11 +1304,67 @@ async function libraryFor(
       );
       ids.push(...entries.map((entry) => entry.id));
       keyed += entries.filter((entry) => entry.keyIsText).length;
+      read.push(at);
+      readConcretes.push(concrete);
+    } catch (error) {
+      const reason = (error instanceof Error ? error.message : String(error))
+        .split("\n")[0]!
+        .trim();
+      failed.push({ file: at, reason });
     }
-  } catch {
-    return {};
   }
   if (concretes.length === 0) return {};
+  if (read.length === 0)
+    return {
+      note: `library: not detected (${failed[0]!.file}: ${failed[0]!.reason})`,
+    };
+  const file = read[0]!;
+  const names = failed.slice(0, 3).map(({ file }) => file);
+  if (failed.length > 3) names.push(`and ${failed.length - 3} more`);
+  const unread =
+    failed.length === 0
+      ? undefined
+      : `${names.join(", ")} not read: ${failed[0]!.reason}`;
+  const detected = libraryOf({
+    cwd,
+    pattern,
+    sourceLanguage,
+    concretes: readConcretes,
+    textKeyed,
+    texts,
+    ids,
+    keyed,
+    file,
+  });
+  return unread === undefined ? detected : { ...detected, unread };
+}
+
+// What the texts read say of the library, told by the shapes they write.
+function libraryOf({
+  cwd,
+  pattern,
+  sourceLanguage,
+  concretes,
+  textKeyed,
+  texts,
+  ids,
+  keyed,
+  file,
+}: {
+  cwd: string;
+  pattern: string;
+  sourceLanguage: string;
+  concretes: string[];
+  textKeyed?: string;
+  texts: string[];
+  ids: string[];
+  keyed: number;
+  file: string;
+}): {
+  library?: { value: Library; detected?: string; why?: string };
+  note?: string;
+  placeholders?: Library[];
+} {
   const chrome = concretes.every((concrete) =>
     chromeShaped(path.join(cwd, concrete.replaceAll("{lang}", sourceLanguage))),
   );

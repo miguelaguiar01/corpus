@@ -2441,6 +2441,13 @@ function refusal(
       advice: `; {} is easy_localization's positional placeholder: declare library: "easy_localization" on the source`,
     };
   }
+  // `{'@'}` is vue-i18n's literal interpolation (#1046).
+  if (library !== "vue" && badName && /^'.*'$/.test(badName[1]!)) {
+    return {
+      cause: "library",
+      advice: `; {${badName[1]}} is vue-i18n's literal interpolation: declare library: "vue" on the source`,
+    };
+  }
   const unsupported = /^argument type "([^"]+)" is not supported/.exec(message);
   if (
     library !== "i18next" &&
