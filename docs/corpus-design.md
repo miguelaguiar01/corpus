@@ -241,7 +241,8 @@ export default defineCorpus({
     //    #1083 wrote for a reference, which a server may still hold, is
     //    written back without `$` where the source's message writes it
     //    so, or where it names a message the source never uses as a
-    //    variable. A select on a variable is an ICU
+    //    variable, and a pull of that view of an unchanged message
+    //    leaves it as the file writes it. A select on a variable is an ICU
     //    plural when every key is a CLDR category or a number (`[0]` is
     //    `=0`) and an ICU select otherwise; a default that is not
     //    `other` is carried as an `other` branch with its text, which is

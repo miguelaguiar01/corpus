@@ -343,6 +343,12 @@ function hashesAsLiterals(text: string): string {
   return out + text.slice(at).replaceAll("#", '{"#"}');
 }
 
+// A view as read before #1083, its message references bare, `{trash}`:
+// what a server may still hold for a message nobody changed.
+function bareReferences(icu: string): string {
+  return icu.replace(/\{@([A-Za-z][\w-]*)\}/g, "{$1}");
+}
+
 function toIcu(text: string, message: Message): string {
   return parseText(
     valueText(text.slice(message.valueStart, message.valueEnd)),
@@ -578,7 +584,8 @@ function patch(text: string, changes: Change[], template: Template): string {
       patches.push({ start: message.start, end, text: "" });
     } else if (message) {
       const end = whole ? message.end : message.valueEnd;
-      if (toIcu(text, message) === next) {
+      const current = toIcu(text, message);
+      if (current === next || bareReferences(current) === next) {
         if (end !== message.valueEnd)
           patches.push({ start: message.valueEnd, end, text: "" });
         continue;
