@@ -294,6 +294,43 @@ export default defineCorpus({
 
 test("describe words every error code", () => {
   expect(
+    describe(
+      { code: "overridden-branch", arg: "count", key: "=1", category: "one" },
+      "gen_l10n",
+    ),
+  ).toBe(
+    "plural on {count} writes =1 and one, which gen-l10n reads as one branch: it keeps one of them and drops the other",
+  );
+  expect(
+    describe(
+      {
+        code: "wide-exact",
+        arg: "count",
+        key: "=1",
+        category: "one",
+        values: [21, 31, 41],
+        more: true,
+      },
+      "gen_l10n",
+    ),
+  ).toBe(
+    "gen-l10n reads =1 on {count} as one, which this language also picks for 21, 31, 41 and more: write one for what they share, or give each its own =N",
+  );
+  expect(
+    describe(
+      {
+        code: "wide-exact",
+        arg: "count",
+        key: "=1",
+        category: "one",
+        values: [0],
+      },
+      "gen_l10n",
+    ),
+  ).toBe(
+    "gen-l10n reads =1 on {count} as one, which this language also picks for 0: write one for what they share, or give each its own =N",
+  );
+  expect(
     describe({
       code: "moved-placeholder",
       name: "path",

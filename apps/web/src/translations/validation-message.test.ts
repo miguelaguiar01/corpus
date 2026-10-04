@@ -48,3 +48,29 @@ test("a form count under vue-i18n's default rule names what each form is shown f
     "1 form reads as other under vue-i18n's default rule, where the source's 2 are =1 | other",
   );
 });
+
+test("gen-l10n's overridden branch and an =N wider than its number are said in the editor (#1039)", () => {
+  expect(
+    validationMessage(
+      { code: "overridden-branch", arg: "count", key: "=1", category: "one" },
+      "gen_l10n",
+    ),
+  ).toBe(
+    "Plural {count} writes =1 and one, which gen-l10n reads as one branch: it keeps one of them and drops the other",
+  );
+  expect(
+    validationMessage(
+      {
+        code: "wide-exact",
+        arg: "count",
+        key: "=1",
+        category: "one",
+        values: [21, 31, 41],
+        more: true,
+      },
+      "gen_l10n",
+    ),
+  ).toBe(
+    "gen-l10n reads =1 on {count} as one, which this language also picks for 21, 31, 41 and more: write one for what they share, or give each its own =N",
+  );
+});
