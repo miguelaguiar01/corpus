@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- `corpus init`'s `check.include` takes an app's `pages` and `layouts` with its `components`, as Nuxt, Vite and Next routers render them (#1047).
 - `corpus init` detects the library from the namespaces that read and names the ones that do not, and a `{'@'}` refused under ICU suggests `library: "vue"` (#1046).
 - `corpus init` finds an Angular project's `messages.xlf` where `angular.json` extracts it, at the workspace root by default (#1045).
 - A nested empty value whose key path holds a space stays empty, rather than reading its key path as the text (#1044).

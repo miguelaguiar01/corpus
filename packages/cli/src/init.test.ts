@@ -624,7 +624,7 @@ test("a Qt, Android or Apple project with no components is told corpus check doe
 });
 
 test("in a monorepo, check.include is the components directories below the root (#655)", async () => {
-  // Hoppscotch: packages/hoppscotch-common/src/components.
+  // A monorepo's components, as Excalidraw's packages/excalidraw/components.
   const p = project();
   stubCli(p.dir);
   for (const dir of [
@@ -641,6 +641,46 @@ test("in a monorepo, check.include is the components directories below the root 
       "packages/hoppscotch-common/src/components",
       "packages/ui/components",
     ],
+  });
+});
+
+test("a components directory beside pages or layouts gives its parent, the app's root, as Nuxt's app/ is (#1047)", async () => {
+  // Mealie: frontend/app/{components,pages,layouts}.
+  const p = project();
+  stubCli(p.dir);
+  for (const [dir, file] of [
+    ["web/app/components", "A.vue"],
+    ["web/app/pages", "index.vue"],
+    ["web/app/layouts", "default.vue"],
+    ["web/app/pages/admin/components", "B.vue"],
+    // Pages with nothing check reads leave a components directory as it is.
+    ["packages/x/src/components", "C.vue"],
+    ["packages/x/src/pages", "README.md"],
+  ] as const) {
+    mkdirSync(path.join(p.dir, dir), { recursive: true });
+    writeFileSync(path.join(p.dir, dir, file), "");
+  }
+  expect(await run(FLAGS, p.ctx)).toBe(0);
+  expect((await loadConfig(p.dir)).check).toEqual({
+    include: ["packages/x/src/components", "web/app"],
+  });
+});
+
+test("at the repository root, a components directory beside pages or layouts brings them along (#1047)", async () => {
+  // Nuxt 3's layout: components/, pages/ and layouts/ at the root.
+  const p = project();
+  stubCli(p.dir);
+  for (const [dir, file] of [
+    ["components", "A.vue"],
+    ["pages", "index.vue"],
+    ["layouts", "default.vue"],
+  ] as const) {
+    mkdirSync(path.join(p.dir, dir), { recursive: true });
+    writeFileSync(path.join(p.dir, dir, file), "");
+  }
+  expect(await run(FLAGS, p.ctx)).toBe(0);
+  expect((await loadConfig(p.dir)).check).toEqual({
+    include: ["components", "pages", "layouts"],
   });
 });
 
