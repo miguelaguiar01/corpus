@@ -2733,3 +2733,112 @@ export default defineCorpus({
   );
   expect(read("_locales/de/messages.json")).toBe(odd);
 });
+
+test("a strings source reads Apple's Localizable.strings: notes, printf, seeds, a pull that changes one value, a new language, a proposal, and UTF-16 kept (#1037)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de", "fr", "ja"],
+  sources: [
+    { adapter: "strings", type: "ui", path: "App/{lang}.lproj/Localizable.strings" },
+  ],
+});
+`,
+  );
+  for (const lang of ["en", "de", "ja"])
+    mkdirSync(path.join(repo, "App", `${lang}.lproj`), { recursive: true });
+  const en = `// Modules\n"CPU" = "CPU";\n/* The used part of a disk */\n"Used disk memory" = "%1$@ of %2$@ used";\n`;
+  const de = `// Modules\n"CPU" = "CPU";\n"Used disk memory" = "%1$@ von %2$@ belegt";\n`;
+  const ja = `"CPU" = "CPU";\n"Used disk memory" = "%2$@ 中 %1$@ 使用";\n`;
+  writeFileSync(path.join(repo, "App", "en.lproj", "Localizable.strings"), en);
+  writeFileSync(path.join(repo, "App", "de.lproj", "Localizable.strings"), de);
+  // Xcode may write UTF-16 with a byte-order mark.
+  writeFileSync(
+    path.join(repo, "App", "ja.lproj", "Localizable.strings"),
+    Buffer.from(`\uFEFF${ja}`, "utf16le"),
+  );
+  const out = path.join(repo, "snapshot.json");
+  expect(await run(["build", "--out", out], ctx())).toBe(0);
+  const snapshot = JSON.parse(readFileSync(out, "utf8")) as {
+    strings: {
+      id: string;
+      source: string;
+      note?: string;
+      library?: string;
+      file?: string;
+    }[];
+    seedTranslations: Record<string, Record<string, string>>;
+    sources: { path: string; adapter: string }[];
+  };
+  expect(
+    snapshot.strings.map((s) => [s.id, s.source, s.note, s.library, s.file]),
+  ).toEqual([
+    ["CPU", "CPU", "Modules", "printf", "App/en.lproj/Localizable.strings"],
+    [
+      "Used disk memory",
+      "%1$@ of %2$@ used",
+      "The used part of a disk",
+      "printf",
+      "App/en.lproj/Localizable.strings",
+    ],
+  ]);
+  // A value left as the source's travels too; the server keeps it
+  // untranslated.
+  expect(snapshot.seedTranslations).toEqual({
+    de: { CPU: "CPU", "Used disk memory": "%1$@ von %2$@ belegt" },
+    ja: { CPU: "CPU", "Used disk memory": "%2$@ 中 %1$@ 使用" },
+  });
+  expect(snapshot.sources).toEqual([
+    {
+      path: "App/{lang}.lproj/Localizable.strings",
+      adapter: "strings",
+      type: "ui",
+      library: "printf",
+      syntax: "printf",
+    },
+  ]);
+  const checked = ctx();
+  expect(await run(["validate"], checked)).toBe(0);
+  await serve(200, {
+    ...PAYLOAD,
+    types: { CPU: "ui", "Used disk memory": "ui" },
+    translations: {
+      de: { CPU: "Prozessor", "Used disk memory": "%1$@ von %2$@ belegt" },
+      fr: { CPU: "Processeur" },
+      ja: { CPU: "プロセッサ", "Used disk memory": "%2$@ 中 %1$@ 使用" },
+    },
+    minState: "untranslated",
+    sourceChanges: [
+      {
+        kind: "edit",
+        id: "Used disk memory",
+        type: "ui",
+        file: "App/en.lproj/Localizable.strings",
+        text: "%1$@ of %2$@ in use",
+      },
+    ],
+  });
+  expect(await run(["pull"], ctx())).toBe(0);
+  expect(read("App/de.lproj/Localizable.strings")).toBe(
+    de.replace('"CPU" = "CPU";', '"CPU" = "Prozessor";'),
+  );
+  // A new language starts as the source, every key in it.
+  expect(read("App/fr.lproj/Localizable.strings")).toBe(
+    en.replace('"CPU" = "CPU";', '"CPU" = "Processeur";'),
+  );
+  const jaBytes = readFileSync(
+    path.join(repo, "App", "ja.lproj", "Localizable.strings"),
+  );
+  expect([...jaBytes.subarray(0, 2)]).toEqual([0xff, 0xfe]);
+  expect(jaBytes.toString("utf16le")).toBe(
+    `\uFEFF${ja.replace('"CPU" = "CPU";', '"CPU" = "プロセッサ";')}`,
+  );
+  expect(read("App/en.lproj/Localizable.strings")).toBe(
+    en.replace("%1$@ of %2$@ used", "%1$@ of %2$@ in use"),
+  );
+});

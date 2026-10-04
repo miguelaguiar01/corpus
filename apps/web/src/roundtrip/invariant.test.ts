@@ -216,6 +216,7 @@ test("a translation saved in Corpus comes back in exactly the expected file and 
   translate("ios.welcome", "Welcome");
   translate("Janela | Sair | menu", "Exit");
   translate("rails.close", "Shut");
+  translate("apple.quit", "Quit %@");
   translate(
     "rails.footer_MF",
     "You have {n, plural, one {# warning} other {# warnings}}.\n",
@@ -259,6 +260,14 @@ test("a translation saved in Corpus comes back in exactly the expected file and 
       '<translation type="unfinished">Exti</translation>',
       "<translation>Exit</translation>",
     ),
+  );
+  // Apple .strings: the missing key inserted after its neighbour, the
+  // line's comment kept; the source untouched.
+  expect(after["apple/pt-PT.lproj/Localizable.strings"]).toBe(
+    before["apple/pt-PT.lproj/Localizable.strings"],
+  );
+  expect(after["apple/en.lproj/Localizable.strings"]).toBe(
+    `"apple.title" = "Menu"; // kept\n"apple.quit" = "Quit %@";\n`,
   );
   expect(Object.keys(after).sort()).toEqual(Object.keys(before).sort());
   expect(after["i18n/pt-PT.json"]).toBe(before["i18n/pt-PT.json"]);

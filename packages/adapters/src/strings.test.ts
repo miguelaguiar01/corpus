@@ -1,0 +1,130 @@
+import { expect, test } from "vitest";
+import {
+  applyStringsOps,
+  entriesToStrings,
+  stringsToEntries,
+  stringsTranslations,
+} from "./strings";
+import { decodeText, encodeText } from "./text";
+
+const SOURCE = `//
+//  Localizable.strings
+//  Stats
+//
+
+// Modules
+"CPU" = "CPU";
+"Open CPU settings" = "Open CPU settings";
+
+/* The used part of a disk */
+"Used disk memory" = "%0 of %1 used";
+/* No comment provided by engineer. */
+"Quote" = "Say \\"hi\\"\\n\\tthen \\U00e9";
+version = 2;
+"Tagged" = "Tagged"; // ai-translated
+`;
+
+test("a .strings file reads its pairs, quoted or bare, its escapes, and the comment directly above a key as its note (#1037)", () => {
+  expect(stringsToEntries(SOURCE, { type: "ui" })).toEqual([
+    { id: "CPU", type: "ui", source: "CPU", note: "Modules" },
+    { id: "Open CPU settings", type: "ui", source: "Open CPU settings" },
+    {
+      id: "Used disk memory",
+      type: "ui",
+      source: "%0 of %1 used",
+      note: "The used part of a disk",
+    },
+    { id: "Quote", type: "ui", source: 'Say "hi"\n\tthen é' },
+    { id: "version", type: "ui", source: "2" },
+    { id: "Tagged", type: "ui", source: "Tagged" },
+  ]);
+  // Consecutive comment lines are one note; a blank line parts them.
+  expect(
+    stringsToEntries(`// one\n// two\n"a" = "A";\n// gone\n\n"b" = "B";\n`, {
+      type: "ui",
+    }),
+  ).toEqual([
+    { id: "a", type: "ui", source: "A", note: "one\ntwo" },
+    { id: "b", type: "ui", source: "B" },
+  ]);
+  expect(stringsTranslations(`"a" = "Ä";`)).toEqual([
+    { id: "a", type: "", source: "Ä" },
+  ]);
+});
+
+test("a .strings file that does not read is refused with its line (#1037)", () => {
+  expect(() =>
+    stringsToEntries(`"a" = "A"\n"b" = "B";\n`, { type: "ui" }),
+  ).toThrow(/line 2: "a" lacks its ;/);
+  expect(() =>
+    stringsToEntries(`"a" = "A";\n"a" = "B";\n`, { type: "ui" }),
+  ).toThrow(/line 2: "a" is written twice/);
+  expect(() => stringsToEntries(`"a" = "A;\n`, { type: "ui" })).toThrow(
+    /never closes/,
+  );
+});
+
+test("a pull rewrites only a changed value, puts a missing key after its source neighbour, and starts a new file as the source (#1037)", () => {
+  const target = `// Modules\n"CPU" = "CPU";\n"Used disk memory" = "%0 von %1 belegt";\n"Tagged" = "Tagged"; // ai-translated\n`;
+  expect(
+    entriesToStrings(
+      SOURCE,
+      { "Used disk memory": "%0 von %1 belegt" },
+      target,
+    ),
+  ).toBe(target);
+  expect(
+    entriesToStrings(
+      SOURCE,
+      {
+        "Used disk memory": "%0 von %1 genutzt",
+        "Open CPU settings": "CPU-Einstellungen öffnen",
+        Tagged: 'Mit "Tag"',
+      },
+      target,
+    ),
+  ).toBe(
+    `// Modules\n"CPU" = "CPU";\n"Open CPU settings" = "CPU-Einstellungen öffnen";\n"Used disk memory" = "%0 von %1 genutzt";\n"Tagged" = "Mit \\"Tag\\""; // ai-translated\n`,
+  );
+  // CRLF is kept, a new line too.
+  expect(
+    entriesToStrings(
+      SOURCE,
+      { "Open CPU settings": "Öffnen" },
+      `"CPU" = "CPU";\r\n`,
+    ),
+  ).toBe(`"CPU" = "CPU";\r\n"Open CPU settings" = "Öffnen";\r\n`);
+  // A new language takes every key, as Xcode writes them.
+  const fresh = entriesToStrings(SOURCE, { CPU: "Prozessor" });
+  expect(fresh).toBe(SOURCE.replace('"CPU" = "CPU";', '"CPU" = "Prozessor";'));
+});
+
+test("proposals edit, add and remove pairs in the source file, a removal taking its note (#1037)", () => {
+  const out = applyStringsOps(SOURCE, [
+    { kind: "edit", id: "CPU", text: "Processor" },
+    { kind: "delete", id: "Used disk memory" },
+    { kind: "add", id: "New one", text: "New" },
+  ] as never);
+  expect(out).toBe(
+    SOURCE.replace('"CPU" = "CPU";', '"CPU" = "Processor";')
+      .replace(
+        `/* The used part of a disk */\n"Used disk memory" = "%0 of %1 used";\n`,
+        "",
+      )
+      .concat(`"New one" = "New";\n`),
+  );
+});
+
+test("a UTF-16 file decodes with its byte order and encodes back to the same bytes; UTF-8 stays UTF-8 (#1037)", () => {
+  const text = `\uFEFF"a" = "Ä";\n`;
+  for (const encoding of ["utf16le", "utf16be"] as const) {
+    const bytes = encodeText(text, encoding);
+    expect([...bytes.slice(0, 2)]).toEqual(
+      encoding === "utf16le" ? [0xff, 0xfe] : [0xfe, 0xff],
+    );
+    expect(decodeText(bytes)).toEqual({ text, encoding });
+  }
+  const utf8 = new TextEncoder().encode(`"a" = "Ä";\n`);
+  expect(decodeText(utf8)).toEqual({ text: `"a" = "Ä";\n`, encoding: "utf8" });
+  expect(encodeText(`"a" = "Ä";\n`, "utf8")).toEqual(utf8);
+});

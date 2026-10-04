@@ -2674,3 +2674,20 @@ test("FormatJS's crowdin format, { message, description } with ICU text, is entr
     library: "chrome",
   });
 });
+
+test("init writes a strings source for Apple's Localizable.strings, its languages read from the .lproj directories (#1037)", async () => {
+  const p = project();
+  for (const lang of ["en", "de", "en-GB", "zh-Hans", "Base"])
+    write(p.dir, `App/${lang}.lproj/Localizable.strings`, `"CPU" = "CPU";\n`);
+  expect(
+    await run(initFor("App/{lang}.lproj/Localizable.strings"), p.ctx),
+  ).toBe(0);
+  const config = await loadConfig(p.dir);
+  expect(config.sources[0]).toMatchObject({
+    adapter: "strings",
+    path: "App/{lang}.lproj/Localizable.strings",
+  });
+  expect(config.languages).toEqual(["en", "de", "en-GB", "zh-Hans"]);
+  expect(config.sourceVariants).toEqual(["en-GB"]);
+  expect(await run(["build", "--out", "s.json"], p.ctx)).toBe(0);
+});
