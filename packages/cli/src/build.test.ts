@@ -1641,6 +1641,51 @@ test("a Rails target's plural rule is its root key's, as Ruby names the locale, 
   expect(
     report.snapshot.strings.find((s) => s.id === "files")?.pluralForms,
   ).toBeUndefined();
+  // A rule the app stores for the root is the one Ruby finds.
+  mkdirSync(path.join(dir, "config", "initializers"));
+  writeFileSync(
+    path.join(dir, "config", "initializers", "plural.rb"),
+    'I18n.backend.store_translations(:"zh-CN", i18n: { plural: { rule: ->(_n) { :other } } })\n',
+  );
+  const ruled = await buildSnapshotReport(
+    config({
+      sourceLanguage: "en",
+      languages: ["en", "zh-CN"],
+      sources: [
+        {
+          adapter: "yaml",
+          type: "ui",
+          path: "config/locales/{lang}.yml",
+          languageFiles: { "zh-CN": "zh" },
+        },
+      ],
+    }),
+    dir,
+  );
+  expect(ruled.notes.join("\n")).toContain(
+    "zh-CN takes a rule the app stores (config/initializers/plural.rb)",
+  );
+  // A copy rooted at a listed language's tag names that language's file,
+  // and advises no mapping that would take it away.
+  writeFileSync(path.join(dir, "config", "locales", "zh-TW.yml"), yml("zh-CN"));
+  const copied = await buildSnapshotReport(
+    config({
+      sourceLanguage: "en",
+      languages: ["en", "zh-CN", "zh-TW"],
+      sources: [
+        {
+          adapter: "yaml",
+          type: "ui",
+          path: "config/locales/{lang}.yml",
+          languageFiles: { "zh-CN": "zh" },
+        },
+      ],
+    }),
+    dir,
+  );
+  expect(copied.unreadable.map((u) => u.message).join("\n")).toContain(
+    "rooted at zh-CN, not zh-TW: Rails reads it as zh-CN whatever its name, beside zh-CN's own config/locales/zh.yml; if the file is meant to be zh-TW, its root key is the fix",
+  );
   rmSync(dir, { recursive: true, force: true });
 });
 
