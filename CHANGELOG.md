@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- A plural read whole whose forms hold a literal `{…}`, Godot's `{num}`, is read as a plural under printf, rails, counterpart and qt; a seed marked invalid before keeps its mark until its text or source changes (#1052).
 - `corpus pull` and `pull --check` exit 1 when a file cannot hold a saved translation, naming it, and an `=N` branch in a plural a catalogue reads whole is refused when saved (#1051).
 - A Qt `.ts` file's unfinished translation with text is offered as a suggestion, as gettext's fuzzy rows are, and an untranslated queue item carries its suggestion (#1050).
 - A Rails yaml target rooted at the tag `languageFiles` maps to its file (`sr.yml` rooted at `sr-Latn`) is read and pulled under that root, and a file rooted elsewhere says how Rails reads it (#1048).

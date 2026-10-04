@@ -896,14 +896,14 @@ test("the text after a whole plural is placed after the plural as the parser rea
       "printf",
     )?.position,
   ).toBe(37);
-  // A branch's brace is text there: only its close ends the branch.
+  // A form's braces are its text in pairs (#1052): a lone `{` pairs
+  // with the next `}`, as the writers split a form, so this is no one
+  // plural, and no writer could split it either.
   for (const text of [
     "{n, plural, one {a { b} other {c}} tail",
     "{n, plural, one {'{' a} other {b}} tail",
   ])
-    expect(printfPluralError(text, false, "printf")?.position).toBe(
-      text.indexOf("tail"),
-    );
+    expect(printfPluralError(text, false, "printf")).toBeDefined();
 });
 
 test("under android a printf verb in a tag's attribute takes its place in the argument order (#956)", () => {
@@ -1505,4 +1505,45 @@ test("partsOf lists the placeholders a tag's attributes hold apart from the text
   expect([...parts.placeholders]).toEqual(["user"]);
   expect([...parts.attributePlaceholders]).toEqual(["userUrl", "topicUrl"]);
   expect([...partsOf("Hello {name}", "icu").attributePlaceholders]).toEqual([]);
+});
+
+test("in a plural read whole, balanced braces a library reads as text stay in their branch (#1052)", () => {
+  // Godot's {num}, which String::format fills after the lookup.
+  for (const [library, count] of [
+    ["printf", "%d"],
+    ["rails", "%{count}"],
+    ["qt", "%n"],
+    ["counterpart", "%(count)s"],
+  ] as const) {
+    const parsed = parseIcu(
+      `{count, plural, one {1 color} other {{num} colors ${count}}}`,
+      library,
+    );
+    expect(parsed.ok, library).toBe(true);
+    if (!parsed.ok) continue;
+    expect(
+      parsed.nodes.map((n) => n.kind),
+      library,
+    ).toEqual(["plural"]);
+    const plural = parsed.nodes[0]!;
+    if (plural.kind !== "plural") continue;
+    expect(
+      plural.branches
+        .other!.map((n) => (n.kind === "literal" ? n.text : n.kind))
+        .join("|"),
+      library,
+    ).toMatch(/^\{num\} colors /);
+  }
+  // Greek's (%d change): a branch that is itself in braces.
+  const greek = parseIcu(
+    "{count, plural, one {{Αλλαγή %d}} other {{Αλλαγές %d}}}",
+    "printf",
+  );
+  expect(greek.ok && greek.nodes.map((n) => n.kind)).toEqual(["plural"]);
+  // i18next's {{name}} and easy_localization's {} are read as before.
+  const i18next = parseIcu(
+    "{count, plural, one {{{count}} file} other {{{count}} files}}",
+    "i18next",
+  );
+  expect(i18next.ok && i18next.nodes.map((n) => n.kind)).toEqual(["plural"]);
 });
