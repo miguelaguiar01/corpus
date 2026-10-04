@@ -834,13 +834,13 @@ function collectExec(
 // A printf source whose strings write `%` and a digit no verb reads, as
 // an app that substitutes `%0`, `%1` itself writes them (Stats, #1036):
 // under printf they are text, and a translation that drops one passes,
-// where qt reads them by number. One note a source.
+// where qt reads them by number. One note a source file, naming three.
 function unreadPercentNote(
   where: string,
   entries: readonly StringEntry[],
   libraryOf: (entry: StringEntry) => Library,
 ): string | undefined {
-  let count = 0;
+  const ids: string[] = [];
   let example: string | undefined;
   for (const entry of entries) {
     if (libraryOf(entry) !== "printf" || !/%\d/.test(entry.source)) continue;
@@ -856,11 +856,16 @@ function unreadPercentNote(
       i = text.indexOf("%", i + 1);
     }
     if (left === undefined) continue;
-    count += 1;
+    ids.push(entry.id);
     example ??= left;
   }
-  return count > 0
-    ? `${where}: ${count} string(s) write % and a digit that no printf verb reads (${example}): if the app substitutes %0, %1 itself, library: "qt" checks them`
+  return ids.length > 0
+    ? `${where}: ${ids.length} string(s) write % and a digit that no printf verb reads (${example}: ${ids
+        .slice(0, 3)
+        .map(printable)
+        .join(
+          ", ",
+        )}${ids.length > 3 ? ", …" : ""}): if the app substitutes %0, %1 itself, library: "qt" checks them`
     : undefined;
 }
 

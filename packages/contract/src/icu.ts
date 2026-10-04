@@ -332,7 +332,8 @@ class ParseFailure extends Error {
 const PRINTF_VERB_RE =
   /^%(?:\[(\d+)\]|(\d+)\$)?([-+0#]*(?:\d+|\*)?(?:\.(?:\d+|\*))?)((?:hh|h|ll|l|z|j|t|L|q)?[a-zA-Z@])/;
 
-// Whether a printf verb starts at `at`, as the printf reading takes one.
+// Whether a printf verb starts at `at`, as the printf reading takes one;
+// a Python `%(key)` the reading tries first is no verb here.
 export function printfVerbAt(text: string, at: number): boolean {
   return PRINTF_VERB_RE.test(text.slice(at));
 }
