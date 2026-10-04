@@ -54,10 +54,10 @@ test("a leaf that is no string, scalar, list or object is rejected with its path
   ).toThrow(/a\.b/);
 });
 
-test("an array leaf is rejected with its path", () => {
-  expect(() => messagesToEntries({ items: ["x"] }, { type: "chrome" })).toThrow(
-    /items/,
-  );
+test("an array's items are read by their index (#1053)", () => {
+  expect(
+    messagesToEntries({ items: ["x"] }, { type: "chrome" }).map((e) => e.id),
+  ).toEqual(["items.0"]);
 });
 
 test("empty catalog yields no entries", () => {
@@ -477,7 +477,7 @@ test("a natural key's family of blanks is one string whose key is its text; a so
   ]);
 });
 
-test("a null, number or boolean is no string and is skipped; a list is refused by name, the rest read (#1026)", () => {
+test("a null, number or boolean is no string and is skipped; a list's items are read, the rest read (#1026, #1053)", () => {
   const read = (data: unknown) => {
     const refused: [string, string][] = [];
     const entries = messagesToEntries(data, {
@@ -491,10 +491,10 @@ test("a null, number or boolean is no string and is skipped; a list is refused b
       ids: ["a", "c"],
       refused: [],
     });
+  // A list's items are messages by index (#1053); an empty one is none.
   const listed = read({ a: "A", b: ["x"], c: { d: "D", e: [] } });
-  expect(listed.ids).toEqual(["a", "c.d"]);
-  expect(listed.refused.map(([id]) => id)).toEqual(["b", "c.e"]);
-  expect(listed.refused[0]![1]).toMatch(/list/);
+  expect(listed.ids).toEqual(["a", "b.0", "c.d"]);
+  expect(listed.refused).toEqual([]);
   // The file itself must still be an object.
   expect(() => read(["x"])).toThrow(/got array/);
 });

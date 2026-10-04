@@ -2184,9 +2184,9 @@ export default defineCorpus({
   const built = ctx();
   expect(await run(["build", "--out", out], built)).toBe(0);
   const said = built.output.join("\n");
-  expect(said).toContain(
-    "l/de.json: 1 translation(s) not seeded: an entry Corpus cannot read, left as the file has it (d)",
-  );
+  // A list is read by index (#1053): de's `d` list is an item d.0 the
+  // source has no string for, an orphan, not an entry left unread.
+  expect(said).not.toContain("l/de.json: 1 translation(s) not seeded");
   expect(said).toContain(
     "x/messages.de.xlf: 1 translation(s) not seeded: an entry Corpus cannot read, left as the file has it (u2)",
   );
@@ -2208,7 +2208,7 @@ export default defineCorpus({
   const checked = ctx();
   expect(await run(["validate"], checked)).toBe(0);
   const found = checked.output.join("\n");
-  expect(found).toContain("l/de.json:d: Corpus cannot read this entry");
+  expect(found).toContain("l/de.json:d.0: the source no longer has this key");
   expect(found).toContain(
     "x/messages.de.xlf:u2: Corpus cannot read this entry",
   );
@@ -2236,7 +2236,7 @@ export default defineCorpus({
   expect(read("l/de.json")).toBe(de);
   expect(read("x/messages.de.xlf")).toBe(xde);
   expect(pulled.output.join("\n")).toContain(
-    "l/de.json: d is a list in the file, which Corpus cannot read; not written",
+    "l/de.json: d is a list in the file where the source has a string; not written",
   );
   expect(pulled.output.join("\n")).toContain(
     "x/messages.de.xlf: u2 is a unit of the file Corpus cannot read; not written",
@@ -2260,7 +2260,9 @@ export default defineCorpus({
   const refused = ctx();
   expect(await run(["build", "--out", out], refused)).toBe(1);
   const named = refused.output.join("\n");
-  expect(named).toContain("l/en.json [b]: invalid entry:");
+  // A source's list is read by index (#1053): only the xliff unit is
+  // refused.
+  expect(named).not.toContain("l/en.json [b]");
   expect(named).toContain(
     "x/messages.en.xlf [u2]: invalid entry: xliff: unit u2 has 2 segments; a unit is read as one text",
   );
