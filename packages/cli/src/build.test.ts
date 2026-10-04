@@ -2096,3 +2096,119 @@ test("a source's layered placeholder that does not close is refused at build, by
   expect(report.refused.map((r) => r.id)).toEqual(["broken"]);
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("a source whose adapter takes a fixed extension is refused once, by what its file is, when its path has another; a String Catalog that is not JSON says so on one line, once (#1035)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-1035-"));
+  const lproj = path.join(dir, "Stats", "Supporting Files", "en.lproj");
+  mkdirSync(lproj, { recursive: true });
+  writeFileSync(
+    path.join(lproj, "Localizable.strings"),
+    `//\n//  Localizable.strings\n//\n"CPU" = "CPU";\n`,
+  );
+  const cfg = (source: object) =>
+    expandSources(
+      defineCorpus({
+        project: "stats",
+        server: "https://corpus.example",
+        sourceLanguage: "en",
+        languages: ["en", "de"],
+        sources: [source as never],
+      }),
+      dir,
+    );
+  const failure = async (source: object) => {
+    try {
+      await buildSnapshot(cfg(source), dir);
+      return "built";
+    } catch (error) {
+      return (error as Error).message;
+    }
+  };
+  const strings = await failure({
+    adapter: "xcstrings",
+    type: "ui",
+    path: "Stats/Supporting Files/en.lproj/Localizable.strings",
+  });
+  expect(strings).toBe(
+    'snapshot build failed:\n  Stats/Supporting Files/en.lproj/Localizable.strings is an Apple .strings catalogue: declare it { adapter: "strings", type, path }, not as xcstrings',
+  );
+  // A file the messages adapter reads is named so.
+  writeFileSync(path.join(dir, "en.json"), "{}\n");
+  expect(
+    await failure({ adapter: "fluent", type: "ui", path: "{lang}.json" }),
+  ).toContain(
+    'en.json is a catalogue the messages adapter reads: declare it { adapter: "messages", type, path }, not as fluent',
+  );
+  // A String Catalog with a syntax error: one line, its line, once.
+  writeFileSync(
+    path.join(dir, "Localizable.xcstrings"),
+    `{\n  "sourceLanguage": "en",\n  "strings": {},\n}\n`,
+  );
+  const broken = await failure({
+    adapter: "xcstrings",
+    type: "ui",
+    path: "Localizable.xcstrings",
+  });
+  expect(broken).toBe(
+    "snapshot build failed:\n  Localizable.xcstrings: not a String Catalog: it is not JSON (line 4)",
+  );
+  // A bad value, which V8 names without a position, is still placed.
+  writeFileSync(
+    path.join(dir, "Localizable.xcstrings"),
+    `{\n  "sourceLanguage": "en",\n  "version": "1.0",\n  "a": tru\n}\n`,
+  );
+  expect(
+    await failure({
+      adapter: "xcstrings",
+      type: "ui",
+      path: "Localizable.xcstrings",
+    }),
+  ).toBe(
+    "snapshot build failed:\n  Localizable.xcstrings: not a String Catalog: it is not JSON (line 4)",
+  );
+  // A bad escape, which a .strings file allows (\'), is placed too.
+  writeFileSync(
+    path.join(dir, "Localizable.xcstrings"),
+    `{\n  "sourceLanguage": "en",\n  "version": "1.0",\n  "a": "it\\'s",\n  "b": "\\u12"\n}\n`,
+  );
+  expect(
+    await failure({
+      adapter: "xcstrings",
+      type: "ui",
+      path: "Localizable.xcstrings",
+    }),
+  ).toBe(
+    "snapshot build failed:\n  Localizable.xcstrings: not a String Catalog: it is not JSON (line 4)",
+  );
+  // A named format keeps its pointer.
+  mkdirSync(path.join(dir, "po"), { recursive: true });
+  writeFileSync(path.join(dir, "po", "en.properties"), "");
+  expect(
+    await failure({
+      adapter: "gettext",
+      type: "ui",
+      path: "po/{lang}.properties",
+    }),
+  ).toBe(
+    "snapshot build failed:\n  po/en.properties is not a file gettext reads: it reads .po and .pot; it is a Java .properties catalogue, which no adapter reads: an exec source converts it (the wiki's Sources and adapters, exec)",
+  );
+  // An extension no format is named for says what the adapter reads.
+  mkdirSync(path.join(dir, "po"), { recursive: true });
+  writeFileSync(path.join(dir, "po", "en.po.txt"), "");
+  expect(
+    await failure({ adapter: "gettext", type: "ui", path: "po/{lang}.po.txt" }),
+  ).toBe(
+    "snapshot build failed:\n  po/en.po.txt is not a file gettext reads: it reads .po and .pot",
+  );
+  // A Qt Linguist file is named by its first bytes.
+  writeFileSync(
+    path.join(dir, "app_en.ts"),
+    `<?xml version="1.0" encoding="utf-8"?>\n<TS version="2.1" language="en"></TS>\n`,
+  );
+  expect(
+    await failure({ adapter: "fluent", type: "ui", path: "app_{lang}.ts" }),
+  ).toContain(
+    'app_en.ts is a Qt Linguist catalogue: declare it { adapter: "qt-ts"',
+  );
+  rmSync(dir, { recursive: true, force: true });
+});

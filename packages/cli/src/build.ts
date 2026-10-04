@@ -262,6 +262,9 @@ export async function buildSnapshotReport(
   // Whether the snapshot is for a push, which the refusal names.
   pushing = false,
 ): Promise<BuildReport> {
+  const misnamed = misnamedSources(config, cwd);
+  if (misnamed.length > 0)
+    throw new CliError(`snapshot build failed:\n  ${misnamed.join("\n  ")}`);
   const jiti = createJiti(import.meta.url);
   const sourced: Sourced[] = [];
   const entities: Entity[] = [];
@@ -573,7 +576,10 @@ export async function buildSnapshotReport(
   }
 
   if (errors.length > 0) {
-    throw new CliError(`snapshot build failed:\n  ${errors.join("\n  ")}`);
+    // A file both source and seeds fails once, not once a read (#1035).
+    throw new CliError(
+      `snapshot build failed:\n  ${[...new Set(errors)].join("\n  ")}`,
+    );
   }
   // A whole file refused is a misread file, not a typo (#491): pushing
   // the rest would archive every string it holds, and a pending
@@ -844,6 +850,45 @@ export function unknownArguments(
           `arguments names ${printable(id)}, which the source does not have`,
       ),
   );
+}
+
+// The extensions an adapter's files take, where they are fixed (#1035);
+// xliff and qt-ts read varied names.
+const FIXED_EXTENSIONS: Partial<Record<string, readonly string[]>> = {
+  xcstrings: [".xcstrings"],
+  strings: [".strings"],
+  fluent: [".ftl"],
+  gettext: [".po", ".pot"],
+  yaml: [".yml", ".yaml"],
+};
+
+// A source whose adapter takes fixed extensions and whose file has
+// another, named by what the file is (#1035): Stats' Localizable.strings
+// declared as a String Catalog would otherwise be a JSON error, twice.
+export function misnamedSources(config: CorpusConfig, cwd: string): string[] {
+  const out = new Set<string>();
+  for (const source of config.sources) {
+    if (source.adapter === "exec") continue;
+    const extensions = FIXED_EXTENSIONS[source.adapter];
+    if (!extensions) continue;
+    const file = fileOf(source, config.sourceLanguage, config.sourceLanguage);
+    if (extensions.includes(path.extname(file).toLowerCase())) continue;
+    // A Qt `.ts` is told from TypeScript by its first bytes.
+    const what =
+      unreadableFile(path.join(cwd, file)) ??
+      `a catalogue the messages adapter reads: declare it { adapter: "messages", type, path }`;
+    out.add(
+      what.includes(": declare it")
+        ? `${file} is ${what}, not as ${source.adapter}`
+        : `${file} is not a file ${source.adapter} reads: it reads ${extensions.join(" and ")}${
+            // A named format keeps its pointer: Android's res, or exec.
+            /^an? /.test(what) && !what.startsWith("a file without")
+              ? `; it is ${what}`
+              : ""
+          }`,
+    );
+  }
+  return [...out];
 }
 
 // The values a string's code passes beside its source's, as its
