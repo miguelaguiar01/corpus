@@ -88,6 +88,9 @@ export type ValidationError =
   // vue-i18n: an `@` that opens no link, which its compiler refuses
   // (#1017); `{'@'}` writes the character.
   | { code: "bare-at" }
+  // gen-l10n prints a plural branch's `#` as written (#1038): the
+  // translation wrote one the source does not, meaning the count.
+  | { code: "hash-text"; arg: string }
   | { code: "missing-category"; arg: string; key: string }
   // Under chrome, a `$` Chrome reads otherwise than it looks (#631): a
   // lone one, a `$40`, a `$$NAME$`.
@@ -147,6 +150,38 @@ function nestingOf(
       for (const branch of Object.values(node.branches))
         nestingOf(branch, node.arg, out);
     } else if (node.kind === "tag") nestingOf(node.children, outer, out);
+  }
+  return out;
+}
+
+// Per plural, the `#` each of its branches' text holds (#1038).
+function hashesInPlurals(
+  nodes: IcuNode[],
+  out = new Map<string, number[]>(),
+): Map<string, number[]> {
+  const count = (branch: IcuNode[]): number =>
+    branch.reduce(
+      (n, node) =>
+        n +
+        (node.kind === "literal"
+          ? (node.text.match(/#/g)?.length ?? 0)
+          : node.kind === "tag"
+            ? count(node.children)
+            : node.kind === "select"
+              ? Math.max(0, ...Object.values(node.branches).map(count))
+              : 0),
+      0,
+    );
+  for (const node of nodes) {
+    if (node.kind === "plural")
+      out.set(node.arg, [
+        ...(out.get(node.arg) ?? []),
+        ...Object.values(node.branches).map(count),
+      ]);
+    if (node.kind === "select" || node.kind === "plural")
+      for (const branch of Object.values(node.branches))
+        hashesInPlurals(branch, out);
+    if (node.kind === "tag") hashesInPlurals(node.children, out);
   }
   return out;
 }
@@ -1188,11 +1223,20 @@ export function validateTranslation(
   // The source's own text keeps the source's warning, not an error: a
   // translation that is the source cannot be the translator's `#` (#923),
   // nor one that is it restructured (#1009).
-  if (!sameMessage(source, target, syntax))
+  // gen-l10n's `#` is text everywhere: hash-text says it.
+  if (!sameMessage(source, target, syntax) && syntax !== "gen_l10n")
     for (const arg of countsInSelects(parsedTarget.nodes))
       errors.push({ code: "nested-count", arg });
   if (target !== source && bareAtOf(target, syntax))
     errors.push({ code: "bare-at" });
+  // A branch may write as many `#` as the source's branch that writes
+  // most: a hashtag in every form is the source's text, not the count.
+  if (syntax === "gen_l10n") {
+    const own = hashesInPlurals(sourceNodes);
+    for (const [arg, branches] of hashesInPlurals(targetNodes))
+      if (Math.max(...branches) > Math.max(0, ...(own.get(arg) ?? [])))
+        errors.push({ code: "hash-text", arg });
+  }
   for (const [arg, keys] of actual.selects) {
     const sourceKeys = expected.selects.get(arg);
     if (syntax === "fluent") {

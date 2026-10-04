@@ -111,6 +111,9 @@ export const LIBRARIES = [
   "rails",
   "qt",
   "formatjs",
+  // Flutter's gen-l10n (#1038): an ICU subset, `#` text, date and time
+  // only with a skeleton, no number, selectordinal or offset.
+  "gen_l10n",
   // The fluent adapter's reading (#990): ICU with Fluent's identifiers
   // and nesting. A config never names it.
   "fluent",
@@ -159,6 +162,7 @@ const LIBRARY_NAMES: Record<Library, string> = {
   qt: "Qt",
   fluent: "Fluent",
   formatjs: "FormatJS",
+  gen_l10n: "gen-l10n",
 };
 
 export function libraryName(library: Library): string {
@@ -180,10 +184,16 @@ export function isFluentTermId(id: string): boolean {
 }
 
 // ICU MessageFormat's own semantics: plain ICU, FormatJS's, whose
-// difference is apostrophe quoting (#1010), and Fluent read as ICU,
-// whose differences are names and nesting (#990).
+// difference is apostrophe quoting (#1010), Fluent read as ICU, whose
+// differences are names and nesting (#990), and gen-l10n's subset
+// (#1038).
 export function readsAsIcu(library: Library): boolean {
-  return library === "icu" || library === "formatjs" || library === "fluent";
+  return (
+    library === "icu" ||
+    library === "formatjs" ||
+    library === "fluent" ||
+    library === "gen_l10n"
+  );
 }
 
 // A string type whose text an HTML renderer reads (#622): its tags are

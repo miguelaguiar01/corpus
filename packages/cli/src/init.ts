@@ -37,6 +37,7 @@ import { printable } from "./printable";
 import {
   configKey,
   fileOf,
+  isArb,
   readEntries,
   sourceLibrary,
   sourcePluralIds,
@@ -53,7 +54,7 @@ import {
 import { ignoreCorpusDir } from "./corpus-dir";
 
 export const INIT_USAGE =
-  "corpus init --project <slug> --source <lang> --messages <path with {lang}, a .xcstrings or an Android res directory> [--languages <a,b>] [--server <url>] [--type <name>] [--library <icu|formatjs|i18next|vue|printf|chrome|counterpart|easy_localization|rails|qt>]";
+  "corpus init --project <slug> --source <lang> --messages <path with {lang}, a .xcstrings or an Android res directory> [--languages <a,b>] [--server <url>] [--type <name>] [--library <icu|formatjs|gen_l10n|i18next|vue|printf|chrome|counterpart|easy_localization|rails|qt>]";
 
 // `corpus init` writes the config from flags alone, so it scripts;
 // it validates the config before writing and never overwrites one.
@@ -975,6 +976,18 @@ const ICU_ANY_ARGUMENT_RE = /\{\s*[^{},]+\s*,\s*[a-z]+/;
 // argument (`{count, plural, …}`) and no Chrome `$NAME$` or
 // `placeholders`; a bare `{name}` decides nothing, as uBlock's Chrome
 // catalogue writes `{{count}}`.
+// Whether the project's l10n.yaml turns on gen-l10n's apostrophe
+// escaping (#1038).
+function useEscaping(cwd: string): boolean {
+  try {
+    return /^\s*use-escaping\s*:\s*true\b/m.test(
+      readFileSync(path.join(cwd, "l10n.yaml"), "utf8"),
+    );
+  } catch {
+    return false;
+  }
+}
+
 function chromeShaped(file: string): boolean {
   if (!file.endsWith(".json")) return false;
   try {
@@ -1134,12 +1147,28 @@ async function libraryFor(
   // Where the catalogue reads as icu, ICU as FormatJS reads it, its
   // apostrophe quoting (#1010), if its package runs on FormatJS.
   const runtime = formatjsRuntime(cwd, pattern);
+  // An .arb catalogue read as ICU is Flutter's gen-l10n's (#1038), whose
+  // subset the library reads; another shape counted above names its own.
+  const flutter = isArb(file)
+    ? {
+        library: {
+          value: "gen_l10n" as const,
+          detected: file,
+          why: "the .arb catalogue Flutter's gen-l10n reads",
+        },
+        ...(useEscaping(cwd) && {
+          note: "l10n.yaml sets use-escaping: true, gen-l10n's apostrophe quoting, which Corpus does not read: a brace quoted there reads as a placeholder",
+        }),
+      }
+    : undefined;
   const asIcu = (note?: string) =>
-    runtime
-      ? { library: { value: "formatjs" as const, ...runtime } }
-      : note
-        ? { note }
-        : {};
+    flutter
+      ? { ...flutter, ...(note && !flutter.note && { note }) }
+      : runtime
+        ? { library: { value: "formatjs" as const, ...runtime } }
+        : note
+          ? { note }
+          : {};
   // Ghost's shape (#589): the sentence is the key and the value is "".
   // A committed target named as the source says its own why (#999).
   if (!textKeyed && keyed > 0 && keyed * 2 >= texts.length) {

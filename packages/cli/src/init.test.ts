@@ -2691,3 +2691,41 @@ test("init writes a strings source for Apple's Localizable.strings, its language
   expect(config.sourceVariants).toEqual(["en-GB"]);
   expect(await run(["build", "--out", "s.json"], p.ctx)).toBe(0);
 });
+
+test("init writes library gen_l10n for an .arb catalogue, Flutter's gen-l10n, and says use-escaping is not read (#1038)", async () => {
+  const p = project();
+  write(
+    p.dir,
+    "lib/l10n/app_en.arb",
+    JSON.stringify({
+      "@@locale": "en",
+      weeks: "{count, plural, one{{count} week} other{{count} weeks}}",
+    }),
+  );
+  write(p.dir, "lib/l10n/app_de.arb", JSON.stringify({ "@@locale": "de" }));
+  expect(await run(initFor("lib/l10n/app_{lang}.arb"), p.ctx)).toBe(0);
+  expect((await loadConfig(p.dir)).sources[0]).toMatchObject({
+    library: "gen_l10n",
+  });
+  expect(p.out.join("\n")).toContain("library: gen_l10n");
+  // --library still decides.
+  const q = project();
+  write(q.dir, "lib/l10n/app_en.arb", JSON.stringify({ hi: "Hi" }));
+  expect(
+    await run(
+      [...initFor("lib/l10n/app_{lang}.arb"), "--library", "icu"],
+      q.ctx,
+    ),
+  ).toBe(0);
+  expect((await loadConfig(q.dir)).sources[0]).not.toMatchObject({
+    library: "gen_l10n",
+  });
+  // use-escaping is gen-l10n's apostrophe quoting, which Corpus reads as text.
+  const e = project();
+  write(e.dir, "lib/l10n/app_en.arb", JSON.stringify({ hi: "Hi" }));
+  write(e.dir, "l10n.yaml", "arb-dir: lib/l10n\nuse-escaping: true\n");
+  expect(await run(initFor("lib/l10n/app_{lang}.arb"), e.ctx)).toBe(0);
+  expect(e.out.join("\n")).toContain(
+    "l10n.yaml sets use-escaping: true, gen-l10n's apostrophe quoting, which Corpus does not read",
+  );
+});
