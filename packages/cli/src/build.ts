@@ -1164,13 +1164,14 @@ export async function readEntries(
           ? yamlToEntries(text(), { type: source.type, root })
           : typed(
               yamlTranslations(text(), root, pluralIds, {
-                // The file of the language a root names, if it has one.
-                ownFile: (code) => {
-                  const own = source.path.replaceAll("{lang}", code);
-                  return own !== file && existsSync(path.join(cwd, own))
-                    ? own
-                    : undefined;
-                },
+                // The file of the language a root names, if it has one:
+                // a tag languageFiles maps, or a file's code (#1048).
+                ownFile: (root) =>
+                  [fileCodeOf(source, root), root]
+                    .map((code) => source.path.replaceAll("{lang}", code))
+                    .find(
+                      (own) => own !== file && existsSync(path.join(cwd, own)),
+                    ),
               }),
             ),
       );
