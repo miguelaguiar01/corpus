@@ -1,6 +1,7 @@
 import {
   EXACT_KEY,
   PLURAL_CATEGORIES,
+  fmtLiteralBraces,
   pluralCategoriesOf,
   type StringEntry,
 } from "@corpus/contract";
@@ -253,11 +254,26 @@ export function pluralBranches(
       !(exact && EXACT_KEY.test(key))
     )
       return undefined;
-    let depth = 0;
-    let end = open;
+    // A form's own braces are as its library writes them: a field or an
+    // argument nests, and `{{` and `}}` are fmt's and i18next's pairs, a
+    // run of `}` closing the branch where a key or the end follows it, so
+    // the split is the one the reader makes (#1002).
+    let depth = 1;
+    let end = open + 1;
     for (; end < text.length; end++) {
-      if (text[end] === "{") depth++;
-      else if (text[end] === "}" && --depth === 0) break;
+      if (text[end] === "{") {
+        if (depth === 1 && text[end + 1] === "{") end++;
+        else depth++;
+      } else if (text[end] === "}") {
+        if (depth > 1) {
+          depth--;
+          continue;
+        }
+        const literal = fmtLiteralBraces(text, end, true);
+        if (literal === undefined) return undefined;
+        if (literal === 0) break;
+        end += literal - 1;
+      }
     }
     if (end >= text.length) return undefined;
     forms[key] = text.slice(open + 1, end);

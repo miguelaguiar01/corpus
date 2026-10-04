@@ -54,7 +54,7 @@ import {
 import { ignoreCorpusDir } from "./corpus-dir";
 
 export const INIT_USAGE =
-  "corpus init --project <slug> --source <lang> --messages <path with {lang}, a .xcstrings or an Android res directory> [--languages <a,b>] [--server <url>] [--type <name>] [--library <icu|formatjs|gen_l10n|i18next|vue|printf|chrome|counterpart|easy_localization|rails|qt>]";
+  "corpus init --project <slug> --source <lang> --messages <path with {lang}, a .xcstrings or an Android res directory> [--languages <a,b>] [--server <url>] [--type <name>] [--library <icu|formatjs|gen_l10n|fmt|i18next|vue|printf|chrome|counterpart|easy_localization|rails|qt>]";
 
 // `corpus init` writes the config from flags alone, so it scripts;
 // it validates the config before writing and never overwrites one.
@@ -211,24 +211,30 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       );
     }
   }
-  // Only the messages adapter's library is detected; every other format
-  // has its default, which only the flag changes, and xliff's is fixed.
+  // Only the messages adapter's library is detected, and gettext's fmt
+  // fields (#1002); every other format has its default, which only the
+  // flag changes, and xliff's is fixed.
+  const flagged = args.includes("--library") || args.includes("--syntax");
   const detected =
-    adapter === "xliff" ||
-    (adapter !== "messages" &&
-      !args.includes("--library") &&
-      !args.includes("--syntax"))
-      ? {}
-      : await libraryFor(
-          args,
-          ctx.cwd,
-          messages,
-          sourceLanguage,
-          type,
-          ctx,
-          keyIsText ? sourcePath : undefined,
-          entries,
-        );
+    adapter === "gettext" && !flagged
+      ? gettextLibrary(
+          path.join(
+            ctx.cwd,
+            sourcePath ?? messages.replaceAll("{lang}", sourceLanguage),
+          ),
+        )
+      : adapter === "xliff" || (adapter !== "messages" && !flagged)
+        ? {}
+        : await libraryFor(
+            args,
+            ctx.cwd,
+            messages,
+            sourceLanguage,
+            type,
+            ctx,
+            keyIsText ? sourcePath : undefined,
+            entries,
+          );
   const library = detected.library;
   const components = checkIncludeFor(ctx.cwd, res ?? messages);
   const include = components.include;
@@ -971,11 +977,44 @@ const PLURAL_SUFFIX_RE = /_(?:zero|one|two|few|many|other)$/;
 // in a catalogue with a stray pipe is still ICU, not vue-i18n.
 const ICU_ANY_ARGUMENT_RE = /\{\s*[^{},]+\s*,\s*[a-z]+/;
 
-// Chrome's `{ message, description }`, which FormatJS's crowdin format
-// writes too (#1001): FormatJS's where its text writes a typed ICU
-// argument (`{count, plural, …}`) and no Chrome `$NAME$` or
-// `placeholders`; a bare `{name}` decides nothing, as uBlock's Chrome
-// catalogue writes `{{count}}`.
+// A gettext catalogue whose placeholders are libfmt or str.format
+// fields, `{count:L}`, and no printf verb, is fmt's (#1002): printf
+// would read its braces as text, and a wrong field aborts the program.
+function gettextLibrary(file: string): {
+  library?: { value: Library; detected: string; why: string };
+  note?: string;
+} {
+  let ids: string[];
+  try {
+    ids = gettextToEntries(readFileSync(file, "utf8"), { type: "x" }).map(
+      (e) => e.id,
+    );
+  } catch {
+    return {};
+  }
+  // A named field: C#'s composite `{0}` and `{0,-10}` are no fmt's.
+  // Not `{{user}}`, angular-gettext's and Jinja's.
+  const field =
+    /(?<!\{)\{[A-Za-z_]\w*(?:[.[][^{}]*)?(?:![rsa])?(?::[^{}]*)?\}(?!\})/;
+  const typed =
+    /\{\s*\w+\s*,\s*(?:plural|select|selectordinal|number|date|time)\b/;
+  // Python's `%(name)s` is printf's too (#1012).
+  const key = /%\([^)]+\)[#0 +-]*\d*(?:\.\d+)?[diouxXeEfFgGcrsa]/;
+  const fields = ids.filter((id) => field.test(id) && !typed.test(id)).length;
+  const verbs = ids.filter((id) => PRINTF_RE.test(id) || key.test(id)).length;
+  if (fields < 2 || fields <= verbs) return {};
+  return {
+    library: {
+      value: "fmt",
+      detected: path.basename(file),
+      why: "libfmt and str.format {name} fields",
+    },
+    ...(verbs > 0 && {
+      note: `${verbs} msgid(s) write printf verbs or %(name)s, which fmt reads as text`,
+    }),
+  };
+}
+
 // Whether the project's l10n.yaml turns on gen-l10n's apostrophe
 // escaping (#1038).
 function useEscaping(cwd: string): boolean {
@@ -988,6 +1027,11 @@ function useEscaping(cwd: string): boolean {
   }
 }
 
+// Chrome's `{ message, description }`, which FormatJS's crowdin format
+// writes too (#1001): FormatJS's where its text writes a typed ICU
+// argument (`{count, plural, …}`) and no Chrome `$NAME$` or
+// `placeholders`; a bare `{name}` decides nothing, as uBlock's Chrome
+// catalogue writes `{{count}}`.
 function chromeShaped(file: string): boolean {
   if (!file.endsWith(".json")) return false;
   try {

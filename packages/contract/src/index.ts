@@ -21,6 +21,7 @@ export {
   sameMessage,
   WHOLE_PLURAL_LIBRARIES,
   FLUENT_OPTIONS_RE,
+  fmtLiteralBraces,
   type IcuError,
   type IcuNode,
   type IcuParseResult,
