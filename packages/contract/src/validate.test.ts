@@ -3378,6 +3378,37 @@ test("a category branch that writes the number 1 and no count, where the languag
       incomplete: [{ code: "fixed-count", values: [21, 31, 41], more: true }],
     });
   }
+  // i18next takes a written zero for 0 in every language, and gen-l10n
+  // a written zero for 0 and two for 2, before the category.
+  for (const library of ["i18next", "gen_l10n"] as const)
+    expect(
+      validateTranslation(
+        "{count, plural, zero{none} one{1 week} other{{count} weeks}}",
+        "{count, plural, zero{aucune} one{1 semaine} other{{count} semaines}}",
+        "fr",
+        library,
+      ).incomplete?.filter((e) => e.code === "fixed-count"),
+    ).toBeUndefined();
+  // A 1 that is part of a time, a name or a number is no count.
+  for (const one of ["u 1:30", "A1 tjedan", "1.5 tjedan", "1,5 tjedan"])
+    expect(
+      validateTranslation(
+        weeks,
+        `{count, plural, one{${one}} few{{count} tjedna} other{{count} tjedana}}`,
+        "hr",
+        "icu",
+      ),
+    ).toEqual({ ok: true });
+  // Arabic-Indic and full-width digits are the same 1.
+  for (const one of ["۱ هفته", "１ 週"])
+    expect(
+      validateTranslation(
+        weeks,
+        `{count, plural, one{${one}} few{{count} tjedna} other{{count} tjedana}}`,
+        "hr",
+        "icu",
+      ),
+    ).toMatchObject({ incomplete: [{ code: "fixed-count" }] });
   // de's one is 1 alone; a branch that prints the count is fine; so is
   // one whose 1 is part of a number, or a count-free text.
   expect(
