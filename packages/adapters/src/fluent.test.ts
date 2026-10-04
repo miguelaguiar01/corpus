@@ -609,3 +609,32 @@ emptying-trash = { trash } 비우는 중 ({ $progress })...
     ),
   ).toContain("emptying-trash = { trash } 비우는 중 ({ $progress })…\n");
 });
+
+test("a reference changed to the variable of the same name is written, and a literal holding {@x} is no reference: the old view is skipped only where its bare names are references (#1083 review)", () => {
+  const source = `items = Items
+count = {$items ->
+    [one] {items} item
+    *[other] {$items} items
+  }
+`;
+  const target = `items = Itens
+count = {$items ->
+    [one] {items} item
+    *[other] {$items} itens
+  }
+`;
+  expect(fluentToEntries(target, { type: "ui" })[1]?.source).toBe(
+    "{items, plural, one {{@items} item} other {{items} itens}}",
+  );
+  expect(
+    entriesToFluent(
+      source,
+      { count: "{items, plural, one {{items} item} other {{items} itens}}" },
+      target,
+    ),
+  ).toContain("    [one] {$items} item\n");
+  const literal = `a = Say {"{@x}"}\n`;
+  expect(entriesToFluent(literal, { a: 'Say {"{x}"}' }, literal)).toBe(
+    `a = Say {"{x}"}\n`,
+  );
+});
