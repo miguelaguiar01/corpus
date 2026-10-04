@@ -868,7 +868,7 @@ copied = Copiado {$items} {$items ->
   expect(snapshot.strings[1]).toMatchObject({
     id: "copied",
     source:
-      "Copied {items} {items, plural, one {item} other {items}} to {trash}",
+      "Copied {items} {items, plural, one {item} other {items}} to {@trash}",
     file: "i18n/en/app.ftl",
   });
 
@@ -883,7 +883,7 @@ copied = Copiado {$items} {$items ->
       pt: {
         trash: "Lixo",
         copied:
-          "Copiado {items} {items, plural, one {item} many {itens} other {itens}} para {trash}",
+          "Copiado {items} {items, plural, one {item} many {itens} other {itens}} para {@trash}",
       },
       gl: { trash: "Lixo" },
     },

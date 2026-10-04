@@ -569,7 +569,7 @@ trash = Trash
       undefined,
     ),
   ).toContain(
-    "count = {$items} {$items ->\n    [one] {items}\n   *[other] elementos\n  } em {trash}",
+    "count = {$items} {$items ->\n    [one] {items}\n    *[other] elementos\n  } em {trash}",
   );
   // A reference a translation adds is written as one, spaced as the
   // file writes its placeables.
