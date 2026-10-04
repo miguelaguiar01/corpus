@@ -191,12 +191,17 @@ export default defineCorpus({
     //    `{{count}}`.
     //    A null, number or boolean value is no string, as in yaml, and
     //    is skipped, left by a pull, a source's counted in a build note
-    //    since push archives a string that became one; a list is
-    //    refused by name, since i18next's
-    //    `returnObjects` lists hold text: a source's is left out as a
-    //    string that does not parse is, a target's is not seeded, named
-    //    by `build` and as a `validate` warning, and left by a pull, a
-    //    translation for it named and not written (#1026).
+    //    since push archives a string that became one; a list's items
+    //    are read by index, as vue-i18n's path resolver and i18next's
+    //    `t('list.0.name')` look them up, `FEATURES.0` and
+    //    `DATE_RANGE.0.name` the ids, a number or flag in one skipped
+    //    (#1053). A pull edits an item in place; a target that lacks the
+    //    list, or holds it short, takes the source's items to the last
+    //    one a translation writes, their other text and their numbers
+    //    the source's, as a new file does, which drops a list with none
+    //    translated; a proposal edits an item but never adds or removes
+    //    one, which would renumber those after it. A list where the
+    //    source has a string is named and left by a pull (#1026).
     { adapter: "messages", type: "chrome", path: "src/i18n/messages.{lang}.json" },
 
     // 2. Generic structured-data adapter: point at a JSON/TS module and map

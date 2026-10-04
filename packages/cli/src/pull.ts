@@ -632,7 +632,7 @@ function writeTarget(
               : "is a plural its object cannot hold (an =N branch, or a brace a form leaves open)",
           ),
         onList: (id) =>
-          refused(id, "is a list in the file, which Corpus cannot read"),
+          refused(id, "is a list in the file where the source has a string"),
       });
     case "xliff":
       return entriesToXliff(template, translations, existing, language, (id) =>

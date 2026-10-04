@@ -589,8 +589,7 @@ function walk(
     return;
   }
   if (path.length > 0) {
-    // As yaml's (§3): a null, number or boolean is no string. A list may
-    // hold text (i18next's `returnObjects`), so it is named (#1026).
+    // As yaml's (§3): a null, number or boolean is no string.
     if (
       node === null ||
       typeof node === "number" ||
@@ -599,10 +598,11 @@ function walk(
       options.onSkipped?.(path.join("."));
       return;
     }
-    if (Array.isArray(node) && options.onRefused) {
-      options.onRefused(
-        path.join("."),
-        `the value at ${path.join(".")} is a list; Corpus reads strings and nested objects`,
+    // A list's items are messages by index, as vue-i18n's path resolver
+    // and i18next's `t('list.0.name')` read them (#1053).
+    if (Array.isArray(node)) {
+      node.forEach((item, index) =>
+        walk(item, [...path, String(index)], options, out, paths),
       );
       return;
     }

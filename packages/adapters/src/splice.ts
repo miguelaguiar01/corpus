@@ -17,6 +17,24 @@ export function checkPath(path: string[]): void {
   }
 }
 
+// The node at a key path, a segment into a list read as its index
+// (#1053); undefined where the path leads nowhere.
+export function nodeAt(
+  node: Node | undefined,
+  path: string[],
+): Node | undefined {
+  for (const segment of path) {
+    if (!node) return undefined;
+    node =
+      node.type === "array"
+        ? /^\d+$/.test(segment)
+          ? node.children?.[Number(segment)]
+          : undefined
+        : findNodeAtLocation(node, [segment]);
+  }
+  return node;
+}
+
 function root(text: string): Node {
   const tree = parseTree(text);
   if (!tree || tree.type !== "object") {
@@ -38,9 +56,7 @@ export function keyOrder(
   return (objectPath) => {
     const id = objectPath.join("\u0000");
     if (cache.has(id)) return cache.get(id);
-    const node = objectPath.length
-      ? findNodeAtLocation(tree, objectPath)
-      : tree;
+    const node = objectPath.length ? nodeAt(tree, objectPath) : tree;
     const keys =
       node?.type === "object"
         ? (node.children ?? []).map((p) => String(p.children?.[0]?.value))
@@ -66,19 +82,100 @@ function writesInline(text: string, node: Node): boolean {
 // style: on one line inside an inline object, expanded otherwise.
 function render(
   segments: string[],
-  value: string,
+  value: string | JsonValue,
   inline: boolean,
   indent: string,
   unit: string,
   eol: string,
 ): string {
-  if (segments.length === 0) return JSON.stringify(value);
+  if (segments.length === 0)
+    return typeof value === "string"
+      ? JSON.stringify(value)
+      : jsonText(value.json, inline, indent, unit, eol);
   const [head, ...rest] = segments;
   const inner = render(rest, value, inline, indent + unit, unit, eol);
   const key = JSON.stringify(head);
   return inline
     ? `{ ${key}: ${inner} }`
     : `{${eol}${indent}${unit}${key}: ${inner}${eol}${indent}}`;
+}
+
+// A value that is no string, a list the source holds, written whole
+// (#1053).
+export type JsonValue = { json: unknown };
+
+// A JSON value in the file's style: on one line in an inline object,
+// else one item a line under `indent`.
+function jsonText(
+  value: unknown,
+  inline: boolean,
+  indent: string,
+  unit: string,
+  eol: string,
+): string {
+  if (!inline && value !== null && typeof value === "object")
+    return JSON.stringify(value, null, unit)
+      .split("\n")
+      .join(eol + indent);
+  // One line, built rather than squeezed, so no string's text changes.
+  const one = (v: unknown): string => {
+    if (Array.isArray(v)) return `[${v.map(one).join(", ")}]`;
+    if (v !== null && typeof v === "object") {
+      const entries = Object.entries(v);
+      return entries.length === 0
+        ? "{}"
+        : `{ ${entries.map(([k, x]) => `${JSON.stringify(k)}: ${one(x)}`).join(", ")} }`;
+    }
+    return JSON.stringify(v);
+  };
+  return one(value);
+}
+
+// An item appended to the list at `path`, in its style (#1053).
+export function appendItem(
+  text: string,
+  path: string[],
+  value: unknown,
+  unit: string,
+): string {
+  checkPath(path);
+  const list = nodeAt(root(text), path);
+  if (list?.type !== "array") return text;
+  const eol = eolOf(text);
+  const items = list.children ?? [];
+  const inline = isInline(text, list);
+  const last = items[items.length - 1];
+  const indent = last
+    ? lineIndent(text, last.offset)
+    : lineIndent(text, list.offset) + unit;
+  const item = jsonText(value, inline, indent, unit, eol);
+  if (!last) {
+    const open = list.offset + 1;
+    const close = list.offset + list.length - 1;
+    return inline
+      ? text.slice(0, open) + item + text.slice(close)
+      : `${text.slice(0, open)}${eol}${indent}${item}${eol}${lineIndent(text, list.offset)}${text.slice(close)}`;
+  }
+  const at = last.offset + last.length;
+  return `${text.slice(0, at)}${inline ? ", " : `,${eol}${indent}`}${item}${text.slice(at)}`;
+}
+
+// The list at `path` cut to its first `keep` items, the rest and the
+// separators before them gone (#1053).
+export function truncateList(
+  text: string,
+  path: string[],
+  keep: number,
+): string {
+  const list = nodeAt(root(text), path);
+  const items = list?.type === "array" ? (list.children ?? []) : [];
+  if (keep >= items.length || keep < 1) return text;
+  const last = items[keep - 1]!;
+  const end = items[items.length - 1]!;
+  return (
+    text.slice(0, last.offset + last.length) +
+    text.slice(end.offset + end.length)
+  );
 }
 
 // The node's token replaced, whatever it holds.
@@ -98,7 +195,7 @@ export function editLeaf(
   value: string,
 ): string | undefined {
   checkPath(path);
-  const node = findNodeAtLocation(root(text), path);
+  const node = nodeAt(root(text), path);
   if (!node || node.type !== "string") return undefined;
   return replaceNode(text, node, value);
 }
@@ -108,7 +205,7 @@ export function editLeaf(
 // too, up to the root. Unchanged text when there is no string there.
 export function deleteLeaf(text: string, path: string[]): string {
   checkPath(path);
-  const node = findNodeAtLocation(root(text), path);
+  const node = nodeAt(root(text), path);
   if (!node || node.type !== "string") return text;
   return removeProperty(text, path);
 }
@@ -118,13 +215,11 @@ export function deleteLeaf(text: string, path: string[]): string {
 // placeholders (#595).
 export function deleteKey(text: string, path: string[]): string {
   checkPath(path);
-  return findNodeAtLocation(root(text), path)
-    ? removeProperty(text, path)
-    : text;
+  return nodeAt(root(text), path) ? removeProperty(text, path) : text;
 }
 
 function removeProperty(text: string, path: string[]): string {
-  const node = findNodeAtLocation(root(text), path);
+  const node = nodeAt(root(text), path);
   const property = node?.parent;
   const object = property?.parent;
   if (!property || property.type !== "property" || !object) return text;
@@ -161,7 +256,7 @@ function removeProperty(text: string, path: string[]): string {
 export function addLeaf(
   text: string,
   path: string[],
-  value: string,
+  value: string | JsonValue,
   unit: string,
   order?: (objectPath: string[]) => string[] | undefined,
 ): string {
@@ -170,23 +265,26 @@ export function addLeaf(
   let parent: Node = tree;
   let depth = 0;
   for (; depth < path.length - 1; depth++) {
-    const next = findNodeAtLocation(parent, [path[depth]!]);
+    const next = nodeAt(parent, [path[depth]!]);
     if (!next) break;
+    // An object a list holds is a parent like any other (#1053).
     if (next.type !== "object") {
+      if (typeof value !== "string") return text;
       return addLeaf(text, [path.join(".")], value, unit, order);
     }
     parent = next;
   }
   const existing =
-    depth === path.length - 1
-      ? findNodeAtLocation(parent, [path[depth]!])
-      : undefined;
+    depth === path.length - 1 ? nodeAt(parent, [path[depth]!]) : undefined;
   if (existing?.type === "object") {
     throw new Error(
       `messages: id ${JSON.stringify(path.join("."))} collides with a nested key path`,
     );
   }
-  if (existing) return replaceNode(text, existing, value);
+  if (existing)
+    return typeof value === "string"
+      ? replaceNode(text, existing, value)
+      : text;
   const last = parent.children?.[parent.children.length - 1];
   const eol = eolOf(text);
   const rendered = render(
