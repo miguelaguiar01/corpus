@@ -3537,3 +3537,18 @@ test("an =N branch in a plural read whole is invalid: the catalogue's plurals ho
     ).ok,
   ).toBe(true);
 });
+
+test("a printf plural whose forms hold a literal {…} is a plural, its translations checked as one (#1052)", () => {
+  const source = "{count, plural, one {1 color} other {{num} colors}}";
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, one {{num} barva} few {{num} barvy} other {{num} barev}}",
+      "cs",
+      "printf",
+    ),
+  ).toEqual({ ok: true });
+  expect(validateTranslation(source, "{num} צבעים", "he", "printf").ok).toBe(
+    false,
+  );
+});
