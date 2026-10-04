@@ -488,6 +488,16 @@ type Sequence = {
 
 const MAX_DEPTH = 200;
 
+// The skeletons gen-l10n formats a date or a time by, its
+// `validDateFormats`: intl's DateFormat constructors (#1038).
+const GEN_L10N_DATE_FORMATS = new Set(
+  (
+    "d E EEEE LLL LLLL M Md MEd MMM MMMd MMMEd MMMM MMMMd MMMMEEEEd QQQ QQQQ " +
+    "y yM yMd yMEd yMMM yMMMd yMMMEd yMMMM yMMMMd yMMMMEEEEd yQQQ yQQQQ " +
+    "H Hm Hms j jm jms jmv jmz jv jz m ms s"
+  ).split(" "),
+);
+
 // The plural cases gen-l10n's `pluralCases` takes (#1038).
 const GEN_L10N_PLURAL_KEYS = new Set([
   "=0",
@@ -1294,6 +1304,18 @@ class Parser {
       )
         throw new ParseFailure(
           `gen-l10n formats only date and time, with a ::skeleton such as {d, date, ::yMd}; write {${name}} and format it in the code`,
+          start,
+        );
+      // Its skeletons are intl's DateFormat constructors, joined by +.
+      if (
+        this.syntax === "gen_l10n" &&
+        !style!
+          .slice(2)
+          .split("+")
+          .every((part) => GEN_L10N_DATE_FORMATS.has(part.trim()))
+      )
+        throw new ParseFailure(
+          `gen-l10n has no DateFormat for ${JSON.stringify(style)}: a skeleton is one of intl's named formats, yMd, yMMMd, jm and the like, joined by +`,
           start,
         );
       // Fluent formats through NUMBER() and DATETIME(), whose options a

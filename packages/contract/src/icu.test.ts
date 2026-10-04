@@ -1153,3 +1153,44 @@ test("under gen_l10n a # the source does not write is text gen-l10n prints as wr
     ).ok,
   ).toBe(true);
 });
+
+test("under gen_l10n a # the source writes in its text is the source's in every branch, and a skeleton is one of intl's named DateFormats (#1038)", () => {
+  const source =
+    "{count, plural, one{{count} post in #{channel}} other{{count} posts in #{channel}}}";
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, one{{count} wpis w #{channel}} few{{count} wpisy w #{channel}} many{{count} wpisów w #{channel}} other{{count} wpisu w #{channel}}}",
+      "pl",
+      "gen_l10n",
+    ).ok,
+  ).toBe(true);
+  expect(
+    validateTranslation(
+      "{n, plural, one{Rank #1} other{Rank #{n}}}",
+      "{n, plural, one{Rang #1} few{Rang #{n}} many{Rang #{n}} other{Rang #{n}}}",
+      "pl",
+      "gen_l10n",
+    ).ok,
+  ).toBe(true);
+  const read = (text: string) => parseIcu(text, "gen_l10n").ok;
+  expect(read("{d, date, ::yMMMd}")).toBe(true);
+  expect(read("{d, date, ::yMd+jm}")).toBe(true);
+  for (const text of [
+    "{d, date, ::yMMM d}",
+    "{d, date, ::y-MM}",
+    "{d, date, ::yyyyMMdd}",
+    "{d, date, ::dMMMy}",
+  ])
+    expect(read(text)).toBe(false);
+  // A # in a select inside a plural is said once, as hash-text.
+  const check = validateTranslation(
+    "{n, plural, one{{g, select, f{{n} file} other{{n} file}}} other{{g, select, f{{n} files} other{{n} files}}}}",
+    "{n, plural, one{{g, select, f{# plik} other{# plik}}} other{{g, select, f{# pliki} other{# pliki}}}}",
+    "pl",
+    "gen_l10n",
+  );
+  expect(check.ok ? [] : check.errors.map((e) => e.code)).toEqual([
+    "hash-text",
+  ]);
+});
