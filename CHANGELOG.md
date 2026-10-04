@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- `corpus build` notes a printf source whose strings write `%0`, `%1` that no verb reads, and suggests `library: "qt"`, which checks them (#1036).
 - A source whose path its adapter does not read, a `.strings` file declared as a String Catalog say, is refused once, naming the file's format and the adapter that reads it (#1035).
 - A Fluent message's or term's attached `#` comment is its note, shown to translators and agents (#1034).
 - `corpus validate` warns where a Fluent translation passes a term an argument, or selects on a term attribute, that the locale's own term does not have (#1033).
