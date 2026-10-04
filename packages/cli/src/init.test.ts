@@ -1325,30 +1325,29 @@ test("init's search for Angular's messages.xlf: an absolute pattern, several pro
 });
 
 test("the xliff sourcePath init chose is not said to be left out for naming no language; a stray file still is (#1219)", async () => {
-  const p = project();
-  stubCli(p.dir);
   const unit = `<xliff version="1.2"><file source-language="en"><body><trans-unit id="a"><source>Hello</source></trans-unit></body></file></xliff>\n`;
-  mkdirSync(path.join(p.dir, "src", "locale"), { recursive: true });
-  for (const name of ["de.xlf", "messages.xlf", "notes.xlf"])
-    writeFileSync(path.join(p.dir, "src", "locale", name), unit);
-  await run(
-    [
-      "init",
-      "--project",
-      "app",
-      "--source",
-      "en",
-      "--messages",
-      "src/locale/{lang}.xlf",
-    ],
-    p.ctx,
-  );
-  expect(p.out).toContain(
-    "sourcePath: src/locale/messages.xlf (the messages.xlf nearest the translations)",
-  );
-  const said = p.err.join("\n");
-  expect(said).not.toContain("src/locale/messages.xlf names no language tag");
-  expect(said).toContain("src/locale/notes.xlf names no language tag");
+  // However the pattern spells its directory.
+  for (const messages of [
+    "src/locale/{lang}.xlf",
+    "./src/locale/{lang}.xlf",
+    "src/./locale/{lang}.xlf",
+  ]) {
+    const p = project();
+    stubCli(p.dir);
+    mkdirSync(path.join(p.dir, "src", "locale"), { recursive: true });
+    for (const name of ["de.xlf", "messages.xlf", "notes.xlf"])
+      writeFileSync(path.join(p.dir, "src", "locale", name), unit);
+    await run(
+      ["init", "--project", "app", "--source", "en", "--messages", messages],
+      p.ctx,
+    );
+    expect(p.out, messages).toContain(
+      "sourcePath: src/locale/messages.xlf (the messages.xlf nearest the translations)",
+    );
+    const said = p.err.join("\n");
+    expect(said, messages).not.toMatch(/messages\.xlf names no language tag/);
+    expect(said, messages).toMatch(/notes\.xlf names no language tag/);
+  }
 });
 
 test("init writes a gettext source for .po catalogues, the .pot beside them its source, and the config builds (#720)", async () => {
