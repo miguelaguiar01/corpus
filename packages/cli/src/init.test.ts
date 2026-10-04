@@ -800,6 +800,36 @@ test("init detects the library from the namespaces that read, and names the ones
   expect(some.out.join("\n")).toMatch(
     /^library: vue, from a pipe or a quoted literal in locales\/en\/a\.json \(locales\/en\/b\.json not read: .+\)$/m,
   );
+  // An icu result says it too, and more than three are counted.
+  const icu = at({
+    "locales/en/a.json": JSON.stringify({ hello: "Hello {name}" }),
+    ...Object.fromEntries(
+      ["b", "c", "d", "e"].map((ns) => [`locales/en/${ns}.json`, "{ x"]),
+    ),
+    "locales/de/a.json": "{}",
+  });
+  await run(flags, icu.ctx);
+  expect(icu.out.join("\n")).toMatch(
+    /^library: icu \(locales\/en\/b\.json, locales\/en\/c\.json, locales\/en\/d\.json, and 1 more not read: .+\)$/m,
+  );
+  // A source file that is missing is said already, not again here.
+  const missing = project();
+  stubCli(missing.dir);
+  mkdirSync(path.join(missing.dir, "locales"), { recursive: true });
+  writeFileSync(path.join(missing.dir, "locales", "de.json"), "{}");
+  await run(
+    [
+      "init",
+      "--project",
+      "app",
+      "--source",
+      "en",
+      "--messages",
+      "locales/{lang}.json",
+    ],
+    missing.ctx,
+  );
+  expect(missing.out.join("\n")).not.toMatch(/library: not detected/);
   // None that reads is said, not silence.
   const none = at({
     "locales/en/b.json": "{ not json",

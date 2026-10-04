@@ -45,6 +45,21 @@ test("a quoted literal in braces is vue-i18n's literal interpolation, and builds
       refusalCause("Email {'@'} domain", "icu", parsed.errors[0]!.message),
   ).toBe("library");
   expect(parseIcu("Email {'@'} domain", "vue").ok).toBe(true);
+  // ICU's own apostrophe quoting of a brace is no vue literal, nor is a
+  // literal vue refuses, nor a Fluent text's.
+  for (const [source, library] of [
+    ["Type '{'0'}' to insert it", "icu"],
+    ["Type '{'0'}' to insert it", "gen_l10n"],
+    ["It {'it''s'} here", "icu"],
+    ["Email {'@'} domain", "fluent"],
+  ] as const) {
+    const refused = parseIcu(source, library);
+    const message = refused.ok ? "" : refused.errors[0]!.message;
+    expect(refusalAdvice(source, library, message), source).not.toContain(
+      "vue",
+    );
+    expect(refusalCause(source, library, message), source).toBeUndefined();
+  }
 });
 
 test("a refusal with nothing to add gets no clause", () => {
