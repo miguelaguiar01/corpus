@@ -1314,6 +1314,13 @@ test("under fmt each gettext form numbers its own {}, the reader's count is no f
       },
     ],
   });
+  // A plural laid out over lines, its own } apart.
+  expect(
+    parseIcu(
+      "{count, plural,\n  one {{n} set }}}\n  other {{n} sets }}}\n}",
+      "fmt",
+    ).ok,
+  ).toBe(true);
   // B5: automatic and manual numbering do not mix.
   expect(check("{} of {}", "{} sur {1}", "fr").ok).toBe(false);
   expect(parseIcu("{} {1}", "fmt").ok).toBe(false);

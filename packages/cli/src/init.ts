@@ -993,7 +993,9 @@ function gettextLibrary(file: string): {
     return {};
   }
   // A named field: C#'s composite `{0}` and `{0,-10}` are no fmt's.
-  const field = /\{[A-Za-z_]\w*(?:[.[][^{}]*)?(?:![rsa])?(?::[^{}]*)?\}/;
+  // Not `{{user}}`, angular-gettext's and Jinja's.
+  const field =
+    /(?<!\{)\{[A-Za-z_]\w*(?:[.[][^{}]*)?(?:![rsa])?(?::[^{}]*)?\}(?!\})/;
   const typed =
     /\{\s*\w+\s*,\s*(?:plural|select|selectordinal|number|date|time)\b/;
   // Python's `%(name)s` is printf's too (#1012).

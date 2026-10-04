@@ -2772,6 +2772,7 @@ test("init leaves printf where Python's %(name)s outnumbers the fields, and a C#
       "Bye {name}",
     ],
     ["{0} files", "{0,-10} name", "{1} of {0}"],
+    ["Hello {{user}}", "{{count}} items", "Bye {{user}}"],
   ]) {
     const p = project();
     write(p.dir, "po/messages.pot", po("2025-01-01 10:00+0000", ids));

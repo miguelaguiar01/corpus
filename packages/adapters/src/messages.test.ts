@@ -559,4 +559,11 @@ test("a plural's forms split as the reader reads them: a form's own }} pairs sta
   expect(pluralBranches("{count, plural, one {a } b} other {c}}")).toBe(
     undefined,
   );
+  // The plural's own } may stand after space or a line break.
+  expect(
+    pluralBranches("{count, plural, one {%d fichier} other {%d fichiers} }"),
+  ).toEqual({ one: "%d fichier", other: "%d fichiers" });
+  expect(
+    pluralBranches("{count, plural,\n  one {{x} a}\n  other {{x} b}\n}"),
+  ).toEqual({ one: "{x} a", other: "{x} b" });
 });

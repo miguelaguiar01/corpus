@@ -517,11 +517,12 @@ export function fmtLiteralBraces(
 ): number | undefined {
   const run = /^\}+/.exec(text.slice(at))![0].length;
   const after = text.slice(at + run);
+  // The plural's own `}` may stand apart, after space or a line break.
   const closing = !inBranch
     ? 0
     : /^\s*$/.test(after)
       ? 2
-      : /^\s*(?:=\d+|zero|one|two|few|many|other)\s*\{/.test(after)
+      : /^\s*(?:(?:=\d+|zero|one|two|few|many|other)\s*\{|\}\s*$)/.test(after)
         ? 1
         : 0;
   const literal = run - Math.min(closing, run);
