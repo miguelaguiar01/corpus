@@ -45,6 +45,13 @@ test("a quoted literal in braces is vue-i18n's literal interpolation, and builds
       refusalCause("Email {'@'} domain", "icu", parsed.errors[0]!.message),
   ).toBe("library");
   expect(parseIcu("Email {'@'} domain", "vue").ok).toBe(true);
+  // Spaced or escaped, as vue-i18n reads a literal.
+  expect(adviceFor("Email { '@' } domain", "icu")).toBe(
+    `; { '@' } is vue-i18n's literal interpolation: declare library: "vue" on the source`,
+  );
+  expect(adviceFor("It{'\\''}s", "icu")).toBe(
+    `; {'\\''} is vue-i18n's literal interpolation: declare library: "vue" on the source`,
+  );
   // ICU's own apostrophe quoting of a brace is no vue literal, nor is a
   // literal vue refuses, nor a Fluent text's.
   for (const [source, library] of [
@@ -52,6 +59,8 @@ test("a quoted literal in braces is vue-i18n's literal interpolation, and builds
     ["Type '{'0'}' to insert it", "gen_l10n"],
     ["It {'it''s'} here", "icu"],
     ["Email {'@'} domain", "fluent"],
+    // vue refuses it too: the hint would send it back to icu.
+    ["{n, plural, one {Email {'@'}} other {x}}", "icu"],
   ] as const) {
     const refused = parseIcu(source, library);
     const message = refused.ok ? "" : refused.errors[0]!.message;

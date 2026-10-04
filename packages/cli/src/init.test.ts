@@ -830,6 +830,20 @@ test("init detects the library from the namespaces that read, and names the ones
     missing.ctx,
   );
   expect(missing.out.join("\n")).not.toMatch(/library: not detected/);
+  // A namespace that is a broken link is a file that does not read.
+  const linked = at({
+    "locales/en/a.json": JSON.stringify({ files: "one file | {n} files" }),
+    "locales/de/a.json": "{}",
+  });
+  const { symlinkSync } = await import("node:fs");
+  symlinkSync(
+    path.join(linked.dir, "nowhere.json"),
+    path.join(linked.dir, "locales/en/b.json"),
+  );
+  await run(flags, linked.ctx);
+  expect(linked.out.join("\n")).toMatch(
+    /^library: vue, .*\(locales\/en\/b\.json not read: .+\)$/m,
+  );
   // None that reads is said, not silence.
   const none = at({
     "locales/en/b.json": "{ not json",
