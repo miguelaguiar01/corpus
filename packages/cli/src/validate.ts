@@ -25,6 +25,7 @@ import {
 } from "@corpus/contract";
 import { gettextPluralIds, isBlank, qtShortForms } from "@corpus/adapters";
 import { printable } from "./printable";
+import { readRepoText } from "./repo-text";
 import type { RunContext } from "./cli";
 import {
   deprecations,
@@ -976,7 +977,9 @@ function pairsOf(
 ): ReadonlySet<string> | undefined {
   if (source.adapter !== "gettext") return undefined;
   try {
-    return gettextPluralIds(readFileSync(path.join(cwd, sourceFile), "utf8"));
+    // The ids as the reader writes them, a namespace's prefix included.
+    const ids = gettextPluralIds(readRepoText(path.join(cwd, sourceFile)));
+    return new Set([...ids].map((id) => namespaced(source, id)));
   } catch {
     return undefined;
   }
