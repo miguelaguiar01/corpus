@@ -344,17 +344,20 @@ function hashesAsLiterals(text: string): string {
 }
 
 // A view as read before #1083, its message references bare, `{trash}`:
-// what a server may still hold for a message nobody changed. Only where
-// each bare name is one the writer takes for a reference, `refs`, so a
-// reference changed to the variable of its name is a change; a string
-// literal is kept as written.
-function bareReferences(icu: string, refs: Set<string>): string | undefined {
+// what a server may still hold for a message nobody changed. Not where
+// a bare name is one of the source message's own variables, `variables`,
+// since there a reference changed to the variable of its name is a
+// change; a string literal is kept as written.
+function bareReferences(
+  icu: string,
+  variables: Set<string>,
+): string | undefined {
   let bare = true;
   const out = icu.replace(
     /\{"(?:[^"\\\n]|\\.)*"\}|\{@([A-Za-z][\w-]*)\}/g,
     (match, name: string | undefined) => {
       if (name === undefined) return match;
-      if (!refs.has(name)) bare = false;
+      if (variables.has(name)) bare = false;
       return `{${name}}`;
     },
   );
@@ -563,6 +566,7 @@ type Template = {
   text: string;
   byId: Map<string, Message>;
   refsFor: (id: string) => Set<string>;
+  variablesOf: (id: string) => Set<string>;
 };
 
 function patch(text: string, changes: Change[], template: Template): string {
@@ -599,7 +603,7 @@ function patch(text: string, changes: Change[], template: Template): string {
       const current = toIcu(text, message);
       if (
         current === next ||
-        bareReferences(current, template.refsFor(id)) === next
+        bareReferences(current, template.variablesOf(id)) === next
       ) {
         if (end !== message.valueEnd)
           patches.push({ start: message.valueEnd, end, text: "" });
@@ -642,15 +646,21 @@ function templateOf(template: string, added: string[] = []): Template {
   const messageNames = [...byId.keys(), ...added].filter(
     (id) => !variables.has(id),
   );
+  const variablesOf = (id: string) => {
+    const own = byId.get(id);
+    const value = own ? template.slice(own.valueStart, own.valueEnd) : "";
+    return new Set(
+      [...value.matchAll(/\{\s*\$([A-Za-z][\w-]*)/g)].map((m) => m[1]!),
+    );
+  };
   return {
     text: template,
     byId,
+    variablesOf,
     refsFor: (id) => {
       const own = byId.get(id);
       const value = own ? template.slice(own.valueStart, own.valueEnd) : "";
-      const ownVariables = new Set(
-        [...value.matchAll(/\{\s*\$([A-Za-z][\w-]*)/g)].map((m) => m[1]!),
-      );
+      const ownVariables = variablesOf(id);
       const written = [...value.matchAll(/\{\s*([A-Za-z][\w-]*)\s*\}/g)]
         .map((m) => m[1]!)
         .filter((name) => !ownVariables.has(name));
