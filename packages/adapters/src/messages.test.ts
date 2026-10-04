@@ -609,3 +609,65 @@ test("in a target, an object of categories at an id the source reads as a plural
     ).map((e) => e.id),
   ).toEqual(["rooms.one", "rooms.few", "rooms.other"]);
 });
+
+test("an ARB source's placeholder examples are the string's example, rendered, and their descriptions join its note; a target's are not read (#1040)", () => {
+  const arb = {
+    healthSyncStatus: "Last synced at {time} by {user}",
+    "@healthSyncStatus": {
+      description: "Shown under the sync button.",
+      placeholders: {
+        time: {
+          type: "String",
+          example: "7/31/2026 14:32",
+          description: "When the last sync ran.",
+        },
+        user: { type: "String" },
+      },
+    },
+    plain: "Hello",
+  };
+  expect(
+    messagesToEntries(arb, {
+      type: "ui",
+      arb: true,
+      sourceFile: true,
+      library: "gen_l10n",
+    }),
+  ).toEqual([
+    {
+      id: "healthSyncStatus",
+      type: "ui",
+      source: "Last synced at {time} by {user}",
+      note: "Shown under the sync button.\ntime: When the last sync ran.",
+      examples: [
+        {
+          values: { time: "7/31/2026 14:32" },
+          rendered: "Last synced at 7/31/2026 14:32 by {user}",
+        },
+      ],
+    },
+    { id: "plain", type: "ui", source: "Hello" },
+  ]);
+  expect(
+    messagesToEntries(arb, { type: "ui", arb: true })[0]?.examples,
+  ).toBeUndefined();
+});
+
+test("an ARB example renders as the author wrote it, never capitalised, and a placeholder named __proto__ keeps its example (#1040 review)", () => {
+  const entries = messagesToEntries(
+    {
+      legacyInvite: "{email} has invited you",
+      "@legacyInvite": {
+        placeholders: { email: { example: "family@example.com" } },
+      },
+      odd: "{__proto__} here",
+      // As a file reads: JSON.parse makes it a key of its own.
+      "@odd": JSON.parse('{"placeholders": {"__proto__": {"example": "x"}}}'),
+    },
+    { type: "ui", arb: true, sourceFile: true },
+  );
+  expect(entries[0]?.examples?.[0]?.rendered).toBe(
+    "family@example.com has invited you",
+  );
+  expect(entries[1]?.examples?.[0]?.rendered).toBe("x here");
+});
