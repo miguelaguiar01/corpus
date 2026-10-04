@@ -103,7 +103,7 @@ test("a category branch that writes 1 for a count is said in the editor (#1042)"
       "icu",
     ),
   ).toBe(
-    "The one branch of count writes 1, which this language also picks for 21, 31, 41 and more: write the count in it",
+    "The one branch of count writes 1, but this language also picks it for 21, 31, 41 and more: write the count in it",
   );
   expect(
     validationMessage(
@@ -111,6 +111,6 @@ test("a category branch that writes 1 for a count is said in the editor (#1042)"
       "icu",
     ),
   ).toBe(
-    "The one branch of count writes 1, which this language also picks for 0: write the count in it",
+    "The one branch of count writes 1, but this language also picks it for 0: write the count in it",
   );
 });

@@ -302,7 +302,7 @@ test("describe words every error code", () => {
       more: true,
     }),
   ).toBe(
-    "the one branch of {count} writes 1, which this language also picks for 21, 31, 41 and more: write {count} in it",
+    "the one branch of {count} writes 1, but this language also picks it for 21, 31, 41 and more: write {count} in it",
   );
   expect(
     describe(
@@ -310,7 +310,7 @@ test("describe words every error code", () => {
       "i18next",
     ),
   ).toBe(
-    "the one branch of {count} writes 1, which this language also picks for 0: write {{count}} in it",
+    "the one branch of {count} writes 1, but this language also picks it for 0: write {{count}} in it",
   );
   expect(
     describe(
