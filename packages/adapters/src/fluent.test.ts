@@ -25,7 +25,7 @@ dismiss = Descartar
 test("messages read as ICU: variables and references are placeholders, a select on a count is a plural, a multi-line value keeps its line break (#597)", () => {
   expect(fluentToEntries(SOURCE, { type: "ui" })).toEqual([
     { id: "trash", type: "ui", source: "Trash" },
-    { id: "empty-trash", type: "ui", source: "Empty {trash}" },
+    { id: "empty-trash", type: "ui", source: "Empty {@trash}" },
     {
       id: "operations-running",
       type: "ui",
@@ -533,4 +533,114 @@ b = { NUMBER\t($n) }
   );
   expect(read.a).toBe('{n, plural, one {{n, number, x: "#"} y} other {z}}');
   expect(refused).toEqual(["b"]);
+});
+
+test("a message reference reads as {@name}, a variable as {name}; the writer writes each back as Fluent does, and an older view's bare reference is still one (#1083)", () => {
+  // Anki's de re-uses its own word for a message the source writes inline.
+  const de = `preferences-url-schemes = URL-Schemata
+preferences-url-scheme-prompt = Erlaubte { preferences-url-schemes } (durch Leerzeichen getrennt):
+`;
+  expect(fluentToEntries(de, { type: "ui" })[1]?.source).toBe(
+    "Erlaubte {@preferences-url-schemes} (durch Leerzeichen getrennt):",
+  );
+  const translations = Object.fromEntries(
+    fluentToEntries(de, { type: "ui" }).map((e) => [e.id, e.source]),
+  );
+  expect(entriesToFluent(de, translations, de)).toBe(de);
+  // cosmic-files' message `items` beside a variable `$items`: the view
+  // says which is which, and so does the writer.
+  const source = `items = Items
+count = {$items} {$items ->
+    [one] item
+    *[other] items
+  } in {trash}
+trash = Trash
+`;
+  expect(fluentToEntries(source, { type: "ui" })[1]?.source).toBe(
+    "{items} {items, plural, one {item} other {items}} in {@trash}",
+  );
+  expect(
+    entriesToFluent(
+      source,
+      {
+        count:
+          "{items} {items, plural, one {{@items}} other {elementos}} em {@trash}",
+      },
+      undefined,
+    ),
+  ).toContain(
+    "count = {$items} {$items ->\n    [one] {items}\n    *[other] elementos\n  } em {trash}",
+  );
+  // A reference a translation adds is written as one, spaced as the
+  // file writes its placeables.
+  expect(
+    entriesToFluent(SOURCE, { "empty-trash": "Baleirar {@trash}" }, GL),
+  ).toBe(`${GL}empty-trash = Baleirar { trash }\n`);
+  // A proposal into the source file too.
+  expect(
+    applyFluentOps(SOURCE, [
+      { kind: "add", id: "added", text: "See {@trash}" },
+    ]),
+  ).toContain("added = See {trash}\n");
+});
+
+test("a pull of what a view before #1083 read, its references bare, leaves the message as the file writes it (#1083)", () => {
+  // Anki's ko statistics, a select whose default is not other, and
+  // cosmic-files' spaced placeables.
+  const target = `statistics-in-time-span-years = 년
+statistics-in = { $unit ->
+    [days] { statistics-in-time-span-days }
+   *[years] { statistics-in-time-span-years }
+  }
+emptying-trash = { trash } 비우는 중 ({ $progress })...
+`;
+  const legacy = {
+    "statistics-in":
+      "{unit, select, days {{statistics-in-time-span-days}} years {{statistics-in-time-span-years}} other {{statistics-in-time-span-years}}}",
+    "emptying-trash": "{trash} 비우는 중 ({progress})...",
+  };
+  expect(entriesToFluent(target, legacy, target)).toBe(target);
+  // A changed one is written, its references still references.
+  expect(
+    entriesToFluent(
+      target,
+      { "emptying-trash": "{trash} 비우는 중 ({progress})…" },
+      target,
+    ),
+  ).toContain("emptying-trash = { trash } 비우는 중 ({ $progress })…\n");
+});
+
+test("a reference changed to the variable of the same name is written, and a literal holding {@x} is no reference: the old view is skipped only where its bare names are references (#1083 review)", () => {
+  const source = `items = Items
+count = {$items ->
+    [one] {items} item
+    *[other] {$items} items
+  }
+`;
+  const target = `items = Itens
+count = {$items ->
+    [one] {items} item
+    *[other] {$items} itens
+  }
+`;
+  expect(fluentToEntries(target, { type: "ui" })[1]?.source).toBe(
+    "{items, plural, one {{@items} item} other {{items} itens}}",
+  );
+  expect(
+    entriesToFluent(
+      source,
+      { count: "{items, plural, one {{items} item} other {{items} itens}}" },
+      target,
+    ),
+  ).toContain("    [one] {$items} item\n");
+  const literal = `a = Say {"{@x}"}\n`;
+  expect(entriesToFluent(literal, { a: 'Say {"{x}"}' }, literal)).toBe(
+    `a = Say {"{x}"}\n`,
+  );
+});
+
+test("the old view of a message that refers to a message only the target defines pulls back unchanged; only the source message's own variables make a bare name ambiguous (#1083 review 2)", () => {
+  const source = `trash = Trash\nm2 = {trash} here\n`;
+  const target = `trash = Lixo\nz = já\nm2 = {trash} {z}\n`;
+  expect(entriesToFluent(source, { m2: "{trash} {z}" }, target)).toBe(target);
 });

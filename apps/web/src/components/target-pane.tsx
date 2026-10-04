@@ -18,7 +18,7 @@ import {
   vueDefaultForms,
   isFluentTermId,
 } from "@corpus/contract";
-import { chipText } from "@/components/source-view";
+import { chipLabel, chipText } from "@/components/source-view";
 import { sourceStamp } from "@/translations/stamp";
 import type { QueueKind } from "@/catalogue/queues";
 import { Banner } from "@/components/ui/banner";
@@ -353,7 +353,11 @@ export function TargetPane({
                   "min-h-8 hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
               })}
               title={
-                [slot.description, hint(slot.name)]
+                [
+                  slot.description,
+                  chipLabel(slot.name, syntax),
+                  hint(slot.name),
+                ]
                   .filter(Boolean)
                   .join("\n") || undefined
               }

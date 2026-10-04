@@ -231,6 +231,7 @@
   "settings.version": "Corpus build {version}",
   "source.branches": "Branches",
   "source.ordinal": "(ordinal: 1st, 2nd…)",
+  "source.fluentMessage": "The message {name}, as each language's own file defines it",
   "state.agentDraft": "agent",
   "state.agentDraftCount": "{n} agent",
   "state.eachLanguage": "each of the {n} languages",

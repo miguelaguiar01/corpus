@@ -267,7 +267,9 @@ function parsePlaceable(s: string, i: number, id: string): [string, number] {
       throw new Refusal(
         `${id} prints a term's attribute, which only a select reads`,
       );
-    return [`{${name}${call}}`, j + 1];
+    // A message reference is `@name` in the view, so it reads apart
+    // from a variable of the same name (#1083).
+    return [`{${term || variable ? name : `@${name}`}${call}}`, j + 1];
   }
   if (!(variable || attribute) || s.slice(j, j + 2) !== "->")
     throw new Refusal(`${id} has a placeable Corpus does not read`);
@@ -339,6 +341,27 @@ function hashesAsLiterals(text: string): string {
     at = m.index + m[0].length;
   }
   return out + text.slice(at).replaceAll("#", '{"#"}');
+}
+
+// A view as read before #1083, its message references bare, `{trash}`:
+// what a server may still hold for a message nobody changed. Not where
+// a bare name is one of the source message's own variables, `variables`,
+// since there a reference changed to the variable of its name is a
+// change; a string literal is kept as written.
+function bareReferences(
+  icu: string,
+  variables: Set<string>,
+): string | undefined {
+  let bare = true;
+  const out = icu.replace(
+    /\{"(?:[^"\\\n]|\\.)*"\}|\{@([A-Za-z][\w-]*)\}/g,
+    (match, name: string | undefined) => {
+      if (name === undefined) return match;
+      if (variables.has(name)) bare = false;
+      return `{${name}}`;
+    },
+  );
+  return bare ? out : undefined;
 }
 
 function toIcu(text: string, message: Message): string {
@@ -470,7 +493,7 @@ function render(icu: string, style: Style, refs: Set<string>): string {
         i + literal[0].length,
       ];
     const head =
-      /^\s*([A-Za-z0-9_.-]+)(\((?:[^()"\n]|"(?:[^"\\\n]|\\.)*")*\))?\s*(?:,\s*(plural|select)\s*,)?/.exec(
+      /^\s*(@?[A-Za-z0-9_.-]+)(\((?:[^()"\n]|"(?:[^"\\\n]|\\.)*")*\))?\s*(?:,\s*(plural|select)\s*,)?/.exec(
         icu.slice(i),
       )!;
     const name = head[1]!;
@@ -491,8 +514,12 @@ function render(icu: string, style: Style, refs: Set<string>): string {
         ];
       }
       j = icu.indexOf("}", j) + 1;
-      // A term is written as it is named, with its arguments.
+      // A term is written as it is named, with its arguments, and a
+      // message reference without its `@`; a bare name is a variable but
+      // where the source refers to a message so, as views before #1083
+      // wrote references and a server may still hold them.
       if (name.startsWith("-")) return [place(name + (head[2] ?? "")), j];
+      if (name.startsWith("@")) return [place(name.slice(1)), j];
       return [place(refs.has(name) ? name : `$${name}`), j];
     }
     const branches: [string, string][] = [];
@@ -539,6 +566,7 @@ type Template = {
   text: string;
   byId: Map<string, Message>;
   refsFor: (id: string) => Set<string>;
+  variablesOf: (id: string) => Set<string>;
 };
 
 function patch(text: string, changes: Change[], template: Template): string {
@@ -572,7 +600,11 @@ function patch(text: string, changes: Change[], template: Template): string {
       patches.push({ start: message.start, end, text: "" });
     } else if (message) {
       const end = whole ? message.end : message.valueEnd;
-      if (toIcu(text, message) === next) {
+      const current = toIcu(text, message);
+      if (
+        current === next ||
+        bareReferences(current, template.variablesOf(id)) === next
+      ) {
         if (end !== message.valueEnd)
           patches.push({ start: message.valueEnd, end, text: "" });
         continue;
@@ -614,15 +646,21 @@ function templateOf(template: string, added: string[] = []): Template {
   const messageNames = [...byId.keys(), ...added].filter(
     (id) => !variables.has(id),
   );
+  const variablesOf = (id: string) => {
+    const own = byId.get(id);
+    const value = own ? template.slice(own.valueStart, own.valueEnd) : "";
+    return new Set(
+      [...value.matchAll(/\{\s*\$([A-Za-z][\w-]*)/g)].map((m) => m[1]!),
+    );
+  };
   return {
     text: template,
     byId,
+    variablesOf,
     refsFor: (id) => {
       const own = byId.get(id);
       const value = own ? template.slice(own.valueStart, own.valueEnd) : "";
-      const ownVariables = new Set(
-        [...value.matchAll(/\{\s*\$([A-Za-z][\w-]*)/g)].map((m) => m[1]!),
-      );
+      const ownVariables = variablesOf(id);
       const written = [...value.matchAll(/\{\s*([A-Za-z][\w-]*)\s*\}/g)]
         .map((m) => m[1]!)
         .filter((name) => !ownVariables.has(name));

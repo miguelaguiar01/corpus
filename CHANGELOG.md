@@ -14,6 +14,7 @@ contract (`corpus/1`) is the only one.
 - Gettext files in Cebuano, Manx, Welsh, Filipino, Hebrew and Latvian (older rule), whose `Plural-Forms` cut across CLDR's categories, now show and write every plural form (#982).
 - Rails plurals are checked by the runtime's rule: `zero` is always allowed, and rails-i18n's per-locale rule applies where `Gemfile.lock` lists the gem (#983).
 - A target's section whose keys look like plural categories is read as keys unless the source has a plural there, and under i18next a lone `{ "other": … }` is a key; `init` picks i18next for catalogues with plural objects (#984).
+- A Fluent message reference reads as `{@name}`, apart from a variable `{name}`, so a translation may refer to a message its source does not; strings with a reference go stale once on the first 0.22 push (#1083).
 - A JSON target's plural object with a broken form is validated as that plural, not reported as orphan keys (#960).
 - i18next plural keys (`item_one`, `item_other`) are one string per family, so each language gets its own forms (Polish `few` and `many`) and `_zero` is always allowed; pull translations before the first 0.22 push, which re-reads these families from the files (#985).
 - Under i18next, a target that writes a plural as an object where the source writes suffix keys, or the other way round, pulls back unchanged (#1187).

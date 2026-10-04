@@ -397,3 +397,51 @@ test("a select collapsed to a word default, a key in another case, one key of it
     { code: "unexpected-branch", arg: "amount", key: "en" },
   ]);
 });
+
+test("a message reference is {@name}: a translation may add one, dropping its source's is missing, and it never selects or formats (#1083)", () => {
+  expect(
+    partsOf("Erlaubte {@preferences-url-schemes} für {name}", "fluent")
+      .placeholders,
+  ).toEqual(new Set(["@preferences-url-schemes", "name"]));
+  expect(parseIcu("{@trash}", "icu").ok).toBe(false);
+  expect(parseIcu("{@trash, select, other {x}}", "fluent").ok).toBe(false);
+  expect(parseIcu("{@n, plural, other {x}}", "fluent").ok).toBe(false);
+  expect(parseIcu("{@n, number}", "fluent").ok).toBe(false);
+  expect(parseIcu("{@-brand}", "fluent").ok).toBe(false);
+  // Anki's de: its own word for "URL Schemes", a message en never uses.
+  expect(
+    validateTranslation(
+      "Allowed URL Schemes (space-separated):",
+      "Erlaubte {@preferences-url-schemes} (durch Leerzeichen getrennt):",
+      "de",
+      "fluent",
+    ),
+  ).toEqual({ ok: true });
+  const dropped = validateTranslation(
+    "Empty {@trash}",
+    "Leeren",
+    "de",
+    "fluent",
+  );
+  expect(dropped.ok ? [] : dropped.errors).toEqual([
+    expect.objectContaining({ code: "missing-placeholder", name: "@trash" }),
+  ]);
+  // A variable the source lacks is still a finding: ia's {number}.
+  expect(
+    validateTranslation(
+      "Set your subdomain",
+      "Defini tu subdominio {number}",
+      "ia",
+      "fluent",
+    ).ok,
+  ).toBe(false);
+  // A reference is no variable of the same name, either way.
+  expect(
+    validateTranslation(
+      "{items} in {@trash}",
+      "{@items} em {@trash}",
+      "pt",
+      "fluent",
+    ).ok,
+  ).toBe(false);
+});
