@@ -728,6 +728,7 @@ test("each library has a name for messages (#644)", () => {
     "Rails I18n",
     "Qt",
     "FormatJS",
+    "gen-l10n",
     "Fluent",
   ]);
 });
@@ -1087,4 +1088,68 @@ test("a plural requires the categories some integer reaches, and allows those ol
   expect(
     pluralCategoriesFor("he", "icu", ["one", "two", "many", "other"]).required,
   ).toEqual(["one", "two", "many", "other"]);
+});
+
+test("under gen_l10n, Flutter's ICU subset: # is text, date and time only with a ::skeleton, no number, selectordinal or offset, plural keys =0 =1 =2 and the categories, an apostrophe text (#1038)", () => {
+  const read = (text: string) => parseIcu(text, "gen_l10n");
+  const refusal = (text: string) => {
+    const result = read(text);
+    return result.ok ? undefined : result.errors[0]!.message;
+  };
+  expect(read("{count, plural, one{# tydzień} other{# tygodnia}}")).toEqual({
+    ok: true,
+    nodes: [
+      {
+        kind: "plural",
+        arg: "count",
+        branches: {
+          one: [{ kind: "literal", text: "# tydzień" }],
+          other: [{ kind: "literal", text: "# tygodnia" }],
+        },
+      },
+    ],
+  });
+  expect(refusal("{count, number} lata")).toMatch(
+    /gen-l10n formats only date and time, with a ::skeleton/,
+  );
+  expect(read("{d, date, ::yMd}").ok).toBe(true);
+  expect(read("{t, time, ::jm}").ok).toBe(true);
+  expect(refusal("{d, date}")).toMatch(/::skeleton/);
+  expect(refusal("{d, date, short}")).toMatch(/::skeleton/);
+  expect(refusal("{n, selectordinal, one {#st} other {#th}}")).toMatch(
+    /gen-l10n has no selectordinal/,
+  );
+  expect(refusal("{n, plural, offset:1 one {x} other {y}}")).toMatch(
+    /gen-l10n has no offset/,
+  );
+  expect(refusal("{n, plural, =3 {three} other {many}}")).toMatch(
+    /gen-l10n's plural keys are =0, =1, =2, zero, one, two, few, many and other/,
+  );
+  expect(read("{n, plural, =0 {none} =1 {one} =2 {two} other {many}}").ok).toBe(
+    true,
+  );
+  expect([...partsOf("It's {n}", "gen_l10n").placeholders]).toEqual(["n"]);
+  expect(libraryName("gen_l10n")).toBe("gen-l10n");
+});
+
+test("under gen_l10n a # the source does not write is text gen-l10n prints as written, refused as such (#1038)", () => {
+  const source = "{count, plural, one{{count} week} other{{count} weeks}}";
+  const check = validateTranslation(
+    source,
+    "{count, plural, one{# tydzień} few{# tygodnie} many{# tygodni} other{# tygodnia}}",
+    "pl",
+    "gen_l10n",
+  );
+  expect(check.ok).toBe(false);
+  expect(check.ok ? [] : check.errors).toEqual([
+    { code: "hash-text", arg: "count" },
+  ]);
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, one{{count} tydzień} few{{count} tygodnie} many{{count} tygodni} other{{count} tygodnia}}",
+      "pl",
+      "gen_l10n",
+    ).ok,
+  ).toBe(true);
 });
