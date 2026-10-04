@@ -830,6 +830,16 @@ test("init detects the library from the namespaces that read, and names the ones
     missing.ctx,
   );
   expect(missing.out.join("\n")).not.toMatch(/library: not detected/);
+  // A module catalogue's too, which jiti says otherwise.
+  const module = project();
+  stubCli(module.dir);
+  mkdirSync(path.join(module.dir, "l"), { recursive: true });
+  writeFileSync(path.join(module.dir, "l", "de.js"), "export default {};\n");
+  await run(
+    ["init", "--project", "app", "--source", "en", "--messages", "l/{lang}.js"],
+    module.ctx,
+  );
+  expect(module.out.join("\n")).not.toMatch(/library: not detected/);
   // A namespace that is a broken link is a file that does not read.
   const linked = at({
     "locales/en/a.json": JSON.stringify({ files: "one file | {n} files" }),

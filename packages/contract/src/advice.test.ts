@@ -3,8 +3,9 @@
 // reads the same clause.
 import { expect, test } from "vitest";
 import { parseIcu, refusalAdvice, refusalCause } from "./icu";
+import type { Library } from "./strings";
 
-const adviceFor = (source: string, library: "icu" | "i18next" | "vue") => {
+const adviceFor = (source: string, library: Library) => {
   const parsed = parseIcu(source, library);
   if (parsed.ok) throw new Error(`${source} parses`);
   return refusalAdvice(source, library, parsed.errors[0]!.message);
@@ -45,6 +46,14 @@ test("a quoted literal in braces is vue-i18n's literal interpolation, and builds
       refusalCause("Email {'@'} domain", "icu", parsed.errors[0]!.message),
   ).toBe("library");
   expect(parseIcu("Email {'@'} domain", "vue").ok).toBe(true);
+  // The literal refused is the one named, on one line.
+  // FormatJS quotes `{x} {'a'}` as text, so `{'b'}` is the one refused.
+  expect(adviceFor("'{x} {'a'}' {'b'}", "formatjs")).toBe(
+    `; {'b'} is vue-i18n's literal interpolation: declare library: "vue" on the source`,
+  );
+  expect(adviceFor("Mail {\n'@'\n} here", "icu")).toBe(
+    `; { '@' } is vue-i18n's literal interpolation: declare library: "vue" on the source`,
+  );
   // Spaced or escaped, as vue-i18n reads a literal.
   expect(adviceFor("Email { '@' } domain", "icu")).toBe(
     `; { '@' } is vue-i18n's literal interpolation: declare library: "vue" on the source`,
