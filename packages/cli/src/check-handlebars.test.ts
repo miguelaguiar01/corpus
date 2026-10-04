@@ -49,3 +49,11 @@ test("Handlebars: a finding's line is its text's own, past multi-line blocks and
 `;
   expect(found(source)).toEqual([[7, "Unread"]]);
 });
+
+test("Handlebars: a string inside {{…}} may hold }}, as an ICU plural in Zulip's {{t}} does; the mustache ends at its own (#1027)", () => {
+  const source = `<p>{{t "Removed {count, plural, one {# member} other {# members}}
+    and {groups, plural, one {# group.} other {# groups.}}" }}</p>
+<p>{{t 'it\\'s {n}}' }} Stray</p>
+`;
+  expect(found(source)).toEqual([[3, "Stray"]]);
+});
