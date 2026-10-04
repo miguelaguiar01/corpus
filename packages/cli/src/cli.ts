@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import type { Readable } from "node:stream";
 import path from "node:path";
 import { printable } from "./printable";
@@ -387,6 +387,29 @@ async function withoutUnchangedSeeds(
   };
 }
 
+// A fresh clone has no `.corpus/`, so `--out` creates its directory (#1043).
+function writeOut(file: string, out: string, snapshot: unknown): void {
+  try {
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, `${JSON.stringify(snapshot, null, 2)}\n`);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    const reason =
+      code === "EISDIR"
+        ? "it is a directory"
+        : code === "ENOTDIR" || code === "EEXIST"
+          ? "a directory on its path is a file"
+          : code === "EACCES" || code === "EPERM"
+            ? "permission denied"
+            : code === "EROFS"
+              ? "the file system is read-only"
+              : error instanceof Error
+                ? error.message
+                : String(error);
+    throw new CliError(`cannot write ${out}: ${reason}`);
+  }
+}
+
 // `corpus build`: the snapshot without a server, for authoring the config.
 async function build(args: string[], ctx: RunContext): Promise<number> {
   const config = await loadConfig(ctx.cwd);
@@ -399,12 +422,7 @@ async function build(args: string[], ctx: RunContext): Promise<number> {
   for (const note of deprecations(config)) ctx.err(`corpus: ${note}`);
   for (const note of pushOnlyNotes(config)) ctx.err(`corpus: ${note}`);
   const out = option(args, "--out");
-  if (out) {
-    writeFileSync(
-      path.resolve(ctx.cwd, out),
-      `${JSON.stringify(snapshot, null, 2)}\n`,
-    );
-  }
+  if (out) writeOut(path.resolve(ctx.cwd, out), out, snapshot);
   const byType = (items: { type: string }[]) => {
     const counts = new Map<string, number>();
     for (const item of items)

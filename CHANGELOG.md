@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- `corpus build --out` creates the file's directory, and a file it cannot write is one error line, not a stack trace (#1043).
 - A plural branch that writes `1` instead of the count warns where the language's category holds other numbers (Croatian `one` holds 21) (#1042).
 - A pull into an empty `{}` target writes one key per line, in its sibling targets' indent, not every key on one line (#1041).
 - An ARB source's placeholder examples are the string's example, and their descriptions join its note (#1040).
