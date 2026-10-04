@@ -2096,3 +2096,61 @@ test("a source's layered placeholder that does not close is refused at build, by
   expect(report.refused.map((r) => r.id)).toEqual(["broken"]);
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("a source whose adapter takes a fixed extension is refused once, by what its file is, when its path has another; a String Catalog that is not JSON says so on one line, once (#1035)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-1035-"));
+  const lproj = path.join(dir, "Stats", "Supporting Files", "en.lproj");
+  mkdirSync(lproj, { recursive: true });
+  writeFileSync(
+    path.join(lproj, "Localizable.strings"),
+    `//\n//  Localizable.strings\n//\n"CPU" = "CPU";\n`,
+  );
+  const cfg = (source: object) =>
+    expandSources(
+      defineCorpus({
+        project: "stats",
+        server: "https://corpus.example",
+        sourceLanguage: "en",
+        languages: ["en", "de"],
+        sources: [source as never],
+      }),
+      dir,
+    );
+  const failure = async (source: object) => {
+    try {
+      await buildSnapshot(cfg(source), dir);
+      return "built";
+    } catch (error) {
+      return (error as Error).message;
+    }
+  };
+  const strings = await failure({
+    adapter: "xcstrings",
+    type: "ui",
+    path: "Stats/Supporting Files/en.lproj/Localizable.strings",
+  });
+  expect(strings).toBe(
+    'snapshot build failed:\n  Stats/Supporting Files/en.lproj/Localizable.strings is an Apple .strings catalogue: declare it { adapter: "strings", type, path }, not as xcstrings',
+  );
+  // A file the messages adapter reads is named so.
+  writeFileSync(path.join(dir, "en.json"), "{}\n");
+  expect(
+    await failure({ adapter: "fluent", type: "ui", path: "{lang}.json" }),
+  ).toContain(
+    'en.json is a catalogue the messages adapter reads: declare it { adapter: "messages", type, path }, not as fluent',
+  );
+  // A String Catalog with a syntax error: one line, its line, once.
+  writeFileSync(
+    path.join(dir, "Localizable.xcstrings"),
+    `{\n  "sourceLanguage": "en",\n  "strings": {},\n}\n`,
+  );
+  const broken = await failure({
+    adapter: "xcstrings",
+    type: "ui",
+    path: "Localizable.xcstrings",
+  });
+  expect(broken).toBe(
+    "snapshot build failed:\n  Localizable.xcstrings: not a String Catalog: it is not JSON (line 4)",
+  );
+  rmSync(dir, { recursive: true, force: true });
+});

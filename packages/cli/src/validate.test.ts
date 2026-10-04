@@ -1638,3 +1638,28 @@ export default defineCorpus({
   expect(await run(["validate"], d)).toBe(0);
   expect(d.stderr.filter((l) => /\.gender/.test(l))).toEqual([]);
 });
+
+test("validate refuses a source whose path its adapter does not read, naming the file's format, once (#1035)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de"],
+  sources: [{ adapter: "xcstrings", type: "ui", path: "en.lproj/Localizable.strings" }],
+});
+`,
+  );
+  mkdirSync(path.join(repo, "en.lproj"), { recursive: true });
+  writeFileSync(
+    path.join(repo, "en.lproj", "Localizable.strings"),
+    `"CPU" = "CPU";\n`,
+  );
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(1);
+  expect(c.stderr).toEqual([
+    'corpus: en.lproj/Localizable.strings is an Apple .strings catalogue: declare it { adapter: "strings", type, path }, not as xcstrings',
+  ]);
+});
