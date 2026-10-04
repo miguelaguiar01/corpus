@@ -8,7 +8,7 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { createJiti } from "jiti";
-import { parse as parseJsonc, type ParseError } from "jsonc-parser";
+import { parse as parseJsonc } from "jsonc-parser";
 import {
   androidDirOf,
   gettextToEntries,
@@ -512,17 +512,22 @@ function angularSource(
   );
   if (workspace !== undefined) {
     const file = path.posix.join(workspace, "angular.json");
-    // The Angular CLI reads angular.json with comments and trailing
-    // commas; one that does not parse guesses nothing.
-    const errors: ParseError[] = [];
-    const workspaceJson = parseJsonc(
-      readFileSync(path.resolve(cwd, file), "utf8"),
-      errors,
-      { allowTrailingComma: true },
-    ) as { projects?: unknown } | undefined;
+    // Read as the Angular CLI reads it: comments, trailing commas and
+    // what jsonc-parser recovers from, so long as it is an object.
+    let text = "";
+    try {
+      text = readFileSync(path.resolve(cwd, file), "utf8");
+    } catch {
+      // No file to read, a directory say: it guesses nothing.
+    }
+    const workspaceJson: unknown = parseJsonc(text.replace(/^\uFEFF/, ""), [], {
+      allowTrailingComma: true,
+    });
     const projects =
-      errors.length === 0 &&
-      workspaceJson?.projects &&
+      workspaceJson &&
+      typeof workspaceJson === "object" &&
+      "projects" in workspaceJson &&
+      workspaceJson.projects &&
       typeof workspaceJson.projects === "object"
         ? Object.values(workspaceJson.projects)
         : [];
@@ -538,7 +543,10 @@ function angularSource(
       if (!options || typeof options !== "object") continue;
       const { outputPath, outFile, format } = options;
       // Only XLIFF is the xliff source's: `json`, `arb` or `xmb` is not.
-      if (typeof format === "string" && !/^(?:xlf|xlif|xliff)2?$/.test(format))
+      if (
+        typeof format === "string" &&
+        !/^(?:xlf2?|xlif|xliff2?)$/.test(format)
+      )
         continue;
       const name = typeof outFile === "string" ? outFile : "messages.xlf";
       if (!/\.(?:xlf|xliff)$/i.test(name)) continue;
@@ -563,7 +571,7 @@ function angularSource(
     for (const output of [...outputs].sort((x, y) => shared(y) - shared(x))) {
       if (exists(output))
         return {
-          sourcePath: output,
+          sourcePath: local(output),
           why: `ng extract-i18n's output, from ${file}`,
           tried,
         };
