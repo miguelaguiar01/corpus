@@ -1622,6 +1622,59 @@ describe("a list's items made whole (#1053)", () => {
       r: { a: { l: [{ k: "Kd", m: "M" }] }, b: { c: { l: ["x", "Yd"] } } },
     });
   });
+  test("a short list's items written in any order are each written once, none named", () => {
+    expect(
+      write(
+        `{\n  "l": ["a", "b", "c", "d"]\n}\n`,
+        { "l.3": "D", "l.2": "C" },
+        `{\n  "l": ["A", "B"]\n}\n`,
+      ),
+    ).toEqual({ out: { l: ["A", "B", "C", "D"] }, named: [] });
+  });
+  test("a plural where an item holds a string becomes the plural, as outside a list; one where it holds a list is named", () => {
+    expect(
+      write(
+        objects,
+        { "opts.0.n": forms },
+        `{\n  "opts": [\n    { "n": "%{count} Dinge" }\n  ]\n}\n`,
+        { plurals: true },
+      ),
+    ).toEqual({
+      out: { opts: [{ n: { one: "# x", other: "# xs" } }] },
+      named: [],
+    });
+    const items = `{\n  "l": [\n    { "one": "# a", "other": "# as" }\n  ]\n}\n`;
+    expect(
+      write(items, { "l.0": forms }, `{\n  "l": ["S"]\n}\n`, { plurals: true }),
+    ).toEqual({ out: { l: [{ one: "# x", other: "# xs" }] }, named: [] });
+    expect(
+      write(
+        objects,
+        { "opts.0.n": forms },
+        `{\n  "opts": [\n    { "n": ["x", "y"] }\n  ]\n}\n`,
+        { plurals: true },
+      ).named,
+    ).toEqual(["opts.0.n"]);
+    for (const de of [`{\n  "opts": [["x"]]\n}\n`, `{\n  "opts": ["S"]\n}\n`]) {
+      const { out, named } = write(families, { "opts.0.item": forms }, de, {
+        suffixPlurals: true,
+        sourceLanguage: "en",
+      });
+      expect(named).toEqual(["opts.0.item"]);
+      expect(out).toEqual(JSON.parse(de));
+    }
+  });
+  test("a plural refused under a part the target lacks is said once", () => {
+    const nested = `{\n  "r": {\n    "opts": [\n      { "n": { "one": "# a", "other": "# as" } }\n    ]\n  }\n}\n`;
+    expect(
+      write(
+        nested,
+        { "r.opts.0.n": "{count, plural, =0 {none} one {# x} other {# xs}}" },
+        "{}\n",
+        { plurals: true },
+      ).named,
+    ).toEqual(["r.opts.0.n"]);
+  });
   test("an item that lacks a plural takes it as a plural, never as an ICU text", () => {
     const de = `{\n  "opts": [\n    { "name": "Nd" }\n  ]\n}\n`;
     expect(
