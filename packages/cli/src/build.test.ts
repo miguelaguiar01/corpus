@@ -2181,6 +2181,7 @@ test("a source whose adapter takes a fixed extension is refused once, by what it
     "snapshot build failed:\n  Localizable.xcstrings: not a String Catalog: it is not JSON (line 4)",
   );
   // A named format keeps its pointer.
+  mkdirSync(path.join(dir, "po"), { recursive: true });
   writeFileSync(path.join(dir, "po", "en.properties"), "");
   expect(
     await failure({

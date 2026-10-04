@@ -598,7 +598,16 @@ function jsonStop(text: string): number {
     i++;
     while (i < text.length && text[i] !== '"') {
       if (text[i]! < " ") stop();
-      i += text[i] === "\\" ? 2 : 1;
+      if (text[i] !== "\\") {
+        i++;
+        continue;
+      }
+      // JSON's escapes alone: `\'`, valid in a .strings file, is none.
+      const escape = /^\\(?:["\\/bfnrt]|u[0-9A-Fa-f]{4})/.exec(
+        text.slice(i, i + 6),
+      );
+      if (!escape) stop();
+      i += escape![0].length;
     }
     if (i >= text.length) stop();
     i++;

@@ -880,7 +880,12 @@ export function misnamedSources(config: CorpusConfig, cwd: string): string[] {
     out.add(
       what.includes(": declare it")
         ? `${file} is ${what}, not as ${source.adapter}`
-        : `${file} is not a file ${source.adapter} reads: it reads ${extensions.join(" and ")}`,
+        : `${file} is not a file ${source.adapter} reads: it reads ${extensions.join(" and ")}${
+            // A named format keeps its pointer: Android's res, or exec.
+            /^an? /.test(what) && !what.startsWith("a file without")
+              ? `; it is ${what}`
+              : ""
+          }`,
     );
   }
   return [...out];
