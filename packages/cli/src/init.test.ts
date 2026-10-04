@@ -644,6 +644,25 @@ test("in a monorepo, check.include is the components directories below the root 
   });
 });
 
+test("a templates directory holding Handlebars is a root, as Zulip's web/templates is, its components below it included (#1027)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  for (const [dir, file] of [
+    ["web/templates", "about_zulip.hbs"],
+    ["web/templates/components", "action_button.hbs"],
+    ["web/templates/settings", "bot_settings.hbs"],
+    // A templates directory of another engine is no root of check's.
+    ["server/templates", "base.html"],
+  ] as const) {
+    mkdirSync(path.join(p.dir, dir), { recursive: true });
+    writeFileSync(path.join(p.dir, dir, file), "");
+  }
+  expect(await run(FLAGS, p.ctx)).toBe(0);
+  expect((await loadConfig(p.dir)).check).toEqual({
+    include: ["web/templates"],
+  });
+});
+
 test("with no components directory, the catalogue's own package's roots (#655)", async () => {
   const p = project();
   stubCli(p.dir);
