@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- `corpus pull` refuses an Android plural with an `=N` branch, naming it, rather than writing an `<item>` aapt2 cannot compile (#1055).
 - A `messages` file's JSON arrays are read by index, as vue-i18n and i18next look them up, and pulled item by item (#1053).
 - A plural read whole whose forms hold a literal `{…}`, Godot's `{num}`, is read as a plural under printf, rails, counterpart and qt; a seed marked invalid before keeps its mark until its text or source changes (#1052).
 - `corpus pull` and `pull --check` exit 1 when a file cannot hold a saved translation, naming it, and an `=N` branch in a plural a catalogue reads whole is refused when saved (#1051).

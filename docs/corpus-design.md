@@ -238,7 +238,9 @@ export default defineCorpus({
     //    `&lt;…&gt;`, and a pair as the element writes its tags, raw or
     //    `&lt;b>`, else as the source's does; a pull patches the
     //    elements and plural items it changes in place and appends new
-    //    ones before </resources>.
+    //    ones before </resources>; a plural with an `=N` branch, which
+    //    no `quantity` aapt2 compiles can hold, is refused by name and
+    //    not written (#1055).
     //    The library is `android` (§5).
     { adapter: "android", type: "ui", path: "app/src/main/res" },
 

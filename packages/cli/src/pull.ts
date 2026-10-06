@@ -610,7 +610,12 @@ function writeTarget(
   };
   switch (source.adapter) {
     case "android":
-      return entriesToAndroid(template, translations, existing);
+      return entriesToAndroid(template, translations, existing, (id) =>
+        refused(
+          id,
+          "is a plural a <plurals> cannot hold (an =N branch, or a key that is no plural category)",
+        ),
+      );
     case "fluent":
       return entriesToFluent(template, translations, existing);
     case "messages":

@@ -491,6 +491,7 @@ function applyPatches(xml: string, patches: Patch[]): string {
 
 // Every change against one reading of the file: the elements that
 // exist are patched in place, the rest appended before </resources>.
+// A plural no <plurals> can hold is refused and its element left.
 function patchAll(
   xml: string,
   changes: {
@@ -500,6 +501,7 @@ function patchAll(
     // How the source's element writes its tags.
     tags?: Tags;
   }[],
+  onRefused: (id: string, text: string) => void,
 ): string {
   const style = styleOf(xml);
   const byName = new Map<string, Element>();
@@ -509,15 +511,21 @@ function patchAll(
   const appended: string[] = [];
   for (const { id, text, kind, tags } of changes) {
     const element = byName.get(id);
+    const as =
+      element?.kind ??
+      kind ??
+      (text !== undefined && PLURAL_HEAD_RE.test(text.trim())
+        ? "plurals"
+        : "string");
     if (text === undefined) {
       if (element) patches.push({ ...lineOf(xml, element), text: "" });
+    } else if (as === "plurals" && !holdable(text)) {
+      onRefused(id, text);
     } else if (element?.kind === "plurals") {
       patches.push(...pluralPatches(xml, element, text, style, tags));
     } else if (element) {
       patches.push(...stringPatches(xml, element, text, tags));
     } else {
-      const as =
-        kind ?? (PLURAL_HEAD_RE.test(text.trim()) ? "plurals" : "string");
       appended.push(render(id, text, as, style, tags));
     }
   }
@@ -534,6 +542,14 @@ function patchAll(
   return applyPatches(xml, patches);
 }
 
+// aapt2 compiles a quantity CLDR names and no other: an `=N` branch
+// has no item to go in.
+function holdable(text: string): boolean {
+  return [...pluralBranches(text).keys()].every((q) =>
+    (PLURAL_CATEGORIES as readonly string[]).includes(q),
+  );
+}
+
 // A target file from the translations: the existing file patched, or,
 // when there is none, a bare <resources> filled in the source's order.
 // Ids the translations do not mention are kept.
@@ -541,6 +557,7 @@ export function entriesToAndroid(
   template: string,
   translations: Record<string, string>,
   existing: string | undefined,
+  onRefused: (id: string, text: string) => void = () => {},
 ): string {
   const xml =
     existing === undefined || existing.trim() === "" ? SKELETON : existing;
@@ -568,6 +585,7 @@ export function entriesToAndroid(
       kind: kinds.get(id),
       tags: tags.get(id),
     })),
+    onRefused,
   );
 }
 
@@ -575,9 +593,15 @@ export function entriesToAndroid(
 export function applyAndroidOps(xml: string, ops: SourceOp[]): string {
   let out = xml.trim() === "" ? SKELETON : xml;
   for (const op of ops) {
-    out = patchAll(out, [
-      op.kind === "delete" ? { id: op.id } : { id: op.id, text: op.text },
-    ]);
+    out = patchAll(
+      out,
+      [op.kind === "delete" ? { id: op.id } : { id: op.id, text: op.text }],
+      (id) => {
+        throw new Error(
+          `android: ${id} is a plural a <plurals> cannot hold (an =N branch, or a key that is no plural category)`,
+        );
+      },
+    );
   }
   return out;
 }
