@@ -15,7 +15,14 @@ test("a draft and its opened version ride back only beside a refusal or warning 
     openedVersion: 9,
   });
   // A version that is not a number is the row's.
-  for (const opened of ["", "5x", "-", "1e999", ["5", "6"]])
+  for (const opened of [
+    "",
+    "5x",
+    "-",
+    "1e999",
+    "99999999999999999999",
+    ["5", "6"],
+  ])
     expect(carriedFrom({ error: "x", draft: "d", opened }, 9)).toEqual({
       draft: "d",
       openedVersion: 9,

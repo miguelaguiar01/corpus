@@ -117,6 +117,7 @@ test("a save after a source-changed refusal still warns of an edit made since op
 
   await join(page, "cy");
   await page.goto(`/p/${slug}/s/ui.continue?language=en`);
+  await page.waitForLoadState("networkidle");
   await page.getByRole("textbox").fill("Continue");
 
   // Meanwhile an agent drafts the row and the source moves.

@@ -10,6 +10,7 @@ contract (`corpus/1`) is the only one.
 ### Fixed
 
 - A save after a refused one still warns that someone else edited the string since it was opened (#1058).
+- A refused save outside a queue returns to the editor with the draft, not to the source view (#1058).
 - The workbench declares the exact `next` it is built with, so a fresh install no longer takes next 16.4.0 and fails to start (#1238).
 - `corpus pull` refuses an Android plural with an `=N` branch, naming it, rather than writing an `<item>` aapt2 cannot compile (#1055).
 - A `messages` file's JSON arrays are read by index, as vue-i18n and i18next look them up, and pulled item by item (#1053).
