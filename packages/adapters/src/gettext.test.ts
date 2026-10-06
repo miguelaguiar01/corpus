@@ -5,6 +5,7 @@ import {
   entriesToGettext,
   gettextToEntries,
   gettextPluralCategories,
+  gettextSharedForms,
   gettextSuggestions,
   gettextTranslations,
   parsePo,
@@ -1051,6 +1052,9 @@ test("a form a few integers reach is keyed by each: Filipino's (n > 1) reads =0,
   const lang = { tag: "tl", code: "tl" };
   expect(seedOf(tl, "tl")).toBe("{count, plural, =0 {X} =1 {X} other {Y}}");
   expect(gettextPluralCategories(tl, "tl")).toEqual(["=0", "=1", "other"]);
+  // The keys one form is read by, which take one text (#1060).
+  expect(gettextSharedForms(tl, "tl")).toEqual([["=0", "=1"]]);
+  expect(gettextSharedForms(po(TL, "fr", ""), "fr")).toEqual([]);
   const write = (text: string, refused?: (id: string) => void) =>
     entriesToGettext(tl, { "%d file": text }, tl, lang, refused);
   expect(forms(write("{count, plural, =0 {a} =1 {a} other {b}}"))).toEqual([

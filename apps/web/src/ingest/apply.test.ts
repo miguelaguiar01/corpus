@@ -1602,3 +1602,38 @@ test("turning a source's placeholders on marks its pushed seeds, and a source ed
   push("{{used}} usados de {{total}}", ["i18next"]);
   expect(translationOf(db, "stats", "en")?.invalid).toBe(true);
 });
+
+test("a gettext file's shared exact keys are kept on the row, reach the detail, and mark a seed giving them two texts invalid (#1060)", () => {
+  const { db, project } = seed();
+  const snapshot: Snapshot = {
+    ...structuredClone(FIXTURE),
+    strings: [
+      {
+        id: "%d file",
+        type: FIXTURE.strings[0]!.type,
+        source: "{count, plural, one {%d file} other {%d files}}",
+        library: "printf",
+        pluralForms: { en: ["=0", "=1", "other"] },
+        pluralShared: { en: [["=0", "=1"]] },
+      },
+    ],
+    seedTranslations: {
+      en: {
+        "%d file": "{count, plural, =0 {none} =1 {%d A} other {%d B}}",
+      },
+    },
+  };
+  applySnapshot(db, project.id, snapshot);
+  expect(stringRow(db, "%d file")?.pluralShared).toEqual({
+    en: [["=0", "=1"]],
+  });
+  expect(stringDetail(db, project.id, "%d file")?.string.pluralShared).toEqual({
+    en: [["=0", "=1"]],
+  });
+  expect(translationOf(db, "%d file", "en")?.invalid).toBe(true);
+  // A push without the field clears it.
+  const bare = structuredClone(snapshot);
+  delete bare.strings[0]!.pluralShared;
+  applySnapshot(db, project.id, bare);
+  expect(stringRow(db, "%d file")?.pluralShared).toBeNull();
+});

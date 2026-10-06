@@ -262,3 +262,20 @@ test("an entry's pluralForms are CLDR categories, at least one per language (#95
         .success,
     ).toBe(false);
 });
+
+test("an entry's pluralShared groups the exact keys one form of a language's file is read by (#1060)", () => {
+  const entry = { id: "n", type: "ui", source: "{count, plural, other {#}}" };
+  expect(
+    stringEntrySchema.safeParse({
+      ...entry,
+      pluralForms: { tl: ["=0", "=1", "other"] },
+      pluralShared: { tl: [["=0", "=1"]] },
+    }).success,
+  ).toBe(true);
+  for (const groups of [[["=0"]], [], [["=0", "one"]], [["=0", "=01"]]])
+    expect(
+      stringEntrySchema.safeParse({ ...entry, pluralShared: { tl: groups } })
+        .success,
+      JSON.stringify(groups),
+    ).toBe(false);
+});
