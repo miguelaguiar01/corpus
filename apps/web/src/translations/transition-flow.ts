@@ -37,9 +37,22 @@ export function transitionFlow(db: Db, input: TransitionFlowInput): FlowResult {
   const detail = stringDetail(db, project.id, key);
   if (!detail) return { kind: "not-found" };
 
-  const queueParams = input.queue ? { queue: input.queue, language } : {};
+  // A refusal or warning lands on the language the form saved in, which
+  // outside a queue only `language` names (#1058).
+  const stay = input.queue
+    ? { queue: input.queue, language }
+    : language !== project.sourceLanguage
+      ? { language }
+      : {};
   const here = (extra: Record<string, string> = {}) =>
-    stringPath(project.slug, key, { ...queueParams, ...extra });
+    stringPath(project.slug, key, { ...stay, ...extra });
+  // A draft carried back keeps the version it was opened at (#1058).
+  const carry = (draft: string) => ({
+    draft,
+    ...(input.openedVersion !== undefined && {
+      opened: String(input.openedVersion),
+    }),
+  });
   const around = input.queue
     ? neighbours(queueItems(db, project.id, input.queue), {
         stringId: detail.string.id,
@@ -57,7 +70,7 @@ export function transitionFlow(db: Db, input: TransitionFlowInput): FlowResult {
     ) {
       return {
         kind: "redirect",
-        to: here({ warning: "source-changed", draft: action.text }),
+        to: here({ warning: "source-changed", ...carry(action.text) }),
       };
     }
     const validation = validateTranslation(
@@ -88,7 +101,7 @@ export function transitionFlow(db: Db, input: TransitionFlowInput): FlowResult {
       // The draft rides along, so the pane names what is wrong.
       return {
         kind: "redirect",
-        to: here({ error: "invalid-translation", draft: action.text }),
+        to: here({ error: "invalid-translation", ...carry(action.text) }),
       };
     }
   }
