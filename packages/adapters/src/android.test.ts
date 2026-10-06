@@ -417,3 +417,22 @@ test("a proposal of a plural with an =N branch throws, as the messages adapter's
     ]),
   ).toThrow("android: seasons is a plural a <plurals> cannot hold");
 });
+
+test("a plural the file already holds is never refused, though an item's literal braces read as a key (#1055 review)", () => {
+  const xml = `<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="more">
+        <item quantity="one">x</item>
+        <item quantity="other">%d episodes } or {n} more</item>
+    </plurals>
+</resources>
+`;
+  const [entry] = androidToEntries(xml, { type: "ui" });
+  const refused: string[] = [];
+  expect(
+    entriesToAndroid(xml, { more: entry!.source }, xml, (id) =>
+      refused.push(id),
+    ),
+  ).toBe(xml);
+  expect(refused).toEqual([]);
+});
