@@ -3261,3 +3261,65 @@ export default defineCorpus({
   });
   expect(await run(["pull", "--min-state", "translated"], ctx())).toBe(0);
 });
+
+test("an android plural with an =N branch is named and not written, and fails the pull (#1055)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de"],
+  sources: [{ adapter: "android", type: "ui", path: "res" }],
+});
+`,
+  );
+  mkdirSync(path.join(repo, "res", "values"), { recursive: true });
+  mkdirSync(path.join(repo, "res", "values-de"), { recursive: true });
+  writeFileSync(
+    path.join(repo, "res", "values", "strings.xml"),
+    `<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="title">Rooms</string>
+    <plurals name="rooms">
+        <item quantity="one">%d room</item>
+        <item quantity="other">%d rooms</item>
+    </plurals>
+</resources>
+`,
+  );
+  const de = `<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="title">Räume</string>
+    <plurals name="rooms">
+        <item quantity="one">%d Raum</item>
+        <item quantity="other">%d Räume</item>
+    </plurals>
+</resources>
+`;
+  writeFileSync(path.join(repo, "res", "values-de", "strings.xml"), de);
+  await serve(200, {
+    ...PAYLOAD,
+    types: { title: "ui", rooms: "ui" },
+    translations: {
+      de: {
+        title: "Zimmer",
+        rooms: "{quantity, plural, =0 {keine} one {%d Raum} other {%d Räume}}",
+      },
+    },
+  });
+  const pulled = ctx();
+  expect(await run(["pull"], pulled)).toBe(1);
+  const said = pulled.output.join("\n");
+  expect(said).toContain(
+    "corpus: res/values-de/strings.xml: rooms is a plural a <plurals> cannot hold (an =N branch, or a key that is no plural category); not written",
+  );
+  expect(said).toContain(
+    "corpus: 1 translation(s) could not be written, each named above with why",
+  );
+  expect(read("res/values-de/strings.xml")).toBe(
+    de.replace(">Räume</string>", ">Zimmer</string>"),
+  );
+});

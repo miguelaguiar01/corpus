@@ -333,3 +333,106 @@ test("a values directory's language is androidDirOf's inverse, a non-language qu
   ])
     expect(androidLanguageOf(dir)).toBeUndefined();
 });
+
+test("a plural with a key no quantity names (=N) is refused by name and leaves the file as it is; a new file omits it (#1055)", () => {
+  const exact =
+    "{quantity, plural, =0 {keine} one {%d Folge} other {%d Folgen}}";
+  const refused: [string, string][] = [];
+  const out = entriesToAndroid(
+    SOURCE,
+    { episodes: exact, login_status: "Angemeldet als %1$s auf %2$s." },
+    TARGET,
+    (id, text) => refused.push([id, text]),
+  );
+  expect(refused).toEqual([["episodes", exact]]);
+  expect(out).toBe(
+    TARGET.replace(
+      /(?<=<!\[CDATA\[)[^\]]*/,
+      () => "Angemeldet als %1$s auf %2$s.",
+    ),
+  );
+  // A key that is no category at all is refused too.
+  const odd = "{quantity, plural, one {%d Folge} some {%d} other {%d Folgen}}";
+  const again: string[] = [];
+  expect(
+    entriesToAndroid(SOURCE, { episodes: odd }, TARGET, (id) => again.push(id)),
+  ).toBe(TARGET);
+  expect(again).toEqual(["episodes"]);
+  // A new file omits the key and writes the rest.
+  const fresh: string[] = [];
+  expect(
+    entriesToAndroid(
+      SOURCE,
+      { episodes: exact, quoted: "Zwei" },
+      undefined,
+      (id) => fresh.push(id),
+    ),
+  ).toBe(`<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="quoted">Zwei</string>
+</resources>
+`);
+  expect(fresh).toEqual(["episodes"]);
+  // A plural of categories only, one the language may not use included,
+  // is patched item by item.
+  const none: string[] = [];
+  expect(
+    entriesToAndroid(
+      SOURCE,
+      {
+        episodes:
+          "{quantity, plural, one {%d rann} few {%d rann} other {%d rannoù}}",
+      },
+      TARGET,
+      (id) => none.push(id),
+    ),
+  ).toBe(
+    TARGET.replace(
+      `        <item quantity="other">%d rann</item>`,
+      `        <item quantity="few">%d rann</item>\n        <item quantity="other">%d rannoù</item>`,
+    ),
+  );
+  expect(none).toEqual([]);
+});
+
+test("a proposal of a plural with an =N branch throws, as the messages adapter's does (#1055)", () => {
+  expect(() =>
+    applyAndroidOps(SOURCE, [
+      {
+        kind: "edit",
+        id: "episodes",
+        text: "{quantity, plural, =0 {no episodes} one {%d episode} other {%d episodes}}",
+      },
+    ]),
+  ).toThrow(
+    "android: episodes is a plural a <plurals> cannot hold (an =N branch, or a key that is no plural category)",
+  );
+  expect(() =>
+    applyAndroidOps(SOURCE, [
+      {
+        kind: "add",
+        id: "seasons",
+        text: "{quantity, plural, =1 {one season} other {%d seasons}}",
+      },
+    ]),
+  ).toThrow("android: seasons is a plural a <plurals> cannot hold");
+});
+
+test("a plural the file already holds is never refused, though an item's literal braces read as a key (#1055 review)", () => {
+  const xml = `<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="more">
+        <item quantity="one">x</item>
+        <item quantity="other">%d episodes } or {n} more</item>
+    </plurals>
+</resources>
+`;
+  const [entry] = androidToEntries(xml, { type: "ui" });
+  const refused: string[] = [];
+  expect(
+    entriesToAndroid(xml, { more: entry!.source }, xml, (id) =>
+      refused.push(id),
+    ),
+  ).toBe(xml);
+  expect(refused).toEqual([]);
+});
