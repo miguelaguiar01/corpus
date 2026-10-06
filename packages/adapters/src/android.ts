@@ -491,7 +491,8 @@ function applyPatches(xml: string, patches: Patch[]): string {
 
 // Every change against one reading of the file: the elements that
 // exist are patched in place, the rest appended before </resources>.
-// A plural no <plurals> can hold is refused and its element left.
+// A plural no <plurals> can hold is refused and its element left; one
+// the element already holds is no change, whatever its items' braces.
 function patchAll(
   xml: string,
   changes: {
@@ -519,7 +520,11 @@ function patchAll(
         : "string");
     if (text === undefined) {
       if (element) patches.push({ ...lineOf(xml, element), text: "" });
-    } else if (as === "plurals" && !holdable(text)) {
+    } else if (
+      as === "plurals" &&
+      !(element && pluralOf(xml, element) === text) &&
+      !holdable(text)
+    ) {
       onRefused(id, text);
     } else if (element?.kind === "plurals") {
       patches.push(...pluralPatches(xml, element, text, style, tags));
