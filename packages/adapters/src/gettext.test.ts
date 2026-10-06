@@ -1,3 +1,4 @@
+import { validateTranslation } from "@corpus/contract";
 import { expect, test } from "vitest";
 import { GETTEXT_PLURALS } from "./gettextplurals";
 import {
@@ -1067,4 +1068,32 @@ test("a form a few integers reach is keyed by each: Filipino's (n > 1) reads =0,
     write("{count, plural, =0 {a} =1 {c} other {b}}", (id) => refused.push(id)),
   ).toBe(tl);
   expect(refused).toEqual(["%d file"]);
+});
+
+test("validation refuses a Filipino draft exactly where the writer cannot hold it (#1060 review)", () => {
+  const TL = "nplurals=2; plural=(n > 1);";
+  const tl = po(TL, "tl", `msgstr[0] "X"\nmsgstr[1] "Y"\n`);
+  const lang = { tag: "tl", code: "tl" };
+  const { categories, shared } = gettextPluralReading(tl, "tl");
+  const source = "{count, plural, one {%d file} other {%d files}}";
+  for (const [library, text] of [
+    ["printf", "{count, plural, =0 {100%%} =1 {100%} other {%d b}}"],
+    ["printf", "{count, plural, =0 {%d a} =1 {%d a} other {%d b}}"],
+    ["printf", "{count, plural, =0 {%d a} =1 {%d  a} other {%d b}}"],
+    ["icu", "{count, plural, =0 {{count} f} =1 {{ count } f} other {# b}}"],
+    ["icu", "{count, plural, =0 {# f} =1 {# f} other {# b}}"],
+    ["icu", "{count, plural, =0 {<b>x</b>} =1 {<b >x</b>} other {# b}}"],
+  ] as const) {
+    let refused = false;
+    entriesToGettext(tl, { "%d file": text }, tl, lang, () => {
+      refused = true;
+    });
+    const shares = (
+      validateTranslation(source, text, "tl", library, {
+        pluralForms: categories,
+        pluralShared: shared,
+      }).errors ?? []
+    ).some((e) => e.code === "shared-form");
+    expect(shares, text).toBe(refused);
+  }
 });

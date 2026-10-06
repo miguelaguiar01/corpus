@@ -3602,3 +3602,28 @@ test("exact keys a gettext file reads one form by take one text: two are refused
     ).ok,
   ).toBe(true);
 });
+
+test("shared exact keys compare as the writer does, by the text written, not by its reading (#1060 review)", () => {
+  const source = "{count, plural, one {%d file} other {%d files}}";
+  const tl = {
+    pluralForms: ["=0", "=1", "other"],
+    pluralShared: [["=0", "=1"]],
+  };
+  // Each reads the same in both branches, yet is written two ways.
+  for (const [library, text] of [
+    ["printf", "{count, plural, =0 {100%%} =1 {100%} other {%d b}}"],
+    [
+      "icu",
+      "{count, plural, =0 {{count} file} =1 {{ count } file} other {# b}}",
+    ],
+    [
+      "icu",
+      "{count, plural, =0 {{count, number} f} =1 {{count,number} f} other {# b}}",
+    ],
+    ["icu", "{count, plural, =0 {<b>x</b>} =1 {<b >x</b>} other {# b}}"],
+  ] as const)
+    expect(
+      validateTranslation(source, text, "tl", library, tl).errors,
+      text,
+    ).toContainEqual({ code: "shared-form", arg: "count", keys: ["=0", "=1"] });
+});
