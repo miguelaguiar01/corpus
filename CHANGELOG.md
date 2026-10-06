@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- The workbench declares the exact `next` it is built with, so a fresh install no longer takes next 16.4.0 and fails to start (#1238).
 - `corpus pull` refuses an Android plural with an `=N` branch, naming it, rather than writing an `<item>` aapt2 cannot compile (#1055).
 - A `messages` file's JSON arrays are read by index, as vue-i18n and i18next look them up, and pulled item by item (#1053).
 - A plural read whole whose forms hold a literal `{…}`, Godot's `{num}`, is read as a plural under printf, rails, counterpart and qt; a seed marked invalid before keeps its mark until its text or source changes (#1052).

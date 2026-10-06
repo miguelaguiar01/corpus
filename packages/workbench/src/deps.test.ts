@@ -88,3 +88,21 @@ test("the workbench carries the CLI's version", () => {
   ) as { version: string };
   expect(manifest.version).toBe(cli.version);
 });
+
+// The package ships a prebuilt .next, which only the next that built it
+// is known to run.
+test("the workbench declares next at exactly the version apps/web builds with", () => {
+  const lock = JSON.parse(
+    readFileSync(path.join(repo, "package-lock.json"), "utf8"),
+  ) as { packages: Record<string, { version?: string }> };
+  const web = JSON.parse(
+    readFileSync(path.join(repo, "apps/web/package.json"), "utf8"),
+  ) as { dependencies: Record<string, string> };
+  // npm nests apps/web's own next when the root resolves another.
+  const built = (
+    lock.packages["apps/web/node_modules/next"] ??
+    lock.packages["node_modules/next"]
+  )?.version;
+  expect(web.dependencies.next).toBe(built);
+  expect(manifest.dependencies.next).toBe(built);
+});
