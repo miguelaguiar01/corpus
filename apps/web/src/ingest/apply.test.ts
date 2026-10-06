@@ -1753,3 +1753,86 @@ test("a family's carried text is stale where a row it came from is, and a seed f
     "{count, plural, one {{{count}} plik} other {{{count}} plików}}",
   );
 });
+
+test("a carried row is an agent's draft only where an agent made every form; a person's form keeps it closed (#1063 review)", () => {
+  const mixed = familyProject();
+  const [bot] = mixed.db
+    .insert(users)
+    .values({ name: "mm agent", agent: true })
+    .returning()
+    .all();
+  const agentSaves = (
+    f: ReturnType<typeof familyProject>,
+    id: string,
+    text: string,
+  ) =>
+    applyTransition(f.db, {
+      stringId: stringRow(f.db, id)!.id,
+      language: "pl",
+      action: { type: "save", text },
+      actor: bot!,
+    });
+  mixed.save("n_one", "{{count}} znak");
+  agentSaves(mixed, "n_other", "{{count}} znaków");
+  applySnapshot(mixed.db, mixed.project.id, mixed.family);
+  const carried = stringDetail(mixed.db, mixed.project.id, "n")!;
+  expect(carried.translations.pl).toMatchObject({
+    state: "translated",
+    agentDraft: false,
+  });
+  expect(carried.history[0]).toMatchObject({ actor: "ana", agent: false });
+
+  const machine = familyProject();
+  const [bot2] = machine.db
+    .insert(users)
+    .values({ name: "mm agent", agent: true })
+    .returning()
+    .all();
+  for (const [id, text] of [
+    ["n_one", "{{count}} znak"],
+    ["n_other", "{{count}} znaków"],
+  ] as const)
+    applyTransition(machine.db, {
+      stringId: stringRow(machine.db, id)!.id,
+      language: "pl",
+      action: { type: "save", text },
+      actor: bot2!,
+    });
+  applySnapshot(machine.db, machine.project.id, machine.family);
+  expect(
+    stringDetail(machine.db, machine.project.id, "n")!.translations.pl
+      ?.agentDraft,
+  ).toBe(true);
+});
+
+test("a carried row is stale where its family's source changed, and a text that would not split back is not carried (#1063 review)", () => {
+  const changed = familyProject();
+  changed.save("n_one", "{{count}} znak");
+  changed.save("n_other", "{{count}} znaków");
+  applySnapshot(changed.db, changed.project.id, {
+    ...changed.family,
+    strings: [
+      {
+        ...changed.family.strings[0]!,
+        source:
+          "{count, plural, one {{{count}} documento} other {{{count}} documentos}}",
+      },
+    ],
+  });
+  expect(translationOf(changed.db, "n", "pl")).toMatchObject({
+    state: "translated",
+    stale: true,
+  });
+
+  const brace = familyProject();
+  brace.save("n_one", "a { b");
+  brace.save("n_other", "{{count}} znaków");
+  const report = applySnapshot(brace.db, brace.project.id, brace.family);
+  expect(report.carried).toBe(0);
+  expect(translationOf(brace.db, "n", "pl")).toMatchObject({
+    state: "untranslated",
+    text: null,
+  });
+  // The archived rows still hold it.
+  expect(translationOf(brace.db, "n_one", "pl")?.text).toBe("a { b");
+});
