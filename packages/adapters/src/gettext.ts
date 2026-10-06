@@ -584,26 +584,48 @@ export function gettextTranslations(
 // it holds, whatever more the language has (#951). A file there is read
 // by its own header, one with no rule as CLDR's order, as the reader and
 // the writer read it (#973); a missing or empty file is the one pull
-// writes, with the language's table.
+// writes, with the language's table. `shared`: the exact keys one form
+// is read by, which a plural writes one text for (#1060), Filipino's
+// `=0` and `=1` under `nplurals=2; plural=(n > 1);`.
+export function gettextPluralReading(
+  text: string | undefined,
+  language: string,
+): { categories: string[]; shared: string[][] } {
+  const table = gettextTable(language, fileForms(text, language));
+  if (!table.own)
+    return {
+      categories: PLURAL_CATEGORIES.filter((c) => table.categories.includes(c)),
+      shared: [],
+    };
+  const keys = [...table.indexes.keys()];
+  return {
+    categories: [
+      ...keys
+        .filter((k) => k.startsWith("="))
+        .sort((a, b) => Number(a.slice(1)) - Number(b.slice(1))),
+      ...PLURAL_CATEGORIES.filter((c) => keys.includes(c)),
+    ],
+    shared: table.keysAt.filter((k) => k.length > 1),
+  };
+}
+
 export function gettextPluralCategories(
   text: string | undefined,
   language: string,
 ): string[] {
+  return gettextPluralReading(text, language).categories;
+}
+
+// A target file's Plural-Forms, or, for a file not there yet, the one
+// pull would write from the language's table.
+function fileForms(
+  text: string | undefined,
+  language: string,
+): string | undefined {
+  if (text !== undefined && text.trim() !== "")
+    return poHeader(parsePo(text))["Plural-Forms"];
   const rule = pluralRuleOf(language);
-  const forms =
-    text !== undefined && text.trim() !== ""
-      ? poHeader(parsePo(text))["Plural-Forms"]
-      : rule && `nplurals=${rule.nplurals}; plural=${rule.plural};`;
-  const table = gettextTable(language, forms);
-  if (!table.own)
-    return PLURAL_CATEGORIES.filter((c) => table.categories.includes(c));
-  const keys = [...table.indexes.keys()];
-  return [
-    ...keys
-      .filter((k) => k.startsWith("="))
-      .sort((a, b) => Number(a.slice(1)) - Number(b.slice(1))),
-    ...PLURAL_CATEGORIES.filter((c) => keys.includes(c)),
-  ];
+  return rule && `nplurals=${rule.nplurals}; plural=${rule.plural};`;
 }
 
 // A target file's fuzzy entries, msgmerge's guesses: not translations,

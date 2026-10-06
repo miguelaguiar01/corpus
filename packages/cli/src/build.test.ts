@@ -2078,9 +2078,19 @@ test("a file's own plural forms hold for its whole-count plurals, a source's plu
     source: "You have {n, plural, one {# file} other {# files}}",
   };
   // gettext's Plural-Forms are the file's, for the plural the msgid is.
-  expect(entryPluralForms(whole, gettext, own)).toEqual(own);
+  expect(entryPluralForms(whole, gettext, { forms: own })).toEqual({
+    pluralForms: own,
+  });
   // An ICU plural inside a msgid is picked by its formatter, by CLDR.
-  expect(entryPluralForms(inside, gettext, own)).toBeUndefined();
+  expect(entryPluralForms(inside, gettext, { forms: own })).toEqual({});
+  // The exact keys one form is read by travel with the file's forms
+  // (#1060).
+  const shared = { tl: [["=0", "=1"]] };
+  expect(entryPluralForms(whole, gettext, { forms: own, shared })).toEqual({
+    pluralForms: own,
+    pluralShared: shared,
+  });
+  expect(entryPluralForms(inside, gettext, { forms: own, shared })).toEqual({});
   // A source's declared rules hold for every plural, over the file's.
   const declared = {
     ...gettext,
@@ -2090,16 +2100,18 @@ test("a file's own plural forms hold for its whole-count plurals, a source's plu
       )[],
     },
   };
-  expect(entryPluralForms(inside, declared, own)).toEqual({
-    ru: ["one", "few", "many", "other"],
+  expect(entryPluralForms(inside, declared, { forms: own })).toEqual({
+    pluralForms: { ru: ["one", "few", "many", "other"] },
   });
-  expect(entryPluralForms(whole, declared, own)).toEqual({
-    ru: ["one", "few", "many", "other"],
+  expect(entryPluralForms(whole, declared, { forms: own })).toEqual({
+    pluralForms: { ru: ["one", "few", "many", "other"] },
   });
   // No plural, no forms.
   expect(
-    entryPluralForms({ id: "c", type: "ui", source: "Hi" }, declared, own),
-  ).toBeUndefined();
+    entryPluralForms({ id: "c", type: "ui", source: "Hi" }, declared, {
+      forms: own,
+    }),
+  ).toEqual({});
 });
 
 test('a vue source\'s pluralRules: "default" travels on its entries (#1018)', async () => {

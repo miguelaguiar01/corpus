@@ -75,6 +75,8 @@ function seedInvalid(
   // The file's own plural forms for the language, an `=N` among them
   // being the file's (#982, #1051).
   pluralForms?: readonly string[] | null,
+  // The exact keys one of its forms is read by (#1060).
+  pluralShared?: readonly string[][] | null,
 ): boolean {
   if (text === source || (PLAIN.test(source) && PLAIN.test(text))) return false;
   return !validateTranslation(source, text, language, library, {
@@ -82,6 +84,7 @@ function seedInvalid(
     ...(passed && { arguments: passed }),
     ...(placeholders && { placeholders }),
     ...(pluralForms && { pluralForms }),
+    ...(pluralShared && { pluralShared }),
     ...(library === "fluent" && isFluentTermId(id) && { term: true }),
     sourceLanguage,
   }).ok;
@@ -107,6 +110,7 @@ function stringWrites(
     keyIsText: p("keyIsText"),
     arguments: p("arguments"),
     pluralForms: p("pluralForms"),
+    pluralShared: p("pluralShared"),
     pluralRules: p("pluralRules"),
     languages: p("languages"),
     generated: p("generated"),
@@ -134,6 +138,9 @@ function stringWrites(
     // What the push says, as keyIsText: a push without it clears it.
     arguments: entry.arguments ? JSON.stringify(entry.arguments) : null,
     pluralForms: entry.pluralForms ? JSON.stringify(entry.pluralForms) : null,
+    pluralShared: entry.pluralShared
+      ? JSON.stringify(entry.pluralShared)
+      : null,
     pluralRules: entry.pluralRules ?? null,
     // Stored with the source language, which every string takes.
     languages: entry.languages
@@ -247,6 +254,7 @@ function stringWrites(
         sourceLanguage,
         entry.placeholders,
         entry.pluralForms?.[language],
+        entry.pluralShared?.[language],
       );
     });
   const refresh = tx
@@ -670,6 +678,7 @@ function projectStrings(db: Db, projectId: number) {
       languages: strings.languages,
       placeholders: strings.placeholders,
       pluralForms: strings.pluralForms,
+      pluralShared: strings.pluralShared,
     })
     .from(strings)
     .where(eq(strings.projectId, projectId))
@@ -840,6 +849,7 @@ function applySeeds(
           snapshot.sourceLanguage,
           string.placeholders,
           string.pluralForms?.[language],
+          string.pluralShared?.[language],
         );
       // A seed the row already holds is nothing: no write, no count, and
       // the editor's "changed since you opened it" stays quiet. Its mark
@@ -951,6 +961,7 @@ function remarkSeeds(
         arguments: strings.arguments,
         placeholders: strings.placeholders,
         pluralForms: strings.pluralForms,
+        pluralShared: strings.pluralShared,
       })
       .from(stringTranslations)
       .innerJoin(strings, eq(strings.id, stringTranslations.stringId))
@@ -976,6 +987,7 @@ function remarkSeeds(
         sourceLanguage,
         row.placeholders,
         row.pluralForms?.[row.language],
+        row.pluralShared?.[row.language],
       );
       if (invalid !== row.invalid)
         mark.run({

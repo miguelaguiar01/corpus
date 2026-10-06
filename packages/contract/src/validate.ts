@@ -102,6 +102,9 @@ export type ValidationError =
   // object, Rails hash, Qt numerus or String Catalog writer holds
   // (#1051): `category` is the branch the language picks for N.
   | { code: "exact-branch"; arg: string; key: string; category: string }
+  // Exact keys one form of a gettext file is read by, given two texts
+  // the file cannot hold (#1060).
+  | { code: "shared-form"; arg: string; keys: string[] }
   // A category's branch that writes the number 1 and no count, where
   // the language puts more in the category (#1042): hr's one{1 tjedan}
   // is printed for 21 weeks.
@@ -643,6 +646,8 @@ export function validateTranslation(
     richText?: TextReading;
     arguments?: string[];
     pluralForms?: readonly string[];
+    // The exact keys of `pluralForms` one form is read by (#1060).
+    pluralShared?: readonly (readonly string[])[];
     term?: boolean;
     // The source's language: a target of the same base language, en-GB
     // for en, takes the source's own plural categories (#1005).
@@ -1291,6 +1296,8 @@ export function validateTranslation(
     errors.push(...nestingErrors(sourceNodes, targetNodes));
   if (language !== undefined && CLDR_PICKED.has(syntax))
     errors.push(...fixedCounts(targetNodes, language, syntax));
+  if (options.pluralShared)
+    errors.push(...sharedForms(targetNodes, options.pluralShared));
   if (
     WHOLE_PLURAL_LIBRARIES.has(syntax) &&
     parsedSource.nodes.some((node) => node.kind === "plural")
@@ -1532,6 +1539,33 @@ function exactBranches(
         }),
       }));
   });
+}
+
+// Each group of exact keys one form is read by whose branches the
+// translation writes differently.
+function sharedForms(
+  nodes: IcuNode[],
+  groups: readonly (readonly string[])[],
+): ValidationError[] {
+  const out: ValidationError[] = [];
+  const visit = (list: IcuNode[]): void => {
+    for (const node of list) {
+      if (node.kind === "tag") visit(node.children);
+      if (node.kind !== "plural" && node.kind !== "select") continue;
+      for (const branch of Object.values(node.branches)) visit(branch);
+      if (node.kind !== "plural" || node.ordinal) continue;
+      for (const group of groups) {
+        const keys = group.filter((key) => Object.hasOwn(node.branches, key));
+        const texts = new Set(
+          keys.map((key) => JSON.stringify(node.branches[key])),
+        );
+        if (texts.size > 1)
+          out.push({ code: "shared-form", arg: node.arg, keys });
+      }
+    }
+  };
+  visit(nodes);
+  return out;
 }
 
 function fixedCounts(

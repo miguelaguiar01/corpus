@@ -123,6 +123,12 @@ export function validationMessage(
         key: error.key,
         values: error.values.join(", "),
       });
+    case "shared-form":
+      return t("editor.sharedForm", {
+        // In the chrome's language, as t renders it.
+        keys: new Intl.ListFormat("en").format(error.keys),
+        count: error.keys.length,
+      });
     case "overridden-branch":
       return t("editor.overriddenBranch", {
         arg: error.arg,
@@ -187,13 +193,16 @@ export function problemOf(
   sourceLanguage: string,
   // The syntaxes its source layers on the library (#1049).
   placeholders?: Library[] | null,
-  // The file's own plural forms for the language (#982, #1051).
+  // The file's own plural forms for the language (#982, #1051), and
+  // the exact keys one of them is read by (#1060).
   pluralForms?: readonly string[] | null,
+  pluralShared?: readonly string[][] | null,
 ): string | null {
   const check = validateTranslation(source, text, language, syntax, {
     richText: richText ?? undefined,
     ...(placeholders && { placeholders }),
     ...(pluralForms && { pluralForms }),
+    ...(pluralShared && { pluralShared }),
     ...(passed && { arguments: passed }),
     ...(syntax === "fluent" && isFluentTermId(key) && { term: true }),
     sourceLanguage,

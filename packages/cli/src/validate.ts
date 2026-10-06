@@ -61,6 +61,7 @@ import {
 import { download } from "./pull";
 import { unreadableFile } from "./catalogue-format";
 import { CliError, loadConfig, requireToken } from "./config";
+import { listed } from "./status";
 
 export const VALIDATE_USAGE = "corpus validate [--server] [--json]";
 
@@ -373,9 +374,7 @@ export async function validateRepo(
     );
     const augment = (entry: StringEntry): StringEntry => ({
       ...entry,
-      ...((forms) => forms && { pluralForms: forms })(
-        entryPluralForms(entry, source, pluralForms),
-      ),
+      ...entryPluralForms(entry, source, pluralForms),
       ...namedPluralRules(source),
       ...placeholdersOf(source),
       ...argumentsOf(source, entry.id),
@@ -641,6 +640,8 @@ export function describe(
       return `the ${error.key} branch of {${error.arg}} writes 1, but this language also picks it for ${error.values.join(", ")}${error.more ? " and more" : ""}: write ${written(error.arg)} in it`;
     case "exact-branch":
       return `{${error.arg}} has an ${error.key} branch, which this catalogue's plurals cannot hold, as they hold categories only: write it in the ${error.category} branch, which this language picks for ${error.key.slice(1)}`;
+    case "shared-form":
+      return `${listed(error.keys)} are one form in this file: write the same text in ${error.keys.length === 2 ? "both" : "each"}`;
     case "overridden-branch":
       return `plural on {${error.arg}} writes ${error.key} and ${error.category}, which gen-l10n reads as one branch: it keeps the one written later and drops the other`;
     case "wide-exact": {
@@ -1146,6 +1147,9 @@ function checkTranslation(
     ...(entry.arguments && { arguments: entry.arguments }),
     ...(entry.pluralForms?.[language] && {
       pluralForms: entry.pluralForms[language],
+    }),
+    ...(entry.pluralShared?.[language] && {
+      pluralShared: entry.pluralShared[language],
     }),
     ...(entry.pluralRules && { pluralRules: entry.pluralRules }),
     ...(entry.placeholders && { placeholders: entry.placeholders }),

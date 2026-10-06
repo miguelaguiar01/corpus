@@ -3589,8 +3589,8 @@ test("exact keys a gettext file reads one form by take one text: two are refused
       "tl",
       "printf",
       tl,
-    ).errors,
-  ).toBeUndefined();
+    ).ok,
+  ).toBe(true);
   // Without the grouping, as an older CLI pushes, nothing is said.
   expect(
     validateTranslation(

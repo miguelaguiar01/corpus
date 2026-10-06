@@ -306,6 +306,15 @@ export const stringEntrySchema = z.looseObject({
         .min(1),
     )
     .optional(),
+  // Per target language, the exact keys of `pluralForms` one form of
+  // the file is read by, which hold one text: Filipino's `=0` and `=1`
+  // under `nplurals=2; plural=(n > 1);` (#1060). Additive.
+  pluralShared: z
+    .record(
+      z.string(),
+      z.array(z.array(z.string().regex(EXACT_KEY)).min(2)).min(1),
+    )
+    .optional(),
   // The runtime's own plural rule where the source names one: vue-i18n's
   // default, under which the forms are read by count (#1018), or
   // easy_localization's CLDR picking (#961). Additive.
