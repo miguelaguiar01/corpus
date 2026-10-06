@@ -24,6 +24,7 @@ import { LanguageBar } from "@/components/language-bar";
 import { StateChips } from "@/components/state-chips";
 import { keyFromSegment, languageSwitchPath } from "@/strings/paths";
 import { TargetPane, type Slot } from "@/components/target-pane";
+import { carriedFrom } from "@/translations/carried";
 import { VerifyForm } from "@/components/verify-form";
 import { getProjectBySlug } from "@/projects/service";
 import { stringDetail } from "@/strings/detail";
@@ -45,8 +46,10 @@ type Query = {
   language?: string;
   error?: string;
   warning?: string;
-  // A draft a refused save carried back (#529).
+  // A draft a refused save carried back (#529), and the version it was
+  // opened at (#1058).
   draft?: string;
+  opened?: string;
 };
 
 const PROPOSAL_ERROR_KEY: Record<string, MessageKey> = {
@@ -121,6 +124,7 @@ export default async function StringPage({
       ? language
       : undefined;
   const targetRow = target ? translations[target] : undefined;
+  const carried = targetRow && carriedFrom(query, targetRow.version);
   // Verify acts on the row being read: the target when one is selected,
   // otherwise the source (proofreading).
   const acted = targetRow ?? source;
@@ -152,12 +156,6 @@ export default async function StringPage({
       written: written.get(name) ?? null,
     }),
   );
-  // A draft rides back only beside the refusal or warning that carried
-  // it, and only as one string: a bare link with ?draft= is ignored.
-  const carriedDraft =
-    typeof query.draft === "string" && (query.error || query.warning)
-      ? query.draft
-      : undefined;
   const errorKey = query.error
     ? (ERROR_KEY[query.error] ?? "verify.errorGeneric")
     : undefined;
@@ -374,7 +372,7 @@ export default async function StringPage({
               {/* The draft is one string's in one language at one version:
                   a switch of tab or a save starts it afresh (#979). */}
               <TargetPane
-                key={`${string.id}:${target}:${targetRow.version}`}
+                key={`${string.id}:${target}:${carried?.openedVersion}`}
                 action={saveString}
                 source={string.source}
                 syntax={string.syntax}
@@ -385,10 +383,10 @@ export default async function StringPage({
                 richText={string.richText}
                 slots={slots}
                 language={target}
-                initialText={carriedDraft ?? targetRow.text ?? ""}
+                initialText={carried?.draft ?? targetRow.text ?? ""}
                 slug={slug}
                 stringKey={string.key}
-                openedVersion={targetRow.version}
+                openedVersion={carried?.openedVersion ?? targetRow.version}
                 queue={queueKind}
                 examples={examples}
                 sourceLanguage={project.sourceLanguage}

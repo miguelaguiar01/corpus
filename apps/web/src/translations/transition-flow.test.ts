@@ -1,10 +1,11 @@
 import { moonlightManor, type Snapshot } from "@corpus/contract";
-import { expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { queueCounts } from "@/catalogue/queues";
 import { projects, users } from "@/db/schema";
 import { memoryDb } from "@/db/test-helpers";
 import { applySnapshot } from "@/ingest/apply";
 import { stringDetail } from "@/strings/detail";
+import { carriedFrom } from "./carried";
 import { sourceStamp } from "./stamp";
 import { transitionFlow, verifyFlow } from "./transition-flow";
 
@@ -196,7 +197,7 @@ test("verify on a target row is maintainer-only", () => {
   });
   expect(denied).toEqual({
     kind: "redirect",
-    to: `/p/mm/s/${encodeURIComponent(KEYS[2]!)}?error=not-maintainer`,
+    to: `/p/mm/s/${encodeURIComponent(KEYS[2]!)}?language=en&error=not-maintainer`,
   });
   const allowed = transitionFlow(db, {
     project: p,
@@ -297,7 +298,7 @@ test("a source that moved under the draft is named and the draft kept; a refused
   });
   expect(moved).toEqual({
     kind: "redirect",
-    to: `/p/mm/s/${encodeURIComponent(KEYS[0]!)}?warning=source-changed&draft=Someone+was+seen+at+the+window.`,
+    to: `/p/mm/s/${encodeURIComponent(KEYS[0]!)}?language=en&warning=source-changed&draft=Someone+was+seen+at+the+window.`,
   });
   expect(textOf(db, p.id, KEYS[0]!, "en")).toEqual(before);
   const refused = transitionFlow(db, {
@@ -312,4 +313,88 @@ test("a source that moved under the draft is named and the draft kept; a refused
   expect((refused as { to: string }).to).toContain(
     "error=invalid-translation&draft=",
   );
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+test("a refused save carries back the version the form opened, beside the draft (#1058)", () => {
+  const { db, p, rui } = pushed();
+  const opened = textOf(db, p.id, KEYS[2]!, "en")!.version;
+  const refused = transitionFlow(db, {
+    project: p,
+    user: rui,
+    key: KEYS[2]!,
+    language: "en",
+    action: { type: "save", text: "Continue {x}" },
+    queue: "untranslated",
+    openedVersion: opened,
+  });
+  expect(refused).toEqual({
+    kind: "redirect",
+    to: `/p/mm/s/${encodeURIComponent(KEYS[2]!)}?queue=untranslated&language=en&error=invalid-translation&draft=Continue+%7Bx%7D&opened=${opened}`,
+  });
+  const moved = transitionFlow(db, {
+    project: p,
+    user: rui,
+    key: KEYS[2]!,
+    language: "en",
+    action: { type: "save", text: "Continue" },
+    openedVersion: opened,
+    openedSource: sourceStamp("what the page showed"),
+  });
+  expect(moved).toEqual({
+    kind: "redirect",
+    to: `/p/mm/s/${encodeURIComponent(KEYS[2]!)}?language=en&warning=source-changed&draft=Continue&opened=${opened}`,
+  });
+});
+
+test("a save after a refused one still warns of an edit made since the string was opened (#1058)", () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-10-06T10:00:00Z"));
+  const { db, p, ana, rui } = pushed();
+  // Ana opens the string at its version now.
+  const opened = textOf(db, p.id, KEYS[2]!, "en")!.version;
+  // Bea (rui here) saves meanwhile.
+  vi.setSystemTime(new Date("2026-10-06T10:01:00Z"));
+  transitionFlow(db, {
+    project: p,
+    user: rui,
+    key: KEYS[2]!,
+    language: "en",
+    action: { type: "save", text: "Go on" },
+    openedVersion: opened,
+  });
+  vi.setSystemTime(new Date("2026-10-06T10:02:00Z"));
+  const refused = transitionFlow(db, {
+    project: p,
+    user: ana,
+    key: KEYS[2]!,
+    language: "en",
+    action: { type: "save", text: "Continue {x}" },
+    openedVersion: opened,
+  });
+  // The page the refusal lands on opens the pane at what it carried.
+  const query = Object.fromEntries(
+    new URL((refused as { to: string }).to, "http://corpus.example")
+      .searchParams,
+  );
+  const now = textOf(db, p.id, KEYS[2]!, "en")!.version;
+  expect(now).not.toBe(opened);
+  const carried = carriedFrom(query, now);
+  expect(carried).toEqual({ draft: "Continue {x}", openedVersion: opened });
+  const saved = transitionFlow(db, {
+    project: p,
+    user: ana,
+    key: KEYS[2]!,
+    language: "en",
+    action: { type: "save", text: "Continue" },
+    openedVersion: carried.openedVersion,
+  });
+  expect(saved).toEqual({
+    kind: "redirect",
+    // Outside a queue the refusal stays on the language saved in.
+    to: `/p/mm/s/${encodeURIComponent(KEYS[2]!)}?language=en&warning=changed`,
+  });
 });
