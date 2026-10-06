@@ -240,7 +240,9 @@ export const stringTranslations = sqliteTable(
 );
 
 // Append-only edits log (§11): who, when, string, language, old → new
-// text/state. Written only by the transition service, never updated.
+// text/state. Written by the transition service, and by a push that
+// carries a family's translations to its plural string with the last
+// edit's author and time (#1063); never updated.
 export const edits = sqliteTable(
   "edits",
   {

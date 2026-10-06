@@ -1,5 +1,6 @@
-import { and, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
 import {
+  PLURAL_CATEGORIES,
   libraryOf,
   sameMessage,
   validateTranslation,
@@ -35,6 +36,8 @@ export type IngestReport = DiffReport & {
   seedsIdentical: number;
   proposalsApplied: number;
   proposalsSuperseded: number;
+  // Translations carried from a family's archived keys (#1063).
+  carried: number;
 };
 
 // Carries the computed report out of a dry-run transaction while forcing
@@ -492,6 +495,15 @@ export function applySnapshot(
         rows,
       );
       applySuggestions(tx, projectId, targetLanguages, snapshot, rows);
+      const carried = carryFamilies(
+        tx,
+        projectId,
+        targetLanguages,
+        plan.insert.map((id) => bySnapshotId.get(id)!),
+        new Map(plan.archive.map((id) => [id, currentRowId.get(id)!])),
+        project.sourceLanguage,
+        richText,
+      );
       remarkSeeds(
         tx,
         project.sourceLanguage,
@@ -518,6 +530,7 @@ export function applySnapshot(
         ...seedResult,
         proposalsApplied: proposals.applied,
         proposalsSuperseded: proposals.superseded,
+        carried,
       };
       if (options.dryRun) throw new DryRunRollback(report);
       tx.insert(pushes)
@@ -683,6 +696,132 @@ function projectStrings(db: Db, projectId: number) {
     .from(strings)
     .where(eq(strings.projectId, projectId))
     .all();
+}
+
+const COUNT_PLURAL_RE = /^\s*\{\s*count\s*,\s*plural\s*,/;
+
+// A plural string this push inserts whose keys it archives, an i18next
+// family pushed as `n_one` and `n_other` before 0.22 and as `n` since
+// (#985): a language the files leave untranslated takes the texts those
+// keys hold in Corpus and never pulled (#1063), as one plural in CLDR's
+// order, at the lowest of their states, stale where one is. The edit
+// is the last one made to those keys, by its author at its time, so the
+// row keeps who wrote it, a person or an agent (§10).
+function carryFamilies(
+  tx: Db,
+  projectId: number,
+  targetLanguages: string[],
+  inserted: Entry[],
+  archived: Map<string, number>,
+  sourceLanguage: string,
+  richText: NonNullable<Snapshot["richText"]>,
+): number {
+  let carried = 0;
+  for (const entry of inserted) {
+    if (!COUNT_PLURAL_RE.test(entry.source)) continue;
+    const members = PLURAL_CATEGORIES.flatMap((category) => {
+      const rowId = archived.get(`${entry.id}_${category}`);
+      return rowId === undefined ? [] : [{ category, rowId }];
+    });
+    if (members.length === 0) continue;
+    const row = tx
+      .select({ id: strings.id })
+      .from(strings)
+      .where(
+        and(eq(strings.projectId, projectId), eq(strings.stringId, entry.id)),
+      )
+      .get();
+    if (!row) continue;
+    const library = libraryOf(entry);
+    for (const language of targetLanguages) {
+      if (!takes(entry, language)) continue;
+      const target = tx
+        .select()
+        .from(stringTranslations)
+        .where(
+          and(
+            eq(stringTranslations.stringId, row.id),
+            eq(stringTranslations.language, language),
+          ),
+        )
+        .get();
+      if (!target || target.state !== "untranslated" || target.text !== null)
+        continue;
+      const held = members.flatMap(({ category, rowId }) => {
+        const member = tx
+          .select()
+          .from(stringTranslations)
+          .where(
+            and(
+              eq(stringTranslations.stringId, rowId),
+              eq(stringTranslations.language, language),
+            ),
+          )
+          .get();
+        return member?.text != null && member.state !== "untranslated"
+          ? [{ category, member }]
+          : [];
+      });
+      if (held.length === 0) continue;
+      const text = `{count, plural, ${held
+        .map(({ category, member }) => `${category} {${member.text}}`)
+        .join(" ")}}`;
+      const state = held.some(({ member }) => member.state === "translated")
+        ? "translated"
+        : "verified";
+      const latest = tx
+        .select()
+        .from(edits)
+        .where(
+          and(
+            inArray(
+              edits.stringId,
+              held.map(({ member }) => member.stringId),
+            ),
+            eq(edits.language, language),
+          ),
+        )
+        .orderBy(desc(edits.id))
+        .get();
+      tx.update(stringTranslations)
+        .set({
+          text,
+          state,
+          stale: held.some(({ member }) => member.stale),
+          invalid: seedInvalid(
+            entry.source,
+            text,
+            language,
+            library,
+            richTextFor(entry.type, entry.id, library, richText),
+            entry.arguments,
+            entry.id,
+            sourceLanguage,
+            entry.placeholders,
+            entry.pluralForms?.[language],
+            entry.pluralShared?.[language],
+          ),
+          updatedAt: new Date(),
+        })
+        .where(eq(stringTranslations.id, target.id))
+        .run();
+      if (latest)
+        tx.insert(edits)
+          .values({
+            stringId: row.id,
+            language,
+            userId: latest.userId,
+            at: latest.at,
+            oldText: null,
+            newText: text,
+            oldState: "untranslated",
+            newState: state,
+          })
+          .run();
+      carried += 1;
+    }
+  }
+  return carried;
 }
 
 // seedSuggestions (§8, #773): what the repository offers a translator to
