@@ -3551,3 +3551,84 @@ test("a printf plural whose forms hold a literal {…} is a plural, its translat
     false,
   );
 });
+
+test("exact keys a gettext file reads one form by take one text: two are refused, as the file cannot hold them (#1060)", () => {
+  const source = "{count, plural, one {%d file} other {%d files}}";
+  // Filipino's common nplurals=2; plural=(n > 1): form 0 is 0 and 1.
+  const tl = {
+    pluralForms: ["=0", "=1", "other"],
+    pluralShared: [["=0", "=1"]],
+  };
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, =0 {%d file} =1 {%d file} other {%d mga file}}",
+      "tl",
+      "printf",
+      tl,
+    ).ok,
+  ).toBe(true);
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, =0 {Walang file} =1 {%d file} other {%d mga file}}",
+      "tl",
+      "printf",
+      tl,
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "shared-form", arg: "count", keys: ["=0", "=1"] }],
+  });
+  // One of the pair alone is the file's form; the other key is said
+  // missing, as any is.
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, =1 {%d file} other {%d mga file}}",
+      "tl",
+      "printf",
+      tl,
+    ).ok,
+  ).toBe(true);
+  // Without the grouping, as an older CLI pushes, nothing is said.
+  expect(
+    validateTranslation(
+      source,
+      "{count, plural, =0 {Walang file} =1 {%d file} other {%d mga file}}",
+      "tl",
+      "printf",
+      { pluralForms: tl.pluralForms },
+    ).ok,
+  ).toBe(true);
+});
+
+test("shared exact keys compare as the writer does, by the text written, not by its reading (#1060 review)", () => {
+  const source = "{count, plural, one {%d file} other {%d files}}";
+  const tl = {
+    pluralForms: ["=0", "=1", "other"],
+    pluralShared: [["=0", "=1"]],
+  };
+  // Each reads the same in both branches, yet is written two ways.
+  for (const [library, text] of [
+    ["printf", "{count, plural, =0 {100%%} =1 {100%} other {%d b}}"],
+    [
+      "icu",
+      "{count, plural, =0 {{count} file} =1 {{ count } file} other {# b}}",
+    ],
+    [
+      "icu",
+      "{count, plural, =0 {{count, number} f} =1 {{count,number} f} other {# b}}",
+    ],
+    ["icu", "{count, plural, =0 {<b>x</b>} =1 {<b >x</b>} other {# b}}"],
+  ] as const)
+    expect(
+      validateTranslation(source, text, "tl", library, tl),
+      text,
+    ).toMatchObject({
+      ok: false,
+      errors: expect.arrayContaining([
+        { code: "shared-form", arg: "count", keys: ["=0", "=1"] },
+      ]),
+    });
+});

@@ -130,6 +130,11 @@ export const strings = sqliteTable(
     pluralForms: text("plural_forms", { mode: "json" }).$type<
       Record<string, string[]>
     >(),
+    // Per target language, the exact keys one form of a gettext target
+    // file is read by (#1060); null elsewhere.
+    pluralShared: text("plural_shared", { mode: "json" }).$type<
+      Record<string, string[][]>
+    >(),
     // The runtime's own plural rule where the source names one: "default",
     // vue-i18n's, whose forms are read by count (#1018), or "cldr",
     // easy_localization's CLDR picking (#961); null else.

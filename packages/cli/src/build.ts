@@ -18,7 +18,7 @@ import {
   yamlTranslations,
   yamlPluralIds,
   yamlRootOf,
-  gettextPluralCategories,
+  gettextPluralReading,
   gettextSuggestions,
   qtTsSuggestions,
   gettextTranslations,
@@ -423,7 +423,7 @@ export async function buildSnapshotReport(
       validateEntry(
         {
           ...entry,
-          ...withPluralForms(entryPluralForms(entry, source, pluralForms)),
+          ...entryPluralForms(entry, source, pluralForms),
           ...namedPluralRules(source),
           ...(targets && { languages: targets }),
           // A key-is-text entry carries no file: a proposal would rewrite
@@ -1316,18 +1316,22 @@ export function pluralFormsOf(
   source: FileSource,
   config: CorpusConfig,
   onNote?: (note: string) => void,
-): Record<string, string[]> | undefined {
-  const own =
-    source.adapter === "gettext"
-      ? gettextPluralForms(cwd, source, config)
-      : source.adapter === "yaml" && sourceLibrary(source) === "rails"
-        ? railsPluralForms(cwd, source, config, onNote)
-        : undefined;
-  return own;
+): OwnPluralForms | undefined {
+  if (source.adapter === "gettext")
+    return gettextPluralForms(cwd, source, config);
+  if (source.adapter === "yaml" && sourceLibrary(source) === "rails") {
+    const forms = railsPluralForms(cwd, source, config, onNote);
+    return forms && { forms };
+  }
+  return undefined;
 }
 
-const withPluralForms = (forms: Record<string, string[]> | undefined) =>
-  forms ? { pluralForms: forms } : {};
+// A source's own plural forms per language, and the exact keys one
+// form of a gettext file is read by (#1060).
+export type OwnPluralForms = {
+  forms: Record<string, string[]>;
+  shared?: Record<string, string[][]>;
+};
 
 // A source's plural rule by name, which its entries carry (#1018, #961).
 export function namedPluralRules(source: FileSource): {
@@ -1345,20 +1349,24 @@ export function namedPluralRules(source: FileSource): {
 export function entryPluralForms(
   entry: StringEntry,
   source: FileSource,
-  own: Record<string, string[]> | undefined,
-): Record<string, string[]> | undefined {
+  own: OwnPluralForms | undefined,
+): Pick<StringEntry, "pluralForms" | "pluralShared"> {
   if (entry.library !== undefined && entry.library !== sourceLibrary(source))
-    return undefined;
+    return {};
   const rules = (source as { pluralRules?: unknown }).pluralRules;
   const declared =
     rules !== null && typeof rules === "object"
       ? (rules as Record<string, string[]>)
       : undefined;
+  const plural = pluralBranches(entry.source) !== undefined;
   const forms = {
-    ...(own && pluralBranches(entry.source) !== undefined && own),
+    ...(own && plural && own.forms),
     ...(declared && PLURAL_ARGUMENT_RE.test(entry.source) && declared),
   };
-  return Object.keys(forms).length > 0 ? forms : undefined;
+  return {
+    ...(Object.keys(forms).length > 0 && { pluralForms: forms }),
+    ...(own?.shared && plural && { pluralShared: own.shared }),
+  };
 }
 
 const PLURAL_ARGUMENT_RE = /\{\s*[^{},\s]+\s*,\s*plural\s*,/;
@@ -1461,13 +1469,15 @@ function railsPluralForms(
 // missing file is the one pull would write, from the language's table,
 // and one that will not read is named where its seeds are read. A tag
 // the runtime has no plural data for has none: its rules would be the
-// pushing machine's locale, and nothing is enforced for it.
+// pushing machine's locale, and nothing is enforced for it. `shared`:
+// the exact keys one form is read by (#1060).
 function gettextPluralForms(
   cwd: string,
   source: FileSource,
   config: CorpusConfig,
-): Record<string, string[]> | undefined {
+): OwnPluralForms | undefined {
   const out: Record<string, string[]> = {};
+  const shared: Record<string, string[][]> = {};
   for (const lang of config.languages) {
     if (lang === config.sourceLanguage) continue;
     if (!takesLanguage(source, config, lang)) continue;
@@ -1482,10 +1492,14 @@ function gettextPluralForms(
     } catch {
       continue;
     }
-    const picked = gettextPluralCategories(text, tag);
-    if (picked.join() !== cldr.join()) out[lang] = picked;
+    const reading = gettextPluralReading(text, tag);
+    if (reading.categories.join() !== cldr.join())
+      out[lang] = reading.categories;
+    if (reading.shared.length > 0) shared[lang] = reading.shared;
   }
-  return Object.keys(out).length > 0 ? out : undefined;
+  return Object.keys(out).length > 0
+    ? { forms: out, ...(Object.keys(shared).length > 0 && { shared }) }
+    : undefined;
 }
 
 // The ids a source's own file holds as a plural object or hash, which

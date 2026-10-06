@@ -46,6 +46,9 @@ export type StringDetail = {
     arguments: string[] | null;
     // Per target language, a gettext file's plural categories (#951).
     pluralForms: Record<string, string[]> | null;
+    // Per target language, the exact keys one of those forms is read by
+    // (#1060).
+    pluralShared: Record<string, string[][]> | null;
     // The runtime's own plural rule: vue-i18n's default (#1018), or
     // easy_localization's CLDR picking (#961).
     pluralRules: "default" | "cldr" | null;
@@ -175,6 +178,7 @@ export function stringDetail(
       syntax: string.syntax ?? "icu",
       arguments: string.arguments ?? null,
       pluralForms: string.pluralForms ?? null,
+      pluralShared: string.pluralShared ?? null,
       pluralRules: string.pluralRules ?? null,
       languages: string.languages ?? null,
       richText:

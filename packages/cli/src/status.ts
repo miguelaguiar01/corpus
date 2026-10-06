@@ -89,7 +89,7 @@ function codeKeyedOnly(adapters: readonly string[]): boolean {
 }
 
 // `a`, `a and b`, `a, b and c`.
-function listed(items: string[]): string {
+export function listed(items: string[]): string {
   return items.length < 2
     ? items.join("")
     : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;

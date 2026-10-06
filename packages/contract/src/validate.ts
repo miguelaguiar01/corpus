@@ -35,6 +35,7 @@ import {
   type IcuNode,
   type Shape,
   shapeOf,
+  pluralBranches,
 } from "./icu";
 import {
   EXACT_KEY,
@@ -102,6 +103,9 @@ export type ValidationError =
   // object, Rails hash, Qt numerus or String Catalog writer holds
   // (#1051): `category` is the branch the language picks for N.
   | { code: "exact-branch"; arg: string; key: string; category: string }
+  // Exact keys one form of a gettext file is read by, given two texts
+  // the file cannot hold (#1060).
+  | { code: "shared-form"; arg: string; keys: string[] }
   // A category's branch that writes the number 1 and no count, where
   // the language puts more in the category (#1042): hr's one{1 tjedan}
   // is printed for 21 weeks.
@@ -643,6 +647,8 @@ export function validateTranslation(
     richText?: TextReading;
     arguments?: string[];
     pluralForms?: readonly string[];
+    // The exact keys of `pluralForms` one form is read by (#1060).
+    pluralShared?: readonly (readonly string[])[];
     term?: boolean;
     // The source's language: a target of the same base language, en-GB
     // for en, takes the source's own plural categories (#1005).
@@ -1291,6 +1297,8 @@ export function validateTranslation(
     errors.push(...nestingErrors(sourceNodes, targetNodes));
   if (language !== undefined && CLDR_PICKED.has(syntax))
     errors.push(...fixedCounts(targetNodes, language, syntax));
+  if (options.pluralShared)
+    errors.push(...sharedForms(target, options.pluralShared));
   if (
     WHOLE_PLURAL_LIBRARIES.has(syntax) &&
     parsedSource.nodes.some((node) => node.kind === "plural")
@@ -1531,6 +1539,23 @@ function exactBranches(
           ...(rules && { rules }),
         }),
       }));
+  });
+}
+
+// Each group of exact keys one form is read by whose branches the
+// translation writes differently, compared as the gettext writer
+// compares them: by the text as written, a plural on `count` read whole.
+function sharedForms(
+  text: string,
+  groups: readonly (readonly string[])[],
+): ValidationError[] {
+  const branches = pluralBranches(text, true, true);
+  if (!branches) return [];
+  return groups.flatMap((group) => {
+    const keys = group.filter((key) => Object.hasOwn(branches, key));
+    return new Set(keys.map((key) => branches[key])).size > 1
+      ? [{ code: "shared-form" as const, arg: "count", keys }]
+      : [];
   });
 }
 

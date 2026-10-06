@@ -923,3 +923,35 @@ test("under gen_l10n a plural chip reads =1 as the one it stands for: the langua
     "{count, plural, one {{count}} few {{count}} other {{count}}}",
   );
 });
+
+test("the pane names a pair of exact keys one gettext form is read by when they differ (#1060)", () => {
+  render(
+    <TargetPane
+      action={vi.fn()}
+      source="{count, plural, one {%d file} other {%d files}}"
+      syntax="printf"
+      pluralForms={["=0", "=1", "other"]}
+      pluralShared={[["=0", "=1"]]}
+      slots={[]}
+      language="tl"
+      initialText="{count, plural, =0 {Walang file} =1 {%d file} other {%d mga file}}"
+      slug="mm"
+      stringKey="k"
+      openedVersion={1}
+      examples={[]}
+      sourceLanguage="en"
+    />,
+  );
+  expect(
+    screen.getByText(
+      /=0 and =1 are one form in this file: write the same text in both/,
+    ),
+  ).toBeTruthy();
+  expect(
+    (
+      screen.getByRole("button", {
+        name: "Save translation",
+      }) as HTMLButtonElement
+    ).disabled,
+  ).toBe(true);
+});

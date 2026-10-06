@@ -379,6 +379,7 @@ export default async function StringPage({
                 layers={string.placeholderSyntaxes}
                 passed={string.arguments}
                 pluralForms={string.pluralForms?.[target]}
+                pluralShared={string.pluralShared?.[target]}
                 pluralRules={string.pluralRules}
                 richText={string.richText}
                 slots={slots}

@@ -1,7 +1,8 @@
 import { moonlightManor, type Snapshot } from "@corpus/contract";
 import { afterEach, expect, test, vi } from "vitest";
 import { queueCounts } from "@/catalogue/queues";
-import { projects, users } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { projects, strings, users } from "@/db/schema";
 import { memoryDb } from "@/db/test-helpers";
 import { applySnapshot } from "@/ingest/apply";
 import { stringDetail } from "@/strings/detail";
@@ -397,4 +398,28 @@ test("a save after a refused one still warns of an edit made since the string wa
     // Outside a queue the refusal stays on the language saved in.
     to: `/p/mm/s/${encodeURIComponent(KEYS[2]!)}?language=en&warning=changed`,
   });
+});
+
+test("a save giving two texts to the exact keys one gettext form is read by is refused with the draft (#1060)", () => {
+  const { db, p, rui } = pushed();
+  db.update(strings)
+    .set({
+      pluralForms: { en: ["=0", "=1", "other"] },
+      pluralShared: { en: [["=0", "=1"]] },
+      // A gettext plural, which is on count.
+      source: "{count, plural, one {# mark left.} other {# marks left.}}",
+    })
+    .where(eq(strings.stringId, KEYS[3]!))
+    .run();
+  const result = transitionFlow(db, {
+    project: p,
+    user: rui,
+    key: KEYS[3]!,
+    language: "en",
+    action: {
+      type: "save",
+      text: "{count, plural, =0 {No marks left.} =1 {# mark left.} other {# marks left.}}",
+    },
+  });
+  expect((result as { to: string }).to).toContain("error=invalid-translation");
 });

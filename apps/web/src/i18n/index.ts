@@ -18,6 +18,9 @@ import messages from "./messages.en.json";
 
 export type MessageKey = keyof typeof messages;
 
+// The language the chrome renders in.
+export const CHROME_LOCALE = "en";
+
 export function t(
   key: MessageKey,
   values?: Record<string, string | number>,
@@ -27,6 +30,8 @@ export function t(
   const strings = Object.fromEntries(
     Object.entries(values).map(([name, value]) => [name, String(value)]),
   );
-  const rendered = renderPreview(message, strings, "en", { capitalise: false });
+  const rendered = renderPreview(message, strings, CHROME_LOCALE, {
+    capitalise: false,
+  });
   return rendered.ok ? rendered.text : message;
 }

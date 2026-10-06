@@ -1729,3 +1729,48 @@ export default defineCorpus({
     'corpus: en.lproj/Localizable.strings is an Apple .strings catalogue: declare it { adapter: "strings", type, path }, not as xcstrings',
   ]);
 });
+
+test("--server refuses a draft that gives two texts to the exact keys one form of a gettext file is read by (#1060)", async () => {
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8")
+      .replace(
+        /sources: \[[\s\S]*?\n {2}\],/,
+        'sources: [{ adapter: "gettext", type: "ui", path: "po/{lang}.po", sourcePath: "po/app.pot" }],',
+      )
+      .replace(/languages: \[[^\]]*\]/, 'languages: ["en", "tl"]'),
+  );
+  mkdirSync(path.join(repo, "po"), { recursive: true });
+  writeFileSync(
+    path.join(repo, "po", "app.pot"),
+    `msgid "%d file"\nmsgid_plural "%d files"\nmsgstr[0] ""\nmsgstr[1] ""\n`,
+  );
+  writeFileSync(
+    path.join(repo, "po", "tl.po"),
+    `msgid ""\nmsgstr ""\n"Language: tl\\n"\n"Plural-Forms: nplurals=2; plural=(n > 1);\\n"\n\nmsgid "%d file"\nmsgid_plural "%d files"\nmsgstr[0] ""\nmsgstr[1] ""\n`,
+  );
+  const out = path.join(repo, "snapshot.json");
+  expect(await run(["build", "--out", out], ctx())).toBe(0);
+  expect(JSON.parse(readFileSync(out, "utf8")).strings[0].pluralShared).toEqual(
+    { tl: [["=0", "=1"]] },
+  );
+  const server = await instance({
+    tl: {
+      "%d file":
+        "{count, plural, =0 {Walang file} =1 {%d file} other {%d mga file}}",
+    },
+  });
+  try {
+    const c = { ...ctx(), env: { CORPUS_TOKEN: "good" } };
+    expect(await run(["validate", "--server"], c)).toBe(1);
+    expect(c.stderr.join("\n")).toContain(
+      "po/tl.po:%d file: =0 and =1 are one form in this file: write the same text in both",
+    );
+  } finally {
+    server.close();
+    delete process.env.CORPUS_SERVER;
+  }
+});

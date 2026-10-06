@@ -213,6 +213,7 @@ export function TargetPane({
   richText = null,
   passed,
   pluralForms,
+  pluralShared,
   pluralRules,
   slots,
   language,
@@ -236,6 +237,8 @@ export function TargetPane({
   // The plural categories the runtime picks where they are not CLDR's:
   // a gettext file's `Plural-Forms`' (#951), rails-i18n's (#983).
   pluralForms?: string[] | null;
+  // The exact keys one form of a gettext file is read by (#1060).
+  pluralShared?: string[][] | null;
   // The runtime's own plural rule: vue-i18n's default (#1018), or
   // easy_localization's CLDR picking (#961).
   pluralRules?: "default" | "cldr" | null;
@@ -274,6 +277,7 @@ export function TargetPane({
         richText: richText ?? undefined,
         ...(passed && { arguments: passed }),
         ...(pluralForms && { pluralForms }),
+        ...(pluralShared && { pluralShared }),
         ...(pluralRules && { pluralRules }),
         ...(layers && { placeholders: layers }),
         // A Fluent term selects on what its callers pass (#1032).

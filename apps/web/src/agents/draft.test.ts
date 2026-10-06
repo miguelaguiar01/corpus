@@ -266,3 +266,27 @@ test("a draft in a language the string's source does not ship is refused by name
     agentDraft(db, { project, key: HEARD, language: "en", text: "Heard" }),
   ).toMatchObject({ ok: true });
 });
+
+test("an agent's draft giving two texts to the exact keys one gettext form is read by is refused (#1060)", () => {
+  const { db, project } = pushedProject();
+  db.update(strings)
+    .set({
+      pluralForms: { en: ["=0", "=1", "other"] },
+      pluralShared: { en: [["=0", "=1"]] },
+      // A gettext plural, which is on count.
+      source: "{count, plural, one {# mark left.} other {# marks left.}}",
+    })
+    .where(eq(strings.stringId, "ui.marks-left"))
+    .run();
+  const result = agentDraft(db, {
+    project,
+    key: "ui.marks-left",
+    language: "en",
+    text: "{count, plural, =0 {No marks left.} =1 {# mark left.} other {# marks left.}}",
+  });
+  expect(result).toEqual({
+    ok: false,
+    reason: "invalid-translation",
+    message: "=0 and =1 are one form in this file: write the same text in both",
+  });
+});

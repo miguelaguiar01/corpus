@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- A gettext translation that gives two texts to the exact keys of one form, Filipino's `=0` and `=1`, is refused when saved or drafted and invalid in `corpus validate`, rather than refused at pull (#1060).
 - A save after a refused one still warns that someone else edited the string since it was opened (#1058).
 - A refused save outside a queue returns to the editor with the draft, not to the source view (#1058).
 - The workbench declares the exact `next` it is built with, so a fresh install no longer takes next 16.4.0 and fails to start (#1238).

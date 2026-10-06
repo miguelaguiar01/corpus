@@ -23,6 +23,7 @@ export {
   WHOLE_PLURAL_LIBRARIES,
   FLUENT_OPTIONS_RE,
   fmtLiteralBraces,
+  pluralBranches,
   type IcuError,
   type IcuNode,
   type IcuParseResult,
