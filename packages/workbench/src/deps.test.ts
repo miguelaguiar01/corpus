@@ -88,3 +88,15 @@ test("the workbench carries the CLI's version", () => {
   ) as { version: string };
   expect(manifest.version).toBe(cli.version);
 });
+
+// The package ships a prebuilt .next, which only the next that built it
+// is known to run: 16.4.0 reads a preview-props.json 16.3 never wrote
+// (#1238).
+test("the workbench declares next at exactly the version that builds it", () => {
+  const lock = JSON.parse(
+    readFileSync(path.join(repo, "package-lock.json"), "utf8"),
+  ) as { packages: Record<string, { version?: string }> };
+  expect(manifest.dependencies.next).toBe(
+    lock.packages["node_modules/next"]?.version,
+  );
+});
