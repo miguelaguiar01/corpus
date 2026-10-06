@@ -273,6 +273,8 @@ test("an agent's draft giving two texts to the exact keys one gettext form is re
     .set({
       pluralForms: { en: ["=0", "=1", "other"] },
       pluralShared: { en: [["=0", "=1"]] },
+      // A gettext plural, which is on count.
+      source: "{count, plural, one {# mark left.} other {# marks left.}}",
     })
     .where(eq(strings.stringId, "ui.marks-left"))
     .run();
@@ -280,7 +282,7 @@ test("an agent's draft giving two texts to the exact keys one gettext form is re
     project,
     key: "ui.marks-left",
     language: "en",
-    text: "{n, plural, =0 {No marks left.} =1 {# mark left.} other {# marks left.}}",
+    text: "{count, plural, =0 {No marks left.} =1 {# mark left.} other {# marks left.}}",
   });
   expect(result).toEqual({
     ok: false,

@@ -35,6 +35,7 @@ import {
   type IcuNode,
   type Shape,
   shapeOf,
+  pluralBranches,
 } from "./icu";
 import {
   EXACT_KEY,
@@ -1297,7 +1298,7 @@ export function validateTranslation(
   if (language !== undefined && CLDR_PICKED.has(syntax))
     errors.push(...fixedCounts(targetNodes, language, syntax));
   if (options.pluralShared)
-    errors.push(...sharedForms(targetNodes, options.pluralShared));
+    errors.push(...sharedForms(target, options.pluralShared));
   if (
     WHOLE_PLURAL_LIBRARIES.has(syntax) &&
     parsedSource.nodes.some((node) => node.kind === "plural")
@@ -1542,30 +1543,20 @@ function exactBranches(
 }
 
 // Each group of exact keys one form is read by whose branches the
-// translation writes differently.
+// translation writes differently, compared as the gettext writer
+// compares them: by the text as written, a plural on `count` read whole.
 function sharedForms(
-  nodes: IcuNode[],
+  text: string,
   groups: readonly (readonly string[])[],
 ): ValidationError[] {
-  const out: ValidationError[] = [];
-  const visit = (list: IcuNode[]): void => {
-    for (const node of list) {
-      if (node.kind === "tag") visit(node.children);
-      if (node.kind !== "plural" && node.kind !== "select") continue;
-      for (const branch of Object.values(node.branches)) visit(branch);
-      if (node.kind !== "plural" || node.ordinal) continue;
-      for (const group of groups) {
-        const keys = group.filter((key) => Object.hasOwn(node.branches, key));
-        const texts = new Set(
-          keys.map((key) => JSON.stringify(node.branches[key])),
-        );
-        if (texts.size > 1)
-          out.push({ code: "shared-form", arg: node.arg, keys });
-      }
-    }
-  };
-  visit(nodes);
-  return out;
+  const branches = pluralBranches(text, true, true);
+  if (!branches) return [];
+  return groups.flatMap((group) => {
+    const keys = group.filter((key) => Object.hasOwn(branches, key));
+    return new Set(keys.map((key) => branches[key])).size > 1
+      ? [{ code: "shared-form" as const, arg: "count", keys }]
+      : [];
+  });
 }
 
 function fixedCounts(

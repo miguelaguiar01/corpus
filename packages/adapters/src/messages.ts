@@ -1,12 +1,14 @@
 import {
-  EXACT_KEY,
   PLURAL_CATEGORIES,
-  fmtLiteralBraces,
+  pluralBranches,
   pluralCategoriesOf,
   renderPreview,
   type Library,
   type StringEntry,
 } from "@corpus/contract";
+
+// The writers' split of a plural, the one validation compares (#1060).
+export { pluralBranches };
 
 // `arb`: Flutter's ARB is JSON whose top-level keys starting with "@"
 // are metadata for their sibling ("@wallpaper", "@@locale"), not text
@@ -238,63 +240,6 @@ export function formOf(
   category: string,
 ): string | undefined {
   return branches[category] ?? branches.other;
-}
-
-// A plural string's forms by category, as a plural object writes them:
-// the branches of `{count, plural, …}` with their text as written,
-// braces balanced; undefined for any other text.
-export function pluralBranches(
-  text: string,
-  needsOther = true,
-  // `=N` branches too, which a gettext file's own forms can be (#982).
-  exact = false,
-): Record<string, string> | undefined {
-  const head = /^\s*\{\s*count\s*,\s*plural\s*,/.exec(text);
-  if (!head) return undefined;
-  const forms: Record<string, string> = {};
-  let at = head[0].length;
-  for (;;) {
-    while (/\s/.test(text[at] ?? "")) at++;
-    if (text[at] === "}") {
-      return text.slice(at + 1).trim() === "" &&
-        Object.keys(forms).length > 0 &&
-        (!needsOther || Object.hasOwn(forms, "other"))
-        ? forms
-        : undefined;
-    }
-    const open = text.indexOf("{", at);
-    if (open < 0) return undefined;
-    const key = text.slice(at, open).trim();
-    if (
-      !/^(?:zero|one|two|few|many|other)$/.test(key) &&
-      !(exact && EXACT_KEY.test(key))
-    )
-      return undefined;
-    // A form's own braces are as its library writes them: a field or an
-    // argument nests, and `{{` and `}}` are fmt's and i18next's pairs, a
-    // run of `}` closing the branch where a key or the end follows it, so
-    // the split is the one the reader makes (#1002).
-    let depth = 1;
-    let end = open + 1;
-    for (; end < text.length; end++) {
-      if (text[end] === "{") {
-        if (depth === 1 && text[end + 1] === "{") end++;
-        else depth++;
-      } else if (text[end] === "}") {
-        if (depth > 1) {
-          depth--;
-          continue;
-        }
-        const literal = fmtLiteralBraces(text, end, true);
-        if (literal === undefined) return undefined;
-        if (literal === 0) break;
-        end += literal - 1;
-      }
-    }
-    if (end >= text.length) return undefined;
-    forms[key] = text.slice(open + 1, end);
-    at = end + 1;
-  }
 }
 
 // A plural's text, `{arg, plural, …}`: its forms in CLDR's order, or in

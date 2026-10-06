@@ -406,6 +406,8 @@ test("a save giving two texts to the exact keys one gettext form is read by is r
     .set({
       pluralForms: { en: ["=0", "=1", "other"] },
       pluralShared: { en: [["=0", "=1"]] },
+      // A gettext plural, which is on count.
+      source: "{count, plural, one {# mark left.} other {# marks left.}}",
     })
     .where(eq(strings.stringId, KEYS[3]!))
     .run();
@@ -416,7 +418,7 @@ test("a save giving two texts to the exact keys one gettext form is read by is r
     language: "en",
     action: {
       type: "save",
-      text: "{n, plural, =0 {No marks left.} =1 {# mark left.} other {# marks left.}}",
+      text: "{count, plural, =0 {No marks left.} =1 {# mark left.} other {# marks left.}}",
     },
   });
   expect((result as { to: string }).to).toContain("error=invalid-translation");

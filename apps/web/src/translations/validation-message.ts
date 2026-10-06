@@ -8,7 +8,7 @@ import {
   isFluentTermId,
 } from "@corpus/contract";
 import { chipText } from "@/components/source-view";
-import { t } from "@/i18n";
+import { CHROME_LOCALE, t } from "@/i18n";
 
 // The contract's validation errors are data; this is where they become
 // chrome text ("Missing {witness}"), so the same rule reads the same in
@@ -125,8 +125,7 @@ export function validationMessage(
       });
     case "shared-form":
       return t("editor.sharedForm", {
-        // In the chrome's language, as t renders it.
-        keys: new Intl.ListFormat("en").format(error.keys),
+        keys: new Intl.ListFormat(CHROME_LOCALE).format(error.keys),
         count: error.keys.length,
       });
     case "overridden-branch":

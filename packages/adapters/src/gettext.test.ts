@@ -1088,12 +1088,12 @@ test("validation refuses a Filipino draft exactly where the writer cannot hold i
     entriesToGettext(tl, { "%d file": text }, tl, lang, () => {
       refused = true;
     });
-    const shares = (
-      validateTranslation(source, text, "tl", library, {
-        pluralForms: categories,
-        pluralShared: shared,
-      }).errors ?? []
-    ).some((e) => e.code === "shared-form");
+    const result = validateTranslation(source, text, "tl", library, {
+      pluralForms: categories,
+      pluralShared: shared,
+    });
+    const shares =
+      !result.ok && result.errors.some((e) => e.code === "shared-form");
     expect(shares, text).toBe(refused);
   }
 });

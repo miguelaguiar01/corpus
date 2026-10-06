@@ -3623,7 +3623,12 @@ test("shared exact keys compare as the writer does, by the text written, not by 
     ["icu", "{count, plural, =0 {<b>x</b>} =1 {<b >x</b>} other {# b}}"],
   ] as const)
     expect(
-      validateTranslation(source, text, "tl", library, tl).errors,
+      validateTranslation(source, text, "tl", library, tl),
       text,
-    ).toContainEqual({ code: "shared-form", arg: "count", keys: ["=0", "=1"] });
+    ).toMatchObject({
+      ok: false,
+      errors: expect.arrayContaining([
+        { code: "shared-form", arg: "count", keys: ["=0", "=1"] },
+      ]),
+    });
 });
