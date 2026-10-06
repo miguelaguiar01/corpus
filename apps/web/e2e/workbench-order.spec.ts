@@ -89,3 +89,63 @@ test("a forty-language project's string page offers the picker, filters it and f
   await expect(page.getByRole("textbox")).toBeVisible();
   await expect(control).toContainText("ko");
 });
+
+// A save refused for a source that moved carries the draft back with
+// the version it was opened at, so the next save still says someone
+// else saved in between (#1058).
+test("a save after a source-changed refusal still warns of an edit made since opening", async ({
+  page,
+  request,
+}) => {
+  const slug = "moonlight-manor-carry";
+  const created = await request.post("/api/projects", {
+    headers: { authorization: `Bearer ${SMOKE_SECRET}` },
+    data: {
+      slug,
+      name: "Moonlight Manor, carried",
+      sourceLanguage: moonlightManor.sourceLanguage,
+      languages: ["pt-PT", "en"],
+    },
+  });
+  expect(created.ok()).toBeTruthy();
+  const { token } = (await created.json()) as { token: string };
+  const auth = { authorization: `Bearer ${token}` };
+  const snapshot = { ...moonlightManor, project: slug };
+  expect(
+    (await request.post("/api/push", { headers: auth, data: snapshot })).ok(),
+  ).toBeTruthy();
+
+  await join(page, "cy");
+  await page.goto(`/p/${slug}/s/ui.continue?language=en`);
+  await page.getByRole("textbox").fill("Continue");
+
+  // Meanwhile an agent drafts the row and the source moves.
+  const drafted = await request.put(
+    `/api/strings/ui.continue/translations/en`,
+    { headers: auth, data: { text: "Go on" } },
+  );
+  expect(drafted.ok()).toBeTruthy();
+  const moved = await request.post("/api/push", {
+    headers: auth,
+    data: {
+      ...snapshot,
+      strings: snapshot.strings.map((s) =>
+        s.id === "ui.continue" ? { ...s, source: "Prosseguir" } : s,
+      ),
+    },
+  });
+  expect(moved.ok()).toBeTruthy();
+
+  await page.getByRole("button", { name: "Save translation" }).click();
+  await page.waitForURL(/warning=source-changed/);
+  await expect(
+    page.getByText(/The source changed since you opened/),
+  ).toBeVisible();
+  await expect(page.getByRole("textbox")).toHaveValue("Continue");
+
+  await page.getByRole("button", { name: "Save translation" }).click();
+  await page.waitForURL(/warning=changed/);
+  await expect(
+    page.getByText(/This string changed since you opened it/),
+  ).toBeVisible();
+});

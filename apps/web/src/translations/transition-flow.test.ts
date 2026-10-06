@@ -197,7 +197,7 @@ test("verify on a target row is maintainer-only", () => {
   });
   expect(denied).toEqual({
     kind: "redirect",
-    to: `/p/mm/s/${encodeURIComponent(KEYS[2]!)}?error=not-maintainer`,
+    to: `/p/mm/s/${encodeURIComponent(KEYS[2]!)}?language=en&error=not-maintainer`,
   });
   const allowed = transitionFlow(db, {
     project: p,
@@ -298,7 +298,7 @@ test("a source that moved under the draft is named and the draft kept; a refused
   });
   expect(moved).toEqual({
     kind: "redirect",
-    to: `/p/mm/s/${encodeURIComponent(KEYS[0]!)}?warning=source-changed&draft=Someone+was+seen+at+the+window.`,
+    to: `/p/mm/s/${encodeURIComponent(KEYS[0]!)}?language=en&warning=source-changed&draft=Someone+was+seen+at+the+window.`,
   });
   expect(textOf(db, p.id, KEYS[0]!, "en")).toEqual(before);
   const refused = transitionFlow(db, {
@@ -346,7 +346,7 @@ test("a refused save carries back the version the form opened, beside the draft 
   });
   expect(moved).toEqual({
     kind: "redirect",
-    to: `/p/mm/s/${encodeURIComponent(KEYS[2]!)}?warning=source-changed&draft=Continue&opened=${opened}`,
+    to: `/p/mm/s/${encodeURIComponent(KEYS[2]!)}?language=en&warning=source-changed&draft=Continue&opened=${opened}`,
   });
 });
 
@@ -394,6 +394,7 @@ test("a save after a refused one still warns of an edit made since the string wa
   });
   expect(saved).toEqual({
     kind: "redirect",
-    to: `/p/mm/s/${encodeURIComponent(KEYS[2]!)}?warning=changed`,
+    // Outside a queue the refusal stays on the language saved in.
+    to: `/p/mm/s/${encodeURIComponent(KEYS[2]!)}?language=en&warning=changed`,
   });
 });
