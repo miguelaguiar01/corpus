@@ -62,7 +62,11 @@ function closing(source: string, at: number): number {
 function opensRegex(source: string, at: number, i: number): boolean {
   let j = i - 1;
   while (j > at && /\s/.test(source[j]!)) j--;
-  if (j <= at) return source[at - 1] === "=";
+  // A closer is `{/word}`, never a value; the slice keeps the test short.
+  if (j <= at)
+    return (
+      source[at - 1] === "=" && !/^\/[a-z]+\s*\}/.test(source.slice(i, i + 32))
+    );
   const before = source.slice(at + 1, j + 1);
   if (/^\s*(?:[#@][a-z]+|:else\s+if)$/.test(before)) return true;
   const ch = source[j]!;
