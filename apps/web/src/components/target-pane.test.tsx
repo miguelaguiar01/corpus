@@ -1005,6 +1005,12 @@ test("the plural chip leaves out a category the source's =N branch already cover
     "icu",
   );
   expect(check.incomplete ?? []).toEqual([]);
+  // `=01` is no `=1` to the runtimes, so it covers nothing.
+  expect(keys(chip("{n, plural, =01 {# x} other {# x}}", "de"))).toEqual([
+    "=01",
+    "one",
+    "other",
+  ]);
   // gen-l10n reads =1 as one (#1039): its chip keeps offering one.
   expect(keys(chip(source, "de", "gen_l10n"))).toEqual(["one", "other"]);
 });
