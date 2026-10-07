@@ -4495,6 +4495,10 @@ test("where tags are compared, a broken tag holding a placeholder in its attribu
     ["android", '<a href="%1$s">%2$s</a>', '<a href="%1$s">%2$s'],
     ["android", '<a href="%1$s">Go</a>', '<href="%1$s">Vai</a>'],
     ["i18next", '<a href="{{url}}">Go</a>', '<href="{{url}}">Vai</a>'],
+    // Every reading that compares tags (#1146 review).
+    ["icu", '<a href="{u}">Go</a>', "<a>Vai {u}</a>"],
+    ["rails", '<a href="%{u}">Go</a>', "<a>Vai %{u}</a>"],
+    ["counterpart", '<a href="%(u)s">Go</a>', "<a>Vai %(u)s</a>"],
   ] as const) {
     const result = validateTranslation(source, target, "pt", syntax);
     expect(result.ok, target).toBe(false);
