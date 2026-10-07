@@ -13,6 +13,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- `corpus init` writes a file named by a country's code, Hoppscotch's `cn.json`, as its language (`zh-CN`) with the mapping, and warns when a `tw.json` or `kr.json` holds Chinese or Korean (#697).
 - A pull or proposal into a large JSON file parses it once per pass rather than once per key: 5,000 new keys take a tenth of a second, not 44 (#693).
 - The plural chip no longer inserts a category the source's `=N` branch already covers, German's `one` beside `=1` (#686).
 - The string page and its saves no longer load the whole queue to find previous and next (#639).
