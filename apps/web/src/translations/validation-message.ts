@@ -160,6 +160,8 @@ export function validationMessage(
     case "unexpected-category":
       return t("editor.unexpectedCategory", { arg: error.arg, key: error.key });
     case "unexpected-format":
+      if (error.expected === null)
+        return t("editor.formatAdded", { name: error.name });
       return error.actual === null
         ? t("editor.formatDropped", { name: error.name, type: error.expected })
         : t("editor.formatChanged", {

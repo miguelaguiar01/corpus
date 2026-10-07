@@ -4219,7 +4219,12 @@ test("under fluent, a translation adds no format its source lacks, which pull wo
     });
   // A format the source has keeps its style the translator's.
   expect(
-    validateTranslation("On {d, date}", "Am {d, date, short}", "de", "fluent"),
+    validateTranslation(
+      "On {d, date}",
+      'Am {d, date, dateStyle: "short"}',
+      "de",
+      "fluent",
+    ),
   ).toEqual({ ok: true });
   // Elsewhere a format is the translator's to add.
   expect(

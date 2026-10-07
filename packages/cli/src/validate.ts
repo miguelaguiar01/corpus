@@ -679,6 +679,8 @@ export function describe(
     case "unpassed-selector":
       return `selects on {${error.arg}}, which the source never passes: Fluent renders the default`;
     case "unexpected-format":
+      if (error.expected === null)
+        return `{${error.name}} has no format in the source, which passes it as it is: write it without one`;
       return error.actual === null
         ? `{${error.name}} is a ${error.expected} in the source; write it {${error.name}, ${error.expected}}`
         : `{${error.name}} is a ${error.expected} in the source, not a ${error.actual}`;

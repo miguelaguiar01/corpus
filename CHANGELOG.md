@@ -13,6 +13,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- A Fluent translation that adds a format its source lacks (`{n, date}` for `{ $n }`) is refused, rather than written as `DATETIME($n)` (#1089).
 - `corpus build`, `validate`, `init` and `pull` no longer overflow the stack on catalogues past about 120,000 strings (#1276).
 - A Rails translation with a mistyped `%{` also reports its missing and unexpected placeholders, not the `%{` alone (#976).
 - A translated plural without `other` is reported as such (`missing-other` in `--json`), not as a parse error with an offset (#975).
