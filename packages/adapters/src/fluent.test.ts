@@ -784,6 +784,8 @@ test('an ordinal, a select on NUMBER($n, type: "ordinal"), reads and writes as a
     "NUMBER($n)",
     'NUMBER($n, type: "ordinal", minimumIntegerDigits: 2)',
     'NUMBER($n, type: "cardinal")',
+    // Fluent's blank between arguments is spaces; a tab is Junk to it.
+    'NUMBER($n,\ttype: "ordinal")',
   ]) {
     const refused: string[] = [];
     fluentToEntries(`x = { ${call} ->\n    [one] a\n   *[other] b\n  }\n`, {
