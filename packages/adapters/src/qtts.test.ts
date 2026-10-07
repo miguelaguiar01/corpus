@@ -936,3 +936,27 @@ test("a numerus message's plain text fills every form, one no category reads too
   ).toBe(ja);
   expect(refused).toEqual(["C | %n file(s)"]);
 });
+
+test("in a one-category language an edit writes other's text into the form no category reads, so n = 1 shows it; an unchanged pull keeps the file (#1104)", () => {
+  const id = "Main | %n file(s)";
+  for (const lang of ["km", "lo"]) {
+    const language = { tag: lang, code: lang };
+    const full = numerus(lang, ["A", "B"]);
+    expect(
+      entriesToQtTs(
+        numerus("", ["", ""]),
+        { [id]: "{count, plural, other {B}}" },
+        full,
+        language,
+      ),
+    ).toBe(full);
+    expect(
+      entriesToQtTs(
+        numerus("", ["", ""]),
+        { [id]: "{count, plural, other {NEW}}" },
+        full,
+        language,
+      ),
+    ).toBe(numerus(lang, ["NEW", "NEW"]));
+  }
+});
