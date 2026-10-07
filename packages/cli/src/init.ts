@@ -31,10 +31,12 @@ import {
   tagMode,
   richTextFor,
   type Library,
+  type StringEntry,
 } from "@corpus/contract";
 import { headOf, isQtLinguist, unreadableFile } from "./catalogue-format";
 import { option } from "./args";
 import { printable } from "./printable";
+import { append } from "./append";
 import {
   configKey,
   fileOf,
@@ -449,10 +451,11 @@ async function htmlOnlyTags(
           ns: undefined,
         },
       ];
-  const entries = [];
+  const entries: StringEntry[] = [];
   for (const { file, ns } of files) {
+    let read: StringEntry[];
     try {
-      const read = await readEntries(
+      read = await readEntries(
         createJiti(import.meta.url),
         cwd,
         file,
@@ -460,12 +463,13 @@ async function htmlOnlyTags(
         true,
         sourceLanguage,
       );
-      entries.push(
-        ...read.map((e) => (ns ? { ...e, id: `${ns}:${e.id}` } : e)),
-      );
     } catch {
       continue;
     }
+    append(
+      entries,
+      read.map((e) => (ns ? { ...e, id: `${ns}:${e.id}` } : e)),
+    );
   }
   const ids: string[] = [];
   for (const entry of entries) {
@@ -1306,30 +1310,20 @@ async function libraryFor(
   const jiti = createJiti(import.meta.url);
   for (const concrete of concretes) {
     const at = textKeyed ?? concrete.replaceAll("{lang}", sourceLanguage);
+    const source: FileSource = {
+      adapter: "messages",
+      type,
+      path: concrete,
+      ...(textKeyed && { sourcePath: textKeyed, keyIsText: true }),
+      ...(entryObjects && { entries: entryObjects }),
+    };
+    let entries: StringEntry[];
+    let objects: ReadonlySet<string> | undefined;
     try {
-      const source: FileSource = {
-        adapter: "messages",
-        type,
-        path: concrete,
-        ...(textKeyed && { sourcePath: textKeyed, keyIsText: true }),
-        ...(entryObjects && { entries: entryObjects }),
-      };
-      const entries = await readEntries(jiti, cwd, at, source, true);
+      entries = await readEntries(jiti, cwd, at, source, true);
       // An object's forms are what the file writes: the plural the
       // reader makes of them is no ICU argument of the catalogue's (#984).
-      const objects = await sourcePluralIds(jiti, cwd, source, sourceLanguage);
-      texts.push(
-        ...entries.flatMap((entry) => {
-          const forms = objects?.has(entry.id)
-            ? pluralBranches(entry.source)
-            : undefined;
-          return forms ? Object.values(forms) : [entry.source];
-        }),
-      );
-      ids.push(...entries.map((entry) => entry.id));
-      keyed += entries.filter((entry) => entry.keyIsText).length;
-      read.push(at);
-      readConcretes.push(concrete);
+      objects = await sourcePluralIds(jiti, cwd, source, sourceLanguage);
     } catch (error) {
       // A plain pattern's missing source file is said where the
       // languages are read; any other file that does not read is named.
@@ -1339,7 +1333,24 @@ async function libraryFor(
         .split("\n")[0]!
         .trim();
       failed.push({ file: at, reason });
+      continue;
     }
+    append(
+      texts,
+      entries.flatMap((entry) => {
+        const forms = objects?.has(entry.id)
+          ? pluralBranches(entry.source)
+          : undefined;
+        return forms ? Object.values(forms) : [entry.source];
+      }),
+    );
+    append(
+      ids,
+      entries.map((entry) => entry.id),
+    );
+    keyed += entries.filter((entry) => entry.keyIsText).length;
+    read.push(at);
+    readConcretes.push(concrete);
   }
   if (concretes.length === 0 || read.length + failed.length === 0) return {};
   if (read.length === 0)

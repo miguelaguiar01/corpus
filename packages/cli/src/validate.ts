@@ -30,6 +30,7 @@ import {
   qtShortForms,
 } from "@corpus/adapters";
 import { printable } from "./printable";
+import { append } from "./append";
 import { readRepoText } from "./repo-text";
 import type { RunContext } from "./cli";
 import {
@@ -294,7 +295,7 @@ export async function validateRepo(
         config.sourceLanguage,
         config.richText ?? {},
       );
-      findings.push(...exec.findings);
+      append(findings, exec.findings);
       if (exec.handedOver < exec.possible)
         unchecked.push({
           source: source.command,
@@ -356,8 +357,9 @@ export async function validateRepo(
       for (const id of [...sources.keys(), ...refusedSource]) held.add(id);
       declaredIds.set(passes, held);
     }
-    findings.push(
-      ...sourceWarnings(
+    append(
+      findings,
+      sourceWarnings(
         sourceFile,
         config.sourceLanguage,
         sources,
@@ -740,7 +742,7 @@ function validateExec(
       `exec "${command}" emitted invalid translations: a map of language to id to text, or to { text, state: "translated" }`,
     );
   }
-  findings.push(...sourceWarnings(file, sourceLanguage, sources, libraryOf));
+  append(findings, sourceWarnings(file, sourceLanguage, sources, libraryOf));
   const brokenSources = new Set<string>();
   let handedOver = 0;
   for (const [language, texts] of Object.entries(parsed.data)) {

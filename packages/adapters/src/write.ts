@@ -539,6 +539,14 @@ export function entriesToMessages(
   return doc.text();
 }
 
+// The highest of the numbers, -1 for none: `Math.max(...numbers)`
+// overflows the stack past about 120,000 of them (#1276).
+function highest(numbers: number[]): number {
+  let out = -1;
+  for (const n of numbers) if (n > out) out = n;
+  return out;
+}
+
 // The outermost lists of a file, by key path (#1053).
 function listsOf(
   tree: unknown,
@@ -625,9 +633,8 @@ function buildFrom(
   if (typeof value === "string") return given ?? (leading ? undefined : value);
   if (Array.isArray(value)) {
     const last = leading
-      ? Math.max(
-          -1,
-          ...leading
+      ? highest(
+          leading
             .filter(
               (p) =>
                 p.length > path.length && path.every((seg, i) => p[i] === seg),
@@ -791,7 +798,7 @@ function completeLists(
       const parent = nodeAt(parseTreeNode(text), at);
       const list = valueAt(sourceTree, at);
       const heldItems = parent?.children?.length ?? 0;
-      const last = Math.max(...leading.map((p) => Number(p[at.length])));
+      const last = highest(leading.map((p) => Number(p[at.length])));
       if (Array.isArray(list))
         for (let i = heldItems; i <= last; i++)
           text = appendItem(

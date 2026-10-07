@@ -2707,3 +2707,39 @@ test("a strict merge's hint names a {ns} source's first pattern as the config wr
   );
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("a catalogue of 200,000 strings whose source's files share one builds: no spread overflows the stack (#1276)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-1276-"));
+  mkdirSync(path.join(dir, "a"), { recursive: true });
+  mkdirSync(path.join(dir, "b"), { recursive: true });
+  writeFileSync(
+    path.join(dir, "a", "en.json"),
+    JSON.stringify(
+      Object.fromEntries(
+        Array.from({ length: 200_000 }, (_, i) => [
+          `k${i}`,
+          `Hello {name} ${i}`,
+        ]),
+      ),
+    ),
+  );
+  writeFileSync(
+    path.join(dir, "b", "en.json"),
+    JSON.stringify({ k0: "Hello {name} 0" }),
+  );
+  const report = await buildSnapshotReport(
+    config({
+      languages: ["en"],
+      sources: [
+        {
+          adapter: "messages",
+          type: "ui",
+          path: ["a/{lang}.json", "b/{lang}.json"],
+        },
+      ],
+    }),
+    dir,
+  );
+  expect(report.snapshot.strings).toHaveLength(200_000);
+  rmSync(dir, { recursive: true, force: true });
+}, 120_000);
