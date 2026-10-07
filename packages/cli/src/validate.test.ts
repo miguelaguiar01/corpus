@@ -137,14 +137,15 @@ test("an exporter that hands over some of its translations is named with the cou
       translations: { pt: { "exec.bye": "Adeus {who}" } },
     }))`,
   );
+  // The string that does not parse is no translation to hand over, and
+  // is said all the same (#1115).
   const c = ctx();
-  expect(await run(["validate"], c)).toBe(0);
-  expect(c.stderr.join("\n")).toContain(
+  expect(await run(["validate"], c)).toBe(1);
+  expect(c.stderr).toEqual([
+    "exec:node scripts/export.mjs [exec.broken] en: invalid ICU in the source at 3: unclosed '{'",
     'corpus: exec "node scripts/export.mjs" hands over 1 of the 2 translations its strings can have; any others, such as drafts on the instance, are not checked here: `corpus validate --server` checks them',
-  );
-  expect(c.stdout.join("\n")).toMatch(
-    /^validate: every translation checked is valid; not checked: what exec/,
-  );
+    "corpus: 1 source string(s) that do not parse, which build refuses",
+  ]);
   // Every translation handed over: nothing left unchecked.
   writeFileSync(
     path.join(repo, "scripts", "export.mjs"),
@@ -1989,5 +1990,68 @@ test("validate says a format a Fluent translation adds (#1089)", async () => {
     ),
   ).toBe(
     "{n} has no format in the source, which passes it as it is: write it without one",
+  );
+});
+
+test("a source string that does not parse is said once offline, whether or not a target translates it, and counted as --server counts it (#1115)", async () => {
+  const summary =
+    "corpus: 1 source string(s) that do not parse, which build refuses";
+  const said = (c: ReturnType<typeof ctx>) =>
+    c.stderr.filter((l) => l.startsWith("i18n/en.json:broken:")).length;
+  write("i18n/en.json", { greeting: "Hello {name}", broken: "Hi {who" });
+  for (const pt of [
+    { greeting: "Olá {name}" },
+    { greeting: "Olá {name}", broken: "" },
+  ]) {
+    write("i18n/pt.json", pt);
+    const c = ctx();
+    expect(await run(["validate"], c), JSON.stringify(pt)).toBe(1);
+    expect(c.stderr.at(-1)).toBe(summary);
+    expect(said(c)).toBe(1);
+  }
+  // Translated in two languages, it is still said once.
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  const original = readFileSync(path.join(repo, configFile), "utf8");
+  writeFileSync(
+    path.join(repo, configFile),
+    original.replace(
+      'languages: ["en", "pt"]',
+      'languages: ["en", "pt", "de"]',
+    ),
+  );
+  write("i18n/pt.json", { greeting: "Olá {name}", broken: "Olá" });
+  write("i18n/de.json", { greeting: "Hallo {name}", broken: "Hallo" });
+  const two = ctx();
+  expect(await run(["validate"], two)).toBe(1);
+  expect(two.stderr.at(-1)).toBe(summary);
+  expect(said(two)).toBe(1);
+  writeFileSync(path.join(repo, configFile), original);
+  // --server counts the same string from the build's refusals.
+  write("i18n/pt.json", { greeting: "Olá {name}" });
+  const server = await instance({
+    en: { greeting: "Hello {name}" },
+    pt: { greeting: "Olá {name}" },
+  });
+  try {
+    const s = { ...ctx(), env: { CORPUS_TOKEN: "good" } };
+    expect(await run(["validate", "--server"], s)).toBe(1);
+    expect(s.stderr.at(-1)).toBe(summary);
+  } finally {
+    server.close();
+  }
+});
+
+test("an exec source's string that does not parse is said though the exporter hands over no translation of it (#1115)", async () => {
+  writeFileSync(
+    path.join(repo, "scripts", "export.mjs"),
+    `console.log(JSON.stringify({ strings: [{ id: "exec.bye", type: "computed", source: "Bye {who" }] }))`,
+  );
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(1);
+  expect(c.stderr.join("\n")).toContain("[exec.bye] en:");
+  expect(c.stderr.at(-1)).toBe(
+    "corpus: 1 source string(s) that do not parse, which build refuses",
   );
 });

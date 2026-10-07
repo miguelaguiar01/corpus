@@ -397,6 +397,7 @@ export async function validateRepo(
         findings.push(
           ...sourceGaps(augment(entry), {
             pairs,
+            brokenSources,
             sourceFile,
             sourceLanguage: config.sourceLanguage,
             library: entry.library ?? library,
@@ -725,9 +726,11 @@ function validateExec(
   // translation of it (#1029).
   const findings: Finding[] = [];
   const gaps: SourceGaps = new Map();
+  const brokenSources = new Set<string>();
   for (const entry of sources.values())
     findings.push(
       ...sourceGaps(entry, {
+        brokenSources,
         sourceFile: file,
         sourceLanguage,
         library: libraryOf(entry),
@@ -745,7 +748,6 @@ function validateExec(
     );
   }
   append(findings, sourceWarnings(file, sourceLanguage, sources, libraryOf));
-  const brokenSources = new Set<string>();
   let handedOver = 0;
   for (const [language, texts] of Object.entries(parsed.data)) {
     if (!targets.includes(language)) continue;
@@ -980,9 +982,11 @@ function sourceGaps(
     // gettext picks between by n == 1 in any language: no category of
     // the language's own is theirs to lack.
     pairs?: ReadonlySet<string>;
+    // The ids said as a source that does not parse, once each, whether
+    // or not a target translates them (#1115).
+    brokenSources?: Set<string>;
   },
 ): Finding[] {
-  if (at.pairs?.has(entry.id)) return [];
   // The source against its own language's rule: no sourceLanguage, which
   // would ask of a language of its base the source's own categories.
   const result = validateTranslation(
@@ -1003,6 +1007,23 @@ function sourceGaps(
     },
   );
   const out: Finding[] = [];
+  const broken = result.ok
+    ? undefined
+    : result.errors.find(
+        (error) => error.code === "invalid-icu" && error.where === "source",
+      );
+  if (broken && at.brokenSources && !at.brokenSources.has(entry.id)) {
+    at.brokenSources.add(entry.id);
+    out.push({
+      file: at.sourceFile,
+      key: entry.id,
+      language: at.sourceLanguage,
+      code: broken.code,
+      severity: "invalid",
+      message: describe(broken, at.library),
+    });
+  }
+  if (at.pairs?.has(entry.id)) return out;
   for (const error of result.incomplete ?? []) {
     if (error.code !== "missing-category") continue;
     const message = describe(error, at.library);
