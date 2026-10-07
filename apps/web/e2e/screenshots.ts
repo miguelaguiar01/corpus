@@ -36,28 +36,34 @@ const STAMPS: [table: string, columns: string[]][] = [
 function pinClock(): void {
   const file = process.env.CORPUS_SHOT_DB;
   if (!file) throw new Error("CORPUS_SHOT_DB names no database to pin");
-  const db = new Database(file);
+  const db = new Database(file, { fileMustExist: true });
   try {
-    for (const [table, columns] of STAMPS) {
-      const rows = columns.flatMap((column) =>
-        (
-          db
-            .prepare(
-              `select rowid as id, ${column} as at from ${table} where ${column} is not null`,
-            )
-            .all() as { id: number; at: number }[]
-        ).map((row) => ({ ...row, column })),
-      );
-      rows.sort(
-        (a, b) =>
-          a.at - b.at || a.id - b.id || a.column.localeCompare(b.column),
-      );
-      rows.forEach((row, rank) =>
-        db
-          .prepare(`update ${table} set ${row.column} = ? where rowid = ?`)
-          .run(PINNED + rank * 60_000, row.id),
-      );
-    }
+    db.transaction(() => {
+      for (const [table, columns] of STAMPS) {
+        const rows = columns.flatMap((column) =>
+          (
+            db
+              .prepare(
+                `select rowid as id, ${column} as at from ${table} where ${column} is not null`,
+              )
+              .all() as { id: number; at: number }[]
+          ).map((row) => ({ ...row, column })),
+        );
+        rows.sort(
+          (a, b) =>
+            a.at - b.at || a.id - b.id || a.column.localeCompare(b.column),
+        );
+        const update = new Map(
+          columns.map((column) => [
+            column,
+            db.prepare(`update ${table} set ${column} = ? where rowid = ?`),
+          ]),
+        );
+        rows.forEach((row, rank) =>
+          update.get(row.column)!.run(PINNED + rank * 60_000, row.id),
+        );
+      }
+    })();
   } finally {
     db.close();
   }
