@@ -9,6 +9,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test } from "vitest";
+import { buildSnapshotReport } from "./build";
 import { run, type RunContext } from "./cli";
 import { loadConfig } from "./config";
 
@@ -3282,4 +3283,100 @@ test("init writes placeholders where a catalogue layers a second syntax: uBlock'
     library: "i18next",
     placeholders: ["printf"],
   });
+});
+
+test("init maps a country code a file is named by to its language, and warns where a language code's file is in another script (#697)", async () => {
+  const write = (
+    dir: string,
+    files: Record<string, Record<string, string>>,
+  ) => {
+    mkdirSync(path.join(dir, "l"), { recursive: true });
+    for (const [code, values] of Object.entries(files))
+      writeFileSync(
+        path.join(dir, "l", `${code}.json`),
+        JSON.stringify(values, null, 2) + "\n",
+      );
+  };
+  const base = ["init", "--project", "x", "--source", "en", "--messages"];
+  // Hoppscotch's cn.json and tw.json: Simplified and Traditional Chinese.
+  const p = project();
+  stubCli(p.dir);
+  write(p.dir, {
+    en: { autoscroll: "Autoscroll", copy: "Copy {name}" },
+    cn: { autoscroll: "自动滚动", copy: "复制 {name}" },
+    tw: { autoscroll: "自動捲動", copy: "複製 {name}" },
+    de: { autoscroll: "Automatisch scrollen", copy: "{name} kopieren" },
+  });
+  expect(await run([...base, "l/{lang}.json"], p.ctx)).toBe(0);
+  const config = await loadConfig(p.dir);
+  expect(config.languages).toEqual(["en", "de", "tw", "zh-CN"]);
+  expect(config.sources[0]?.languageFiles).toEqual({ "zh-CN": "cn" });
+  const err = p.err.join("\n");
+  expect(err).toContain(
+    'l/cn.json: written as zh-CN, languageFiles: { "zh-CN": "cn" }',
+  );
+  expect(err).toContain(
+    'l/tw.json: tw is Akan (Latn), but its text is Han; if it is Chinese (Taiwan), list zh-TW and map it: languageFiles: { "zh-TW": "tw" }',
+  );
+  expect(err).not.toContain("cn is not a language tag");
+  // build reads cn.json as zh-CN.
+  const report = await buildSnapshotReport(config, p.dir);
+  expect(report.snapshot.seedTranslations["zh-CN"]).toEqual({
+    autoscroll: "自动滚动",
+    copy: "复制 {name}",
+  });
+
+  // A tw.json in Latin script is Twi: no warning. jp is Japanese; de,
+  // pt-br and sr@latin are read as before.
+  const q = project();
+  stubCli(q.dir);
+  write(q.dir, {
+    en: { a: "Yes" },
+    tw: { a: "Aane" },
+    jp: { a: "はい" },
+    de: { a: "Ja" },
+    "pt-br": { a: "Sim" },
+    "sr@latin": { a: "Da" },
+  });
+  expect(await run([...base, "l/{lang}.json"], q.ctx)).toBe(0);
+  const plain = await loadConfig(q.dir);
+  expect(plain.languages).toEqual(["en", "de", "ja", "pt-br", "sr-Latn", "tw"]);
+  expect(plain.sources[0]?.languageFiles).toEqual({
+    ja: "jp",
+    "sr-Latn": "sr@latin",
+  });
+  expect(q.err.join("\n")).not.toContain("tw is");
+  expect(q.err.join("\n")).toContain(
+    'l/jp.json: written as ja, languageFiles: { "ja": "jp" }',
+  );
+
+  // kr in Hangul names Korean; in another script it names none.
+  const r = project();
+  stubCli(r.dir);
+  write(r.dir, { en: { a: "Yes" }, kr: { a: "예" }, tw: { a: "Да" } });
+  expect(await run([...base, "l/{lang}.json"], r.ctx)).toBe(0);
+  expect(r.err.join("\n")).toContain(
+    'l/kr.json: kr is Kanuri (Latn), but its text is Hangul; if it is Korean, list ko and map it: languageFiles: { "ko": "kr" }',
+  );
+  expect(r.err.join("\n")).toContain(
+    "l/tw.json: tw is Akan (Latn), but its text is Cyrillic; check which language it holds",
+  );
+
+  // A country code beside its language's own file is left as it is, and
+  // --languages keeps a mapping it lists.
+  const s = project();
+  stubCli(s.dir);
+  write(s.dir, {
+    en: { a: "Yes" },
+    cn: { a: "是" },
+    "zh-CN": { a: "是" },
+    cz: { a: "Ano" },
+  });
+  expect(
+    await run([...base, "l/{lang}.json", "--languages", "en,cs,zh-CN"], s.ctx),
+  ).toBe(0);
+  expect((await loadConfig(s.dir)).sources[0]?.languageFiles).toEqual({
+    cs: "cz",
+  });
+  expect(s.err.join("\n")).not.toContain("l/cn.json: written as");
 });
