@@ -71,11 +71,11 @@ export function slotsOf(
     }
     const given = Object.keys(values).length > 0;
     const fromSource: string[] = [];
-    const source = values[sourceLanguage];
-    if (source !== undefined)
+    const fallback = values[sourceLanguage];
+    if (fallback !== undefined)
       for (const language of targetLanguages)
         if (!Object.hasOwn(values, language)) {
-          values[language] = source;
+          values[language] = fallback;
           fromSource.push(language);
         }
     const description = declared[name]?.description ?? null;

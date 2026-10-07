@@ -1329,8 +1329,11 @@ function undeclaredSlots(config: CorpusConfig, entries: StringEntry[]) {
         libraryOf(entry),
         entry.placeholders,
       );
+      // A Fluent term or message reference is no value the code passes.
+      const fluent = libraryOf(entry) === "fluent";
       for (const name of placeholders)
-        if (!declared.has(name)) lacking.add(name);
+        if (!declared.has(name) && !(fluent && /^[-@]/.test(name)))
+          lacking.add(name);
     }
     if (lacking.size === 0) continue;
     const names = [...lacking];
