@@ -93,6 +93,8 @@ test("Svelte: a regex literal with a quote, /* or a slash in a class is one expr
     "{#if /'/.test(x)}<b>A</b>{/if}",
     "{#if a}{:else if /'/.test(x)}{/if}",
     "{@html x.replace(/'/g, '')}",
+    // An attribute's value is no block: it may start with a regex.
+    "<b title={/'/.source}>x</b>",
     "{x.replace(/\"/g, '')}",
     "{ok ? /'/ : /\"/}",
     "{typeof /'/}",
