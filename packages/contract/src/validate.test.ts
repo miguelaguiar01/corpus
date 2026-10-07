@@ -3768,3 +3768,42 @@ test("each copy of a plural is checked for the categories the runtime picks, one
     incomplete: [{ code: "missing-category", arg: "n", key: "few" }],
   });
 });
+
+test("a language of the source's base is asked per copy only for what the source's own copy has (#1085 review)", () => {
+  const source =
+    "{n, plural, one {# file} other {# files}} in {n, plural, other {folders}}";
+  for (const [language, base] of [
+    ["en-GB", "en"],
+    ["pt-BR", "pt-PT"],
+  ] as const)
+    expect(
+      validateTranslation(source, source, language, "icu", {
+        sourceLanguage: base,
+      }),
+      language,
+    ).toEqual({ ok: true });
+  // The copy that has `one` in the source still needs it.
+  expect(
+    validateTranslation(
+      source,
+      "{n, plural, other {# files}} in {n, plural, other {folders}}",
+      "en-GB",
+      "icu",
+      { sourceLanguage: "en" },
+    ),
+  ).toEqual({
+    ok: true,
+    incomplete: [{ code: "missing-category", arg: "n", key: "one" }],
+  });
+  // A translation with another number of copies is read against the
+  // source's every copy at once, as before.
+  expect(
+    validateTranslation(
+      source,
+      "{n, plural, one {# file} other {# files}} in folders",
+      "en-GB",
+      "icu",
+      { sourceLanguage: "en" },
+    ).ok,
+  ).toBe(true);
+});
