@@ -4362,3 +4362,64 @@ test("under easy_localization, a plain text's {count} is text unless the call na
     ),
   ).toEqual(named);
 });
+
+test("a placeholder kept in a tag's attribute and also written in the text is said unexpected once (#1135)", () => {
+  const unexpected = (
+    source: string,
+    target: string,
+    syntax: Parameters<typeof validateTranslation>[3],
+  ) => {
+    const result = validateTranslation(source, target, "pt", syntax, {
+      richText: "html",
+    });
+    return result.ok
+      ? []
+      : result.errors.filter((e) => e.code === "unexpected-placeholder");
+  };
+  for (const [syntax, source, target, name] of [
+    [
+      "rails",
+      '<a href="%{path}">Go</a>',
+      '<a href="%{path}">Vai %{path}</a>',
+      "path",
+    ],
+    [
+      "icu",
+      '<a href="{path}">Go</a>',
+      '<a href="{path}">Vai {path}</a>',
+      "path",
+    ],
+    [
+      "i18next",
+      '<a href="{{path}}">Go</a>',
+      '<a href="{{path}}">Vai {{path}}</a>',
+      "path",
+    ],
+    ["icu", '<a href="/a">Go</a>', '<a href="{u}">{u}</a>', "u"],
+    ["android", '<a href="https://x">Go</a>', '<a href="%s">%1$s</a>', "1"],
+  ] as const)
+    expect(
+      unexpected(source, target, syntax),
+      `${syntax} ${target}`,
+    ).toMatchObject([{ code: "unexpected-placeholder", name }]);
+  // Moved out of an attribute into the text: one moved-placeholder.
+  const moved = (target: string) =>
+    validateTranslation('<a href="%{path}">Go</a>', target, "pt", "rails", {
+      richText: "html",
+    });
+  expect(moved('<a href="/x">Vai %{path}</a>')).toMatchObject({
+    ok: false,
+    errors: [{ code: "moved-placeholder", name: "path" }],
+  });
+  // A source writing it in both places needs both.
+  for (const target of ['<a href="{u}">x</a>', '<a href="/x">{u}</a>'])
+    expect(
+      validateTranslation('<a href="{u}">{u}</a>', target, "pt", "icu", {
+        richText: "html",
+      }),
+      target,
+    ).toMatchObject({
+      ok: false,
+      errors: [{ code: "missing-placeholder", name: "u" }],
+    });
+});
