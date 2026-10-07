@@ -84,7 +84,10 @@ export function suffixFamilies(
         ? known.has(id)
         : !Object.hasOwn(node, base) &&
           forms.has("other") &&
-          forms.size >= 2 &&
+          // A source whose language has only other writes a family as
+          // its lone `_other`, as i18next-parser does (#1065): a key that
+          // merely ends so is taken for one there.
+          (forms.size >= 2 || (picked.length === 1 && picked[0] === "other")) &&
           (picked.length === 0 ||
             [...forms.keys()].every(
               (c) => c === "zero" || picked.includes(c),
