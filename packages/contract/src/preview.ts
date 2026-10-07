@@ -170,10 +170,7 @@ function withCount(
     const keys = keysIn(Object.values(node.branches).flat());
     const key = keys.size === 1 ? [...keys][0]! : undefined;
     const count =
-      values["1"] ??
-      (key !== undefined && Object.hasOwn(values, key)
-        ? values[key]
-        : undefined);
+      values["1"] ?? (key === undefined ? undefined : own(values, key));
     if (count !== undefined) counted[node.arg] = count;
   }
   return counted;

@@ -570,4 +570,17 @@ test("a printf plural whose branches print one Python key alone previews its cou
       "{count, plural, one {%(num)s of %(total)s user} other {%(num)s of %(total)s users}}",
     ),
   ).toEqual({ ok: true, text: "1 of 1 users" });
+  // A key named like an Object.prototype member with no value is none.
+  expect(
+    preview(
+      {},
+      "{count, plural, one {%(constructor)s user} other {%(constructor)s users}}",
+    ),
+  ).toEqual({ ok: true, text: "%(constructor)s users" });
+  expect(
+    preview(
+      { constructor: "1" },
+      "{count, plural, one {%(constructor)s user} other {%(constructor)s users}}",
+    ),
+  ).toEqual({ ok: true, text: "1 user" });
 });
