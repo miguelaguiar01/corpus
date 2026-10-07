@@ -142,7 +142,7 @@ export type ValidationError =
   // A formatted placeholder written with another type, or with none
   // (`actual: null`); the style is the translator's (#555). Under
   // fluent, one the source passes unformatted (`expected: null`), which
-  // pull would write as a function the code may not suit (#1089).
+  // pull would write as a function that may not suit the value (#1089).
   | {
       code: "unexpected-format";
       name: string;
@@ -1002,7 +1002,10 @@ export function validateTranslation(
   }
   if (syntax === "fluent")
     for (const [name, { type }] of actual.formats)
-      if (expected.placeholders.has(name) && !expected.formats.has(name))
+      if (
+        (allowedValues.has(name) || passed.has(name)) &&
+        !expected.formats.has(name)
+      )
         errors.push({
           code: "unexpected-format",
           name,
