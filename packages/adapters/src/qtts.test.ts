@@ -355,14 +355,14 @@ test("numerus forms read as one plural on count through Qt's rules, and write ba
       { tag: "ru", code: "ru" },
     ),
   ).toBe(numerus("ru", ["%n файл", "%n файла", "%n файлов"]));
-  // A plain text for a numerus message is refused.
+  // A plain text for a numerus message is written into every form (#1092).
   const refused: string[] = [];
   expect(
     entriesToQtTs(template, { "Main | %n file(s)": "plik" }, pl, PL, (id) =>
       refused.push(id),
     ),
-  ).toBe(pl);
-  expect(refused).toEqual(["Main | %n file(s)"]);
+  ).toBe(numerus("pl", ["plik", "plik", "plik"]));
+  expect(refused).toEqual([]);
   // A template's self-closing plural translation starts empty.
   const closed = template.replace(
     /<translation type="unfinished">[\s\S]*?<\/translation>/,

@@ -298,14 +298,16 @@ test("a new ru plural lands as msgstr[0..2], appended from the template before o
   expect(read(out, "ru")["%d note"]).toBe(
     "{count, plural, one {%d заметка} few {%d заметки} many {%d заметок} other {%d заметок}}",
   );
-  // A plural that is not a plural is refused, not written.
+  // A plain text is written into every form (#1092).
   const refused: string[] = [];
   expect(
     entriesToGettext(POT, { "%d note": "заметки" }, RU, RU_LANG, (id) =>
       refused.push(id),
     ),
-  ).toBe(RU);
-  expect(refused).toEqual(["%d note"]);
+  ).toContain(
+    'msgid_plural "%d notes"\nmsgstr[0] "заметки"\nmsgstr[1] "заметки"\nmsgstr[2] "заметки"',
+  );
+  expect(refused).toEqual([]);
 });
 
 test("a form no category reads, Latvian's for zero alone, keeps the file's text (#719)", () => {

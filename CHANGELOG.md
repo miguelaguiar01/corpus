@@ -13,6 +13,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- A plural translated as one plain text (Japanese, or one form for every count) is written into every form of a gettext, Rails or Qt file, rather than refused at pull (#1092).
 - A Fluent translation that adds a format its source lacks (`{n, date}` for `{ $n }`) is refused, rather than written as `DATETIME($n)` (#1089).
 - `corpus build`, `validate`, `init` and `pull` no longer overflow the stack on catalogues past about 120,000 strings (#1276).
 - A Rails translation with a mistyped `%{` also reports its missing and unexpected placeholders, not the `%{` alone (#976).

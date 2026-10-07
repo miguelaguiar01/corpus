@@ -3229,8 +3229,11 @@ export default defineCorpus({
     types: { Open: "ui", "%d file": "ui" },
     minState: "translated",
     translations: {
-      // A plain text for a plural: gettext cannot hold it.
-      de: { Open: "Öffnen", "%d file": "%d Dateien" },
+      // Text beside the plural: gettext cannot hold it.
+      de: {
+        Open: "Öffnen",
+        "%d file": "Frei: {count, plural, one {%d Datei} other {%d Dateien}}",
+      },
       fr: { Open: "Ouvrir" },
     },
   };

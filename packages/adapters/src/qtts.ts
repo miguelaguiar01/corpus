@@ -4,7 +4,7 @@
 // `unfinished`, `vanished` or `obsolete`.
 import type { StringEntry } from "@corpus/contract";
 import { pluralTable, poPluralText } from "./gettext";
-import { formOf, pluralBranches } from "./messages";
+import { formOf, plainForPlural, pluralBranches } from "./messages";
 import { qtPluralForms } from "./qtnumerus";
 import {
   applied,
@@ -541,7 +541,9 @@ function translationElement(
     if (m.state === undefined && m.translation === text) return undefined;
     return `<translation>${escape(text)}</translation>`;
   }
-  const branches = pluralBranches(text);
+  const branches = plainForPlural(text)
+    ? { other: text }
+    : pluralBranches(text);
   if (!branches) {
     onRefused?.(m.id, text);
     return undefined;
