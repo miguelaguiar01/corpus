@@ -744,3 +744,24 @@ test("a target's plurals inside a list's items are found as the source's are (#1
     ...suffixPluralIds({ opts: [{ item_one: "a", item_other: "as" }] }, "en"),
   ]).toEqual(["opts.0.item"]);
 });
+
+test("a source whose language has only other writes a family as a lone _other, which is the family (#1065)", () => {
+  const ja = { n_other: "{{count}} 件", title: "タイトル" };
+  expect(
+    messagesToEntries(ja, {
+      type: "ui",
+      suffixPlurals: true,
+      sourceLanguage: "ja",
+    }).map((e) => [e.id, e.source]),
+  ).toEqual([
+    ["n", "{count, plural, other {{{count}} 件}}"],
+    ["title", "タイトル"],
+  ]);
+  // A source with more categories keeps a lone _other a key.
+  expect(
+    messagesToEntries(
+      { n_other: "Other" },
+      { type: "ui", suffixPlurals: true, sourceLanguage: "en" },
+    ).map((e) => e.id),
+  ).toEqual(["n_other"]);
+});
