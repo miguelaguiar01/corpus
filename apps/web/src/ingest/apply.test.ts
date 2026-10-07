@@ -1836,3 +1836,34 @@ test("a carried row is stale where its family's source changed, and a text that 
   // The archived rows still hold it.
   expect(translationOf(brace.db, "n_one", "pl")?.text).toBe("a { b");
 });
+
+test("an entry held as plural forms keeps the flag on the row, reaches the detail, and marks a seed with an =N branch invalid (#704)", () => {
+  const { db, project } = seed();
+  const snapshot: Snapshot = {
+    ...structuredClone(FIXTURE),
+    strings: [
+      {
+        id: "rooms",
+        type: FIXTURE.strings[0]!.type,
+        source: "{count, plural, one {{count} room} other {{count} rooms}}",
+        pluralAsForms: true,
+      },
+    ],
+    seedTranslations: {
+      en: {
+        rooms: "{count, plural, =0 {none} one {{count} A} other {{count} B}}",
+      },
+    },
+  };
+  applySnapshot(db, project.id, snapshot);
+  expect(stringRow(db, "rooms")?.pluralAsForms).toBe(true);
+  expect(stringDetail(db, project.id, "rooms")?.string.pluralAsForms).toBe(
+    true,
+  );
+  expect(translationOf(db, "rooms", "en")?.invalid).toBe(true);
+  // A push without the field clears it.
+  const bare = structuredClone(snapshot);
+  delete bare.strings[0]!.pluralAsForms;
+  applySnapshot(db, project.id, bare);
+  expect(stringRow(db, "rooms")?.pluralAsForms).toBe(false);
+});

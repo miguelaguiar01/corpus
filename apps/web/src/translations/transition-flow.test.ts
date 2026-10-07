@@ -423,3 +423,25 @@ test("a save giving two texts to the exact keys one gettext form is read by is r
   });
   expect((result as { to: string }).to).toContain("error=invalid-translation");
 });
+
+test("a save writing an =N branch into a plural its file holds as forms is refused with the draft (#704)", () => {
+  const { db, p, rui } = pushed();
+  db.update(strings)
+    .set({
+      pluralAsForms: true,
+      source: "{count, plural, one {{count} room} other {{count} rooms}}",
+    })
+    .where(eq(strings.stringId, KEYS[3]!))
+    .run();
+  const result = transitionFlow(db, {
+    project: p,
+    user: rui,
+    key: KEYS[3]!,
+    language: "en",
+    action: {
+      type: "save",
+      text: "{count, plural, =0 {No rooms} one {{count} room} other {{count} rooms}}",
+    },
+  });
+  expect((result as { to: string }).to).toContain("error=invalid-translation");
+});
