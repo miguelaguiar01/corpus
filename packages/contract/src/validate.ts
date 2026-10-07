@@ -652,7 +652,6 @@ export function validateTranslation(
     pluralForms?: readonly string[];
     // The exact keys of `pluralForms` one form is read by (#1060).
     pluralShared?: readonly (readonly string[])[];
-    // The file holds the plural as its forms (#704).
     pluralAsForms?: boolean;
     term?: boolean;
     // The source's language: a target of the same base language, en-GB
@@ -1331,7 +1330,8 @@ export function validateTranslation(
     errors.push(...fixedCounts(targetNodes, language, syntax));
   if (options.pluralShared)
     errors.push(...sharedForms(target, options.pluralShared));
-  if (options.pluralAsForms) errors.push(...unsplittableForms(targetNodes));
+  if (options.pluralAsForms)
+    errors.push(...unsplittableForms(target, targetNodes));
   if (
     (WHOLE_PLURAL_LIBRARIES.has(syntax) || options.pluralAsForms) &&
     parsedSource.nodes.some((node) => node.kind === "plural")
@@ -1575,9 +1575,15 @@ function exactBranches(
   });
 }
 
-// Each plural form whose literal braces do not balance, which a writer
-// splitting the plural into its forms by braces cannot take apart.
-function unsplittableForms(nodes: IcuNode[]): ValidationError[] {
+// Each plural form whose literal braces do not balance, where the
+// writers' split of the plural into its forms fails: fmt's `{{` reads as
+// one brace and splits as a pair.
+function unsplittableForms(text: string, nodes: IcuNode[]): ValidationError[] {
+  const counted = text.replace(
+    /^(\s*\{\s*)[^{},\s]+(\s*,\s*plural\s*,)/,
+    "$1count$2",
+  );
+  if (pluralBranches(counted, false, true) !== undefined) return [];
   const literals = (within: IcuNode[]): string =>
     within
       .map((node) =>

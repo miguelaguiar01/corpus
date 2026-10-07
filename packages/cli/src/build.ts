@@ -1561,7 +1561,7 @@ function gettextPluralForms(
 // category, which takes no `=N` branch and splits back by its braces
 // (#704): a plural object or family, a Rails hash, a gettext
 // msgid_plural, and every plural of a format that holds none otherwise.
-async function formsHeld(
+export async function formsHeld(
   jiti: ReturnType<typeof createJiti>,
   cwd: string,
   file: string,
@@ -1569,11 +1569,7 @@ async function formsHeld(
   sourceLanguage: string,
 ): Promise<(entry: StringEntry) => boolean> {
   const own = (ids: Iterable<string>) =>
-    new Set(
-      [...ids].map((id) =>
-        source.namespace ? `${source.namespace}:${id}` : id,
-      ),
-    );
+    new Set([...ids].map((id) => namespaced(source, id)));
   switch (source.adapter) {
     case "messages":
     case "yaml": {
@@ -1588,12 +1584,12 @@ async function formsHeld(
       const held = own(gettextPluralIds(readRepoText(path.join(cwd, file))));
       return (entry) => held.has(entry.id);
     }
-    case "qt-ts":
-    case "android":
+    // Every plural a String Catalog holds is a variation's; Android's
+    // `<plurals>` and Qt's numerus messages say so themselves.
     case "xcstrings":
       return (entry) => PLURAL_ARGUMENT_RE.test(entry.source);
     default:
-      return () => false;
+      return (entry) => entry.pluralAsForms === true;
   }
 }
 

@@ -82,7 +82,6 @@ function seedInvalid(
   pluralForms?: readonly string[] | null,
   // The exact keys one of its forms is read by (#1060).
   pluralShared?: readonly string[][] | null,
-  // The file holds the plural as its forms (#704).
   pluralAsForms?: boolean | null,
 ): boolean {
   if (text === source || (PLAIN.test(source) && PLAIN.test(text))) return false;

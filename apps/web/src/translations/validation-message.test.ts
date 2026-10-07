@@ -119,7 +119,7 @@ test("an =N branch a plural read whole cannot hold is said in the editor (#1051)
       "printf",
     ),
   ).toBe(
-    "count has an =0 branch, which this catalogue's plurals cannot hold, as they hold categories only: write it in the other branch, which this language picks for 0",
+    "count has an =0 branch, which this file cannot hold, as it holds a plural's categories only: write it in the other branch, which this language picks for 0",
   );
 });
 

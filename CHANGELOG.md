@@ -13,7 +13,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
-- A translation with an `=N` branch, or a form whose braces do not balance, is refused where the file holds the plural as its forms (a JSON plural object, an Android `<plurals>`), rather than accepted and then left unwritten (#704).
+- A plural its file holds as forms (a JSON plural object, an Android `<plurals>`) refuses an `=N` branch and a form with unbalanced braces, which pull could not write (#704).
 - `corpus init` writes a file named by a country's code, Hoppscotch's `cn.json`, as its language (`zh-CN`) with the mapping, and warns when a `tw.json` or `kr.json` holds Chinese or Korean (#697).
 - A pull or proposal into a large JSON file parses it once per pass rather than once per key: 5,000 new keys take a tenth of a second, not 44 (#693).
 - The plural chip no longer inserts a category the source's `=N` branch already covers, German's `one` beside `=1` (#686).

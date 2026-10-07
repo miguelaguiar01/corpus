@@ -301,7 +301,7 @@ test("describe words every error code", () => {
       category: "other",
     }),
   ).toBe(
-    "{count} has an =0 branch, which this catalogue's plurals cannot hold, as they hold categories only: write it in the other branch, which this language picks for 0",
+    "{count} has an =0 branch, which this file cannot hold, as it holds a plural's categories only: write it in the other branch, which this language picks for 0",
   );
   expect(
     describe({
@@ -1808,7 +1808,7 @@ test("--server refuses a draft writing an =N branch into a plural its file holds
     const c = { ...ctx(), env: { CORPUS_TOKEN: "good" } };
     expect(await run(["validate", "--server"], c)).toBe(1);
     expect(c.stderr.join("\n")).toContain(
-      "{count} has an =0 branch, which this catalogue's plurals cannot hold",
+      "{count} has an =0 branch, which this file cannot hold",
     );
   } finally {
     server.close();

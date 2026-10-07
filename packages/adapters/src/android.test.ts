@@ -44,6 +44,8 @@ test("strings and plurals read as the editor shows them: escapes and entities un
       id: "episodes",
       type: "ui",
       source: "{quantity, plural, one {%d episode} other {%d episodes}}",
+      // Its file holds it as forms (#704).
+      pluralAsForms: true,
     },
     { id: "empty", type: "ui", source: "" },
   ]);

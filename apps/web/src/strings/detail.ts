@@ -49,7 +49,6 @@ export type StringDetail = {
     // Per target language, the exact keys one of those forms is read by
     // (#1060).
     pluralShared: Record<string, string[][]> | null;
-    // The file holds the plural as its forms (#704).
     pluralAsForms: boolean;
     // The runtime's own plural rule: vue-i18n's default (#1018), or
     // easy_localization's CLDR picking (#961).
