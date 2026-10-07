@@ -3732,3 +3732,39 @@ test("under android, a verb the source wraps in <xliff:g> is wrapped wherever a 
     ).ok,
   ).toBe(true);
 });
+
+test("each copy of a plural is checked for the categories the runtime picks, one finding per argument and category (#1085)", () => {
+  const source =
+    "{a, select, x {{n, plural, one {# a} other {# b}}} other {{n, plural, one {# c} other {# d}}}}";
+  expect(
+    validateTranslation(
+      source,
+      "{a, select, x {{n, plural, one {# a} few {# f} other {# b}}} other {{n, plural, one {# c} other {# d}}}}",
+      "hr",
+      "icu",
+    ),
+  ).toEqual({
+    ok: true,
+    incomplete: [{ code: "missing-category", arg: "n", key: "few" }],
+  });
+  expect(
+    validateTranslation(
+      source,
+      "{a, select, x {{n, plural, one {# a} few {# f} other {# b}}} other {{n, plural, one {# c} few {# g} other {# d}}}}",
+      "hr",
+      "icu",
+    ),
+  ).toEqual({ ok: true });
+  // Two copies lacking it say it once.
+  expect(
+    validateTranslation(
+      source,
+      "{a, select, x {{n, plural, one {# a} other {# b}}} other {{n, plural, one {# c} other {# d}}}}",
+      "hr",
+      "icu",
+    ),
+  ).toEqual({
+    ok: true,
+    incomplete: [{ code: "missing-category", arg: "n", key: "few" }],
+  });
+});
