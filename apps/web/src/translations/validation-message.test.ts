@@ -152,7 +152,7 @@ test("a plural without other says so plainly in the editor and the queue (#975)"
   expect(
     validationMessage({ code: "missing-other", arg: "count" }, "counterpart"),
   ).toBe(
-    "Plural count has no other branch, which the runtime picks for every count no other branch covers",
+    "Plural count is missing the other branch, which the runtime picks for every count no other branch covers",
   );
   expect(
     problemOf(
@@ -166,6 +166,6 @@ test("a plural without other says so plainly in the editor and the queue (#975)"
       "en",
     ),
   ).toBe(
-    "Plural n has no other branch, which the runtime picks for every count no other branch covers",
+    "Plural n is missing the other branch, which the runtime picks for every count no other branch covers",
   );
 });

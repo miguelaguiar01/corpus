@@ -63,8 +63,8 @@ export type PlaceholderFormat = {
   style?: string;
 };
 
-// `missingOther`: the argument of a plural that lacks `other`, a text
-// otherwise well-formed (#975).
+// `missingOther`: the argument of a plural that lacks `other`, where
+// that is the first failure (#975).
 export type IcuError = {
   message: string;
   position: number;
