@@ -936,3 +936,57 @@ test("a numerus message's plain text fills every form, one no category reads too
   ).toBe(ja);
   expect(refused).toEqual(["C | %n file(s)"]);
 });
+
+test("in a one-category language an edit writes other's text into the form no category reads, so n = 1 shows it; an unchanged pull keeps the file (#1104)", () => {
+  const id = "Main | %n file(s)";
+  for (const lang of ["km", "lo"]) {
+    const language = { tag: lang, code: lang };
+    const full = numerus(lang, ["A", "B"]);
+    expect(
+      entriesToQtTs(
+        numerus("", ["", ""]),
+        { [id]: "{count, plural, other {B}}" },
+        full,
+        language,
+      ),
+    ).toBe(full);
+    expect(
+      entriesToQtTs(
+        numerus("", ["", ""]),
+        { [id]: "{count, plural, other {NEW}}" },
+        full,
+        language,
+      ),
+    ).toBe(numerus(lang, ["NEW", "NEW"]));
+  }
+});
+
+test("a language whose integers reach several categories keeps a form no category reads, whose forms all read alike (Breton, Filipino, Manx); its short file stays work (#1104 review)", async () => {
+  const { qtShortForms } = await import("./qtts");
+  const id = "Main | %n file(s)";
+  for (const [lang, forms] of [
+    ["br", ["SING", "PLUR"]],
+    ["fil", ["SING", "PLUR"]],
+    ["gv", ["SING", "DUAL", "PLUR"]],
+  ] as const) {
+    const language = { tag: lang, code: lang };
+    const full = numerus(lang, [...forms]);
+    const read = qtTsTranslations(full, lang)[0]!.source;
+    const edited = entriesToQtTs(
+      numerus(
+        "",
+        forms.map(() => ""),
+      ),
+      { [id]: read.replaceAll("PLUR", "NEW") },
+      full,
+      language,
+    );
+    expect(edited, lang).toContain(`<numerusform>${forms[0]}</numerusform>`);
+    expect(edited, lang).toContain("<numerusform>NEW</numerusform>");
+    if (lang === "gv")
+      expect(edited).toContain("<numerusform>DUAL</numerusform>");
+    const short = numerus(lang, ["%n file"]);
+    expect(qtTsTranslations(short, lang), lang).toEqual([]);
+    expect(qtShortForms(short, lang), lang).toEqual([]);
+  }
+});
