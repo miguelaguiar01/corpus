@@ -421,6 +421,27 @@ test("queueStep and queueNeighbours give what neighbours over the whole queue gi
     action: { type: "verify" },
     actor: ana!,
   });
+  // A second project, its strings' ids after the first's, then the first
+  // project's grown again after it: a step stays in its own project.
+  const [other] = db
+    .insert(projects)
+    .values({
+      slug: "other",
+      name: "Other",
+      sourceLanguage: "pt-PT",
+      languages: ["pt-PT", "en"],
+    })
+    .returning()
+    .all();
+  applySnapshot(db, other!.id, FIXTURE);
+  applySnapshot(db, p!.id, {
+    ...FIXTURE,
+    seedTranslations: { de: { "skin.seen-at-greenhouse-window": "Gesehen." } },
+    strings: [
+      ...FIXTURE.strings,
+      { id: "ui.later", type: "chrome", source: "Mais tarde" },
+    ],
+  });
   const rows = db
     .select({
       stringId: stringTranslations.stringId,
@@ -429,31 +450,32 @@ test("queueStep and queueNeighbours give what neighbours over the whole queue gi
     .from(stringTranslations)
     .all();
   let compared = 0;
-  for (const kind of QUEUE_KINDS) {
-    const queue = queueItems(db, p!.id, kind);
-    for (const current of rows) {
-      const around = neighbours(queue, current);
-      expect(
-        queueStep(db, p!.id, kind, current),
-        `${kind} ${JSON.stringify(current)}`,
-      ).toEqual({
-        kind,
-        ...around,
-        // A row outside the queue shows no position, so none is counted.
-        count: around.index === null ? null : queue.count,
-        languages: queue.items
-          .filter((i) => i.stringId === current.stringId)
-          .map((i) => i.language),
-      });
-      expect(queueNeighbours(db, p!.id, kind, current)).toEqual({
-        previous: around.previous,
-        next: around.next,
-      });
-      compared += 1;
+  for (const project of [p!, other!])
+    for (const kind of QUEUE_KINDS) {
+      const queue = queueItems(db, project.id, kind);
+      for (const current of rows) {
+        const around = neighbours(queue, current);
+        expect(
+          queueStep(db, project.id, kind, current),
+          `${kind} ${JSON.stringify(current)}`,
+        ).toEqual({
+          kind,
+          ...around,
+          // A row outside the queue shows no position, so none is counted.
+          count: around.index === null ? null : queue.count,
+          languages: queue.items
+            .filter((i) => i.stringId === current.stringId)
+            .map((i) => i.language),
+        });
+        expect(queueNeighbours(db, project.id, kind, current)).toEqual({
+          previous: around.previous,
+          next: around.next,
+        });
+        compared += 1;
+      }
     }
-  }
   // Every queue, the first row, the last, a middle one and rows outside.
-  expect(compared).toBe(QUEUE_KINDS.length * rows.length);
+  expect(compared).toBe(2 * QUEUE_KINDS.length * rows.length);
   expect(queueItems(db, p!.id, "invalid").count).toBe(1);
   expect(
     queueItems(db, p!.id, "untranslated").items.some(
@@ -462,7 +484,7 @@ test("queueStep and queueNeighbours give what neighbours over the whole queue gi
   ).toBe(false);
 });
 
-test("a step's previous and next seek the translations' indexes, the untranslated queue in order with no sort, on a database without statistics (#639 review)", () => {
+test("a step's previous and next walk the project's strings in id order, with no sort, on a database without statistics (#639 review)", () => {
   const { db, p } = pushed();
   type Client = {
     prepare: (source: string) => {
@@ -502,10 +524,10 @@ test("a step's previous and next seek the translations' indexes, the untranslate
         detail: string;
       }[]
     ).map((row) => row.detail);
-    expect(plan[0], source).toMatch(/^SEARCH string_translations USING INDEX/);
-    // The untranslated queue, the large one, walks without a sort; the
-    // source queue sorts its rows, at most one per string.
-    if (!source.includes('"string_translations"."language" = ?'))
-      expect(plan.join("\n"), source).not.toMatch(/TEMP B-TREE/);
+    // The project's strings in id order, never another project's.
+    expect(plan[0], source).toMatch(
+      /^SEARCH strings USING INDEX strings_project \(project_id=\? AND rowid[<>]\?\)/,
+    );
+    expect(plan.join("\n"), source).not.toMatch(/TEMP B-TREE/);
   }
 });
