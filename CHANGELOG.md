@@ -13,6 +13,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- A pull or proposal into a large JSON file parses it once per pass rather than once per key: 5,000 new keys take a tenth of a second, not 44 (#693).
 - The plural chip no longer inserts a category the source's `=N` branch already covers, German's `one` beside `=1` (#686).
 - The string page and its saves no longer load the whole queue to find previous and next (#639).
 - `bin/screenshots` pins the dates the pages print, so two runs give byte-identical images (#580).

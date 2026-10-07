@@ -23,6 +23,7 @@ import {
   suffixText,
   type PluralObjects,
 } from "./messages";
+import { jsonDoc, type JsonDoc } from "./doc";
 import {
   addLeaf,
   appendItem,
@@ -227,18 +228,18 @@ function writePlural(
 // as the file has it, one the language never picks included, save in a
 // file written afresh, `fresh`, where it goes.
 function writeSuffix(
-  text: string,
+  doc: JsonDoc,
   path: string[],
   plural: string,
   unit: string,
   fresh: boolean,
   order?: (objectPath: string[]) => string[] | undefined,
   onRefused?: Refusal,
-): string {
+): void {
   const forms = formsOf(plural);
   if (!forms) {
     onRefused?.(path.join("."), plural);
-    return text;
+    return;
   }
   const parent = path.slice(0, -1);
   const base = path[path.length - 1]!;
@@ -253,26 +254,23 @@ function writeSuffix(
     rest.splice(first < 0 ? rest.length : first, 0, ...keys);
     return rest;
   };
-  let out = text;
   for (const [i, form] of PLURAL_CATEGORIES.entries()) {
     const leaf = [...parent, keys[i]!];
     const value = forms[form];
-    if (value !== undefined)
-      out =
-        editLeaf(out, leaf, value) ?? addLeaf(out, leaf, value, unit, inOrder);
-    else if (fresh) out = deleteLeaf(out, leaf);
+    if (value !== undefined) {
+      if (!doc.edit(leaf, value)) doc.add(leaf, value, unit, inOrder);
+    } else if (fresh) doc.remove(leaf);
   }
-  return out;
 }
 
-// A family of suffix keys removed whole.
-function deleteSuffix(text: string, path: string[]): string {
+// A family of suffix keys removed whole: whether any was there.
+function deleteSuffix(doc: JsonDoc, path: string[]): boolean {
   const parent = path.slice(0, -1);
   const base = path[path.length - 1]!;
-  let out = text;
+  let removed = false;
   for (const form of PLURAL_CATEGORIES)
-    out = deleteLeaf(out, [...parent, `${base}_${form}`]);
-  return out;
+    removed = doc.remove([...parent, `${base}_${form}`]) || removed;
+  return removed;
 }
 
 function isNested(tree: Tree): boolean {
@@ -340,11 +338,21 @@ export function entriesToMessages(
     // The indent an empty target takes, its sibling targets' (#1041);
     // the source's where none is given.
     indent?: string;
+    // Each change spliced in on its own, as before #693: the oracle the
+    // batched writes are tested against.
+    sequential?: boolean;
   } = {},
 ): string {
   translations = ownRecord(translations);
+  const sequential = options.sequential ?? false;
   if (options.chrome)
-    return chromeMessages(template, translations, existing, options.indent);
+    return chromeMessages(
+      template,
+      translations,
+      existing,
+      options.indent,
+      sequential,
+    );
   if (options.entries)
     return entryMessages(
       template,
@@ -353,6 +361,7 @@ export function entriesToMessages(
       options.entries.text,
       options.onRefused,
       options.indent,
+      sequential,
     );
   const plurals = options.plurals ?? false;
   const suffix: Suffix = options.suffixPlurals
@@ -393,7 +402,7 @@ export function entriesToMessages(
   } = keyPaths(sourceTree, plurals, undefined, suffix);
   const order = keyOrder(stripBom(template));
   const fresh = existing === undefined;
-  let text = base;
+  const doc = jsonDoc(base, sequential);
   const seen = new Set<string>();
   // As the reader takes them: a target's plural in either shape, an
   // object or suffix keys, wherever the source has one in either, and
@@ -440,47 +449,47 @@ export function entriesToMessages(
       const item =
         !plural &&
         sourcePlurals.has(id) &&
-        nodeAt(parseTreeNode(text), path.slice(0, -1))?.type === "array";
+        nodeAt(parseTreeNode(doc.text()), path.slice(0, -1))?.type === "array";
       if (item) {
         const forms = formsOf(next);
         if (forms)
-          text = replaceValue(
-            text,
-            path,
-            {
-              json: Object.fromEntries(
-                PLURAL_CATEGORIES.filter((c) => forms[c] !== undefined).map(
-                  (c) => [c, forms[c]!],
+          doc.apply((text) =>
+            replaceValue(
+              text,
+              path,
+              {
+                json: Object.fromEntries(
+                  PLURAL_CATEGORIES.filter((c) => forms[c] !== undefined).map(
+                    (c) => [c, forms[c]!],
+                  ),
                 ),
-              ),
-            },
-            style.indent,
+              },
+              style.indent,
+            ),
           );
         else onRefused?.(id, next);
         continue;
       }
-      text =
-        plural === "suffix"
-          ? writeSuffix(text, path, next, style.indent, fresh, order, onRefused)
-          : plural || sourcePlurals.has(id)
-            ? writePlural(text, path, next, style.indent, order, onRefused)
-            : (editLeaf(text, path, next) ?? text);
+      if (plural === "suffix")
+        writeSuffix(doc, path, next, style.indent, fresh, order, onRefused);
+      else if (plural || sourcePlurals.has(id))
+        doc.apply((text) =>
+          writePlural(text, path, next, style.indent, order, onRefused),
+        );
+      else doc.edit(path, next);
     } else if (fresh) {
-      text =
-        plural === "suffix"
-          ? deleteSuffix(text, path)
-          : plural
-            ? deleteKey(text, path)
-            : deleteLeaf(text, path);
+      if (plural === "suffix") deleteSuffix(doc, path);
+      else doc.remove(path, plural !== false);
     }
   }
   if (fresh)
     for (const list of sourceLists) {
       const last = lastWritten.get(list.join("\u0000"));
-      text =
+      doc.apply((text) =>
         last === undefined
           ? deleteKey(text, list)
-          : truncateList(text, list, last + 1);
+          : truncateList(text, list, last + 1),
+      );
     }
   const lists = listIds(baseTree);
   // The source's lists a target lacks, or holds short, by their items
@@ -499,45 +508,35 @@ export function entriesToMessages(
       continue;
     }
     const path = sourcePaths.get(id) ?? (nested ? id.split(".") : [id]);
-    text = sourceSuffix.has(id)
-      ? writeSuffix(
-          text,
-          path,
-          translations[id]!,
-          style.indent,
-          fresh,
-          order,
-          onRefused,
-        )
-      : sourcePlurals.has(id)
-        ? writePlural(
-            text,
-            path,
-            translations[id]!,
-            style.indent,
-            order,
-            onRefused,
-          )
-        : addLeaf(text, path, translations[id]!, style.indent, order);
+    const next = translations[id]!;
+    if (sourceSuffix.has(id))
+      writeSuffix(doc, path, next, style.indent, fresh, order, onRefused);
+    else if (sourcePlurals.has(id))
+      doc.apply((text) =>
+        writePlural(text, path, next, style.indent, order, onRefused),
+      );
+    else doc.add(path, next, style.indent, order);
   }
   if (underLists.length > 0)
-    text = completeLists(
-      text,
-      underLists,
-      sourceTree,
-      sourcePaths,
-      sourceSuffix,
-      {
-        translations,
-        pluralIds: sourcePlurals,
-        ...(options.sourceLanguage && { language: options.sourceLanguage }),
-        ...(onRefused && { onRefused }),
-      },
-      style.indent,
-      order,
-      (id) => options.onList?.(id),
+    doc.apply((text) =>
+      completeLists(
+        text,
+        underLists,
+        sourceTree,
+        sourcePaths,
+        sourceSuffix,
+        {
+          translations,
+          pluralIds: sourcePlurals,
+          ...(options.sourceLanguage && { language: options.sourceLanguage }),
+          ...(onRefused && { onRefused }),
+        },
+        style.indent,
+        order,
+        (id) => options.onList?.(id),
+      ),
     );
-  return text;
+  return doc.text();
 }
 
 // The outermost lists of a file, by key path (#1053).
@@ -766,17 +765,11 @@ function completeLists(
         const next = fill.translations[id]!;
         const was = text;
         const leaf = nodeAt(parseTreeNode(text), path);
-        if (suffixIds.has(id))
-          text = writeSuffix(
-            text,
-            path,
-            next,
-            indent,
-            false,
-            order,
-            fill.onRefused,
-          );
-        else if (fill.pluralIds.has(id) && leaf?.type === "object")
+        if (suffixIds.has(id)) {
+          const doc = jsonDoc(text, true);
+          writeSuffix(doc, path, next, indent, false, order, fill.onRefused);
+          text = doc.text();
+        } else if (fill.pluralIds.has(id) && leaf?.type === "object")
           text = writePlural(text, path, next, indent, order, fill.onRefused);
         // A string where the source has a plural becomes the plural, as
         // it does outside a list (#1187).
@@ -843,6 +836,7 @@ function entryMessages(
   field: string,
   onRefused?: Refusal,
   given?: string,
+  sequential = false,
 ): string {
   if (existing === undefined || existing.trim() === "") {
     const style = styleOf(template);
@@ -860,12 +854,12 @@ function entryMessages(
       template,
     );
   }
-  let text = existing;
-  const base = parseTree(text);
-  const indent = indentOf(text, template, given);
+  const doc = jsonDoc(existing, sequential);
+  const base = parseTree(existing);
+  const indent = indentOf(existing, template, given);
   for (const [id, next] of Object.entries(translations)) {
     if (!Object.hasOwn(base, id)) {
-      text = addLeaf(text, [id, field], next, indent);
+      doc.add([id, field], next, indent);
       continue;
     }
     const entry = base[id];
@@ -883,11 +877,9 @@ function entryMessages(
       continue;
     }
     if (current === next) continue;
-    text =
-      editLeaf(text, [id, field], next) ??
-      addLeaf(text, [id, field], next, indent);
+    if (!doc.edit([id, field], next)) doc.add([id, field], next, indent);
   }
-  return text;
+  return doc.text();
 }
 
 // Chrome's `{ message }` entries (#595): a new one takes the source's
@@ -897,21 +889,21 @@ function chromeMessages(
   translations: Record<string, string>,
   existing: string | undefined,
   given?: string,
+  sequential = false,
 ): string {
   const field = "message";
   const fresh = existing === undefined || existing.trim() === "";
-  let text = fresh ? template : existing;
+  const text = fresh ? template : existing;
+  const doc = jsonDoc(text, sequential);
   const source = parseTree(template);
   const base = parseTree(text);
   const indent = indentOf(text, template, given);
   for (const [id, entry] of Object.entries(base)) {
     const next = Object.hasOwn(translations, id) ? translations[id] : undefined;
     if (next === undefined) {
-      if (fresh) text = deleteKey(text, [id]);
+      if (fresh) doc.remove([id], true);
     } else if (typeof entry !== "object" || entry[field] !== next) {
-      text =
-        editLeaf(text, [id, field], next) ??
-        addLeaf(text, [id, field], next, indent);
+      if (!doc.edit([id, field], next)) doc.add([id, field], next, indent);
     }
   }
   for (const [id, next] of Object.entries(translations)) {
@@ -922,14 +914,9 @@ function chromeMessages(
         ? leaves(model).map(([path, value]) => [path, value])
         : [[[field], next]];
     for (const [path, value] of fields)
-      text = addLeaf(
-        text,
-        [id, ...path],
-        path.join(".") === field ? next : value,
-        indent,
-      );
+      doc.add([id, ...path], path.join(".") === field ? next : value, indent);
   }
-  return text;
+  return doc.text();
 }
 
 // An empty file has no bytes to keep: the template's structure and
@@ -1096,11 +1083,15 @@ export function applyMessagesOps(
     // i18next's plural keys are one string (#985).
     suffixPlurals?: boolean;
     sourceLanguage?: string;
+    // The oracle the batched writes are tested against (#693).
+    sequential?: boolean;
   } = {},
 ): string {
   if (text.trim() === "") text = "{}\n";
-  if (options.chrome) return chromeOps(text, ops);
-  if (options.entries) return chromeOps(text, ops, options.entries.text);
+  const sequential = options.sequential ?? false;
+  if (options.chrome) return chromeOps(text, ops, "message", sequential);
+  if (options.entries)
+    return chromeOps(text, ops, options.entries.text, sequential);
   const tree = parseTree(text);
   const nested = isNested(tree);
   const plurals = options.plurals ?? false;
@@ -1125,7 +1116,7 @@ export function applyMessagesOps(
       `messages: ${id} is a plural its object cannot hold (an =N branch, or a brace a form leaves open)`,
     );
   };
-  let out = text;
+  const doc = jsonDoc(text, sequential);
   const lists = listsOf(tree);
   for (const op of ops) {
     const path = paths.get(op.id) ?? (nested ? op.id.split(".") : [op.id]);
@@ -1141,41 +1132,42 @@ export function applyMessagesOps(
     if (op.kind === "delete") {
       // Absent already (a second pull, a target file without the key):
       // nothing to do; the push that lands the removal marks it applied.
-      const next = suffixIds.has(op.id)
-        ? deleteSuffix(out, path)
-        : pluralIds.has(op.id)
-          ? deleteKey(out, path)
-          : deleteLeaf(out, path);
-      out = next === out ? deleteLeaf(out, [op.id]) : next;
+      const removed = suffixIds.has(op.id)
+        ? deleteSuffix(doc, path)
+        : doc.remove(path, pluralIds.has(op.id));
+      if (!removed) doc.remove([op.id]);
     } else if (
       suffixIds.has(op.id) ||
       (suffix && !asObjects && newPlural(op))
     ) {
       // A proposed plural, edited or new, is the source's whole plural:
       // a form it lacks goes (#985).
-      out = writeSuffix(out, path, op.text, indent, true, undefined, refuse);
+      writeSuffix(doc, path, op.text, indent, true, undefined, refuse);
     } else if (pluralIds.has(op.id) || (suffix && asObjects && newPlural(op))) {
       // A proposal the object cannot hold fails the file loudly: it is
       // counted written otherwise, and never lands.
-      out = writePlural(out, path, op.text, indent, undefined, refuse);
-    } else {
-      out = editLeaf(out, path, op.text) ?? addLeaf(out, path, op.text, indent);
-    }
+      doc.apply((text) =>
+        writePlural(text, path, op.text, indent, undefined, refuse),
+      );
+    } else if (!doc.edit(path, op.text)) doc.add(path, op.text, indent);
   }
-  return out;
+  return doc.text();
 }
 
-function chromeOps(text: string, ops: SourceOp[], field = "message"): string {
+function chromeOps(
+  text: string,
+  ops: SourceOp[],
+  field: string,
+  sequential: boolean,
+): string {
   const { indent } = styleOf(text);
-  let out = text;
+  const doc = jsonDoc(text, sequential);
   for (const op of ops) {
-    out =
-      op.kind === "delete"
-        ? deleteKey(out, [op.id])
-        : (editLeaf(out, [op.id, field], op.text) ??
-          addLeaf(out, [op.id, field], op.text, indent));
+    if (op.kind === "delete") doc.remove([op.id], true);
+    else if (!doc.edit([op.id, field], op.text))
+      doc.add([op.id, field], op.text, indent);
   }
-  return out;
+  return doc.text();
 }
 
 export function applyTableOps(

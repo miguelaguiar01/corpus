@@ -272,6 +272,12 @@ function removeProperty(text: string, path: string[]): string {
   return text.slice(0, start) + text.slice(end);
 }
 
+export function collides(path: string[]): never {
+  throw new Error(
+    `messages: id ${JSON.stringify(path.join("."))} collides with a nested key path`,
+  );
+}
+
 // A string added at `path`: into the deepest object that exists on the
 // way, the rest of the path as nested objects in that object's style;
 // where a string sits on the way, a flat key at the root instead, set
@@ -305,11 +311,7 @@ export function addLeaf(
   if (parent.type === "array") return text;
   const existing =
     depth === path.length - 1 ? nodeAt(parent, [path[depth]!]) : undefined;
-  if (existing?.type === "object") {
-    throw new Error(
-      `messages: id ${JSON.stringify(path.join("."))} collides with a nested key path`,
-    );
-  }
+  if (existing?.type === "object") collides(path);
   if (existing)
     return typeof value === "string"
       ? replaceNode(text, existing, value)

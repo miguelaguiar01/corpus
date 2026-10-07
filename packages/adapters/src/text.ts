@@ -25,7 +25,9 @@ export function eolOf(text: string): string {
 // The indentation of the line `at` is on.
 export function lineIndent(text: string, at: number): string {
   const start = text.lastIndexOf("\n", at - 1) + 1;
-  return /^[ \t]*/.exec(text.slice(start))![0];
+  let end = start;
+  while (text[end] === " " || text[end] === "\t") end++;
+  return text.slice(start, end);
 }
 
 // XML comments masked, so nothing inside one is read as an element, at
