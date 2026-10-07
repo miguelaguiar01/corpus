@@ -2128,11 +2128,11 @@ function qtTemplateOf(cwd: string, pattern: string): string | undefined {
   return templates.length === 1 ? templates[0] : undefined;
 }
 
-// The file code a POSIX code `--languages` lists takes (#1119): the
-// spelling the pattern's files give its tag, the code itself, another
-// (`uz@Latn` for `uz@latin`) or none where the tag is the file's name,
-// and the code as listed where no file has the tag, as a new one is
-// named so.
+// The file code a POSIX code `--languages` lists takes (#1119):
+// - the code itself, where the pattern has its files;
+// - none, where the files are named by its tag;
+// - another code of the same tag the files use (`uz@Latn` for `uz@latin`);
+// - the code as listed, where no file has the tag, as a new one is named.
 function listedFile(
   cwd: string,
   pattern: string,
@@ -2194,7 +2194,8 @@ function langDirectories(
     .map((code) => ({ file: `${lang.head}${code}${lang.tail}`, code }));
 }
 
-// Those under a code that names no language, as `core/templates`.
+// The `{lang}` directories under a code that names no language, as
+// `core/templates`.
 function untaggedDirectories(
   cwd: string,
   pattern: string,
