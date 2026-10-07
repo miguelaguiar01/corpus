@@ -1916,6 +1916,32 @@ test("validate says a target plural without other plainly, with no offset (#975)
   );
 });
 
+test("validate takes an exporter's 200,000 findings: no spread overflows the stack (#1276)", async () => {
+  mkdirSync(path.join(repo, "scripts"), { recursive: true });
+  writeFileSync(
+    path.join(repo, "scripts", "many.mjs"),
+    `const strings = Array.from({ length: 200000 }, (_, i) => ({ id: "n" + i, type: "ui", source: "{count, plural, other {# items}}" }));
+process.stdout.write(JSON.stringify({ strings }));\n`,
+  );
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8")
+      .replace(
+        /sources: \[[\s\S]*?\n {2}\],/,
+        'sources: [{ adapter: "exec", command: "node scripts/many.mjs" }],',
+      )
+      .replace(/languages: \[[^\]]*\]/, 'languages: ["en", "de"]'),
+  );
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(0);
+  expect(
+    c.stderr.filter((line) => line.includes("lacks the one branch")),
+  ).toHaveLength(200_000);
+}, 180_000);
+
 test("a Japanese source's lone _other is its family, so an English target's forms seed it and are no orphans (#1065)", async () => {
   const configFile = readdirSync(repo).find((f) =>
     f.startsWith("corpus.config"),

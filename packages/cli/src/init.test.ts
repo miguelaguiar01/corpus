@@ -3395,3 +3395,43 @@ test("init maps a country code a file is named by to its language, and warns whe
   expect(own.sources[0]?.languageFiles).toBeUndefined();
   expect(t.err.join("\n")).not.toContain("written as");
 });
+
+test("init reads a catalogue of 200,000 keys: no spread overflows the stack (#1276)", async () => {
+  const p = project();
+  stubCli(p.dir);
+  mkdirSync(path.join(p.dir, "l"));
+  writeFileSync(
+    path.join(p.dir, "l", "en.json"),
+    JSON.stringify(
+      Object.fromEntries(
+        Array.from({ length: 200_000 }, (_, i) => [
+          `k${i}`,
+          `Hello {name} ${i}`,
+        ]),
+      ),
+    ),
+  );
+  writeFileSync(
+    path.join(p.dir, "l", "de.json"),
+    JSON.stringify({ k0: "Hallo {name} 0" }),
+  );
+  expect(
+    await run(
+      [
+        "init",
+        "--project",
+        "x",
+        "--source",
+        "en",
+        "--messages",
+        "l/{lang}.json",
+      ],
+      p.ctx,
+    ),
+  ).toBe(0);
+  expect((await loadConfig(p.dir)).languages).toEqual(["en", "de"]);
+  // Every file is read: none is named as one that does not read.
+  expect([...p.out, ...p.err].join("\n")).not.toMatch(
+    /not read|not detected|call stack/,
+  );
+}, 120_000);
