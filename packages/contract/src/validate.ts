@@ -21,6 +21,7 @@ import {
   parseIcu,
   readIcu,
   printfPluralError,
+  RAILS_STRAY,
   WHOLE_PLURAL_LIBRARIES,
   pluralCategoriesFor,
   pluralCategoriesOf,
@@ -685,11 +686,12 @@ export function validateTranslation(
   // A translation of a printf plural that opens as one but is not one
   // is a broken plural, not text (#652), whatever reading it as text
   // then trips on (#950).
-  const brokenPlural =
+  const wholePlural =
     WHOLE_PLURAL_LIBRARIES.has(syntax) &&
-    parsedSource.nodes.some((node) => node.kind === "plural")
-      ? printfPluralError(target, html, syntax, placeholders)
-      : undefined;
+    parsedSource.nodes.some((node) => node.kind === "plural");
+  let brokenPlural = wholePlural
+    ? printfPluralError(target, html, syntax, placeholders)
+    : undefined;
   const targetError = (e: IcuError): ValidationError =>
     e.missingOther !== undefined
       ? { code: "missing-other", arg: e.missingOther }
@@ -699,10 +701,39 @@ export function validateTranslation(
           message: e.message,
           position: e.position,
         };
+  let readTarget = brokenPlural
+    ? undefined
+    : parseIcu(target, syntax, { html, placeholders });
+  // A mistyped rails `%{` is text Rails prints: the translation is read
+  // past it, so its other findings are said with it (#976).
+  const strayAt: number[] = [];
+  const strayOnly = (errors: readonly IcuError[]) =>
+    errors.every((e) => e.message === RAILS_STRAY);
+  if (
+    syntax === "rails" &&
+    (brokenPlural
+      ? strayOnly([brokenPlural])
+      : readTarget && !readTarget.ok && strayOnly(readTarget.errors))
+  ) {
+    const collecting: number[] = [];
+    const broken =
+      wholePlural &&
+      printfPluralError(target, html, syntax, placeholders, collecting);
+    const read = broken
+      ? undefined
+      : parseIcu(target, syntax, { html, placeholders, strays: strayAt });
+    if (read?.ok) {
+      brokenPlural = undefined;
+      readTarget = read;
+    }
+  }
   if (brokenPlural) return { ok: false, errors: [targetError(brokenPlural)] };
-  const parsedTarget = parseIcu(target, syntax, { html, placeholders });
-  if (!parsedTarget.ok)
-    return { ok: false, errors: parsedTarget.errors.map(targetError) };
+  if (!readTarget?.ok)
+    return {
+      ok: false,
+      errors: (readTarget?.errors ?? []).map(targetError),
+    };
+  const parsedTarget = readTarget;
   const positioned = (nodes: IcuNode[]) =>
     syntax === "printf" ? argPositions(nodes) : nodes;
   const sourceNodes = positioned(parsedSource.nodes);
@@ -768,7 +799,12 @@ export function validateTranslation(
       ? otherBranch(sourceNodes, flat)
       : sourceNodes;
   const expected = flattened === sourceNodes ? whole : shapeOf(flattened);
-  let errors: ValidationError[] = [];
+  let errors: ValidationError[] = strayAt.map((position) => ({
+    code: "invalid-icu",
+    where: "target",
+    message: RAILS_STRAY,
+    position,
+  }));
   const expectedValues = valuesOf(expected);
   const sameBase =
     options.sourceLanguage !== undefined &&
