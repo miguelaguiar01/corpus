@@ -14,6 +14,7 @@ export {
   printfVerbAt,
   PLURAL_CATEGORIES,
   pluralCategoriesOf,
+  pluralRulesOf,
   pluralCategoriesFor,
   proseTagsOf,
   readIcu,

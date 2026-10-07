@@ -2155,6 +2155,13 @@ function known(language: string): boolean {
   }
 }
 
+// A language's plural rules, English's for a tag the runtime has no
+// plural data for, which `new Intl.PluralRules` would resolve to the
+// machine's locale instead (#966).
+export function pluralRulesOf(language: string): Intl.PluralRules {
+  return new Intl.PluralRules(known(language) ? localeOf(language) : "en");
+}
+
 // The plural categories a language uses, by the runtime's CLDR data, in
 // CLDR order whatever order the runtime lists them; none for a tag the
 // runtime does not know, so nothing is enforced.

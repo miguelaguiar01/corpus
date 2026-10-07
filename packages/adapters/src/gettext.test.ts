@@ -1,4 +1,9 @@
-import { validateTranslation } from "@corpus/contract";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { pluralRulesOf, validateTranslation } from "@corpus/contract";
 import { expect, test } from "vitest";
 import { GETTEXT_PLURALS } from "./gettextplurals";
 import {
@@ -1097,3 +1102,61 @@ test("validation refuses a Filipino draft exactly where the writer cannot hold i
     expect(shares, text).toBe(refused);
   }
 });
+
+const OC = `msgid ""\nmsgstr ""\n"Language: oc\\n"\n"Plural-Forms: nplurals=2; plural=(n > 1);\\n"\n\nmsgid "%d file"\nmsgid_plural "%d files"\nmsgstr[0] "%d fichièr"\nmsgstr[1] "%d fichièrs"\n`;
+const OC_POT = `msgid "%d file"\nmsgid_plural "%d files"\nmsgstr[0] ""\nmsgstr[1] ""\n`;
+
+test("a tag with no plural data reads its forms by English's categories (#966)", () => {
+  expect(pluralRulesOf("oc").resolvedOptions().locale).toBe("en");
+  expect(pluralTable("oc", "nplurals=2; plural=(n > 1);").categories).toEqual([
+    "one",
+    "other",
+  ]);
+  expect(pluralRulesOf("pl").resolvedOptions().locale).toBe("pl");
+  expect(
+    pluralTable(
+      "pl",
+      "nplurals=3; plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<12 || n%100>14) ? 1 : 2);",
+    ).categories,
+  ).toEqual(["one", "few", "many"]);
+});
+
+test("an Occitan file reads and writes the same under a Polish and an English locale (#966)", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-966-"));
+  const script = path.join(dir, "probe.mts");
+  const adapters = fileURLToPath(new URL("./index.ts", import.meta.url));
+  writeFileSync(
+    script,
+    `import { gettextTranslations, gettextPluralCategories, entriesToGettext } from ${JSON.stringify(adapters)};
+const oc = ${JSON.stringify(OC)};
+const seeds = gettextTranslations(oc, "oc");
+const written = entriesToGettext(${JSON.stringify(OC_POT)}, { "%d file": "{count, plural, one {%d fichièr nòu} other {%d fichièrs nòus}}" }, oc, { tag: "oc", code: "oc" });
+process.stdout.write(JSON.stringify({ locale: new Intl.PluralRules().resolvedOptions().locale, seeds, categories: gettextPluralCategories(oc, "oc"), written }));
+`,
+  );
+  const under = (lang: string) => {
+    const run = spawnSync(process.execPath, ["--import", "tsx", script], {
+      // Where tsx resolves from.
+      cwd: fileURLToPath(new URL("../../..", import.meta.url)),
+      env: {
+        PATH: process.env.PATH,
+        HOME: process.env.HOME,
+        LANG: lang,
+        LC_ALL: lang,
+      },
+      encoding: "utf8",
+    });
+    expect(run.status, run.stderr).toBe(0);
+    const { locale, ...read } = JSON.parse(run.stdout) as {
+      locale: string;
+      categories: string[];
+    };
+    // The child runs under the locale asked for, or nothing is tested.
+    expect(locale).toBe(lang.slice(0, 5).replace("_", "-"));
+    return read;
+  };
+  const polish = under("pl_PL.UTF-8");
+  expect(polish).toEqual(under("en_US.UTF-8"));
+  expect(polish.categories).toEqual(["one", "other"]);
+  rmSync(dir, { recursive: true, force: true });
+}, 60_000);
