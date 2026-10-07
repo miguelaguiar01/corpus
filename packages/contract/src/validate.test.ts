@@ -3795,8 +3795,8 @@ test("a language of the source's base is asked per copy only for what the source
     ok: true,
     incomplete: [{ code: "missing-category", arg: "n", key: "one" }],
   });
-  // A translation with another number of copies is read against the
-  // source's every copy at once, as before.
+  // A translation with another number of copies is read against what
+  // any of the source's copies has.
   expect(
     validateTranslation(
       source,
