@@ -2263,6 +2263,7 @@ export function pluralCategoriesFor(
   // A file's forms that are CLDR's are read as CLDR's, as they are where
   // no forms are recorded: a library with a rule of its own records them
   // only so that rule does not apply (#964).
+  // The build records a file's forms in pluralCategoriesOf's order.
   const own = library === "counterpart" || library === "easy_localization";
   const forms = own && picked?.join() === cldr.join() ? undefined : picked;
   if (forms && cldr.length > 0)

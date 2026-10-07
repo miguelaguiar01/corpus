@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { moonlightManor } from "./fixtures/moonlight-manor";
 import type { Library } from "./strings";
-import { parseIcu, partsOf } from "./icu";
+import { parseIcu, partsOf, pluralCategoriesOf } from "./icu";
 import { renderPreview } from "./preview";
 import {
   bareAtOf,
@@ -3992,8 +3992,6 @@ test("a gettext file read under counterpart or easy_localization takes the file'
 });
 
 test("a gettext file whose Plural-Forms are CLDR's reads under counterpart and easy_localization as under printf, which records none (#964)", () => {
-  const cldr = (language: string) =>
-    new Intl.PluralRules(language).resolvedOptions().pluralCategories;
   const codes = (
     library: "printf" | "counterpart" | "easy_localization",
     count: string,
@@ -4008,11 +4006,7 @@ test("a gettext file whose Plural-Forms are CLDR's reads under counterpart and e
       {
         pluralAsForms: true,
         ...(library !== "printf" && {
-          pluralForms: [...cldr(language)].sort(
-            (a, b) =>
-              ["zero", "one", "two", "few", "many", "other"].indexOf(a) -
-              ["zero", "one", "two", "few", "many", "other"].indexOf(b),
-          ),
+          pluralForms: pluralCategoriesOf(language),
         }),
       },
     );
