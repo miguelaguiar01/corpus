@@ -1284,6 +1284,10 @@ test("a target's credits are dropped in the forms real headers write them: an em
 # Hrvoje Mandić <trbuhom@net.hr>
 # Milo Ivir <mail@milotype.de>, 2021., 2022., 2023., 2025.
 # Anna Svensson <anna@example.org>, 2019,2020
+# "Chen,Wei-Ting" <benson94879453@gmail.com>, 2026.
+# Overloaded @ Orama Interactive http://orama-interactive.com/ <manoschool@yahoo.gr>, 2020, 2022.
+# FIRST Translator Ji-Hyeon Gim <potatogim@potatogim.net>, YEAR.
+# Björn Ek, 2024-04-01
 # Previous-Translator: Титан <fignin@ya.ru>
 # Last-Translator: Dmitriy Q <atsip-help@yandex.ru>
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
