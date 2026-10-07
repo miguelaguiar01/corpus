@@ -445,3 +445,25 @@ test("a save writing an =N branch into a plural its file holds as forms is refus
   });
   expect((result as { to: string }).to).toContain("error=invalid-translation");
 });
+
+test("a save writing an =0 branch into a counterpart plural is refused with the draft (#964)", () => {
+  const { db, p, rui } = pushed();
+  db.update(strings)
+    .set({
+      syntax: "counterpart",
+      source: "{count, plural, one {%(count)s room} other {%(count)s rooms}}",
+    })
+    .where(eq(strings.stringId, KEYS[3]!))
+    .run();
+  const result = transitionFlow(db, {
+    project: p,
+    user: rui,
+    key: KEYS[3]!,
+    language: "en",
+    action: {
+      type: "save",
+      text: "{count, plural, =0 {No rooms} one {%(count)s room} other {%(count)s rooms}}",
+    },
+  });
+  expect((result as { to: string }).to).toContain("error=invalid-translation");
+});
