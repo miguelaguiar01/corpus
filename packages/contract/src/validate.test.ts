@@ -3632,3 +3632,38 @@ test("shared exact keys compare as the writer does, by the text written, not by 
       ]),
     });
 });
+
+test("under android, <xliff:g> is a tag a translation keeps, its id its identity (#1067)", () => {
+  const source = 'Load up to <xliff:g id="messages_to_load">%d</xliff:g> more';
+  const check = (text: string) =>
+    validateTranslation(source, text, "ta-IN", "android");
+  expect(
+    check('<xliff:g id="messages_to_load">%d</xliff:g> வரை ஏற்றவும்').ok,
+  ).toBe(true);
+  // thunderbird-android's ta-IN, its element turned to text and its name
+  // and attribute translated.
+  expect(
+    check(
+      '<Xliff வரை ஏற்றவும்: g ஐடி = "messages_to_load">%d </xliff: g> மேலும்',
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: expect.arrayContaining([
+      { code: "missing-tag", name: 'xliff:g id="messages_to_load"' },
+    ]),
+  });
+  expect(check("%d மேலும்")).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-tag", name: 'xliff:g id="messages_to_load"' }],
+  });
+  expect(check('<xliff:g id="count">%d</xliff:g> மேலும்')).toMatchObject({
+    ok: false,
+    errors: expect.arrayContaining([
+      { code: "missing-tag", name: 'xliff:g id="messages_to_load"' },
+    ]),
+  });
+  // Other libraries read <a:b> as text, as before.
+  expect(validateTranslation("Go <a:b>x</a:b>", "Vai", "de", "icu").ok).toBe(
+    true,
+  );
+});
