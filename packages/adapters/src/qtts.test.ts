@@ -960,3 +960,33 @@ test("in a one-category language an edit writes other's text into the form no ca
     ).toBe(numerus(lang, ["NEW", "NEW"]));
   }
 });
+
+test("a language whose integers reach several categories keeps a form no category reads, whose forms all read alike (Breton, Filipino, Manx); its short file stays work (#1104 review)", async () => {
+  const { qtShortForms } = await import("./qtts");
+  const id = "Main | %n file(s)";
+  for (const [lang, forms] of [
+    ["br", ["SING", "PLUR"]],
+    ["fil", ["SING", "PLUR"]],
+    ["gv", ["SING", "DUAL", "PLUR"]],
+  ] as const) {
+    const language = { tag: lang, code: lang };
+    const full = numerus(lang, [...forms]);
+    const read = qtTsTranslations(full, lang)[0]!.source;
+    const edited = entriesToQtTs(
+      numerus(
+        "",
+        forms.map(() => ""),
+      ),
+      { [id]: read.replaceAll("PLUR", "NEW") },
+      full,
+      language,
+    );
+    expect(edited, lang).toContain(`<numerusform>${forms[0]}</numerusform>`);
+    expect(edited, lang).toContain("<numerusform>NEW</numerusform>");
+    if (lang === "gv")
+      expect(edited).toContain("<numerusform>DUAL</numerusform>");
+    const short = numerus(lang, ["%n file"]);
+    expect(qtTsTranslations(short, lang), lang).toEqual([]);
+    expect(qtShortForms(short, lang), lang).toEqual([]);
+  }
+});
