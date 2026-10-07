@@ -1326,6 +1326,14 @@ export function validateTranslation(
             message: `<${tag.name} ${tag.attrs}> opens a quote it never closes`,
             position: Math.max(0, target.indexOf(`<${tag.name} ${tag.attrs}`)),
           });
+    // A tag missing with the value its attribute holds is the tag's
+    // finding alone, not a value moved (#1146).
+    const missingTags = new Set(
+      errors.flatMap((e) => (e.code === "missing-tag" ? [e.name] : [])),
+    );
+    errors = errors.filter(
+      (e) => !(e.code === "moved-placeholder" && missingTags.has(e.tag)),
+    );
   }
   // Fluent selects asymmetrically (#1032): a translation may select on
   // whatever it is passed, a key it lacks falls back to its `*` default,
