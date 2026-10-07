@@ -4271,3 +4271,42 @@ test("under fluent, a format is added on no value the source passes, whether or 
     ),
   ).toEqual({ ok: true });
 });
+
+test("under easy_localization, a one-category language's plain text prints its count through {}, which plural() fills (#1094)", () => {
+  const source = "{count, plural, one {{} item} other {{} items}}";
+  expect(
+    validateTranslation(source, "{} 个项目", "zh", "easy_localization"),
+  ).toEqual({ ok: true });
+  expect(
+    validateTranslation(source, "{count} 个项目", "zh", "easy_localization"),
+  ).toEqual({
+    ok: false,
+    errors: [
+      { code: "unexpected-placeholder", name: "count", written: "{count}" },
+    ],
+  });
+  expect(
+    validateTranslation(source, "个项目", "zh", "easy_localization"),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "count" }],
+  });
+  // A source whose forms name {count} keeps it named.
+  expect(
+    validateTranslation(
+      "{count, plural, one {{count} item} other {{count} items}}",
+      "{count} 个项目",
+      "zh",
+      "easy_localization",
+    ),
+  ).toEqual({ ok: true });
+  // Under icu a plain {} is no count.
+  expect(
+    validateTranslation(
+      "{count, plural, one {# item} other {# items}}",
+      "{count} 个项目",
+      "zh",
+      "icu",
+    ),
+  ).toEqual({ ok: true });
+});
