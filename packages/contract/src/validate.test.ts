@@ -3990,3 +3990,57 @@ test("a gettext file read under counterpart or easy_localization takes the file'
     );
   }
 });
+
+test("a gettext file whose Plural-Forms are CLDR's reads under counterpart and easy_localization as under printf, which records none (#964)", () => {
+  const cldr = (language: string) =>
+    new Intl.PluralRules(language).resolvedOptions().pluralCategories;
+  const codes = (
+    library: "printf" | "counterpart" | "easy_localization",
+    count: string,
+    language: string,
+    text: string,
+  ) => {
+    const result = validateTranslation(
+      `{count, plural, one {${count} file} other {${count} files}}`,
+      text.replaceAll("#", count),
+      language,
+      library,
+      {
+        pluralAsForms: true,
+        ...(library !== "printf" && {
+          pluralForms: [...cldr(language)].sort(
+            (a, b) =>
+              ["zero", "one", "two", "few", "many", "other"].indexOf(a) -
+              ["zero", "one", "two", "few", "many", "other"].indexOf(b),
+          ),
+        }),
+      },
+    );
+    return [
+      ...(result.ok ? [] : result.errors),
+      ...(result.incomplete ?? []),
+    ].map((e) => [
+      e.code,
+      "key" in e ? e.key : undefined,
+      "category" in e ? e.category : undefined,
+    ]);
+  };
+  for (const language of ["fr", "es", "pt", "it", "de", "ru", "ja", "ar"])
+    for (const text of [
+      "{count, plural, one {#} other {#}}",
+      "{count, plural, one {#} many {#} other {#}}",
+      "{count, plural, zero {#} one {#} other {#}}",
+      "{count, plural, =0 {#} one {#} other {#}}",
+      "{count, plural, one {#} few {#} many {#} other {#}}",
+    ]) {
+      const printf = codes("printf", "%d", language, text);
+      expect(
+        codes("counterpart", "%(count)s", language, text),
+        `${language} ${text}`,
+      ).toEqual(printf);
+      expect(
+        codes("easy_localization", "{}", language, text),
+        `${language} ${text}`,
+      ).toEqual(printf);
+    }
+});
