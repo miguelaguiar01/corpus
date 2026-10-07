@@ -4489,3 +4489,34 @@ test("under android a translation is checked as Java's Formatter reads it (#1145
     errors: [{ code: "invalid-icu", where: "target" }],
   });
 });
+
+test("where tags are compared, a broken tag holding a placeholder in its attribute is the tag's finding alone (#1146)", () => {
+  for (const [syntax, source, target] of [
+    ["android", '<a href="%1$s">%2$s</a>', '<a href="%1$s">%2$s'],
+    ["android", '<a href="%1$s">Go</a>', '<href="%1$s">Vai</a>'],
+    ["i18next", '<a href="{{url}}">Go</a>', '<href="{{url}}">Vai</a>'],
+  ] as const) {
+    const result = validateTranslation(source, target, "pt", syntax);
+    expect(result.ok, target).toBe(false);
+    if (result.ok) continue;
+    expect(
+      result.errors.map((e) => e.code),
+      target,
+    ).toContain("missing-tag");
+    expect(
+      result.errors.filter((e) => e.code === "moved-placeholder"),
+      target,
+    ).toEqual([]);
+  }
+  // Where no tags are compared, the moved value is the finding.
+  const htmlKey = validateTranslation(
+    '<a href="%{u}">Go</a>',
+    '<href="%{u}">Vai</a>',
+    "pt",
+    "rails",
+    { richText: "html-key" },
+  );
+  expect(htmlKey.ok ? [] : htmlKey.errors.map((e) => e.code)).toContain(
+    "moved-placeholder",
+  );
+});
