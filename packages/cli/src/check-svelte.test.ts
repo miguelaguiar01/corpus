@@ -84,3 +84,55 @@ test("a finding names the line its text starts on, indented or after an expressi
     [2, "Shown text"],
   ]);
 });
+
+test("Svelte: a regex literal with a quote, /* or a slash in a class is one expression; division stays division (#1140)", () => {
+  for (const expression of [
+    "{x.match(/'/)}",
+    "{x.match(/a\\/*b/)}",
+    "{x.match(/[/]'/)}",
+    "{#if /'/.test(x)}<b>A</b>{/if}",
+    "{#if a}{:else if /'/.test(x)}{/if}",
+    "{@html x.replace(/'/g, '')}",
+    // An attribute's value is no block: it may start with a regex.
+    "<b title={/'/.source}>x</b>",
+    "{x.replace(/\"/g, '')}",
+    "{ok ? /'/ : /\"/}",
+    "{typeof /'/}",
+  ])
+    expect(found(`${expression}\n<p>Hello world</p>`), expression).toEqual([
+      [2, "Hello world"],
+    ]);
+  for (const expression of [
+    "{a / b / c}",
+    "{x / 2}",
+    "{(a) / b}",
+    "{'https://x.org/a'}",
+    "{a[1] / b}",
+    "{i++ / 2}",
+    "{a.return / 2}",
+  ])
+    expect(found(`${expression}\n<p>Hello world</p>`), expression).toEqual([
+      [2, "Hello world"],
+    ]);
+  // A block closes with `{/`: `{/if}</div>` opens no regex, as Immich's
+  // `{/if}</Button` does not.
+  for (const [open, close] of [
+    ["{#if a}", "{/if}</div>"],
+    ["{#each a as b}", "{/each}</ul>"],
+    ["{#if a}", '{/if} <a href="/home">x</a>'],
+    ["{#key a}", "{/key}<i>x</i>"],
+    // A text's `=` before a closer is no attribute.
+    ["{#if eq}", "={/if}</span>"],
+    ["<p>x {#if a}", " ={/if}</p>"],
+  ])
+    expect(
+      found(`${open}<b>A</b>${close}\n<p>Hello world</p>`),
+      close,
+    ).toContainEqual([2, "Hello world"]);
+  // TypeScript's non-null assertion, Immich's `{asset.duration! / 1000}`,
+  // divides as the value without it does.
+  const line =
+    "{asset.duration! / 1000} <i>of</i> {total / 2}\n<p>Hello world</p>";
+  expect(found(line)).toEqual(found(line.replace("!", "")));
+  expect(found(line)).toContainEqual([2, "Hello world"]);
+});
