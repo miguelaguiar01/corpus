@@ -63,7 +63,7 @@ type Prop = {
   key: string;
   // Its line's indent, a new one's taken from the property it was
   // placed beside, as insert's separator writes it.
-  indent: string;
+  indent?: string;
   node?: Node;
   before?: Prop[];
   after?: Prop[];
@@ -77,7 +77,7 @@ type Prop = {
 type Obj = {
   node?: Node;
   holder?: { obj: Obj; prop: Prop };
-  inline: boolean;
+  inline?: boolean;
   props: Prop[];
   items: Prop[];
   byKey: Map<string, Prop>;
@@ -104,7 +104,7 @@ class BatchDoc implements JsonDoc {
   private removed = new Set<Node>();
   private emptied = new Set<Obj>();
   private mode: "none" | "remove" | "add" = "none";
-  private positions = new WeakMap<string[], Map<string, number>>();
+  private positions = new WeakMap<string[], Map<string, number> | null>();
 
   constructor(private current: string) {}
 
@@ -137,13 +137,17 @@ class BatchDoc implements JsonDoc {
 
   remove(path: string[], whole = false): boolean {
     checkPath(path);
-    if (this.mode === "add") this.text();
     if (!this.ready()) return this.aside((d) => d.remove(path, whole));
     const at = this.resolve(path);
     if (at === ASIDE || (at && !at.node))
       return this.aside((d) => d.remove(path, whole));
     if (!at || (!whole && at.node.type !== "string")) return false;
     if (!at.obj || !at.prop) return false;
+    // Pending additions are written first, only when something goes.
+    if (this.mode === "add") {
+      this.text();
+      return this.remove(path, whole);
+    }
     this.mode = "remove";
     this.drop(at.obj, at.prop);
     return true;
@@ -202,7 +206,9 @@ class BatchDoc implements JsonDoc {
     if (!tree || tree.type !== "object") {
       throw new Error("messages: file must be a JSON object");
     }
-    if (errors.length > 0) {
+    // A BOM is kept in the text, and reported as the one error at 0.
+    const bom = this.current.startsWith("\uFEFF");
+    if (errors.some((e) => !(bom && e.offset === 0 && e.length === 1))) {
       this.plain = true;
       return false;
     }
@@ -224,9 +230,11 @@ class BatchDoc implements JsonDoc {
 
   // A change the model does not hold, made on the text as it stands.
   private aside<T>(change: (doc: SequentialDoc) => T): T {
+    const plain = this.plain;
     const doc = new SequentialDoc(this.text());
     const result = change(doc);
     this.current = doc.text();
+    this.plain = plain;
     return result;
   }
 
@@ -240,7 +248,6 @@ class BatchDoc implements JsonDoc {
       const key = String(child.children?.[0]?.value);
       const p: Prop = {
         key,
-        indent: lineIndent(this.current, child.offset),
         node: child,
         before: [],
         after: [],
@@ -249,11 +256,9 @@ class BatchDoc implements JsonDoc {
       if (byKey.has(key)) duplicates = true;
       else byKey.set(key, p);
     }
-    const close = this.current.indexOf("\n", node.offset);
     obj = {
       node,
       ...(parent && prop && { holder: { obj: parent, prop } }),
-      inline: close < 0 || close >= node.offset + node.length,
       props,
       items: [],
       byKey,
@@ -311,14 +316,27 @@ class BatchDoc implements JsonDoc {
     else this.emptied.add(obj);
   }
 
+  private indentOf(prop: Prop): string {
+    return (prop.indent ??= lineIndent(this.current, prop.node!.offset));
+  }
+
+  private inlineOf(obj: Obj): boolean {
+    if (obj.inline === undefined) {
+      const node = obj.node!;
+      const eol = this.current.indexOf("\n", node.offset);
+      obj.inline = eol < 0 || eol >= node.offset + node.length;
+    }
+    return obj.inline;
+  }
+
   // A property placed only where every one of the object's starts its
   // line, or the object is on one: a new line elsewhere would move a
   // property after it to another line's indent.
   private placeable(obj: Obj): boolean {
-    if (obj.inline || obj.props.length === 0) return true;
+    if (this.inlineOf(obj) || obj.props.length === 0) return true;
     obj.placeable ??= obj.props.every((p) => {
       const start = this.current.lastIndexOf("\n", p.node!.offset - 1) + 1;
-      return p.node!.offset - start === p.indent.length;
+      return p.node!.offset - start === this.indentOf(p).length;
     });
     return obj.placeable;
   }
@@ -338,10 +356,14 @@ class BatchDoc implements JsonDoc {
     const inline =
       obj.node && !obj.node.parent && obj.props.length === 0
         ? false
-        : obj.inline;
-    const indent = last
-      ? last.indent
-      : lineIndent(this.current, obj.node!.offset) + unit;
+        : this.inlineOf(obj);
+    // On one line no indent is written: none is read, which in a
+    // minified file would scan it whole for each key.
+    const indent = inline
+      ? ""
+      : last
+        ? this.indentOf(last)
+        : lineIndent(this.current, obj.node!.offset) + unit;
     const prop: Prop = {
       key,
       indent,
@@ -349,7 +371,9 @@ class BatchDoc implements JsonDoc {
     };
     if (!last) {
       obj.itemIndent = indent;
-      obj.closeIndent = lineIndent(this.current, obj.node!.offset);
+      obj.closeIndent = inline
+        ? ""
+        : lineIndent(this.current, obj.node!.offset);
       prop.run = obj.items;
       obj.items.push(prop);
       obj.byKey.set(key, prop);
@@ -359,7 +383,7 @@ class BatchDoc implements JsonDoc {
     obj.byKey.set(key, prop);
     const anchor = neighbour?.before ?? neighbour?.after ?? last;
     const before = neighbour?.before !== undefined;
-    prop.indent = anchor.indent;
+    prop.indent = inline ? "" : this.indentOf(anchor);
     if (anchor.node) {
       prop.run = before ? anchor.before! : anchor.after!;
       if (before) prop.run.push(prop);
@@ -377,14 +401,17 @@ class BatchDoc implements JsonDoc {
     key: string,
     order: string[],
   ): { after?: Prop; before?: Prop } | undefined {
+    // An order seen once is searched; one seen again is indexed, as
+    // writeSuffix's are new for each family.
     let positions = this.positions.get(order);
-    if (!positions) {
+    if (positions === null) {
       positions = new Map();
       for (const [i, k] of order.entries())
         if (!positions.has(k)) positions.set(k, i);
       this.positions.set(order, positions);
-    }
-    const index = positions.get(key);
+    } else if (positions === undefined) this.positions.set(order, null);
+    const found = positions ? positions.get(key) : order.indexOf(key);
+    const index = found === undefined || found < 0 ? undefined : found;
     if (index === undefined) return undefined;
     for (let i = index - 1; i >= 0; i--) {
       const prop = obj.byKey.get(order[i]!);
@@ -475,7 +502,9 @@ class BatchDoc implements JsonDoc {
   private additions(obj: Obj, patches: Patch[]): void {
     for (const prop of obj.props) {
       const node = prop.node!;
-      const sep = obj.inline ? ", " : `,${this.eol}${prop.indent}`;
+      const sep = this.inlineOf(obj)
+        ? ", "
+        : `,${this.eol}${this.indentOf(prop)}`;
       if (prop.before!.length > 0)
         patches.push({
           start: node.offset,
@@ -493,7 +522,7 @@ class BatchDoc implements JsonDoc {
 
   // What sits between the braces of an object that had no properties.
   private body(obj: Obj): string {
-    const inline = obj.node!.parent ? obj.inline : false;
+    const inline = obj.node!.parent ? this.inlineOf(obj) : false;
     const items = obj.items.map((p) => this.entry(p));
     return inline
       ? ` ${items.join(", ")} `
