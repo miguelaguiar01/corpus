@@ -13,6 +13,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- `bin/screenshots` pins the dates the pages print, so two runs give byte-identical images (#580).
 - A plural written more than once is checked copy by copy, so one copy's missing category is no longer hidden by another's (#1085).
 - `corpus agent --stdin`'s queue op takes its name in `state` as well as `queue`, and `corpus agent --help` lists every op's fields with an example line (#1077).
 - `get_string`'s slots say what the repository gave them none of (`missing`) and take the source's example where a language has none, and `corpus build` names the placeholders a type's slot declarations do not cover (#1075).
