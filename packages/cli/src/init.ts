@@ -112,6 +112,17 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       `--messages must contain {lang}, such as src/i18n/{lang}.json`,
     );
   }
+  // Pontoon keeps the source's files where l10n.toml's reference says,
+  // `templates/`, under no language's code (#1097).
+  const referenced =
+    catalog || res !== undefined
+      ? undefined
+      : referenceCode(ctx.cwd, messages, sourceLanguage);
+  const sourceCode = referenced?.code ?? sourceLanguage;
+  if (referenced)
+    ctx.err(
+      `corpus: ${referenced.dir} holds ${sourceLanguage}'s files, as l10n.toml's reference says: languageFiles: { ${JSON.stringify(sourceLanguage)}: ${JSON.stringify(referenced.code)} }`,
+    );
   const { adapter, sourcePath, keyIsText, entries, found } =
     res !== undefined
       ? {
@@ -121,7 +132,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
           entries: undefined,
           found: undefined,
         }
-      : formatOf(ctx, messages, sourceLanguage, catalog !== undefined);
+      : formatOf(ctx, messages, sourceCode, catalog !== undefined);
   // An XLIFF unit's text is ICU, as a Fluent message is read as ICU,
   // and a flag that cannot apply is refused rather than dropped.
   if (
@@ -136,7 +147,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       ? androidLanguages(ctx, res, sourceLanguage)
       : catalog || messages.includes("{ns}")
         ? { languages: [], languageFiles: {}, skipped: [] }
-        : catalogueLanguages(ctx.cwd, messages, sourceLanguage);
+        : catalogueLanguages(ctx.cwd, messages, sourceLanguage, sourceCode);
   // Beside a JSON catalogue a file that names no language is a glossary
   // or a fixture, not a catalogue left out, unless its name carries a
   // POSIX modifier (`de@euro`), which only a language's does.
@@ -180,9 +191,17 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
         : `corpus: ${patterns.length} other catalogue(s) beside ${messages}, ${count} file(s) (${named}): each is its own source, as { adapter: ${JSON.stringify(adapter)}, type: ${JSON.stringify(type)}, path: ${JSON.stringify(patterns[0])} }`,
     );
   }
+  // The one such file beside a source language with none of its own is
+  // likely its file.
+  const sourceless =
+    loose.length === 1 &&
+    !messages.includes("{ns}") &&
+    !existsSync(path.join(ctx.cwd, messages.replaceAll("{lang}", sourceCode)));
   for (const { file, code } of loose.slice(0, 5))
     ctx.err(
-      `corpus: ${file} names no language tag; left out: name its language, as languages: ["<tag>"] with languageFiles: { "<tag>": ${JSON.stringify(code)} } on the source`,
+      sourceless
+        ? `corpus: ${file} names no language tag; left out: if it is ${sourceLanguage}'s file, map it: languageFiles: { ${JSON.stringify(sourceLanguage)}: ${JSON.stringify(code)} }`
+        : `corpus: ${file} names no language tag; left out: name its language, as languages: ["<tag>"] with languageFiles: { "<tag>": ${JSON.stringify(code)} } on the source`,
     );
   if (loose.length > 5)
     ctx.err(
@@ -207,7 +226,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     : catalog
       ? catalog.languages
       : messages.includes("{ns}")
-        ? namespacedLanguages(ctx.cwd, messages, sourceLanguage)
+        ? namespacedLanguages(ctx.cwd, messages, sourceLanguage, sourceCode)
         : files.languages;
   if (languages.length === 0) {
     throw new CliError(
@@ -241,7 +260,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       ? gettextLibrary(
           path.join(
             ctx.cwd,
-            sourcePath ?? messages.replaceAll("{lang}", sourceLanguage),
+            sourcePath ?? messages.replaceAll("{lang}", sourceCode),
           ),
         )
       : adapter === "xliff" || (adapter !== "messages" && !flagged)
@@ -260,11 +279,12 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   const components = checkIncludeFor(ctx.cwd, res ?? messages);
   const include = components.include;
   // The mappings of the languages the config lists, given or read.
-  const kept = Object.fromEntries(
-    Object.entries(files.languageFiles).filter(([tag]) =>
+  const kept = Object.fromEntries([
+    ...(referenced ? [[sourceLanguage, referenced.code]] : []),
+    ...Object.entries(files.languageFiles).filter(([tag]) =>
       languages.includes(tag),
     ),
-  );
+  ]);
   const source: InitSource = {
     adapter,
     type,
@@ -369,11 +389,11 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   }
   const siblings =
     adapter === "messages"
-      ? siblingCatalogues(ctx.cwd, messages, sourceLanguage)
+      ? siblingCatalogues(ctx.cwd, messages, sourceCode)
       : [];
   if (siblings.length > 0) {
     ctx.out(
-      `corpus: ${messages.replaceAll("{lang}", sourceLanguage)} has ${siblings.length} sibling catalogue(s) the pattern does not name (${siblings.slice(0, 3).join(", ")}${siblings.length > 3 ? ", …" : ""}); a {ns} pattern or an array of paths names them all`,
+      `corpus: ${messages.replaceAll("{lang}", sourceCode)} has ${siblings.length} sibling catalogue(s) the pattern does not name (${siblings.slice(0, 3).join(", ")}${siblings.length > 3 ? ", …" : ""}); a {ns} pattern or an array of paths names them all`,
     );
   }
   const ignored = ignoreCorpusDir(ctx.cwd);
@@ -444,7 +464,11 @@ async function htmlOnlyTags(
   // A `{ns}` pattern's source files, each, its ids named as build names
   // them (#993).
   const files = source.path.includes("{ns}")
-    ? matchPattern(cwd, source.path, sourceLanguage)
+    ? matchPattern(
+        cwd,
+        source.path,
+        source.languageFiles?.[sourceLanguage] ?? sourceLanguage,
+      )
     : [
         {
           file: fileOf(declared, sourceLanguage, sourceLanguage),
@@ -1599,6 +1623,7 @@ function namespacedLanguages(
   cwd: string,
   pattern: string,
   sourceLanguage: string,
+  sourceCode: string,
 ): string[] {
   const found = new Set(
     matchPattern(cwd, pattern)
@@ -1606,7 +1631,9 @@ function namespacedLanguages(
       .filter((code) => LANGUAGE_RE.test(code)),
   );
   const rest = [...found].filter((c) => c !== sourceLanguage).sort();
-  return found.has(sourceLanguage) ? [sourceLanguage, ...rest] : [];
+  return matchPattern(cwd, pattern, sourceCode).length > 0
+    ? [sourceLanguage, ...rest]
+    : [];
 }
 
 // Whether a tag names a language: one the runtime has plural rules for,
@@ -1878,6 +1905,7 @@ function catalogueLanguages(
   cwd: string,
   pattern: string,
   sourceLanguage: string,
+  sourceCode: string,
 ): Languages {
   const languageFiles: Record<string, string> = {};
   const found = new Set<string>();
@@ -1888,6 +1916,7 @@ function catalogueLanguages(
     filled.map(({ code }) => code.replaceAll("_", "-").toLowerCase()),
   );
   for (const { code, file } of filled) {
+    if (code === sourceCode && code !== sourceLanguage) continue;
     const tag = posixTag(code);
     const country = COUNTRY_CODES[code.toLowerCase()];
     if (tag) {
@@ -2079,4 +2108,46 @@ function qtTemplateOf(cwd: string, pattern: string): string | undefined {
         !namesLanguage(path.join(cwd, file)),
     );
   return templates.length === 1 ? templates[0] : undefined;
+}
+
+// The code a pattern's `{lang}` directory takes where Pontoon's
+// l10n.toml says the reference files sit, Anki's `templates` in
+// `core/templates/*.ftl`, beside a source language with no file.
+function referenceCode(
+  cwd: string,
+  pattern: string,
+  sourceLanguage: string,
+): { code: string; dir: string } | undefined {
+  let toml: string;
+  try {
+    toml = readFileSync(path.join(cwd, "l10n.toml"), "utf8");
+  } catch {
+    return undefined;
+  }
+  if (matchPattern(cwd, pattern, sourceLanguage).length > 0) return undefined;
+  const at = pattern.indexOf("{lang}");
+  const end = pattern.indexOf("/", at);
+  if (end === -1) return undefined;
+  const head = pattern.slice(0, at);
+  const tail = pattern.slice(at + "{lang}".length, end);
+  const basepath =
+    /^\s*basepath\s*=\s*["']([^"']*)["']/m.exec(toml)?.[1] ?? ".";
+  const codes = new Set<string>();
+  for (const [, reference] of toml.matchAll(
+    /^\s*reference\s*=\s*["']([^"']*)["']/gm,
+  )) {
+    const dir = path.posix.join(basepath, path.posix.dirname(reference!));
+    const code = dir.slice(head.length, dir.length - tail.length);
+    if (
+      dir.startsWith(head) &&
+      dir.endsWith(tail) &&
+      code !== "" &&
+      !code.includes("/") &&
+      matchPattern(cwd, pattern, code).length > 0
+    )
+      codes.add(code);
+  }
+  if (codes.size !== 1) return undefined;
+  const code = [...codes][0]!;
+  return { code, dir: pattern.slice(0, end).replace("{lang}", code) };
 }
