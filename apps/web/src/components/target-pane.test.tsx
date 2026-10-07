@@ -955,3 +955,54 @@ test("the pane names a pair of exact keys one gettext form is read by when they 
     ).disabled,
   ).toBe(true);
 });
+
+test("the plural chip leaves out a category the source's =N branch already covers, as validation does (#686)", () => {
+  const chip = (source: string, language: string, syntax = "icu") => {
+    render(
+      <TargetPane
+        action={vi.fn()}
+        source={source}
+        syntax={syntax as "icu"}
+        slots={[]}
+        language={language}
+        initialText=""
+        slug="mm"
+        stringKey="k"
+        openedVersion={1}
+        examples={[]}
+        sourceLanguage="en"
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /\{n, plural\}/ }));
+    const value = (screen.getByRole("textbox") as HTMLTextAreaElement).value;
+    cleanup();
+    return value;
+  };
+  const keys = (text: string) =>
+    [...text.matchAll(/(=?\w+) \{/g)].map((m) => m[1]);
+  const source = "{n, plural, =1 {one file} other {# files}}";
+  expect(keys(chip(source, "de"))).toEqual(["=1", "other"]);
+  expect(keys(chip(source, "fr"))).toEqual(["=1", "one", "many", "other"]);
+  expect(keys(chip(source, "ru"))).toEqual([
+    "=1",
+    "one",
+    "few",
+    "many",
+    "other",
+  ]);
+  // A category the source writes itself stays.
+  expect(
+    keys(chip("{n, plural, =1 {one file} one {# file} other {# files}}", "de")),
+  ).toEqual(["=1", "one", "other"]);
+  // What the chip inserts in de validates with no category missing.
+  const inserted = chip(source, "de");
+  const check = validateTranslation(
+    source,
+    inserted.replace(/\{\}/g, "{x}"),
+    "de",
+    "icu",
+  );
+  expect(check.incomplete ?? []).toEqual([]);
+  // gen-l10n reads =1 as one (#1039): its chip keeps offering one.
+  expect(keys(chip(source, "de", "gen_l10n"))).toEqual(["one", "other"]);
+});
