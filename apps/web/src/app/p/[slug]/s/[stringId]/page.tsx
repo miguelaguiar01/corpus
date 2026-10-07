@@ -110,7 +110,11 @@ export default async function StringPage({
       at: p.createdAt,
     }),
   );
-  const language = query.language ?? project.sourceLanguage;
+  // A repeated `?language=` arrives as a list, which names none.
+  const language =
+    typeof query.language === "string"
+      ? query.language
+      : project.sourceLanguage;
   // This row's place in the queue, not the whole queue (#639).
   const queue = queueKind
     ? queueStep(db, project.id, queueKind, { stringId: string.id, language })

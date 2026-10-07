@@ -13,7 +13,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
-- A string page opened from a queue, and a save from it, find previous and next without loading the whole queue: about 1.3 s to 0.24 s and 1.4 ms on 600k rows (#639).
+- The string page and its saves no longer load the whole queue to find previous and next (#639).
 - `bin/screenshots` pins the dates the pages print, so two runs give byte-identical images (#580).
 - A plural written more than once is checked copy by copy, so one copy's missing category is no longer hidden by another's (#1085).
 - `corpus agent --stdin`'s queue op takes its name in `state` as well as `queue`, and `corpus agent --help` lists every op's fields with an example line (#1077).

@@ -462,7 +462,7 @@ test("queueStep and queueNeighbours give what neighbours over the whole queue gi
   ).toBe(false);
 });
 
-test("a step's previous and next walk the translations' own index, in order, with no sort, on a database without statistics (#639 review)", () => {
+test("a step's previous and next seek the translations' indexes, the untranslated queue in order with no sort, on a database without statistics (#639 review)", () => {
   const { db, p } = pushed();
   type Client = {
     prepare: (source: string) => {
@@ -485,7 +485,8 @@ test("a step's previous and next walk the translations' own index, in order, wit
     return statement;
   };
   try {
-    for (const kind of ["untranslated", "stale", "unverifiedSource"] as const)
+    // The queues walked; the others are read whole.
+    for (const kind of ["untranslated", "unverifiedSource"] as const)
       queueNeighbours(db, p.id, kind, {
         stringId: dbId(db, "skin.heard-nothing"),
         language: kind === "unverifiedSource" ? "pt-PT" : "en",
@@ -501,9 +502,10 @@ test("a step's previous and next walk the translations' own index, in order, wit
         detail: string;
       }[]
     ).map((row) => row.detail);
-    expect(plan[0], source).toMatch(
-      /string_translations USING INDEX translations_string_language/,
-    );
-    expect(plan.join("\n"), source).not.toMatch(/TEMP B-TREE/);
+    expect(plan[0], source).toMatch(/^SEARCH string_translations USING INDEX/);
+    // The untranslated queue, the large one, walks without a sort; the
+    // source queue sorts its rows, at most one per string.
+    if (!source.includes('"string_translations"."language" = ?'))
+      expect(plan.join("\n"), source).not.toMatch(/TEMP B-TREE/);
   }
 });

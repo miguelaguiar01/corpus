@@ -79,7 +79,7 @@ export function QueueNav({
       )}
       {step(previous, t("queue.previous"))}
       <span className="text-sm text-muted-foreground">
-        {t("queue.position", { index: index + 1, count: queue.count })}
+        {t("queue.position", { index: index + 1, count: queue.count ?? 0 })}
       </span>
       {step(next, t("queue.next"))}
     </nav>

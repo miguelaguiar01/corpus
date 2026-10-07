@@ -244,101 +244,123 @@ export function queueCounts(db: Db, projectId: number): QueueCounts {
 
 type Current = Pick<QueueItem, "stringId" | "language">;
 
-// One row's place in a queue for the string page (§9.3), in a few
-// indexed queries rather than the whole queue (#639): its previous and
-// next, its position and the queue's count, and the queue's languages for
-// its string, for the language bar. A row not in the queue has no
-// position and no neighbours.
+// One row's place in a queue for the string page (§9.3), without loading
+// the whole queue (#639): its previous and next, its position and the
+// queue's count, and the queue's languages for its string, for the
+// language bar. A row not in the queue has no position, no neighbours
+// and no count.
 export type QueueStep = {
   kind: QueueKind;
   index: number | null;
   previous: QueueItem | null;
   next: QueueItem | null;
-  count: number;
+  count: number | null;
   languages: string[];
 };
 
-const row = sql`(${strings.id}, ${stringTranslations.language})`;
+// Queues read whole, where one read costs least: the invalid rows start
+// from their own index (#858), agent drafts' latest-edit subquery runs
+// once, and stale rows have no index of their own, so any query on them
+// scans the rows and a walk would scan them more than once.
+const READ_WHOLE: ReadonlySet<QueueKind> = new Set([
+  "invalid",
+  "agentDrafts",
+  "stale",
+]);
+
+const fields = {
+  stringId: stringTranslations.stringId,
+  key: strings.stringId,
+  type: strings.type,
+  language: stringTranslations.language,
+  source: strings.source,
+  text: stringTranslations.text,
+};
+const row = sql`(${stringTranslations.stringId}, ${stringTranslations.language})`;
 const at = (current: Current) =>
   sql`(${current.stringId}, ${current.language})`;
 
-// The queue's rows narrowed by `extra`, in its order or the reverse.
-function rows(
-  db: Db,
-  projectId: number,
-  kind: QueueKind,
-  scope: Scope,
-  extra: SQL,
-  reverse = false,
-  limit?: number,
-): QueueItem[] {
-  const from = db
-    .select({
-      stringId: stringTranslations.stringId,
-      key: strings.stringId,
-      type: strings.type,
-      language: stringTranslations.language,
-      source: strings.source,
-      text: stringTranslations.text,
-    })
-    .from(stringTranslations);
-  const order = reverse ? desc : asc;
-  const query = (
-    kind === "invalid"
-      ? from.crossJoin(strings)
-      : from.innerJoin(strings, eq(strings.id, stringTranslations.stringId))
-  )
-    .where(and(where(projectId, kind, scope, {}), extra))
-    .orderBy(order(strings.id), order(stringTranslations.language));
-  return limit === undefined ? query.all() : query.limit(limit).all();
-}
-
-function holds(
+// The queue's row before or after `current`, or the row itself. The
+// translations drive the CROSS JOIN, in their (string_id, language)
+// index's order, which is the queue's (strings.id is string_id): SQLite
+// then walks that index from the row and stops at the first match, with
+// or without statistics, where a join it orders freely sorts the whole
+// queue first.
+function walk(
   db: Db,
   projectId: number,
   kind: QueueKind,
   scope: Scope,
   current: Current,
-): boolean {
+  direction: "previous" | "next" | "here",
+): QueueItem | null {
+  const order = direction === "previous" ? desc : asc;
+  const position =
+    direction === "previous"
+      ? sql`${row} < ${at(current)}`
+      : direction === "next"
+        ? sql`${row} > ${at(current)}`
+        : and(
+            eq(stringTranslations.stringId, current.stringId),
+            eq(stringTranslations.language, current.language),
+          );
   return (
-    rows(db, projectId, kind, scope, sql`${row} = ${at(current)}`, false, 1)
-      .length > 0
+    db
+      .select(fields)
+      .from(stringTranslations)
+      .crossJoin(strings)
+      .where(
+        and(
+          eq(strings.id, stringTranslations.stringId),
+          where(projectId, kind, scope, {}),
+          position,
+        ),
+      )
+      .orderBy(
+        order(stringTranslations.stringId),
+        order(stringTranslations.language),
+      )
+      .limit(1)
+      .get() ?? null
   );
 }
 
+function fromList(items: QueueItem[], current: Current) {
+  const index = items.findIndex(
+    (item) =>
+      item.stringId === current.stringId && item.language === current.language,
+  );
+  return index < 0
+    ? { index: null, previous: null, next: null }
+    : {
+        index,
+        previous: items[index - 1] ?? null,
+        next: items[index + 1] ?? null,
+      };
+}
+
 // The rows before and after `current`, computed before a transition so
-// "next" still points past the item that is about to leave the queue.
-// What a save needs: two LIMIT 1 queries and a membership check.
+// "next" still points past the item that is about to leave the queue:
+// what a save needs, a membership check and two LIMIT 1 walks.
 export function queueNeighbours(
   db: Db,
   projectId: number,
   kind: QueueKind,
   current: Current,
-  scope: Scope = scopeOf(db, projectId),
 ): { previous: QueueItem | null; next: QueueItem | null } {
-  if (!holds(db, projectId, kind, scope, current))
+  const scope = scopeOf(db, projectId);
+  if (READ_WHOLE.has(kind)) {
+    const { previous, next } = fromList(
+      select(db, projectId, kind, scope, {}),
+      current,
+    );
+    return { previous, next };
+  }
+  if (!walk(db, projectId, kind, scope, current, "here"))
     return { previous: null, next: null };
   return {
-    previous:
-      rows(
-        db,
-        projectId,
-        kind,
-        scope,
-        sql`${row} < ${at(current)}`,
-        true,
-        1,
-      )[0] ?? null,
-    next:
-      rows(
-        db,
-        projectId,
-        kind,
-        scope,
-        sql`${row} > ${at(current)}`,
-        false,
-        1,
-      )[0] ?? null,
+    previous: walk(db, projectId, kind, scope, current, "previous"),
+    next: walk(db, projectId, kind, scope, current, "next"),
   };
 }
 
@@ -349,41 +371,67 @@ export function queueStep(
   current: Current,
 ): QueueStep {
   const scope = scopeOf(db, projectId);
-  const { previous, next } = queueNeighbours(
-    db,
-    projectId,
-    kind,
-    current,
-    scope,
-  );
-  // Position and count in one pass over the queue.
-  const from = db
-    .select({
-      count: sql<number>`count(*)`,
-      before: sql<number>`coalesce(sum(${row} < ${at(current)}), 0)`,
-      here: sql<number>`coalesce(sum(${row} = ${at(current)}), 0)`,
-    })
-    .from(stringTranslations);
-  const tally = (
-    kind === "invalid"
-      ? from.crossJoin(strings)
-      : from.innerJoin(strings, eq(strings.id, stringTranslations.stringId))
-  )
-    .where(where(projectId, kind, scope, {}))
-    .get();
+  if (READ_WHOLE.has(kind)) {
+    const items = select(db, projectId, kind, scope, {});
+    const around = fromList(items, current);
+    return {
+      kind,
+      ...around,
+      count: around.index === null ? null : items.length,
+      languages: items
+        .filter((item) => item.stringId === current.stringId)
+        .map((item) => item.language),
+    };
+  }
   const languages = rows(
     db,
     projectId,
     kind,
     scope,
-    sql`${strings.id} = ${current.stringId}`,
+    eq(strings.id, current.stringId),
   ).map((item) => item.language);
+  if (!walk(db, projectId, kind, scope, current, "here"))
+    return {
+      kind,
+      index: null,
+      previous: null,
+      next: null,
+      count: null,
+      languages,
+    };
+  // Position and count in one pass over the queue.
+  const tally = db
+    .select({
+      count: sql<number>`count(*)`,
+      before: sql<number>`coalesce(sum(${row} < ${at(current)}), 0)`,
+    })
+    .from(stringTranslations)
+    .innerJoin(strings, eq(strings.id, stringTranslations.stringId))
+    .where(where(projectId, kind, scope, {}))
+    .get();
   return {
     kind,
-    index: tally?.here ? tally.before : null,
-    previous,
-    next,
+    index: tally?.before ?? 0,
+    previous: walk(db, projectId, kind, scope, current, "previous"),
+    next: walk(db, projectId, kind, scope, current, "next"),
     count: tally?.count ?? 0,
     languages,
   };
+}
+
+// The queue's rows for one string, in its order.
+function rows(
+  db: Db,
+  projectId: number,
+  kind: QueueKind,
+  scope: Scope,
+  extra: SQL | undefined,
+): QueueItem[] {
+  return db
+    .select(fields)
+    .from(stringTranslations)
+    .innerJoin(strings, eq(strings.id, stringTranslations.stringId))
+    .where(and(where(projectId, kind, scope, {}), extra))
+    .orderBy(asc(strings.id), asc(stringTranslations.language))
+    .all();
 }
