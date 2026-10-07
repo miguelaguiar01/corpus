@@ -309,3 +309,25 @@ test("an agent's draft writing an =N branch into a plural its file holds as form
   expect(result).toMatchObject({ ok: false, reason: "invalid-translation" });
   expect((result as { message: string }).message).toContain("=0");
 });
+
+test("an agent's =0 draft of a counterpart plural is refused, pointing to its zero branch (#964)", () => {
+  const { db, project } = pushedProject();
+  db.update(strings)
+    .set({
+      syntax: "counterpart",
+      source:
+        "{count, plural, one {%(count)s mark left.} other {%(count)s marks left.}}",
+    })
+    .where(eq(strings.stringId, "ui.marks-left"))
+    .run();
+  const result = agentDraft(db, {
+    project,
+    key: "ui.marks-left",
+    language: "en",
+    text: "{count, plural, =0 {No marks left.} one {%(count)s mark left.} other {%(count)s marks left.}}",
+  });
+  expect(result).toMatchObject({ ok: false, reason: "invalid-translation" });
+  expect((result as { message: string }).message).toContain(
+    "write it in the zero branch",
+  );
+});

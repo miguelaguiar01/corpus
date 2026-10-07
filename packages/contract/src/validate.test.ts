@@ -3873,3 +3873,51 @@ test("a plural its file holds as forms takes categories only, each form splittin
     ),
   ).toMatchObject({ ok: false, errors: [{ code: "invalid-icu" }] });
 });
+
+test("counterpart and easy_localization refuse an =N branch, naming the category their runtime reads for it (#964)", () => {
+  for (const [library, one, other] of [
+    ["counterpart", "%(count)s file", "%(count)s files"],
+    ["easy_localization", "{} file", "{} files"],
+  ] as const) {
+    const source = `{count, plural, one {${one}} other {${other}}}`;
+    // One error for the branch, which says where its text goes: the
+    // category it leaves empty is the one named.
+    expect(
+      validateTranslation(
+        source,
+        `{count, plural, =1 {eine Datei} other {${other}}}`,
+        "de",
+        library,
+      ),
+      library,
+    ).toEqual({
+      ok: false,
+      errors: [
+        { code: "exact-branch", arg: "count", key: "=1", category: "one" },
+      ],
+    });
+    expect(
+      validateTranslation(
+        source,
+        `{count, plural, =0 {keine} one {${one}} other {${other}}}`,
+        "de",
+        library,
+      ),
+      library,
+    ).toEqual({
+      ok: false,
+      errors: [
+        { code: "exact-branch", arg: "count", key: "=0", category: "zero" },
+      ],
+    });
+  }
+  // ICU's own plurals hold them.
+  expect(
+    validateTranslation(
+      "{count, plural, one {# file} other {# files}}",
+      "{count, plural, =1 {eine Datei} other {# Dateien}}",
+      "de",
+      "icu",
+    ),
+  ).toEqual({ ok: true });
+});
