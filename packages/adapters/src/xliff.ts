@@ -718,14 +718,23 @@ function targetPatches(
 // `<source>` with its own elements, a removal drops the unit (its lines
 // too where nothing else is on them), an addition appends a unit after
 // the last; an edit of a unit the file no longer has is nothing to do.
-export function applyXliffOps(xml: string, ops: SourceOp[]): string {
+export function applyXliffOps(
+  xml: string,
+  ops: SourceOp[],
+  // Each op left because its unit does not read, with the reader's why.
+  onSkipped?: (op: SourceOp, reason: string) => void,
+): string {
   let out = xml;
   const eol = eolOf(xml);
   for (const op of ops) {
-    const unread = new Set<string>();
-    const units = unitSpans(out, (id) => unread.add(id));
-    // A unit Corpus cannot read is the file's, left as it is.
-    if (unread.has(op.id)) continue;
+    const unread = new Map<string, string>();
+    const units = unitSpans(out, (id, reason) => unread.set(id, reason));
+    // A unit Corpus cannot read is the file's, left as it is (#1142).
+    const reason = unread.get(op.id);
+    if (reason !== undefined) {
+      onSkipped?.(op, reason);
+      continue;
+    }
     const u = units.find((unit) => unit.id === op.id);
     if (op.kind === "delete") {
       if (!u) continue;

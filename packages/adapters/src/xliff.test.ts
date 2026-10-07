@@ -812,3 +812,29 @@ test("a unit that does not read is refused by name and the file's other units re
     target,
   );
 });
+
+test("a proposal on a unit Corpus cannot read leaves the file as it is and is named, with the reader's reason (#1142)", () => {
+  const source = `<?xml version="1.0"?>\n<xliff version="2.0" srcLang="en"><file id="f">\n<unit id="u1"><segment><source>One</source></segment></unit>\n<unit id="u2"><segment><source>A</source></segment><segment><source>B</source></segment></unit>\n</file></xliff>\n`;
+  for (const op of [
+    { kind: "edit", id: "u2", text: "Two" },
+    { kind: "delete", id: "u2" },
+    { kind: "add", id: "u2", text: "Two" },
+  ] as const) {
+    const skipped: [string, string][] = [];
+    expect(
+      applyXliffOps(source, [op], (o, reason) => skipped.push([o.id, reason])),
+      op.kind,
+    ).toBe(source);
+    expect(skipped, op.kind).toEqual([
+      ["u2", "xliff: unit u2 has 2 segments; a unit is read as one text"],
+    ]);
+  }
+  // A unit that reads takes its proposal and names nothing.
+  const skipped: unknown[] = [];
+  expect(
+    applyXliffOps(source, [{ kind: "edit", id: "u1", text: "Uno" }], (o) =>
+      skipped.push(o),
+    ),
+  ).toContain("<source>Uno</source>");
+  expect(skipped).toEqual([]);
+});

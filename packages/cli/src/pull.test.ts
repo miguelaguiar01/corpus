@@ -3484,3 +3484,118 @@ export default defineCorpus({
   );
   expect(await keys()).toEqual(["one", "few", "other"]);
 });
+
+test("a proposal on an xliff unit Corpus cannot read is named and not counted as written (#1142)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de"],
+  sources: [{ adapter: "xliff", type: "ui", path: "x/messages.{lang}.xlf" }],
+});
+`,
+  );
+  mkdirSync(path.join(repo, "x"), { recursive: true });
+  const en = `<?xml version="1.0"?>\n<xliff version="2.0" srcLang="en"><file id="f">\n<unit id="u1"><segment><source>One</source></segment></unit>\n<unit id="u2"><segment><source>T</source></segment><segment><source>wo</source></segment></unit>\n</file></xliff>\n`;
+  writeFileSync(path.join(repo, "x", "messages.en.xlf"), en);
+  await serve(200, {
+    ...PAYLOAD,
+    types: { u1: "ui", u2: "ui" },
+    translations: { en: { u1: "One" }, de: {} },
+    sourceChanges: [
+      {
+        kind: "edit",
+        id: "u1",
+        type: "ui",
+        file: "x/messages.en.xlf",
+        text: "Uno",
+      },
+      {
+        kind: "edit",
+        id: "u2",
+        type: "ui",
+        file: "x/messages.en.xlf",
+        text: "Two",
+      },
+    ],
+  });
+  const c = ctx();
+  expect(await run(["pull"], c)).toBe(0);
+  const said = c.output.join("\n");
+  expect(
+    said.match(
+      /x\/messages\.en\.xlf: u2 is a unit of the file Corpus cannot read/g,
+    ),
+  ).toHaveLength(1);
+  expect(said).toContain(
+    "corpus: x/messages.en.xlf: u2 is a unit of the file Corpus cannot read (xliff: unit u2 has 2 segments; a unit is read as one text); its edit is not written",
+  );
+  expect(said).toContain("1 proposal(s) written");
+  expect(read("x/messages.en.xlf")).toBe(
+    en.replace("<source>One</source>", "<source>Uno</source>"),
+  );
+});
+
+test("a removal an xliff source cannot take goes into no target, and one a target cannot take still counts as written (#1142 review)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de"],
+  sources: [{ adapter: "xliff", type: "ui", path: "x/messages.{lang}.xlf" }],
+});
+`,
+  );
+  mkdirSync(path.join(repo, "x"), { recursive: true });
+  const xlf = (lang: string, u2: string) =>
+    `<?xml version="1.0"?>\n<xliff version="2.0" srcLang="en"${lang === "en" ? "" : ` trgLang="${lang}"`}><file id="f">\n<unit id="u1"><segment><source>One</source>${lang === "en" ? "" : "<target>Eins</target>"}</segment></unit>\n${u2}\n</file></xliff>\n`;
+  const plain = (lang: string) =>
+    `<unit id="u2"><segment><source>Two</source>${lang === "en" ? "" : "<target>Zwei</target>"}</segment></unit>`;
+  const split = `<unit id="u2"><segment><source>T</source></segment><segment><source>wo</source></segment></unit>`;
+  const removal = {
+    ...PAYLOAD,
+    types: { u1: "ui", u2: "ui" },
+    translations: { en: { u1: "One" }, de: { u1: "Eins" } },
+    sourceChanges: [
+      { kind: "delete", id: "u2", type: "ui", file: "x/messages.en.xlf" },
+    ],
+  };
+  // The source's u2 does not read: the target keeps its own.
+  writeFileSync(path.join(repo, "x", "messages.en.xlf"), xlf("en", split));
+  writeFileSync(
+    path.join(repo, "x", "messages.de.xlf"),
+    xlf("de", plain("de")),
+  );
+  await serve(200, removal);
+  const skipped = ctx();
+  expect(await run(["pull"], skipped)).toBe(0);
+  expect(read("x/messages.de.xlf")).toBe(xlf("de", plain("de")));
+  expect(skipped.output.join("\n")).toContain(
+    "x/messages.en.xlf: u2 is a unit of the file Corpus cannot read",
+  );
+  expect(skipped.output.join("\n")).not.toContain("proposal(s) written");
+  // The source takes it, a target cannot: it is written, and counted.
+  writeFileSync(
+    path.join(repo, "x", "messages.en.xlf"),
+    xlf("en", plain("en")),
+  );
+  writeFileSync(path.join(repo, "x", "messages.de.xlf"), xlf("de", split));
+  await serve(200, removal);
+  const target = ctx();
+  expect(await run(["pull"], target)).toBe(0);
+  expect(read("x/messages.en.xlf")).not.toContain('id="u2"');
+  expect(read("x/messages.de.xlf")).toBe(xlf("de", split));
+  const said = target.output.join("\n");
+  expect(said).toContain(
+    "corpus: x/messages.de.xlf: u2 is a unit of the file Corpus cannot read (xliff: unit u2 has 2 segments; a unit is read as one text); left as it is",
+  );
+  expect(said).toContain("1 proposal(s) written");
+});

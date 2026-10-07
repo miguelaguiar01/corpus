@@ -431,7 +431,12 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
         ]);
       }
     }
-    for (const [target, targetOps, code, tag] of files) {
+    // An op the source file cannot take goes into no target (#1142).
+    const skipped = new Set<SourceOp>();
+    for (const [target, allOps, code, tag] of files) {
+      const targetOps =
+        target === file ? allOps : allOps.filter((op) => !skipped.has(op));
+      if (targetOps.length === 0) continue;
       const existing = readRepoFile(ctx.cwd, target);
       if (existing === undefined) {
         if (target === file)
@@ -460,6 +465,16 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
           target === file ? code : yamlRootOf(existing, code, tag),
           config.sourceLanguage,
           target === file ? undefined : pluralIds,
+          (op, reason) => {
+            const unit = `corpus: ${target}: ${printable(namespaced(source, op.id))} is a unit of the file Corpus cannot read (${reason})`;
+            if (target !== file) {
+              ctx.err(`${unit}; left as it is`);
+              return;
+            }
+            ctx.err(`${unit}; its ${PROPOSAL_KIND[op.kind]} is not written`);
+            skipped.add(op);
+            written.delete(`${op.kind}\u0000${namespaced(source, op.id)}`);
+          },
         );
       } catch (error) {
         throw new CliError(
@@ -718,6 +733,12 @@ function writeTarget(
   }
 }
 
+const PROPOSAL_KIND = {
+  edit: "edit",
+  add: "addition",
+  delete: "removal",
+} as const;
+
 // A source file with the proposals applied; `code` is the root key a
 // yaml target file carries.
 function applyOps(
@@ -727,6 +748,7 @@ function applyOps(
   code: string,
   sourceLanguage: string,
   pluralIds?: ReadonlySet<string>,
+  onSkipped?: (op: SourceOp, reason: string) => void,
 ): string {
   switch (source.adapter) {
     case "android":
@@ -743,7 +765,7 @@ function applyOps(
         ...(pluralIds && { pluralIds }),
       });
     case "xliff":
-      return applyXliffOps(existing, ops);
+      return applyXliffOps(existing, ops, onSkipped);
     case "strings":
       return applyStringsOps(existing, ops);
     case "yaml":
