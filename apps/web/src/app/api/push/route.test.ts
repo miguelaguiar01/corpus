@@ -90,11 +90,21 @@ test("a token for a different project → 403", async () => {
   expect(res.status).toBe(403);
 });
 
-test("a body over the cap → 413 before it is parsed", async () => {
+// The cap on a body as read is in route.cap.test.ts, under a small
+// cap; the length a client declares is refused before any is read.
+test("a declared length over the cap → 413 before the body is read", async () => {
   const { token, slug } = setup();
-  const snap = forProject(slug);
-  snap.strings[0]!.source = "x".repeat(MAX_BODY_BYTES + 1);
-  const res = await push(token, snap);
+  const res = await POST(
+    new Request("http://corpus.test/api/push", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "content-length": String(MAX_BODY_BYTES + 1),
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(forProject(slug)),
+    }),
+  );
   expect(res.status).toBe(413);
 });
 
@@ -112,13 +122,10 @@ function pushGzipped(token: string, body: unknown) {
   );
 }
 
-test("a gzipped body is inflated and applied; the cap holds on the inflated size; bad gzip is a 400", async () => {
+test("a gzipped body is inflated and applied; bad gzip is a 400", async () => {
   const { token, slug } = setup();
   const res = await pushGzipped(token, forProject(slug));
   expect(res.status).toBe(200);
-  const big = forProject(slug);
-  big.strings[0]!.source = "x".repeat(MAX_BODY_BYTES + 1);
-  expect((await pushGzipped(token, big)).status).toBe(413);
   const junk = await POST(
     new Request("http://corpus.test/api/push", {
       method: "POST",
