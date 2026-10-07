@@ -188,21 +188,22 @@ function sourcePlural(source: string): string {
 // work.
 function shortOf(
   m: QtMessage,
-  categories: readonly (string | undefined)[],
+  {
+    categories,
+    oneCategory,
+  }: Pick<ReturnType<typeof pluralTable>, "categories" | "oneCategory">,
 ): { short: boolean; readable: boolean } {
   const short = categories.some(
     (c, i) => i >= m.forms.length && c !== undefined,
   );
-  const one = new Set(categories.filter((c) => c !== undefined)).size === 1;
-  return { short, readable: !short || one };
+  return { short, readable: !short || oneCategory };
 }
 
 function numerusPlural(
   m: QtMessage,
   table: ReturnType<typeof pluralTable>,
 ): string | undefined {
-  if (m.forms.length === 0 || !shortOf(m, table.categories).readable)
-    return undefined;
+  if (m.forms.length === 0 || !shortOf(m, table).readable) return undefined;
   const forms = table.categories.map(
     (_, i) => m.forms[Math.min(i, m.forms.length - 1)]!,
   );
@@ -261,15 +262,15 @@ export function qtShortForms(
   xml: string,
   language: string,
 ): { id: string; have: number; want: number }[] {
-  const { categories } = pluralTable(language, qtPluralForms(language));
+  const table = pluralTable(language, qtPluralForms(language));
   return live(xml).flatMap((m) => {
-    const { short, readable } = shortOf(m, categories);
+    const { short, readable } = shortOf(m, table);
     return m.numerus &&
       m.state === undefined &&
       m.forms.some((f) => f !== "") &&
       short &&
       readable
-      ? [{ id: m.id, have: m.forms.length, want: categories.length }]
+      ? [{ id: m.id, have: m.forms.length, want: table.categories.length }]
       : [];
   });
 }
@@ -526,6 +527,7 @@ type WriteContext = {
   eol: string;
   categories: (string | undefined)[];
   majority: (string | undefined)[];
+  oneCategory: boolean;
   onRefused?: (id: string, text: string) => void;
 };
 
@@ -535,7 +537,7 @@ function translationElement(
   m: QtMessage,
   text: string,
   from: string,
-  { escape, eol, categories, majority, onRefused }: WriteContext,
+  { escape, eol, categories, majority, oneCategory, onRefused }: WriteContext,
 ): string | undefined {
   if (!m.numerus) {
     if (m.state === undefined && m.translation === text) return undefined;
@@ -555,7 +557,10 @@ function translationElement(
     c === undefined ? undefined : formOf(branches, c);
   // In a short file read as one category (#1004), a form no category
   // reads stood for that category's text, and changes with it.
-  const { short: isShort, readable } = shortOf(m, categories);
+  const { short: isShort, readable } = shortOf(m, {
+    categories,
+    oneCategory,
+  });
   // Only a short file read as one category is one; any other is work,
   // and a draft on it writes every form of the rule (#1004).
   const short = isShort && readable;
@@ -584,12 +589,11 @@ function translationElement(
     )
   )
     return undefined;
-  // Where every form a category reads is one category (Khmer, Lao), a
+  // In a language whose integers reach one category (Khmer, Lao), a
   // form no category reads is that category's too: a message written
   // anyway writes its text there (#1104).
-  const one = new Set(categories.filter((c) => c !== undefined)).size === 1;
   const forms = read.map((f, i) =>
-    categories[i] === undefined && (f === "" || one)
+    categories[i] === undefined && (f === "" || oneCategory)
       ? (pick(majority[i]) ?? branches.other ?? "")
       : f,
   );

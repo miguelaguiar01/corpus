@@ -331,7 +331,9 @@ function cldrOrder(rules: Intl.PluralRules): string[] {
 //   is none, and keeps what the file holds;
 // - `majority`: the category the most integers at each index belong to,
 //   whether or not it reads that index: what fills a form no category
-//   reads, where a file must hold text (#743).
+//   reads, where a file must hold text (#743);
+// - `oneCategory`: whether the language's integers reach one category
+//   alone (Khmer, Lao), every form then that category's text (#1104).
 export function pluralTable(
   language: string,
   forms: string | undefined,
@@ -339,6 +341,7 @@ export function pluralTable(
   indexes: Map<string, number>;
   categories: (string | undefined)[];
   majority: (string | undefined)[];
+  oneCategory: boolean;
 } {
   const rules = pluralRulesOf(language);
   const found = tally(rules, forms);
@@ -348,6 +351,7 @@ export function pluralTable(
     indexes,
     categories: categoriesOf(found, order, indexes),
     majority: majorityOf(found, order),
+    oneCategory: (found ? found.counts.size : order.length) === 1,
   };
 }
 
@@ -484,6 +488,7 @@ function gettextTable(language: string, forms: string | undefined): Table {
     ),
     categories,
     majority: categories,
+    oneCategory: cldr.oneCategory,
     own: true,
     keysAt: keysAt.map((k) => k ?? []),
   };
