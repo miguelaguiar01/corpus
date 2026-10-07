@@ -140,11 +140,13 @@ export type ValidationError =
   | { code: "form-count"; expected: number; actual: number }
   | { code: "unexpected-category"; arg: string; key: string }
   // A formatted placeholder written with another type, or with none
-  // (`actual: null`); the style is the translator's (#555).
+  // (`actual: null`); the style is the translator's (#555). Under
+  // fluent, one the source passes unformatted (`expected: null`), which
+  // pull would write as a function that may not suit the value (#1089).
   | {
       code: "unexpected-format";
       name: string;
-      expected: string;
+      expected: string | null;
       actual: string | null;
     }
   | { code: "missing-tag"; name: string; quoted?: true }
@@ -998,6 +1000,18 @@ export function validateTranslation(
       });
     }
   }
+  if (syntax === "fluent")
+    for (const [name, { type }] of actual.formats)
+      if (
+        (allowedValues.has(name) || passed.has(name)) &&
+        !expected.formats.has(name)
+      )
+        errors.push({
+          code: "unexpected-format",
+          name,
+          expected: null,
+          actual: type,
+        });
   // Where a type is read as HTML its tags are not compared, so the
   // placeholders in their attributes are, apart from the text's (#948);
   // elsewhere a tag's attribute text is its identity and says as much.

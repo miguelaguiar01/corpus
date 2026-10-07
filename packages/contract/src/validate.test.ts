@@ -4201,3 +4201,73 @@ test("a mistyped rails %{ is said once, whatever readings the parser tries and g
     ),
   ).toEqual({ ok: false, errors: [at(21)] });
 });
+
+test("under fluent, a translation adds no format its source lacks, which pull would write as a function (#1089)", () => {
+  for (const [target, actual] of [
+    ["Total {n, date}", "date"],
+    ["Total {n, number}", "number"],
+    ["Total {n, number, minimumFractionDigits: 2}", "number"],
+  ] as const)
+    expect(
+      validateTranslation("Total {n}", target, "de", "fluent"),
+      target,
+    ).toEqual({
+      ok: false,
+      errors: [
+        { code: "unexpected-format", name: "n", expected: null, actual },
+      ],
+    });
+  // A format the source has keeps its style the translator's.
+  expect(
+    validateTranslation(
+      "On {d, date}",
+      'Am {d, date, dateStyle: "short"}',
+      "de",
+      "fluent",
+    ),
+  ).toEqual({ ok: true });
+  // Elsewhere a format is the translator's to add.
+  expect(
+    validateTranslation("Total {n}", "Total {n, number}", "de", "icu"),
+  ).toEqual({
+    ok: true,
+  });
+});
+
+test("under fluent, a format is added on no value the source passes, whether or not it prints it (#1089)", () => {
+  const added = (actual: string) => ({
+    ok: false,
+    errors: [{ code: "unexpected-format", name: "n", expected: null, actual }],
+  });
+  // A plural's count the source never prints.
+  const counted = "{n, plural, one {one} other {many}}";
+  expect(
+    validateTranslation(
+      counted,
+      "{n, plural, one {eins} other {{n, date} viele}}",
+      "de",
+      "fluent",
+    ),
+  ).toEqual(added("date"));
+  expect(
+    validateTranslation(
+      counted,
+      "{n, plural, one {eins} other {{n, number} viele}}",
+      "de",
+      "fluent",
+    ),
+  ).toEqual(added("number"));
+  expect(
+    validateTranslation(counted, "{n, number} 個", "ja", "fluent"),
+  ).toEqual(added("number"));
+  // Relay's: a source that formats the value in one branch and prints it
+  // bare in another keeps a format the translation writes in both.
+  expect(
+    validateTranslation(
+      "{s, plural, one {{s} second} other {{s, number, minimumIntegerDigits: 2} seconds}}",
+      "{s, plural, one {{s, number, minimumIntegerDigits: 2} segundo} other {{s, number, minimumIntegerDigits: 2} segundos}}",
+      "es",
+      "fluent",
+    ),
+  ).toEqual({ ok: true });
+});

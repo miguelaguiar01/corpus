@@ -15,6 +15,7 @@
   "editor.errorInvalid": "That translation was not saved: what is wrong is listed under the box, with your draft kept.",
   "editor.errorSourceRow": "The source text comes from the repository and is not edited here.",
   "editor.filterLanguages": "Filter languages…",
+  "editor.formatAdded": "{name} has no format in the source; write it without one",
   "editor.formatChanged": "{name} is a {type} in the source, not a {actual}",
   "editor.formatDropped": "{name} is a {type} in the source; write it with its format",
   "editor.insertPlural": "Insert a plural on {arg} with the branches {keys}",

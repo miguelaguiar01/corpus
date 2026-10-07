@@ -2,6 +2,7 @@
   "app.title": "Corpus",
   "catalogue.heading": "Catálogo",
   "editor.errorInvalid": "Essa tradução não foi guardada: o que está errado aparece por baixo da caixa, com o seu rascunho mantido.",
+  "editor.formatAdded": "{name} não tem formato no original; escreva-o sem formato",
   "editor.formatChanged": "{name} é um {type} no original, não um {actual}",
   "editor.formatDropped": "{name} é um {type} no original; escreva-o com o seu formato",
   "editor.missingOther": "Ao plural {arg} falta o ramo other, que o runtime escolhe para cada contagem que nenhum outro ramo cobre",
