@@ -3323,3 +3323,45 @@ export default defineCorpus({
     de.replace(">Räume</string>", ">Zimmer</string>"),
   );
 });
+
+test("a target's id only another pattern's source holds is not seeded, and a pull leaves every file as it was (#1071)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de"],
+  sources: [
+    { adapter: "messages", type: "chrome", path: ["a/{lang}.json", "b/{lang}.json"] },
+  ],
+});
+`,
+  );
+  mkdirSync(path.join(repo, "a"));
+  mkdirSync(path.join(repo, "b"));
+  writeFileSync(path.join(repo, "a", "en.json"), `{\n  "stay": "Stay"\n}\n`);
+  writeFileSync(path.join(repo, "b", "en.json"), `{\n  "moved": "Moved"\n}\n`);
+  // a's German still translates the id that moved to b.
+  const aDe = `{\n  "stay": "Bleiben",\n  "moved": "Verschoben"\n}\n`;
+  const bDe = `{}\n`;
+  writeFileSync(path.join(repo, "a", "de.json"), aDe);
+  writeFileSync(path.join(repo, "b", "de.json"), bDe);
+  const { buildSnapshot } = await import("./build");
+  const { loadConfig } = await import("./config");
+  const snapshot = await buildSnapshot(await loadConfig(repo), repo);
+  expect(snapshot.seedTranslations).toEqual({ de: { stay: "Bleiben" } });
+  await serve(200, {
+    ...PAYLOAD,
+    types: { stay: "chrome", moved: "chrome" },
+    translations: snapshot.seedTranslations,
+  });
+  expect(await run(["pull"], ctx())).toBe(0);
+  expect(read("a/de.json")).toBe(aDe);
+  expect(read("b/de.json")).toBe(bDe);
+  // validate calls a's copy what it is.
+  const v = ctx();
+  await run(["validate"], v);
+  expect(v.output.join("\n")).toMatch(/a\/de\.json.*moved/);
+});
