@@ -220,7 +220,8 @@ export default defineCorpus({
     //    values/strings.xml is the source and whose values-<qualifier>
     //    directory is each config language's, by Android's rule (pt-BR
     //    is values-pt-rBR, sr-Latn is values-b+sr+Latn, es-419
-    //    values-b+es+419); a language with a region, the only variant
+    //    values-b+es+419, ca-valencia values-b+ca+valencia, its variant
+    //    read lower-case, #1120); a language with a region, the only variant
     //    of its language in the config and written in its script, reads
     //    and writes a module's values-ta where the module has that and
     //    no values-ta-rIN, as Android resolves ta-IN (#1007); pt-BR

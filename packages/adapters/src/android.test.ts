@@ -314,8 +314,22 @@ test("a pull writes a tag XML cannot hold as an element escaped, and a prose tag
 
 test("a values directory's language is androidDirOf's inverse, a non-language qualifier none (#993)", async () => {
   const { androidLanguageOf, androidDirOf } = await import("./android");
-  for (const tag of ["de", "pt-BR", "es-419", "sr-Latn", "zh-Hant-TW", "iw"])
+  for (const tag of [
+    "de",
+    "pt-BR",
+    "es-419",
+    "sr-Latn",
+    "zh-Hant-TW",
+    "iw",
+    // A variant is lower-case, as BCP 47 writes it (#1120).
+    "ca-valencia",
+    "ca-ES-valencia",
+    "de-1996",
+  ])
     expect(androidLanguageOf(androidDirOf(tag))).toBe(tag);
+  expect(androidLanguageOf("values-b+ca+valencia")).toBe("ca-valencia");
+  expect(androidLanguageOf("values-b+ca+ES+VALENCIA")).toBe("ca-ES-valencia");
+  expect(androidLanguageOf("values-b+de+1996")).toBe("de-1996");
   // A numeric region has no -r form: aapt2 takes it as b+ only.
   expect(androidDirOf("es-419")).toBe("values-b+es+419");
   // Car is Android Automotive's UI mode, never a language.

@@ -3677,3 +3677,14 @@ test("a POSIX code --languages lists maps no file another spelling of its tag al
   expect(config.languages).toEqual(["en", "sr-Latn"]);
   expect(config.sources[0]).not.toHaveProperty("languageFiles");
 });
+
+test("init reads a b+ values directory's variant as a variant: values-b+ca+valencia is ca-valencia (#1120)", async () => {
+  const strings = (text: string) =>
+    `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n  <string name="hi">${text}</string>\n</resources>\n`;
+  const p = project();
+  write(p.dir, "res/values/strings.xml", strings("Hi"));
+  write(p.dir, "res/values-b+ca+valencia/strings.xml", strings("Hola"));
+  expect(await run(initFor("res"), p.ctx)).toBe(0);
+  expect((await loadConfig(p.dir)).languages).toEqual(["en", "ca-valencia"]);
+  expect(p.err.join("\n")).not.toMatch(/left out/);
+});

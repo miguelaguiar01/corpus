@@ -13,6 +13,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- An Android `values-b+ca+valencia` folder is read as `ca-valencia`, rather than left out as `ca-VALENCIA` (#1120).
 - `corpus init` reads `be@tarask`, `sr@ijekavian` and `sr@ijekavianlatin` files as their tags, and writes a POSIX code given in `--languages` as its tag (#1119).
 - Under `merge: "last-wins"`, the problems of a translation's copy the app never shows are warnings, rather than failing `corpus validate` (#1116).
 - Offline `corpus validate` reports a source string that does not parse even where no translation of it exists, as build refuses it (#1115).
