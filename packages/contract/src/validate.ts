@@ -1051,31 +1051,22 @@ export function validateTranslation(
         errors.push({ code: "unexpected-tag", name });
     }
   }
-  // Android's `xliff:g` compares by its name, so how many each rendering
-  // holds is checked apart: every branch keeps as many as the source's
-  // fewest, and none holds more than its most (#1067).
+  // Android's `xliff:g` compares by its name, so a verb it wraps is
+  // checked apart: wherever a translation writes one the source wraps,
+  // it is wrapped too, else the element was dropped or turned to text
+  // around it. A branch that writes no number, German's one, has none to
+  // wrap, and an extra element is aapt's to strip (#1067).
   if (syntax === "android") {
-    const want = xliffRange(sourceNodes);
-    const got = xliffRange(targetNodes);
-    const said = (code: string) =>
-      errors.some(
-        (e) =>
-          e.code === code && "name" in e && /^xliff:g(?:\s|$)/.test(e.name),
-      );
-    if (got.lo < want.lo && !said("missing-tag")) {
-      const kept = new Set(got.names);
-      errors.push({
-        code: "missing-tag",
-        name: want.names.find((n) => !kept.has(n)) ?? want.names[0]!,
-      });
-    }
-    if (got.hi > want.hi && !said("unexpected-tag")) {
-      const known = new Set(want.names);
-      errors.push({
-        code: "unexpected-tag",
-        name: got.names.find((n) => !known.has(n)) ?? got.names.at(-1)!,
-      });
-    }
+    const want = xliffVerbs(sourceNodes);
+    const got = xliffVerbs(targetNodes);
+    const said = new Set(
+      errors.flatMap((e) => (e.code === "missing-tag" ? [e.name] : [])),
+    );
+    for (const [verb, name] of want.wrapped)
+      if (got.bare.has(verb) && !want.bare.has(verb) && !said.has(name)) {
+        said.add(name);
+        errors.push({ code: "missing-tag", name });
+      }
   }
   // Under i18next and Android, and in a Rails `_html` key, a tag a
   // source writes as text is text, and so is one its translation writes
@@ -1574,32 +1565,31 @@ function exactBranches(
   });
 }
 
-// How many `xliff:g` elements the text's renderings hold, a plural's or
-// a select's branches each one: the fewest and the most, and each
-// element's identity as written.
-function xliffRange(
+// The verbs a text writes inside an `xliff:g`, each with the element's
+// identity as written, and those it writes outside one.
+function xliffVerbs(
   nodes: IcuNode[],
-  names: string[] = [],
-): { lo: number; hi: number; names: string[] } {
-  let lo = 0;
-  let hi = 0;
+  out = { wrapped: new Map<string, string>(), bare: new Set<string>() },
+  within?: string,
+): { wrapped: Map<string, string>; bare: Set<string> } {
   for (const node of nodes) {
-    if (node.kind === "tag") {
-      const own = node.name === "xliff:g" ? 1 : 0;
-      if (own)
-        names.push(node.attrs ? `${node.name} ${node.attrs}` : node.name);
-      const inner = xliffRange(node.children, names);
-      lo += own + inner.lo;
-      hi += own + inner.hi;
+    if (node.kind === "placeholder") {
+      if (within === undefined) out.bare.add(node.name);
+      else if (!out.wrapped.has(node.name)) out.wrapped.set(node.name, within);
+    } else if (node.kind === "tag") {
+      const own =
+        node.name === "xliff:g"
+          ? node.attrs
+            ? `${node.name} ${node.attrs}`
+            : node.name
+          : within;
+      xliffVerbs(node.children, out, own);
     } else if (node.kind === "plural" || node.kind === "select") {
-      const ranges = Object.values(node.branches).map((branch) =>
-        xliffRange(branch, names),
-      );
-      lo += Math.min(...ranges.map((r) => r.lo));
-      hi += Math.max(...ranges.map((r) => r.hi));
+      for (const branch of Object.values(node.branches))
+        xliffVerbs(branch, out, within);
     }
   }
-  return { lo, hi, names };
+  return out;
 }
 
 // Each group of exact keys one form is read by whose branches the
