@@ -3321,7 +3321,7 @@ test("init maps a country code a file is named by to its language, and warns whe
   expect(err).not.toContain("cn is not a language tag");
   // build reads cn.json as zh-CN.
   const report = await buildSnapshotReport(config, p.dir);
-  expect(report.snapshot.seedTranslations["zh-CN"]).toEqual({
+  expect(report.snapshot.seedTranslations?.["zh-CN"]).toEqual({
     autoscroll: "自动滚动",
     copy: "复制 {name}",
   });

@@ -129,7 +129,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     throw new CliError(
       `--library does not apply to ${adapter === "xliff" ? "an xliff source: its text is ICU" : adapter === "fluent" ? "a fluent source: its messages are read as ICU" : "an android source: its strings are Android's"}\nusage: ${INIT_USAGE}`,
     );
-  const files =
+  const files: Languages =
     res !== undefined
       ? androidLanguages(ctx, res, sourceLanguage)
       : catalog || messages.includes("{ns}")
@@ -218,7 +218,16 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
         `corpus: ${code} is not a language tag the runtime knows; kept, but check it is a language and not a tool's pseudo-locale`,
       );
     }
+    const mismatch =
+      !messages.includes("{ns}") &&
+      scriptMismatch(ctx.cwd, messages.replaceAll("{lang}", code), code);
+    if (mismatch) ctx.err(`corpus: ${mismatch}`);
   }
+  for (const { file, code, tag } of files.aliased ?? [])
+    if (languages.includes(tag))
+      ctx.err(
+        `corpus: ${file}: written as ${tag}, languageFiles: { ${JSON.stringify(tag)}: ${JSON.stringify(code)} }`,
+      );
   // Only the messages adapter's library is detected, and gettext's fmt
   // fields (#1002); every other format has its default, which only the
   // flag changes, and xliff's is fixed.
@@ -1848,36 +1857,147 @@ function readCatalog(
 }
 
 // The languages a catalogue's files name, the source first: a POSIX
-// script modifier, `sr@latin`, is its tag `sr-Latn`, mapped back to the
-// file's code through languageFiles (#657, #855); any other code that is
-// no tag is skipped and named.
+// script modifier, `sr@latin`, is its tag `sr-Latn`, and a country's
+// code, `cn`, its language's tag `zh-CN` where that language has no file
+// of its own, each mapped back to the file's code through languageFiles
+// (#657, #855, #697); any other code that is no tag is skipped and named.
 function catalogueLanguages(
   cwd: string,
   pattern: string,
   sourceLanguage: string,
-): {
-  languages: string[];
-  languageFiles: Record<string, string>;
-  skipped: { file: string; code: string }[];
-} {
+): Languages {
   const languageFiles: Record<string, string> = {};
   const found = new Set<string>();
   const skipped: { file: string; code: string }[] = [];
-  for (const { code, file } of filesFilling(cwd, pattern)) {
+  const aliased: { file: string; code: string; tag: string }[] = [];
+  const filled = filesFilling(cwd, pattern);
+  const named = new Set(
+    filled.map(({ code }) => code.replaceAll("_", "-").toLowerCase()),
+  );
+  for (const { code, file } of filled) {
     const tag = posixTag(code);
+    const country = COUNTRY_CODES[code.toLowerCase()];
     if (tag) {
       languageFiles[tag] = code;
       found.add(tag);
+    } else if (country && !named.has(country.toLowerCase())) {
+      languageFiles[country] = code;
+      found.add(country);
+      aliased.push({ file, code, tag: country });
     } else if (LANGUAGE_RE.test(code)) found.add(code);
     else skipped.push({ file, code });
   }
-  if (found.size === 0) return { languages: [], languageFiles, skipped };
+  if (found.size === 0)
+    return { languages: [], languageFiles, skipped, aliased };
   found.delete(sourceLanguage);
   return {
     languages: [sourceLanguage, ...[...found].sort()],
     languageFiles,
     skipped,
+    aliased,
   };
+}
+
+type Languages = {
+  languages: string[];
+  languageFiles: Record<string, string>;
+  skipped: { file: string; code: string }[];
+  aliased?: { file: string; code: string; tag: string }[];
+};
+
+// Country codes files are named by, as Hoppscotch's `cn.json`, that no
+// language has, and the language such a file holds (#697).
+const COUNTRY_CODES: Record<string, string> = {
+  cn: "zh-CN",
+  jp: "ja",
+  cz: "cs",
+  dk: "da",
+  gr: "el",
+  ua: "uk",
+};
+
+// Country codes that are a language's too, Akan's `tw` and Kanuri's
+// `kr`, the language a file named so most likely holds, and the scripts
+// that tell it: only the text says which (#697).
+const LIKELY_LANGUAGES: Record<string, { tag: string; script: string }> = {
+  tw: { tag: "zh-TW", script: "Hani" },
+  kr: { tag: "ko", script: "Hang" },
+};
+
+const SCRIPTS: [string, RegExp][] = [
+  ["Latn", /\p{Script=Latin}/u],
+  ["Hani", /\p{Script=Han}/u],
+  ["Hang", /\p{Script=Hangul}/u],
+  ["Hira", /\p{Script=Hiragana}/u],
+  ["Kana", /\p{Script=Katakana}/u],
+  ["Cyrl", /\p{Script=Cyrillic}/u],
+  ["Grek", /\p{Script=Greek}/u],
+  ["Arab", /\p{Script=Arabic}/u],
+  ["Hebr", /\p{Script=Hebrew}/u],
+  ["Thai", /\p{Script=Thai}/u],
+  ["Deva", /\p{Script=Devanagari}/u],
+];
+
+const SCRIPT_NAMES = new Intl.DisplayNames(["en"], {
+  type: "script",
+  fallback: "code",
+});
+
+// The script most of a JSON catalogue's strings are written in, each
+// string counted once and a string with letters of another script than
+// Latin counted for that one, since names, code and units stay Latin in
+// any text; undefined for a file that is no JSON or holds no letters.
+function scriptOf(file: string): string | undefined {
+  let values: unknown;
+  try {
+    values = JSON.parse(readFileSync(file, "utf8").replace(/^\uFEFF/, ""));
+  } catch {
+    return undefined;
+  }
+  const counts = new Map<string, number>();
+  const count = (value: unknown): void => {
+    if (typeof value === "string") {
+      const text = value
+        .replace(/\{\{?\s*[\w.$-]+\s*\}?\}/g, "")
+        .replace(/<[^>]*>/g, "")
+        .replace(/%[\w@]/g, "");
+      const letters = new Map<string, number>();
+      for (const [letter] of text.matchAll(/\p{L}/gu)) {
+        const script = SCRIPTS.find(([, re]) => re.test(letter))?.[0];
+        if (script) letters.set(script, (letters.get(script) ?? 0) + 1);
+      }
+      if (letters.size > 1) letters.delete("Latn");
+      const script = most(letters);
+      if (script) counts.set(script, (counts.get(script) ?? 0) + 1);
+    } else if (value !== null && typeof value === "object")
+      for (const item of Object.values(value)) count(item);
+  };
+  count(values);
+  return most(counts);
+}
+
+function most(counts: Map<string, number>): string | undefined {
+  let best: [string, number] | undefined;
+  for (const entry of counts) if (!best || entry[1] > best[1]) best = entry;
+  return best?.[0];
+}
+
+// A file named by a language's code whose text is in another script:
+// the code is kept, and the language it likely holds named (#697).
+function scriptMismatch(
+  cwd: string,
+  file: string,
+  code: string,
+): string | undefined {
+  const likely = LIKELY_LANGUAGES[code.toLowerCase()];
+  if (!likely || !existsSync(path.join(cwd, file))) return undefined;
+  const script = scriptOf(path.join(cwd, file));
+  const expected = new Intl.Locale(code).maximize().script;
+  if (!script || !expected || script === expected) return undefined;
+  const said = `${file}: ${code} is ${LANGUAGE_NAMES.of(code) ?? code} (${expected}), but its text is ${SCRIPT_NAMES.of(script)}`;
+  return script === likely.script
+    ? `${said}; if it is ${LANGUAGE_NAMES.of(likely.tag) ?? likely.tag}, list ${likely.tag} and map it: languageFiles: { ${JSON.stringify(likely.tag)}: ${JSON.stringify(code)} }`
+    : `${said}; check which language it holds`;
 }
 
 // The files a pattern names, with the code each fills `{lang}` with:
