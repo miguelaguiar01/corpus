@@ -366,6 +366,39 @@ test("a large pull's edits, additions and first fill each take one parse per pha
         ),
     ],
   ];
+  // A BOM is kept in the text, and the parser reports it.
+  cases.push([
+    "add 2500 to 2500, a BOM",
+    () =>
+      entriesToMessages(
+        "\uFEFF" + file(5000),
+        all(5000, (i) => `Alt ${i}`),
+        "\uFEFF" + file(2500, (i) => `Alt ${i}`),
+      ),
+  ]);
+  // i18next families written afresh: the forms the text lacks are
+  // removed between the forms it adds.
+  const families = Object.fromEntries(
+    Array.from({ length: 1500 }, (_, i) => [
+      [`k${i}_one`, `One ${i}`],
+      [`k${i}_other`, `Other ${i}`],
+    ]).flat(),
+  );
+  cases.push([
+    "a fresh pull of 1500 Russian families",
+    () =>
+      entriesToMessages(
+        JSON.stringify(families, null, 2) + "\n",
+        Object.fromEntries(
+          Array.from({ length: 1500 }, (_, i) => [
+            `k${i}`,
+            `{count, plural, one {# ${i}} few {# ${i}} many {# ${i}} other {# ${i}}}`,
+          ]),
+        ),
+        undefined,
+        { suffixPlurals: true, sourceLanguage: "en" },
+      ),
+  ]);
   for (const [name, run] of cases) {
     const start = performance.now();
     run();
