@@ -452,13 +452,42 @@ function pickedBranches(
   });
 }
 
-// The message as an other-only language renders it: each plural on
-// `args` replaced by its `other` branch, `#` by the count.
+// The nodes with their first positional `{}` named `arg`.
+function countedFirst(nodes: IcuNode[], arg: string): IcuNode[] {
+  let done = false;
+  const walk = (list: IcuNode[]): IcuNode[] =>
+    list.map((node) => {
+      if (done) return node;
+      if (node.kind === "placeholder" && node.written === "{}") {
+        done = true;
+        return { ...node, name: arg };
+      }
+      return node.kind === "tag"
+        ? { ...node, children: walk(node.children) }
+        : node;
+    });
+  return walk(nodes);
+}
+
+// How a text's placeholders are written, through tags and branches.
+function writtenIn(nodes: IcuNode[], out = new Set<string>()): Set<string> {
+  for (const node of nodes) {
+    if (node.kind === "placeholder" && node.written !== undefined)
+      out.add(node.written);
+    else if (node.kind === "tag") writtenIn(node.children, out);
+    else if (node.kind === "select" || node.kind === "plural")
+      for (const branch of Object.values(node.branches)) writtenIn(branch, out);
+  }
+  return out;
+}
+
 // A plural by its kind and argument: `ordinal n`, `cardinal n` (#995).
 function pluralId(ordinal: boolean, arg: string): string {
   return `${ordinal ? "ordinal" : "cardinal"} ${arg}`;
 }
 
+// The message as an other-only language renders it: each plural on
+// `args` replaced by its `other` branch, `#` by the count.
 function otherBranch(nodes: IcuNode[], args: Set<string>): IcuNode[] {
   return nodes.flatMap((node): IcuNode[] => {
     if (
@@ -741,7 +770,7 @@ export function validateTranslation(
   const sourceNodes = positioned(parsedSource.nodes);
   const targetNodes = positioned(parsedTarget.nodes);
   const whole = shapeOf(sourceNodes);
-  const actual =
+  let actual =
     syntax === "qt"
       ? qtFilled(shapeOf(targetNodes), whole, target, source)
       : shapeOf(targetNodes);
@@ -796,6 +825,18 @@ export function validateTranslation(
       if (!mine.has(arg) && !swapped && categoriesOf(ordinal).length === 1)
         flat.add(pluralId(ordinal, arg));
     }
+  // easy_localization's plural() fills a plain text's first `{}` with
+  // the count, where the source is that one plural (#1094).
+  const easyCount =
+    syntax === "easy_localization" &&
+    flat.size === 1 &&
+    [...flat][0]!.startsWith("cardinal ") &&
+    sourceNodes.filter((n) => !(n.kind === "literal" && n.text.trim() === ""))
+      .length === 1
+      ? [...flat][0]!.slice("cardinal ".length)
+      : undefined;
+  if (easyCount !== undefined)
+    actual = shapeOf(countedFirst(targetNodes, easyCount));
   const flattened =
     flat.size > 0 && syntax !== "android"
       ? otherBranch(sourceNodes, flat)
@@ -973,6 +1014,17 @@ export function validateTranslation(
           }
         : { code: "unexpected-placeholder", name, ...writtenAs(actual, name) },
     );
+  }
+  // A named count prints as it is unless the call names it: declared,
+  // or written so in one of the source's forms.
+  if (easyCount !== undefined && !passed.has(easyCount)) {
+    const named = `{${easyCount}}`;
+    if (!writtenIn(sourceNodes).has(named) && writtenIn(targetNodes).has(named))
+      errors.push({
+        code: "unexpected-placeholder",
+        name: easyCount,
+        written: named,
+      });
   }
   // counterpart substitutes `%(name)s` only as written: `%(n)d` for the
   // source's `%(n)s` is text in the app (#663).
