@@ -1019,12 +1019,7 @@ export function validateTranslation(
   // or written so in one of the source's forms.
   if (easyCount !== undefined && !passed.has(easyCount)) {
     const named = `{${easyCount}}`;
-    const source = writtenIn(sourceNodes);
-    if (
-      source.has("{}") &&
-      !source.has(named) &&
-      writtenIn(targetNodes).has(named)
-    )
+    if (!writtenIn(sourceNodes).has(named) && writtenIn(targetNodes).has(named))
       errors.push({
         code: "unexpected-placeholder",
         name: easyCount,
