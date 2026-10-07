@@ -61,12 +61,11 @@ const GEN_L10N_CATEGORY: Record<string, string> = {
 };
 
 // The source's select and plural arguments, each with every key any of
-// its uses has, in source order (validation unions them the same way):
-// a chip per argument and kind inserts the whole skeleton so no braces
-// are typed
-// by hand. A plural's keys are the categories the runtime picks in the
-// target language, since those are what validation asks for (#951),
-// plus the source's exact =N ones.
+// its uses has, in source order: a chip per argument and kind inserts
+// the whole skeleton, which validation asks of each copy (#1085), so no
+// braces are typed by hand. A plural's keys are the categories the
+// runtime picks in the target language, since those are what
+// validation asks for (#951), plus the source's exact =N ones.
 // A nested argument has a chip of its own, and its skeleton sits in
 // each branch of its outer one's.
 function branchingOf(

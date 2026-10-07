@@ -3732,3 +3732,78 @@ test("under android, a verb the source wraps in <xliff:g> is wrapped wherever a 
     ).ok,
   ).toBe(true);
 });
+
+test("each copy of a plural is checked for the categories the runtime picks, one finding per argument and category (#1085)", () => {
+  const source =
+    "{a, select, x {{n, plural, one {# a} other {# b}}} other {{n, plural, one {# c} other {# d}}}}";
+  expect(
+    validateTranslation(
+      source,
+      "{a, select, x {{n, plural, one {# a} few {# f} other {# b}}} other {{n, plural, one {# c} other {# d}}}}",
+      "hr",
+      "icu",
+    ),
+  ).toEqual({
+    ok: true,
+    incomplete: [{ code: "missing-category", arg: "n", key: "few" }],
+  });
+  expect(
+    validateTranslation(
+      source,
+      "{a, select, x {{n, plural, one {# a} few {# f} other {# b}}} other {{n, plural, one {# c} few {# g} other {# d}}}}",
+      "hr",
+      "icu",
+    ),
+  ).toEqual({ ok: true });
+  // Two copies lacking it say it once.
+  expect(
+    validateTranslation(
+      source,
+      "{a, select, x {{n, plural, one {# a} other {# b}}} other {{n, plural, one {# c} other {# d}}}}",
+      "hr",
+      "icu",
+    ),
+  ).toEqual({
+    ok: true,
+    incomplete: [{ code: "missing-category", arg: "n", key: "few" }],
+  });
+});
+
+test("a language of the source's base is asked per copy only for what the source's own copy has (#1085 review)", () => {
+  const source =
+    "{n, plural, one {# file} other {# files}} in {n, plural, other {folders}}";
+  for (const [language, base] of [
+    ["en-GB", "en"],
+    ["pt-BR", "pt-PT"],
+  ] as const)
+    expect(
+      validateTranslation(source, source, language, "icu", {
+        sourceLanguage: base,
+      }),
+      language,
+    ).toEqual({ ok: true });
+  // The copy that has `one` in the source still needs it.
+  expect(
+    validateTranslation(
+      source,
+      "{n, plural, other {# files}} in {n, plural, other {folders}}",
+      "en-GB",
+      "icu",
+      { sourceLanguage: "en" },
+    ),
+  ).toEqual({
+    ok: true,
+    incomplete: [{ code: "missing-category", arg: "n", key: "one" }],
+  });
+  // A translation with another number of copies is read against what
+  // any of the source's copies has.
+  expect(
+    validateTranslation(
+      source,
+      "{n, plural, one {# file} other {# files}} in folders",
+      "en-GB",
+      "icu",
+      { sourceLanguage: "en" },
+    ).ok,
+  ).toBe(true);
+});
