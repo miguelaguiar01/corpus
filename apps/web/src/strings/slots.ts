@@ -21,7 +21,9 @@ export function inPositionOrder(names: string[], syntax: Library): string[] {
 // (under printf, in position order, #739),
 // with what the type declares for the slot (§5) and the first example's
 // value per language (§7): what a translator reads off the chips, for
-// an agent that has no chips.
+// an agent that has no chips. A target language with no value takes the
+// source's, listed in `fromSource`, and `missing` names what the
+// repository gave none of (#1075).
 export function slotsOf(
   source: string,
   declarations: Record<string, FieldDeclaration>,
@@ -30,6 +32,8 @@ export function slotsOf(
   syntax: Library = "icu",
   // The syntaxes its source layers on the library (#1049).
   layers?: readonly Library[],
+  // The target languages the string takes.
+  targetLanguages: readonly string[] = [],
 ): StringResponse["slots"] {
   const declared = Object.create(null) as Record<
     string,
@@ -65,13 +69,30 @@ export function slotsOf(
       const value = Object.hasOwn(map, name) ? map[name] : undefined;
       if (value !== undefined) values[language] = value;
     }
+    const given = Object.keys(values).length > 0;
+    const fromSource: string[] = [];
+    const source = values[sourceLanguage];
+    if (source !== undefined)
+      for (const language of targetLanguages)
+        if (!Object.hasOwn(values, language)) {
+          values[language] = source;
+          fromSource.push(language);
+        }
+    const description = declared[name]?.description ?? null;
+    const role = declared[name]?.role ?? null;
     return {
       name,
-      description: declared[name]?.description ?? null,
-      role: declared[name]?.role ?? null,
+      description,
+      role,
       format: formats.get(name) ?? null,
       written: written.get(name) ?? null,
       values,
+      fromSource,
+      missing: [
+        ...(description === null ? ["description" as const] : []),
+        ...(role === null ? ["role" as const] : []),
+        ...(given ? [] : ["example" as const]),
+      ],
     };
   });
 }

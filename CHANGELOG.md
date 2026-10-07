@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- `get_string`'s slots say what the repository gave them none of (`missing`) and take the source's example where a language has none, and `corpus build` names the placeholders a type's slot declarations do not cover (#1075).
 - A target file's translation of an id only another source file holds is no longer seeded, so a pull no longer writes it into a file that never had it (#1071).
 - Android's `<xliff:g>` is a tag a translation must keep, so one that drops or mangles it is reported (#1067).
 - An i18next source in a language with only `other` (Japanese, Korean, Chinese) reads its lone `_other` keys as plural families, so its targets' forms are no longer orphans (#1065).

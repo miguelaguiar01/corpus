@@ -21,6 +21,8 @@ test("slots carry the declaration and the first example's value per language, in
     format: null,
     written: null,
     values: { "pt-PT": "a Condessa Rosa", en: "Countess Rosa" },
+    fromSource: [],
+    missing: [],
   });
   expect(slots[2]?.role).toBeNull();
 });
@@ -40,6 +42,8 @@ test("an undeclared slot, a count, and a string with no examples still list ever
       format: null,
       written: null,
       values: {},
+      fromSource: [],
+      missing: ["description", "role", "example"],
     },
     {
       name: "who",
@@ -48,6 +52,8 @@ test("an undeclared slot, a count, and a string with no examples still list ever
       format: null,
       written: null,
       values: {},
+      fromSource: [],
+      missing: ["description", "role", "example"],
     },
     {
       name: "n",
@@ -56,6 +62,8 @@ test("an undeclared slot, a count, and a string with no examples still list ever
       format: null,
       written: null,
       values: {},
+      fromSource: [],
+      missing: ["description", "role", "example"],
     },
   ]);
 });
@@ -105,6 +113,8 @@ test("a slot named like an Object.prototype member has only its own values (#846
     format: null,
     written: null,
     values: {},
+    fromSource: [],
+    missing: ["description", "role", "example"],
   });
 });
 
