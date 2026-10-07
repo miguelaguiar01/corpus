@@ -44,10 +44,42 @@ function closing(source: string, at: number): number {
       const end = source.indexOf("\n", i);
       if (end < 0) return source.length - 1;
       i = end;
+    } else if (ch === "/" && opensRegex(source, at, i)) {
+      // A regex literal's quote or `/*` opens nothing: `{/'/.test(x)}`.
+      const end = regexEnd(source, i);
+      if (end !== undefined) i = end;
     } else if (ch === "{") depth += 1;
     else if (ch === "}" && --depth === 0) return i;
   }
   return source.length - 1;
+}
+
+// Whether a `/` opens a regex literal rather than divides: where what
+// comes before it, past spaces, is the expression's `{`, an operator,
+// an opening bracket or separator, or `return` or `typeof`.
+function opensRegex(source: string, at: number, i: number): boolean {
+  let j = i - 1;
+  while (j > at && /\s/.test(source[j]!)) j--;
+  if (j <= at) return true;
+  // TypeScript's non-null assertion, `duration! / 1000`, ends a value.
+  if (source[j] === "!" && /[\w$)\]]/.test(source[j - 1] ?? "")) return false;
+  if ("([{,;:?!=&|+-*%<>~^".includes(source[j]!)) return true;
+  return /(?:^|[^\w$])(?:return|typeof)$/.test(source.slice(at + 1, j + 1));
+}
+
+// Where a regex literal opened at `i` closes, past `\` escapes and the
+// `[…]` classes that may hold a `/`; undefined where a line ends first.
+function regexEnd(source: string, i: number): number | undefined {
+  let inClass = false;
+  for (let k = i + 1; k < source.length; k++) {
+    const c = source[k];
+    if (c === "\n") return undefined;
+    if (c === "\\") k++;
+    else if (c === "[") inClass = true;
+    else if (c === "]") inClass = false;
+    else if (c === "/" && !inClass) return k;
+  }
+  return undefined;
 }
 
 // The markup alone: `<script>`, `<style>` and every expression blanked.
