@@ -3379,4 +3379,19 @@ test("init maps a country code a file is named by to its language, and warns whe
     cs: "cz",
   });
   expect(s.err.join("\n")).not.toContain("l/cn.json: written as");
+
+  // A source language named so is the one --source gives, as written.
+  const t = project();
+  stubCli(t.dir);
+  write(t.dir, { en: { a: "Yes" }, cn: { a: "是" } });
+  expect(
+    await run(
+      [...base.slice(0, 3), "--source", "cn", "--messages", "l/{lang}.json"],
+      t.ctx,
+    ),
+  ).toBe(0);
+  const own = await loadConfig(t.dir);
+  expect([own.sourceLanguage, own.languages]).toEqual(["cn", ["cn", "en"]]);
+  expect(own.sources[0]?.languageFiles).toBeUndefined();
+  expect(t.err.join("\n")).not.toContain("written as");
 });
