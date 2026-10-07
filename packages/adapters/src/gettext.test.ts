@@ -1205,3 +1205,210 @@ test("a plain text for a gettext plural is written into every form (#1092)", () 
   );
   expect(refused).toEqual(["%d card", "%d card"]);
 });
+
+// Transmission's af.po header, as Transifex writes it (#1101).
+const AF = `# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2008, 2009 Transmission authors
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+# Translators:
+# Pieter Schalk Schoeman <pieter@sonbesie.co.za>, 2022
+# Adriaan Joubert, 2023
+# Gideon Wentink <gjwentink@gmail.com>, 2017-2019, 2024
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\\n"
+"PO-Revision-Date: 2017-01-26 19:47+0000\\n"
+"Last-Translator: Gideon Wentink <gjwentink@gmail.com>, 2024\\n"
+"Language-Team: Afrikaans (https://app.transifex.com/transmissionbt/teams/33778/af/)\\n"
+"Language: af\\n"
+"MIME-Version: 1.0\\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\\n"
+
+# Jan: keep this short
+#. TRANSLATORS: the app's name
+#: ../cli/cli.cc:94
+#, c-format
+msgid "Open %s"
+msgstr "Open %s"
+
+#
+msgid "Quit"
+msgstr "Verlaat"
+`;
+
+test("a new file started from a target .po keeps none of that target's translators: no credits, translator comments, Last-Translator, Language-Team or revision date (#1101)", () => {
+  const out = entriesToGettext(AF, {}, undefined, { tag: "sw", code: "sw" });
+  expect(out).toBe(`# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2008, 2009 Transmission authors
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\\n"
+"Language-Team: LANGUAGE <LL@li.org>\\n"
+"Language: sw\\n"
+"MIME-Version: 1.0\\n"
+"Plural-Forms: nplurals=2; plural=(n==1) ? 0 : 1;\\n"
+
+#. TRANSLATORS: the app's name
+#: ../cli/cli.cc:94
+#, c-format
+msgid "Open %s"
+msgstr ""
+
+msgid "Quit"
+msgstr ""
+`);
+  // A file the language has is its own: its translators stay.
+  const own = AF.replace('"Language: af\\n"', '"Language: sw\\n"');
+  expect(
+    entriesToGettext(AF, { Quit: "Acha" }, own, { tag: "sw", code: "sw" }),
+  ).toContain("# Jan: keep this short\n");
+});
+
+test("a target's credits are dropped in the forms real headers write them: an email alone, dotted or unspaced years, a translator field, names after a credit (#1101)", () => {
+  // Joplin's sv.po and hr.po headers, and a ru one.
+  const header = `# Swedish translation for Joplin.
+# Copyright (C) 2026 Laurent Cozic
+# This file is distributed under the same license as the Joplin-CLI package.
+# Jonatan Nyberg, 2023, 2024, 2025, 2026.
+# Isak Bergdahl
+# Daniel Nylander
+# Hrvoje Mandić <trbuhom@net.hr>
+# Milo Ivir <mail@milotype.de>, 2021., 2022., 2023., 2025.
+# Anna Svensson <anna@example.org>, 2019,2020
+# e83e85c2c00c9ff2c6ba7eb229e3d1c4_821f2e7 <edba9ab8cdf576ab3824ac292775127d_640234>, 2017
+# Gideon van Melle <translations@gvmelle.com>, 2025
+# "Chen,Wei-Ting" <benson94879453@gmail.com>, 2026.
+# Overloaded @ Orama Interactive http://orama-interactive.com/ <manoschool@yahoo.gr>, 2020, 2022.
+# FIRST Translator Ji-Hyeon Gim <potatogim@potatogim.net>, YEAR.
+# Björn Ek, 2024-04-01
+# Previous-Translator: Титан <fignin@ya.ru>
+# Last-Translator: Dmitriy Q <atsip-help@yandex.ru>
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# SPDX-FileCopyrightText: 2026 summoner <summoner@disroot.org>
+#
+msgid ""
+msgstr ""
+"Language: sv\\n"
+
+msgid "Quit"
+msgstr "Avsluta"
+`;
+  expect(
+    entriesToGettext(header, {}, undefined, { tag: "da", code: "da" }),
+  ).toMatch(
+    /^# Swedish translation for Joplin\.\n# Copyright \(C\) 2026 Laurent Cozic\n# This file is distributed under the same license as the Joplin-CLI package\.\n# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR\.\n# SPDX-FileCopyrightText: 2026 summoner <summoner@disroot\.org>\n#\nmsgid ""\n/,
+  );
+});
+
+test("a target's header comment keeps every line that is no credit: titles and licences with a year, a bug address, a licence's name; a Translators block ends where its credits do (#1101)", () => {
+  const start = (comment: string, body = 'msgid "Quit"\nmsgstr "Avsluta"\n') =>
+    entriesToGettext(
+      `${comment}msgid ""\nmsgstr ""\n"Language: sv\\n"\n\n${body}`,
+      {},
+      undefined,
+      { tag: "da", code: "da" },
+    );
+  const kept = `# German translation of foo, 2005.
+# This file is put in the public domain, 2020.
+# Report bugs to <bugs@example.org>
+# Jonatan Nyberg, 2023.
+# GNU General Public License
+`;
+  expect(start(kept)).toMatch(
+    /^# German translation of foo, 2005\.\n# This file is put in the public domain, 2020\.\n# Report bugs to <bugs@example\.org>\n# GNU General Public License\nmsgid ""\n/,
+  );
+  // An unclosed block, or one closed by `# `, stops at its credits.
+  for (const close of ["", "# \n"])
+    expect(
+      start(
+        `# Translators:\n# Anna Svensson <anna@example.org>, 2019\n${close}# Copyright (C) 2020 Foo\n# This file is distributed under the same license as Foo.\n`,
+      ),
+    ).toMatch(
+      /^# Copyright \(C\) 2020 Foo\n# This file is distributed under the same license as Foo\.\nmsgid ""\n/,
+    );
+  // A blank line between the header comment and the header.
+  expect(
+    start("# Title\n# Anna Svensson <anna@example.org>, 2019\n\n"),
+  ).toMatch(/^# Title\n\nmsgid ""\n/);
+  // A target by its Language alone drops its obsolete entries too.
+  expect(
+    start(
+      "",
+      'msgid "Quit"\nmsgstr ""\n\n#~ msgid "Old"\n#~ msgstr "Gammal"\n',
+    ),
+  ).not.toContain("#~");
+});
+
+test("a long header comment line is read in linear time (#1101)", () => {
+  for (const line of [
+    `# x <${"@".repeat(40_000)}`,
+    `# ${"a <".repeat(15_000)}`,
+    `# x <${"a@".repeat(20_000)}a`,
+    `# Name${", 2020.".repeat(6_000)}x`,
+    `# N <a@b>${", 2020".repeat(7_000)}!`,
+    `# ${" <a@b>".repeat(7_000)}x`,
+  ]) {
+    const started = performance.now();
+    entriesToGettext(
+      `${line}\nmsgid ""\nmsgstr ""\n"Language: sv\\n"\n\nmsgid "Quit"\nmsgstr "Avsluta"\n`,
+      {},
+      undefined,
+      { tag: "da", code: "da" },
+    );
+    expect(performance.now() - started, line.slice(0, 12)).toBeLessThan(1000);
+  }
+});
+
+test("a target's licence and links in brackets are kept; a credit is one whatever its name's words; a BOM, a trailing space and a blank line beside credits change nothing (#1101 review)", () => {
+  const start = (comment: string, prefix = "") =>
+    entriesToGettext(
+      `${prefix}${comment}msgid ""\nmsgstr ""\n"Language: sv\\n"\n\nmsgid "Quit"\nmsgstr "Avsluta"\n`,
+      {},
+      undefined,
+      { tag: "da", code: "da" },
+    );
+  const kept = `# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# Homepage: <https://foo.org>
+# Jonatan Nyberg, 2023.
+# Free Software Foundation
+`;
+  expect(start(kept)).toMatch(
+    /^# You should have received a copy of the GNU General Public License\n# along with this program\. {2}If not, see <http:\/\/www\.gnu\.org\/licenses\/>\.\n# Homepage: <https:\/\/foo\.org>\n# Free Software Foundation\nmsgid ""\n/,
+  );
+  // Names that hold a title's words are names where an address and a
+  // year sign them.
+  expect(
+    start(
+      "# Title\n# Friedrich List <fl@example.de>, 2020.\n# Jane Report <jr@example.org>, 2019\n",
+    ),
+  ).toMatch(/^# Title\nmsgid ""\n/);
+  // A copyright line is kept however it is signed; an address's words
+  // are its own.
+  expect(
+    start(
+      "# Copyright (C) 2019 Jane Doe <jane@example.org>, 2019.\n# (c) Jane Doe <jane@example.org>, 2019\n# Ivan Petrov <ivan@list.ru>\n",
+    ),
+  ).toMatch(
+    /^# Copyright \(C\) 2019 Jane Doe <jane@example\.org>, 2019\.\n# \(c\) Jane Doe <jane@example\.org>, 2019\nmsgid ""\n/,
+  );
+  // A BOM, a Translators line with a trailing space, and credits alone
+  // above a blank line.
+  expect(
+    start("# Anna Svensson <anna@example.org>, 2019\n\n", "\uFEFF"),
+  ).toMatch(/^\uFEFFmsgid ""\n/);
+  expect(
+    start(
+      "# Title\n# Translators: \n# Anna Svensson <anna@example.org>, 2019\n",
+    ),
+  ).toMatch(/^# Title\nmsgid ""\n/);
+});
