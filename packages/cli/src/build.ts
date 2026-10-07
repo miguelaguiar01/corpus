@@ -487,6 +487,11 @@ export async function buildSnapshotReport(
     heldBy.set(file, (heldBy.get(file) ?? new Set()).add(entry.id));
   const byId = new Map<string, Sourced>();
   const merged = new Set<Sourced>();
+  // The ids one source's files hold otherwise, its text or a language's
+  // translation, by the source's group (#974).
+  const conflicts = new Map<number, Set<string>>();
+  const conflict = (group: number, id: string) =>
+    conflicts.set(group, (conflicts.get(group) ?? new Set()).add(id));
   for (const item of sourced) {
     const { entry, file } = item;
     const prev = byId.get(entry.id);
@@ -509,10 +514,12 @@ export async function buildSnapshotReport(
       notes.push(
         `${printable(entry.id)} reads otherwise in ${prev.file} and ${file}: the later file's is the source, as merge: "last-wins" says`,
       );
-    } else
+    } else {
+      if (oneSource) conflict(groupOf.get(file)!, entry.id);
       errors.push(
         `duplicate id ${printable(entry.id)} in ${prev.file} and ${file}${oneSource ? ", with different text" : unprefixed.has(file) || unprefixed.has(prev.file) ? '; give one source a namespace, such as namespace: "web", to keep their keys apart' : ""}`,
       );
+    }
   }
   if (merged.size > 0) {
     const kept = sourced.filter((item) => !merged.has(item));
@@ -535,7 +542,18 @@ export async function buildSnapshotReport(
     new Set(refused.map((r) => r.id)),
     unreadable,
     heldBy,
+    conflict,
   );
+  // An app that merges its catalogues in order says so with last-wins.
+  for (const [group, held] of conflicts) {
+    const first = config.sources.find(
+      (source) => "group" in source && source.group === group,
+    ) as FileSource | undefined;
+    if (first)
+      errors.push(
+        `${first.path}: ${held.size} string(s) its files hold otherwise; if the app merges these files in order, the later overriding the earlier, declare merge: "last-wins" on the source`,
+      );
+  }
   // A mark counts only for a seed that is there to import.
   const seedTranslated: Record<string, string[]> = {};
   for (const { translated } of execSeeds)
@@ -1860,6 +1878,7 @@ async function readSeeds(
   unreadable: Unreadable[],
   // The ids each source file holds (#1071).
   heldBy: Map<string, Set<string>>,
+  onConflict?: (group: number, id: string) => void,
 ): Promise<Record<string, Record<string, string>>> {
   const seeds: Record<string, Record<string, string>> = {};
   for (const { command, translations } of execSeeds) {
@@ -1975,10 +1994,13 @@ async function readSeeds(
               overridden += 1;
               seeds[lang][entry.id] = entry.source;
               seededFrom[lang][entry.id] = file;
-            } else if (seeded !== entry.source)
+            } else if (seeded !== entry.source) {
+              if (typeof source.group === "number")
+                onConflict?.(source.group, entry.id);
               errors.push(
                 `${file}: ${printable(entry.id)} is translated otherwise in ${from}; a string the files share takes one translation, so write the same in both`,
               );
+            }
             continue;
           }
           seeds[lang][entry.id] = entry.source;
