@@ -2665,3 +2665,46 @@ test("a strict merge's conflicts name merge: \"last-wins\" once per source, and 
   expect(two).not.toContain("last-wins");
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("a strict merge's hint names a {ns} source's first pattern as the config writes it (#974)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-974ns-"));
+  const put = (rel: string, value: unknown) => {
+    mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
+    writeFileSync(path.join(dir, rel), JSON.stringify(value));
+  };
+  for (const root of ["a", "b"])
+    for (const ns of ["alpha", "zeta"]) {
+      put(`${root}/${ns}/en.json`, { k: "Key" });
+      put(`${root}/${ns}/es.json`, {
+        k: root === "b" && ns === "zeta" ? "2" : "1",
+      });
+    }
+  let message = "";
+  try {
+    await buildSnapshotReport(
+      expandSources(
+        corpusConfigSchema.parse({
+          project: "p",
+          server: "http://localhost:3000",
+          sourceLanguage: "en",
+          languages: ["en", "es"],
+          sources: [
+            {
+              adapter: "messages",
+              type: "ui",
+              path: ["a/{ns}/{lang}.json", "b/{ns}/{lang}.json"],
+            },
+          ],
+        }),
+        dir,
+      ),
+      dir,
+    );
+  } catch (error) {
+    message = (error as Error).message;
+  }
+  expect(message).toContain(
+    'a/{ns}/{lang}.json: 1 string(s) its files hold otherwise; if the app merges these files in order, the later overriding the earlier, declare merge: "last-wins" on the source',
+  );
+  rmSync(dir, { recursive: true, force: true });
+});
