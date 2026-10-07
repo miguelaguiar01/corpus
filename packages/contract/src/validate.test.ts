@@ -4067,3 +4067,67 @@ test("a target plural without other is missing-other on its argument, a source's
     ],
   });
 });
+
+test("a mistyped rails %{ is refused beside the translation's other findings, not instead of them (#976)", () => {
+  const stray =
+    "%{ opens no placeholder here: one is a name without spaces and a closing }; write %%{ for the text itself";
+  const probe = validateTranslation(
+    "%{user} posted %{description} in %{category}",
+    "%{user alichapisha %{kategoria]",
+    "sw",
+    "rails",
+  );
+  expect(probe.ok).toBe(false);
+  const errors = probe.ok ? [] : probe.errors;
+  expect(errors.slice(0, 2)).toEqual([
+    { code: "invalid-icu", where: "target", message: stray, position: 0 },
+    { code: "invalid-icu", where: "target", message: stray, position: 19 },
+  ]);
+  expect(errors).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        code: "missing-placeholder",
+        name: "description",
+      }),
+      expect.objectContaining({
+        code: "missing-placeholder",
+        name: "category",
+      }),
+    ]),
+  );
+  // A mistyped %{ alone is the one error.
+  expect(
+    validateTranslation(
+      "Hello %{name}",
+      "Habari %{name} %{dana]",
+      "sw",
+      "rails",
+    ),
+  ).toEqual({
+    ok: false,
+    errors: [
+      { code: "invalid-icu", where: "target", message: stray, position: 15 },
+    ],
+  });
+  // In a tag's attribute, read as HTML, it is said at the tag.
+  const attribute = validateTranslation(
+    '<a href="%{url}">%{name}</a>',
+    '<a href="%{url]">%{jina}</a>',
+    "sw",
+    "rails",
+    { richText: "html" },
+  );
+  expect(attribute.ok).toBe(false);
+  const found = attribute.ok ? [] : attribute.errors;
+  expect(found[0]).toEqual({
+    code: "invalid-icu",
+    where: "target",
+    message: stray,
+    position: 0,
+  });
+  expect(found).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ code: "missing-placeholder", name: "name" }),
+    ]),
+  );
+});
