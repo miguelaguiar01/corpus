@@ -3688,3 +3688,25 @@ test("init reads a b+ values directory's variant as a variant: values-b+ca+valen
   expect((await loadConfig(p.dir)).languages).toEqual(["en", "ca-valencia"]);
   expect(p.err.join("\n")).not.toMatch(/left out/);
 });
+
+test("check.include takes a SvelteKit package's src, its routes included, for a components directory inside it (#1139)", async () => {
+  const immich = (svelte: boolean) => {
+    const p = project();
+    write(p.dir, "i18n/en.json", '{ "hi": "Hi" }\n');
+    write(p.dir, "i18n/de.json", '{ "hi": "Hallo" }\n');
+    write(p.dir, "web/package.json", '{ "name": "web" }\n');
+    if (svelte) write(p.dir, "web/svelte.config.js", "export default {};\n");
+    write(p.dir, "web/src/lib/components/A.svelte", "<p>{$t('hi')}</p>\n");
+    write(p.dir, "web/src/lib/modals/B.svelte", "<p>{$t('hi')}</p>\n");
+    write(p.dir, "web/src/routes/+page.svelte", "<p>{$t('hi')}</p>\n");
+    return p;
+  };
+  const sveltekit = immich(true);
+  expect(await run(initFor("i18n/{lang}.json"), sveltekit.ctx)).toBe(0);
+  expect((await loadConfig(sveltekit.dir)).check?.include).toEqual(["web/src"]);
+  const plain = immich(false);
+  expect(await run(initFor("i18n/{lang}.json"), plain.ctx)).toBe(0);
+  expect((await loadConfig(plain.dir)).check?.include).toEqual([
+    "web/src/lib/components",
+  ]);
+});
