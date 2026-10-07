@@ -2143,8 +2143,9 @@ function untaggedDirectories(
 ): { file: string; code: string }[] {
   const lang = langDirectory(pattern);
   if (!lang) return [];
-  const parent = path.posix.dirname(`${lang.head}x`);
-  const prefix = path.posix.basename(`${lang.head}x`).slice(0, -1);
+  const slash = lang.head.lastIndexOf("/");
+  const parent = slash < 0 ? "." : lang.head.slice(0, slash);
+  const prefix = lang.head.slice(slash + 1);
   let names: string[];
   try {
     names = readdirSync(path.join(cwd, parent));

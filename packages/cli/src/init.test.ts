@@ -3552,6 +3552,9 @@ test("init names the source language's mapping only for a code that names no lan
   write(ns.dir, "core/de/a.ftl", "x = X\n");
   write(ns.dir, "core/fr/a.ftl", "x = X\n");
   await run(initFor("core/{lang}/{ns}.ftl"), ns.ctx);
+  expect(
+    ns.err.filter((line) => line.includes("core/templates names no")),
+  ).toHaveLength(1);
   expect(ns.err.join("\n")).toContain(
     'core/templates names no language tag; left out: if it is en\'s file, map it: languageFiles: { "en": "templates" }',
   );
