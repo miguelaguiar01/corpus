@@ -7,7 +7,34 @@ import { memoryDb } from "@/db/test-helpers";
 import { applySnapshot } from "@/ingest/apply";
 import { applyTransition } from "@/translations/service";
 import { ensureAgentActor } from "@/agents/actor";
-import { neighbours, queueCounts, queueItems, queueSummaries } from "./queues";
+import {
+  QUEUE_KINDS,
+  queueCounts,
+  queueItems,
+  queueNeighbours,
+  queueStep,
+  queueSummaries,
+  type Queue,
+  type QueueItem,
+} from "./queues";
+
+// What the string page did before #639, over the whole queue: the oracle
+// queueStep and queueNeighbours are held to.
+function neighbours(
+  queue: Queue,
+  current: Pick<QueueItem, "stringId" | "language">,
+) {
+  const index = queue.items.findIndex(
+    (item) =>
+      item.stringId === current.stringId && item.language === current.language,
+  );
+  if (index < 0) return { index: null, previous: null, next: null };
+  return {
+    index,
+    previous: queue.items[index - 1] ?? null,
+    next: queue.items[index + 1] ?? null,
+  };
+}
 
 const FIXTURE = moonlightManor as Snapshot;
 
@@ -213,25 +240,6 @@ test("a queue narrowed by language and type holds exactly the matching items (#6
   ).toEqual([]);
 });
 
-test("neighbours finds the previous and next items around the current one", () => {
-  const { db, p } = pushed();
-  const queue = queueItems(db, p.id, "unverifiedSource");
-  const [a, b, c, d] = queue.items;
-  expect(neighbours(queue, b!)).toEqual({ index: 1, previous: a, next: c });
-  expect(neighbours(queue, a!)).toEqual({ index: 0, previous: null, next: b });
-  expect(neighbours(queue, d!)).toEqual({ index: 3, previous: c, next: null });
-});
-
-test("neighbours of an item not in the queue is index null with no links", () => {
-  const { db, p } = pushed();
-  const queue = queueItems(db, p.id, "stale");
-  expect(neighbours(queue, { stringId: 1, language: "en" })).toEqual({
-    index: null,
-    previous: null,
-    next: null,
-  });
-});
-
 test("agent drafts lists the translated rows an agent last edited, and leaves when a person takes over", () => {
   const { db, p, maintainer } = pushed();
   const agent = ensureAgentActor(db, p);
@@ -357,6 +365,10 @@ test("the Invalid queue's count and items start from its partial index, never th
     ]);
     expect(queueCounts(db, p.id).invalid).toBe(1);
     expect(queueSummaries(db, p.id).invalid.first?.key).toBe("ui.continue");
+    // The string page's step through it too (#639 review).
+    const current = { stringId: dbId(db, "ui.continue"), language: "en" };
+    expect(queueStep(db, p.id, "invalid", current).index).toBe(0);
+    expect(queueNeighbours(db, p.id, "invalid", current).next).toBeNull();
   } finally {
     client.prepare = prepare;
   }
@@ -369,5 +381,156 @@ test("the Invalid queue's count and items start from its partial index, never th
       }[]
     ).map((row) => row.detail);
     expect(plan[0]).toMatch(/translations_invalid/);
+  }
+});
+
+test("queueStep and queueNeighbours give what neighbours over the whole queue gives, for every row of every queue (#639)", () => {
+  const db = memoryDb();
+  const [p] = db
+    .insert(projects)
+    .values({
+      slug: "mm",
+      name: "MM",
+      sourceLanguage: "pt-PT",
+      // fr is a variant of the source: its untranslated rows are no work.
+      languages: ["pt-PT", "en", "fr", "de"],
+      sourceVariants: ["fr"],
+    })
+    .returning()
+    .all();
+  const [ana] = db
+    .insert(users)
+    .values({ name: "ana", maintainer: true })
+    .returning()
+    .all();
+  applySnapshot(db, p!.id, {
+    ...FIXTURE,
+    // An invalid seed, so that queue has a row.
+    seedTranslations: { de: { "skin.seen-at-greenhouse-window": "Gesehen." } },
+  });
+  // Saves and a verify move rows between queues.
+  applyTransition(db, {
+    stringId: dbId(db, "ui.continue"),
+    language: "en",
+    action: { type: "save", text: "Continue" },
+    actor: ana!,
+  });
+  applyTransition(db, {
+    stringId: dbId(db, "skin.heard-nothing"),
+    language: "pt-PT",
+    action: { type: "verify" },
+    actor: ana!,
+  });
+  // A second project, its strings' ids after the first's, then the first
+  // project's grown again after it: a step stays in its own project.
+  const [other] = db
+    .insert(projects)
+    .values({
+      slug: "other",
+      name: "Other",
+      sourceLanguage: "pt-PT",
+      languages: ["pt-PT", "en"],
+    })
+    .returning()
+    .all();
+  applySnapshot(db, other!.id, FIXTURE);
+  applySnapshot(db, p!.id, {
+    ...FIXTURE,
+    seedTranslations: { de: { "skin.seen-at-greenhouse-window": "Gesehen." } },
+    strings: [
+      ...FIXTURE.strings,
+      { id: "ui.later", type: "chrome", source: "Mais tarde" },
+    ],
+  });
+  const rows = db
+    .select({
+      stringId: stringTranslations.stringId,
+      language: stringTranslations.language,
+    })
+    .from(stringTranslations)
+    .all();
+  let compared = 0;
+  for (const project of [p!, other!])
+    for (const kind of QUEUE_KINDS) {
+      const queue = queueItems(db, project.id, kind);
+      for (const current of rows) {
+        const around = neighbours(queue, current);
+        expect(
+          queueStep(db, project.id, kind, current),
+          `${kind} ${JSON.stringify(current)}`,
+        ).toEqual({
+          kind,
+          ...around,
+          // A row outside the queue shows no position, so none is counted.
+          count: around.index === null ? null : queue.count,
+          languages: queue.items
+            .filter((i) => i.stringId === current.stringId)
+            .map((i) => i.language),
+        });
+        expect(queueNeighbours(db, project.id, kind, current)).toEqual({
+          previous: around.previous,
+          next: around.next,
+        });
+        compared += 1;
+      }
+    }
+  // Every queue, the first row, the last, a middle one and rows outside.
+  expect(compared).toBe(2 * QUEUE_KINDS.length * rows.length);
+  expect(queueItems(db, p!.id, "invalid").count).toBe(1);
+  expect(
+    queueItems(db, p!.id, "untranslated").items.some(
+      (i) => i.language === "fr",
+    ),
+  ).toBe(false);
+});
+
+test("a step's previous and next walk the project's strings in id order, with no sort, on a database without statistics (#639 review)", () => {
+  const { db, p } = pushed();
+  type Client = {
+    prepare: (source: string) => {
+      all: (...params: unknown[]) => unknown[];
+      get: (...params: unknown[]) => unknown;
+    };
+  };
+  const client = (db as unknown as { $client: Client }).$client;
+  const ran: { source: string; params: unknown[] }[] = [];
+  const prepare = client.prepare.bind(client);
+  client.prepare = (source) => {
+    const statement = prepare(source);
+    for (const method of ["all", "get"] as const) {
+      const run = statement[method].bind(statement);
+      statement[method] = ((...params: unknown[]) => {
+        ran.push({ source, params });
+        return run(...params);
+      }) as never;
+    }
+    return statement;
+  };
+  try {
+    // The queues walked; the others are read whole.
+    for (const kind of ["untranslated", "unverifiedSource"] as const)
+      queueNeighbours(db, p.id, kind, {
+        stringId: dbId(db, "skin.heard-nothing"),
+        language: kind === "unverifiedSource" ? "pt-PT" : "en",
+      });
+  } finally {
+    client.prepare = prepare;
+  }
+  const walks = ran.filter((r) => / limit /.test(r.source));
+  expect(walks.length).toBeGreaterThan(0);
+  for (const { source, params } of walks) {
+    const plan = (
+      client.prepare(`explain query plan ${source}`).all(...params) as {
+        detail: string;
+      }[]
+    ).map((row) => row.detail);
+    // The project's strings in id order, never another project's; the
+    // membership check finds its row by key.
+    expect(plan[0], source).toMatch(
+      source.includes('"strings"."id" = ?')
+        ? /^SEARCH strings USING INTEGER PRIMARY KEY \(rowid=\?\)/
+        : /^SEARCH strings USING INDEX strings_project \(project_id=\? AND rowid[<>]\?\)/,
+    );
+    expect(plan.join("\n"), source).not.toMatch(/TEMP B-TREE/);
   }
 });

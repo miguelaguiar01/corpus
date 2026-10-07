@@ -225,6 +225,13 @@
       "when": 1791328782493,
       "tag": "0031_string-plural-shared",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1791344798837,
+      "tag": "0032_strings-by-project",
+      "breakpoints": true
     }
   ]
 }

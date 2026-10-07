@@ -1,0 +1,1 @@
+CREATE INDEX `strings_project` ON `strings` (`project_id`);

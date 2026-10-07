@@ -31,15 +31,18 @@ const items = [
     text: null,
   },
 ];
-const queue = {
+// The step the page computes for a row of this three-item queue (#639).
+const at = (index: number | null) => ({
   kind: "unverifiedSource" as const,
   count: 3,
-  first: items[0]!,
-  items,
-};
+  index,
+  previous: index === null ? null : (items[index - 1] ?? null),
+  next: index === null ? null : (items[index + 1] ?? null),
+  languages: [],
+});
 
 test("shows the position and links to the previous and next items", () => {
-  render(<QueueNav slug="mm" queue={queue} current={items[1]!} />);
+  render(<QueueNav slug="mm" queue={at(1)} />);
   expect(screen.getByText("2 of 3")).toBeTruthy();
   expect(
     screen.getByRole("link", { name: "Previous" }).getAttribute("href"),
@@ -50,20 +53,14 @@ test("shows the position and links to the previous and next items", () => {
 });
 
 test("at the ends, the missing direction is not a link", () => {
-  render(<QueueNav slug="mm" queue={queue} current={items[2]!} />);
+  render(<QueueNav slug="mm" queue={at(2)} />);
   expect(screen.getByRole("link", { name: "Previous" })).toBeTruthy();
   expect(screen.queryByRole("link", { name: "Next" })).toBeNull();
   expect(screen.getByText("Next")).toBeTruthy();
 });
 
 test("an item no longer in the queue shows the queue name and only a way back", () => {
-  render(
-    <QueueNav
-      slug="mm"
-      queue={queue}
-      current={{ stringId: 9, language: "pt-PT" }}
-    />,
-  );
+  render(<QueueNav slug="mm" queue={at(null)} />);
   expect(screen.queryByText(/of 3/)).toBeNull();
   expect(
     screen
