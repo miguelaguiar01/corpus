@@ -107,4 +107,10 @@ test("Svelte: a regex literal with a quote, /* or a slash in a class is one expr
     expect(found(`${expression}\n<p>Hello world</p>`), expression).toEqual([
       [2, "Hello world"],
     ]);
+  // TypeScript's non-null assertion, Immich's `{asset.duration! / 1000}`,
+  // divides as the value without it does.
+  const line =
+    "{asset.duration! / 1000} <i>of</i> {total / 2}\n<p>Hello world</p>";
+  expect(found(line)).toEqual(found(line.replace("!", "")));
+  expect(found(line)).toContainEqual([2, "Hello world"]);
 });
