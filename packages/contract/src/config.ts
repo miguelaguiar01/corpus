@@ -489,6 +489,8 @@ const expanded = {
   namespace: z.string().min(1).optional(),
   // The patterns of one source share it: one catalogue (#661).
   group: z.number().int().optional(),
+  // The pattern as the config writes it, where `{ns}` filled the path.
+  pattern: z.string().min(1).optional(),
 };
 const sourceSchema = z.discriminatedUnion("adapter", [
   z.looseObject({

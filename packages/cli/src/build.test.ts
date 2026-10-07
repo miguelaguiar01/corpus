@@ -2618,3 +2618,92 @@ test("the same-cause stop counts 100,000 refusals in linear time (#968)", async 
     "100000 strings were refused for the library they were read under, at or past the 5 that stops a build: one cause — declare library: i18next",
   ]);
 });
+
+test("a strict merge's conflicts name merge: \"last-wins\" once per source, and two sources' none (#974)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-974-"));
+  const put = (rel: string, value: unknown) => {
+    mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
+    writeFileSync(path.join(dir, rel), JSON.stringify(value));
+  };
+  put("app/en.json", { save: "Save", open: "Open" });
+  put("shared/en.json", { save: "Save", open: "Open file" });
+  put("app/es.json", { save: "Guardar", open: "Abrir" });
+  put("shared/es.json", { save: "Salvar", open: "Abre" });
+  const failure = async (sources: unknown[]) => {
+    try {
+      await buildSnapshotReport(
+        config({ languages: ["en", "es"], sources: sources as never }),
+        dir,
+      );
+    } catch (error) {
+      return (error as Error).message;
+    }
+    throw new Error("the build passed");
+  };
+  const hint =
+    'app/{lang}.json: 2 string(s) its files hold otherwise; if the app merges these files in order, the later overriding the earlier, declare merge: "last-wins" on the source';
+  const one = await failure([
+    {
+      adapter: "messages",
+      type: "ui",
+      path: ["app/{lang}.json", "shared/{lang}.json"],
+    },
+  ]);
+  expect(one).toContain(
+    "duplicate id open in app/en.json and shared/en.json, with different text",
+  );
+  expect(one).toContain(
+    "shared/es.json: save is translated otherwise in app/es.json",
+  );
+  expect(one.split(hint).length - 1).toBe(1);
+  const two = await failure([
+    { adapter: "messages", type: "ui", path: "app/{lang}.json" },
+    { adapter: "messages", type: "other", path: "shared/{lang}.json" },
+  ]);
+  expect(two).toContain("duplicate id save in app/en.json and shared/en.json");
+  expect(two).not.toContain("last-wins");
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("a strict merge's hint names a {ns} source's first pattern as the config writes it (#974)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-974ns-"));
+  const put = (rel: string, value: unknown) => {
+    mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
+    writeFileSync(path.join(dir, rel), JSON.stringify(value));
+  };
+  for (const root of ["a", "b"])
+    for (const ns of ["alpha", "zeta"]) {
+      put(`${root}/${ns}/en.json`, { k: "Key" });
+      put(`${root}/${ns}/es.json`, {
+        k: root === "b" && ns === "zeta" ? "2" : "1",
+      });
+    }
+  let message = "";
+  try {
+    await buildSnapshotReport(
+      expandSources(
+        corpusConfigSchema.parse({
+          project: "p",
+          server: "http://localhost:3000",
+          sourceLanguage: "en",
+          languages: ["en", "es"],
+          sources: [
+            {
+              adapter: "messages",
+              type: "ui",
+              path: ["a/{ns}/{lang}.json", "b/{ns}/{lang}.json"],
+            },
+          ],
+        }),
+        dir,
+      ),
+      dir,
+    );
+  } catch (error) {
+    message = (error as Error).message;
+  }
+  expect(message).toContain(
+    'a/{ns}/{lang}.json: 1 string(s) its files hold otherwise; if the app merges these files in order, the later overriding the earlier, declare merge: "last-wins" on the source',
+  );
+  rmSync(dir, { recursive: true, force: true });
+});
