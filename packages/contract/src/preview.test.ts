@@ -545,3 +545,59 @@ test("under gen_l10n a value of the category =0, =1 or =2 stands for takes that 
   ).toBe("one");
   expect(pluralBranch(branches, "21", "hr", { library: "icu" })).toBe("other");
 });
+
+test("a printf plural whose branches print one Python key alone previews its count from that key (#1113)", () => {
+  const users = "{count, plural, one {%(num)s user} other {%(num)s users}}";
+  const preview = (values: Record<string, string>, message = users) =>
+    renderPreview(message, values, "en", { syntax: "printf" });
+  expect(preview({ num: "1" })).toEqual({ ok: true, text: "1 user" });
+  expect(preview({ num: "2" })).toEqual({ ok: true, text: "2 users" });
+  // A count of its own, or a position 1, still decides.
+  expect(preview({ num: "1", count: "2" })).toEqual({
+    ok: true,
+    text: "1 users",
+  });
+  expect(preview({ num: "1", 1: "2" })).toEqual({
+    ok: true,
+    text: "1 users",
+  });
+  // The key reaches an exact branch, and counts where one branch prints it.
+  expect(
+    preview(
+      { num: "0" },
+      "{count, plural, =0 {no users} one {%(num)s user} other {%(num)s users}}",
+    ),
+  ).toEqual({ ok: true, text: "no users" });
+  expect(
+    preview(
+      { num: "1" },
+      "{count, plural, one {one user} other {%(num)s users}}",
+    ),
+  ).toEqual({ ok: true, text: "one user" });
+  expect(
+    preview(
+      { count: "1" },
+      "{count, plural, one {%(count)s user} other {%(count)s users}}",
+    ),
+  ).toEqual({ ok: true, text: "1 user" });
+  // Two keys name no count.
+  expect(
+    preview(
+      { num: "1", total: "1" },
+      "{count, plural, one {%(num)s of %(total)s user} other {%(num)s of %(total)s users}}",
+    ),
+  ).toEqual({ ok: true, text: "1 of 1 users" });
+  // A key named like an Object.prototype member with no value is none.
+  expect(
+    preview(
+      {},
+      "{count, plural, one {%(constructor)s user} other {%(constructor)s users}}",
+    ),
+  ).toEqual({ ok: true, text: "%(constructor)s users" });
+  expect(
+    preview(
+      { constructor: "1" },
+      "{count, plural, one {%(constructor)s user} other {%(constructor)s users}}",
+    ),
+  ).toEqual({ ok: true, text: "1 user" });
+});

@@ -148,22 +148,42 @@ export type RenderOptions = {
 
 // A printf plural on a named count, as a gettext plural reads whole,
 // is `printf(ngettext(…, n), n)`: with no value for the count, it takes
-// the first argument's, which the same call passes (#775).
+// the first argument's, which the same call passes (#775), or, where
+// its branches print one Python key alone, that key's (#1113).
 function withCount(
   nodes: IcuNode[],
   values: Record<string, string>,
   syntax: Library | undefined,
 ): Record<string, string> {
-  const first = values["1"];
-  if (syntax !== "printf" || first === undefined) return values;
+  if (syntax !== "printf") return values;
   const counted = Object.assign(
     Object.create(null) as Record<string, string>,
     values,
   );
-  for (const node of branchingNodes(nodes))
-    if (node.kind === "plural" && !/^\d+$/.test(node.arg))
-      counted[node.arg] ??= first;
+  for (const node of branchingNodes(nodes)) {
+    if (
+      node.kind !== "plural" ||
+      /^\d+$/.test(node.arg) ||
+      counted[node.arg] !== undefined
+    )
+      continue;
+    const keys = keysIn(Object.values(node.branches).flat());
+    const key = keys.size === 1 ? [...keys][0]! : undefined;
+    const count =
+      values["1"] ?? (key === undefined ? undefined : own(values, key));
+    if (count !== undefined) counted[node.arg] = count;
+  }
   return counted;
+}
+
+// The Python keys a printf text prints, `%(num)s`'s `num`; a position
+// is no key.
+function keysIn(nodes: IcuNode[]): Set<string> {
+  const out = new Set<string>();
+  for (const node of nodes)
+    if (node.kind === "placeholder" && !/^\d+$/.test(node.name))
+      out.add(node.name);
+  return out;
 }
 
 export function renderPreviewSegments(
