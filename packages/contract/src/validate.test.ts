@@ -4110,26 +4110,23 @@ test("a mistyped rails %{ is refused beside the translation's other findings, no
     ],
   });
   // In a tag's attribute, read as HTML, it is said at the tag.
-  const attribute = validateTranslation(
-    '<a href="%{url}">%{name}</a>',
-    '<a href="%{url]">%{jina}</a>',
-    "sw",
-    "rails",
-    { richText: "html" },
-  );
-  expect(attribute.ok).toBe(false);
-  const found = attribute.ok ? [] : attribute.errors;
-  expect(found[0]).toEqual({
-    code: "invalid-icu",
-    where: "target",
-    message: stray,
-    position: 0,
+  expect(
+    validateTranslation(
+      '<a href="%{url}">%{name}</a>',
+      '<a href="%{url]">%{jina}</a>',
+      "sw",
+      "rails",
+      { richText: "html" },
+    ),
+  ).toEqual({
+    ok: false,
+    errors: [
+      { code: "invalid-icu", where: "target", message: stray, position: 0 },
+      { code: "missing-placeholder", name: "name", written: "%{name}" },
+      { code: "unexpected-placeholder", name: "jina", written: "%{jina}" },
+      { code: "missing-placeholder", name: "url", written: "%{url}" },
+    ],
   });
-  expect(found).toEqual(
-    expect.arrayContaining([
-      expect.objectContaining({ code: "missing-placeholder", name: "name" }),
-    ]),
-  );
 });
 
 test("a mistyped rails %{ is said once, whatever readings the parser tries and gives up (#976)", () => {
@@ -4190,8 +4187,8 @@ test("a mistyped rails %{ is said once, whatever readings the parser tries and g
     ok: false,
     errors: [
       at(0),
-      { code: "missing-placeholder", name: "url" },
-      { code: "missing-placeholder", name: "name" },
+      { code: "missing-placeholder", name: "url", written: "%{url}" },
+      { code: "missing-placeholder", name: "name", written: "%{name}" },
     ],
   });
   // A plural hash read whole.

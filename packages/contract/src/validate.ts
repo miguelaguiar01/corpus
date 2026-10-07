@@ -715,8 +715,10 @@ export function validateTranslation(
       ? strayOnly([brokenPlural])
       : readTarget && !readTarget.ok && strayOnly(readTarget.errors))
   ) {
+    const collecting: number[] = [];
     const broken =
-      wholePlural && printfPluralError(target, html, syntax, placeholders, []);
+      wholePlural &&
+      printfPluralError(target, html, syntax, placeholders, collecting);
     const read = broken
       ? undefined
       : parseIcu(target, syntax, { html, placeholders, strays: strayAt });

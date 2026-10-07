@@ -455,9 +455,11 @@ function argPlurals(
 ): IcuNode[] | undefined {
   if (syntax !== "printf" || !/\{\s*arg\d+\s*,\s*plural\s*,/.test(source))
     return undefined;
+  const strayed = strays?.length ?? 0;
   try {
     return new Parser(source, syntax, html, "argPlurals").parseSequence(false);
   } catch (error) {
+    if (strays) strays.length = strayed;
     if (error instanceof ParseFailure) return undefined;
     throw error;
   }
@@ -470,7 +472,6 @@ export function printfPluralError(
   html: boolean | "markup",
   syntax: Library,
   layers: readonly Library[] = [],
-  // Each mistyped rails `%{`'s position, read as text (#976).
   into?: number[],
 ): IcuError | undefined {
   if (!PRINTF_PLURAL_OPENS_RE.test(text)) return undefined;
@@ -508,6 +509,12 @@ function readPrintfPlural(
   syntax: Library,
   prose?: ProseTag[],
 ): { nodes: IcuNode[] } | { error: IcuError } {
+  // A reading given up keeps none of the strays it noted (#976).
+  const strayed = strays?.length ?? 0;
+  const failed = (error: IcuError) => {
+    if (strays) strays.length = strayed;
+    return { error };
+  };
   try {
     const nodes = new Parser(
       source,
@@ -520,15 +527,12 @@ function readPrintfPlural(
       (node) => !(node.kind === "literal" && node.text.trim() === ""),
     );
     if (kept.length === 1 && kept[0]!.kind === "plural") return { nodes };
-    const after = pluralEnd(source, html, syntax);
-    return {
-      error: {
-        message: "text after the plural: a plural read whole is the whole text",
-        position: after,
-      },
-    };
+    return failed({
+      message: "text after the plural: a plural read whole is the whole text",
+      position: pluralEnd(source, html, syntax),
+    });
   } catch (error) {
-    if (error instanceof ParseFailure) return { error: error.error };
+    if (error instanceof ParseFailure) return failed(error.error);
     throw error;
   }
 }
@@ -861,6 +865,7 @@ class Parser {
             this.positional,
           ] as const;
           const read = this.proseOut?.length ?? 0;
+          const strayed = strays?.length ?? 0;
           try {
             // The attributes first: their verbs come before the text's.
             const attrs = this.tagAttrs(tag.attrs, tag.start);
@@ -876,6 +881,7 @@ class Parser {
             [this.printfNext, this.ownFree, this.positional] = counters;
             // What the abandoned child read as text is read again.
             if (this.proseOut) this.proseOut.length = read;
+            if (strays) strays.length = strayed;
             this.unclosed.add(tag.start);
             this.proseTag(seq, raw, tag, tag.start);
           }
@@ -1441,7 +1447,8 @@ class Parser {
     try {
       nodes = parser.parseSequence(false);
       this.printfNext = parser.printfNext;
-      if (strays) strays.fill(start, before);
+      if (strays && strays.length > before)
+        strays.splice(before, Infinity, start);
     } catch (error) {
       // Brace CSS in an ICU attribute is text; Rails reads only `%{`, so
       // a mistyped one there is refused as it is in the text.
