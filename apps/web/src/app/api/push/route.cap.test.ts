@@ -67,13 +67,14 @@ test("a body under the cap applies, as read and as gzipped", async () => {
   expect((await push(snapshot(), true)).status).toBe(200);
 });
 
-test("a body over the cap → 413 before it is parsed", async () => {
+test("a body over the cap → 413 before it is parsed, the cap counted in bytes", async () => {
   expect((await push(snapshot("x".repeat(CAP + 1)))).status).toBe(413);
+  // Under the cap in characters, over it in UTF-8 bytes.
+  expect((await push(snapshot("é".repeat(CAP / 2 + 1)))).status).toBe(413);
 });
 
 test("the cap holds on a gzipped body's inflated size", async () => {
   const big = snapshot("x".repeat(CAP + 1));
-  // Small on the wire, past the cap inflated.
   expect(gzipSync(JSON.stringify(big)).length).toBeLessThan(CAP);
   expect((await push(big, true)).status).toBe(413);
 });

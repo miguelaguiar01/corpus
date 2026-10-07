@@ -90,22 +90,23 @@ test("a token for a different project → 403", async () => {
   expect(res.status).toBe(403);
 });
 
-// The cap on a body as read is in route.cap.test.ts, under a small
-// cap; the length a client declares is refused before any is read.
-test("a declared length over the cap → 413 before the body is read", async () => {
+// The cap on a body as read is in route.cap.test.ts, under a small cap.
+test("a declared length over the cap → 413 before the body is read; one at the cap is read", async () => {
   const { token, slug } = setup();
-  const res = await POST(
-    new Request("http://corpus.test/api/push", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "content-length": String(MAX_BODY_BYTES + 1),
-        authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(forProject(slug)),
-    }),
-  );
-  expect(res.status).toBe(413);
+  const declaring = (length: number) =>
+    POST(
+      new Request("http://corpus.test/api/push", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "content-length": String(length),
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(forProject(slug)),
+      }),
+    );
+  expect((await declaring(MAX_BODY_BYTES + 1)).status).toBe(413);
+  expect((await declaring(MAX_BODY_BYTES)).status).toBe(200);
 });
 
 function pushGzipped(token: string, body: unknown) {
