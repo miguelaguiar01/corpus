@@ -95,7 +95,7 @@ test("whoami names the server, its version, the project, the token and the secre
   expect(said).toContain("project    alibi");
   expect(said).toContain("token      .corpus/token, accepted");
   expect(said).toContain(
-    `workbench  running (pid ${process.pid}), reads its secret from ${path.join(runner, ".corpus", "secret")}`,
+    `workbench  running at ${url} (pid ${process.pid}), reads its secret from ${path.join(runner, ".corpus", "secret")}`,
   );
   expect(said).toContain(
     ".corpus/secret is stale: the running workbench reads another",
@@ -114,7 +114,7 @@ test("whoami names the server, its version, the project, the token and the secre
     project: "alibi",
     token: { from: ".corpus/token", accepted: true },
     workbench: {
-      running: true,
+      state: "running",
       pid: process.pid,
       secretPath: path.join(runner, ".corpus", "secret"),
     },
@@ -204,7 +204,7 @@ test("whoami trusts a record only as a workbench's: a malformed one, or one that
     const c = ctx(repo);
     await run(["whoami", "--show-secret"], c.context);
     const said = c.out.join("\n");
-    expect(said, JSON.stringify(bad)).not.toMatch(/running/);
+    expect(said, JSON.stringify(bad)).not.toMatch(/workbench {2}running/);
     expect(said, JSON.stringify(bad)).not.toContain("stale-secret");
     expect(said, JSON.stringify(bad)).toContain(
       ".corpus/workbench.json is no workbench's record",

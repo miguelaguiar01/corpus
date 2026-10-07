@@ -50,7 +50,7 @@ The token is `CORPUS_TOKEN`, then `.corpus/token`. The instance secret is `CORPU
 
 **`corpus status`** prints the dashboard's numbers, the last push, the server's version, the pending proposals and the writable sources. `--json` is the same as one object, for a gate of your own.
 
-**`corpus whoami`** (or `corpus creds`) answers "which instance, which token, which secret": the server and its version, the project, the token file and whether the server takes it, and, where a `corpus workbench` runs on this repository's database, the secret file that process reads, even when it was started from another directory with `--db`. A `.corpus/secret` here that is not that file is named stale. `--show-secret` prints the running workbench's join secret, `--json` all of it as one object, and it exits 1 when the server cannot be reached or refuses the token.
+**`corpus whoami`** (or `corpus creds`) answers "which instance, which token, which secret": the server and its version, the project, the token file and whether the server takes it, and, where a `corpus workbench` runs on this repository's database, the secret file that process reads, even when it was started from another directory with `--db`. A `.corpus/secret` here that is not that file is named stale. It reads the record a workbench writes beside `.corpus/corpus.db`, so one started in this repository with `--db` elsewhere is not found. `--show-secret` prints the running workbench's join secret when that workbench is the server asked, `--json` all of it as one object, and it exits 1 when the server cannot be reached, is not Corpus, refuses the token or takes it for another project.
 
 ## The ones you run once
 

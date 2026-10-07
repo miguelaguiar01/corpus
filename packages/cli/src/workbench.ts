@@ -54,6 +54,19 @@ export function workbenchRecordPath(dbPath: string): string {
   return path.join(path.dirname(dbPath), WORKBENCH_FILE);
 }
 
+// The record removed when it is still this workbench's: another started
+// on the same database since has written its own.
+function forget(record: string, pid: number | undefined): void {
+  try {
+    const written = JSON.parse(readFileSync(record, "utf8")) as {
+      pid?: unknown;
+    };
+    if (written.pid === pid) rmSync(record, { force: true });
+  } catch {
+    // gone already, or never written
+  }
+}
+
 // Everything before the process starts (§2): the workbench package from
 // the repository's own node_modules, the database and the secret under
 // .corpus/, and .gitignore told about it. Pure enough to test in a temp
@@ -169,23 +182,31 @@ export async function workbench(
       `the workbench did not answer at ${url} within ${HEALTH_TIMEOUT_MS / 1000}s`,
     );
   }
+  // Only a diagnostic for `corpus whoami`: one that cannot be written is
+  // said, and the workbench runs on.
   const record = workbenchRecordPath(prepared.dbPath);
-  mkdirSync(path.dirname(record), { recursive: true });
-  writeFileSync(
-    record,
-    `${JSON.stringify(
-      {
-        url,
-        pid: child.pid!,
-        secretPath: prepared.secretPath,
-        version: prepared.version,
-        startedAt: new Date().toISOString(),
-        db: prepared.dbPath,
-      } satisfies WorkbenchRecord,
-      null,
-      2,
-    )}\n`,
-  );
+  try {
+    mkdirSync(path.dirname(record), { recursive: true });
+    writeFileSync(
+      record,
+      `${JSON.stringify(
+        {
+          url,
+          pid: child.pid!,
+          secretPath: prepared.secretPath,
+          version: prepared.version,
+          startedAt: new Date().toISOString(),
+          db: prepared.dbPath,
+        } satisfies WorkbenchRecord,
+        null,
+        2,
+      )}\n`,
+    );
+  } catch (error) {
+    ctx.out(
+      `corpus: could not record this workbench beside its database (${record}: ${(error as Error).message}); corpus whoami will not find it`,
+    );
+  }
   ctx.out("");
   ctx.out(`Corpus workbench ${prepared.version} is running at ${url}`);
   ctx.out(
@@ -205,7 +226,7 @@ export async function workbench(
   return new Promise<number>((resolve) => {
     child.once("exit", (code, signal) => {
       release();
-      rmSync(record, { force: true });
+      forget(record, child.pid);
       // Stopped by the person (through this command) is a clean exit;
       // any other signal is a failure worth an exit code.
       const stopped = signal === "SIGTERM" || signal === "SIGINT";
