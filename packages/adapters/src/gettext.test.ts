@@ -1205,3 +1205,70 @@ test("a plain text for a gettext plural is written into every form (#1092)", () 
   );
   expect(refused).toEqual(["%d card", "%d card"]);
 });
+
+// Transmission's af.po header, as Transifex writes it (#1101).
+const AF = `# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2008, 2009 Transmission authors
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+# Translators:
+# Pieter Schalk Schoeman <pieter@sonbesie.co.za>, 2022
+# Adriaan Joubert, 2023
+# Gideon Wentink <gjwentink@gmail.com>, 2017-2019, 2024
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\\n"
+"PO-Revision-Date: 2017-01-26 19:47+0000\\n"
+"Last-Translator: Gideon Wentink <gjwentink@gmail.com>, 2024\\n"
+"Language-Team: Afrikaans (https://app.transifex.com/transmissionbt/teams/33778/af/)\\n"
+"Language: af\\n"
+"MIME-Version: 1.0\\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\\n"
+
+# Jan: keep this short
+#. TRANSLATORS: the app's name
+#: ../cli/cli.cc:94
+#, c-format
+msgid "Open %s"
+msgstr "Open %s"
+
+#
+msgid "Quit"
+msgstr "Verlaat"
+`;
+
+test("a new file started from a target .po keeps none of that target's translators: no credits, translator comments, Last-Translator, Language-Team or revision date (#1101)", () => {
+  const out = entriesToGettext(AF, {}, undefined, { tag: "sw", code: "sw" });
+  expect(out).toBe(`# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2008, 2009 Transmission authors
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\\n"
+"Language-Team: LANGUAGE <LL@li.org>\\n"
+"Language: sw\\n"
+"MIME-Version: 1.0\\n"
+"Plural-Forms: nplurals=2; plural=(n==1) ? 0 : 1;\\n"
+
+#. TRANSLATORS: the app's name
+#: ../cli/cli.cc:94
+#, c-format
+msgid "Open %s"
+msgstr ""
+
+msgid "Quit"
+msgstr ""
+`);
+  // A file the language has is its own: its translators stay.
+  const own = AF.replace('"Language: af\\n"', '"Language: sw\\n"');
+  expect(
+    entriesToGettext(AF, { Quit: "Acha" }, own, { tag: "sw", code: "sw" }),
+  ).toContain("# Jan: keep this short\n");
+});
