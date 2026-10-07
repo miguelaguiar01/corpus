@@ -219,6 +219,8 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       );
     }
     const mismatch =
+      !catalog &&
+      res === undefined &&
       !messages.includes("{ns}") &&
       scriptMismatch(ctx.cwd, messages.replaceAll("{lang}", code), code);
     if (mismatch) ctx.err(`corpus: ${mismatch}`);
@@ -1880,7 +1882,11 @@ function catalogueLanguages(
     if (tag) {
       languageFiles[tag] = code;
       found.add(tag);
-    } else if (country && !named.has(country.toLowerCase())) {
+    } else if (
+      country &&
+      code !== sourceLanguage &&
+      !named.has(country.toLowerCase())
+    ) {
       languageFiles[country] = code;
       found.add(country);
       aliased.push({ file, code, tag: country });
