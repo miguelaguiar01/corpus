@@ -3626,6 +3626,44 @@ test("a POSIX code --languages lists maps no file another spelling of its tag al
   expect((await loadConfig(p.dir)).sources[0]).toMatchObject({
     languageFiles: { "uz-Latn": "uz@Latn" },
   });
+  // A file named by the tag itself takes no mapping.
+  const tagged = project();
+  write(tagged.dir, "l/en.json", '{ "hi": "Hi" }\n');
+  write(tagged.dir, "l/sr-Latn.json", '{ "hi": "Zdravo" }\n');
+  expect(
+    await run(
+      [...initFor("l/{lang}.json"), "--languages", "en,sr@latin"],
+      tagged.ctx,
+    ),
+  ).toBe(0);
+  const taggedConfig = await loadConfig(tagged.dir);
+  expect(taggedConfig.languages).toEqual(["en", "sr-Latn"]);
+  expect(taggedConfig.sources[0]).not.toHaveProperty("languageFiles");
+  // A {ns} pattern's directory is its file's spelling.
+  const ns = project();
+  write(ns.dir, "l/en/a.json", '{ "hi": "Hi" }\n');
+  write(ns.dir, "l/uz@Latn/a.json", '{ "hi": "Salom" }\n');
+  expect(
+    await run(
+      [...initFor("l/{lang}/{ns}.json"), "--languages", "en,uz@latin"],
+      ns.ctx,
+    ),
+  ).toBe(0);
+  expect((await loadConfig(ns.dir)).sources[0]).toMatchObject({
+    languageFiles: { "uz-Latn": "uz@Latn" },
+  });
+  // No file at all: the listed spelling is the one a new file takes.
+  const none = project();
+  write(none.dir, "l/en.json", '{ "hi": "Hi" }\n');
+  expect(
+    await run(
+      [...initFor("l/{lang}.json"), "--languages", "en,sr@latin"],
+      none.ctx,
+    ),
+  ).toBe(0);
+  expect((await loadConfig(none.dir)).sources[0]).toMatchObject({
+    languageFiles: { "sr-Latn": "sr@latin" },
+  });
   // An android res directory names its own; it takes no languageFiles.
   const strings = (text: string) =>
     `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n  <string name="hi">${text}</string>\n</resources>\n`;
