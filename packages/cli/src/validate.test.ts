@@ -2055,3 +2055,44 @@ test("an exec source's string that does not parse is said though the exporter ha
     "corpus: 1 source string(s) that do not parse, which build refuses",
   );
 });
+
+test("under last-wins, the problems of a copy the app never shows are warnings; the copy it shows, and one no later file overrides, are checked as ever (#1116)", async () => {
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8").replace(
+      /sources: \[[\s\S]*?\n {2}\],/,
+      'sources: [{ adapter: "messages", type: "ui", path: ["a/{lang}.json", "b/{lang}.json"], merge: "last-wins" }],',
+    ),
+  );
+  for (const dir of ["a", "b"]) {
+    mkdirSync(path.join(repo, dir), { recursive: true });
+    write(`${dir}/en.json`, { hello: "Hello {name}", bye: "Bye {name}" });
+  }
+  write("a/pt.json", { hello: "Olá {nome}", bye: "Adeus {name}" });
+  write("b/pt.json", { hello: "Olá {name}" });
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(0);
+  const said = c.stderr.join("\n");
+  expect(said).toContain(
+    'a/pt.json:hello: missing {name}; the app never shows this copy: b/pt.json\'s is its translation, as merge: "last-wins" says',
+  );
+  expect(said).toContain("b/pt.json:hello: reads otherwise in a/pt.json");
+  expect(c.stderr.at(-1)).toBe("corpus: 3 warning(s)");
+  // The copy the app shows is checked as ever.
+  write("a/pt.json", { hello: "Olá {name}" });
+  write("b/pt.json", { hello: "Olá {nome}" });
+  const shown = ctx();
+  expect(await run(["validate"], shown)).toBe(1);
+  expect(shown.stderr.at(-1)).toMatch(/^corpus: 1 invalid translation\(s\)/);
+  // A copy no later file holds, or holds blank, too.
+  write("a/pt.json", { hello: "Olá {nome}", bye: "Adeus {nome}" });
+  write("b/pt.json", { hello: "", bye: "Adeus {name}" });
+  const alone = ctx();
+  expect(await run(["validate"], alone)).toBe(1);
+  expect(alone.stderr.join("\n")).toContain(
+    "a/pt.json:hello: missing {name}\n",
+  );
+});
