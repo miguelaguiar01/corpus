@@ -371,3 +371,81 @@ test("the Invalid queue's count and items start from its partial index, never th
     expect(plan[0]).toMatch(/translations_invalid/);
   }
 });
+
+test("queueStep and queueNeighbours give what neighbours over the whole queue gives, for every row of every queue (#639)", async () => {
+  const { queueStep, queueNeighbours, QUEUE_KINDS } = await import("./queues");
+  const db = memoryDb();
+  const [p] = db
+    .insert(projects)
+    .values({
+      slug: "mm",
+      name: "MM",
+      sourceLanguage: "pt-PT",
+      // fr is a variant of the source: its untranslated rows are no work.
+      languages: ["pt-PT", "en", "fr", "de"],
+      sourceVariants: ["fr"],
+    })
+    .returning()
+    .all();
+  const [ana] = db
+    .insert(users)
+    .values({ name: "ana", maintainer: true })
+    .returning()
+    .all();
+  applySnapshot(db, p!.id, {
+    ...FIXTURE,
+    // An invalid seed, so that queue has a row.
+    seedTranslations: { de: { "skin.seen-at-greenhouse-window": "Gesehen." } },
+  });
+  // Saves and a verify move rows between queues.
+  applyTransition(db, {
+    stringId: dbId(db, "ui.continue"),
+    language: "en",
+    action: { type: "save", text: "Continue" },
+    actor: ana!,
+  });
+  applyTransition(db, {
+    stringId: dbId(db, "skin.heard-nothing"),
+    language: "pt-PT",
+    action: { type: "verify" },
+    actor: ana!,
+  });
+  const rows = db
+    .select({
+      stringId: stringTranslations.stringId,
+      language: stringTranslations.language,
+    })
+    .from(stringTranslations)
+    .all();
+  let compared = 0;
+  for (const kind of QUEUE_KINDS) {
+    const queue = queueItems(db, p!.id, kind);
+    for (const current of rows) {
+      const around = neighbours(queue, current);
+      expect(
+        queueStep(db, p!.id, kind, current),
+        `${kind} ${JSON.stringify(current)}`,
+      ).toEqual({
+        kind,
+        ...around,
+        count: queue.count,
+        languages: queue.items
+          .filter((i) => i.stringId === current.stringId)
+          .map((i) => i.language),
+      });
+      expect(queueNeighbours(db, p!.id, kind, current)).toEqual({
+        previous: around.previous,
+        next: around.next,
+      });
+      compared += 1;
+    }
+  }
+  // Every queue, the first row, the last, a middle one and rows outside.
+  expect(compared).toBe(QUEUE_KINDS.length * rows.length);
+  expect(queueItems(db, p!.id, "invalid").count).toBe(1);
+  expect(
+    queueItems(db, p!.id, "untranslated").items.some(
+      (i) => i.language === "fr",
+    ),
+  ).toBe(false);
+});
