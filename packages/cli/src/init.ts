@@ -233,7 +233,8 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
           .filter(Boolean)
           .map((code) => {
             const tag = posixTag(code);
-            if (tag) listedFiles[tag] = code;
+            // A res directory or a String Catalog names its own.
+            if (tag && res === undefined && !catalog) listedFiles[tag] = code;
             return tag ?? code;
           });
   if (present && listed.length === 0) {
@@ -299,7 +300,9 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   // The mappings of the languages the config lists, given or read.
   const kept = Object.fromEntries([
     ...(referenced ? [[sourceLanguage, referenced.code]] : []),
-    ...Object.entries({ ...files.languageFiles, ...listedFiles }).filter(
+    // A file the pattern names is the mapping, whatever spelling is
+    // listed for its tag.
+    ...Object.entries({ ...listedFiles, ...files.languageFiles }).filter(
       ([tag]) => languages.includes(tag),
     ),
   ]);

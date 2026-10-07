@@ -58,9 +58,9 @@ const POSIX_SCRIPTS: Record<string, string> = {
 };
 
 // POSIX modifiers that are registered BCP 47 variants (#1015), written
-// after any region, where a script is written before it; GNOME's and
-// KDE's `ijekavian` is BCP 47's `ijekavsk`, and `ijekavianlatin` a
-// script and a variant in one (#1119).
+// after any region, where a script is written before it; `ijekavian` is
+// BCP 47's `ijekavsk`, and `ijekavianlatin` a script and a variant in
+// one (#1119).
 const POSIX_VARIANTS: Record<string, { variant: string; script?: string }> = {
   valencia: { variant: "valencia" },
   tarask: { variant: "tarask" },
@@ -81,8 +81,13 @@ export function posixTag(code: string): string | undefined {
   const language = posix[1]!.toLowerCase();
   const region = posix[2]?.toUpperCase();
   const modifier = posix[3]!.toLowerCase();
-  const variant = POSIX_VARIANTS[modifier];
-  const script = POSIX_SCRIPTS[modifier] ?? variant?.script;
+  const variant = Object.hasOwn(POSIX_VARIANTS, modifier)
+    ? POSIX_VARIANTS[modifier]
+    : undefined;
+  const script =
+    (Object.hasOwn(POSIX_SCRIPTS, modifier)
+      ? POSIX_SCRIPTS[modifier]
+      : undefined) ?? variant?.script;
   if (!script && !variant) return undefined;
   return [language, script, region, variant?.variant].filter(Boolean).join("-");
 }
