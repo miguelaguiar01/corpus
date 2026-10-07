@@ -1603,12 +1603,6 @@ class Parser {
         "gen-l10n has no selectordinal: its plurals are cardinal",
         start,
       );
-    // Fluent counts an ordinal with NUMBER's option, in a select.
-    if (type === "selectordinal" && this.syntax === "fluent")
-      throw new ParseFailure(
-        `a Fluent text writes an ordinal as { NUMBER($${name}, type: "ordinal") -> … }, which Corpus does not read yet`,
-        start,
-      );
     // selectordinal is a plural by the ordinal rules, nesting as one.
     const kind = type === "select" ? "select" : "plural";
     if (inBranch) this.checkNesting(kind, start);

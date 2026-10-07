@@ -212,6 +212,22 @@ function formatOf(
   return [`{${args[1]}, ${type}${style}}`, j + 1];
 }
 
+// `NUMBER($n, type: "ordinal") ->`, that option alone: the variable, and
+// where the call ends.
+function ordinalSelector(
+  s: string,
+  open: number,
+): { name: string; end: number } | undefined {
+  const close = callEnd(s, open);
+  if (close < 0) return undefined;
+  const args = /^\s*\$([A-Za-z][\w-]*)\s*,\s*type\s*:\s*"ordinal"\s*$/.exec(
+    s.slice(open + 1, close),
+  );
+  const arrow = skipSpace(s, close + 1);
+  if (!args || s.slice(arrow, arrow + 2) !== "->") return undefined;
+  return { name: args[1]!, end: close + 1 };
+}
+
 // The `)` that closes a term's arguments, strings skipped, on one line;
 // -1 where there is none.
 function callEnd(s: string, open: number): number {
@@ -271,7 +287,13 @@ function parsePlaceable(s: string, i: number, id: string): [string, number] {
   const paren = /^ *\(/.exec(s.slice(j));
   const builtin = !term && !variable ? BUILTINS[bare] : undefined;
   if ((term || builtin) && paren) j += paren[0].length - 1;
-  if (s[j] === "(" && builtin) return formatOf(s, j, id, bare, builtin);
+  // NUMBER's ordinal type, selected on, is ICU's selectordinal (#1099).
+  const ordinal =
+    builtin === "number" && s[j] === "(" ? ordinalSelector(s, j) : undefined;
+  if (ordinal) {
+    name = ordinal.name;
+    j = ordinal.end;
+  } else if (s[j] === "(" && builtin) return formatOf(s, j, id, bare, builtin);
   if (s[j] === "(") {
     if (!term) throw new Refusal(`${id} calls a function`);
     const close = callEnd(s, j);
@@ -290,7 +312,7 @@ function parsePlaceable(s: string, i: number, id: string): [string, number] {
     // from a variable of the same name (#1083).
     return [`{${term || variable ? name : `@${name}`}${call}}`, j + 1];
   }
-  if (!(variable || attribute) || s.slice(j, j + 2) !== "->")
+  if (!(variable || attribute || ordinal) || s.slice(j, j + 2) !== "->")
     throw new Refusal(`${id} has a placeable Corpus does not read`);
   j += 2;
   const variants: { key: string; fallback: boolean; text: string }[] = [];
@@ -332,6 +354,10 @@ function parsePlaceable(s: string, i: number, id: string): [string, number] {
     variants.every((v) => CATEGORIES.has(v.key) || /^\d+$/.test(v.key));
   if (!variants.every((v) => KEY_RE.test(v.key)))
     throw new Refusal(`${id} has a variant key Corpus does not read`);
+  if (ordinal && !plural)
+    throw new Refusal(
+      `${id} selects on an ordinal with a key that is neither a plural category nor a number`,
+    );
   // A `#` in a plural's variant is Fluent's text, where ICU's would be
   // the count: the view writes it as the literal `{"#"}` (#990).
   const text = (v: { text: string }) =>
@@ -347,7 +373,7 @@ function parsePlaceable(s: string, i: number, id: string): [string, number] {
     branches.push(`other {${text(fallback)}}`);
   }
   return [
-    `{${name}, ${plural ? "plural" : "select"}, ${branches.join(" ")}}`,
+    `{${name}, ${ordinal ? "selectordinal" : plural ? "plural" : "select"}, ${branches.join(" ")}}`,
     j,
   ];
 }
@@ -541,7 +567,7 @@ function render(icu: string, style: Style, refs: Set<string>): string {
         i + literal[0].length,
       ];
     const head =
-      /^\s*(@?[A-Za-z0-9_.-]+)(\((?:[^()"\n]|"(?:[^"\\\n]|\\.)*")*\))?\s*(?:,\s*(plural|select)\s*,)?/.exec(
+      /^\s*(@?[A-Za-z0-9_.-]+)(\((?:[^()"\n]|"(?:[^"\\\n]|\\.)*")*\))?\s*(?:,\s*(plural|selectordinal|select)\s*,)?/.exec(
         icu.slice(i),
       )!;
     const name = head[1]!;
@@ -579,7 +605,7 @@ function render(icu: string, style: Style, refs: Set<string>): string {
       }
       const key = /^=?[\w]+/.exec(icu.slice(j))![0];
       j = skipSpace(icu, j + key.length) + 1;
-      const plural = head[3] === "plural";
+      const plural = head[3] !== "select";
       const [text, next] = seq(
         j,
         plural ? name : undefined,
@@ -596,9 +622,11 @@ function render(icu: string, style: Style, refs: Set<string>): string {
       ([key, text]) =>
         `${key === fallback ? `${style.fallback}*` : style.variant}[${key}] ${text || '{""}'}`,
     );
-    const open = style.spaced
-      ? `{ ${selector(name)} ->`
-      : `{${selector(name)} ->`;
+    const on =
+      head[3] === "selectordinal"
+        ? `NUMBER($${name}, type: "ordinal")`
+        : selector(name);
+    const open = style.spaced ? `{ ${on} ->` : `{${on} ->`;
     return [`${open}\n${lines.join("\n")}\n${style.close}}`, j];
   };
   const [body = ""] = seq(0, undefined, true);
