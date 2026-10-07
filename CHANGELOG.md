@@ -13,6 +13,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- A new language's `.po` started from another language's file no longer keeps that file's translator credits, comments, `Last-Translator`, `Language-Team` or revision date (#1101).
 - A Fluent ordinal, a select on `NUMBER($n, type: "ordinal")`, is read and written as a selectordinal, rather than refused (#1099).
 - `corpus init` on Pontoon's layout (`templates/` beside each language's directory, as Anki has) maps the source language to `templates`, as `l10n.toml` says, rather than writing a config that cannot build (#1097).
 - Under easy_localization, a Chinese or Japanese plural written as one text prints its count through `{}`, as `plural()` fills it, and a `{count}` the call does not name is reported (#1094).

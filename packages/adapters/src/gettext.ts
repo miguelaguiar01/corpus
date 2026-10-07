@@ -31,15 +31,16 @@ type PoEntry = {
   flags: string[];
   extracted: string[];
   references: string[];
-  // Where the entry sits in the text read: its lines, its `#,` and `#|`
-  // lines, where its msgid (or msgid_plural) ends, and each msgstr's
-  // keyword line through its last continuation.
+  // Where the entry sits in the text read: its lines, its `#,`, `#|` and
+  // translator comment lines, where its msgid (or msgid_plural) ends,
+  // and each msgstr's keyword line through its last continuation.
   at: {
     start: number;
     end: number;
     idEnd: number;
     flags?: Span;
     previous: Span[];
+    comments: Span[];
     msgstr: (Span | undefined)[];
   };
 };
@@ -125,7 +126,14 @@ export function parsePo(text: string): PoEntry[] {
     flags: [],
     extracted: [],
     references: [],
-    at: { start: -1, end: -1, idEnd: -1, previous: [], msgstr: [] },
+    at: {
+      start: -1,
+      end: -1,
+      idEnd: -1,
+      previous: [],
+      comments: [],
+      msgstr: [],
+    },
   });
   let entry = fresh();
   let seenId = false;
@@ -195,6 +203,8 @@ export function parsePo(text: string): PoEntry[] {
         entry.extracted.push(line.slice(2).trim());
       else if (line.startsWith("#:"))
         entry.references.push(line.slice(2).trim());
+      else if (/^#(?:\s|$)/.test(line))
+        entry.at.comments.push({ start: at, end: lineEnd });
     } else {
       const keyword =
         /^(msgctxt|msgid_plural|msgid|msgstr(?:\[\d+\])?)(?=[\s"]|$)/.exec(
@@ -779,11 +789,33 @@ function targetFrom(
         ...extra,
       ];
     });
+  // A `.pot`, whose msgstrs are all empty, is kept as msginit keeps it.
+  const translated = entries.some(
+    (e) => e !== header && e.msgstr.some((m) => m !== ""),
+  );
+  // A target's translators are not the new language's (#1101).
+  const fromTarget =
+    translated || /^Language: *\S/m.test(header?.msgstr[0] ?? "");
+  if (fromTarget)
+    for (const e of entries)
+      for (const comment of e === header
+        ? creditLines(template, e.at.comments)
+        : e.at.comments)
+        patches.push(lineRemoval(template, comment));
   const span = header?.at.msgstr[0];
   if (header && span) {
     if (header.at.flags)
       patches.push(fuzzyRemoval(template, header, header.at.flags));
     let block = template.slice(span.start, span.end);
+    if (fromTarget)
+      for (const [field, placeholder] of TRANSLATOR_FIELDS)
+        if (new RegExp(`^"${field}:`, "m").test(block))
+          block = withHeaderField(
+            block,
+            field,
+            `"${field}: ${placeholder}\\n"`,
+            eol,
+          );
     block = block.replace(/charset=CHARSET/, "charset=UTF-8");
     block = /"Language:[^"\\]*(?:\\.[^"\\]*)*"/.test(block)
       ? block.replace(/("Language:)[^"\\]*(\\n")/, `$1 ${code}$2`)
@@ -799,12 +831,52 @@ function targetFrom(
       );
     patches.push({ ...span, text: block });
   }
-  // A `.pot`, whose msgstrs are all empty, is kept as msginit keeps it.
-  const translated = entries.some(
-    (e) => e !== header && e.msgstr.some((m) => m !== ""),
-  );
   const started = applied(template, patches);
   return translated ? withoutObsolete(started) : started;
+}
+
+// The header fields a translator's tool fills, as xgettext leaves them.
+const TRANSLATOR_FIELDS = [
+  ["PO-Revision-Date", "YEAR-MO-DA HO:MI+ZONE"],
+  ["Last-Translator", "FULL NAME <EMAIL@ADDRESS>"],
+  ["Language-Team", "LANGUAGE <LL@li.org>"],
+] as const;
+
+// A header comment's translator credits, as Transifex, msginit and
+// hand-kept headers write them: `# Translators:` and the block it opens,
+// `# Name[ <email>][, 2017[-2019][, 2024]][.]` with a year or an email,
+// a `Last-Translator:` or `Previous-Translator:` line, and a name alone
+// after a credit; with the bare `#` that closes their block where one,
+// or nothing, opens it. A copyright line is no credit.
+function creditLines(text: string, comments: Span[]): Span[] {
+  const lines = comments.map((span) => text.slice(span.start, span.end));
+  const years = String.raw`(?:,\s*(?:\d{4}(?:-\d{2}-\d{2}|-\d{4})?|YEAR)\.?)`;
+  const signed = new RegExp(
+    `^# (?:.+ <[^<>\\s]+@[^<>\\s]+>${years}*|[^<>,:]+${years}+)\\.?$`,
+  );
+  const named = /^# \p{Lu}[\p{L}'’.-]*(?: \p{Lu}[\p{L}'’.-]*){0,3}$/u;
+  const credit = (line: string) =>
+    /^# (?:Last|Previous)-Translator:/.test(line) ||
+    (signed.test(line) && !/copyright|\(c\)|©|<EMAIL@ADDRESS>/i.test(line));
+  const out: Span[] = [];
+  let i = 0;
+  while (i < comments.length) {
+    const block = lines[i] === "# Translators:";
+    if (!block && !credit(lines[i]!)) {
+      i++;
+      continue;
+    }
+    const first = i;
+    out.push(comments[i++]!);
+    while (
+      i < comments.length &&
+      (block ? lines[i] !== "#" : credit(lines[i]!) || named.test(lines[i]!))
+    )
+      out.push(comments[i++]!);
+    if (lines[i] === "#" && (first === 0 || lines[first - 1] === "#"))
+      out.push(comments[i++]!);
+  }
+  return out;
 }
 
 // A header block with its `field` replaced by `line`: the field's quoted
