@@ -1,4 +1,5 @@
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -106,3 +107,53 @@ test("a config whose server is another port is named beside the URL (#559)", asy
   );
   expect(await serverNote(dir, "http://localhost:3000/")).toBeUndefined();
 });
+
+test("a running workbench says where it runs beside its database, and forgets it when it stops (#1078)", async () => {
+  const runner = repo();
+  // The fake bin is a server that answers health until it is stopped.
+  writeFileSync(
+    path.join(
+      runner,
+      "node_modules/@corpus-tool/workbench/bin/corpus-workbench.cjs",
+    ),
+    `require("node:http").createServer((q, r) => { r.writeHead(200, { "content-type": "application/json" }); r.end('{"status":"ok"}'); }).listen(Number(process.env.PORT), "127.0.0.1");\n`,
+  );
+  const elsewhere = mkdtempSync(path.join(os.tmpdir(), "corpus-db-"));
+  dirs.push(elsewhere);
+  const db = path.join(elsewhere, CORPUS_DIR, "corpus.db");
+  const port = 47_000 + Math.floor(Math.random() * 2000);
+  const { run } = await import("./cli");
+  const out: string[] = [];
+  const running = run(
+    ["workbench", "--port", String(port), "--db", db, "--no-provision"],
+    {
+      cwd: runner,
+      env: { ...process.env },
+      out: (l) => out.push(l),
+      err: (l) => out.push(l),
+    },
+  );
+  const file = path.join(elsewhere, CORPUS_DIR, "workbench.json");
+  const deadline = Date.now() + 15_000;
+  while (!existsSync(file) && Date.now() < deadline)
+    await new Promise((r) => setTimeout(r, 50));
+  const recorded = JSON.parse(readFileSync(file, "utf8")) as {
+    url: string;
+    pid: number;
+    secretPath: string;
+    version: string;
+    startedAt: string;
+    db: string;
+  };
+  expect(recorded).toMatchObject({
+    url: `http://localhost:${port}`,
+    secretPath: path.join(runner, CORPUS_DIR, "secret"),
+    version: "9.9.9",
+    db,
+  });
+  expect(Number.isInteger(recorded.pid)).toBe(true);
+  expect(Number.isNaN(Date.parse(recorded.startedAt))).toBe(false);
+  process.kill(recorded.pid, "SIGTERM");
+  expect(await running).toBe(0);
+  expect(existsSync(file)).toBe(false);
+}, 30_000);
