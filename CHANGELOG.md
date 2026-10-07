@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- A target file's translation of an id only another file's source holds is no longer seeded, so a pull no longer writes it into a file that never had it (#1071).
 - Android's `<xliff:g>` is a tag a translation must keep, so one that drops or mangles it is reported (#1067).
 - An i18next source in a language with only `other` (Japanese, Korean, Chinese) reads its lone `_other` keys as plural families, so its targets' forms are no longer orphans (#1065).
 - A gettext translation that gives two texts to the exact keys of one form, Filipino's `=0` and `=1`, is refused when saved or drafted and invalid in `corpus validate`, rather than refused at pull (#1060).
