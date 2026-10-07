@@ -2456,3 +2456,30 @@ test("a type that declares its slots names, once, the placeholders its strings u
   ]);
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("a Fluent type's term and message references are no slots the build asks a declaration for (#1075 review)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-slots-ftl-"));
+  writeFileSync(
+    path.join(dir, "en.ftl"),
+    "-brand = Corpus\nother = Other\nhi = Hi { $name }, from { -brand } and { other }\n",
+  );
+  const report = await buildSnapshotReport(
+    config({
+      sources: [{ adapter: "fluent", type: "ui", path: "{lang}.ftl" }],
+      stringTypes: {
+        ui: {
+          slot: {
+            type: "placeholders",
+            description: "Slots.",
+            slots: { who: { description: "Someone" } },
+          },
+        },
+      },
+    }),
+    dir,
+  );
+  expect(report.notes.filter((n) => /slot declaration/.test(n))).toEqual([
+    "ui: name has no slot declaration in stringTypes",
+  ]);
+  rmSync(dir, { recursive: true, force: true });
+});

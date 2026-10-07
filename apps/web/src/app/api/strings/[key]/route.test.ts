@@ -334,3 +334,31 @@ test("under a type read as HTML, the string lists the placeholders its tags' att
   );
   applySnapshot(db, project.id, FIXTURE);
 });
+
+test("a slot a target language has no example value for takes the source's, listed in fromSource (#1075)", async () => {
+  const { db, project, token } = seeded;
+  applySnapshot(db, project.id, {
+    ...FIXTURE,
+    strings: [
+      ...FIXTURE.strings,
+      {
+        id: "ui.greet",
+        type: "chrome",
+        file: "src/ui/pt-PT.json",
+        source: "Olá {who}",
+        examples: [{ values: { who: "Ana" }, rendered: "Olá Ana" }],
+      },
+    ],
+  });
+  const body = (await (
+    await string(token, "ui.greet")
+  ).json()) as StringResponse;
+  expect(body.slots).toMatchObject([
+    {
+      name: "who",
+      values: { "pt-PT": "Ana", en: "Ana" },
+      fromSource: ["en"],
+      missing: ["description", "role"],
+    },
+  ]);
+});
