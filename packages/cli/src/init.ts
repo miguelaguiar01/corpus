@@ -51,6 +51,7 @@ import type { RunContext } from "./cli";
 import {
   CliError,
   CONFIG_FILENAMES,
+  fileCodeOf,
   matchPattern,
   namespacesOf,
 } from "./config";
@@ -112,8 +113,6 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
       `--messages must contain {lang}, such as src/i18n/{lang}.json`,
     );
   }
-  // Pontoon keeps the source's files where l10n.toml's reference says,
-  // `templates/`, under no language's code (#1097).
   const referenced =
     catalog || res !== undefined
       ? undefined
@@ -191,16 +190,27 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
         : `corpus: ${patterns.length} other catalogue(s) beside ${messages}, ${count} file(s) (${named}): each is its own source, as { adapter: ${JSON.stringify(adapter)}, type: ${JSON.stringify(type)}, path: ${JSON.stringify(patterns[0])} }`,
     );
   }
-  // The one such file beside a source language with none of its own is
-  // likely its file.
-  const sourceless =
-    loose.length === 1 &&
-    !messages.includes("{ns}") &&
-    !existsSync(path.join(ctx.cwd, messages.replaceAll("{lang}", sourceCode)));
+  // The one code that names no language, beside a source language
+  // init found no file for, is likely the source's (#1097).
+  const sourceFound =
+    catalog !== undefined ||
+    res !== undefined ||
+    sourcePath !== undefined ||
+    matchPattern(ctx.cwd, messages, sourceCode).length > 0;
+  const candidates = sourceFound
+    ? []
+    : messages.includes("{ns}")
+      ? untaggedDirectories(ctx.cwd, messages)
+      : loose.filter(({ code }) => namesNoLanguage(code));
+  const sourceGuess = candidates.length === 1 ? candidates[0] : undefined;
+  const mapIt = (file: string, code: string) =>
+    `corpus: ${file} names no language tag; left out: if it is ${sourceLanguage}'s file, map it: languageFiles: { ${JSON.stringify(sourceLanguage)}: ${JSON.stringify(code)} }`;
+  if (sourceGuess && messages.includes("{ns}"))
+    ctx.err(mapIt(sourceGuess.file, sourceGuess.code));
   for (const { file, code } of loose.slice(0, 5))
     ctx.err(
-      sourceless
-        ? `corpus: ${file} names no language tag; left out: if it is ${sourceLanguage}'s file, map it: languageFiles: { ${JSON.stringify(sourceLanguage)}: ${JSON.stringify(code)} }`
+      code === sourceGuess?.code
+        ? mapIt(file, code)
         : `corpus: ${file} names no language tag; left out: name its language, as languages: ["<tag>"] with languageFiles: { "<tag>": ${JSON.stringify(code)} } on the source`,
     );
   if (loose.length > 5)
@@ -464,11 +474,7 @@ async function htmlOnlyTags(
   // A `{ns}` pattern's source files, each, its ids named as build names
   // them (#993).
   const files = source.path.includes("{ns}")
-    ? matchPattern(
-        cwd,
-        source.path,
-        source.languageFiles?.[sourceLanguage] ?? sourceLanguage,
-      )
+    ? matchPattern(cwd, source.path, fileCodeOf(source, sourceLanguage))
     : [
         {
           file: fileOf(declared, sourceLanguage, sourceLanguage),
@@ -1692,8 +1698,7 @@ function siblingCatalogues(
       const suffix = base.slice(at + "{lang}".length);
       if (!name.startsWith(prefix) || !name.endsWith(suffix)) return true;
       const code = name.slice(prefix.length, name.length - suffix.length);
-      // A code with a POSIX modifier is a language's too, if no tag.
-      return !LANGUAGE_RE.test(code) && !posixTag(code) && !code.includes("@");
+      return namesNoLanguage(code);
     })
     .map((name) => path.join(dir, name))
     .sort();
@@ -2110,9 +2115,58 @@ function qtTemplateOf(cwd: string, pattern: string): string | undefined {
   return templates.length === 1 ? templates[0] : undefined;
 }
 
-// The code a pattern's `{lang}` directory takes where Pontoon's
-// l10n.toml says the reference files sit, Anki's `templates` in
-// `core/templates/*.ftl`, beside a source language with no file.
+// A code that is no language's: no tag, nor one with a POSIX
+// modifier, which is a language's too.
+function namesNoLanguage(code: string): boolean {
+  return !LANGUAGE_RE.test(code) && !posixTag(code) && !code.includes("@");
+}
+
+// A pattern whose `{lang}` is a directory, `core/{lang}/{ns}.ftl`: the
+// path before and after `{lang}` in that directory's segment.
+function langDirectory(
+  pattern: string,
+): { head: string; tail: string } | undefined {
+  const at = pattern.indexOf("{lang}");
+  const end = pattern.indexOf("/", at);
+  if (end === -1) return undefined;
+  return {
+    head: pattern.slice(0, at),
+    tail: pattern.slice(at + "{lang}".length, end),
+  };
+}
+
+// The directories a `{lang}` directory pattern's files sit in under a
+// code that names no language, as `core/templates`.
+function untaggedDirectories(
+  cwd: string,
+  pattern: string,
+): { file: string; code: string }[] {
+  const lang = langDirectory(pattern);
+  if (!lang) return [];
+  const parent = path.posix.dirname(`${lang.head}x`);
+  const prefix = path.posix.basename(`${lang.head}x`).slice(0, -1);
+  let names: string[];
+  try {
+    names = readdirSync(path.join(cwd, parent));
+  } catch {
+    return [];
+  }
+  return names
+    .filter((name) => name.startsWith(prefix) && name.endsWith(lang.tail))
+    .map((name) => name.slice(prefix.length, name.length - lang.tail.length))
+    .filter(
+      (code) =>
+        code !== "" &&
+        namesNoLanguage(code) &&
+        matchPattern(cwd, pattern, code).length > 0,
+    )
+    .map((code) => ({ file: `${lang.head}${code}${lang.tail}`, code }));
+}
+
+// Pontoon keeps the source's files where l10n.toml's reference says,
+// under no language's code, Anki's `core/templates/*.ftl`: the code a
+// `{lang}` directory pattern takes there, beside a source language
+// with no file.
 function referenceCode(
   cwd: string,
   pattern: string,
@@ -2124,30 +2178,20 @@ function referenceCode(
   } catch {
     return undefined;
   }
-  if (matchPattern(cwd, pattern, sourceLanguage).length > 0) return undefined;
-  const at = pattern.indexOf("{lang}");
-  const end = pattern.indexOf("/", at);
-  if (end === -1) return undefined;
-  const head = pattern.slice(0, at);
-  const tail = pattern.slice(at + "{lang}".length, end);
+  const lang = langDirectory(pattern);
+  if (!lang || matchPattern(cwd, pattern, sourceLanguage).length > 0)
+    return undefined;
   const basepath =
     /^\s*basepath\s*=\s*["']([^"']*)["']/m.exec(toml)?.[1] ?? ".";
-  const codes = new Set<string>();
-  for (const [, reference] of toml.matchAll(
-    /^\s*reference\s*=\s*["']([^"']*)["']/gm,
-  )) {
-    const dir = path.posix.join(basepath, path.posix.dirname(reference!));
-    const code = dir.slice(head.length, dir.length - tail.length);
-    if (
-      dir.startsWith(head) &&
-      dir.endsWith(tail) &&
-      code !== "" &&
-      !code.includes("/") &&
-      matchPattern(cwd, pattern, code).length > 0
-    )
-      codes.add(code);
-  }
-  if (codes.size !== 1) return undefined;
-  const code = [...codes][0]!;
-  return { code, dir: pattern.slice(0, end).replace("{lang}", code) };
+  const references = new Set(
+    [...toml.matchAll(/^\s*reference\s*=\s*["']([^"']*)["']/gm)].map((m) =>
+      path.posix.join(basepath, path.posix.dirname(m[1]!)),
+    ),
+  );
+  const found = untaggedDirectories(cwd, pattern).filter(({ file }) =>
+    references.has(path.posix.normalize(file)),
+  );
+  return found.length === 1
+    ? { code: found[0]!.code, dir: found[0]!.file }
+    : undefined;
 }
