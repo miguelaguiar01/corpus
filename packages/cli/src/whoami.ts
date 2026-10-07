@@ -223,6 +223,8 @@ async function recordedWorkbench(
     return { state: "invalid" };
   }
   if (
+    typeof record !== "object" ||
+    record === null ||
     typeof record.url !== "string" ||
     !Number.isInteger(record.pid) ||
     record.pid! <= 1 ||
