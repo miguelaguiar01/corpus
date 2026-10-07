@@ -84,3 +84,27 @@ test("a finding names the line its text starts on, indented or after an expressi
     [2, "Shown text"],
   ]);
 });
+
+test("Svelte: a regex literal with a quote, /* or a slash in a class is one expression; division stays division (#1140)", () => {
+  for (const expression of [
+    "{/'/.test(x)}",
+    "{/a\\/*b/.test(x)}",
+    "{/[/]'/.test(x)}",
+    "{x.replace(/\"/g, '')}",
+    "{ok ? /'/ : /\"/}",
+    "{typeof /'/}",
+  ])
+    expect(found(`${expression}\n<p>Hello world</p>`), expression).toEqual([
+      [2, "Hello world"],
+    ]);
+  for (const expression of [
+    "{a / b / c}",
+    "{x / 2}",
+    "{(a) / b}",
+    "{'https://x.org/a'}",
+    "{a[1] / b}",
+  ])
+    expect(found(`${expression}\n<p>Hello world</p>`), expression).toEqual([
+      [2, "Hello world"],
+    ]);
+});
