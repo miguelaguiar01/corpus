@@ -122,6 +122,7 @@ type PushReport = {
   seedsIgnored?: number;
   seedsIdentical?: number;
   fromEmpty?: number;
+  carried?: number;
 };
 
 // What the snapshot uses that the server cannot take, named (#875): a
@@ -289,8 +290,12 @@ async function push(args: string[], ctx: RunContext): Promise<number> {
   const fromEmpty = report.fromEmpty
     ? `, ${report.fromEmpty} source(s) took their text where it was empty, nothing marked stale`
     : "";
+  // A family's unpulled translations moved to its plural string (#1063).
+  const carried = report.carried
+    ? `, ${report.carried} translation(s) carried from a plural's archived keys to its string`
+    : "";
   ctx.out(
-    `${label} ${config.project}: ${report.added} added, ${report.changed} changed, ${report.stale} stale, ${report.archived} archived${fromEmpty}${seeded}${skipped}`,
+    `${label} ${config.project}: ${report.added} added, ${report.changed} changed, ${report.stale} stale, ${report.archived} archived${fromEmpty}${carried}${seeded}${skipped}`,
   );
   if (languages) {
     const drift = languageDrift(config.languages, languages);

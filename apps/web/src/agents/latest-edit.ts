@@ -8,8 +8,9 @@ export function rowKey(stringId: number, language: string): string {
   return `${stringId} ${language}`;
 }
 
-// Rows whose latest edit was an agent's, as rowKey values. Push writes
-// no edit, so a seeded row is never here.
+// Rows whose latest edit was an agent's, as rowKey values. A seeded row
+// has no edit, so it is never here; a push's carried family is, where
+// an agent made every form (#1063).
 export function agentEditedRows(db: Db): Set<string> {
   const latest = db
     .select({ id: max(edits.id) })

@@ -44,7 +44,7 @@ contract (`corpus/1`) is the only one.
 - A source's `arguments` names, per string, values the code passes beside the source's, which a translation may print or pluralise on (#1031).
 - A Fluent message reference reads as `{@name}`, apart from a variable `{name}`, so a translation may refer to a message its source does not; strings with a reference go stale once on the first 0.22 push (#1083).
 - A JSON target's plural object with a broken form is validated as that plural, not reported as orphan keys (#960).
-- i18next plural keys (`item_one`, `item_other`) are one string per family, so each language gets its own forms (Polish `few` and `many`) and `_zero` is always allowed; pull translations before the first 0.22 push, which re-reads these families from the files (#985).
+- i18next plural keys (`item_one`, `item_other`) are one string per family, so each language gets its own forms (Polish `few` and `many`) and `_zero` is always allowed; the first 0.22 push carries what Corpus holds on the old keys and never pulled to the family's string (#985, #1063).
 - Under i18next, a target that writes a plural as an object where the source writes suffix keys, or the other way round, pulls back unchanged (#1187).
 - Under i18next an unpaired tag such as `<no title>` is text, not a refusal, while `Trans` tags are still compared and `<2/>` for `<2>…</2>` is caught (#986).
 - Android strings with an escaped `&lt;…&gt;` or an inline CDATA read as text and build; a pull writes such text escaped (#987).

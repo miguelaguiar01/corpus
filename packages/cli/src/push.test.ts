@@ -659,3 +659,19 @@ test("push refuses a server that predates a gettext file's =N plural forms, and 
     server.close();
   }
 });
+
+test("a push that carried a family's unpulled translations to its plural string says how many (#1063)", async () => {
+  const { server, url } = await startServer(() => ({
+    status: 200,
+    json: {
+      report: { added: 1, changed: 0, stale: 0, archived: 2, carried: 3 },
+    },
+  }));
+  active = server;
+  process.env.CORPUS_SERVER = url;
+  const c = ctx();
+  expect(await run(["push"], c)).toBe(0);
+  expect(c.output.join("\n")).toContain(
+    "1 added, 0 changed, 0 stale, 2 archived, 3 translation(s) carried from a plural's archived keys to its string",
+  );
+});
