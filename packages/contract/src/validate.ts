@@ -1051,6 +1051,32 @@ export function validateTranslation(
         errors.push({ code: "unexpected-tag", name });
     }
   }
+  // Android's `xliff:g` compares by its name, so how many each rendering
+  // holds is checked apart: every branch keeps as many as the source's
+  // fewest, and none holds more than its most (#1067).
+  if (syntax === "android") {
+    const want = xliffRange(sourceNodes);
+    const got = xliffRange(targetNodes);
+    const said = (code: string) =>
+      errors.some(
+        (e) =>
+          e.code === code && "name" in e && /^xliff:g(?:\s|$)/.test(e.name),
+      );
+    if (got.lo < want.lo && !said("missing-tag")) {
+      const kept = new Set(got.names);
+      errors.push({
+        code: "missing-tag",
+        name: want.names.find((n) => !kept.has(n)) ?? want.names[0]!,
+      });
+    }
+    if (got.hi > want.hi && !said("unexpected-tag")) {
+      const known = new Set(want.names);
+      errors.push({
+        code: "unexpected-tag",
+        name: got.names.find((n) => !known.has(n)) ?? got.names.at(-1)!,
+      });
+    }
+  }
   // Under i18next and Android, and in a Rails `_html` key, a tag a
   // source writes as text is text, and so is one its translation writes
   // as often, the source's unclosed `<p>` or
@@ -1546,6 +1572,34 @@ function exactBranches(
         }),
       }));
   });
+}
+
+// How many `xliff:g` elements the text's renderings hold, a plural's or
+// a select's branches each one: the fewest and the most, and each
+// element's identity as written.
+function xliffRange(
+  nodes: IcuNode[],
+  names: string[] = [],
+): { lo: number; hi: number; names: string[] } {
+  let lo = 0;
+  let hi = 0;
+  for (const node of nodes) {
+    if (node.kind === "tag") {
+      const own = node.name === "xliff:g" ? 1 : 0;
+      if (own)
+        names.push(node.attrs ? `${node.name} ${node.attrs}` : node.name);
+      const inner = xliffRange(node.children, names);
+      lo += own + inner.lo;
+      hi += own + inner.hi;
+    } else if (node.kind === "plural" || node.kind === "select") {
+      const ranges = Object.values(node.branches).map((branch) =>
+        xliffRange(branch, names),
+      );
+      lo += Math.min(...ranges.map((r) => r.lo));
+      hi += Math.max(...ranges.map((r) => r.hi));
+    }
+  }
+  return { lo, hi, names };
 }
 
 // Each group of exact keys one form is read by whose branches the
