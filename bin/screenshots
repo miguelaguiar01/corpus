@@ -55,8 +55,11 @@ for scheme in light dark; do
     sleep 1
   done
   curl -sf "http://localhost:$PORT/api/health" >/dev/null || { cat "$TMP/server.log" >&2; exit 1; }
+  # The staging script pins the stamps the pages print in this database,
+  # so two runs give the same images (#580).
   CORPUS_SMOKE_URL="http://localhost:$PORT" CORPUS_SMOKE_SECRET=smoke-only-not-a-secret \
-    CORPUS_SHOT_SCHEME="$scheme" CORPUS_SHOT_VIEWPORT="$viewport" npx tsx apps/web/e2e/screenshots.ts
+    CORPUS_SHOT_SCHEME="$scheme" CORPUS_SHOT_VIEWPORT="$viewport" \
+    CORPUS_SHOT_DB="$TMP/data/corpus.db" npx tsx apps/web/e2e/screenshots.ts
 done
 done
 echo "=== screenshots: done ==="

@@ -6,6 +6,7 @@ import { chromium, type Page } from "@playwright/test";
 import { loadConfig } from "@corpus-tool/cli";
 import { frozenChrome } from "./screenshot-fixture";
 import { moonlightManor } from "@corpus/contract";
+import Database from "better-sqlite3";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,6 +21,53 @@ const desktop = process.env.CORPUS_SHOT_VIEWPORT === "desktop";
 const suffix = desktop ? `desktop-${scheme}` : scheme;
 const out = process.env.CORPUS_SHOTS_DIR ?? path.resolve("docs/screenshots");
 mkdirSync(out, { recursive: true });
+
+// The stamps the pages print, pinned so two runs give the same images
+// (#580): each table's, in the order they were made, the first at a
+// fixed minute and each next one a minute on. The pages are rendered per
+// request, so the next load shows them; the app keeps its own clock.
+const PINNED = Date.UTC(2026, 0, 15, 9, 0);
+const STAMPS: [table: string, columns: string[]][] = [
+  ["pushes", ["at"]],
+  ["source_changes", ["created_at", "resolved_at"]],
+  ["edits", ["at"]],
+];
+
+function pinClock(): void {
+  const file = process.env.CORPUS_SHOT_DB;
+  if (!file) throw new Error("CORPUS_SHOT_DB names no database to pin");
+  const db = new Database(file, { fileMustExist: true });
+  try {
+    db.transaction(() => {
+      for (const [table, columns] of STAMPS) {
+        const rows = columns.flatMap((column) =>
+          (
+            db
+              .prepare(
+                `select rowid as id, ${column} as at from ${table} where ${column} is not null`,
+              )
+              .all() as { id: number; at: number }[]
+          ).map((row) => ({ ...row, column })),
+        );
+        rows.sort(
+          (a, b) =>
+            a.at - b.at || a.id - b.id || a.column.localeCompare(b.column),
+        );
+        const update = new Map(
+          columns.map((column) => [
+            column,
+            db.prepare(`update ${table} set ${column} = ? where rowid = ?`),
+          ]),
+        );
+        rows.forEach((row, rank) =>
+          update.get(row.column)!.run(PINNED + rank * 60_000, row.id),
+        );
+      }
+    })();
+  } finally {
+    db.close();
+  }
+}
 
 // Projects come from the provisioning route with the instance secret
 // (§10), as the CLI does; the new-project form is captured empty above.
@@ -55,6 +103,11 @@ async function main(): Promise<void> {
     colorScheme: scheme,
   });
   const page = await context.newPage();
+  // A page that is shot is loaded after the clock is pinned.
+  const visit = async (url: string) => {
+    pinClock();
+    await page.goto(url, { waitUntil: "networkidle" });
+  };
   // From the top of the page, whatever the last action scrolled to. On
   // desktop the frame ends a little under the content instead of at the
   // viewport's bottom, so a short page is not mostly empty canvas.
@@ -76,12 +129,12 @@ async function main(): Promise<void> {
   };
 
   // The entry surfaces, before there is a session or a project.
-  await page.goto(`${base}/invite`, { waitUntil: "networkidle" });
+  await visit(`${base}/invite`);
   await shot("invite");
   await join(page, "ana");
-  await page.goto(`${base}/`, { waitUntil: "networkidle" });
+  await visit(`${base}/`);
   await shot("home-empty");
-  await page.goto(`${base}/projects/new`, { waitUntil: "networkidle" });
+  await visit(`${base}/projects/new`);
   await shot("new-project");
 
   const save = async (url: string, text: string) => {
@@ -174,17 +227,16 @@ async function main(): Promise<void> {
     seedSuggestions: { "pt-PT": { "verify.button": "Marcar como verificado" } },
   });
 
-  await page.goto(corpus, { waitUntil: "networkidle" });
+  await visit(corpus);
   await shot("dashboard");
-  await page.goto(`${corpus}/catalogue`, { waitUntil: "networkidle" });
+  await visit(`${corpus}/catalogue`);
   await shot("catalogue");
-  await page.goto(
+  await visit(
     chromeString("verify.button", "queue=untranslated&language=pt-PT"),
-    { waitUntil: "networkidle" },
   );
   await page.getByRole("textbox").fill("Marcar {language} como verificado");
   await shot("editor");
-  await page.goto(`${corpus}/settings`, { waitUntil: "networkidle" });
+  await visit(`${corpus}/settings`);
   await shot("settings");
   // A source proposal (§9.3, §11): propose a change on a chrome string,
   // then capture the string page with it pending, and the add form.
@@ -193,11 +245,9 @@ async function main(): Promise<void> {
   await page.getByLabel("Proposed source text").fill("Out of date");
   await page.getByRole("button", { name: "Propose", exact: true }).click();
   await page.waitForURL(/proposed=1/);
-  await page.goto(chromeString("queue.stale", "language=pt-PT"), {
-    waitUntil: "networkidle",
-  });
+  await visit(chromeString("queue.stale", "language=pt-PT"));
   await shot("proposal");
-  await page.goto(`${corpus}/strings/new`, { waitUntil: "networkidle" });
+  await visit(`${corpus}/strings/new`);
   await shot("new-string");
 
   // Structured text: the Moonlight Manor fixture, for selects, entities,
@@ -239,15 +289,11 @@ async function main(): Promise<void> {
       data: { text: "I heard nothing all night." },
     },
   );
-  await page.goto(
-    string("skin.heard-nothing", "queue=agentDrafts&language=en"),
-    { waitUntil: "networkidle" },
-  );
+  await visit(string("skin.heard-nothing", "queue=agentDrafts&language=en"));
   await shot("agent-draft");
 
-  await page.goto(
+  await visit(
     string("skin.seen-at-greenhouse-window", "queue=untranslated&language=en"),
-    { waitUntil: "networkidle" },
   );
   await page
     .getByRole("textbox")
@@ -255,19 +301,17 @@ async function main(): Promise<void> {
       "{person} was seen at the {room_de} window at {hour} — and was not alone.",
     );
   await shot("editor-structured");
-  await page.goto(string("ui.marks-left", "queue=untranslated&language=en"), {
-    waitUntil: "networkidle",
-  });
+  await visit(string("ui.marks-left", "queue=untranslated&language=en"));
   await page
     .getByRole("textbox")
     .fill(
       "{n, plural, =0 {No marks left to find.} one {# mark left.} other {# marks left.}}",
     );
   await shot("editor-plural");
-  await page.goto(`${project}/entities`, { waitUntil: "networkidle" });
+  await visit(`${project}/entities`);
   await shot("entities");
   // Both projects staged: the home page has two cards with real progress.
-  await page.goto(`${base}/`, { waitUntil: "networkidle" });
+  await visit(`${base}/`);
   await shot("home");
 
   await browser.close();
