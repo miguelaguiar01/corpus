@@ -1227,6 +1227,9 @@ class Parser {
     }
     if (ch === "%") {
       if (this.source[this.pos + 1] === "%") return this.text(seq, "%", 2);
+      // Java's `%n` is a line break, taking no argument (#1145).
+      if (this.syntax === "android" && this.source[this.pos + 1] === "n")
+        return this.text(seq, "%n", 2);
       // A Python key is named by itself, never counted by position.
       const key =
         this.syntax === "printf" &&
@@ -1234,6 +1237,11 @@ class Parser {
       if (key) return this.placeholder(seq, key[1]!, key[0]);
       const verb = PRINTF_VERB_RE.exec(this.source.slice(this.pos));
       if (verb) {
+        if (this.syntax === "android" && verb[1] !== undefined)
+          throw new ParseFailure(
+            `${verb[0]} is Go's index form; Android formats with Java's Formatter, which throws on it: write %${verb[1]}$${verb[3]}${verb[4]}`,
+            this.pos,
+          );
         const explicit = verb[1] ?? verb[2];
         // In a substitution's branch the first unindexed verb is its
         // argument, as `%arg` is, and the rest count on after it (#726).
@@ -1248,7 +1256,10 @@ class Parser {
           : substituted
             ? Number(own)
             : this.printfNext;
-        if (!substituted) this.printfNext = position + 1;
+        // Java counts an unnumbered verb on by itself, whatever explicit
+        // indexes come between: `%1$s %s` is argument 1 twice (#1145).
+        if (!substituted && !(explicit && this.syntax === "android"))
+          this.printfNext = position + 1;
         return this.placeholder(seq, String(position), verb[0]);
       }
     }
@@ -1454,7 +1465,18 @@ class Parser {
       // a mistyped one there is refused as it is in the text.
       if (!(error instanceof ParseFailure)) throw error;
       if (this.syntax === "rails") throw new ParseFailure(error.message, start);
-      return { attrs };
+      // An Android attribute's verbs still count in their place, its
+      // braces, which are what fail, read as text (#1145).
+      if (this.syntax !== "android" || !/[{}]/.test(attrs)) return { attrs };
+      const blank = new Parser(attrs.replace(/[{}]/g, " "), this.syntax, false);
+      blank.printfNext = this.printfNext;
+      try {
+        nodes = blank.parseSequence(false);
+      } catch (retry) {
+        if (!(retry instanceof ParseFailure)) throw retry;
+        return { attrs };
+      }
+      this.printfNext = blank.printfNext;
     }
     const placeholders = nodes.filter((node) => node.kind === "placeholder");
     return placeholders.length > 0
