@@ -2574,7 +2574,9 @@ test("a gettext source read under counterpart or easy_localization carries every
     path.join(dir, "po", "de.po"),
     po('"Plural-Forms: nplurals=2; plural=(n != 1);\\n"\n'),
   );
-  const forms = async (library?: string) =>
+  const forms = async (
+    library?: "counterpart" | "easy_localization" | "printf",
+  ) =>
     (
       await buildSnapshotReport(
         config({

@@ -1754,7 +1754,7 @@ export function exactCovers(
   ordinal = false,
   held: Held = {},
 ): boolean {
-  // An `=N` the plural cannot hold, which exactBranches refuses, stands
+  // An `=N` a whole-read library or a file of forms cannot hold stands
   // for nothing; one the file's own forms name does (#964).
   if (WHOLE_PLURAL_LIBRARIES.has(library) || held.pluralAsForms)
     exact = new Set(

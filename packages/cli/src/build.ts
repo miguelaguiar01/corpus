@@ -1520,7 +1520,8 @@ function railsPluralForms(
 }
 
 // Per target language, the plural categories a gettext source's target
-// file picks, where they are not the language's CLDR ones (#951): a
+// file picks, where they are not the language's CLDR ones (#951), or
+// for every language under counterpart and easy_localization: a
 // missing file is the one pull would write, from the language's table,
 // and one that will not read is named where its seeds are read. A tag
 // the runtime has no plural data for has none: its rules would be the
@@ -1533,6 +1534,10 @@ function gettextPluralForms(
 ): OwnPluralForms | undefined {
   const out: Record<string, string[]> = {};
   const shared: Record<string, string[][]> = {};
+  // A library with a rule of its own would read CLDR's forms by it
+  // (#964).
+  const library = sourceLibrary(source);
+  const ownRule = library === "counterpart" || library === "easy_localization";
   for (const lang of config.languages) {
     if (lang === config.sourceLanguage) continue;
     if (!takesLanguage(source, config, lang)) continue;
@@ -1548,7 +1553,7 @@ function gettextPluralForms(
       continue;
     }
     const reading = gettextPluralReading(text, tag);
-    if (reading.categories.join() !== cldr.join())
+    if (reading.categories.join() !== cldr.join() || ownRule)
       out[lang] = reading.categories;
     if (reading.shared.length > 0) shared[lang] = reading.shared;
   }
