@@ -488,8 +488,9 @@ export async function validateRepo(
           : undefined;
       if (earlier) {
         for (const [key, { source: text }] of translations) {
-          // An empty value is a key the file lacks, never a finding.
-          if (isBlank(text)) continue;
+          // An empty value is a key the file lacks, never a finding, and
+          // an id its source file lacks is no seed (#1071).
+          if (isBlank(text) || !sources.has(key)) continue;
           const copies = earlier.get(key) ?? [];
           const held = copies.at(-1);
           if (held !== undefined && held.text !== text)
@@ -502,7 +503,7 @@ export async function validateRepo(
               message: `reads otherwise in ${held.file}, which the app never shows: this later file's is its translation, as merge: "last-wins" says`,
             });
           for (const copy of copies)
-            if (copy.text !== text) hideCopy(copy, file);
+            if (copy.hidden || copy.text !== text) hideCopy(copy, file);
           copies.push({ file, text, findings: [] });
           earlier.set(key, copies);
         }
@@ -550,7 +551,11 @@ export async function validateRepo(
         earlier
           ?.get(key)
           ?.at(-1)
-          ?.findings.push(...checked.filter((f) => f.file === file));
+          ?.findings.push(
+            ...checked
+              .filter((f) => f.file === file)
+              .map((finding) => ({ finding, message: finding.message })),
+          );
         if (source.adapter === "fluent")
           findings.push(
             ...termWarnings(target, {
@@ -571,17 +576,25 @@ export async function validateRepo(
   return { findings, unchecked };
 }
 
-// A target file's copy of a translation under last-wins (#953).
-type Copy = { file: string; text: string; findings: Finding[]; hidden?: true };
+// A target file's copy of a translation under last-wins (#953), with
+// its findings and their messages as checked.
+type Copy = {
+  file: string;
+  text: string;
+  findings: { finding: Finding; message: string }[];
+  hidden?: true;
+};
 
 // A copy a later file of its group holds otherwise is one the app never
-// shows: its problems are warnings, not the translation's (#1116).
+// shows: its problems are warnings, not the translation's, naming the
+// latest file that holds it otherwise (#1116). A gap its source lacks
+// too stays the source's, in --json alone (#1029).
 function hideCopy(copy: Copy, later: string): void {
-  if (copy.hidden) return;
   copy.hidden = true;
-  for (const finding of copy.findings) {
+  for (const { finding, message } of copy.findings) {
+    if (finding.sourceLacks) continue;
     finding.severity = "warning";
-    finding.message += `; the app never shows this copy: ${later}'s is its translation, as merge: "last-wins" says`;
+    finding.message = `${message}; the app never shows this copy: ${later}'s is its translation, as merge: "last-wins" says`;
   }
 }
 
