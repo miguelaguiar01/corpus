@@ -13,6 +13,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- The plural chip no longer inserts a category the source's `=N` branch already covers, German's `one` beside `=1` (#686).
 - The string page and its saves no longer load the whole queue to find previous and next (#639).
 - `bin/screenshots` pins the dates the pages print, so two runs give byte-identical images (#580).
 - A plural written more than once is checked copy by copy, so one copy's missing category is no longer hidden by another's (#1085).

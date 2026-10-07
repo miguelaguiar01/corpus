@@ -982,7 +982,9 @@ test("the plural chip leaves out a category the source's =N branch already cover
     [...text.matchAll(/(=?\w+) \{/g)].map((m) => m[1]);
   const source = "{n, plural, =1 {one file} other {# files}}";
   expect(keys(chip(source, "de"))).toEqual(["=1", "other"]);
-  expect(keys(chip(source, "fr"))).toEqual(["=1", "one", "many", "other"]);
+  // fr's one holds 0 as well, so =1 covers none of it; its many, which only
+  // millions reach, is not asked for (#1159).
+  expect(keys(chip(source, "fr"))).toEqual(["=1", "one", "other"]);
   expect(keys(chip(source, "ru"))).toEqual([
     "=1",
     "one",
