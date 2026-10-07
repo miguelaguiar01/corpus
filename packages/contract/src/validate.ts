@@ -452,9 +452,6 @@ function pickedBranches(
   });
 }
 
-// The message as an other-only language renders it: each plural on
-// `args` replaced by its `other` branch, `#` by the count.
-// A plural by its kind and argument: `ordinal n`, `cardinal n` (#995).
 // The nodes with their first positional `{}` named `arg`.
 function countedFirst(nodes: IcuNode[], arg: string): IcuNode[] {
   let done = false;
@@ -472,10 +469,25 @@ function countedFirst(nodes: IcuNode[], arg: string): IcuNode[] {
   return walk(nodes);
 }
 
+// How a text's placeholders are written, through tags and branches.
+function writtenIn(nodes: IcuNode[], out = new Set<string>()): Set<string> {
+  for (const node of nodes) {
+    if (node.kind === "placeholder" && node.written !== undefined)
+      out.add(node.written);
+    else if (node.kind === "tag") writtenIn(node.children, out);
+    else if (node.kind === "select" || node.kind === "plural")
+      for (const branch of Object.values(node.branches)) writtenIn(branch, out);
+  }
+  return out;
+}
+
+// A plural by its kind and argument: `ordinal n`, `cardinal n` (#995).
 function pluralId(ordinal: boolean, arg: string): string {
   return `${ordinal ? "ordinal" : "cardinal"} ${arg}`;
 }
 
+// The message as an other-only language renders it: each plural on
+// `args` replaced by its `other` branch, `#` by the count.
 function otherBranch(nodes: IcuNode[], args: Set<string>): IcuNode[] {
   return nodes.flatMap((node): IcuNode[] => {
     if (
@@ -1003,19 +1015,24 @@ export function validateTranslation(
         : { code: "unexpected-placeholder", name, ...writtenAs(actual, name) },
     );
   }
+  // A named count prints as it is unless the call names it: declared,
+  // or written so in one of the source's forms.
+  if (easyCount !== undefined && !passed.has(easyCount)) {
+    const named = `{${easyCount}}`;
+    const source = writtenIn(sourceNodes);
+    if (
+      source.has("{}") &&
+      !source.has(named) &&
+      writtenIn(targetNodes).has(named)
+    )
+      errors.push({
+        code: "unexpected-placeholder",
+        name: easyCount,
+        written: named,
+      });
+  }
   // counterpart substitutes `%(name)s` only as written: `%(n)d` for the
   // source's `%(n)s` is text in the app (#663).
-  // A named count where the source's forms write `{}` prints as it is.
-  if (
-    easyCount !== undefined &&
-    expected.written.get(easyCount) === "{}" &&
-    actual.written.get(easyCount) === `{${easyCount}}`
-  )
-    errors.push({
-      code: "unexpected-placeholder",
-      name: easyCount,
-      written: `{${easyCount}}`,
-    });
   if (syntax === "counterpart") {
     for (const [name, written] of expected.written) {
       const got = actual.written.get(name);
