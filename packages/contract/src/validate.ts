@@ -1012,11 +1012,17 @@ export function validateTranslation(
     }
   } else {
     // Compared as HTML reads them, an Android verb by the position it
-    // takes (#956), said as each side writes them.
+    // takes (#956), said as each side writes them. Android's `xliff:g`
+    // by its name alone: aapt strips the element, so its id, which
+    // translators often translate, never reaches the app (#1067).
+    const key = (identity: string) =>
+      syntax === "android" && /^xliff:g(?:\s|$)/.test(identity)
+        ? "xliff:g"
+        : tagKey(identity);
     const keysOf = (shape: Shape, name: string) =>
-      [...(shape.tagKeys.get(name) ?? [name])].map(tagKey);
+      [...(shape.tagKeys.get(name) ?? [name])].map(key);
     const pairKeysOf = (shape: Shape, name: string) =>
-      [...(shape.pairKeys.get(name) ?? [])].map(tagKey);
+      [...(shape.pairKeys.get(name) ?? [])].map(key);
     const actualTags = new Set(
       [...actual.tags].flatMap((name) => keysOf(actual, name)),
     );
@@ -1044,6 +1050,23 @@ export function validateTranslation(
       if (keysOf(actual, name).some((key) => !expectedTags.has(key)))
         errors.push({ code: "unexpected-tag", name });
     }
+  }
+  // Android's `xliff:g` compares by its name, so a verb it wraps is
+  // checked apart: wherever a translation writes one the source wraps,
+  // it is wrapped too, else the element was dropped or turned to text
+  // around it. A branch that writes no number, German's one, has none to
+  // wrap, and an extra element is aapt's to strip (#1067).
+  if (syntax === "android") {
+    const want = xliffVerbs(sourceNodes);
+    const got = xliffVerbs(targetNodes);
+    const said = new Set(
+      errors.flatMap((e) => (e.code === "missing-tag" ? [e.name] : [])),
+    );
+    for (const [verb, name] of want.wrapped)
+      if (got.bare.has(verb) && !want.bare.has(verb) && !said.has(name)) {
+        said.add(name);
+        errors.push({ code: "missing-tag", name });
+      }
   }
   // Under i18next and Android, and in a Rails `_html` key, a tag a
   // source writes as text is text, and so is one its translation writes
@@ -1540,6 +1563,33 @@ function exactBranches(
         }),
       }));
   });
+}
+
+// The verbs a text writes inside an `xliff:g`, each with the element's
+// identity as written, and those it writes outside one.
+function xliffVerbs(
+  nodes: IcuNode[],
+  out = { wrapped: new Map<string, string>(), bare: new Set<string>() },
+  within?: string,
+): { wrapped: Map<string, string>; bare: Set<string> } {
+  for (const node of nodes) {
+    if (node.kind === "placeholder") {
+      if (within === undefined) out.bare.add(node.name);
+      else if (!out.wrapped.has(node.name)) out.wrapped.set(node.name, within);
+    } else if (node.kind === "tag") {
+      const own =
+        node.name === "xliff:g"
+          ? node.attrs
+            ? `${node.name} ${node.attrs}`
+            : node.name
+          : within;
+      xliffVerbs(node.children, out, own);
+    } else if (node.kind === "plural" || node.kind === "select") {
+      for (const branch of Object.values(node.branches))
+        xliffVerbs(branch, out, within);
+    }
+  }
+  return out;
 }
 
 // Each group of exact keys one form is read by whose branches the

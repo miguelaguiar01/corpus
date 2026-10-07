@@ -3632,3 +3632,103 @@ test("shared exact keys compare as the writer does, by the text written, not by 
       ]),
     });
 });
+
+test("under android, <xliff:g> is a tag a translation keeps, by its name (#1067)", () => {
+  const source = 'Load up to <xliff:g id="messages_to_load">%d</xliff:g> more';
+  const check = (text: string) =>
+    validateTranslation(source, text, "ta-IN", "android");
+  expect(
+    check('<xliff:g id="messages_to_load">%d</xliff:g> வரை ஏற்றவும்').ok,
+  ).toBe(true);
+  // thunderbird-android's ta-IN, its element turned to text and its name
+  // and attribute translated.
+  expect(
+    check(
+      '<Xliff வரை ஏற்றவும்: g ஐடி = "messages_to_load">%d </xliff: g> மேலும்',
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: expect.arrayContaining([
+      { code: "missing-tag", name: 'xliff:g id="messages_to_load"' },
+    ]),
+  });
+  expect(check("%d மேலும்")).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-tag", name: 'xliff:g id="messages_to_load"' }],
+  });
+  // Its id is no part of it: aapt strips the element, so a translated
+  // id never reaches the app.
+  expect(check('<xliff:g id="ஏற்ற">%d</xliff:g> மேலும்').ok).toBe(true);
+  // Other libraries read <a:b> as text, as before.
+  expect(validateTranslation("Go <a:b>x</a:b>", "Vai", "de", "icu").ok).toBe(
+    true,
+  );
+});
+
+test("under android, a verb the source wraps in <xliff:g> is wrapped wherever a translation writes it (#1067 review)", () => {
+  const two =
+    '<xliff:g id="name">%1$s</xliff:g> (<xliff:g id="size">%2$s</xliff:g>)';
+  for (const text of [
+    '<xliff:g id="name">%1$s</xliff:g> (<Xliff: g id = "size">%2$s</xliff: g>)',
+    '<xliff:g id="name">%1$s</xliff:g> (%2$s)',
+  ])
+    expect(
+      validateTranslation(two, text, "ta-IN", "android"),
+      text,
+    ).toMatchObject({
+      ok: false,
+      errors: [{ code: "missing-tag", name: 'xliff:g id="size"' }],
+    });
+  // Translated ids: valid.
+  expect(
+    validateTranslation(
+      two,
+      '<xliff:g id="nome">%1$s</xliff:g> (<xliff:g id="size">%2$s</xliff:g>)',
+      "it",
+      "android",
+    ).ok,
+  ).toBe(true);
+  // An extra element is harmless, aapt stripping it.
+  expect(
+    validateTranslation(
+      'Go <xliff:g id="n">%d</xliff:g>',
+      'Vai <xliff:g id="n">%d</xliff:g> <xliff:g id="m">x</xliff:g>',
+      "it",
+      "android",
+    ).ok,
+  ).toBe(true);
+  // Per branch: one that writes the verb bare is named; one that writes
+  // no number at all, German's one or Arabic's zero, keeps nothing to
+  // wrap (Android lint's ImpliedQuantity).
+  const plural =
+    '{quantity, plural, one {<xliff:g id="n">%d</xliff:g> file} other {<xliff:g id="n">%d</xliff:g> files}}';
+  const check = (text: string, language: string) =>
+    validateTranslation(plural, text, language, "android");
+  expect(
+    check(
+      '{quantity, plural, one {<xliff:g id="n">%d</xliff:g> plik} few {<xliff:g id="n">%d</xliff:g> pliki} many {<xliff:g id="n">%d</xliff:g> plików} other {<xliff:g id="n">%d</xliff:g> pliku}}',
+      "pl",
+    ).ok,
+  ).toBe(true);
+  expect(
+    check(
+      '{quantity, plural, one {<xliff:g id="n">%d</xliff:g> plik} few {%d pliki} many {<xliff:g id="n">%d</xliff:g> plików} other {<xliff:g id="n">%d</xliff:g> pliku}}',
+      "pl",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-tag", name: 'xliff:g id="n"' }],
+  });
+  expect(
+    check(
+      '{quantity, plural, one {Eine Datei} other {<xliff:g id="n">%d</xliff:g> Dateien}}',
+      "de",
+    ).ok,
+  ).toBe(true);
+  expect(
+    check(
+      '{quantity, plural, zero {لا ملفات} one {<xliff:g id="n">%d</xliff:g> ملف} two {<xliff:g id="n">%d</xliff:g> ملفان} few {<xliff:g id="n">%d</xliff:g> ملفات} many {<xliff:g id="n">%d</xliff:g> ملفًا} other {<xliff:g id="n">%d</xliff:g> ملف}}',
+      "ar",
+    ).ok,
+  ).toBe(true);
+});
