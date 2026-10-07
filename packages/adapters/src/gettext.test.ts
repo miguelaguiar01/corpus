@@ -1295,7 +1295,7 @@ test("a target's credits are dropped in the forms real headers write them: an em
 #
 msgid ""
 msgstr ""
-"Language: sv\n"
+"Language: sv\\n"
 
 msgid "Quit"
 msgstr "Avsluta"
@@ -1305,4 +1305,63 @@ msgstr "Avsluta"
   ).toMatch(
     /^# Swedish translation for Joplin\.\n# Copyright \(C\) 2026 Laurent Cozic\n# This file is distributed under the same license as the Joplin-CLI package\.\n# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR\.\n# SPDX-FileCopyrightText: 2026 summoner <summoner@disroot\.org>\n#\nmsgid ""\n/,
   );
+});
+
+test("a target's header comment keeps every line that is no credit: titles and licences with a year, a bug address, a licence's name; a Translators block ends where its credits do (#1101)", () => {
+  const start = (comment: string, body = 'msgid "Quit"\nmsgstr "Avsluta"\n') =>
+    entriesToGettext(
+      `${comment}msgid ""\nmsgstr ""\n"Language: sv\\n"\n\n${body}`,
+      {},
+      undefined,
+      { tag: "da", code: "da" },
+    );
+  const kept = `# German translation of foo, 2005.
+# This file is put in the public domain, 2020.
+# Report bugs to <bugs@example.org>
+# Jonatan Nyberg, 2023.
+# GNU General Public License
+`;
+  expect(start(kept)).toMatch(
+    /^# German translation of foo, 2005\.\n# This file is put in the public domain, 2020\.\n# Report bugs to <bugs@example\.org>\n# GNU General Public License\nmsgid ""\n/,
+  );
+  // An unclosed block, or one closed by `# `, stops at its credits.
+  for (const close of ["", "# \n"])
+    expect(
+      start(
+        `# Translators:\n# Anna Svensson <anna@example.org>, 2019\n${close}# Copyright (C) 2020 Foo\n# This file is distributed under the same license as Foo.\n`,
+      ),
+    ).toMatch(
+      /^# Copyright \(C\) 2020 Foo\n# This file is distributed under the same license as Foo\.\nmsgid ""\n/,
+    );
+  // A blank line between the header comment and the header.
+  expect(
+    start("# Title\n# Anna Svensson <anna@example.org>, 2019\n\n"),
+  ).toMatch(/^# Title\n\nmsgid ""\n/);
+  // A target by its Language alone drops its obsolete entries too.
+  expect(
+    start(
+      "",
+      'msgid "Quit"\nmsgstr ""\n\n#~ msgid "Old"\n#~ msgstr "Gammal"\n',
+    ),
+  ).not.toContain("#~");
+});
+
+test("a long header comment line is read in linear time (#1101)", () => {
+  for (const line of [
+    `# x <${"@".repeat(40_000)}`,
+    `# ${"a <".repeat(15_000)}`,
+    `# x <${"a@".repeat(20_000)}a`,
+    `# Name${", 2020.".repeat(6_000)}x`,
+    `# N <a@b>${", 2020".repeat(7_000)}!`,
+    `# ${" <a@b>".repeat(7_000)}x`,
+  ]) {
+    const started = performance.now();
+    entriesToGettext(
+      `${line}\nmsgid ""\nmsgstr ""\n"Language: sv\\n"\n\nmsgid "Quit"\nmsgstr "Avsluta"\n`,
+      {},
+      undefined,
+      { tag: "da", code: "da" },
+    );
+    expect(performance.now() - started, line.slice(0, 12)).toBeLessThan(1000);
+  }
 });
