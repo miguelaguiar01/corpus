@@ -1,6 +1,7 @@
-import { and, desc, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, max, ne, sql } from "drizzle-orm";
 import {
   PLURAL_CATEGORIES,
+  pluralBranches,
   libraryOf,
   sameMessage,
   validateTranslation,
@@ -18,6 +19,7 @@ import {
   pushes,
   strings,
   stringTranslations,
+  users,
 } from "@/db/schema";
 import { reconcileProposals } from "@/proposals/service";
 import { ensureTranslationRows, dropUntakenRows } from "@/translations/rows";
@@ -698,15 +700,16 @@ function projectStrings(db: Db, projectId: number) {
     .all();
 }
 
-const COUNT_PLURAL_RE = /^\s*\{\s*count\s*,\s*plural\s*,/;
-
 // A plural string this push inserts whose keys it archives, an i18next
 // family pushed as `n_one` and `n_other` before 0.22 and as `n` since
 // (#985): a language the files leave untranslated takes the texts those
 // keys hold in Corpus and never pulled (#1063), as one plural in CLDR's
-// order, at the lowest of their states, stale where one is. The edit
-// is the last one made to those keys, by its author at its time, so the
-// row keeps who wrote it, a person or an agent (§10).
+// order, at the lowest of their states, stale where one is or where its
+// form's source is not the key's any more. A text that would not split
+// back into the same forms, a stray brace in one, stays on the keys.
+// The edit is the last one made to those keys, by its author at its
+// time, an agent's only where an agent made every form (§10): a form a
+// person wrote, or a seed, keeps the row a person's.
 function carryFamilies(
   tx: Db,
   projectId: number,
@@ -716,112 +719,181 @@ function carryFamilies(
   sourceLanguage: string,
   richText: NonNullable<Snapshot["richText"]>,
 ): number {
-  let carried = 0;
-  for (const entry of inserted) {
-    if (!COUNT_PLURAL_RE.test(entry.source)) continue;
+  const families = inserted.flatMap((entry) => {
+    const forms = pluralBranches(entry.source, false);
+    if (!forms) return [];
     const members = PLURAL_CATEGORIES.flatMap((category) => {
       const rowId = archived.get(`${entry.id}_${category}`);
       return rowId === undefined ? [] : [{ category, rowId }];
     });
-    if (members.length === 0) continue;
-    const row = tx
-      .select({ id: strings.id })
+    return members.length > 0 ? [{ entry, forms, members }] : [];
+  });
+  if (families.length === 0) return 0;
+
+  const key = (stringId: number, language: string) =>
+    `${stringId}\u0000${language}`;
+  const newIds = new Map<string, number>();
+  const sources = new Map<number, string>();
+  const rows = new Map<string, typeof stringTranslations.$inferSelect>();
+  const latest = new Map<
+    string,
+    { id: number; userId: number; at: Date; agent: boolean }
+  >();
+  const memberIds = families.flatMap((f) => f.members.map((m) => m.rowId));
+  for (const ids of chunks(families.map((f) => f.entry.id)))
+    for (const row of tx
+      .select({ id: strings.id, stringId: strings.stringId })
       .from(strings)
       .where(
-        and(eq(strings.projectId, projectId), eq(strings.stringId, entry.id)),
+        and(eq(strings.projectId, projectId), inArray(strings.stringId, ids)),
       )
-      .get();
-    if (!row) continue;
+      .all())
+      newIds.set(row.stringId, row.id);
+  for (const ids of chunks(memberIds)) {
+    for (const row of tx
+      .select({ id: strings.id, source: strings.source })
+      .from(strings)
+      .where(inArray(strings.id, ids))
+      .all())
+      sources.set(row.id, row.source);
+    const last = tx
+      .select({ id: max(edits.id) })
+      .from(edits)
+      .where(inArray(edits.stringId, ids))
+      .groupBy(edits.stringId, edits.language);
+    for (const edit of tx
+      .select({
+        id: edits.id,
+        stringId: edits.stringId,
+        language: edits.language,
+        userId: edits.userId,
+        at: edits.at,
+        agent: users.agent,
+      })
+      .from(edits)
+      .innerJoin(users, eq(users.id, edits.userId))
+      .where(inArray(edits.id, last))
+      .all())
+      latest.set(key(edit.stringId, edit.language), edit);
+  }
+  for (const ids of chunks([...newIds.values(), ...memberIds]))
+    for (const row of tx
+      .select()
+      .from(stringTranslations)
+      .where(
+        and(
+          inArray(stringTranslations.stringId, ids),
+          inArray(stringTranslations.language, targetLanguages),
+        ),
+      )
+      .all())
+      rows.set(key(row.stringId, row.language), row);
+
+  const write = tx
+    .update(stringTranslations)
+    .set({
+      text: sql`${sql.placeholder("text")}`,
+      state: sql`${sql.placeholder("state")}`,
+      stale: sql`${sql.placeholder("stale")}`,
+      invalid: sql`${sql.placeholder("invalid")}`,
+      updatedAt: sql`${sql.placeholder("updatedAt")}`,
+    })
+    .where(eq(stringTranslations.id, sql.placeholder("id")))
+    .prepare();
+  const log = tx
+    .insert(edits)
+    .values({
+      stringId: sql.placeholder("stringId"),
+      language: sql.placeholder("language"),
+      userId: sql.placeholder("userId"),
+      at: sql.placeholder("at"),
+      oldText: null,
+      newText: sql.placeholder("newText"),
+      oldState: "untranslated",
+      newState: sql.placeholder("newState"),
+    })
+    .prepare();
+  let carried = 0;
+  for (const { entry, forms, members } of families) {
+    const id = newIds.get(entry.id);
+    if (id === undefined) continue;
     const library = libraryOf(entry);
     for (const language of targetLanguages) {
       if (!takes(entry, language)) continue;
-      const target = tx
-        .select()
-        .from(stringTranslations)
-        .where(
-          and(
-            eq(stringTranslations.stringId, row.id),
-            eq(stringTranslations.language, language),
-          ),
-        )
-        .get();
+      const target = rows.get(key(id, language));
       if (!target || target.state !== "untranslated" || target.text !== null)
         continue;
       const held = members.flatMap(({ category, rowId }) => {
-        const member = tx
-          .select()
-          .from(stringTranslations)
-          .where(
-            and(
-              eq(stringTranslations.stringId, rowId),
-              eq(stringTranslations.language, language),
-            ),
-          )
-          .get();
-        return member?.text != null && member.state !== "untranslated"
-          ? [{ category, member }]
+        const member = rows.get(key(rowId, language));
+        return member && member.text !== null && member.state !== "untranslated"
+          ? [{ category, rowId, member, text: member.text }]
           : [];
       });
       if (held.length === 0) continue;
       const text = `{count, plural, ${held
-        .map(({ category, member }) => `${category} {${member.text}}`)
+        .map(({ category, text }) => `${category} {${text}}`)
         .join(" ")}}`;
+      const back = pluralBranches(text, false);
+      if (
+        !back ||
+        Object.keys(back).length !== held.length ||
+        held.some(({ category, text }) => back[category] !== text)
+      )
+        continue;
       const state = held.some(({ member }) => member.state === "translated")
         ? "translated"
         : "verified";
-      const latest = tx
-        .select()
-        .from(edits)
-        .where(
-          and(
-            inArray(
-              edits.stringId,
-              held.map(({ member }) => member.stringId),
-            ),
-            eq(edits.language, language),
-          ),
-        )
-        .orderBy(desc(edits.id))
-        .get();
-      tx.update(stringTranslations)
-        .set({
+      const stale = held.some(
+        ({ category, rowId, member }) =>
+          member.stale || sources.get(rowId) !== forms[category],
+      );
+      const edits = held.map(({ rowId }) => latest.get(key(rowId, language)));
+      const byAgent = edits.every((e) => e?.agent);
+      const author = edits
+        .filter((e) => e !== undefined && (byAgent || !e.agent))
+        .sort((a, b) => b!.id - a!.id)[0];
+      write.run({
+        id: target.id,
+        text,
+        state,
+        stale: stale ? 1 : 0,
+        invalid: seedInvalid(
+          entry.source,
           text,
-          state,
-          stale: held.some(({ member }) => member.stale),
-          invalid: seedInvalid(
-            entry.source,
-            text,
-            language,
-            library,
-            richTextFor(entry.type, entry.id, library, richText),
-            entry.arguments,
-            entry.id,
-            sourceLanguage,
-            entry.placeholders,
-            entry.pluralForms?.[language],
-            entry.pluralShared?.[language],
-          ),
-          updatedAt: new Date(),
-        })
-        .where(eq(stringTranslations.id, target.id))
-        .run();
-      if (latest)
-        tx.insert(edits)
-          .values({
-            stringId: row.id,
-            language,
-            userId: latest.userId,
-            at: latest.at,
-            oldText: null,
-            newText: text,
-            oldState: "untranslated",
-            newState: state,
-          })
-          .run();
+          language,
+          library,
+          richTextFor(entry.type, entry.id, library, richText),
+          entry.arguments,
+          entry.id,
+          sourceLanguage,
+          entry.placeholders,
+          entry.pluralForms?.[language],
+          entry.pluralShared?.[language],
+        )
+          ? 1
+          : 0,
+        updatedAt: Date.now(),
+      });
+      if (author)
+        log.run({
+          stringId: id,
+          language,
+          userId: author.userId,
+          at: author.at,
+          newText: text,
+          newState: state,
+        });
       carried += 1;
     }
   }
   return carried;
+}
+
+function chunks<T>(items: T[], size = 500): T[][] {
+  const out: T[][] = [];
+  for (let at = 0; at < items.length; at += size)
+    out.push(items.slice(at, at + size));
+  return out;
 }
 
 // seedSuggestions (§8, #773): what the repository offers a translator to
