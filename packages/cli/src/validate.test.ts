@@ -137,14 +137,15 @@ test("an exporter that hands over some of its translations is named with the cou
       translations: { pt: { "exec.bye": "Adeus {who}" } },
     }))`,
   );
+  // The string that does not parse is no translation to hand over, and
+  // is said all the same (#1115).
   const c = ctx();
-  expect(await run(["validate"], c)).toBe(0);
-  expect(c.stderr.join("\n")).toContain(
+  expect(await run(["validate"], c)).toBe(1);
+  expect(c.stderr).toEqual([
+    "exec:node scripts/export.mjs [exec.broken] en: invalid ICU in the source at 3: unclosed '{'",
     'corpus: exec "node scripts/export.mjs" hands over 1 of the 2 translations its strings can have; any others, such as drafts on the instance, are not checked here: `corpus validate --server` checks them',
-  );
-  expect(c.stdout.join("\n")).toMatch(
-    /^validate: every translation checked is valid; not checked: what exec/,
-  );
+    "corpus: 1 source string(s) that do not parse, which build refuses",
+  ]);
   // Every translation handed over: nothing left unchecked.
   writeFileSync(
     path.join(repo, "scripts", "export.mjs"),
