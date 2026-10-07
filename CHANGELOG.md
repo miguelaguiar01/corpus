@@ -13,6 +13,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- The preview of a gettext plural whose count is a Python key (`%(num)s`) picks its form from that key's example value (#1113).
 - `get_string` on an archived string the build refuses says why, beside `archived: true` (#1111).
 - An edited Khmer or Lao plural in a Qt file is written into its n = 1 form too, rather than leaving that form's old translation (#1104).
 - A new language's `.po` started from another language's file no longer keeps that file's translator credits, comments, `Last-Translator`, `Language-Team` or revision date (#1101).
