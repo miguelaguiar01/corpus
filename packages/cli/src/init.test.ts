@@ -3608,3 +3608,34 @@ test("init writes be@tarask, sr@ijekavian and sr@ijekavianlatin as their tags, a
     /not a language tag the runtime knows/,
   );
 });
+
+test("a POSIX code --languages lists maps no file another spelling of its tag already holds, and an android source takes its tag alone (#1119 review)", async () => {
+  // qBittorrent's uz@Latn beside sr@latin: the file there is the mapping.
+  const qt = (language: string) =>
+    `<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE TS>\n<TS version="2.1" language="${language}">\n<context>\n    <name>Main</name>\n    <message>\n        <source>Hi</source>\n        <translation>Hi</translation>\n    </message>\n</context>\n</TS>\n`;
+  const p = project();
+  write(p.dir, "lang/app_en.ts", qt("en"));
+  write(p.dir, "lang/app_sr@latin.ts", qt("sr@latin"));
+  write(p.dir, "lang/app_uz@Latn.ts", qt("uz@Latn"));
+  expect(
+    await run(
+      [...initFor("lang/app_{lang}.ts"), "--languages", "en,uz@latin"],
+      p.ctx,
+    ),
+  ).toBe(0);
+  expect((await loadConfig(p.dir)).sources[0]).toMatchObject({
+    languageFiles: { "uz-Latn": "uz@Latn" },
+  });
+  // An android res directory names its own; it takes no languageFiles.
+  const strings = (text: string) =>
+    `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n  <string name="hi">${text}</string>\n</resources>\n`;
+  const android = project();
+  write(android.dir, "res/values/strings.xml", strings("Hi"));
+  write(android.dir, "res/values-b+sr+Latn/strings.xml", strings("Zdravo"));
+  expect(
+    await run([...initFor("res"), "--languages", "en,sr@latin"], android.ctx),
+  ).toBe(0);
+  const config = await loadConfig(android.dir);
+  expect(config.languages).toEqual(["en", "sr-Latn"]);
+  expect(config.sources[0]).not.toHaveProperty("languageFiles");
+});

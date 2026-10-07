@@ -1441,6 +1441,8 @@ test("GNOME's and KDE's variant modifiers name their tags, a script and a varian
   expect(posixTag("sr@ijekavianlatin")).toBe("sr-Latn-ijekavsk");
   expect(posixTag("sr_RS@ijekavianlatin")).toBe("sr-Latn-RS-ijekavsk");
   expect(posixTag("de_DE@euro")).toBeUndefined();
+  // A modifier is data, not an Object.prototype member.
+  expect(posixTag("sr@constructor")).toBeUndefined();
   const parsed = corpusConfigSchema.safeParse({
     project: "p",
     server: "http://localhost:3000",
