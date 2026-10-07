@@ -55,16 +55,23 @@ function closing(source: string, at: number): number {
 }
 
 // Whether a `/` opens a regex literal rather than divides: where what
-// comes before it, past spaces, is the expression's `{`, an operator,
-// an opening bracket or separator, or `return` or `typeof`.
+// comes before it, past spaces, is a block's head (`{#if`, `{:else if`,
+// `{@html`), an operator, an opening bracket or separator, or the word
+// `return` or `typeof`. Right after the expression's `{` it closes a
+// block, `{/if}`.
 function opensRegex(source: string, at: number, i: number): boolean {
   let j = i - 1;
   while (j > at && /\s/.test(source[j]!)) j--;
-  if (j <= at) return true;
-  // TypeScript's non-null assertion, `duration! / 1000`, ends a value.
-  if (source[j] === "!" && /[\w$)\]]/.test(source[j - 1] ?? "")) return false;
-  if ("([{,;:?!=&|+-*%<>~^".includes(source[j]!)) return true;
-  return /(?:^|[^\w$])(?:return|typeof)$/.test(source.slice(at + 1, j + 1));
+  if (j <= at) return false;
+  const before = source.slice(at + 1, j + 1);
+  if (/^\s*(?:[#@][a-z]+|:else\s+if)$/.test(before)) return true;
+  const ch = source[j]!;
+  // TypeScript's non-null assertion, `duration! / 1000`, and `i++`
+  // end a value.
+  if (ch === "!" && /[\w$)\]]/.test(source[j - 1] ?? "")) return false;
+  if ((ch === "+" || ch === "-") && source[j - 1] === ch) return false;
+  if ("([{,;:?!=&|+-*%<>~^".includes(ch)) return true;
+  return /(?:^|[^\w$.])(?:return|typeof)$/.test(before);
 }
 
 // Where a regex literal opened at `i` closes, past `\` escapes and the
