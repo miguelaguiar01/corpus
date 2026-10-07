@@ -3484,3 +3484,58 @@ export default defineCorpus({
   );
   expect(await keys()).toEqual(["one", "few", "other"]);
 });
+
+test("a proposal on an xliff unit Corpus cannot read is named and not counted as written (#1142)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de"],
+  sources: [{ adapter: "xliff", type: "ui", path: "x/messages.{lang}.xlf" }],
+});
+`,
+  );
+  mkdirSync(path.join(repo, "x"), { recursive: true });
+  const en = `<?xml version="1.0"?>\n<xliff version="2.0" srcLang="en"><file id="f">\n<unit id="u1"><segment><source>One</source></segment></unit>\n<unit id="u2"><segment><source>T</source></segment><segment><source>wo</source></segment></unit>\n</file></xliff>\n`;
+  writeFileSync(path.join(repo, "x", "messages.en.xlf"), en);
+  await serve(200, {
+    ...PAYLOAD,
+    types: { u1: "ui", u2: "ui" },
+    translations: { en: { u1: "One" }, de: {} },
+    sourceChanges: [
+      {
+        kind: "edit",
+        id: "u1",
+        type: "ui",
+        file: "x/messages.en.xlf",
+        text: "Uno",
+      },
+      {
+        kind: "edit",
+        id: "u2",
+        type: "ui",
+        file: "x/messages.en.xlf",
+        text: "Two",
+      },
+    ],
+  });
+  const c = ctx();
+  expect(await run(["pull"], c)).toBe(0);
+  const said = c.output.join("\n");
+  expect(
+    said.match(
+      /x\/messages\.en\.xlf: u2 is a unit of the file Corpus cannot read/g,
+    ),
+  ).toHaveLength(1);
+  expect(said).toContain(
+    "corpus: x/messages.en.xlf: u2 is a unit of the file Corpus cannot read (xliff: unit u2 has 2 segments; a unit is read as one text); proposal not written",
+  );
+  expect(said).toContain("1 proposal(s) written");
+  expect(read("x/messages.en.xlf")).toBe(
+    en.replace("<source>One</source>", "<source>Uno</source>"),
+  );
+});
