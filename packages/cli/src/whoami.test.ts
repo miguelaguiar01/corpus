@@ -182,6 +182,7 @@ test("whoami trusts a record only as a workbench's: a malformed one, or one that
   const { repo } = alibi(url);
   const record = path.join(repo, ".corpus", "workbench.json");
   for (const bad of [
+    null,
     { url, pid: process.pid, version: "1", startedAt: "x", db: "d" },
     {
       url,
