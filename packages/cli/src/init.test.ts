@@ -3570,8 +3570,8 @@ test("init writes be@tarask, sr@ijekavian and sr@ijekavianlatin as their tags, a
   expect(config.languages).toEqual([
     "en",
     "be-tarask",
-    "sr-ijekavsk",
     "sr-Latn-ijekavsk",
+    "sr-ijekavsk",
   ]);
   expect(config.sources[0]).toMatchObject({
     languageFiles: {

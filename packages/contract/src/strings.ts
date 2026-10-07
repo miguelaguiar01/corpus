@@ -58,15 +58,21 @@ const POSIX_SCRIPTS: Record<string, string> = {
 };
 
 // POSIX modifiers that are registered BCP 47 variants (#1015), written
-// after any region, where a script is written before it.
-const POSIX_VARIANTS: Record<string, string> = {
-  valencia: "valencia",
+// after any region, where a script is written before it; GNOME's and
+// KDE's `ijekavian` is BCP 47's `ijekavsk`, and `ijekavianlatin` a
+// script and a variant in one (#1119).
+const POSIX_VARIANTS: Record<string, { variant: string; script?: string }> = {
+  valencia: { variant: "valencia" },
+  tarask: { variant: "tarask" },
+  ijekavian: { variant: "ijekavsk" },
+  ijekavianlatin: { variant: "ijekavsk", script: "Latn" },
 };
 
 // The tag a POSIX code with a script or variant modifier names
 // (`sr@latin` is sr-Latn, `sr_RS@latin` sr-Latn-RS, `ca_ES@valencia`
-// ca-ES-valencia), or undefined for any other code, a modifier that is
-// neither (`de_DE@euro`) among them.
+// ca-ES-valencia, `sr_RS@ijekavianlatin` sr-Latn-RS-ijekavsk), or
+// undefined for any other code, a modifier that is neither
+// (`de_DE@euro`) among them.
 export function posixTag(code: string): string | undefined {
   const posix = /^([A-Za-z]{2,3})(?:[-_]([A-Za-z]{2}))?@([A-Za-z]+)$/.exec(
     code,
@@ -75,12 +81,10 @@ export function posixTag(code: string): string | undefined {
   const language = posix[1]!.toLowerCase();
   const region = posix[2]?.toUpperCase();
   const modifier = posix[3]!.toLowerCase();
-  const script = POSIX_SCRIPTS[modifier];
-  if (script) return [language, script, region].filter(Boolean).join("-");
   const variant = POSIX_VARIANTS[modifier];
-  return variant
-    ? [language, region, variant].filter(Boolean).join("-")
-    : undefined;
+  const script = POSIX_SCRIPTS[modifier] ?? variant?.script;
+  if (!script && !variant) return undefined;
+  return [language, script, region, variant?.variant].filter(Boolean).join("-");
 }
 
 // Why a code is not a tag, naming it (#657), and for a POSIX code the

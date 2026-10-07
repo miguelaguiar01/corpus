@@ -221,13 +221,21 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   // (args.ts); only its absence means "read the files".
   const present = args.includes("--languages");
   const given = option(args, "--languages");
+  // A POSIX code listed is written as its tag, its files mapped to it,
+  // as a file read from the pattern is (#1119).
+  const listedFiles: Record<string, string> = {};
   const listed =
     given === undefined || given.startsWith("--")
       ? []
       : given
           .split(",")
           .map((code) => code.trim())
-          .filter(Boolean);
+          .filter(Boolean)
+          .map((code) => {
+            const tag = posixTag(code);
+            if (tag) listedFiles[tag] = code;
+            return tag ?? code;
+          });
   if (present && listed.length === 0) {
     throw new CliError(`--languages needs a value\nusage: ${INIT_USAGE}`);
   }
@@ -291,8 +299,8 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   // The mappings of the languages the config lists, given or read.
   const kept = Object.fromEntries([
     ...(referenced ? [[sourceLanguage, referenced.code]] : []),
-    ...Object.entries(files.languageFiles).filter(([tag]) =>
-      languages.includes(tag),
+    ...Object.entries({ ...files.languageFiles, ...listedFiles }).filter(
+      ([tag]) => languages.includes(tag),
     ),
   ]);
   const source: InitSource = {
