@@ -13,6 +13,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- `corpus build`, `validate` and `init` no longer overflow the stack on catalogues past about 150,000 strings (#1276).
 - A Rails translation with a mistyped `%{` also reports its missing and unexpected placeholders, not the `%{` alone (#976).
 - A translated plural without `other` is reported as such (`missing-other` in `--json`), not as a parse error with an offset (#975).
 - A build that fails because one source's files hold a string otherwise says once how many, and names `merge: "last-wins"` for an app that merges them in order (#974).

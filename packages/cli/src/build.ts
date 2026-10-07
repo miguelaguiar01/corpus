@@ -72,6 +72,7 @@ import type { Refusals } from "./agent-tools";
 import { printable } from "./printable";
 import { unreadableFile } from "./catalogue-format";
 import { readRepoText, readRepoTextIfAny } from "./repo-text";
+import { append } from "./append";
 import {
   CliError,
   fileCodeOf,
@@ -462,7 +463,7 @@ export async function buildSnapshotReport(
     }
   }
   // Where a file did not read, its ids are unknown.
-  if (errors.length === 0) errors.push(...unknownArguments(declaredIds));
+  if (errors.length === 0) append(errors, unknownArguments(declaredIds));
 
   // An id in two files of one source is one string when its text is the
   // same in both (#661): Element merges its app's and its shared
@@ -522,7 +523,7 @@ export async function buildSnapshotReport(
   if (merged.size > 0) {
     const kept = sourced.filter((item) => !merged.has(item));
     sourced.length = 0;
-    sourced.push(...kept);
+    append(sourced, kept);
   }
 
   // The declarations travel with the snapshot (§4): the server renders
@@ -557,7 +558,7 @@ export async function buildSnapshotReport(
       const kept = ids.filter(
         (id) => seedTranslations[lang]?.[id] !== undefined,
       );
-      if (kept.length > 0) (seedTranslated[lang] ??= []).push(...kept);
+      if (kept.length > 0) append((seedTranslated[lang] ??= []), kept);
     }
   // An XLIFF target marked translated, or a gettext msgstr neither empty
   // nor fuzzy, whose text is the source's, the same message (#1009), is
@@ -586,8 +587,9 @@ export async function buildSnapshotReport(
     seedTranslations,
     notes,
   );
-  notes.push(
-    ...undeclaredSlots(
+  append(
+    notes,
+    undeclaredSlots(
       config,
       sourced.map((s) => s.entry),
     ),

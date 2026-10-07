@@ -31,10 +31,12 @@ import {
   tagMode,
   richTextFor,
   type Library,
+  type StringEntry,
 } from "@corpus/contract";
 import { headOf, isQtLinguist, unreadableFile } from "./catalogue-format";
 import { option } from "./args";
 import { printable } from "./printable";
+import { append } from "./append";
 import {
   configKey,
   fileOf,
@@ -449,7 +451,7 @@ async function htmlOnlyTags(
           ns: undefined,
         },
       ];
-  const entries = [];
+  const entries: StringEntry[] = [];
   for (const { file, ns } of files) {
     try {
       const read = await readEntries(
@@ -460,8 +462,9 @@ async function htmlOnlyTags(
         true,
         sourceLanguage,
       );
-      entries.push(
-        ...read.map((e) => (ns ? { ...e, id: `${ns}:${e.id}` } : e)),
+      append(
+        entries,
+        read.map((e) => (ns ? { ...e, id: `${ns}:${e.id}` } : e)),
       );
     } catch {
       continue;
@@ -1318,15 +1321,19 @@ async function libraryFor(
       // An object's forms are what the file writes: the plural the
       // reader makes of them is no ICU argument of the catalogue's (#984).
       const objects = await sourcePluralIds(jiti, cwd, source, sourceLanguage);
-      texts.push(
-        ...entries.flatMap((entry) => {
+      append(
+        texts,
+        entries.flatMap((entry) => {
           const forms = objects?.has(entry.id)
             ? pluralBranches(entry.source)
             : undefined;
           return forms ? Object.values(forms) : [entry.source];
         }),
       );
-      ids.push(...entries.map((entry) => entry.id));
+      append(
+        ids,
+        entries.map((entry) => entry.id),
+      );
       keyed += entries.filter((entry) => entry.keyIsText).length;
       read.push(at);
       readConcretes.push(concrete);
