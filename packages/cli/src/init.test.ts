@@ -3704,6 +3704,12 @@ test("check.include takes a SvelteKit package's src, its routes included, for a 
   const sveltekit = immich(true);
   expect(await run(initFor("i18n/{lang}.json"), sveltekit.ctx)).toBe(0);
   expect((await loadConfig(sveltekit.dir)).check?.include).toEqual(["web/src"]);
+  // Two components directories in one src are that src once.
+  write(sveltekit.dir, "web/src/routes/components/C.svelte", "<p>C</p>\n");
+  rmSync(path.join(sveltekit.dir, "corpus.config.mjs"), { force: true });
+  rmSync(path.join(sveltekit.dir, "corpus.config.ts"), { force: true });
+  expect(await run(initFor("i18n/{lang}.json"), sveltekit.ctx)).toBe(0);
+  expect((await loadConfig(sveltekit.dir)).check?.include).toEqual(["web/src"]);
   const plain = immich(false);
   expect(await run(initFor("i18n/{lang}.json"), plain.ctx)).toBe(0);
   expect((await loadConfig(plain.dir)).check?.include).toEqual([

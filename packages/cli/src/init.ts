@@ -1090,6 +1090,13 @@ function checkIncludeFor(
   return { found: false };
 }
 
+const SVELTE_CONFIGS = [
+  "svelte.config.js",
+  "svelte.config.mjs",
+  "svelte.config.cjs",
+  "svelte.config.ts",
+];
+
 // A SvelteKit package keeps its pages in `src/routes` and markup across
 // `src/lib`: a components directory in its `src` stands for that `src`
 // (Immich's `web/src`, #1139).
@@ -1106,13 +1113,6 @@ function svelteKitSrc(cwd: string, dir: string): string | undefined {
   }
   return undefined;
 }
-
-const SVELTE_CONFIGS = [
-  "svelte.config.js",
-  "svelte.config.mjs",
-  "svelte.config.cjs",
-  "svelte.config.ts",
-];
 
 function componentDirs(cwd: string, rel: string, depth: number): string[] {
   if (depth >= COMPONENT_DEPTH) return [];
