@@ -1524,8 +1524,8 @@ function railsPluralForms(
 // for every language under counterpart and easy_localization: a
 // missing file is the one pull would write, from the language's table,
 // and one that will not read is named where its seeds are read. A tag
-// the runtime has no plural data for has none: its rules would be the
-// pushing machine's locale, and nothing is enforced for it. `shared`:
+// the runtime has no plural data for has none: nothing is enforced for
+// it. `shared`:
 // the exact keys one form is read by (#1060).
 function gettextPluralForms(
   cwd: string,
