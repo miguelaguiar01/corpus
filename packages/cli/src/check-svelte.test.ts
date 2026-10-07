@@ -116,14 +116,17 @@ test("Svelte: a regex literal with a quote, /* or a slash in a class is one expr
     ]);
   // A block closes with `{/`: `{/if}</div>` opens no regex, as Immich's
   // `{/if}</Button` does not.
-  for (const close of [
-    "{/if}</div>",
-    "{/each}</ul>",
-    '{/if} <a href="/home">x</a>',
-    "{/key}<i>x</i>",
+  for (const [open, close] of [
+    ["{#if a}", "{/if}</div>"],
+    ["{#each a as b}", "{/each}</ul>"],
+    ["{#if a}", '{/if} <a href="/home">x</a>'],
+    ["{#key a}", "{/key}<i>x</i>"],
+    // A text's `=` before a closer is no attribute.
+    ["{#if eq}", "={/if}</span>"],
+    ["<p>x {#if a}", " ={/if}</p>"],
   ])
     expect(
-      found(`{#if a}<b>A</b>${close}\n<p>Hello world</p>`),
+      found(`${open}<b>A</b>${close}\n<p>Hello world</p>`),
       close,
     ).toContainEqual([2, "Hello world"]);
   // TypeScript's non-null assertion, Immich's `{asset.duration! / 1000}`,
