@@ -23,6 +23,7 @@
   "editor.invalidIcu": "Malformed message: {message}",
   "editor.languages": "Language",
   "editor.missingBranch": "Select {arg} is missing the {key} branch",
+  "editor.missingOther": "Plural {arg} is missing the other branch, which the runtime picks for every count no other branch covers",
   "editor.pluralDropped": "The source is a plural on {name}: write the translation as one",
   "editor.chromeDollarLone": "Chrome drops the lone $ with the character after it ({written}): write $$ for the sign",
   "editor.chromeDollarPrice": "Chrome reads {written} as substitution {digit} then {rest}: write ${written} for a price",

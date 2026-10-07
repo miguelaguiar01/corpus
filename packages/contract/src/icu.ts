@@ -63,7 +63,13 @@ export type PlaceholderFormat = {
   style?: string;
 };
 
-export type IcuError = { message: string; position: number };
+// `missingOther`: the argument of a plural that lacks `other`, where
+// that is the first failure (#975).
+export type IcuError = {
+  message: string;
+  position: number;
+  missingOther?: string;
+};
 
 // A tag a text writes that the parser reads as text: an open tag no
 // close matches, or a close no open tag does.
@@ -326,8 +332,19 @@ class ParseFailure extends Error {
   constructor(
     message: string,
     readonly position: number,
+    readonly missingOther?: string,
   ) {
     super(message);
+  }
+
+  get error(): IcuError {
+    return {
+      message: this.message,
+      position: this.position,
+      ...(this.missingOther !== undefined && {
+        missingOther: this.missingOther,
+      }),
+    };
   }
 }
 
@@ -504,8 +521,7 @@ function readPrintfPlural(
       },
     };
   } catch (error) {
-    if (error instanceof ParseFailure)
-      return { error: { message: error.message, position: error.position } };
+    if (error instanceof ParseFailure) return { error: error.error };
     throw error;
   }
 }
@@ -1641,7 +1657,7 @@ class Parser {
           throw new ParseFailure(`${label} needs at least one branch`, start);
         }
         if (type === "plural" && !("other" in branches)) {
-          throw new ParseFailure(`${label} needs an other branch`, start);
+          throw new ParseFailure(`${label} needs an other branch`, start, name);
         }
         return { kind: type, arg: name, branches };
       }
@@ -1839,12 +1855,8 @@ function parseLayered(
     prose?.push(...read);
     return { ok: true, nodes };
   } catch (error) {
-    if (error instanceof ParseFailure) {
-      return {
-        ok: false,
-        errors: [{ message: error.message, position: error.position }],
-      };
-    }
+    if (error instanceof ParseFailure)
+      return { ok: false, errors: [error.error] };
     throw error;
   }
 }

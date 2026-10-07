@@ -889,13 +889,7 @@ test("under printf a text that is one ICU plural has its verbs checked per branc
     ),
   ).toMatchObject({
     ok: false,
-    errors: [
-      {
-        code: "invalid-icu",
-        where: "target",
-        message: "plural needs an other branch",
-      },
-    ],
+    errors: [{ code: "missing-other", arg: "count" }],
   });
   expect(
     validateTranslation(
@@ -1802,9 +1796,7 @@ test("a whole plural without other is named for it, under i18next too (#950)", (
       lib,
     ).toMatchObject({
       ok: false,
-      errors: [
-        { code: "invalid-icu", message: "plural needs an other branch" },
-      ],
+      errors: [{ code: "missing-other", arg: "count" }],
     });
 });
 
@@ -4037,4 +4029,41 @@ test("a gettext file whose Plural-Forms are CLDR's reads under counterpart and e
         `${language} ${text}`,
       ).toEqual(printf);
     }
+});
+
+test("a target plural without other is missing-other on its argument, a source's still a parse error (#975)", () => {
+  expect(
+    validateTranslation(
+      "{count, plural, one {%(count)s more} other {%(count)s more}}",
+      "{count, plural, one {%(count)s weitere}}",
+      "de",
+      "counterpart",
+      { pluralAsForms: true },
+    ),
+  ).toEqual({ ok: false, errors: [{ code: "missing-other", arg: "count" }] });
+  expect(
+    validateTranslation(
+      "{n, plural, one {# file} other {# files}}",
+      "{n, plural, one {x}}",
+      "de",
+      "icu",
+    ),
+  ).toEqual({ ok: false, errors: [{ code: "missing-other", arg: "n" }] });
+  expect(
+    validateTranslation(
+      "{n, plural, one {x}}",
+      "{n, plural, one {y}}",
+      "de",
+      "icu",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [
+      {
+        code: "invalid-icu",
+        where: "source",
+        message: "plural needs an other branch",
+      },
+    ],
+  });
 });
