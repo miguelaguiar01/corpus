@@ -1383,7 +1383,7 @@ test("a target's licence and links in brackets are kept; a credit is one whateve
 # Free Software Foundation
 `;
   expect(start(kept)).toMatch(
-    /^# You should have received a copy of the GNU General Public License\n# along with this program\.  If not, see <http:\/\/www\.gnu\.org\/licenses\/>\.\n# Homepage: <https:\/\/foo\.org>\n# Free Software Foundation\nmsgid ""\n/,
+    /^# You should have received a copy of the GNU General Public License\n# along with this program\. {2}If not, see <http:\/\/www\.gnu\.org\/licenses\/>\.\n# Homepage: <https:\/\/foo\.org>\n# Free Software Foundation\nmsgid ""\n/,
   );
   // Names that hold a title's words are names where an address and a
   // year sign them.
@@ -1394,9 +1394,9 @@ test("a target's licence and links in brackets are kept; a credit is one whateve
   ).toMatch(/^# Title\nmsgid ""\n/);
   // A BOM, a Translators line with a trailing space, and credits alone
   // above a blank line.
-  expect(start("# Anna Svensson <anna@example.org>, 2019\n\n", "﻿")).toMatch(
-    /^﻿msgid ""\n/,
-  );
+  expect(
+    start("# Anna Svensson <anna@example.org>, 2019\n\n", "\uFEFF"),
+  ).toMatch(/^\uFEFFmsgid ""\n/);
   expect(
     start(
       "# Title\n# Translators: \n# Anna Svensson <anna@example.org>, 2019\n",
