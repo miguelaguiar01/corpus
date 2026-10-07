@@ -1434,3 +1434,23 @@ test("a source's arguments name values its code passes beside the source's, per 
     }),
   ).toHaveLength(1);
 });
+
+test("GNOME's and KDE's variant modifiers name their tags, a script and a variant in one included (#1119)", () => {
+  expect(posixTag("be@tarask")).toBe("be-tarask");
+  expect(posixTag("sr@ijekavian")).toBe("sr-ijekavsk");
+  expect(posixTag("sr@ijekavianlatin")).toBe("sr-Latn-ijekavsk");
+  expect(posixTag("sr_RS@ijekavianlatin")).toBe("sr-Latn-RS-ijekavsk");
+  expect(posixTag("de_DE@euro")).toBeUndefined();
+  const parsed = corpusConfigSchema.safeParse({
+    project: "p",
+    server: "http://localhost:3000",
+    sourceLanguage: "en",
+    languages: ["en", "sr@ijekavian"],
+    sources: [{ adapter: "messages", type: "ui", path: "i18n/{lang}.json" }],
+  });
+  expect(
+    parsed.success ? [] : parsed.error.issues.map((i) => i.message),
+  ).toEqual([
+    '"sr@ijekavian" is not a language tag; write sr-ijekavsk, and map its files with languageFiles: { "sr-ijekavsk": "sr@ijekavian" } on the source',
+  ]);
+});

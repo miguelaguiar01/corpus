@@ -3559,3 +3559,52 @@ test("init names the source language's mapping only for a code that names no lan
     'core/templates names no language tag; left out: if it is en\'s file, map it: languageFiles: { "en": "templates" }',
   );
 });
+
+test("init writes be@tarask, sr@ijekavian and sr@ijekavianlatin as their tags, and a POSIX code --languages lists as its tag (#1119)", async () => {
+  const p = project();
+  write(p.dir, "l/en.json", '{ "hi": "Hi" }\n');
+  for (const code of ["be@tarask", "sr@ijekavian", "sr@ijekavianlatin"])
+    write(p.dir, `l/${code}.json`, '{ "hi": "Hi" }\n');
+  expect(await run(initFor("l/{lang}.json"), p.ctx)).toBe(0);
+  const config = await loadConfig(p.dir);
+  expect(config.languages).toEqual([
+    "en",
+    "be-tarask",
+    "sr-ijekavsk",
+    "sr-Latn-ijekavsk",
+  ]);
+  expect(config.sources[0]).toMatchObject({
+    languageFiles: {
+      "be-tarask": "be@tarask",
+      "sr-ijekavsk": "sr@ijekavian",
+      "sr-Latn-ijekavsk": "sr@ijekavianlatin",
+    },
+  });
+  expect(p.err.join("\n")).not.toMatch(/left out/);
+
+  const listed = project();
+  write(
+    listed.dir,
+    "po/en.po",
+    'msgid ""\nmsgstr ""\n"Content-Type: text/plain; charset=UTF-8\\n"\n\nmsgid "Hi"\nmsgstr "Hi"\n',
+  );
+  write(
+    listed.dir,
+    "po/ca@valencia.po",
+    'msgid ""\nmsgstr ""\n"Content-Type: text/plain; charset=UTF-8\\n"\n\nmsgid "Hi"\nmsgstr "Hola"\n',
+  );
+  expect(
+    await run(
+      [...initFor("po/{lang}.po"), "--languages", "en,ca@valencia"],
+      listed.ctx,
+    ),
+  ).toBe(0);
+  const written = await loadConfig(listed.dir);
+  expect(written.languages).toEqual(["en", "ca-valencia"]);
+  expect(written.sources[0]).toMatchObject({
+    languageFiles: { "ca-valencia": "ca@valencia" },
+  });
+  expect(listed.err.join("\n")).not.toMatch(
+    /not a language tag the runtime knows/,
+  );
+});
