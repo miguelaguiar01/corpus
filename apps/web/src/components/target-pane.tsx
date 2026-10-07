@@ -77,6 +77,7 @@ function branchingOf(
   pluralForms?: string[] | null,
   pluralRules?: "default" | "cldr" | null,
   layers?: Library[] | null,
+  pluralAsForms = false,
 ): Branching[] {
   const parsed = readIcu(source, syntax, layers ?? undefined);
   if (!parsed.ok) return [];
@@ -150,7 +151,10 @@ function branchingOf(
         key === "other" ||
         key.startsWith("=") ||
         own?.has(key) ||
-        !exactCovers(language, syntax, key, exact, entry.ordinal === true),
+        !exactCovers(language, syntax, key, exact, entry.ordinal === true, {
+          ...(pluralForms && { pluralForms }),
+          pluralAsForms,
+        }),
     );
   }
   // A plural's categories are the ones the runtime picks: a category the
@@ -320,6 +324,7 @@ export function TargetPane({
     pluralForms,
     pluralRules,
     layers,
+    pluralAsForms,
   );
   const byId = new Map(selects.map((entry) => [idOf(entry), entry]));
   const parts = partsOf(source, syntax, layers ?? undefined);

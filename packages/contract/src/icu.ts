@@ -2250,7 +2250,9 @@ export function pluralCategoriesFor(
     const ordinals = pluralCategoriesOf(language, true);
     return { required: ordinals, allowed: ordinals };
   }
-  if (library === "counterpart")
+  // A gettext file's Plural-Forms pick its forms whatever the library
+  // (#964).
+  if (library === "counterpart" && !picked)
     return { required: ["one", "other"], allowed: ["zero", "one", "other"] };
   const cldr = pluralCategoriesOf(language);
   // Ruby's I18n and I18n.js pick `zero` for 0 wherever a plural writes
@@ -2375,7 +2377,8 @@ export function pluralBranch(
     library === "easy_localization" && rules === "cldr" && language
       ? (n: number) => easyLocalizationCategory(language, n)
       : undefined;
-  const own = library === "counterpart" || library === "easy_localization";
+  const own =
+    !picked && (library === "counterpart" || library === "easy_localization");
   const exact = `=${value.trim()}`;
   if (!own && Object.hasOwn(branches, exact)) return exact;
   const n = Number(value);
@@ -2384,9 +2387,9 @@ export function pluralBranch(
       ? category
       : "other";
   if (Number.isFinite(n) && !ordinal) {
-    if (library === "counterpart")
+    if (library === "counterpart" && !picked)
       return written(n === 0 ? "zero" : n === 1 ? "one" : undefined);
-    if (library === "easy_localization") {
+    if (library === "easy_localization" && !picked) {
       const category = table?.(n);
       return written(category ?? ["zero", "one", "two"][n]);
     }
