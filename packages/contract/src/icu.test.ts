@@ -12,6 +12,7 @@ import {
   refusalCause,
   printfPluralError,
   sameMessage,
+  type IcuNode,
 } from "./icu";
 import { LIBRARIES, libraryName, type Library } from "./strings";
 
@@ -1546,4 +1547,49 @@ test("in a plural read whole, balanced braces a library reads as text stay in th
     "i18next",
   );
   expect(i18next.ok && i18next.nodes.map((n) => n.kind)).toEqual(["plural"]);
+});
+
+test("under android, verbs are numbered as Java's Formatter numbers them; printf keeps C's (#1145)", () => {
+  const names = (text: string, syntax: "android" | "printf" = "android") => {
+    const read = parseIcu(text, syntax, { html: "markup" });
+    if (!read.ok) throw new Error(read.errors[0]?.message);
+    const out: string[] = [];
+    const walk = (nodes: IcuNode[]) => {
+      for (const node of nodes) {
+        if (node.kind === "placeholder") out.push(node.name);
+        if (node.kind === "tag") {
+          for (const p of node.attrPlaceholders ?? [])
+            if (p.kind === "placeholder") out.push(p.name);
+          walk(node.children);
+        }
+      }
+    };
+    walk(read.nodes);
+    return out;
+  };
+  // An explicit index moves no count; an unnumbered verb counts on alone.
+  expect(names("%1$s %s")).toEqual(["1", "1"]);
+  expect(names("%1$s %s", "printf")).toEqual(["1", "2"]);
+  expect(names("%s %2$s %s")).toEqual(["1", "2", "2"]);
+  // %n is a line break, taking no argument.
+  expect(names("Line%nnext %s")).toEqual(["1"]);
+  // An attribute that does not parse still counts its verbs in place.
+  expect(names('<a title="{" href="%s">%s</a>')).toEqual(["1", "2"]);
+  // A %n with an index takes no argument either.
+  expect(names("A%1$nB %s")).toEqual(["1"]);
+  // Go's index form, on which Java throws, is refused, in an attribute too.
+  for (const text of [
+    '<a href="%[1]s">%s</a>',
+    '<a title="{" href="%[1]s">%s</a>',
+  ]) {
+    const read = parseIcu(text, "android", { html: "markup" });
+    expect(read.ok ? "" : read.errors[0]?.message, text).toMatch(
+      /Go's index form/,
+    );
+  }
+  // Go's index form, on which Java throws, is refused.
+  const go = parseIcu("%[1]s", "android");
+  expect(go.ok ? "" : go.errors[0]?.message).toMatch(
+    /%\[1\]s is Go's index form.*%1\$s/,
+  );
 });

@@ -4443,3 +4443,49 @@ test("a placeholder kept in a tag's attribute and also written in the text is sa
       errors: [{ code: "missing-placeholder", name: "u" }],
     });
 });
+
+test("under android a translation is checked as Java's Formatter reads it (#1145)", () => {
+  expect(validateTranslation("%1$s %s", "%1$s %1$s", "fr", "android")).toEqual({
+    ok: true,
+  });
+  expect(
+    validateTranslation("Hi %[1]s", "Salut %1$s", "fr", "android"),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "invalid-icu", where: "source" }],
+  });
+  expect(
+    validateTranslation("Hi %1$s", "Salut %[1]s", "fr", "android"),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "invalid-icu", where: "target" }],
+  });
+  expect(
+    validateTranslation(
+      '<a title="{" href="%s">%s</a>',
+      '<a title="{" href="%1$s">%2$s</a>',
+      "fr",
+      "android",
+    ),
+  ).toEqual({ ok: true });
+  // An attribute's %n takes no position in the tag's identity either.
+  expect(
+    validateTranslation(
+      '<a href="x%ny%s">%s</a>',
+      '<a href="x%ny%1$s">%2$s</a>',
+      "fr",
+      "android",
+    ),
+  ).toEqual({ ok: true });
+  expect(
+    validateTranslation(
+      '<a href="%1$s">%s</a>',
+      '<a href="%[1]s">%s</a>',
+      "fr",
+      "android",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "invalid-icu", where: "target" }],
+  });
+});
