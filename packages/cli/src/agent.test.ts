@@ -615,6 +615,16 @@ test("--stdin's queue op takes its name in queue or state, queue winning, and sa
     error: "bad-line",
     message: "queue is missing (its name goes in `queue`, or `state`)",
   });
+  // A name that is no queue is said in the field it was written in.
+  const again = new PassThrough();
+  const second = ctx(api.url);
+  second.context.input = again;
+  again.end('{"op":"queue","state":"bogus"}\n');
+  await run(["agent", "--stdin"], second.context);
+  expect(JSON.parse(second.out[0]!)).toMatchObject({
+    ok: false,
+    message: expect.stringMatching(/^state must be one of /),
+  });
 });
 
 test("corpus agent --help names every --stdin op's fields with an example line, each one the parser takes (#1077)", async () => {
@@ -639,10 +649,14 @@ test("corpus agent --help names every --stdin op's fields with an example line, 
   const said = out.join("\n");
   for (const { op, example } of STDIN_OPS) {
     expect(said, op).toContain(example);
+    // The op's own row, not its example, names each field.
+    const row =
+      said.split("\n").find((line) => line.startsWith(`  ${op} `)) ?? "";
     const fields = Object.keys(
       table.find((t) => t.op === op)!.inputSchema.properties,
     );
-    for (const field of fields) expect(said, `${op} ${field}`).toMatch(field);
+    for (const field of fields)
+      expect(row, `${op} ${field}`).toMatch(new RegExp(`\\b${field}\\b`));
   }
-  expect(said).toContain("state");
+  expect(said).toContain("queue (or state)");
 });
