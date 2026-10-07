@@ -13,6 +13,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- Under `merge: "last-wins"`, the problems of a translation's copy the app never shows are warnings, rather than failing `corpus validate` (#1116).
 - Offline `corpus validate` reports a source string that does not parse even where no translation of it exists, as build refuses it (#1115).
 - The preview of a gettext plural whose count is a Python key (`%(num)s`) picks its form from that key's example value (#1113).
 - `get_string` on an archived string the build refuses says why, beside `archived: true` (#1111).

@@ -275,9 +275,9 @@ export async function validateRepo(
   const findings: Finding[] = [];
   const unchecked: Unchecked[] = [];
   const targets = config.languages.filter((l) => l !== config.sourceLanguage);
-  // Under last-wins, the translations each group's earlier files hold,
-  // by language (#953).
-  const shared = new Map<string, Map<string, { file: string; text: string }>>();
+  // Under last-wins, the copies each group's earlier files hold of a
+  // translation, by language (#953), with the findings on each (#1116).
+  const shared = new Map<string, Map<string, Copy[]>>();
   // Per language, the Fluent terms its files define, across every fluent
   // source, as the runtime merges them into one bundle (#1033).
   const terms = termsOf(cwd, config);
@@ -482,14 +482,17 @@ export async function validateRepo(
             });
         }
       const group = "group" in source ? source.group : undefined;
-      if (lastWins(source) && typeof group === "number") {
-        const earlier =
-          shared.get(`${group} ${language}`) ??
-          new Map<string, { file: string; text: string }>();
+      const earlier =
+        lastWins(source) && typeof group === "number"
+          ? (shared.get(`${group} ${language}`) ?? new Map<string, Copy[]>())
+          : undefined;
+      if (earlier) {
         for (const [key, { source: text }] of translations) {
-          // An empty value is a key the file lacks, never a finding.
-          if (isBlank(text)) continue;
-          const held = earlier.get(key);
+          // An empty value is a key the file lacks, never a finding, and
+          // an id its source file lacks is no seed (#1071).
+          if (isBlank(text) || !sources.has(key)) continue;
+          const copies = earlier.get(key) ?? [];
+          const held = copies.at(-1);
           if (held !== undefined && held.text !== text)
             findings.push({
               file,
@@ -499,7 +502,10 @@ export async function validateRepo(
               severity: "warning",
               message: `reads otherwise in ${held.file}, which the app never shows: this later file's is its translation, as merge: "last-wins" says`,
             });
-          earlier.set(key, { file, text });
+          for (const copy of copies)
+            if (copy.hidden || copy.text !== text) hideCopy(copy, file);
+          copies.push({ file, text, findings: [] });
+          earlier.set(key, copies);
         }
         shared.set(`${group} ${language}`, earlier);
       }
@@ -525,24 +531,31 @@ export async function validateRepo(
           });
           continue;
         }
-        findings.push(
-          ...checkTranslation(augment(entry), target, {
-            gaps,
-            file,
-            sourceFile,
+        const checked = checkTranslation(augment(entry), target, {
+          gaps,
+          file,
+          sourceFile,
+          key,
+          language,
+          sourceLanguage: config.sourceLanguage,
+          library: entry.library ?? library,
+          richText: richTextFor(
+            source.type,
             key,
-            language,
-            sourceLanguage: config.sourceLanguage,
-            library: entry.library ?? library,
-            richText: richTextFor(
-              source.type,
-              key,
-              entry.library ?? library,
-              config.richText,
-            ),
-            brokenSources,
-          }),
-        );
+            entry.library ?? library,
+            config.richText,
+          ),
+          brokenSources,
+        });
+        findings.push(...checked);
+        earlier
+          ?.get(key)
+          ?.at(-1)
+          ?.findings.push(
+            ...checked
+              .filter((f) => f.file === file)
+              .map((finding) => ({ finding, message: finding.message })),
+          );
         if (source.adapter === "fluent")
           findings.push(
             ...termWarnings(target, {
@@ -561,6 +574,28 @@ export async function validateRepo(
   );
   if (unknown.length > 0) throw new CliError(unknown.join("\n"));
   return { findings, unchecked };
+}
+
+// A target file's copy of a translation under last-wins (#953), with
+// its findings and their messages as checked.
+type Copy = {
+  file: string;
+  text: string;
+  findings: { finding: Finding; message: string }[];
+  hidden?: true;
+};
+
+// A copy a later file of its group holds otherwise is one the app never
+// shows: its problems are warnings, not the translation's, naming the
+// latest file that holds it otherwise (#1116). A gap its source lacks
+// too stays the source's, in --json alone (#1029).
+function hideCopy(copy: Copy, later: string): void {
+  copy.hidden = true;
+  for (const { finding, message } of copy.findings) {
+    if (finding.sourceLacks) continue;
+    finding.severity = "warning";
+    finding.message = `${message}; the app never shows this copy: ${later}'s is its translation, as merge: "last-wins" says`;
+  }
 }
 
 // A catalogue's id → text through the source's own adapter, so the keys
