@@ -524,9 +524,12 @@ test("a step's previous and next walk the project's strings in id order, with no
         detail: string;
       }[]
     ).map((row) => row.detail);
-    // The project's strings in id order, never another project's.
+    // The project's strings in id order, never another project's; the
+    // membership check finds its row by key.
     expect(plan[0], source).toMatch(
-      /^SEARCH strings USING INDEX strings_project \(project_id=\? AND rowid[<>]\?\)/,
+      source.includes('"strings"."id" = ?')
+        ? /^SEARCH strings USING INTEGER PRIMARY KEY \(rowid=\?\)/
+        : /^SEARCH strings USING INDEX strings_project \(project_id=\? AND rowid[<>]\?\)/,
     );
     expect(plan.join("\n"), source).not.toMatch(/TEMP B-TREE/);
   }
