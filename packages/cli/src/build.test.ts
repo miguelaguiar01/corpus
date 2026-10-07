@@ -2506,7 +2506,7 @@ test("an entry its file holds as plural forms says so; one held as a text does n
   );
   put(
     "res/values/strings.xml",
-    '<resources>\n  <plurals name="cabins">\n    <item quantity="one">%d room</item>\n    <item quantity="other">%d rooms</item>\n  </plurals>\n  <string name="hi">Hi</string>\n</resources>\n',
+    '<resources>\n  <plurals name="cabins">\n    <item quantity="one">%d room</item>\n    <item quantity="other">%d rooms</item>\n  </plurals>\n  <string name="hi">Hi</string>\n  <string name="items">{count, plural, one {# item} other {# items}}</string>\n</resources>\n',
   );
   put(
     "config/en.yml",
@@ -2515,6 +2515,10 @@ test("an entry its file holds as plural forms says so; one held as a text does n
   put(
     "po/en.po",
     'msgid ""\nmsgstr ""\n"Plural-Forms: nplurals=2; plural=(n != 1);\\n"\n\nmsgid "%d room"\nmsgid_plural "%d rooms"\nmsgstr[0] ""\nmsgstr[1] ""\n\nmsgid "Hi"\nmsgstr ""\n',
+  );
+  put(
+    "qt/app_en.ts",
+    '<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE TS>\n<TS version="2.1">\n<context>\n    <name>Main</name>\n    <message numerus="yes">\n        <source>%n file(s)</source>\n        <translation type="unfinished"><numerusform></numerusform></translation>\n    </message>\n    <message>\n        <source>Quit</source>\n        <translation type="unfinished"></translation>\n    </message>\n</context>\n</TS>\n',
   );
   const report = await buildSnapshotReport(
     config({
@@ -2530,6 +2534,7 @@ test("an entry its file holds as plural forms says so; one held as a text does n
         { adapter: "android", type: "android", path: "res" },
         { adapter: "yaml", type: "rails", path: "config/{lang}.yml" },
         { adapter: "gettext", type: "po", path: "po/{lang}.po" },
+        { adapter: "qt-ts", type: "qt", path: "qt/app_{lang}.ts" },
       ],
     }),
     dir,
@@ -2548,6 +2553,9 @@ test("an entry its file holds as plural forms says so; one held as a text does n
     "next:item": true,
     "android:cabins": true,
     "android:hi": false,
+    "android:items": false,
+    "qt:Main | %n file(s)": true,
+    "qt:Main | Quit": false,
     "rails:halls": true,
     "rails:beds_MF": false,
     "po:%d room": true,

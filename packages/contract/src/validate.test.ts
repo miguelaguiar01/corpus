@@ -3852,6 +3852,16 @@ test("a plural its file holds as forms takes categories only, each form splittin
   expect(validateTranslation(source, target, "de", "i18next")).toEqual({
     ok: true,
   });
+  // fmt's `{{` and `}}` are a brace each, a pair the writer splits.
+  expect(
+    validateTranslation(
+      "{count, plural, one {{} room} other {{} rooms}}",
+      "{count, plural, one {{} Raum {{} other {{} Räume}}",
+      "de",
+      "fmt",
+      { pluralAsForms: true },
+    ),
+  ).toEqual({ ok: true });
   // printf's plural read whole is refused as broken already.
   expect(
     validateTranslation(
