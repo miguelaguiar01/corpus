@@ -176,15 +176,13 @@ function withCount(
   return counted;
 }
 
-// The Python keys a printf text prints, `%(num)s`'s `num`, through tags
-// and branches; a position is no key.
-function keysIn(nodes: IcuNode[], out = new Set<string>()): Set<string> {
+// The Python keys a printf text prints, `%(num)s`'s `num`; a position
+// is no key.
+function keysIn(nodes: IcuNode[]): Set<string> {
+  const out = new Set<string>();
   for (const node of nodes)
     if (node.kind === "placeholder" && !/^\d+$/.test(node.name))
       out.add(node.name);
-    else if (node.kind === "tag") keysIn(node.children, out);
-    else if (node.kind === "select" || node.kind === "plural")
-      for (const branch of Object.values(node.branches)) keysIn(branch, out);
   return out;
 }
 

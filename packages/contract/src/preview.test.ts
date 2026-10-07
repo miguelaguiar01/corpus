@@ -557,6 +557,23 @@ test("a printf plural whose branches print one Python key alone previews its cou
     ok: true,
     text: "1 users",
   });
+  expect(preview({ num: "1", 1: "2" })).toEqual({
+    ok: true,
+    text: "1 users",
+  });
+  // The key reaches an exact branch, and counts where one branch prints it.
+  expect(
+    preview(
+      { num: "0" },
+      "{count, plural, =0 {no users} one {%(num)s user} other {%(num)s users}}",
+    ),
+  ).toEqual({ ok: true, text: "no users" });
+  expect(
+    preview(
+      { num: "1" },
+      "{count, plural, one {one user} other {%(num)s users}}",
+    ),
+  ).toEqual({ ok: true, text: "one user" });
   expect(
     preview(
       { count: "1" },
