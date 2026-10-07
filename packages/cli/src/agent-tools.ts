@@ -146,15 +146,20 @@ export function tools(api: Api, refusals?: Refusals): Tool[] {
           "GET",
           `/api/strings/${segment(str(args, "key"))}`,
         );
-        const row = result.structuredContent as
-          Record<string, unknown> | undefined;
+        const row = result.structuredContent;
+        const archived = !result.isError && row?.archived === true;
+        if (
+          !refusals ||
+          !(archived || result.content[0]?.text.startsWith("not-found:"))
+        )
+          return result;
+        const refused = (await refusals())?.find(
+          (r) => r.id === String(args.key),
+        );
+        if (!refused) return result;
         // A string the project held before the build refused it is
         // archived: the row is real, and the refusal says why (#1111).
-        if (refusals && !result.isError && row?.archived === true) {
-          const refused = (await refusals())?.find(
-            (r) => r.id === String(args.key),
-          );
-          if (!refused) return result;
+        if (archived) {
           const answered = { ...row, refused: refused.reason };
           return {
             content: [
@@ -163,12 +168,6 @@ export function tools(api: Api, refusals?: Refusals): Tool[] {
             structuredContent: answered,
           };
         }
-        if (!refusals || !result.content[0]?.text.startsWith("not-found:"))
-          return result;
-        const refused = (await refusals())?.find(
-          (r) => r.id === String(args.key),
-        );
-        if (!refused) return result;
         return {
           content: [
             {
