@@ -4303,12 +4303,15 @@ test("under easy_localization, a one-category language's plain text prints its c
   // Under icu a plain {} is no count.
   expect(
     validateTranslation(
-      "{count, plural, one {{} item} other {{} items}}",
+      "{count, plural, one {# item} other {# items}}",
       "{} 个项目",
       "zh",
       "icu",
     ),
-  ).toMatchObject({ ok: false });
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "invalid-icu", where: "target" }],
+  });
 });
 
 test("under easy_localization, a plain text's {count} is text unless the call names the count (#1094)", () => {
@@ -4340,5 +4343,21 @@ test("under easy_localization, a plain text's {count} is text unless the call na
   ).toEqual(named);
   expect(
     validateTranslation(source, "{count} 个 {}", "zh", "easy_localization"),
-  ).toMatchObject({ ok: false, errors: expect.arrayContaining(named.errors) });
+  ).toMatchObject({ ok: false, errors: expect.arrayContaining(named.errors) });  // A source that prints no count names none either.
+  expect(
+    validateTranslation(
+      "{count, plural, one {one item} other {some items}}",
+      "{count} 个",
+      "zh",
+      "easy_localization",
+    ),
+  ).toEqual(named);
+  expect(
+    validateTranslation(
+      "{count, plural, one {one item in {folder}} other {items in {folder}}}",
+      "{folder} {count} 个",
+      "zh",
+      "easy_localization",
+    ),
+  ).toEqual(named);
 });
