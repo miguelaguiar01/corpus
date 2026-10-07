@@ -28,6 +28,7 @@ import { pull } from "./pull";
 import { request, serverMessage, UNAUTHORIZED } from "./server";
 import { status } from "./status";
 import { validate } from "./validate";
+import { whoami } from "./whoami";
 import { workbench } from "./workbench";
 
 export type RunContext = {
@@ -43,6 +44,8 @@ export type RunContext = {
 export { KNOWN_FLAGS, USAGE } from "./commands";
 
 export async function run(argv: string[], ctx: RunContext): Promise<number> {
+  // `creds` is whoami by its other name (#1078).
+  if (argv[0] === "creds") argv = ["whoami", ...argv.slice(1)];
   const [command] = argv;
 
   if (command === "--help" || command === "-h" || command === "help") {
@@ -94,6 +97,7 @@ export async function run(argv: string[], ctx: RunContext): Promise<number> {
       if (command === "workbench") return await workbench(argv.slice(1), ctx);
       if (command === "project") return await project(argv.slice(1), ctx);
       if (command === "status") return await status(argv.slice(1), ctx);
+      if (command === "whoami") return await whoami(argv.slice(1), ctx);
       if (command === "validate") return await validate(argv.slice(1), ctx);
       if (command === "mcp") return await mcp(ctx);
       if (command === "agent") return await agent(argv.slice(1), ctx);

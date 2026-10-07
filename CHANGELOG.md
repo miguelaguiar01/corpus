@@ -7,6 +7,10 @@ contract (`corpus/1`) is the only one.
 
 ## [Unreleased]
 
+### Added
+
+- `corpus whoami` (or `creds`) says which server, token and join secret the running instance uses, a workbench started elsewhere with `--db` included (#1078).
+
 ### Fixed
 
 - `corpus agent --stdin`'s queue op takes its name in `state` as well as `queue`, and `corpus agent --help` lists every op's fields with an example line (#1077).

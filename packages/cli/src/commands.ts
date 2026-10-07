@@ -4,6 +4,7 @@ import { MCP_USAGE } from "./mcp";
 import { PROJECT_USAGE } from "./project";
 import { STATUS_USAGE } from "./status";
 import { VALIDATE_USAGE } from "./validate";
+import { WHOAMI_USAGE } from "./whoami";
 import { WORKBENCH_USAGE } from "./workbench";
 
 // The CLI's commands as data (#534): each one's usage line and the flags
@@ -59,6 +60,11 @@ export const COMMANDS: readonly Command[] = [
     flags: ["--server"],
   },
   { name: "status", usage: STATUS_USAGE, flags: ["--json"] },
+  {
+    name: "whoami",
+    usage: WHOAMI_USAGE,
+    flags: ["--server", "--show-secret", "--json"],
+  },
   { name: "validate", usage: VALIDATE_USAGE, flags: ["--server", "--json"] },
   { name: "mcp", usage: MCP_USAGE, flags: [] },
   { name: "agent", usage: AGENT_USAGE, flags: "own" },
@@ -73,6 +79,7 @@ const USAGE_LINES: readonly (readonly string[])[] = [
   ["workbench"],
   ["project create", "project rotate-token"],
   ["status"],
+  ["whoami"],
   ["validate"],
   ["mcp"],
   ["agent"],

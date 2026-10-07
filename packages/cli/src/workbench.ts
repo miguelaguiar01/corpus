@@ -1,6 +1,12 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import type { RunContext } from "./cli";
@@ -26,8 +32,40 @@ export type Prepared = {
   version: string;
   dbPath: string;
   secret: string;
+  secretPath: string;
   notes: string[];
 };
+
+// What a running workbench writes beside its database (#1078), so
+// `corpus whoami` can say which secret it reads when it was started from
+// another directory than the repository's.
+export const WORKBENCH_FILE = "workbench.json";
+
+export type WorkbenchRecord = {
+  url: string;
+  pid: number;
+  secretPath: string;
+  version: string;
+  startedAt: string;
+  db: string;
+};
+
+export function workbenchRecordPath(dbPath: string): string {
+  return path.join(path.dirname(dbPath), WORKBENCH_FILE);
+}
+
+// The record removed when it is still this workbench's: another started
+// on the same database since has written its own.
+function forget(record: string, pid: number | undefined): void {
+  try {
+    const written = JSON.parse(readFileSync(record, "utf8")) as {
+      pid?: unknown;
+    };
+    if (written.pid === pid) rmSync(record, { force: true });
+  } catch {
+    // gone already, or never written
+  }
+}
 
 // Everything before the process starts (§2): the workbench package from
 // the repository's own node_modules, the database and the secret under
@@ -72,7 +110,14 @@ export function prepare(
 
   const ignored = ignoreCorpusDir(cwd);
   if (ignored) notes.push(ignored);
-  return { bin, version: manifest.version, dbPath, secret, notes };
+  return {
+    bin,
+    version: manifest.version,
+    dbPath,
+    secret,
+    secretPath,
+    notes,
+  };
 }
 
 export async function healthy(
@@ -137,6 +182,31 @@ export async function workbench(
       `the workbench did not answer at ${url} within ${HEALTH_TIMEOUT_MS / 1000}s`,
     );
   }
+  // Only a diagnostic for `corpus whoami`: one that cannot be written is
+  // said, and the workbench runs on.
+  const record = workbenchRecordPath(prepared.dbPath);
+  try {
+    mkdirSync(path.dirname(record), { recursive: true });
+    writeFileSync(
+      record,
+      `${JSON.stringify(
+        {
+          url,
+          pid: child.pid!,
+          secretPath: prepared.secretPath,
+          version: prepared.version,
+          startedAt: new Date().toISOString(),
+          db: prepared.dbPath,
+        } satisfies WorkbenchRecord,
+        null,
+        2,
+      )}\n`,
+    );
+  } catch (error) {
+    ctx.out(
+      `corpus: could not record this workbench beside its database (${record}: ${(error as Error).message}); corpus whoami will not find it`,
+    );
+  }
   ctx.out("");
   ctx.out(`Corpus workbench ${prepared.version} is running at ${url}`);
   ctx.out(
@@ -156,6 +226,7 @@ export async function workbench(
   return new Promise<number>((resolve) => {
     child.once("exit", (code, signal) => {
       release();
+      forget(record, child.pid);
       // Stopped by the person (through this command) is a clean exit;
       // any other signal is a failure worth an exit code.
       const stopped = signal === "SIGTERM" || signal === "SIGINT";
