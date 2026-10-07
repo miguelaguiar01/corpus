@@ -660,3 +660,37 @@ test("corpus agent --help names every --stdin op's fields with an example line, 
   }
   expect(said).toContain("queue (or state)");
 });
+
+test("an archived string the build refuses is answered with its row and why (#1111)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-archived-"));
+  try {
+    mkdirSync(path.join(dir, "i18n"));
+    writeFileSync(
+      path.join(dir, "i18n", "en.json"),
+      JSON.stringify({ hello: "Hello", bad: "Hi {name" }),
+    );
+    writeFileSync(
+      path.join(dir, "corpus.config.mjs"),
+      `export default { project: "acme", server: process.env.CORPUS_SERVER, sourceLanguage: "en", languages: ["en", "de"], sources: [{ adapter: "messages", type: "ui", path: "i18n/{lang}.json" }] };\n`,
+    );
+    api = await startApi((seen) =>
+      seen.path === "/api/strings/bad"
+        ? {
+            status: 200,
+            body: { key: "bad", source: "Hi {name}", archived: true },
+          }
+        : { status: 404, body: { error: "not-found", message: "no string" } },
+    );
+    const call = ctx(api.url);
+    call.context.cwd = dir;
+    expect(await run(["agent", "string", "bad"], call.context)).toBe(0);
+    expect(JSON.parse(call.out.join("\n"))).toEqual({
+      key: "bad",
+      source: "Hi {name}",
+      archived: true,
+      refused: "i18n/en.json [bad]: invalid ICU: unclosed '{'",
+    });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
