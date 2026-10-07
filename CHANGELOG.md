@@ -13,6 +13,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- `corpus init`'s `check.include` takes a SvelteKit package's whole `src`, its routes included, rather than its `components` alone (#1139).
 - A placeholder kept in a tag's attribute and also written in the text is reported once, not twice (#1135).
 - An Android `values-b+ca+valencia` folder is read as `ca-valencia`, rather than left out as `ca-VALENCIA` (#1120).
 - `corpus init` reads `be@tarask`, `sr@ijekavian` and `sr@ijekavianlatin` files as their tags, and writes a POSIX code given in `--languages` as its tag (#1119).

@@ -1074,7 +1074,11 @@ function checkIncludeFor(
       found.every((root, i) => root === DEFAULT_INCLUDE[i]);
     return { include: isDefault ? undefined : found, found: true };
   }
-  const components = componentDirs(cwd, "", 0);
+  const components = [
+    ...new Set(
+      componentDirs(cwd, "", 0).map((dir) => svelteKitSrc(cwd, dir) ?? dir),
+    ),
+  ];
   if (components.length > 0) return { include: components, found: true };
   const pkg = packageOf(cwd, messages);
   if (pkg !== undefined) {
@@ -1085,6 +1089,30 @@ function checkIncludeFor(
   }
   return { found: false };
 }
+
+// A SvelteKit package keeps its pages in `src/routes` and markup across
+// `src/lib`: a components directory in its `src` stands for that `src`
+// (Immich's `web/src`, #1139).
+function svelteKitSrc(cwd: string, dir: string): string | undefined {
+  const parts = dir.split("/");
+  for (let i = parts.length - 2; i >= 0; i--) {
+    if (parts[i] !== "src") continue;
+    const pkg = path.join(cwd, ...parts.slice(0, i));
+    if (
+      existsSync(path.join(pkg, "package.json")) &&
+      SVELTE_CONFIGS.some((name) => existsSync(path.join(pkg, name)))
+    )
+      return parts.slice(0, i + 1).join("/");
+  }
+  return undefined;
+}
+
+const SVELTE_CONFIGS = [
+  "svelte.config.js",
+  "svelte.config.mjs",
+  "svelte.config.cjs",
+  "svelte.config.ts",
+];
 
 function componentDirs(cwd: string, rel: string, depth: number): string[] {
   if (depth >= COMPONENT_DEPTH) return [];
