@@ -67,6 +67,8 @@ test("what the editor shows: the string, every language, the proposal, the note,
       format: null,
       written: null,
       values: { "pt-PT": "a Condessa Rosa", en: "Countess Rosa" },
+      fromSource: [],
+      missing: [],
     },
     {
       name: "room_de",
@@ -75,6 +77,8 @@ test("what the editor shows: the string, every language, the proposal, the note,
       format: null,
       written: null,
       values: { "pt-PT": "da estufa", en: "greenhouse" },
+      fromSource: [],
+      missing: [],
     },
     {
       name: "hour",
@@ -83,6 +87,8 @@ test("what the editor shows: the string, every language, the proposal, the note,
       format: null,
       written: null,
       values: { "pt-PT": "21h", en: "9 pm" },
+      fromSource: [],
+      missing: ["role"],
     },
   ]);
   expect(body.selects).toEqual(["person_gender"]);
@@ -327,4 +333,32 @@ test("under a type read as HTML, the string lists the placeholders its tags' att
     [["name"], [], ["x"]],
   );
   applySnapshot(db, project.id, FIXTURE);
+});
+
+test("a slot a target language has no example value for takes the source's, listed in fromSource (#1075)", async () => {
+  const { db, project, token } = seeded;
+  applySnapshot(db, project.id, {
+    ...FIXTURE,
+    strings: [
+      ...FIXTURE.strings,
+      {
+        id: "ui.greet",
+        type: "chrome",
+        file: "src/ui/pt-PT.json",
+        source: "Olá {who}",
+        examples: [{ values: { who: "Ana" }, rendered: "Olá Ana" }],
+      },
+    ],
+  });
+  const body = (await (
+    await string(token, "ui.greet")
+  ).json()) as StringResponse;
+  expect(body.slots).toMatchObject([
+    {
+      name: "who",
+      values: { "pt-PT": "Ana", en: "Ana" },
+      fromSource: ["en"],
+      missing: ["description", "role"],
+    },
+  ]);
 });

@@ -38,6 +38,7 @@ import {
 import {
   entitySchema,
   libraryOf,
+  partsOf,
   sameMessage,
   isFluentTermId,
   WHOLE_PLURAL_LIBRARIES,
@@ -559,6 +560,12 @@ export async function buildSnapshotReport(
     new Set(sourced.map((s) => s.entry.id)),
     seedTranslations,
     notes,
+  );
+  notes.push(
+    ...undeclaredSlots(
+      config,
+      sourced.map((s) => s.entry),
+    ),
   );
   const snapshot = {
     contract: "corpus/1" as const,
@@ -1301,6 +1308,40 @@ export function sourceTargets(
 // (#513, #998), and every reader of a raw file goes through this.
 export function namespaced(source: FileSource, id: string): string {
   return source.namespace ? `${source.namespace}:${id}` : id;
+}
+
+// A type that declares its slots, and the placeholders its strings use
+// that no declaration covers, once per type (#1075): a translator reads
+// nothing for them where the rest of the type has a description.
+function undeclaredSlots(config: CorpusConfig, entries: StringEntry[]) {
+  const notes: string[] = [];
+  for (const [type, fields] of Object.entries(config.stringTypes ?? {})) {
+    const declarations = Object.values(fields).flatMap((field) =>
+      field.type === "placeholders" ? [field.slots] : [],
+    );
+    if (declarations.length === 0) continue;
+    const declared = new Set(declarations.flatMap((d) => Object.keys(d)));
+    const lacking = new Set<string>();
+    for (const entry of entries) {
+      if (entry.type !== type) continue;
+      const { placeholders } = partsOf(
+        entry.source,
+        libraryOf(entry),
+        entry.placeholders,
+      );
+      // A Fluent term or message reference is no value the code passes.
+      const fluent = libraryOf(entry) === "fluent";
+      for (const name of placeholders)
+        if (!declared.has(name) && !(fluent && /^[-@]/.test(name)))
+          lacking.add(name);
+    }
+    if (lacking.size === 0) continue;
+    const names = [...lacking];
+    notes.push(
+      `${type}: ${names.join(", ")} ${names.length === 1 ? "has" : "have"} no slot declaration in stringTypes`,
+    );
+  }
+  return notes;
 }
 
 // What a target file holds that Corpus cannot read, in a note or a

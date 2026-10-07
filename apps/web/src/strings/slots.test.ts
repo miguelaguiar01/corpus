@@ -21,6 +21,8 @@ test("slots carry the declaration and the first example's value per language, in
     format: null,
     written: null,
     values: { "pt-PT": "a Condessa Rosa", en: "Countess Rosa" },
+    fromSource: [],
+    missing: [],
   });
   expect(slots[2]?.role).toBeNull();
 });
@@ -40,6 +42,8 @@ test("an undeclared slot, a count, and a string with no examples still list ever
       format: null,
       written: null,
       values: {},
+      fromSource: [],
+      missing: ["description", "role", "example"],
     },
     {
       name: "who",
@@ -48,6 +52,8 @@ test("an undeclared slot, a count, and a string with no examples still list ever
       format: null,
       written: null,
       values: {},
+      fromSource: [],
+      missing: ["description", "role", "example"],
     },
     {
       name: "n",
@@ -56,6 +62,8 @@ test("an undeclared slot, a count, and a string with no examples still list ever
       format: null,
       written: null,
       values: {},
+      fromSource: [],
+      missing: ["description", "role", "example"],
     },
   ]);
 });
@@ -105,6 +113,8 @@ test("a slot named like an Object.prototype member has only its own values (#846
     format: null,
     written: null,
     values: {},
+    fromSource: [],
+    missing: ["description", "role", "example"],
   });
 });
 
@@ -119,4 +129,50 @@ test("an i18next {{…}} that holds no name is a slot whose chip writes it as th
   expect(
     slots.map((s) => chipText(s.name, "i18next", s.format, s.written)),
   ).toEqual(['{{ define "<NAME>" }}', "{{name}}"]);
+});
+
+test("a slot names what the repository did not give it, and a target language without an example takes the source's, marked (#1075)", () => {
+  const slots = slotsOf(
+    "Fechada na {room} até às {hour_until}",
+    {
+      slot: {
+        type: "placeholders",
+        description: "The clue's slots.",
+        slots: { room: { description: "A room, with article", role: "np" } },
+      },
+    },
+    [
+      {
+        values: { room: "biblioteca" },
+        rendered: "Fechada na biblioteca até às {hour_until}",
+        valuesByLanguage: { en: { room: "library" } },
+      },
+    ],
+    "pt-PT",
+    "icu",
+    undefined,
+    ["en", "fr"],
+  );
+  expect(slots).toEqual([
+    {
+      name: "room",
+      description: "A room, with article",
+      role: "np",
+      format: null,
+      written: null,
+      values: { "pt-PT": "biblioteca", en: "library", fr: "biblioteca" },
+      fromSource: ["fr"],
+      missing: [],
+    },
+    {
+      name: "hour_until",
+      description: null,
+      role: null,
+      format: null,
+      written: null,
+      values: {},
+      fromSource: [],
+      missing: ["description", "role", "example"],
+    },
+  ]);
 });

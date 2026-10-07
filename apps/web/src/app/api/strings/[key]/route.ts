@@ -112,6 +112,11 @@ export async function GET(
       project.sourceLanguage,
       detail.string.syntax,
       detail.string.placeholderSyntaxes ?? undefined,
+      project.languages.filter(
+        (l) =>
+          l !== project.sourceLanguage &&
+          (!detail.string.languages || detail.string.languages.includes(l)),
+      ),
     ),
     examples: detail.string.examples ?? [],
     metadata: detail.string.metadata,

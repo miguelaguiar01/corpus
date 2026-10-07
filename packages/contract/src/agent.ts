@@ -118,6 +118,13 @@ export type StringResponse = {
     // name, printf's "%[2]s", or null (#594); additive.
     written: string | null;
     values: Record<string, string>;
+    // The target languages whose value is the source language's, where
+    // the example gives none of theirs (#1075); additive.
+    fromSource: string[];
+    // What the repository gives the slot none of: a description or role
+    // in its type's declaration, or a value in the first example, which
+    // `values` reads (#1075); additive.
+    missing: ("description" | "role" | "example")[];
   }[];
   examples: Example[];
   metadata: Record<string, unknown> | null;

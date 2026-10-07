@@ -52,7 +52,7 @@ Six kinds:
 | `ref` | One entity |
 | `list<ref>` | Several |
 
-`placeholders` is the one that repays the effort fastest. A translator looking at `{count}` cannot tell whether it is a number of documents or of days, and the two take different phrasing in most languages.
+`placeholders` is the one that repays the effort fastest. A translator looking at `{count}` cannot tell whether it is a number of documents or of days, and the two take different phrasing in most languages. `corpus build` names, once per type, the placeholders its strings use that its declaration leaves out (`skin: hour_until has no slot declaration in stringTypes`), and an agent's `get_string` lists what a slot lacks in `missing`.
 
 A slot's `role` is a short grammatical tag shown in the chip's tooltip after the description, for languages where the surrounding words have to agree with what is substituted: `np-def` for a noun phrase that arrives with its article, `de-contraction` for a value a preposition must contract with. Leave it out until a translator asks.
 
