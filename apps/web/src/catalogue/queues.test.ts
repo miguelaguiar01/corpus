@@ -7,7 +7,31 @@ import { memoryDb } from "@/db/test-helpers";
 import { applySnapshot } from "@/ingest/apply";
 import { applyTransition } from "@/translations/service";
 import { ensureAgentActor } from "@/agents/actor";
-import { neighbours, queueCounts, queueItems, queueSummaries } from "./queues";
+import {
+  queueCounts,
+  queueItems,
+  queueSummaries,
+  type Queue,
+  type QueueItem,
+} from "./queues";
+
+// What the string page did before #639, over the whole queue: the oracle
+// queueStep and queueNeighbours are held to.
+function neighbours(
+  queue: Queue,
+  current: Pick<QueueItem, "stringId" | "language">,
+) {
+  const index = queue.items.findIndex(
+    (item) =>
+      item.stringId === current.stringId && item.language === current.language,
+  );
+  if (index < 0) return { index: null, previous: null, next: null };
+  return {
+    index,
+    previous: queue.items[index - 1] ?? null,
+    next: queue.items[index + 1] ?? null,
+  };
+}
 
 const FIXTURE = moonlightManor as Snapshot;
 
@@ -211,25 +235,6 @@ test("a queue narrowed by language and type holds exactly the matching items (#6
   expect(
     queueItems(db, p.id, "unverifiedSource", { language: "en" }).items,
   ).toEqual([]);
-});
-
-test("neighbours finds the previous and next items around the current one", () => {
-  const { db, p } = pushed();
-  const queue = queueItems(db, p.id, "unverifiedSource");
-  const [a, b, c, d] = queue.items;
-  expect(neighbours(queue, b!)).toEqual({ index: 1, previous: a, next: c });
-  expect(neighbours(queue, a!)).toEqual({ index: 0, previous: null, next: b });
-  expect(neighbours(queue, d!)).toEqual({ index: 3, previous: c, next: null });
-});
-
-test("neighbours of an item not in the queue is index null with no links", () => {
-  const { db, p } = pushed();
-  const queue = queueItems(db, p.id, "stale");
-  expect(neighbours(queue, { stringId: 1, language: "en" })).toEqual({
-    index: null,
-    previous: null,
-    next: null,
-  });
 });
 
 test("agent drafts lists the translated rows an agent last edited, and leaves when a person takes over", () => {

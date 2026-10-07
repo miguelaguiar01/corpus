@@ -5,7 +5,7 @@
 // a typed error or the changed-since-opened warning. Pure apart from the
 // DB, so the server actions stay thin wrappers.
 import { validateTranslation, isFluentTermId } from "@corpus/contract";
-import { neighbours, queueItems, type QueueKind } from "@/catalogue/queues";
+import { queueNeighbours, type QueueKind } from "@/catalogue/queues";
 import type { Db } from "@/db";
 import { stringDetail } from "@/strings/detail";
 import { stringPath } from "@/strings/paths";
@@ -53,8 +53,9 @@ export function transitionFlow(db: Db, input: TransitionFlowInput): FlowResult {
       opened: String(input.openedVersion),
     }),
   });
+  // Two LIMIT 1 queries, never the whole queue (#639).
   const around = input.queue
-    ? neighbours(queueItems(db, project.id, input.queue), {
+    ? queueNeighbours(db, project.id, input.queue, {
         stringId: detail.string.id,
         language,
       })

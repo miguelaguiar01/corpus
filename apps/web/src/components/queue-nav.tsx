@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { neighbours, type Queue, type QueueItem } from "@/catalogue/queues";
+import type { QueueItem, QueueStep } from "@/catalogue/queues";
 import { stringPath } from "@/strings/paths";
 import { t } from "@/i18n";
 import { QUEUE_LABEL } from "./queue-list";
@@ -14,13 +14,12 @@ const STEP_INLINE =
 export function QueueNav({
   slug,
   queue,
-  current,
   inline = false,
   children,
 }: {
   slug: string;
-  queue: Queue;
-  current: Pick<QueueItem, "stringId" | "language">;
+  // The current row's place in the queue (#639).
+  queue: QueueStep;
   // A slim toolbar under the page header on desktop; thumb height in
   // the fixed bar on a phone.
   inline?: boolean;
@@ -29,7 +28,7 @@ export function QueueNav({
   children?: ReactNode;
 }) {
   const stepClass = inline ? STEP_INLINE : STEP;
-  const { index, previous, next } = neighbours(queue, current);
+  const { index, previous, next } = queue;
   if (index === null) {
     return (
       <nav

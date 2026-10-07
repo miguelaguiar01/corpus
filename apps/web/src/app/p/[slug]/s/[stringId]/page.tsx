@@ -1,7 +1,7 @@
 import { isHtml, partsOf } from "@corpus/contract";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/auth/session";
-import { isQueueKind, queueItems } from "@/catalogue/queues";
+import { isQueueKind, queueStep } from "@/catalogue/queues";
 import { getDb } from "@/db";
 import { EntityCards } from "@/components/entity-cards";
 import { HistoryList } from "@/components/history-list";
@@ -110,8 +110,11 @@ export default async function StringPage({
       at: p.createdAt,
     }),
   );
-  const queue = queueKind ? queueItems(db, project.id, queueKind) : undefined;
   const language = query.language ?? project.sourceLanguage;
+  // This row's place in the queue, not the whole queue (#639).
+  const queue = queueKind
+    ? queueStep(db, project.id, queueKind, { stringId: string.id, language })
+    : undefined;
   const source = translations[project.sourceLanguage];
   // A target language selected in the URL turns the page into the editor
   // (§9.3): the source pane stays, the target pane appears. Queue links
@@ -185,12 +188,7 @@ export default async function StringPage({
         sourceLanguage: project.sourceLanguage,
         queue:
           queueKind && queue
-            ? {
-                kind: queueKind,
-                languages: queue.items
-                  .filter((item) => item.stringId === string.id)
-                  .map((item) => item.language),
-              }
+            ? { kind: queueKind, languages: queue.languages }
             : undefined,
       })}
     />
@@ -209,12 +207,7 @@ export default async function StringPage({
     <Page width="wide" className="space-y-8 pb-32 lg:pb-8">
       {queue ? (
         <div className="hidden lg:block">
-          <QueueNav
-            slug={slug}
-            queue={queue}
-            current={{ stringId: string.id, language }}
-            inline
-          >
+          <QueueNav slug={slug} queue={queue} inline>
             {languageBar}
           </QueueNav>
         </div>
@@ -426,13 +419,7 @@ export default async function StringPage({
                 language={actedLanguage}
               />
             )}
-            {queue && (
-              <QueueNav
-                slug={slug}
-                queue={queue}
-                current={{ stringId: string.id, language }}
-              />
-            )}
+            {queue && <QueueNav slug={slug} queue={queue} />}
           </div>
         </div>
       )}

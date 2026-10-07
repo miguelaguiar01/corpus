@@ -1,4 +1,4 @@
-import { and, asc, eq, ne, notInArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ne, notInArray, sql, type SQL } from "drizzle-orm";
 import type { Library } from "@corpus/contract";
 import type { Db } from "@/db";
 import {
@@ -242,25 +242,148 @@ export function queueCounts(db: Db, projectId: number): QueueCounts {
   };
 }
 
-// Position of an item in a queue plus its neighbours, for next/previous.
-// Computed before a transition so "next" still points past the item that
-// is about to leave the queue.
-export function neighbours(
-  queue: Queue,
-  current: Pick<QueueItem, "stringId" | "language">,
-): {
+type Current = Pick<QueueItem, "stringId" | "language">;
+
+// One row's place in a queue for the string page (§9.3), in a few
+// indexed queries rather than the whole queue (#639): its previous and
+// next, its position and the queue's count, and the queue's languages for
+// its string, for the language bar. A row not in the queue has no
+// position and no neighbours.
+export type QueueStep = {
+  kind: QueueKind;
   index: number | null;
   previous: QueueItem | null;
   next: QueueItem | null;
-} {
-  const index = queue.items.findIndex(
-    (item) =>
-      item.stringId === current.stringId && item.language === current.language,
+  count: number;
+  languages: string[];
+};
+
+const row = sql`(${strings.id}, ${stringTranslations.language})`;
+const at = (current: Current) =>
+  sql`(${current.stringId}, ${current.language})`;
+
+// The queue's rows narrowed by `extra`, in its order or the reverse.
+function rows(
+  db: Db,
+  projectId: number,
+  kind: QueueKind,
+  scope: Scope,
+  extra: SQL,
+  reverse = false,
+  limit?: number,
+): QueueItem[] {
+  const from = db
+    .select({
+      stringId: stringTranslations.stringId,
+      key: strings.stringId,
+      type: strings.type,
+      language: stringTranslations.language,
+      source: strings.source,
+      text: stringTranslations.text,
+    })
+    .from(stringTranslations);
+  const order = reverse ? desc : asc;
+  const query = (
+    kind === "invalid"
+      ? from.crossJoin(strings)
+      : from.innerJoin(strings, eq(strings.id, stringTranslations.stringId))
+  )
+    .where(and(where(projectId, kind, scope, {}), extra))
+    .orderBy(order(strings.id), order(stringTranslations.language));
+  return limit === undefined ? query.all() : query.limit(limit).all();
+}
+
+function holds(
+  db: Db,
+  projectId: number,
+  kind: QueueKind,
+  scope: Scope,
+  current: Current,
+): boolean {
+  return (
+    rows(db, projectId, kind, scope, sql`${row} = ${at(current)}`, false, 1)
+      .length > 0
   );
-  if (index < 0) return { index: null, previous: null, next: null };
+}
+
+// The rows before and after `current`, computed before a transition so
+// "next" still points past the item that is about to leave the queue.
+// What a save needs: two LIMIT 1 queries and a membership check.
+export function queueNeighbours(
+  db: Db,
+  projectId: number,
+  kind: QueueKind,
+  current: Current,
+  scope: Scope = scopeOf(db, projectId),
+): { previous: QueueItem | null; next: QueueItem | null } {
+  if (!holds(db, projectId, kind, scope, current))
+    return { previous: null, next: null };
   return {
-    index,
-    previous: queue.items[index - 1] ?? null,
-    next: queue.items[index + 1] ?? null,
+    previous:
+      rows(
+        db,
+        projectId,
+        kind,
+        scope,
+        sql`${row} < ${at(current)}`,
+        true,
+        1,
+      )[0] ?? null,
+    next:
+      rows(
+        db,
+        projectId,
+        kind,
+        scope,
+        sql`${row} > ${at(current)}`,
+        false,
+        1,
+      )[0] ?? null,
+  };
+}
+
+export function queueStep(
+  db: Db,
+  projectId: number,
+  kind: QueueKind,
+  current: Current,
+): QueueStep {
+  const scope = scopeOf(db, projectId);
+  const { previous, next } = queueNeighbours(
+    db,
+    projectId,
+    kind,
+    current,
+    scope,
+  );
+  // Position and count in one pass over the queue.
+  const from = db
+    .select({
+      count: sql<number>`count(*)`,
+      before: sql<number>`coalesce(sum(${row} < ${at(current)}), 0)`,
+      here: sql<number>`coalesce(sum(${row} = ${at(current)}), 0)`,
+    })
+    .from(stringTranslations);
+  const tally = (
+    kind === "invalid"
+      ? from.crossJoin(strings)
+      : from.innerJoin(strings, eq(strings.id, stringTranslations.stringId))
+  )
+    .where(where(projectId, kind, scope, {}))
+    .get();
+  const languages = rows(
+    db,
+    projectId,
+    kind,
+    scope,
+    sql`${strings.id} = ${current.stringId}`,
+  ).map((item) => item.language);
+  return {
+    kind,
+    index: tally?.here ? tally.before : null,
+    previous,
+    next,
+    count: tally?.count ?? 0,
+    languages,
   };
 }
