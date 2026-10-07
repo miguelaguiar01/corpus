@@ -1272,3 +1272,33 @@ msgstr ""
     entriesToGettext(AF, { Quit: "Acha" }, own, { tag: "sw", code: "sw" }),
   ).toContain("# Jan: keep this short\n");
 });
+
+test("a target's credits are dropped in the forms real headers write them: an email alone, dotted or unspaced years, a translator field, names after a credit (#1101)", () => {
+  // Joplin's sv.po and hr.po headers, and a ru one.
+  const header = `# Swedish translation for Joplin.
+# Copyright (C) 2026 Laurent Cozic
+# This file is distributed under the same license as the Joplin-CLI package.
+# Jonatan Nyberg, 2023, 2024, 2025, 2026.
+# Isak Bergdahl
+# Daniel Nylander
+# Hrvoje Mandić <trbuhom@net.hr>
+# Milo Ivir <mail@milotype.de>, 2021., 2022., 2023., 2025.
+# Anna Svensson <anna@example.org>, 2019,2020
+# Previous-Translator: Титан <fignin@ya.ru>
+# Last-Translator: Dmitriy Q <atsip-help@yandex.ru>
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# SPDX-FileCopyrightText: 2026 summoner <summoner@disroot.org>
+#
+msgid ""
+msgstr ""
+"Language: sv\n"
+
+msgid "Quit"
+msgstr "Avsluta"
+`;
+  expect(
+    entriesToGettext(header, {}, undefined, { tag: "da", code: "da" }),
+  ).toMatch(
+    /^# Swedish translation for Joplin\.\n# Copyright \(C\) 2026 Laurent Cozic\n# This file is distributed under the same license as the Joplin-CLI package\.\n# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR\.\n# SPDX-FileCopyrightText: 2026 summoner <summoner@disroot\.org>\n#\nmsgid ""\n/,
+  );
+});
