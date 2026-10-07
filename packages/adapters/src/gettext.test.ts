@@ -1367,3 +1367,39 @@ test("a long header comment line is read in linear time (#1101)", () => {
     expect(performance.now() - started, line.slice(0, 12)).toBeLessThan(1000);
   }
 });
+
+test("a target's licence and links in brackets are kept; a credit is one whatever its name's words; a BOM, a trailing space and a blank line beside credits change nothing (#1101 review)", () => {
+  const start = (comment: string, prefix = "") =>
+    entriesToGettext(
+      `${prefix}${comment}msgid ""\nmsgstr ""\n"Language: sv\\n"\n\nmsgid "Quit"\nmsgstr "Avsluta"\n`,
+      {},
+      undefined,
+      { tag: "da", code: "da" },
+    );
+  const kept = `# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# Homepage: <https://foo.org>
+# Jonatan Nyberg, 2023.
+# Free Software Foundation
+`;
+  expect(start(kept)).toMatch(
+    /^# You should have received a copy of the GNU General Public License\n# along with this program\.  If not, see <http:\/\/www\.gnu\.org\/licenses\/>\.\n# Homepage: <https:\/\/foo\.org>\n# Free Software Foundation\nmsgid ""\n/,
+  );
+  // Names that hold a title's words are names where an address and a
+  // year sign them.
+  expect(
+    start(
+      "# Title\n# Friedrich List <fl@example.de>, 2020.\n# Jane Report <jr@example.org>, 2019\n",
+    ),
+  ).toMatch(/^# Title\nmsgid ""\n/);
+  // A BOM, a Translators line with a trailing space, and credits alone
+  // above a blank line.
+  expect(start("# Anna Svensson <anna@example.org>, 2019\n\n", "﻿")).toMatch(
+    /^﻿msgid ""\n/,
+  );
+  expect(
+    start(
+      "# Title\n# Translators: \n# Anna Svensson <anna@example.org>, 2019\n",
+    ),
+  ).toMatch(/^# Title\nmsgid ""\n/);
+});
