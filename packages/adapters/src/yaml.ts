@@ -445,8 +445,6 @@ export function entriesToYaml(
   template: string,
   translations: Record<string, string>,
   existing: string | undefined,
-  // `categories`: the target's Rails rule's, where it is not the
-  // code's CLDR one (#1092).
   language: { source: string; code: string; categories?: readonly string[] },
   onRefused?: (id: string, text: string, why: YamlRefusal) => void,
 ): string {
@@ -728,8 +726,6 @@ function formLines(
     .join("");
 }
 
-// A plural's forms: its branches, or a plain text's under each
-// category the target's rule gives (#1092).
 function formsOf(
   write: Write,
   text: string,

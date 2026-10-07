@@ -615,8 +615,6 @@ function writeTarget(
   siblings: () => string | undefined = () => undefined,
   // Each translation the writer refuses, counted for pull's exit (#1051).
   onRefused: () => void = () => {},
-  // The categories the target's plural rule gives, which a plain text
-  // for a Rails hash is written under (#1092).
   categories: () => readonly string[] = () => pluralCategoriesOf(language),
 ): string | undefined {
   const refused = (id: string, why: string) => {

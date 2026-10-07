@@ -239,18 +239,18 @@ export function isBlank(text: string): boolean {
 
 // A plural's form for a category: its own branch, or `other`'s, which
 // every runtime falls back to.
-// A text that writes no plural on `count`, which a file holding a
-// plural as forms writes into every form (#1092): validation takes it
-// for a plural (§5).
-export function plainForPlural(text: string): boolean {
-  return !/\{\s*count\s*,\s*(?:plural|selectordinal)\s*,/.test(text);
-}
-
 export function formOf(
   branches: Record<string, string>,
   category: string,
 ): string | undefined {
   return branches[category] ?? branches.other;
+}
+
+// A text that writes no plural on any argument, which a file holding a
+// plural as forms writes into every form (#1092): validation takes it
+// for a plural (§5).
+export function plainForPlural(text: string): boolean {
+  return !/\{\s*[^{},\s]+\s*,\s*(?:plural|selectordinal)\s*,/.test(text);
 }
 
 // A plural's text, `{arg, plural, …}`: its forms in CLDR's order, or in
