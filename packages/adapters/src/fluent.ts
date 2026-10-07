@@ -1,6 +1,7 @@
 // Fluent `.ftl` (§3, #597): messages and terms with a value, `{$var}`,
 // message and term references as placeholders, a select on a variable
-// as an ICU plural or select, a string literal as written (#990). A
+// as an ICU plural or select, or on NUMBER's ordinal as a selectordinal
+// (#1099), a string literal as written (#990). A
 // message's attributes, functions and number literals are refused by
 // name, a message at a time (#991). A file is patched message by
 // message, so an unchanged pull writes the same bytes and a changed
@@ -220,7 +221,7 @@ function ordinalSelector(
 ): { name: string; end: number } | undefined {
   const close = callEnd(s, open);
   if (close < 0) return undefined;
-  const args = /^\s*\$([A-Za-z][\w-]*)\s*,\s*type\s*:\s*"ordinal"\s*$/.exec(
+  const args = /^ *\$([A-Za-z][\w-]*) *, *type *: *"ordinal" *$/.exec(
     s.slice(open + 1, close),
   );
   const arrow = skipSpace(s, close + 1);
@@ -428,7 +429,7 @@ export function fluentToEntries(
   const refuse = (id: string, reason: string) =>
     options.onRefused?.(
       id,
-      `${reason}; Corpus reads messages and terms with a value, variables, message and term references, string literals and selects on a variable or a term's attribute`,
+      `${reason}; Corpus reads messages and terms with a value, variables, message and term references, string literals and selects on a variable, a term's attribute or NUMBER($n, type: "ordinal")`,
     );
   for (const message of messages(text)) {
     // A term's attributes are what messages select on, kept by the
