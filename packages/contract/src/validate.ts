@@ -1311,6 +1311,7 @@ export function validateTranslation(
           }
         : undefined,
       syntax,
+      options,
     ),
   );
   // An ordinal is picked by another rule than a cardinal (#995): a
@@ -1738,6 +1739,8 @@ const GEN_L10N_EXACT = [
   ["=2", "two"],
 ] as const;
 
+type Held = { pluralForms?: readonly string[]; pluralAsForms?: boolean };
+
 // Whether a plural's exact branches stand for a category the runtime
 // picks, so that no branch of its own is needed (#686): every integer the
 // language picks it for has its `=N`, or, under gen-l10n, its `=0`, `=1`
@@ -1749,7 +1752,14 @@ export function exactCovers(
   category: string,
   exact: ReadonlySet<number>,
   ordinal = false,
+  held: Held = {},
 ): boolean {
+  // An `=N` a whole-read library or a file of forms cannot hold stands
+  // for nothing; one the file's own forms name does (#964).
+  if (WHOLE_PLURAL_LIBRARIES.has(library) || held.pluralAsForms)
+    exact = new Set(
+      [...exact].filter((n) => held.pluralForms?.includes(`=${n}`)),
+    );
   if (
     library === "gen_l10n" &&
     !ordinal &&
@@ -1788,6 +1798,7 @@ function pluralErrors(
     copies: Shape["pluralCopies"];
   },
   library?: Library,
+  held?: Held,
 ): ValidationError[] {
   const out: ValidationError[] = [];
   const byKind = [
@@ -1865,7 +1876,14 @@ function pluralErrors(
               !named.has(key) &&
               !(
                 language &&
-                exactCovers(language, library ?? "icu", key, exact, ordinal)
+                exactCovers(
+                  language,
+                  library ?? "icu",
+                  key,
+                  exact,
+                  ordinal,
+                  held,
+                )
               ),
           )
         )

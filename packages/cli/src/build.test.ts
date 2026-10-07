@@ -2563,3 +2563,39 @@ test("an entry its file holds as plural forms says so; one held as a text does n
   });
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("a gettext source read under counterpart or easy_localization carries every language's Plural-Forms, CLDR's too, since its library's own rule would apply otherwise (#964)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-964-"));
+  mkdirSync(path.join(dir, "po"), { recursive: true });
+  const po = (header: string) =>
+    `msgid ""\nmsgstr ""\n${header}\nmsgid "%(count)s file"\nmsgid_plural "%(count)s files"\nmsgstr[0] ""\nmsgstr[1] ""\n`;
+  writeFileSync(path.join(dir, "po", "en.po"), po(""));
+  writeFileSync(
+    path.join(dir, "po", "de.po"),
+    po('"Plural-Forms: nplurals=2; plural=(n != 1);\\n"\n'),
+  );
+  const forms = async (
+    library?: "counterpart" | "easy_localization" | "printf",
+  ) =>
+    (
+      await buildSnapshotReport(
+        config({
+          languages: ["en", "de"],
+          sources: [
+            {
+              adapter: "gettext",
+              type: "ui",
+              path: "po/{lang}.po",
+              ...(library && { library }),
+            },
+          ],
+        }),
+        dir,
+      )
+    ).snapshot.strings[0]?.pluralForms;
+  expect(await forms("counterpart")).toEqual({ de: ["one", "other"] });
+  expect(await forms("easy_localization")).toEqual({ de: ["one", "other"] });
+  // printf picks by the file's forms, which agree with CLDR's.
+  expect(await forms("printf")).toBeUndefined();
+  rmSync(dir, { recursive: true, force: true });
+});

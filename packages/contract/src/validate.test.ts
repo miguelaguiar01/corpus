@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { moonlightManor } from "./fixtures/moonlight-manor";
 import type { Library } from "./strings";
-import { parseIcu, partsOf } from "./icu";
+import { parseIcu, partsOf, pluralCategoriesOf } from "./icu";
 import { renderPreview } from "./preview";
 import {
   bareAtOf,
@@ -3872,4 +3872,169 @@ test("a plural its file holds as forms takes categories only, each form splittin
       { pluralAsForms: true },
     ),
   ).toMatchObject({ ok: false, errors: [{ code: "invalid-icu" }] });
+});
+
+test("counterpart and easy_localization refuse an =N branch, naming the category their runtime reads for it, which it leaves empty (#964)", () => {
+  for (const [library, one, other] of [
+    ["counterpart", "%(count)s file", "%(count)s files"],
+    ["easy_localization", "{} file", "{} files"],
+  ] as const) {
+    const source = `{count, plural, one {${one}} other {${other}}}`;
+    expect(
+      validateTranslation(
+        source,
+        `{count, plural, =1 {eine Datei} other {${other}}}`,
+        "de",
+        library,
+      ),
+      library,
+    ).toEqual({
+      ok: false,
+      errors: [
+        { code: "exact-branch", arg: "count", key: "=1", category: "one" },
+      ],
+      incomplete: [{ code: "missing-category", arg: "count", key: "one" }],
+    });
+    expect(
+      validateTranslation(
+        source,
+        `{count, plural, =0 {keine} one {${one}} other {${other}}}`,
+        "de",
+        library,
+      ),
+      library,
+    ).toEqual({
+      ok: false,
+      errors: [
+        { code: "exact-branch", arg: "count", key: "=0", category: "zero" },
+      ],
+    });
+  }
+});
+
+test("an =N branch a plural cannot hold covers no category; one the file's own forms name does (#964)", () => {
+  for (const [library, count, options] of [
+    ["printf", "%d", {}],
+    ["i18next", "{{count}}", {}],
+    ["rails", "%{count}", {}],
+    ["qt", "%n", {}],
+    ["fmt", "{}", {}],
+    ["icu", "{count}", { pluralAsForms: true }],
+  ] as const)
+    expect(
+      validateTranslation(
+        `{count, plural, one {${count} file} other {${count} files}}`,
+        `{count, plural, =1 {eine Datei} other {${count} Dateien}}`,
+        "de",
+        library,
+        options,
+      ),
+      library,
+    ).toMatchObject({
+      ok: false,
+      incomplete: [{ code: "missing-category", arg: "count", key: "one" }],
+    });
+  // A gettext file's own `=1` holds the text, as its Plural-Forms read it.
+  expect(
+    validateTranslation(
+      "{count, plural, one {%d file} other {%d files}}",
+      "{count, plural, =1 {usa ka file} other {%d ka mga file}}",
+      "ceb",
+      "printf",
+      { pluralForms: ["=1", "other"] },
+    ),
+  ).toEqual({ ok: true });
+  // An ICU string holds it, and it covers de's one.
+  expect(
+    validateTranslation(
+      "{count, plural, one {# file} other {# files}}",
+      "{count, plural, =1 {eine Datei} other {# Dateien}}",
+      "de",
+      "icu",
+    ),
+  ).toEqual({ ok: true });
+});
+
+test("a gettext file read under counterpart or easy_localization takes the file's own forms, as under any library (#964, #982)", () => {
+  const codes = (
+    library: "printf" | "counterpart" | "easy_localization",
+    count: string,
+    text: string,
+  ) => {
+    const result = validateTranslation(
+      `{count, plural, one {${count} file} other {${count} files}}`,
+      text.replaceAll("#", count),
+      "ceb",
+      library,
+      { pluralForms: ["=1", "other"] },
+    );
+    return [
+      ...(result.ok ? [] : result.errors),
+      ...(result.incomplete ?? []),
+    ].map((e) => [
+      e.code,
+      "key" in e ? e.key : undefined,
+      "category" in e ? e.category : undefined,
+    ]);
+  };
+  for (const text of [
+    "{count, plural, =1 {usa ka file} other {# ka mga file}}",
+    "{count, plural, one {usa} other {#}}",
+    "{count, plural, =0 {wala} =1 {usa} other {#}}",
+  ]) {
+    expect(codes("counterpart", "%(count)s", text), text).toEqual(
+      codes("printf", "%d", text),
+    );
+    expect(codes("easy_localization", "{}", text), text).toEqual(
+      codes("printf", "%d", text),
+    );
+  }
+});
+
+test("a gettext file whose Plural-Forms are CLDR's reads under counterpart and easy_localization as under printf, which records none (#964)", () => {
+  const codes = (
+    library: "printf" | "counterpart" | "easy_localization",
+    count: string,
+    language: string,
+    text: string,
+  ) => {
+    const result = validateTranslation(
+      `{count, plural, one {${count} file} other {${count} files}}`,
+      text.replaceAll("#", count),
+      language,
+      library,
+      {
+        pluralAsForms: true,
+        ...(library !== "printf" && {
+          pluralForms: pluralCategoriesOf(language),
+        }),
+      },
+    );
+    return [
+      ...(result.ok ? [] : result.errors),
+      ...(result.incomplete ?? []),
+    ].map((e) => [
+      e.code,
+      "key" in e ? e.key : undefined,
+      "category" in e ? e.category : undefined,
+    ]);
+  };
+  for (const language of ["fr", "es", "pt", "it", "de", "ru", "ja", "ar"])
+    for (const text of [
+      "{count, plural, one {#} other {#}}",
+      "{count, plural, one {#} many {#} other {#}}",
+      "{count, plural, zero {#} one {#} other {#}}",
+      "{count, plural, =0 {#} one {#} other {#}}",
+      "{count, plural, one {#} few {#} many {#} other {#}}",
+    ]) {
+      const printf = codes("printf", "%d", language, text);
+      expect(
+        codes("counterpart", "%(count)s", language, text),
+        `${language} ${text}`,
+      ).toEqual(printf);
+      expect(
+        codes("easy_localization", "{}", language, text),
+        `${language} ${text}`,
+      ).toEqual(printf);
+    }
 });

@@ -2250,28 +2250,37 @@ export function pluralCategoriesFor(
     const ordinals = pluralCategoriesOf(language, true);
     return { required: ordinals, allowed: ordinals };
   }
-  if (library === "counterpart")
+  // A gettext file's Plural-Forms pick its forms whatever the library
+  // (#964).
+  const gettext = picked !== undefined;
+  if (library === "counterpart" && !gettext)
     return { required: ["one", "other"], allowed: ["zero", "one", "other"] };
   const cldr = pluralCategoriesOf(language);
   // Ruby's I18n and I18n.js pick `zero` for 0 wherever a plural writes
   // it, in every language (#983), and so does i18next (#985).
   const zero = (c: string) =>
     (library === "rails" || library === "i18next") && c === "zero";
-  if (picked && cldr.length > 0)
+  // A file's forms that are CLDR's are read as CLDR's, as they are where
+  // no forms are recorded: a library with a rule of its own records them
+  // only so that rule does not apply (#964).
+  // The build records a file's forms in pluralCategoriesOf's order.
+  const own = library === "counterpart" || library === "easy_localization";
+  const forms = own && picked?.join() === cldr.join() ? undefined : picked;
+  if (forms && cldr.length > 0)
     return {
-      required: [...picked],
+      required: [...forms],
       allowed: PLURAL_CATEGORIES.filter(
-        (c) => picked.includes(c) || c === "other" || zero(c),
+        (c) => forms.includes(c) || c === "other" || zero(c),
       ),
     };
   // With `ignorePluralRules: false`, intl's table where it has the
   // language, by value where it does not (#961).
   const table =
-    library === "easy_localization" && rules === "cldr"
+    library === "easy_localization" && rules === "cldr" && !gettext
       ? easyLocalizationCategories(language)
       : undefined;
   if (table) return table;
-  if (library === "easy_localization" && cldr.length > 0)
+  if (library === "easy_localization" && cldr.length > 0 && !gettext)
     return {
       required: cldr.filter((c) => c !== "few" && c !== "many"),
       allowed: ["zero", "one", "two", "other"],
@@ -2375,7 +2384,8 @@ export function pluralBranch(
     library === "easy_localization" && rules === "cldr" && language
       ? (n: number) => easyLocalizationCategory(language, n)
       : undefined;
-  const own = library === "counterpart" || library === "easy_localization";
+  const own =
+    !picked && (library === "counterpart" || library === "easy_localization");
   const exact = `=${value.trim()}`;
   if (!own && Object.hasOwn(branches, exact)) return exact;
   const n = Number(value);
@@ -2384,9 +2394,9 @@ export function pluralBranch(
       ? category
       : "other";
   if (Number.isFinite(n) && !ordinal) {
-    if (library === "counterpart")
+    if (library === "counterpart" && !picked)
       return written(n === 0 ? "zero" : n === 1 ? "one" : undefined);
-    if (library === "easy_localization") {
+    if (library === "easy_localization" && !picked) {
       const category = table?.(n);
       return written(category ?? ["zero", "one", "two"][n]);
     }

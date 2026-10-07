@@ -1043,3 +1043,28 @@ test("the pane names a form a plural held as forms cannot split back into (#704)
     ).disabled,
   ).toBe(true);
 });
+
+test("the plural chip asks for the category an =N branch the library cannot hold leaves empty (#964)", () => {
+  render(
+    <TargetPane
+      action={vi.fn()}
+      source="{n, plural, =1 {one file} other {{{n}} files}}"
+      syntax="i18next"
+      slots={[]}
+      language="de"
+      initialText=""
+      slug="mm"
+      stringKey="k"
+      openedVersion={1}
+      examples={[]}
+      sourceLanguage="en"
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: /\{n, plural\}/ }));
+  const value = (screen.getByRole("textbox") as HTMLTextAreaElement).value;
+  expect([...value.matchAll(/(=?\w+) \{/g)].map((m) => m[1])).toEqual([
+    "=1",
+    "one",
+    "other",
+  ]);
+});
