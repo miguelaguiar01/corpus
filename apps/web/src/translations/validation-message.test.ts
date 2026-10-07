@@ -147,3 +147,25 @@ test("a category branch that writes 1 for a count is said in the editor (#1042)"
     "The one branch of count writes 1, but this language also picks it for 0: write the count in it",
   );
 });
+
+test("a plural without other says so plainly in the editor and the queue (#975)", () => {
+  expect(
+    validationMessage({ code: "missing-other", arg: "count" }, "counterpart"),
+  ).toBe(
+    "Plural count has no other branch, which the runtime picks for every count no other branch covers",
+  );
+  expect(
+    problemOf(
+      "{n, plural, one {# file} other {# files}}",
+      "{n, plural, one {x}}",
+      "de",
+      "icu",
+      null,
+      undefined,
+      "k",
+      "en",
+    ),
+  ).toBe(
+    "Plural n has no other branch, which the runtime picks for every count no other branch covers",
+  );
+});

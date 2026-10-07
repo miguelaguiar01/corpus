@@ -1885,6 +1885,37 @@ test("--server advises an =0 in a counterpart gettext plural into the branch the
   }
 });
 
+test("validate says a target plural without other plainly, with no offset (#975)", async () => {
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8")
+      .replace(
+        /sources: \[[\s\S]*?\n {2}\],/,
+        'sources: [{ adapter: "messages", type: "ui", path: "l/{lang}.json", library: "counterpart" }],',
+      )
+      .replace(/languages: \[[^\]]*\]/, 'languages: ["en", "de"]'),
+  );
+  mkdirSync(path.join(repo, "l"), { recursive: true });
+  writeFileSync(
+    path.join(repo, "l", "en.json"),
+    JSON.stringify({
+      n_more: { one: "%(count)s more", other: "%(count)s more" },
+    }),
+  );
+  writeFileSync(
+    path.join(repo, "l", "de.json"),
+    JSON.stringify({ n_more: { one: "%(count)s weitere" } }),
+  );
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(1);
+  expect(c.stderr).toContain(
+    "l/de.json:n_more: plural on {count} has no other form, which the runtime picks for every count no other form covers",
+  );
+});
+
 test("a Japanese source's lone _other is its family, so an English target's forms seed it and are no orphans (#1065)", async () => {
   const configFile = readdirSync(repo).find((f) =>
     f.startsWith("corpus.config"),
