@@ -460,6 +460,12 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
           target === file ? code : yamlRootOf(existing, code, tag),
           config.sourceLanguage,
           target === file ? undefined : pluralIds,
+          (op, reason) => {
+            ctx.err(
+              `corpus: ${target}: ${printable(op.id)} is a unit of the file Corpus cannot read (${reason}); proposal not written`,
+            );
+            written.delete(`${op.kind}\u0000${namespaced(source, op.id)}`);
+          },
         );
       } catch (error) {
         throw new CliError(
@@ -727,6 +733,7 @@ function applyOps(
   code: string,
   sourceLanguage: string,
   pluralIds?: ReadonlySet<string>,
+  onSkipped?: (op: SourceOp, reason: string) => void,
 ): string {
   switch (source.adapter) {
     case "android":
@@ -743,7 +750,7 @@ function applyOps(
         ...(pluralIds && { pluralIds }),
       });
     case "xliff":
-      return applyXliffOps(existing, ops);
+      return applyXliffOps(existing, ops, onSkipped);
     case "strings":
       return applyStringsOps(existing, ops);
     case "yaml":
