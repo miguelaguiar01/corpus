@@ -1744,3 +1744,16 @@ test("a plural proposed into a source whose language has only other reads back u
     ),
   ).toEqual(["n", "files"]);
 });
+
+test("a list of 200,000 translated items is written into a target that lacks it: no spread overflows the stack (#1276)", () => {
+  const items = Array.from({ length: 200_000 }, (_, i) => `Line ${i}`);
+  const template = JSON.stringify({ dialogue: items }, null, 2) + "\n";
+  const translations = Object.fromEntries(
+    items.map((_, i) => [`dialogue.${i}`, `Linha ${i}`]),
+  );
+  const out = JSON.parse(
+    entriesToMessages(template, translations, '{\n  "x": "y"\n}\n'),
+  ) as { dialogue: string[] };
+  expect(out.dialogue).toHaveLength(200_000);
+  expect(out.dialogue[199_999]).toBe("Linha 199999");
+}, 60_000);
