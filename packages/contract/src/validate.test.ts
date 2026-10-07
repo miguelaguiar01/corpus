@@ -4402,6 +4402,26 @@ test("a placeholder kept in a tag's attribute and also written in the text is sa
       unexpected(source, target, syntax),
       `${syntax} ${target}`,
     ).toMatchObject([{ code: "unexpected-placeholder", name }]);
+  // The text's written form is the one kept.
+  expect(
+    unexpected(
+      '<a href="https://x">Go</a>',
+      '<a href="%s">%1$s</a>',
+      "android",
+    ),
+  ).toEqual([{ code: "unexpected-placeholder", name: "1", written: "%1$s" }]);
+  // A prose tag's attribute placeholders are the text's (#986): once too.
+  const prose = validateTranslation(
+    "Go",
+    "Vai <x y='{{u}}'> {{u}}",
+    "pt",
+    "i18next",
+  );
+  expect(
+    prose.ok
+      ? []
+      : prose.errors.filter((e) => e.code === "unexpected-placeholder"),
+  ).toMatchObject([{ name: "u" }]);
   // Moved out of an attribute into the text: one moved-placeholder.
   const moved = (target: string) =>
     validateTranslation('<a href="%{path}">Go</a>', target, "pt", "rails", {
