@@ -3464,6 +3464,7 @@ export default defineCorpus({
   );
   const keys = async () => {
     writeFileSync(path.join(repo, "config", "locales", "cs.yml"), "cs:\n");
+    active?.close();
     await serve(200, {
       ...PAYLOAD,
       types: { cards: "ui" },
