@@ -4303,10 +4303,42 @@ test("under easy_localization, a one-category language's plain text prints its c
   // Under icu a plain {} is no count.
   expect(
     validateTranslation(
-      "{count, plural, one {# item} other {# items}}",
-      "{count} 个项目",
+      "{count, plural, one {{} item} other {{} items}}",
+      "{} 个项目",
       "zh",
       "icu",
     ),
+  ).toMatchObject({ ok: false });
+});
+
+test("under easy_localization, a plain text's {count} is text unless the call names the count (#1094)", () => {
+  const source = "{count, plural, one {{} item} other {{} items}}";
+  const named = {
+    ok: false,
+    errors: [
+      { code: "unexpected-placeholder", name: "count", written: "{count}" },
+    ],
+  };
+  // Declared in `arguments`, the call passes it by name.
+  expect(
+    validateTranslation(source, "{count} 个", "zh", "easy_localization", {
+      arguments: ["count"],
+    }),
   ).toEqual({ ok: true });
+  // Any of the source's forms naming it shows the call does.
+  expect(
+    validateTranslation(
+      "{count, plural, one {{count} item} other {{} items}}",
+      "{count} 个",
+      "zh",
+      "easy_localization",
+    ),
+  ).toEqual({ ok: true });
+  // Wherever the target writes it.
+  expect(
+    validateTranslation(source, "{} 个 {count}", "zh", "easy_localization"),
+  ).toEqual(named);
+  expect(
+    validateTranslation(source, "{count} 个 {}", "zh", "easy_localization"),
+  ).toMatchObject({ ok: false, errors: expect.arrayContaining(named.errors) });
 });
