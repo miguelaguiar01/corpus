@@ -301,7 +301,7 @@ test("describe words every error code", () => {
       category: "other",
     }),
   ).toBe(
-    "{count} has an =0 branch, which this catalogue's plurals cannot hold, as they hold categories only: write it in the other branch, which this language picks for 0",
+    "{count} has an =0 branch, which this file cannot hold, as it holds a plural's categories only: write it in the other branch, which this language picks for 0",
   );
   expect(
     describe({
@@ -1773,6 +1773,78 @@ test("--server refuses a draft that gives two texts to the exact keys one form o
     server.close();
     delete process.env.CORPUS_SERVER;
   }
+});
+
+test("--server refuses a draft writing an =N branch into a plural its file holds as forms (#704)", async () => {
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8")
+      .replace(
+        /sources: \[[\s\S]*?\n {2}\],/,
+        'sources: [{ adapter: "messages", type: "ui", path: "l/{lang}.json" }],',
+      )
+      .replace(/languages: \[[^\]]*\]/, 'languages: ["en", "de"]'),
+  );
+  mkdirSync(path.join(repo, "l"), { recursive: true });
+  writeFileSync(
+    path.join(repo, "l", "en.json"),
+    JSON.stringify({ rooms: { one: "{count} room", other: "{count} rooms" } }),
+  );
+  const out = path.join(repo, "snapshot.json");
+  expect(await run(["build", "--out", out], ctx())).toBe(0);
+  expect(JSON.parse(readFileSync(out, "utf8")).strings[0].pluralAsForms).toBe(
+    true,
+  );
+  const server = await instance({
+    de: {
+      rooms:
+        "{count, plural, =0 {keine} one {{count} Raum} other {{count} Räume}}",
+    },
+  });
+  try {
+    const c = { ...ctx(), env: { CORPUS_TOKEN: "good" } };
+    expect(await run(["validate", "--server"], c)).toBe(1);
+    expect(c.stderr.join("\n")).toContain(
+      "{count} has an =0 branch, which this file cannot hold",
+    );
+  } finally {
+    server.close();
+    delete process.env.CORPUS_SERVER;
+  }
+});
+
+test("validate refuses a form a plural object's file cannot split back, as push does (#704)", async () => {
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8")
+      .replace(
+        /sources: \[[\s\S]*?\n {2}\],/,
+        'sources: [{ adapter: "messages", type: "ui", path: "l/{lang}.json", library: "i18next" }],',
+      )
+      .replace(/languages: \[[^\]]*\]/, 'languages: ["en", "de"]'),
+  );
+  mkdirSync(path.join(repo, "l"), { recursive: true });
+  writeFileSync(
+    path.join(repo, "l", "en.json"),
+    JSON.stringify({
+      rooms: { one: "{{count}} room", other: "{{count}} rooms" },
+    }),
+  );
+  writeFileSync(
+    path.join(repo, "l", "de.json"),
+    JSON.stringify({ rooms: { one: "a { b", other: "{{count}} Räume" } }),
+  );
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(1);
+  expect(c.stderr.join("\n")).toContain(
+    "the one form of {count} leaves a brace unbalanced",
+  );
 });
 
 test("a Japanese source's lone _other is its family, so an English target's forms seed it and are no orphans (#1065)", async () => {

@@ -343,6 +343,7 @@ export function androidToEntries(
         : element.inner
           ? decode(slice(xml, element.inner))
           : "",
+    ...(element.kind === "plurals" && { pluralAsForms: true }),
   }));
 }
 

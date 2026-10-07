@@ -135,6 +135,11 @@ export const strings = sqliteTable(
     pluralShared: text("plural_shared", { mode: "json" }).$type<
       Record<string, string[][]>
     >(),
+    // The file holds the plural as its forms: no =N branch, each form
+    // splitting back (#704).
+    pluralAsForms: integer("plural_as_forms", { mode: "boolean" })
+      .notNull()
+      .default(false),
     // The runtime's own plural rule where the source names one: "default",
     // vue-i18n's, whose forms are read by count (#1018), or "cldr",
     // easy_localization's CLDR picking (#961); null else.

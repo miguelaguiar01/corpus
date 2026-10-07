@@ -6,6 +6,7 @@ import { z } from "zod";
 import {
   androidToEntries,
   fluentToEntries,
+  gettextPluralIds,
   gettextToEntries,
   xcstringsToEntries,
   xcstringsTranslations,
@@ -414,6 +415,13 @@ export async function buildSnapshotReport(
       if (!notes.includes(note)) notes.push(note);
     });
     const targets = sourceTargets(source, config);
+    const asForms = await formsHeld(
+      jiti,
+      cwd,
+      file,
+      source,
+      config.sourceLanguage,
+    );
     const passes = (source as { arguments?: Record<string, string[]> })
       .arguments;
     const held = passes && (declaredIds.get(passes) ?? new Set<string>());
@@ -425,6 +433,7 @@ export async function buildSnapshotReport(
         {
           ...entry,
           ...entryPluralForms(entry, source, pluralForms),
+          ...(asForms(entry) && { pluralAsForms: true }),
           ...namedPluralRules(source),
           ...(targets && { languages: targets }),
           // A key-is-text entry carries no file: a proposal would rewrite
@@ -1546,6 +1555,42 @@ function gettextPluralForms(
   return Object.keys(out).length > 0
     ? { forms: out, ...(Object.keys(shared).length > 0 && { shared }) }
     : undefined;
+}
+
+// Whether a source file holds an entry's plural as one text per
+// category, which takes no `=N` branch and splits back by its braces
+// (#704): a plural object or family, a Rails hash, a gettext
+// msgid_plural, and every plural of a format that holds none otherwise.
+export async function formsHeld(
+  jiti: ReturnType<typeof createJiti>,
+  cwd: string,
+  file: string,
+  source: FileSource,
+  sourceLanguage: string,
+): Promise<(entry: StringEntry) => boolean> {
+  const own = (ids: Iterable<string>) =>
+    new Set([...ids].map((id) => namespaced(source, id)));
+  switch (source.adapter) {
+    case "messages":
+    case "yaml": {
+      const held = own(
+        (await sourcePluralIds(jiti, cwd, source, sourceLanguage).catch(
+          () => undefined,
+        )) ?? [],
+      );
+      return (entry) => held.has(entry.id);
+    }
+    case "gettext": {
+      const held = own(gettextPluralIds(readRepoText(path.join(cwd, file))));
+      return (entry) => held.has(entry.id);
+    }
+    // Every plural a String Catalog holds is a variation's; Android's
+    // `<plurals>` and Qt's numerus messages say so themselves.
+    case "xcstrings":
+      return (entry) => PLURAL_ARGUMENT_RE.test(entry.source);
+    default:
+      return (entry) => entry.pluralAsForms === true;
+  }
 }
 
 // The ids a source's own file holds as a plural object or hash, which

@@ -2483,3 +2483,83 @@ test("a Fluent type's term and message references are no slots the build asks a 
   ]);
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("an entry its file holds as plural forms says so; one held as a text does not (#704)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-704-"));
+  const put = (rel: string, text: string) => {
+    mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
+    writeFileSync(path.join(dir, rel), text);
+  };
+  put(
+    "i18n/en.json",
+    JSON.stringify({
+      rooms: { one: "{count} room", other: "{count} rooms" },
+      beds: "{count, plural, one {{count} bed} other {{count} beds}}",
+    }),
+  );
+  put(
+    "next/en.json",
+    JSON.stringify({
+      item_one: "{{count}} item",
+      item_other: "{{count}} items",
+    }),
+  );
+  put(
+    "res/values/strings.xml",
+    '<resources>\n  <plurals name="cabins">\n    <item quantity="one">%d room</item>\n    <item quantity="other">%d rooms</item>\n  </plurals>\n  <string name="hi">Hi</string>\n  <string name="items">{count, plural, one {# item} other {# items}}</string>\n</resources>\n',
+  );
+  put(
+    "config/en.yml",
+    'en:\n  halls:\n    one: "%{count} room"\n    other: "%{count} rooms"\n  beds_MF: "{n, plural, one {# bed} other {# beds}}"\n',
+  );
+  put(
+    "po/en.po",
+    'msgid ""\nmsgstr ""\n"Plural-Forms: nplurals=2; plural=(n != 1);\\n"\n\nmsgid "%d room"\nmsgid_plural "%d rooms"\nmsgstr[0] ""\nmsgstr[1] ""\n\nmsgid "Hi"\nmsgstr ""\n',
+  );
+  put(
+    "qt/app_en.ts",
+    '<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE TS>\n<TS version="2.1">\n<context>\n    <name>Main</name>\n    <message numerus="yes">\n        <source>%n file(s)</source>\n        <translation type="unfinished"><numerusform></numerusform></translation>\n    </message>\n    <message>\n        <source>Quit</source>\n        <translation type="unfinished"></translation>\n    </message>\n</context>\n</TS>\n',
+  );
+  const report = await buildSnapshotReport(
+    config({
+      languages: ["en"],
+      sources: [
+        { adapter: "messages", type: "icu", path: "i18n/{lang}.json" },
+        {
+          adapter: "messages",
+          type: "next",
+          path: "next/{lang}.json",
+          library: "i18next",
+        },
+        { adapter: "android", type: "android", path: "res" },
+        { adapter: "yaml", type: "rails", path: "config/{lang}.yml" },
+        { adapter: "gettext", type: "po", path: "po/{lang}.po" },
+        { adapter: "qt-ts", type: "qt", path: "qt/app_{lang}.ts" },
+      ],
+    }),
+    dir,
+  );
+  expect(report.refused).toEqual([]);
+  expect(
+    Object.fromEntries(
+      report.snapshot.strings.map((s) => [
+        `${s.type}:${s.id}`,
+        s.pluralAsForms ?? false,
+      ]),
+    ),
+  ).toEqual({
+    "icu:rooms": true,
+    "icu:beds": false,
+    "next:item": true,
+    "android:cabins": true,
+    "android:hi": false,
+    "android:items": false,
+    "qt:Main | %n file(s)": true,
+    "qt:Main | Quit": false,
+    "rails:halls": true,
+    "rails:beds_MF": false,
+    "po:%d room": true,
+    "po:Hi": false,
+  });
+  rmSync(dir, { recursive: true, force: true });
+});

@@ -43,6 +43,7 @@ import {
   BARE_AT_MESSAGE,
   pluralFormsOf,
   entryPluralForms,
+  formsHeld,
   namedPluralRules,
   lastWins,
   sourcePluralIds,
@@ -372,9 +373,17 @@ export async function validateRepo(
       source,
       config.sourceLanguage,
     );
+    const asForms = await formsHeld(
+      jiti,
+      cwd,
+      sourceFile,
+      source,
+      config.sourceLanguage,
+    );
     const augment = (entry: StringEntry): StringEntry => ({
       ...entry,
       ...entryPluralForms(entry, source, pluralForms),
+      ...(asForms(entry) && { pluralAsForms: true }),
       ...namedPluralRules(source),
       ...placeholdersOf(source),
       ...argumentsOf(source, entry.id),
@@ -639,7 +648,9 @@ export function describe(
     case "fixed-count":
       return `the ${error.key} branch of {${error.arg}} writes 1, but this language also picks it for ${error.values.join(", ")}${error.more ? " and more" : ""}: write ${written(error.arg)} in it`;
     case "exact-branch":
-      return `{${error.arg}} has an ${error.key} branch, which this catalogue's plurals cannot hold, as they hold categories only: write it in the ${error.category} branch, which this language picks for ${error.key.slice(1)}`;
+      return `{${error.arg}} has an ${error.key} branch, which this file cannot hold, as it holds a plural's categories only: write it in the ${error.category} branch, which this language picks for ${error.key.slice(1)}`;
+    case "unsplittable-form":
+      return `the ${error.key} form of {${error.arg}} leaves a brace unbalanced, so this file cannot hold it as one of its forms: balance the braces in it`;
     case "shared-form":
       return `${listed(error.keys)} are one form in this file: write the same text in ${error.keys.length === 2 ? "both" : "each"}`;
     case "overridden-branch":
@@ -1151,6 +1162,7 @@ function checkTranslation(
     ...(entry.pluralShared?.[language] && {
       pluralShared: entry.pluralShared[language],
     }),
+    ...(entry.pluralAsForms && { pluralAsForms: true }),
     ...(entry.pluralRules && { pluralRules: entry.pluralRules }),
     ...(entry.placeholders && { placeholders: entry.placeholders }),
     ...(library === "fluent" && isFluentTermId(key) && { term: true }),

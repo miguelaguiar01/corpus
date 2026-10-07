@@ -1014,3 +1014,32 @@ test("the plural chip leaves out a category the source's =N branch already cover
   // gen-l10n reads =1 as one (#1039): its chip keeps offering one.
   expect(keys(chip(source, "de", "gen_l10n"))).toEqual(["one", "other"]);
 });
+
+test("the pane names a form a plural held as forms cannot split back into (#704)", () => {
+  render(
+    <TargetPane
+      action={vi.fn()}
+      source="{count, plural, one {{{count}} room} other {{{count}} rooms}}"
+      syntax="i18next"
+      pluralAsForms
+      slots={[]}
+      language="de"
+      initialText="{count, plural, one {a { b} other {{{count}} Räume}}"
+      slug="mm"
+      stringKey="k"
+      openedVersion={1}
+      examples={[]}
+      sourceLanguage="en"
+    />,
+  );
+  expect(
+    screen.getByText(/The one form of count leaves a brace unbalanced/),
+  ).toBeTruthy();
+  expect(
+    (
+      screen.getByRole("button", {
+        name: "Save translation",
+      }) as HTMLButtonElement
+    ).disabled,
+  ).toBe(true);
+});

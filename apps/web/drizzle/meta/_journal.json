@@ -232,6 +232,13 @@
       "when": 1791344798837,
       "tag": "0032_strings-by-project",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1791355312638,
+      "tag": "0033_string-plural-as-forms",
+      "breakpoints": true
     }
   ]
 }

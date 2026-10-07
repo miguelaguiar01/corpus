@@ -1,0 +1,1 @@
+ALTER TABLE `strings` ADD `plural_as_forms` integer DEFAULT false NOT NULL;

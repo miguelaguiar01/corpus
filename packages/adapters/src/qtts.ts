@@ -248,6 +248,7 @@ export function qtTsToEntries(
       type: options.type,
       source: own ?? (m.numerus ? sourcePlural(m.source) : m.source),
       keyIsText: true,
+      ...(m.numerus && { pluralAsForms: true }),
       ...(note && { note }),
     };
   });
