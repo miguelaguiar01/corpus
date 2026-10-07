@@ -747,3 +747,58 @@ test("a comment on a byte-order-marked file's first line is its first entry's no
     ),
   ).toBe(`${bom}# term\n-brand = R\n`);
 });
+
+test('an ordinal, a select on NUMBER($n, type: "ordinal"), reads and writes as a selectordinal (#1099)', () => {
+  const ftl = `place = { NUMBER($pos, type: "ordinal") ->
+    [one] { $pos }st
+    [two] { $pos }nd
+    [few] { $pos }rd
+   *[other] { $pos }th
+  }
+`;
+  const read = fluentToEntries(ftl, { type: "ui" });
+  expect(read.map((e) => e.source)).toEqual([
+    "{pos, selectordinal, one {{pos}st} two {{pos}nd} few {{pos}rd} other {{pos}th}}",
+  ]);
+  expect(entriesToFluent(ftl, { place: read[0]!.source }, ftl)).toBe(ftl);
+  expect(
+    entriesToFluent(
+      ftl,
+      { place: "{pos, selectordinal, one {{pos}.} =1 {erste} other {{pos}.}}" },
+      ftl,
+    ),
+  ).toBe(`place = { NUMBER($pos, type: "ordinal") ->
+    [one] { $pos }.
+    [1] erste
+   *[other] { $pos }.
+  }
+`);
+  // Its variants read as a plural's: a number key exact, the default other.
+  expect(
+    fluentToEntries(
+      'n = { NUMBER($n, type: "ordinal") ->\n    [1] #1\n   *[few] {$n}rd\n  }\n',
+      { type: "ui" },
+    )[0]?.source,
+  ).toBe('{n, selectordinal, =1 {{"#"}1} few {{n}rd} other {{n}rd}}');
+  for (const call of [
+    "NUMBER($n)",
+    'NUMBER($n, type: "ordinal", minimumIntegerDigits: 2)',
+    'NUMBER($n, type: "cardinal")',
+  ]) {
+    const refused: string[] = [];
+    fluentToEntries(`x = { ${call} ->\n    [one] a\n   *[other] b\n  }\n`, {
+      type: "ui",
+      onRefused: (_, reason) => refused.push(reason),
+    });
+    expect(refused[0], call).toMatch(
+      /selects on a NUMBER call Corpus does not read/,
+    );
+  }
+  // An ordinal's keys are categories or numbers.
+  const refused: string[] = [];
+  fluentToEntries(
+    'x = { NUMBER($n, type: "ordinal") ->\n    [first] a\n   *[other] b\n  }\n',
+    { type: "ui", onRefused: (_, reason) => refused.push(reason) },
+  );
+  expect(refused[0]).toMatch(/ordinal/);
+});
