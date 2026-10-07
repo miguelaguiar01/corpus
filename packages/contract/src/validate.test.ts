@@ -4233,3 +4233,41 @@ test("under fluent, a translation adds no format its source lacks, which pull wo
     ok: true,
   });
 });
+
+test("under fluent, a format is added on no value the source passes, whether or not it prints it (#1089)", () => {
+  const added = (actual: string) => ({
+    ok: false,
+    errors: [{ code: "unexpected-format", name: "n", expected: null, actual }],
+  });
+  // A plural's count the source never prints.
+  const counted = "{n, plural, one {one} other {many}}";
+  expect(
+    validateTranslation(
+      counted,
+      "{n, plural, one {eins} other {{n, date} viele}}",
+      "de",
+      "fluent",
+    ),
+  ).toEqual(added("date"));
+  expect(
+    validateTranslation(
+      counted,
+      "{n, plural, one {eins} other {{n, number} viele}}",
+      "de",
+      "fluent",
+    ),
+  ).toEqual(added("number"));
+  expect(
+    validateTranslation(counted, "{n, number} 個", "ja", "fluent"),
+  ).toEqual(added("number"));
+  // Relay's: a source that formats the value in one branch and prints it
+  // bare in another keeps a format the translation writes in both.
+  expect(
+    validateTranslation(
+      "{s, plural, one {{s} second} other {{s, number, minimumIntegerDigits: 2} seconds}}",
+      "{s, plural, one {{s, number, minimumIntegerDigits: 2} segundo} other {{s, number, minimumIntegerDigits: 2} segundos}}",
+      "es",
+      "fluent",
+    ),
+  ).toEqual({ ok: true });
+});
