@@ -8,8 +8,11 @@ import { applySnapshot } from "@/ingest/apply";
 import { applyTransition } from "@/translations/service";
 import { ensureAgentActor } from "@/agents/actor";
 import {
+  QUEUE_KINDS,
   queueCounts,
   queueItems,
+  queueNeighbours,
+  queueStep,
   queueSummaries,
   type Queue,
   type QueueItem,
@@ -362,6 +365,10 @@ test("the Invalid queue's count and items start from its partial index, never th
     ]);
     expect(queueCounts(db, p.id).invalid).toBe(1);
     expect(queueSummaries(db, p.id).invalid.first?.key).toBe("ui.continue");
+    // The string page's step through it too (#639 review).
+    const current = { stringId: dbId(db, "ui.continue"), language: "en" };
+    expect(queueStep(db, p.id, "invalid", current).index).toBe(0);
+    expect(queueNeighbours(db, p.id, "invalid", current).next).toBeNull();
   } finally {
     client.prepare = prepare;
   }
@@ -377,8 +384,7 @@ test("the Invalid queue's count and items start from its partial index, never th
   }
 });
 
-test("queueStep and queueNeighbours give what neighbours over the whole queue gives, for every row of every queue (#639)", async () => {
-  const { queueStep, queueNeighbours, QUEUE_KINDS } = await import("./queues");
+test("queueStep and queueNeighbours give what neighbours over the whole queue gives, for every row of every queue (#639)", () => {
   const db = memoryDb();
   const [p] = db
     .insert(projects)
@@ -433,7 +439,8 @@ test("queueStep and queueNeighbours give what neighbours over the whole queue gi
       ).toEqual({
         kind,
         ...around,
-        count: queue.count,
+        // A row outside the queue shows no position, so none is counted.
+        count: around.index === null ? null : queue.count,
         languages: queue.items
           .filter((i) => i.stringId === current.stringId)
           .map((i) => i.language),
@@ -453,4 +460,50 @@ test("queueStep and queueNeighbours give what neighbours over the whole queue gi
       (i) => i.language === "fr",
     ),
   ).toBe(false);
+});
+
+test("a step's previous and next walk the translations' own index, in order, with no sort, on a database without statistics (#639 review)", () => {
+  const { db, p } = pushed();
+  type Client = {
+    prepare: (source: string) => {
+      all: (...params: unknown[]) => unknown[];
+      get: (...params: unknown[]) => unknown;
+    };
+  };
+  const client = (db as unknown as { $client: Client }).$client;
+  const ran: { source: string; params: unknown[] }[] = [];
+  const prepare = client.prepare.bind(client);
+  client.prepare = (source) => {
+    const statement = prepare(source);
+    for (const method of ["all", "get"] as const) {
+      const run = statement[method].bind(statement);
+      statement[method] = ((...params: unknown[]) => {
+        ran.push({ source, params });
+        return run(...params);
+      }) as never;
+    }
+    return statement;
+  };
+  try {
+    for (const kind of ["untranslated", "stale", "unverifiedSource"] as const)
+      queueNeighbours(db, p.id, kind, {
+        stringId: dbId(db, "skin.heard-nothing"),
+        language: kind === "unverifiedSource" ? "pt-PT" : "en",
+      });
+  } finally {
+    client.prepare = prepare;
+  }
+  const walks = ran.filter((r) => / limit /.test(r.source));
+  expect(walks.length).toBeGreaterThan(0);
+  for (const { source, params } of walks) {
+    const plan = (
+      client.prepare(`explain query plan ${source}`).all(...params) as {
+        detail: string;
+      }[]
+    ).map((row) => row.detail);
+    expect(plan[0], source).toMatch(
+      /string_translations USING INDEX translations_string_language/,
+    );
+    expect(plan.join("\n"), source).not.toMatch(/TEMP B-TREE/);
+  }
 });
