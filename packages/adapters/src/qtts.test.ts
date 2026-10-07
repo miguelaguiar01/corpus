@@ -881,3 +881,29 @@ test("a draft on a short file that stays unread writes Qt's every form (#1004 re
   );
   expect(out.match(/<numerusform>/g)).toHaveLength(3);
 });
+
+test("a plain text for a numerus message is written into every form of Qt's rule (#1092)", () => {
+  const ts = (language: string, forms: string) =>
+    `<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE TS>\n<TS version="2.1" language="${language}">\n<context>\n    <name>C</name>\n    <message numerus="yes">\n        <source>%n file(s)</source>\n        <translation${forms ? "" : ' type="unfinished"'}>${forms}</translation>\n    </message>\n</context>\n</TS>\n`;
+  const en = ts("en", "");
+  const refused: string[] = [];
+  const ja = entriesToQtTs(
+    en,
+    { "C | %n file(s)": "%n 個のファイル" },
+    ts("ja", ""),
+    { tag: "ja", code: "ja" },
+    (id) => refused.push(id),
+  );
+  expect(ja.match(/<numerusform>%n 個のファイル<\/numerusform>/g)).toHaveLength(
+    1,
+  );
+  const km = entriesToQtTs(
+    en,
+    { "C | %n file(s)": "%n ឯកសារ" },
+    ts("km", ""),
+    { tag: "km", code: "km" },
+    (id) => refused.push(id),
+  );
+  expect(km.match(/<numerusform>%n ឯកសារ<\/numerusform>/g)).toHaveLength(2);
+  expect(refused).toEqual([]);
+});

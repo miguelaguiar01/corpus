@@ -1069,3 +1069,28 @@ test("a removal takes the lines under its key, comments and whitespace-only ones
     ),
   ).toBe("pl:\n  s: S\n  # own\n# top\n  u: U\n");
 });
+
+test("a plain text for a Rails plural hash is written under each category the language's rule gives (#1092)", () => {
+  const en =
+    'en:\n  cards:\n    one: "%{count} card"\n    other: "%{count} cards"\n';
+  const refused: string[] = [];
+  const ja = entriesToYaml(
+    en,
+    { cards: "アイテム" },
+    undefined,
+    { source: "en", code: "ja", categories: ["other"] },
+    (id) => refused.push(id),
+  );
+  expect(ja).toBe("ja:\n  cards:\n    other: アイテム\n");
+  const de = entriesToYaml(
+    en,
+    { cards: "%{count} Karten" },
+    'de:\n  cards:\n    one: "%{count} Karte"\n    other: "%{count} Karten"\n',
+    { source: "en", code: "de", categories: ["one", "other"] },
+    (id) => refused.push(id),
+  );
+  expect(de).toBe(
+    'de:\n  cards:\n    one: "%{count} Karten"\n    other: "%{count} Karten"\n',
+  );
+  expect(refused).toEqual([]);
+});

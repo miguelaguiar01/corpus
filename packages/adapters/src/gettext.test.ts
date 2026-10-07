@@ -1160,3 +1160,46 @@ process.stdout.write(JSON.stringify({ locale: new Intl.PluralRules().resolvedOpt
   expect(polish.categories).toEqual(["one", "other"]);
   rmSync(dir, { recursive: true, force: true });
 }, 60_000);
+
+test("a plain text for a gettext plural is written into every form (#1092)", () => {
+  const pot = `msgid "%d card"\nmsgid_plural "%d cards"\nmsgstr[0] ""\nmsgstr[1] ""\n`;
+  const po = (lang: string, forms: string, msgstr: string[]) =>
+    `msgid ""\nmsgstr ""\n"Language: ${lang}\\n"\n"Plural-Forms: ${forms}\\n"\n\nmsgid "%d card"\nmsgid_plural "%d cards"\n${msgstr.map((t, i) => `msgstr[${i}] "${t}"`).join("\n")}\n`;
+  const refused: string[] = [];
+  const write = (lang: string, forms: string, msgstr: string[], text: string) =>
+    entriesToGettext(
+      pot,
+      { "%d card": text },
+      po(lang, forms, msgstr),
+      { tag: lang, code: lang },
+      (id) => refused.push(id),
+    );
+  expect(write("ja", "nplurals=1; plural=0;", [""], "%d カード")).toBe(
+    po("ja", "nplurals=1; plural=0;", ["%d カード"]),
+  );
+  expect(
+    write("ja", "nplurals=2; plural=(n != 1);", ["", ""], "%d カード"),
+  ).toBe(po("ja", "nplurals=2; plural=(n != 1);", ["%d カード", "%d カード"]));
+  expect(write("de", "nplurals=2; plural=(n != 1);", ["", ""], "Karten")).toBe(
+    po("de", "nplurals=2; plural=(n != 1);", ["Karten", "Karten"]),
+  );
+  // A file whose forms already all hold the text is left as it is.
+  const same = po("de", "nplurals=2; plural=(n != 1);", ["Karten", "Karten"]);
+  expect(entriesToGettext(pot, { "%d card": "Karten" }, same, DE_LANG)).toBe(
+    same,
+  );
+  // A broken plural, or text beside one, is still refused.
+  write(
+    "de",
+    "nplurals=2; plural=(n != 1);",
+    ["", ""],
+    "{count, plural, one {x}",
+  );
+  write(
+    "de",
+    "nplurals=2; plural=(n != 1);",
+    ["", ""],
+    "Frei: {count, plural, one {# Karte} other {# Karten}}",
+  );
+  expect(refused).toEqual(["%d card", "%d card"]);
+});
