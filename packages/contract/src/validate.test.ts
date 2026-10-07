@@ -4343,7 +4343,8 @@ test("under easy_localization, a plain text's {count} is text unless the call na
   ).toEqual(named);
   expect(
     validateTranslation(source, "{count} 个 {}", "zh", "easy_localization"),
-  ).toMatchObject({ ok: false, errors: expect.arrayContaining(named.errors) }); // A source that prints no count names none either.
+  ).toMatchObject({ ok: false, errors: expect.arrayContaining(named.errors) });
+  // A source that prints no count names none either.
   expect(
     validateTranslation(
       "{count, plural, one {one item} other {some items}}",
