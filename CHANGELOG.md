@@ -13,6 +13,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- A build whose strings are all refused no longer takes minutes: 150,000 refusals are grouped in linear time (#968).
 - A gettext file in a language the runtime has no plural data for (Occitan) reads and writes its plural forms the same on every machine, by English's categories, rather than by the pushing machine's locale (#966).
 - A gettext file read under counterpart or easy_localization is checked by its own `Plural-Forms`, and a refused `=N` branch no longer counts as filling the category it names (#964).
 - A plural its file holds as forms (a JSON plural object, an Android `<plurals>`) refuses an `=N` branch and a form with unbalanced braces, which pull could not write (#704).

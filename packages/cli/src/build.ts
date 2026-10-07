@@ -179,7 +179,10 @@ const SAME_CAUSE = 5;
 // catches a real project — Outline read as ICU refuses 365 of 1,920
 // strings, a fifth of the catalogue, but 363 of those say "declare
 // library: i18next".
-function ruinedReasons(sourced: Sourced[], refused: Refused[]): string[] {
+export function ruinedReasons(
+  sourced: Sourced[],
+  refused: Refused[],
+): string[] {
   const reasons: string[] = [];
   const total = new Map<string, number>();
   for (const { file } of sourced) total.set(file, (total.get(file) ?? 0) + 1);
@@ -201,10 +204,9 @@ function ruinedReasons(sourced: Sourced[], refused: Refused[]): string[] {
   const byCause = new Map<RefusalCause, Refused[]>();
   for (const refusal of refused) {
     if (!refusal.cause) continue;
-    byCause.set(refusal.cause, [
-      ...(byCause.get(refusal.cause) ?? []),
-      refusal,
-    ]);
+    const group = byCause.get(refusal.cause);
+    if (group) group.push(refusal);
+    else byCause.set(refusal.cause, [refusal]);
   }
   for (const [cause, group] of byCause) {
     if (group.length < SAME_CAUSE) continue;
