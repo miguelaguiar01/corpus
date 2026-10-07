@@ -3955,9 +3955,9 @@ test("an =N branch a plural cannot hold covers no category; one the file's own f
   ).toEqual({ ok: true });
 });
 
-test("a gettext file read under counterpart takes the file's own forms, as under any library (#964, #982)", () => {
+test("a gettext file read under counterpart or easy_localization takes the file's own forms, as under any library (#964, #982)", () => {
   const codes = (
-    library: "printf" | "counterpart",
+    library: "printf" | "counterpart" | "easy_localization",
     count: string,
     text: string,
   ) => {
@@ -3981,8 +3981,12 @@ test("a gettext file read under counterpart takes the file's own forms, as under
     "{count, plural, =1 {usa ka file} other {# ka mga file}}",
     "{count, plural, one {usa} other {#}}",
     "{count, plural, =0 {wala} =1 {usa} other {#}}",
-  ])
+  ]) {
     expect(codes("counterpart", "%(count)s", text), text).toEqual(
       codes("printf", "%d", text),
     );
+    expect(codes("easy_localization", "{}", text), text).toEqual(
+      codes("printf", "%d", text),
+    );
+  }
 });

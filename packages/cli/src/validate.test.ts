@@ -1847,6 +1847,44 @@ test("validate refuses a form a plural object's file cannot split back, as push 
   );
 });
 
+test("--server advises an =0 in a counterpart gettext plural into the branch the file's Plural-Forms read, not counterpart's zero (#964)", async () => {
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8")
+      .replace(
+        /sources: \[[\s\S]*?\n {2}\],/,
+        'sources: [{ adapter: "gettext", type: "ui", path: "po/{lang}.po", sourcePath: "po/app.pot", library: "counterpart" }],',
+      )
+      .replace(/languages: \[[^\]]*\]/, 'languages: ["en", "de"]'),
+  );
+  mkdirSync(path.join(repo, "po"), { recursive: true });
+  writeFileSync(
+    path.join(repo, "po", "app.pot"),
+    `msgid "%(count)s file"\nmsgid_plural "%(count)s files"\nmsgstr[0] ""\nmsgstr[1] ""\n`,
+  );
+  writeFileSync(
+    path.join(repo, "po", "de.po"),
+    `msgid ""\nmsgstr ""\n"Language: de\\n"\n"Plural-Forms: nplurals=2; plural=(n != 1);\\n"\n\nmsgid "%(count)s file"\nmsgid_plural "%(count)s files"\nmsgstr[0] ""\nmsgstr[1] ""\n`,
+  );
+  const server = await instance({
+    de: {
+      "%(count)s file":
+        "{count, plural, =0 {keine} one {%(count)s Datei} other {%(count)s Dateien}}",
+    },
+  });
+  try {
+    const c = { ...ctx(), env: { CORPUS_TOKEN: "good" } };
+    expect(await run(["validate", "--server"], c)).toBe(1);
+    expect(c.stderr.join("\n")).toContain("write it in the other branch");
+  } finally {
+    server.close();
+    delete process.env.CORPUS_SERVER;
+  }
+});
+
 test("a Japanese source's lone _other is its family, so an English target's forms seed it and are no orphans (#1065)", async () => {
   const configFile = readdirSync(repo).find((f) =>
     f.startsWith("corpus.config"),
