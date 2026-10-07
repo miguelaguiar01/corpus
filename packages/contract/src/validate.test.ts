@@ -3665,7 +3665,7 @@ test("under android, <xliff:g> is a tag a translation keeps, by its name (#1067)
   );
 });
 
-test("under android, a translation keeps as many <xliff:g> as the source, in every branch (#1067 review)", () => {
+test("under android, a verb the source wraps in <xliff:g> is wrapped wherever a translation writes it (#1067 review)", () => {
   const two =
     '<xliff:g id="name">%1$s</xliff:g> (<xliff:g id="size">%2$s</xliff:g>)';
   for (const text of [
@@ -3677,11 +3677,9 @@ test("under android, a translation keeps as many <xliff:g> as the source, in eve
       text,
     ).toMatchObject({
       ok: false,
-      errors: expect.arrayContaining([
-        { code: "missing-tag", name: 'xliff:g id="size"' },
-      ]),
+      errors: [{ code: "missing-tag", name: 'xliff:g id="size"' }],
     });
-  // Translated ids, as many as the source: valid.
+  // Translated ids: valid.
   expect(
     validateTranslation(
       two,
@@ -3690,41 +3688,47 @@ test("under android, a translation keeps as many <xliff:g> as the source, in eve
       "android",
     ).ok,
   ).toBe(true);
-  // One more than the source is unexpected.
+  // An extra element is harmless, aapt stripping it.
   expect(
     validateTranslation(
       'Go <xliff:g id="n">%d</xliff:g>',
       'Vai <xliff:g id="n">%d</xliff:g> <xliff:g id="m">x</xliff:g>',
       "it",
       "android",
-    ),
-  ).toMatchObject({
-    ok: false,
-    errors: [{ code: "unexpected-tag", name: 'xliff:g id="m"' }],
-  });
-  // Per branch: a plural's branch that drops it is named, and a target
-  // language's extra branch, with it, is fine.
+    ).ok,
+  ).toBe(true);
+  // Per branch: one that writes the verb bare is named; one that writes
+  // no number at all, German's one or Arabic's zero, keeps nothing to
+  // wrap (Android lint's ImpliedQuantity).
   const plural =
     '{quantity, plural, one {<xliff:g id="n">%d</xliff:g> file} other {<xliff:g id="n">%d</xliff:g> files}}';
+  const check = (text: string, language: string) =>
+    validateTranslation(plural, text, language, "android");
   expect(
-    validateTranslation(
-      plural,
+    check(
       '{quantity, plural, one {<xliff:g id="n">%d</xliff:g> plik} few {<xliff:g id="n">%d</xliff:g> pliki} many {<xliff:g id="n">%d</xliff:g> plików} other {<xliff:g id="n">%d</xliff:g> pliku}}',
       "pl",
-      "android",
     ).ok,
   ).toBe(true);
   expect(
-    validateTranslation(
-      plural,
+    check(
       '{quantity, plural, one {<xliff:g id="n">%d</xliff:g> plik} few {%d pliki} many {<xliff:g id="n">%d</xliff:g> plików} other {<xliff:g id="n">%d</xliff:g> pliku}}',
       "pl",
-      "android",
     ),
   ).toMatchObject({
     ok: false,
-    errors: expect.arrayContaining([
-      { code: "missing-tag", name: 'xliff:g id="n"' },
-    ]),
+    errors: [{ code: "missing-tag", name: 'xliff:g id="n"' }],
   });
+  expect(
+    check(
+      '{quantity, plural, one {Eine Datei} other {<xliff:g id="n">%d</xliff:g> Dateien}}',
+      "de",
+    ).ok,
+  ).toBe(true);
+  expect(
+    check(
+      '{quantity, plural, zero {لا ملفات} one {<xliff:g id="n">%d</xliff:g> ملف} two {<xliff:g id="n">%d</xliff:g> ملفان} few {<xliff:g id="n">%d</xliff:g> ملفات} many {<xliff:g id="n">%d</xliff:g> ملفًا} other {<xliff:g id="n">%d</xliff:g> ملف}}',
+      "ar",
+    ).ok,
+  ).toBe(true);
 });
