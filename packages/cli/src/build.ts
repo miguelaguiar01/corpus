@@ -469,6 +469,10 @@ export async function buildSnapshotReport(
     if (lastWins(source)) laterWins.add(file);
     if (!source.namespace) unprefixed.add(file);
   }
+  // The ids each source file holds, before one source's files share them.
+  const heldBy = new Map<string, Set<string>>();
+  for (const { entry, file } of sourced)
+    heldBy.set(file, (heldBy.get(file) ?? new Set()).add(entry.id));
   const byId = new Map<string, Sourced>();
   const merged = new Set<Sourced>();
   for (const item of sourced) {
@@ -518,6 +522,7 @@ export async function buildSnapshotReport(
     notes,
     new Set(refused.map((r) => r.id)),
     unreadable,
+    heldBy,
   );
   // A mark counts only for a seed that is there to import.
   const seedTranslated: Record<string, string[]> = {};
@@ -1760,6 +1765,8 @@ async function readSeeds(
   notes: string[],
   refusedIds: Set<string>,
   unreadable: Unreadable[],
+  // The ids each source file holds (#1071).
+  heldBy: Map<string, Set<string>>,
 ): Promise<Record<string, Record<string, string>>> {
   const seeds: Record<string, Record<string, string>> = {};
   for (const { command, translations } of execSeeds) {
@@ -1814,6 +1821,13 @@ async function readSeeds(
       source,
       config.sourceLanguage,
     ).catch(() => undefined);
+    // A source seeds only what its own source file holds: a target's id
+    // only another file holds, another pattern's of the source or another
+    // source's, would be pulled into that one's file, which lacks it
+    // (#1071); validate calls it an orphan where it is.
+    const own = heldBy.get(
+      fileOf(source, config.sourceLanguage, config.sourceLanguage),
+    );
     for (const lang of config.languages) {
       if (lang === config.sourceLanguage) continue;
       const file = fileOf(source, lang, config.sourceLanguage);
@@ -1849,6 +1863,7 @@ async function readSeeds(
           // A key the source no longer has, or an empty value an
           // extraction tool left, is not a translation.
           if (!ids.has(entry.id) || isBlank(entry.source)) continue;
+          if (own && !own.has(entry.id)) continue;
           // A string two files of one source share has one translation:
           // two that differ could not both survive a pull (#661).
           const seeded = (seeds[lang] ??= {})[entry.id];
