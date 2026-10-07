@@ -2096,3 +2096,51 @@ test("under last-wins, the problems of a copy the app never shows are warnings; 
     "a/pt.json:hello: missing {name}\n",
   );
 });
+
+test("under last-wins, an orphan later copy hides nothing, a hidden copy's gap stays out of the text, and the copy the app shows is the one named (#1116 review)", async () => {
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  const original = readFileSync(path.join(repo, configFile), "utf8");
+  const patterns = (dirs: string[]) =>
+    writeFileSync(
+      path.join(repo, configFile),
+      original.replace(
+        /sources: \[[\s\S]*?\n {2}\],/,
+        `sources: [{ adapter: "messages", type: "ui", path: ${JSON.stringify(dirs.map((d) => `${d}/{lang}.json`))}, merge: "last-wins" }],`,
+      ),
+    );
+  for (const dir of ["a", "b", "c"])
+    mkdirSync(path.join(repo, dir), { recursive: true });
+  // b's own source lacks hello: its copy is an orphan, and a's is seeded.
+  patterns(["a", "b"]);
+  write("a/en.json", { hello: "Hello {name}" });
+  write("b/en.json", { other: "Other" });
+  write("a/pt.json", { hello: "Olá {nome}" });
+  write("b/pt.json", { hello: "Olá {name}" });
+  const orphan = ctx();
+  expect(await run(["validate"], orphan)).toBe(1);
+  expect(orphan.stderr.join("\n")).toContain(
+    "a/pt.json:hello: missing {name}\n",
+  );
+  // A plural the source lacks a category of too: the gap stays in --json.
+  write("a/en.json", { n: "{n, plural, other {# items}}" });
+  write("b/en.json", { n: "{n, plural, other {# items}}" });
+  write("a/pt.json", { n: "{n, plural, other {# itens velhos}}" });
+  write("b/pt.json", { n: "{n, plural, other {# itens}}" });
+  const gap = ctx();
+  await run(["validate"], gap);
+  expect(gap.stderr.filter((l) => l.startsWith("a/pt.json:n:"))).toEqual([]);
+  // a == c, b otherwise: the app shows c's, which a's warning names.
+  patterns(["a", "b", "c"]);
+  for (const dir of ["a", "b", "c"])
+    write(`${dir}/en.json`, { hello: "Hello {name}" });
+  write("a/pt.json", { hello: "Olá {nome}" });
+  write("b/pt.json", { hello: "Oi {name}" });
+  write("c/pt.json", { hello: "Olá {nome}" });
+  const three = ctx();
+  await run(["validate"], three);
+  expect(three.stderr.join("\n")).toContain(
+    "a/pt.json:hello: missing {name}; the app never shows this copy: c/pt.json's is its translation",
+  );
+});
