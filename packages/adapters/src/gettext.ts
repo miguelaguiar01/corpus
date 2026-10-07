@@ -799,7 +799,7 @@ function targetFrom(
   if (fromTarget)
     for (const e of entries)
       for (const comment of e === header
-        ? creditLines(template, e.at.comments)
+        ? creditLines(template, headerComments(template, e, entries))
         : e.at.comments)
         patches.push(lineRemoval(template, comment));
   const span = header?.at.msgstr[0];
@@ -832,7 +832,7 @@ function targetFrom(
     patches.push({ ...span, text: block });
   }
   const started = applied(template, patches);
-  return translated ? withoutObsolete(started) : started;
+  return fromTarget ? withoutObsolete(started) : started;
 }
 
 // The header fields a translator's tool fills, as xgettext leaves them.
@@ -842,27 +842,54 @@ const TRANSLATOR_FIELDS = [
   ["Language-Team", "LANGUAGE <LL@li.org>"],
 ] as const;
 
+// The header's comment lines, those above a blank line before it
+// included where it is the file's first entry.
+function headerComments(
+  text: string,
+  header: PoEntry,
+  entries: PoEntry[],
+): Span[] {
+  if (entries[0] !== header) return header.at.comments;
+  const above: Span[] = [];
+  let at = 0;
+  while (at < header.at.start) {
+    const next = text.indexOf("\n", at);
+    const stop = next < 0 || next > header.at.start ? header.at.start : next;
+    const line = text.slice(at, stop).replace(/\r$/, "");
+    if (/^#(?:\s|$)/.test(line))
+      above.push({ start: at, end: at + line.length });
+    at = stop + 1;
+  }
+  return [...above, ...header.at.comments];
+}
+
 // A header comment's translator credits, as Transifex, msginit and
-// hand-kept headers write them: `# Translators:` and the block it opens,
-// `# Name[ <email>][, 2017[-2019][, 2024]][.]` with a year or an email,
-// a `Last-Translator:` or `Previous-Translator:` line, and a name alone
-// after a credit; with the bare `#` that closes their block where one,
-// or nothing, opens it. A copyright line is no credit.
+// hand-kept headers write them: `# Name[ <email>][, 2017[-2019][, 2024]][.]`
+// with a year or an address, Transifex's anonymised one included, a `Last-Translator:` or `Previous-Translator:`
+// line, a name alone after a credit, and the `# Translators:` line over
+// them; with the bare `#` that closes their block where one, or nothing,
+// opens it. A line with a title's, a licence's or an address's words is
+// no credit.
 function creditLines(text: string, comments: Span[]): Span[] {
   const lines = comments.map((span) => text.slice(span.start, span.end));
   const years = String.raw`(?:,\s*(?:\d{4}(?:-\d{2}-\d{2}|-\d{4})?|YEAR)\.?)`;
   const signed = new RegExp(
-    `^# (?:.+ <[^<>\\s]+@[^<>\\s]+>${years}*|[^<>,:]+${years}+)\\.?$`,
+    `^# (?:[^<>]+ <[^<>\\s]+>${years}*|[^<>,:]+${years}+)\\.?$`,
   );
+  const prose =
+    /copyright|\(c\)|©|\b(?:translations?|file|licen[cs]e|public|domain|package|bugs?|report|mailing|list)\b/i;
   const named = /^# \p{Lu}[\p{L}'’.-]*(?: \p{Lu}[\p{L}'’.-]*){0,3}$/u;
+  // An address is a name's, whatever words it holds.
   const credit = (line: string) =>
     /^# (?:Last|Previous)-Translator:/.test(line) ||
-    (signed.test(line) && !/copyright|\(c\)|©|<EMAIL@ADDRESS>/i.test(line));
+    (signed.test(line) &&
+      !line.includes("<EMAIL@ADDRESS>") &&
+      !prose.test(line.replace(/<[^<>]*>/g, "")));
+  const bare = (line: string | undefined) => line?.trim() === "#";
   const out: Span[] = [];
   let i = 0;
   while (i < comments.length) {
-    const block = lines[i] === "# Translators:";
-    if (!block && !credit(lines[i]!)) {
+    if (lines[i] !== "# Translators:" && !credit(lines[i]!)) {
       i++;
       continue;
     }
@@ -870,10 +897,10 @@ function creditLines(text: string, comments: Span[]): Span[] {
     out.push(comments[i++]!);
     while (
       i < comments.length &&
-      (block ? lines[i] !== "#" : credit(lines[i]!) || named.test(lines[i]!))
+      (credit(lines[i]!) || (named.test(lines[i]!) && !prose.test(lines[i]!)))
     )
       out.push(comments[i++]!);
-    if (lines[i] === "#" && (first === 0 || lines[first - 1] === "#"))
+    if (bare(lines[i]) && (first === 0 || bare(lines[first - 1])))
       out.push(comments[i++]!);
   }
   return out;
