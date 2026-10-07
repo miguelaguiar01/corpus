@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- An i18next source in a language with only `other` (Japanese, Korean, Chinese) reads its lone `_other` keys as plural families, so its targets' forms are no longer orphans (#1065).
 - A gettext translation that gives two texts to the exact keys of one form, Filipino's `=0` and `=1`, is refused when saved or drafted and invalid in `corpus validate`, rather than refused at pull (#1060).
 - A save after a refused one still warns that someone else edited the string since it was opened (#1058).
 - A refused save outside a queue returns to the editor with the draft, not to the source view (#1058).

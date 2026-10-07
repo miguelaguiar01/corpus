@@ -1774,3 +1774,41 @@ test("--server refuses a draft that gives two texts to the exact keys one form o
     delete process.env.CORPUS_SERVER;
   }
 });
+
+test("a Japanese source's lone _other is its family, so an English target's forms seed it and are no orphans (#1065)", async () => {
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8")
+      .replace(
+        /sources: \[[\s\S]*?\n {2}\],/,
+        'sources: [{ adapter: "messages", type: "ui", library: "i18next", path: "loc/{lang}.json" }],',
+      )
+      .replace(/sourceLanguage: "en"/, 'sourceLanguage: "ja"')
+      .replace(/languages: \[[^\]]*\]/, 'languages: ["ja", "en"]'),
+  );
+  mkdirSync(path.join(repo, "loc"), { recursive: true });
+  writeFileSync(
+    path.join(repo, "loc", "ja.json"),
+    JSON.stringify({ n_other: "{{count}} 件" }),
+  );
+  writeFileSync(
+    path.join(repo, "loc", "en.json"),
+    JSON.stringify({ n_one: "{{count}} item", n_other: "{{count}} items" }),
+  );
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(0);
+  expect(c.stderr.join("\n")).not.toMatch(/orphan|no longer has/);
+  const out = path.join(repo, "snapshot.json");
+  expect(await run(["build", "--out", out], ctx())).toBe(0);
+  const snapshot = JSON.parse(readFileSync(out, "utf8")) as {
+    strings: { id: string }[];
+    seedTranslations: Record<string, Record<string, string>>;
+  };
+  expect(snapshot.strings.map((s) => s.id)).toEqual(["n"]);
+  expect(snapshot.seedTranslations.en).toEqual({
+    n: "{count, plural, one {{{count}} item} other {{{count}} items}}",
+  });
+});

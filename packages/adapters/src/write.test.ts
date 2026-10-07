@@ -1723,3 +1723,24 @@ describe("a list's items made whole (#1053)", () => {
     expect(out).toEqual({ b: [{ sub: "S" }] });
   });
 });
+
+test("a plural proposed into a source whose language has only other reads back under its id (#1065)", () => {
+  const ja = `{\n  "n_other": "{{count}} 件"\n}\n`;
+  const options = { suffixPlurals: true, sourceLanguage: "ja" } as const;
+  const out = applyMessagesOps(
+    ja,
+    [
+      {
+        kind: "add",
+        id: "files",
+        text: "{count, plural, other {{{count}} ファイル}}",
+      },
+    ],
+    options,
+  );
+  expect(
+    messagesToEntries(JSON.parse(out), { type: "ui", ...options }).map(
+      (e) => e.id,
+    ),
+  ).toEqual(["n", "files"]);
+});
