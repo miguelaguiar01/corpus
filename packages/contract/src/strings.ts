@@ -315,6 +315,10 @@ export const stringEntrySchema = z.looseObject({
       z.array(z.array(z.string().regex(EXACT_KEY)).min(2)).min(1),
     )
     .optional(),
+  // The file holds the plural as one text per category, a plural object,
+  // a Rails hash, an Android `<plurals>`, a gettext `msgstr[n]`: no `=N`
+  // branch, and each form must split back out (#704). Additive.
+  pluralAsForms: z.boolean().optional(),
   // The runtime's own plural rule where the source names one: vue-i18n's
   // default, under which the forms are read by count (#1018), or
   // easy_localization's CLDR picking (#961). Additive.

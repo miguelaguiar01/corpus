@@ -3837,30 +3837,29 @@ test("a plural its file holds as forms takes categories only, each form splittin
     ),
   ).toEqual({ ok: true });
   // A form whose braces do not balance cannot be split back into forms,
-  // though a library that reads a lone brace as text reads it.
-  for (const [library, source, target] of [
-    [
-      "i18next",
-      "{count, plural, one {{{count}} room} other {{{count}} rooms}}",
-      "{count, plural, one {a { b} other {{{count}} Räume}}",
-    ],
-    [
-      "printf",
+  // though i18next, which reads a lone brace as text, reads it.
+  const source =
+    "{count, plural, one {{{count}} room} other {{{count}} rooms}}";
+  const target = "{count, plural, one {a { b} other {{{count}} Räume}}";
+  expect(
+    validateTranslation(source, target, "de", "i18next", {
+      pluralAsForms: true,
+    }),
+  ).toEqual({
+    ok: false,
+    errors: [{ code: "unsplittable-form", arg: "count", key: "one" }],
+  });
+  expect(validateTranslation(source, target, "de", "i18next")).toEqual({
+    ok: true,
+  });
+  // printf's plural read whole is refused as broken already.
+  expect(
+    validateTranslation(
       "{count, plural, one {%d room} other {%d rooms}}",
       "{count, plural, one {%d { a} other {%d Räume}}",
-    ],
-  ] as const) {
-    expect(
-      validateTranslation(source, target, "de", library, {
-        pluralAsForms: true,
-      }),
-      library,
-    ).toEqual({
-      ok: false,
-      errors: [{ code: "unsplittable-form", arg: "count", key: "one" }],
-    });
-    expect(validateTranslation(source, target, "de", library), library).toEqual(
-      { ok: true },
-    );
-  }
+      "de",
+      "printf",
+      { pluralAsForms: true },
+    ),
+  ).toMatchObject({ ok: false, errors: [{ code: "invalid-icu" }] });
 });

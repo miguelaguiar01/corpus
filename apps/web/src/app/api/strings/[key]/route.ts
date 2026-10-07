@@ -56,6 +56,7 @@ export async function GET(
               detail.string.placeholderSyntaxes,
               detail.string.pluralForms?.[language],
               detail.string.pluralShared?.[language],
+              detail.string.pluralAsForms,
             )
           : null,
       ...(row.suggestion !== null && { suggestion: row.suggestion }),

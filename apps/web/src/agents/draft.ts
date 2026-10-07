@@ -78,6 +78,7 @@ export function agentDraft(
       ...(detail.string.pluralShared?.[language] && {
         pluralShared: detail.string.pluralShared[language],
       }),
+      ...(detail.string.pluralAsForms && { pluralAsForms: true }),
       ...(detail.string.placeholderSyntaxes && {
         placeholders: detail.string.placeholderSyntaxes,
       }),

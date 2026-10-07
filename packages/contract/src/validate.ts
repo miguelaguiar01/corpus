@@ -103,6 +103,9 @@ export type ValidationError =
   // object, Rails hash, Qt numerus or String Catalog writer holds
   // (#1051): `category` is the branch the language picks for N.
   | { code: "exact-branch"; arg: string; key: string; category: string }
+  // A form of a plural held as forms whose braces do not balance, so the
+  // file's writer cannot split it out (#704).
+  | { code: "unsplittable-form"; arg: string; key: string }
   // Exact keys one form of a gettext file is read by, given two texts
   // the file cannot hold (#1060).
   | { code: "shared-form"; arg: string; keys: string[] }
@@ -649,6 +652,8 @@ export function validateTranslation(
     pluralForms?: readonly string[];
     // The exact keys of `pluralForms` one form is read by (#1060).
     pluralShared?: readonly (readonly string[])[];
+    // The file holds the plural as its forms (#704).
+    pluralAsForms?: boolean;
     term?: boolean;
     // The source's language: a target of the same base language, en-GB
     // for en, takes the source's own plural categories (#1005).
@@ -1326,8 +1331,9 @@ export function validateTranslation(
     errors.push(...fixedCounts(targetNodes, language, syntax));
   if (options.pluralShared)
     errors.push(...sharedForms(target, options.pluralShared));
+  if (options.pluralAsForms) errors.push(...unsplittableForms(targetNodes));
   if (
-    WHOLE_PLURAL_LIBRARIES.has(syntax) &&
+    (WHOLE_PLURAL_LIBRARIES.has(syntax) || options.pluralAsForms) &&
     parsedSource.nodes.some((node) => node.kind === "plural")
   )
     errors.push(
@@ -1567,6 +1573,42 @@ function exactBranches(
         }),
       }));
   });
+}
+
+// Each plural form whose literal braces do not balance, which a writer
+// splitting the plural into its forms by braces cannot take apart.
+function unsplittableForms(nodes: IcuNode[]): ValidationError[] {
+  const literals = (within: IcuNode[]): string =>
+    within
+      .map((node) =>
+        node.kind === "literal"
+          ? node.text
+          : node.kind === "tag"
+            ? literals(node.children)
+            : node.kind === "select" || node.kind === "plural"
+              ? Object.values(node.branches).map(literals).join("")
+              : "",
+      )
+      .join("");
+  const balanced = (text: string) => {
+    let depth = 0;
+    for (const char of text) {
+      if (char === "{") depth++;
+      else if (char === "}" && --depth < 0) return false;
+    }
+    return depth === 0;
+  };
+  return nodes.flatMap((node) =>
+    node.kind === "plural"
+      ? Object.entries(node.branches)
+          .filter(([, branch]) => !balanced(literals(branch)))
+          .map(([key]) => ({
+            code: "unsplittable-form" as const,
+            arg: node.arg,
+            key,
+          }))
+      : [],
+  );
 }
 
 // The verbs a text writes inside an `xliff:g`, each with the element's

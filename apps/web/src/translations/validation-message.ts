@@ -110,6 +110,8 @@ export function validationMessage(
     }
     case "missing-category":
       return t("editor.missingCategory", { arg: error.arg, key: error.key });
+    case "unsplittable-form":
+      return t("editor.unsplittableForm", { arg: error.arg, key: error.key });
     case "exact-branch":
       return t("editor.exactBranch", {
         arg: error.arg,
@@ -196,12 +198,15 @@ export function problemOf(
   // the exact keys one of them is read by (#1060).
   pluralForms?: readonly string[] | null,
   pluralShared?: readonly string[][] | null,
+  // The file holds the plural as its forms (#704).
+  pluralAsForms?: boolean | null,
 ): string | null {
   const check = validateTranslation(source, text, language, syntax, {
     richText: richText ?? undefined,
     ...(placeholders && { placeholders }),
     ...(pluralForms && { pluralForms }),
     ...(pluralShared && { pluralShared }),
+    ...(pluralAsForms && { pluralAsForms }),
     ...(passed && { arguments: passed }),
     ...(syntax === "fluent" && isFluentTermId(key) && { term: true }),
     sourceLanguage,

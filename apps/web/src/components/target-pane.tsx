@@ -236,6 +236,7 @@ export function TargetPane({
   passed,
   pluralForms,
   pluralShared,
+  pluralAsForms = false,
   pluralRules,
   slots,
   language,
@@ -261,6 +262,8 @@ export function TargetPane({
   pluralForms?: string[] | null;
   // The exact keys one form of a gettext file is read by (#1060).
   pluralShared?: string[][] | null;
+  // The file holds the plural as its forms (#704).
+  pluralAsForms?: boolean;
   // The runtime's own plural rule: vue-i18n's default (#1018), or
   // easy_localization's CLDR picking (#961).
   pluralRules?: "default" | "cldr" | null;
@@ -300,6 +303,7 @@ export function TargetPane({
         ...(passed && { arguments: passed }),
         ...(pluralForms && { pluralForms }),
         ...(pluralShared && { pluralShared }),
+        ...(pluralAsForms && { pluralAsForms }),
         ...(pluralRules && { pluralRules }),
         ...(layers && { placeholders: layers }),
         // A Fluent term selects on what its callers pass (#1032).
