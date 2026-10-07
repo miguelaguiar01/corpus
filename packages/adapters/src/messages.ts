@@ -55,8 +55,9 @@ const SUFFIX = /^(.+)_(zero|one|two|few|many|other)$/;
 
 // An object's i18next plural families (#985): base to its forms' keys,
 // each category's. In a source, keys `base_<category>` beside each other,
-// `other` and one more among them, each a category the source language
-// picks or `zero` (English's `reason_two` is a key), with no key `base`
+// `other` and one more among them (or `other` alone where it is the
+// source language's only category, #1065), each a category the source
+// language picks or `zero` (English's `reason_two` is a key), with no key `base`
 // and no `_ordinal` in the base, which i18next picks by ordinal rules; in
 // a target, the families the source has, `known`, whatever forms the
 // target holds, a bare `base` beside one being no translation of it. A
