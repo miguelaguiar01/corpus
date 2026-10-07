@@ -21,7 +21,7 @@ import { COMMAND_WORDS, KNOWN_FLAGS, USAGE, usageOf } from "./commands";
 import { CliError, configFileName, loadConfig, requireToken } from "./config";
 import { checkFiles, DEFAULT_INCLUDE, READS } from "./check";
 import { init } from "./init";
-import { agent } from "./agent";
+import { agent, stdinHelp } from "./agent";
 import { cliVersion, mcp } from "./mcp";
 import { languageDrift, project } from "./project";
 import { pull } from "./pull";
@@ -76,6 +76,7 @@ export async function run(argv: string[], ctx: RunContext): Promise<number> {
             : usageOf(sub)
         }`,
       );
+      if (command === "agent") ctx.out(stdinHelp());
       return 0;
     }
     try {

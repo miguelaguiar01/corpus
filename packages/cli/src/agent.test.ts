@@ -625,11 +625,11 @@ test("corpus agent --help names every --stdin op's fields with an example line, 
     table.map((t) => t.op).sort(),
   );
   for (const { op, example } of STDIN_OPS) {
-    const {
-      op: written,
-      id: _id,
-      ...args
-    } = JSON.parse(example) as Record<string, unknown>;
+    const { op: written, ...args } = JSON.parse(example) as Record<
+      string,
+      unknown
+    >;
+    delete args.id;
     expect(written, example).toBe(op);
     const tool = table.find((t) => t.op === op)!;
     expect(argumentProblem(tool, args), example).toBeUndefined();
