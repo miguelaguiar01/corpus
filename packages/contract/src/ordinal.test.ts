@@ -145,13 +145,24 @@ test("a cardinal and an ordinal on one argument are each judged by their own rul
   ]);
 });
 
-test("the fluent reading refuses a selectordinal, which Fluent writes with NUMBER (#995 review)", () => {
-  const read = parseIcu(
-    "{pos, selectordinal, one {#er} other {#e}} place",
+test('under the fluent reading a selectordinal is Fluent\'s NUMBER($n, type: "ordinal") select (#1099)', () => {
+  const place =
+    "{pos, selectordinal, one {{pos}st} two {{pos}nd} few {{pos}rd} other {{pos}th}}";
+  expect(parseIcu(place, "fluent").ok).toBe(true);
+  // German has one ordinal category.
+  expect(validateTranslation(place, "{pos}.", "de", "fluent")).toEqual({
+    ok: true,
+  });
+  const lacking = validateTranslation(
+    place,
+    "{pos, selectordinal, one {{pos}st} few {{pos}rd} other {{pos}th}}",
+    "en",
     "fluent",
   );
-  expect(read.ok).toBe(false);
-  expect(read.ok ? "" : read.errors[0]?.message).toMatch(
-    /NUMBER\(\$pos, type: "ordinal"\)/,
-  );
+  expect(lacking.ok && lacking.incomplete).toEqual([
+    { code: "missing-category", arg: "pos", key: "two" },
+  ]);
+  expect(
+    renderPreview(place, { pos: "2" }, "en", { syntax: "fluent" }),
+  ).toEqual({ ok: true, text: "2nd" });
 });
