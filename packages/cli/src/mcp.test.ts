@@ -122,6 +122,16 @@ function answers(seen: Seen): { status: number; body: unknown } {
     return { status: 200, body: { project: "push-fixture" } };
   if (seen.path === "/api/strings/ui.continue")
     return { status: 200, body: STRING };
+  if (seen.path === "/api/strings/old.bad")
+    return {
+      status: 200,
+      body: { key: "old.bad", source: "{oops", archived: true },
+    };
+  if (seen.path === "/api/strings/old.gone")
+    return {
+      status: 200,
+      body: { key: "old.gone", source: "Gone", archived: true },
+    };
   if (seen.path === "/api/strings/ui.continue/translations/en") {
     return {
       status: 200,
@@ -475,5 +485,47 @@ test("get_string on a key the build refused answers why, from the repository (#1
   expect(missing.content).toEqual([
     { type: "text", text: "not-found: no string" },
   ]);
+  await done();
+});
+
+test("get_string on an archived string the build refuses answers it with why; one no refusal names, or a live one, answers as the server does (#1111)", async () => {
+  let asked = 0;
+  const { client, done } = await connected(async () => {
+    asked++;
+    return [
+      {
+        id: "old.bad",
+        reason: "i18n/en.json [old.bad]: invalid ICU: unclosed '{'",
+      },
+    ];
+  });
+  await client.callTool({
+    name: "get_string",
+    arguments: { key: "ui.continue" },
+  });
+  expect(asked).toBe(0);
+  const archived = await client.callTool({
+    name: "get_string",
+    arguments: { key: "old.bad" },
+  });
+  expect(archived.isError).toBeFalsy();
+  expect(archived.structuredContent).toEqual({
+    key: "old.bad",
+    source: "{oops",
+    archived: true,
+    refused: "i18n/en.json [old.bad]: invalid ICU: unclosed '{'",
+  });
+  expect(JSON.parse((archived.content as { text: string }[])[0]!.text)).toEqual(
+    archived.structuredContent,
+  );
+  const gone = await client.callTool({
+    name: "get_string",
+    arguments: { key: "old.gone" },
+  });
+  expect(gone.structuredContent).toEqual({
+    key: "old.gone",
+    source: "Gone",
+    archived: true,
+  });
   await done();
 });
