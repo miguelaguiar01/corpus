@@ -152,6 +152,7 @@ export function expandSources(input: CorpusInput, cwd: string): CorpusConfig {
         ...source,
         path: pattern.replaceAll("{ns}", ns),
         namespace: ns,
+        pattern,
         ...group,
       }));
     });

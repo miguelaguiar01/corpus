@@ -2656,7 +2656,6 @@ test("a strict merge's conflicts name merge: \"last-wins\" once per source, and 
     "shared/es.json: save is translated otherwise in app/es.json",
   );
   expect(one.split(hint).length - 1).toBe(1);
-  // Two sources holding one id are two catalogues: no merge order.
   const two = await failure([
     { adapter: "messages", type: "ui", path: "app/{lang}.json" },
     { adapter: "messages", type: "other", path: "shared/{lang}.json" },
