@@ -1094,3 +1094,17 @@ test("a plain text for a Rails plural hash is written under each category the la
   );
   expect(refused).toEqual([]);
 });
+
+test("a proposal that writes a plural hash of the source as a plain text writes it under each of the source language's categories (#1092)", () => {
+  const en =
+    'en:\n  cards:\n    one: "%{count} card"\n    other: "%{count} cards"\n';
+  expect(
+    applyYamlOps(
+      en,
+      [{ kind: "edit", id: "cards", text: "%{count} cards" }],
+      "en",
+    ),
+  ).toBe(
+    'en:\n  cards:\n    one: "%{count} cards"\n    other: "%{count} cards"\n',
+  );
+});
