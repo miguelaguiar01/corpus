@@ -1300,7 +1300,11 @@ export function validateTranslation(
       // author has already said which categories its text varies by
       // (#1005): an en-GB copy of an `other`-only plural is complete.
       sameBase
-        ? { cardinal: whole.cardinalPlurals, ordinal: whole.ordinalPlurals }
+        ? {
+            cardinal: whole.cardinalPlurals,
+            ordinal: whole.ordinalPlurals,
+            copies: whole.pluralCopies,
+          }
         : undefined,
       syntax,
     ),
@@ -1710,6 +1714,7 @@ function pluralErrors(
   sourceKeys?: {
     cardinal: Map<string, Set<string>>;
     ordinal: Map<string, Set<string>>;
+    copies: Shape["pluralCopies"];
   },
   library?: Library,
 ): ValidationError[] {
@@ -1735,58 +1740,68 @@ function pluralErrors(
       )
         continue;
       if (categories.required.length === 0) continue;
-      const own = (ordinal ? sourceKeys?.ordinal : sourceKeys?.cardinal)?.get(
-        arg,
-      );
       // gen-l10n's `=0`, `=1`, `=2` are its zero, one and two, which
       // Intl.pluralLogic takes for exactly that number, then for every
       // value of the category (#1039).
       const genL10n = library === "gen_l10n" && !ordinal;
-      const named = new Set(keys);
       if (genL10n)
-        for (const [exactKey, category] of GEN_L10N_EXACT) {
-          if (!keys.has(exactKey)) continue;
-          if (keys.has(category))
+        for (const [exactKey, category] of GEN_L10N_EXACT)
+          if (keys.has(exactKey) && keys.has(category))
             out.push({
               code: "overridden-branch",
               arg,
               key: exactKey,
               category,
             });
-          named.add(category);
-        }
       // Each copy of the plural by itself, a category one lacks said
-      // once however many lack it (#1085).
+      // once however many lack it (#1085). For a language of the
+      // source's base, each copy asks what the source's copy in its
+      // place has, or, where the two write another number of copies,
+      // what any of the source's has (#1005).
       const copies = actual.pluralCopies.filter(
         (c) => c.arg === arg && c.ordinal === ordinal,
       );
-      for (const key of categories.required) {
-        if (own && key !== "other" && !own.has(key)) continue;
-        const lacks = (copy: Set<string>) => {
+      const sourceCopies =
+        sourceKeys?.copies.filter(
+          (c) => c.arg === arg && c.ordinal === ordinal,
+        ) ?? [];
+      const union = (ordinal ? sourceKeys?.ordinal : sourceKeys?.cardinal)?.get(
+        arg,
+      );
+      const read = copies.map((copy, i) => {
+        const named = new Set(copy.keys);
+        if (genL10n)
+          for (const [exactKey, category] of GEN_L10N_EXACT)
+            if (copy.keys.has(exactKey)) named.add(category);
+        return {
+          named,
           // `=01` is not `=1` to the runtimes, which match the key as
           // written.
-          const exactHere = new Set(
-            [...copy]
+          exact: new Set(
+            [...copy.keys]
               .filter((k) => EXACT_KEY.test(k))
               .map((k) => Number(k.slice(1))),
-          );
-          const namedHere = new Set(copy);
-          if (genL10n)
-            for (const [exactKey, category] of GEN_L10N_EXACT)
-              if (copy.has(exactKey)) namedHere.add(category);
-          return (
-            !namedHere.has(key) &&
-            !(
-              language &&
-              pluralCategoryCovered(language, key, exactHere, ordinal)
-            )
-          );
+          ),
+          own:
+            sourceKeys === undefined
+              ? undefined
+              : sourceCopies.length === copies.length
+                ? sourceCopies[i]!.keys
+                : union,
         };
+      });
+      for (const key of categories.required)
         if (
-          (copies.length > 0 ? copies.map((c) => c.keys) : [named]).some(lacks)
+          read.some(
+            ({ named, exact, own }) =>
+              !(own && key !== "other" && !own.has(key)) &&
+              !named.has(key) &&
+              !(
+                language && pluralCategoryCovered(language, key, exact, ordinal)
+              ),
+          )
         )
           out.push({ code: "missing-category", arg, key });
-      }
       if (genL10n && language)
         for (const [exactKey, category] of GEN_L10N_EXACT) {
           if (!keys.has(exactKey) || keys.has(category)) continue;
