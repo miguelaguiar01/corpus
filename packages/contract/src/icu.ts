@@ -297,6 +297,13 @@ function tagIdentity(tag: { name: string; attrs?: string }): string {
 // A tag's identity with each printf verb in its attributes written by
 // the position it takes, so Android's `href="%s"` at position 1 and
 // `href="%1$s"` are one tag, and `href="%d"` another (#956).
+const GO_INDEX = "is Go's index form";
+
+// Go's `%[n]` under android, a failure no attribute leaves as text.
+function goIndex(error: ParseFailure): boolean {
+  return error.message.includes(GO_INDEX);
+}
+
 function positionedIdentity(tag: {
   name: string;
   attrs?: string;
@@ -315,7 +322,13 @@ function positionedIdentity(tag: {
     new RegExp(`%%|${PRINTF_VERB_RE.source.slice(1)}`, "g"),
     (verb) => {
       const node = verbs[at];
-      if (verb === "%%" || node?.kind !== "placeholder") return verb;
+      // A match no verb was read from, `%n`, is the attribute's text.
+      if (
+        verb === "%%" ||
+        node?.kind !== "placeholder" ||
+        verb !== node.written
+      )
+        return verb;
       at += 1;
       return verb.replace(/^%(?:\[\d+\]|\d+\$)?/, `%${node.name}$`);
     },
@@ -1227,9 +1240,12 @@ class Parser {
     }
     if (ch === "%") {
       if (this.source[this.pos + 1] === "%") return this.text(seq, "%", 2);
-      // Java's `%n` is a line break, taking no argument (#1145).
-      if (this.syntax === "android" && this.source[this.pos + 1] === "n")
-        return this.text(seq, "%n", 2);
+      // Java's `%n` is a line break, taking no argument, its index or
+      // flags none either (#1145).
+      const lineBreak =
+        this.syntax === "android" &&
+        /^%(?:\d+\$)?[-#+ 0,(]*\d*n/.exec(this.source.slice(this.pos));
+      if (lineBreak) return this.text(seq, lineBreak[0]);
       // A Python key is named by itself, never counted by position.
       const key =
         this.syntax === "printf" &&
@@ -1239,7 +1255,7 @@ class Parser {
       if (verb) {
         if (this.syntax === "android" && verb[1] !== undefined)
           throw new ParseFailure(
-            `${verb[0]} is Go's index form; Android formats with Java's Formatter, which throws on it: write %${verb[1]}$${verb[3]}${verb[4]}`,
+            `${verb[0]} ${GO_INDEX}; Android formats with Java's Formatter, which throws on it: write %${verb[1]}$${verb[3]}${verb[4]}`,
             this.pos,
           );
         const explicit = verb[1] ?? verb[2];
@@ -1464,7 +1480,8 @@ class Parser {
       // Brace CSS in an ICU attribute is text; Rails reads only `%{`, so
       // a mistyped one there is refused as it is in the text.
       if (!(error instanceof ParseFailure)) throw error;
-      if (this.syntax === "rails") throw new ParseFailure(error.message, start);
+      if (this.syntax === "rails" || goIndex(error))
+        throw new ParseFailure(error.message, start);
       // An Android attribute's verbs still count in their place, its
       // braces, which are what fail, read as text (#1145).
       if (this.syntax !== "android" || !/[{}]/.test(attrs)) return { attrs };
@@ -1474,6 +1491,7 @@ class Parser {
         nodes = blank.parseSequence(false);
       } catch (retry) {
         if (!(retry instanceof ParseFailure)) throw retry;
+        if (goIndex(retry)) throw new ParseFailure(retry.message, start);
         return { attrs };
       }
       this.printfNext = blank.printfNext;
