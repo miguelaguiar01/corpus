@@ -584,8 +584,12 @@ function translationElement(
     )
   )
     return undefined;
+  // Where every form a category reads is one category (Khmer, Lao), a
+  // form no category reads is that category's too: a message written
+  // anyway writes its text there (#1104).
+  const one = new Set(categories.filter((c) => c !== undefined)).size === 1;
   const forms = read.map((f, i) =>
-    categories[i] === undefined && f === ""
+    categories[i] === undefined && (f === "" || one)
       ? (pick(majority[i]) ?? branches.other ?? "")
       : f,
   );
