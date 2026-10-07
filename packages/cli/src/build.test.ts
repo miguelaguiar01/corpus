@@ -2422,3 +2422,37 @@ test("a printf source holding a % and a digit no verb reads says once that qt re
   expect(await notes()).toEqual([]);
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("a type that declares its slots names, once, the placeholders its strings use that no declaration covers (#1075)", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-slots-"));
+  mkdirSync(path.join(dir, "i18n"));
+  writeFileSync(
+    path.join(dir, "i18n", "en.json"),
+    JSON.stringify({
+      a: "Locked in the {room} until {hour_until}",
+      b: "Open at {hour_until} in the {room}",
+      c: "{room}",
+    }),
+  );
+  const report = await buildSnapshotReport(
+    config({
+      sources: [
+        { adapter: "messages", type: "skin", path: "i18n/{lang}.json" },
+      ],
+      stringTypes: {
+        skin: {
+          slot: {
+            type: "placeholders",
+            description: "The clue's slots.",
+            slots: { room: { description: "A room" } },
+          },
+        },
+      },
+    }),
+    dir,
+  );
+  expect(report.notes.filter((n) => /slot declaration/.test(n))).toEqual([
+    "skin: hour_until has no slot declaration in stringTypes",
+  ]);
+  rmSync(dir, { recursive: true, force: true });
+});
