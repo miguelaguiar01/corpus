@@ -3656,12 +3656,9 @@ test("under android, <xliff:g> is a tag a translation keeps, its id its identity
     ok: false,
     errors: [{ code: "missing-tag", name: 'xliff:g id="messages_to_load"' }],
   });
-  expect(check('<xliff:g id="count">%d</xliff:g> மேலும்')).toMatchObject({
-    ok: false,
-    errors: expect.arrayContaining([
-      { code: "missing-tag", name: 'xliff:g id="messages_to_load"' },
-    ]),
-  });
+  // Its id is no part of it: aapt strips the element, so a translated
+  // id never reaches the app.
+  expect(check('<xliff:g id="ஏற்ற">%d</xliff:g> மேலும்').ok).toBe(true);
   // Other libraries read <a:b> as text, as before.
   expect(validateTranslation("Go <a:b>x</a:b>", "Vai", "de", "icu").ok).toBe(
     true,

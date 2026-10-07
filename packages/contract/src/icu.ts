@@ -240,6 +240,10 @@ const PLURAL_KEY_RE = /^(?:zero|one|two|few|many|other|=[0-9]+)$/;
 // close, with nothing else matching spaces, so a name followed by a run
 // of whitespace and no `>` is linear, not cubic; readTag trims it.
 const TAG_RE = /^<(\/?)([A-Za-z][A-Za-z0-9_-]*|[0-9]+)((?:\s[^<>]*?)?)(\/?)>/;
+// Android's names take a namespace: `<xliff:g id="n">%d</xliff:g>` marks
+// what a translator keeps as written, which aapt strips (#1067).
+const NS_TAG_RE =
+  /^<(\/?)([A-Za-z][A-Za-z0-9_-]*(?::[A-Za-z][A-Za-z0-9_-]*)?|[0-9]+)((?:\s[^<>]*?)?)(\/?)>/;
 // The libraries that read tags and whose placeholders are named or
 // numbered, so one in a tag's attribute is read as a placeholder (#948);
 // Android's verb takes its place in the argument order, as `getString`
@@ -257,6 +261,8 @@ const ATTR_PLACEHOLDER_LIBRARIES: ReadonlySet<Library> = new Set([
 ]);
 // Every closing tag of a text, by TAG_RE's names.
 const CLOSE_RE = /<\/([A-Za-z][A-Za-z0-9_-]*|[0-9]+)>/g;
+const NS_CLOSE_RE =
+  /<\/([A-Za-z][A-Za-z0-9_-]*(?::[A-Za-z][A-Za-z0-9_-]*)?|[0-9]+)>/g;
 // HTML's void elements, read so only where the text's tags are HTML or
 // its library treats them so (#643); HTML ignores their case.
 const VOID_TAGS = new Set(["br", "hr", "wbr", "img"]);
@@ -1261,10 +1267,16 @@ class Parser {
     };
   }
 
+  private get tagRe(): RegExp {
+    return this.syntax === "android" ? NS_TAG_RE : TAG_RE;
+  }
+
   private lastClose(name: string): number {
     if (!this.closes) {
       this.closes = new Map();
-      for (const m of this.source.matchAll(CLOSE_RE))
+      for (const m of this.source.matchAll(
+        this.syntax === "android" ? NS_CLOSE_RE : CLOSE_RE,
+      ))
         this.closes.set(m[1]!, m.index);
     }
     return this.closes.get(name) ?? -1;
@@ -1308,7 +1320,7 @@ class Parser {
       at >= 0;
       at = this.source.indexOf("<", at + 1)
     ) {
-      const match = TAG_RE.exec(this.source.slice(at));
+      const match = this.tagRe.exec(this.source.slice(at));
       if (!match) continue;
       const name = match[2]!;
       // Void elements and self-closed tags open nothing, and a closing
@@ -1349,7 +1361,7 @@ class Parser {
         start: number;
       }
     | undefined {
-    const match = TAG_RE.exec(this.source.slice(this.pos));
+    const match = this.tagRe.exec(this.source.slice(this.pos));
     if (!match) return undefined;
     const attrs = match[3]!.trim();
     // A closing tag carries no attributes: `</a href>` is text.

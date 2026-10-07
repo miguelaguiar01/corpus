@@ -1012,11 +1012,17 @@ export function validateTranslation(
     }
   } else {
     // Compared as HTML reads them, an Android verb by the position it
-    // takes (#956), said as each side writes them.
+    // takes (#956), said as each side writes them. Android's `xliff:g`
+    // by its name alone: aapt strips the element, so its id, which
+    // translators often translate, never reaches the app (#1067).
+    const key = (identity: string) =>
+      syntax === "android" && /^xliff:g(?:\s|$)/.test(identity)
+        ? "xliff:g"
+        : tagKey(identity);
     const keysOf = (shape: Shape, name: string) =>
-      [...(shape.tagKeys.get(name) ?? [name])].map(tagKey);
+      [...(shape.tagKeys.get(name) ?? [name])].map(key);
     const pairKeysOf = (shape: Shape, name: string) =>
-      [...(shape.pairKeys.get(name) ?? [])].map(tagKey);
+      [...(shape.pairKeys.get(name) ?? [])].map(key);
     const actualTags = new Set(
       [...actual.tags].flatMap((name) => keysOf(actual, name)),
     );
