@@ -221,13 +221,26 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   // (args.ts); only its absence means "read the files".
   const present = args.includes("--languages");
   const given = option(args, "--languages");
+  // A POSIX code listed is written as its tag, its files mapped to it,
+  // as a file read from the pattern is (#1119).
+  const listedFiles: Record<string, string> = {};
   const listed =
     given === undefined || given.startsWith("--")
       ? []
       : given
           .split(",")
           .map((code) => code.trim())
-          .filter(Boolean);
+          .filter(Boolean)
+          .map((code) => {
+            const tag = posixTag(code);
+            // A res directory or a String Catalog names its own.
+            const file =
+              tag && res === undefined && !catalog
+                ? listedFile(ctx.cwd, messages, code, tag)
+                : undefined;
+            if (tag && file !== undefined) listedFiles[tag] = file;
+            return tag ?? code;
+          });
   if (present && listed.length === 0) {
     throw new CliError(`--languages needs a value\nusage: ${INIT_USAGE}`);
   }
@@ -291,8 +304,8 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   // The mappings of the languages the config lists, given or read.
   const kept = Object.fromEntries([
     ...(referenced ? [[sourceLanguage, referenced.code]] : []),
-    ...Object.entries(files.languageFiles).filter(([tag]) =>
-      languages.includes(tag),
+    ...Object.entries({ ...files.languageFiles, ...listedFiles }).filter(
+      ([tag]) => languages.includes(tag),
     ),
   ]);
   const source: InitSource = {
@@ -2115,6 +2128,26 @@ function qtTemplateOf(cwd: string, pattern: string): string | undefined {
   return templates.length === 1 ? templates[0] : undefined;
 }
 
+// The file code a POSIX code `--languages` lists takes (#1119):
+// - the code itself, where the pattern has its files;
+// - none, where the files are named by its tag;
+// - another code of the same tag the files use (`uz@Latn` for `uz@latin`);
+// - the code as listed, where no file has the tag, as a new one is named.
+function listedFile(
+  cwd: string,
+  pattern: string,
+  code: string,
+  tag: string,
+): string | undefined {
+  const fills = (c: string) => matchPattern(cwd, pattern, c).length > 0;
+  if (fills(code)) return code;
+  if (fills(tag)) return undefined;
+  const codes = langDirectory(pattern)
+    ? langDirectories(cwd, pattern)
+    : filesFilling(cwd, pattern);
+  return codes.find((c) => posixTag(c.code) === tag)?.code ?? code;
+}
+
 // A code that is no language's: no tag, nor one with a POSIX
 // modifier, which is a language's too.
 function namesNoLanguage(code: string): boolean {
@@ -2135,9 +2168,9 @@ function langDirectory(
   };
 }
 
-// The directories a `{lang}` directory pattern's files sit in under a
-// code that names no language, as `core/templates`.
-function untaggedDirectories(
+// The directories a `{lang}` directory pattern's files sit in, each by
+// the code it fills `{lang}` with.
+function langDirectories(
   cwd: string,
   pattern: string,
 ): { file: string; code: string }[] {
@@ -2156,12 +2189,20 @@ function untaggedDirectories(
     .filter((name) => name.startsWith(prefix) && name.endsWith(lang.tail))
     .map((name) => name.slice(prefix.length, name.length - lang.tail.length))
     .filter(
-      (code) =>
-        code !== "" &&
-        namesNoLanguage(code) &&
-        matchPattern(cwd, pattern, code).length > 0,
+      (code) => code !== "" && matchPattern(cwd, pattern, code).length > 0,
     )
     .map((code) => ({ file: `${lang.head}${code}${lang.tail}`, code }));
+}
+
+// The `{lang}` directories under a code that names no language, as
+// `core/templates`.
+function untaggedDirectories(
+  cwd: string,
+  pattern: string,
+): { file: string; code: string }[] {
+  return langDirectories(cwd, pattern).filter(({ code }) =>
+    namesNoLanguage(code),
+  );
 }
 
 // Pontoon keeps the source's files where l10n.toml's reference says,
