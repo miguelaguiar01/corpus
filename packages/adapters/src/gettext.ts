@@ -878,27 +878,34 @@ function headerComments(
 // a credit, and the `# Translators:` line over them; with the bare `#`
 // that closes their block where one, or nothing, opens it. A line with a
 // title's, a licence's or an address's words is no credit, unless an
-// address and a year sign it.
+// address and a year sign it; a copyright line never is.
 function creditLines(text: string, comments: Span[]): Span[] {
   const lines = comments.map((span) => text.slice(span.start, span.end));
   const years = String.raw`(?:,\s*(?:\d{4}(?:-\d{2}-\d{2}|-\d{4})?|YEAR)\.?)`;
   const address = String.raw`<(?:[^<>\s@]+@[^<>\s]+|[0-9a-f]{32}_\d+)>`;
   const addressed = new RegExp(`^# [^<>]+ ${address}(${years}*)\\.?$`);
   const dated = new RegExp(`^# [^<>,:]+${years}+\\.?$`);
+  const copyright = /copyright|\(c\)|©/i;
   const prose =
-    /copyright|\(c\)|©|\b(?:translations?|file|licen[cs]e|public|domain|package|bugs?|report|mailing|list)\b/i;
+    /\b(?:translations?|file|licen[cs]e|public|domain|package|bugs?|report|mailing|list)\b/i;
   const organisation =
     /\b(?:foundation|software|desktop|team|project|inc|ltd|gmbh|community|contributors|developers|authors|group)\b/i;
   const named = /^# \p{Lu}[\p{L}'’.-]*(?: \p{Lu}[\p{L}'’.-]*){0,3}$/u;
   const credit = (line: string) => {
     if (/^# (?:Last|Previous)-Translator:/.test(line)) return true;
-    if (line.includes("<EMAIL@ADDRESS>")) return false;
+    if (line.includes("<EMAIL@ADDRESS>") || copyright.test(line)) return false;
     const signed = addressed.exec(line);
     if (signed?.[1]) return true;
-    return (signed !== null || dated.test(line)) && !prose.test(line);
+    return (
+      (signed !== null || dated.test(line)) &&
+      !prose.test(line.replace(/<[^<>]*>/g, ""))
+    );
   };
   const alone = (line: string) =>
-    named.test(line) && !prose.test(line) && !organisation.test(line);
+    named.test(line) &&
+    !copyright.test(line) &&
+    !prose.test(line) &&
+    !organisation.test(line);
   const bare = (line: string | undefined) => line?.trim() === "#";
   const out: Span[] = [];
   let i = 0;
