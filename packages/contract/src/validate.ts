@@ -455,6 +455,23 @@ function pickedBranches(
 // The message as an other-only language renders it: each plural on
 // `args` replaced by its `other` branch, `#` by the count.
 // A plural by its kind and argument: `ordinal n`, `cardinal n` (#995).
+// The nodes with their first positional `{}` named `arg`.
+function countedFirst(nodes: IcuNode[], arg: string): IcuNode[] {
+  let done = false;
+  const walk = (list: IcuNode[]): IcuNode[] =>
+    list.map((node) => {
+      if (done) return node;
+      if (node.kind === "placeholder" && node.written === "{}") {
+        done = true;
+        return { ...node, name: arg };
+      }
+      return node.kind === "tag"
+        ? { ...node, children: walk(node.children) }
+        : node;
+    });
+  return walk(nodes);
+}
+
 function pluralId(ordinal: boolean, arg: string): string {
   return `${ordinal ? "ordinal" : "cardinal"} ${arg}`;
 }
@@ -741,7 +758,7 @@ export function validateTranslation(
   const sourceNodes = positioned(parsedSource.nodes);
   const targetNodes = positioned(parsedTarget.nodes);
   const whole = shapeOf(sourceNodes);
-  const actual =
+  let actual =
     syntax === "qt"
       ? qtFilled(shapeOf(targetNodes), whole, target, source)
       : shapeOf(targetNodes);
@@ -796,6 +813,18 @@ export function validateTranslation(
       if (!mine.has(arg) && !swapped && categoriesOf(ordinal).length === 1)
         flat.add(pluralId(ordinal, arg));
     }
+  // easy_localization's plural() fills a plain text's first `{}` with
+  // the count, where the source is that one plural (#1094).
+  const easyCount =
+    syntax === "easy_localization" &&
+    flat.size === 1 &&
+    [...flat][0]!.startsWith("cardinal ") &&
+    sourceNodes.filter((n) => !(n.kind === "literal" && n.text.trim() === ""))
+      .length === 1
+      ? [...flat][0]!.slice("cardinal ".length)
+      : undefined;
+  if (easyCount !== undefined)
+    actual = shapeOf(countedFirst(targetNodes, easyCount));
   const flattened =
     flat.size > 0 && syntax !== "android"
       ? otherBranch(sourceNodes, flat)
@@ -976,6 +1005,17 @@ export function validateTranslation(
   }
   // counterpart substitutes `%(name)s` only as written: `%(n)d` for the
   // source's `%(n)s` is text in the app (#663).
+  // A named count where the source's forms write `{}` prints as it is.
+  if (
+    easyCount !== undefined &&
+    expected.written.get(easyCount) === "{}" &&
+    actual.written.get(easyCount) === `{${easyCount}}`
+  )
+    errors.push({
+      code: "unexpected-placeholder",
+      name: easyCount,
+      written: `{${easyCount}}`,
+    });
   if (syntax === "counterpart") {
     for (const [name, written] of expected.written) {
       const got = actual.written.get(name);
