@@ -58,11 +58,11 @@ function closing(source: string, at: number): number {
 // comes before it, past spaces, is a block's head (`{#if`, `{:else if`,
 // `{@html`), an operator, an opening bracket or separator, or the word
 // `return` or `typeof`. Right after the expression's `{` it closes a
-// block, `{/if}`.
+// block, `{/if}`, but in an attribute's value, `title={/'/.source}`.
 function opensRegex(source: string, at: number, i: number): boolean {
   let j = i - 1;
   while (j > at && /\s/.test(source[j]!)) j--;
-  if (j <= at) return false;
+  if (j <= at) return source[at - 1] === "=";
   const before = source.slice(at + 1, j + 1);
   if (/^\s*(?:[#@][a-z]+|:else\s+if)$/.test(before)) return true;
   const ch = source[j]!;
