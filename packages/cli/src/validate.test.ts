@@ -1979,3 +1979,15 @@ test("a Japanese source's lone _other is its family, so an English target's form
     n: "{count, plural, one {{{count}} item} other {{{count}} items}}",
   });
 });
+
+test("validate says a format a Fluent translation adds (#1089)", async () => {
+  const { describe } = await import("./validate");
+  expect(
+    describe(
+      { code: "unexpected-format", name: "n", expected: null, actual: "date" },
+      "fluent",
+    ),
+  ).toBe(
+    "{n} has no format in the source, which passes it as it is: write it without one",
+  );
+});

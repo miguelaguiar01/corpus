@@ -4201,3 +4201,30 @@ test("a mistyped rails %{ is said once, whatever readings the parser tries and g
     ),
   ).toEqual({ ok: false, errors: [at(21)] });
 });
+
+test("under fluent, a translation adds no format its source lacks, which pull would write as a function (#1089)", () => {
+  for (const [target, actual] of [
+    ["Total {n, date}", "date"],
+    ["Total {n, number}", "number"],
+    ["Total {n, number, minimumFractionDigits: 2}", "number"],
+  ] as const)
+    expect(
+      validateTranslation("Total {n}", target, "de", "fluent"),
+      target,
+    ).toEqual({
+      ok: false,
+      errors: [
+        { code: "unexpected-format", name: "n", expected: null, actual },
+      ],
+    });
+  // A format the source has keeps its style the translator's.
+  expect(
+    validateTranslation("On {d, date}", "Am {d, date, short}", "de", "fluent"),
+  ).toEqual({ ok: true });
+  // Elsewhere a format is the translator's to add.
+  expect(
+    validateTranslation("Total {n}", "Total {n, number}", "de", "icu"),
+  ).toEqual({
+    ok: true,
+  });
+});

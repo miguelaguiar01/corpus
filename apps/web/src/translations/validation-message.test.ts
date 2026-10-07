@@ -169,3 +169,12 @@ test("a plural without other says so plainly in the editor and the queue (#975)"
     "Plural n is missing the other branch, which the runtime picks for every count no other branch covers",
   );
 });
+
+test("a format a Fluent translation adds is said in the editor (#1089)", () => {
+  expect(
+    validationMessage(
+      { code: "unexpected-format", name: "n", expected: null, actual: "date" },
+      "fluent",
+    ),
+  ).toBe("n has no format in the source; write it without one");
+});
