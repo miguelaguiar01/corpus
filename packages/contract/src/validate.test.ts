@@ -4131,3 +4131,76 @@ test("a mistyped rails %{ is refused beside the translation's other findings, no
     ]),
   );
 });
+
+test("a mistyped rails %{ is said once, whatever readings the parser tries and gives up (#976)", () => {
+  const stray =
+    "%{ opens no placeholder here: one is a name without spaces and a closing }; write %%{ for the text itself";
+  const at = (position: number) => ({
+    code: "invalid-icu",
+    where: "target",
+    message: stray,
+    position,
+  });
+  const strays = (result: ReturnType<typeof validateTranslation>) =>
+    result.ok ? [] : result.errors.filter((e) => e.code === "invalid-icu");
+  // A plural read whole, given up for the text after it.
+  expect(
+    strays(
+      validateTranslation(
+        "You have %{count} items",
+        "{count, plural, one {%{count] kitu} other {vitu}} na {x}",
+        "sw",
+        "rails",
+      ),
+    ),
+  ).toEqual([at(21)]);
+  // A tag whose close is in another branch, read again as prose.
+  expect(
+    strays(
+      validateTranslation(
+        "{count, plural, one {<b>%{count} one} other {</b> many}}",
+        "{count, plural, one {<b>%{count] moja} other {</b> nyingi}}",
+        "sw",
+        "rails",
+        { richText: "html" },
+      ),
+    ),
+  ).toEqual([at(24)]);
+  expect(
+    strays(
+      validateTranslation(
+        '{count, plural, one {<a href="%{u}">%{count} one} other {</a> many}}',
+        '{count, plural, one {<a href="%{u]">%{count} moja} other {</a> nyingi}}',
+        "sw",
+        "rails",
+        { richText: "html" },
+      ),
+    ),
+  ).toEqual([at(21)]);
+  // Two in one tag's attributes are said once, at the tag.
+  expect(
+    validateTranslation(
+      '<a href="%{url}" title="%{name}">x</a>',
+      '<a href="%{url]" title="%{name]">x</a>',
+      "sw",
+      "rails",
+      { richText: "html" },
+    ),
+  ).toEqual({
+    ok: false,
+    errors: [
+      at(0),
+      { code: "missing-placeholder", name: "url" },
+      { code: "missing-placeholder", name: "name" },
+    ],
+  });
+  // A plural hash read whole.
+  expect(
+    validateTranslation(
+      "{count, plural, one {%{count} item} other {%{count} items}}",
+      "{count, plural, one {%{count] kitu} other {%{count} vitu}}",
+      "sw",
+      "rails",
+    ),
+  ).toEqual({ ok: false, errors: [at(21)] });
+});
