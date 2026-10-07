@@ -1,6 +1,12 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import type { RunContext } from "./cli";
@@ -26,8 +32,27 @@ export type Prepared = {
   version: string;
   dbPath: string;
   secret: string;
+  secretPath: string;
   notes: string[];
 };
+
+// What a running workbench writes beside its database (#1078), so
+// `corpus whoami` can say which secret it reads when it was started from
+// another directory than the repository's.
+export const WORKBENCH_FILE = "workbench.json";
+
+export type WorkbenchRecord = {
+  url: string;
+  pid: number;
+  secretPath: string;
+  version: string;
+  startedAt: string;
+  db: string;
+};
+
+export function workbenchRecordPath(dbPath: string): string {
+  return path.join(path.dirname(dbPath), WORKBENCH_FILE);
+}
 
 // Everything before the process starts (§2): the workbench package from
 // the repository's own node_modules, the database and the secret under
@@ -72,7 +97,14 @@ export function prepare(
 
   const ignored = ignoreCorpusDir(cwd);
   if (ignored) notes.push(ignored);
-  return { bin, version: manifest.version, dbPath, secret, notes };
+  return {
+    bin,
+    version: manifest.version,
+    dbPath,
+    secret,
+    secretPath,
+    notes,
+  };
 }
 
 export async function healthy(
@@ -137,6 +169,23 @@ export async function workbench(
       `the workbench did not answer at ${url} within ${HEALTH_TIMEOUT_MS / 1000}s`,
     );
   }
+  const record = workbenchRecordPath(prepared.dbPath);
+  mkdirSync(path.dirname(record), { recursive: true });
+  writeFileSync(
+    record,
+    `${JSON.stringify(
+      {
+        url,
+        pid: child.pid!,
+        secretPath: prepared.secretPath,
+        version: prepared.version,
+        startedAt: new Date().toISOString(),
+        db: prepared.dbPath,
+      } satisfies WorkbenchRecord,
+      null,
+      2,
+    )}\n`,
+  );
   ctx.out("");
   ctx.out(`Corpus workbench ${prepared.version} is running at ${url}`);
   ctx.out(
@@ -156,6 +205,7 @@ export async function workbench(
   return new Promise<number>((resolve) => {
     child.once("exit", (code, signal) => {
       release();
+      rmSync(record, { force: true });
       // Stopped by the person (through this command) is a clean exit;
       // any other signal is a failure worth an exit code.
       const stopped = signal === "SIGTERM" || signal === "SIGINT";

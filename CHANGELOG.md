@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- `corpus whoami` (or `creds`) says which server, token and join secret the running instance uses, a workbench started elsewhere with `--db` included (#1078).
 - `corpus agent --stdin`'s queue op takes its name in `state` as well as `queue`, and `corpus agent --help` lists every op's fields with an example line (#1077).
 - `get_string`'s slots say what the repository gave them none of (`missing`) and take the source's example where a language has none, and `corpus build` names the placeholders a type's slot declarations do not cover (#1075).
 - A target file's translation of an id only another source file holds is no longer seeded, so a pull no longer writes it into a file that never had it (#1071).
