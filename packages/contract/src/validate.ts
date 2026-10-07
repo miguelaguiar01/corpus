@@ -1074,6 +1074,12 @@ export function validateTranslation(
     const missing = new Set(
       errors.flatMap((e) => (e.code === "missing-placeholder" ? [e.name] : [])),
     );
+    // One the text writes too is said once, as the text writes it (#1135).
+    const unexpected = new Set(
+      errors.flatMap((e) =>
+        e.code === "unexpected-placeholder" ? [e.name] : [],
+      ),
+    );
     for (const [name, written] of want)
       if (!got.has(name) && !missing.has(name))
         errors.push({
@@ -1084,6 +1090,7 @@ export function validateTranslation(
     for (const [name, written] of got)
       if (
         !want.has(name) &&
+        !unexpected.has(name) &&
         !allowedValues.has(name) &&
         !passed.has(name) &&
         !ownTerm(name)
@@ -1096,13 +1103,15 @@ export function validateTranslation(
   };
   if (isHtml(options.richText)) {
     // A value moved out of an attribute into the text is said once,
-    // where it went (#988).
+    // where it went (#988); one the attributes still hold is not moved.
     attrErrors(
       new Map(
         [...expected.attrPlaceholders].filter(
           ([name]) =>
             !(
-              actual.placeholders.has(name) && !expected.placeholders.has(name)
+              actual.placeholders.has(name) &&
+              !expected.placeholders.has(name) &&
+              !actual.attrPlaceholders.has(name)
             ),
         ),
       ),
