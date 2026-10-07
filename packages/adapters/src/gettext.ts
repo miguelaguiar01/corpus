@@ -3,6 +3,7 @@
 // categories through the file's `Plural-Forms`.
 import {
   PLURAL_CATEGORIES,
+  pluralRulesOf,
   REMOVED_PLURAL_CATEGORIES,
   type StringEntry,
 } from "@corpus/contract";
@@ -282,14 +283,6 @@ function pluralFunction(
   }
 }
 
-function rulesOf(language: string): Intl.PluralRules {
-  try {
-    return new Intl.PluralRules(language.replace(/_/g, "-"));
-  } catch {
-    return new Intl.PluralRules("en");
-  }
-}
-
 // How many integers of each CLDR category the file's expression sends
 // to each index; undefined with no expression to go by.
 function tally(
@@ -337,7 +330,7 @@ export function pluralTable(
   categories: (string | undefined)[];
   majority: (string | undefined)[];
 } {
-  const rules = rulesOf(language);
+  const rules = pluralRulesOf(language);
   const found = tally(rules, forms);
   const order = cldrOrder(rules);
   const indexes = indexesOf(rules, found, order);
@@ -445,7 +438,7 @@ function gettextTable(language: string, forms: string | undefined): Table {
     table.categories.every((c, i) => c !== undefined || reach[i]!.length === 0)
   )
     return cldr;
-  const rules = rulesOf(language);
+  const rules = pluralRulesOf(language);
   const other = reach.reduce(
     (best, r, i) => (r.length > reach[best]!.length ? i : best),
     0,
@@ -1047,7 +1040,7 @@ export function entriesToGettext(
   const pluralForms = poHeader(entries)["Plural-Forms"];
   const table = gettextTable(language.tag, pluralForms);
   const { indexes } = table;
-  const rules = rulesOf(language.tag);
+  const rules = pluralRulesOf(language.tag);
   // A plural entry the reader reads as the text is left as it is, one
   // short of its nplurals among them: a pull fills in no form (#981). So
   // is one a file keyed as it picks read before it was (#982), a row

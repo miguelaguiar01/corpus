@@ -13,6 +13,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- A gettext file in a language the runtime has no plural data for (Occitan) reads and writes its plural forms the same on every machine, by English's categories, rather than by the pushing machine's locale (#966).
 - A gettext file read under counterpart or easy_localization is checked by its own `Plural-Forms`, and a refused `=N` branch no longer counts as filling the category it names (#964).
 - A plural its file holds as forms (a JSON plural object, an Android `<plurals>`) refuses an `=N` branch and a form with unbalanced braces, which pull could not write (#704).
 - `corpus init` writes a file named by a country's code, Hoppscotch's `cn.json`, as its language (`zh-CN`) with the mapping, and warns when a `tw.json` or `kr.json` holds Chinese or Korean (#697).
