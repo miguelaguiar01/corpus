@@ -1392,6 +1392,15 @@ test("a target's licence and links in brackets are kept; a credit is one whateve
       "# Title\n# Friedrich List <fl@example.de>, 2020.\n# Jane Report <jr@example.org>, 2019\n",
     ),
   ).toMatch(/^# Title\nmsgid ""\n/);
+  // A copyright line is kept however it is signed; an address's words
+  // are its own.
+  expect(
+    start(
+      "# Copyright (C) 2019 Jane Doe <jane@example.org>, 2019.\n# (c) Jane Doe <jane@example.org>, 2019\n# Ivan Petrov <ivan@list.ru>\n",
+    ),
+  ).toMatch(
+    /^# Copyright \(C\) 2019 Jane Doe <jane@example\.org>, 2019\.\n# \(c\) Jane Doe <jane@example\.org>, 2019\nmsgid ""\n/,
+  );
   // A BOM, a Translators line with a trailing space, and credits alone
   // above a blank line.
   expect(
