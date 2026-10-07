@@ -3402,3 +3402,41 @@ export default defineCorpus({
   expect(read("a/de.json")).toBe(aDe);
   expect(read("b/de.json")).toBe(`{}\n`);
 });
+
+test("a pattern whose source file holds no string seeds nothing (#1071 review)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de"],
+  sources: [
+    { adapter: "messages", type: "chrome", path: ["a/{lang}.json", "b/{lang}.json"] },
+  ],
+});
+`,
+  );
+  mkdirSync(path.join(repo, "a"));
+  mkdirSync(path.join(repo, "b"));
+  // Every string of a moved to b.
+  writeFileSync(path.join(repo, "a", "en.json"), `{}\n`);
+  writeFileSync(path.join(repo, "b", "en.json"), `{\n  "moved": "Moved"\n}\n`);
+  writeFileSync(
+    path.join(repo, "a", "de.json"),
+    `{\n  "moved": "Verschoben"\n}\n`,
+  );
+  writeFileSync(path.join(repo, "b", "de.json"), `{}\n`);
+  const { buildSnapshot } = await import("./build");
+  const { loadConfig } = await import("./config");
+  const snapshot = await buildSnapshot(await loadConfig(repo), repo);
+  expect(snapshot.seedTranslations ?? {}).toEqual({});
+  await serve(200, {
+    ...PAYLOAD,
+    types: { moved: "chrome" },
+    translations: snapshot.seedTranslations ?? {},
+  });
+  expect(await run(["pull"], ctx())).toBe(0);
+  expect(read("b/de.json")).toBe(`{}\n`);
+});
