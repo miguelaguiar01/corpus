@@ -294,9 +294,6 @@ export function isHtmlElement(name: string): boolean {
 function tagIdentity(tag: { name: string; attrs?: string }): string {
   return tag.attrs ? `${tag.name} ${tag.attrs}` : tag.name;
 }
-// A tag's identity with each printf verb in its attributes written by
-// the position it takes, so Android's `href="%s"` at position 1 and
-// `href="%1$s"` are one tag, and `href="%d"` another (#956).
 const GO_INDEX = "is Go's index form";
 
 // Go's `%[n]` under android, a failure no attribute leaves as text.
@@ -304,6 +301,9 @@ function goIndex(error: ParseFailure): boolean {
   return error.message.includes(GO_INDEX);
 }
 
+// A tag's identity with each printf verb in its attributes written by
+// the position it takes, so Android's `href="%s"` at position 1 and
+// `href="%1$s"` are one tag, and `href="%d"` another (#956).
 function positionedIdentity(tag: {
   name: string;
   attrs?: string;
