@@ -234,7 +234,11 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
           .map((code) => {
             const tag = posixTag(code);
             // A res directory or a String Catalog names its own.
-            if (tag && res === undefined && !catalog) listedFiles[tag] = code;
+            const file =
+              tag && res === undefined && !catalog
+                ? listedFile(ctx.cwd, messages, code, tag)
+                : undefined;
+            if (tag && file !== undefined) listedFiles[tag] = file;
             return tag ?? code;
           });
   if (present && listed.length === 0) {
@@ -300,9 +304,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   // The mappings of the languages the config lists, given or read.
   const kept = Object.fromEntries([
     ...(referenced ? [[sourceLanguage, referenced.code]] : []),
-    // A file the pattern names is the mapping, whatever spelling is
-    // listed for its tag.
-    ...Object.entries({ ...listedFiles, ...files.languageFiles }).filter(
+    ...Object.entries({ ...files.languageFiles, ...listedFiles }).filter(
       ([tag]) => languages.includes(tag),
     ),
   ]);
@@ -2126,6 +2128,26 @@ function qtTemplateOf(cwd: string, pattern: string): string | undefined {
   return templates.length === 1 ? templates[0] : undefined;
 }
 
+// The file code a POSIX code `--languages` lists takes (#1119): the
+// spelling the pattern's files give its tag, the code itself, another
+// (`uz@Latn` for `uz@latin`) or none where the tag is the file's name,
+// and the code as listed where no file has the tag, as a new one is
+// named so.
+function listedFile(
+  cwd: string,
+  pattern: string,
+  code: string,
+  tag: string,
+): string | undefined {
+  const fills = (c: string) => matchPattern(cwd, pattern, c).length > 0;
+  if (fills(code)) return code;
+  if (fills(tag)) return undefined;
+  const codes = langDirectory(pattern)
+    ? langDirectories(cwd, pattern)
+    : filesFilling(cwd, pattern);
+  return codes.find((c) => posixTag(c.code) === tag)?.code ?? code;
+}
+
 // A code that is no language's: no tag, nor one with a POSIX
 // modifier, which is a language's too.
 function namesNoLanguage(code: string): boolean {
@@ -2146,9 +2168,9 @@ function langDirectory(
   };
 }
 
-// The directories a `{lang}` directory pattern's files sit in under a
-// code that names no language, as `core/templates`.
-function untaggedDirectories(
+// The directories a `{lang}` directory pattern's files sit in, each by
+// the code it fills `{lang}` with.
+function langDirectories(
   cwd: string,
   pattern: string,
 ): { file: string; code: string }[] {
@@ -2167,12 +2189,19 @@ function untaggedDirectories(
     .filter((name) => name.startsWith(prefix) && name.endsWith(lang.tail))
     .map((name) => name.slice(prefix.length, name.length - lang.tail.length))
     .filter(
-      (code) =>
-        code !== "" &&
-        namesNoLanguage(code) &&
-        matchPattern(cwd, pattern, code).length > 0,
+      (code) => code !== "" && matchPattern(cwd, pattern, code).length > 0,
     )
     .map((code) => ({ file: `${lang.head}${code}${lang.tail}`, code }));
+}
+
+// Those under a code that names no language, as `core/templates`.
+function untaggedDirectories(
+  cwd: string,
+  pattern: string,
+): { file: string; code: string }[] {
+  return langDirectories(cwd, pattern).filter(({ code }) =>
+    namesNoLanguage(code),
+  );
 }
 
 // Pontoon keeps the source's files where l10n.toml's reference says,
