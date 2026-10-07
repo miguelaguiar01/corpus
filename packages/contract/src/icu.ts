@@ -470,13 +470,20 @@ export function printfPluralError(
   html: boolean | "markup",
   syntax: Library,
   layers: readonly Library[] = [],
+  // Each mistyped rails `%{`'s position, read as text (#976).
+  into?: number[],
 ): IcuError | undefined {
   if (!PRINTF_PLURAL_OPENS_RE.test(text)) return undefined;
-  return withLayers(layers, () => {
-    if (argPlurals(text, html, syntax)) return undefined;
-    const read = readPrintfPlural(text, html, syntax);
-    return "error" in read ? read.error : undefined;
-  });
+  return withStrays(
+    into,
+    () =>
+      withLayers(layers, () => {
+        if (argPlurals(text, html, syntax)) return undefined;
+        const read = readPrintfPlural(text, html, syntax);
+        return "error" in read ? read.error : undefined;
+      }),
+    (error) => error === undefined,
+  );
 }
 
 // Where the text after a whole plural starts, as the parser reads the
@@ -1081,12 +1088,13 @@ class Parser {
     const match = ch === "%" ? RAILS_PLACEHOLDER_RE.exec(rest) : null;
     if (match) return this.placeholder(seq, (match[1] ?? match[2])!, match[0]);
     // A `%{` no name closes is a placeholder mistyped, which Rails prints
-    // as it is (`%{dana]`); `%%{` writes the text (#948).
-    if (rest.startsWith("%{"))
-      throw new ParseFailure(
-        "%{ opens no placeholder here: one is a name without spaces and a closing }; write %%{ for the text itself",
-        this.pos,
-      );
+    // as it is (`%{dana]`); `%%{` writes the text (#948). A parse that
+    // goes on past it reads it as that text (#976).
+    if (rest.startsWith("%{")) {
+      if (!strays) throw new ParseFailure(RAILS_STRAY, this.pos);
+      strays.push(this.pos);
+      return this.text(seq, "%{");
+    }
     if (ch === "#" || (ch === "{" && !opensPlural)) return this.text(seq, ch);
     return false;
   }
@@ -1426,11 +1434,14 @@ class Parser {
     if (!ATTR_PLACEHOLDER_LIBRARIES.has(this.syntax)) return { attrs };
     let nodes: IcuNode[];
     const parser = new Parser(attrs, this.syntax, false);
+    // A mistyped `%{` in an attribute is said at its tag.
+    const before = strays?.length ?? 0;
     // Android's verbs count on through the attribute.
     parser.printfNext = this.printfNext;
     try {
       nodes = parser.parseSequence(false);
       this.printfNext = parser.printfNext;
+      if (strays) strays.fill(start, before);
     } catch (error) {
       // Brace CSS in an ICU attribute is text; Rails reads only `%{`, so
       // a mistyped one there is refused as it is in the text.
@@ -1755,21 +1766,53 @@ export function parseIcu(
     html?: boolean | "markup";
     prose?: ProseTag[];
     placeholders?: readonly Library[];
+    // Each mistyped rails `%{`'s position, read as text (#976).
+    strays?: number[];
   } = {},
 ): IcuParseResult {
   const layers = options.placeholders ?? [];
+  const parse = (html: boolean | "markup", prose?: ProseTag[]) =>
+    withStrays(
+      options.strays,
+      () => parseWith(source, syntax, html, prose, layers),
+      (result) => result.ok,
+    );
   if (options.html === undefined) {
-    const lenient = parseWith(source, syntax, true, undefined, layers);
+    const lenient = parse(true);
     if (lenient.ok) return lenient;
-    const strict = parseWith(source, syntax, false, undefined, layers);
+    const strict = parse(false);
     return strict.ok ? strict : lenient;
   }
-  return parseWith(source, syntax, options.html, options.prose, layers);
+  return parse(options.html, options.prose);
 }
 
 // The layered placeholder syntaxes of the parse in progress (#1049): a
 // parse is synchronous, and every Parser it makes reads them.
 let layering: readonly Library[] = [];
+
+export const RAILS_STRAY =
+  "%{ opens no placeholder here: one is a name without spaces and a closing }; write %%{ for the text itself";
+
+// Where a parse that reads a mistyped rails `%{` as text puts each one's
+// position; undefined, it is refused (#976).
+let strays: number[] | undefined;
+
+function withStrays<T>(
+  into: number[] | undefined,
+  read: () => T,
+  kept: (result: T) => boolean,
+): T {
+  const outer = strays;
+  const found: number[] = [];
+  strays = into && found;
+  try {
+    const result = read();
+    if (kept(result)) for (const at of found) into?.push(at);
+    return result;
+  } finally {
+    strays = outer;
+  }
+}
 
 function parseWith(
   source: string,
