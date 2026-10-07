@@ -134,7 +134,7 @@ $ corpus agent --stdin
   > {"id":"bad","op":"draft","ok":false,"error":"bad-line","message":"text is missing or not a string"}
 ```
 
-`op` is `queue`, `string`, `draft`, `propose`, `remove`, `add`, `proposals`, `withdraw` or `status`. The other fields are that operation's arguments by name: `queue` takes `queue` and optionally `language` and `type`; `string` takes `key`; `draft` takes `key`, `language` and `text`; `propose` takes `key` and `text`; `remove` takes `key`; `add` takes `key`, `file` and `text`; `withdraw` takes `proposal`, because `id` is already the line's own.
+`op` is `queue`, `string`, `draft`, `propose`, `remove`, `add`, `proposals`, `withdraw` or `status`. The other fields are that operation's arguments by name: `queue` takes `queue` (or `state`, which names a row's state elsewhere) and optionally `language` and `type`; `string` takes `key`; `draft` takes `key`, `language` and `text`; `propose` takes `key` and `text`; `remove` takes `key`; `add` takes `key`, `file` and `text`; `withdraw` takes `proposal`, because `id` is already the line's own. `corpus agent --help` lists the same, with one line per operation to copy.
 
 An `id` you send is echoed back, which is how a batch's answers are matched to its lines when they are read out of order.
 

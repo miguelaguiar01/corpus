@@ -18,6 +18,60 @@ export const AGENT_USAGE =
 
 type Call = { tool: string; args: Record<string, string> };
 
+// Each --stdin op with one line that runs it (#1077); --help lists its
+// fields from the tool's own schema, so the two cannot drift.
+export const STDIN_OPS: { op: string; example: string }[] = [
+  {
+    op: "queue",
+    example:
+      '{"op":"queue","queue":"untranslated","language":"pt-PT","type":"ui","id":"q1"}',
+  },
+  { op: "string", example: '{"op":"string","key":"ui.save"}' },
+  {
+    op: "draft",
+    example:
+      '{"op":"draft","key":"ui.save","language":"pt-PT","text":"Guardar","id":"d1"}',
+  },
+  {
+    op: "propose",
+    example: '{"op":"propose","key":"ui.save","text":"Save changes"}',
+  },
+  { op: "remove", example: '{"op":"remove","key":"ui.old"}' },
+  {
+    op: "add",
+    example:
+      '{"op":"add","key":"ui.new","file":"src/locales/en.json","text":"New"}',
+  },
+  { op: "status", example: '{"op":"status"}' },
+  { op: "proposals", example: '{"op":"proposals"}' },
+  { op: "withdraw", example: '{"op":"withdraw","proposal":"12"}' },
+];
+
+// What `corpus agent --help` says of --stdin: each op, its fields (`?`
+// where optional) and its example line.
+export function stdinHelp(): string {
+  const table = tools(apiOver("http://localhost:0", "t"));
+  const lines = [
+    'corpus agent --stdin reads one JSON object per line, each with "op" and an optional "id" echoed back, and answers each with one line: {"id", "op", "ok", "result"} or {"id", "op", "ok": false, "error", "message"}, a line that is no JSON object with neither "id" nor "op".',
+  ];
+  for (const { op, example } of STDIN_OPS) {
+    const tool = table.find((t) => t.op === op)!;
+    const required = new Set(tool.inputSchema.required ?? []);
+    const fields = Object.keys(tool.inputSchema.properties).map((name) =>
+      name === "queue"
+        ? "queue (or state)"
+        : required.has(name)
+          ? name
+          : `${name}?`,
+    );
+    lines.push(
+      `  ${op.padEnd(11)}${fields.length ? fields.join(", ") : "(no fields)"}`,
+      `  ${"".padEnd(11)}${example}`,
+    );
+  }
+  return lines.join("\n");
+}
+
 const VALUED = new Set(["--lang", "--type", "--text", "--file"]);
 // `--json` is accepted for symmetry with `corpus status --json`; the
 // output is JSON either way.
@@ -208,6 +262,26 @@ async function agentStdin(ctx: RunContext): Promise<number> {
     }
     const { op, id, ...args } = parsed as Record<string, unknown>;
     const echo = id === undefined ? {} : { id };
+    // A queue is named in `queue`, or in `state`, which names a state
+    // everywhere else (#1077); `queue` wins.
+    let named = "queue";
+    if (op === "queue") {
+      if (args.queue === undefined && args.state !== undefined) {
+        args.queue = args.state;
+        named = "state";
+      }
+      delete args.state;
+      if (args.queue === undefined) {
+        answer({
+          ...echo,
+          op,
+          ok: false,
+          error: "bad-line",
+          message: "queue is missing (its name goes in `queue`, or `state`)",
+        });
+        continue;
+      }
+    }
     const tool = table.find((t) => t.op === op);
     if (!tool) {
       answer({
@@ -221,7 +295,10 @@ async function agentStdin(ctx: RunContext): Promise<number> {
     }
     const problem = argumentProblem(tool, args);
     if (problem) {
-      answer({ ...echo, op, ok: false, error: "bad-line", message: problem });
+      // Said in the field the line wrote it in.
+      const message =
+        named === "state" ? problem.replace(/^queue\b/, "state") : problem;
+      answer({ ...echo, op, ok: false, error: "bad-line", message });
       continue;
     }
     let result: ToolResult;

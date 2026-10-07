@@ -575,3 +575,88 @@ test("the repository is built once a process, the first time a refusal is asked 
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("--stdin's queue op takes its name in queue or state, queue winning, and says both where neither is there (#1077)", async () => {
+  api = await startApi(() => ({
+    status: 200,
+    body: {
+      queues: {
+        untranslated: { count: 1, items: [{ key: "a" }] },
+        stale: { count: 0, items: [] },
+      },
+    },
+  }));
+  const input = new PassThrough();
+  const { context, out } = ctx(api.url);
+  context.input = input;
+  input.end(
+    [
+      '{"op":"queue","state":"untranslated","language":"en","type":"skin","id":"q"}',
+      '{"op":"queue","queue":"untranslated","state":"stale","id":"both"}',
+      '{"op":"queue","id":"none"}',
+    ].join("\n") + "\n",
+  );
+  expect(await run(["agent", "--stdin"], context)).toBe(1);
+  const lines = out.map((l) => JSON.parse(l) as Record<string, unknown>);
+  expect(lines[0]).toMatchObject({
+    id: "q",
+    ok: true,
+    result: { queue: "untranslated", count: 1 },
+  });
+  expect(api.seen[0]?.path).toBe("/api/queues?language=en&type=skin");
+  expect(lines[1]).toMatchObject({
+    id: "both",
+    ok: true,
+    result: { queue: "untranslated" },
+  });
+  expect(lines[2]).toMatchObject({
+    id: "none",
+    ok: false,
+    error: "bad-line",
+    message: "queue is missing (its name goes in `queue`, or `state`)",
+  });
+  // A name that is no queue is said in the field it was written in.
+  const again = new PassThrough();
+  const second = ctx(api.url);
+  second.context.input = again;
+  again.end('{"op":"queue","state":"bogus"}\n');
+  await run(["agent", "--stdin"], second.context);
+  expect(JSON.parse(second.out[0]!)).toMatchObject({
+    ok: false,
+    message: expect.stringMatching(/^state must be one of /),
+  });
+});
+
+test("corpus agent --help names every --stdin op's fields with an example line, each one the parser takes (#1077)", async () => {
+  const { STDIN_OPS } = await import("./agent");
+  const { tools, apiOver, argumentProblem } = await import("./agent-tools");
+  const table = tools(apiOver("http://localhost:0", "t"));
+  expect(STDIN_OPS.map((o) => o.op).sort()).toEqual(
+    table.map((t) => t.op).sort(),
+  );
+  for (const { op, example } of STDIN_OPS) {
+    const { op: written, ...args } = JSON.parse(example) as Record<
+      string,
+      unknown
+    >;
+    delete args.id;
+    expect(written, example).toBe(op);
+    const tool = table.find((t) => t.op === op)!;
+    expect(argumentProblem(tool, args), example).toBeUndefined();
+  }
+  const { context, out } = ctx("http://localhost:0");
+  expect(await run(["agent", "--help"], context)).toBe(0);
+  const said = out.join("\n");
+  for (const { op, example } of STDIN_OPS) {
+    expect(said, op).toContain(example);
+    // The op's own row, not its example, names each field.
+    const row =
+      said.split("\n").find((line) => line.startsWith(`  ${op} `)) ?? "";
+    const fields = Object.keys(
+      table.find((t) => t.op === op)!.inputSchema.properties,
+    );
+    for (const field of fields)
+      expect(row, `${op} ${field}`).toMatch(new RegExp(`\\b${field}\\b`));
+  }
+  expect(said).toContain("queue (or state)");
+});
