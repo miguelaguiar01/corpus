@@ -157,7 +157,12 @@ export const strings = sqliteTable(
       .notNull()
       .$defaultFn(() => new Date()),
   },
-  (t) => [uniqueIndex("strings_project_string_id").on(t.projectId, t.stringId)],
+  (t) => [
+    uniqueIndex("strings_project_string_id").on(t.projectId, t.stringId),
+    // A project's strings in id order (the rowid ends the index): what a
+    // queue step walks from its row, never another project's (#639).
+    index("strings_project").on(t.projectId),
+  ],
 );
 
 export const entities = sqliteTable(

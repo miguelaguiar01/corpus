@@ -276,15 +276,17 @@ const fields = {
   source: strings.source,
   text: stringTranslations.text,
 };
-const row = sql`(${stringTranslations.stringId}, ${stringTranslations.language})`;
+const row = sql`(${strings.id}, ${stringTranslations.language})`;
 const at = (current: Current) =>
   sql`(${current.stringId}, ${current.language})`;
 
 // The queue's row before or after `current`, or the row itself. The
-// translations drive the CROSS JOIN, in their (string_id, language)
-// index's order, which is the queue's (strings.id is string_id): SQLite
-// then walks that index from the row and stops at the first match, with
-// or without statistics, where a join it orders freely sorts the whole
+// project's strings drive the CROSS JOIN, through strings_project, whose
+// order is the strings' ids within the project, from the current id on,
+// and each string's rows come in language order from its unique index:
+// SQLite then reads the queue from the row and stops at the first match,
+// with or without statistics, and never reads another project's rows,
+// whose ids share the counter. A join it orders freely sorts the whole
 // queue first.
 function walk(
   db: Db,
@@ -297,29 +299,32 @@ function walk(
   const order = direction === "previous" ? desc : asc;
   const position =
     direction === "previous"
-      ? sql`${row} < ${at(current)}`
+      ? and(
+          sql`${strings.id} <= ${current.stringId}`,
+          sql`${row} < ${at(current)}`,
+        )
       : direction === "next"
-        ? sql`${row} > ${at(current)}`
+        ? and(
+            sql`${strings.id} >= ${current.stringId}`,
+            sql`${row} > ${at(current)}`,
+          )
         : and(
-            eq(stringTranslations.stringId, current.stringId),
+            eq(strings.id, current.stringId),
             eq(stringTranslations.language, current.language),
           );
   return (
     db
       .select(fields)
-      .from(stringTranslations)
-      .crossJoin(strings)
+      .from(strings)
+      .crossJoin(stringTranslations)
       .where(
         and(
-          eq(strings.id, stringTranslations.stringId),
+          eq(stringTranslations.stringId, strings.id),
           where(projectId, kind, scope, {}),
           position,
         ),
       )
-      .orderBy(
-        order(stringTranslations.stringId),
-        order(stringTranslations.language),
-      )
+      .orderBy(order(strings.id), order(stringTranslations.language))
       .limit(1)
       .get() ?? null
   );
