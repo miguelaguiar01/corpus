@@ -2599,3 +2599,22 @@ test("a gettext source read under counterpart or easy_localization carries every
   expect(await forms("printf")).toBeUndefined();
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("the same-cause stop counts 100,000 refusals in linear time (#968)", async () => {
+  const { ruinedReasons } = await import("./build");
+  const refused = Array.from({ length: 100_000 }, (_, i) => ({
+    file: "i18n/en.json",
+    id: `k${i}`,
+    message: "an i18next placeholder read as ICU",
+    hint: "; declare library: i18next",
+    cause: "library" as const,
+  }));
+  const start = performance.now();
+  const reasons = ruinedReasons([], refused);
+  // Quadratic, the grouping took about a minute.
+  expect(performance.now() - start).toBeLessThan(1000);
+  expect(reasons).toEqual([
+    "i18n/en.json: every string in the file was refused (100000)",
+    "100000 strings were refused for the library they were read under, at or past the 5 that stops a build: one cause — declare library: i18next",
+  ]);
+});
