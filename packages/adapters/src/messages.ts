@@ -246,6 +246,13 @@ export function formOf(
   return branches[category] ?? branches.other;
 }
 
+// A text that writes no plural on any argument, which a file holding a
+// plural as forms writes into every form (#1092): validation takes it
+// for a plural (§5).
+export function plainForPlural(text: string): boolean {
+  return !/\{\s*[^{},\s]+\s*,\s*(?:plural|selectordinal)\s*,/.test(text);
+}
+
 // A plural's text, `{arg, plural, …}`: its forms in CLDR's order, or in
 // the order written where that order is the text's own, a JSON object's
 // becoming the string's source.

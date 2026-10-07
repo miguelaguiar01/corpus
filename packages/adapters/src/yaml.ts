@@ -3,7 +3,11 @@
 // their dotted path. Read with the `yaml` package's document model,
 // which keeps every node where it is written, so a value that arrives
 // only through an alias or a `<<:` merge is the anchor's and read once.
-import { PLURAL_CATEGORIES, type StringEntry } from "@corpus/contract";
+import {
+  PLURAL_CATEGORIES,
+  pluralCategoriesOf,
+  type StringEntry,
+} from "@corpus/contract";
 import {
   isAlias,
   isMap,
@@ -14,7 +18,7 @@ import {
   type Pair,
   type YAMLMap,
 } from "yaml";
-import { pluralBranches, pluralText } from "./messages";
+import { plainForPlural, pluralBranches, pluralText } from "./messages";
 import { applied, eolOf, lineIndent, ownRecord, type Patch } from "./text";
 import type { SourceOp } from "./write";
 
@@ -441,7 +445,7 @@ export function entriesToYaml(
   template: string,
   translations: Record<string, string>,
   existing: string | undefined,
-  language: { source: string; code: string },
+  language: { source: string; code: string; categories?: readonly string[] },
   onRefused?: (id: string, text: string, why: YamlRefusal) => void,
 ): string {
   translations = ownRecord(translations);
@@ -460,6 +464,7 @@ export function entriesToYaml(
     writtenKeys(template, language.source),
     translations,
     onRefused,
+    language.categories,
   );
 }
 
@@ -474,6 +479,7 @@ function writeYaml(
   keysAsWritten: Map<string, string>,
   translations: Record<string, string>,
   onRefused?: (id: string, text: string, why: YamlRefusal) => void,
+  categories: readonly string[] = pluralCategoriesOf(code),
 ): string {
   const file = indexYaml(base, code, plural);
   const current = new Map(
@@ -482,6 +488,7 @@ function writeYaml(
   const write: Write = {
     file,
     plural,
+    categories: categories.length > 0 ? categories : ["other"],
     translations,
     patches: [],
     ...(onRefused && { onRefused }),
@@ -537,6 +544,9 @@ type YamlFile = {
 type Write = {
   file: YamlFile;
   plural: Set<string>;
+  // The categories the target's Rails rule gives, which a plain text
+  // for a plural is written under (#1092).
+  categories: readonly string[];
   translations: Record<string, string>;
   patches: Patch[];
   onRefused?: (id: string, text: string, why: YamlRefusal) => void;
@@ -716,6 +726,15 @@ function formLines(
     .join("");
 }
 
+function formsOf(
+  write: Write,
+  text: string,
+): Record<string, string> | undefined {
+  return plainForPlural(text)
+    ? Object.fromEntries(write.categories.map((c) => [c, text]))
+    : pluralBranches(text);
+}
+
 // Each changed id the file holds, patched in place; the ids it lacks,
 // returned in order.
 function patchHeld(
@@ -731,7 +750,7 @@ function patchHeld(
     if (text === undefined || text === "") continue;
     const now = current.get(id);
     if (now && now.text === text) continue;
-    const forms = plural.has(id) ? pluralBranches(text) : undefined;
+    const forms = plural.has(id) ? formsOf(write, text) : undefined;
     if (plural.has(id) && !forms) {
       onRefused?.(id, text, "plural");
       continue;
@@ -937,7 +956,7 @@ function placeMissing(
       const key = keysAsWritten.get(id) ?? keyText(child);
       if (ids.includes(id)) {
         const text = translations[id]!;
-        const forms = plural.has(id) ? pluralBranches(text) : undefined;
+        const forms = plural.has(id) ? formsOf(write, text) : undefined;
         return forms
           ? `${indent}${key}:${eol}${formLines(forms, `${indent}${step}`, eol, file.formOrder, file.quoted)}`
           : `${indent}${key}: ${newScalar(text, indent, file.quoted)}${eol}`;

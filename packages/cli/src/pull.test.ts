@@ -3229,8 +3229,11 @@ export default defineCorpus({
     types: { Open: "ui", "%d file": "ui" },
     minState: "translated",
     translations: {
-      // A plain text for a plural: gettext cannot hold it.
-      de: { Open: "Öffnen", "%d file": "%d Dateien" },
+      // Text beside the plural: gettext cannot hold it.
+      de: {
+        Open: "Öffnen",
+        "%d file": "Frei: {count, plural, one {%d Datei} other {%d Dateien}}",
+      },
       fr: { Open: "Ouvrir" },
     },
   };
@@ -3439,4 +3442,45 @@ export default defineCorpus({
   });
   expect(await run(["pull"], ctx())).toBe(0);
   expect(read("b/de.json")).toBe(`{}\n`);
+});
+
+test("pull writes a plain text for a Rails plural under the categories rails-i18n gives where the repository uses it, CLDR's otherwise (#1092)", async () => {
+  mkdirSync(path.join(repo, "config", "locales"), { recursive: true });
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "cs"],
+  sources: [{ adapter: "yaml", type: "ui", path: "config/locales/{lang}.yml" }],
+});
+`,
+  );
+  writeFileSync(
+    path.join(repo, "config", "locales", "en.yml"),
+    'en:\n  cards:\n    one: "%{count} card"\n    other: "%{count} cards"\n',
+  );
+  const keys = async () => {
+    writeFileSync(path.join(repo, "config", "locales", "cs.yml"), "cs:\n");
+    active?.close();
+    await serve(200, {
+      ...PAYLOAD,
+      types: { cards: "ui" },
+      translations: { en: {}, cs: { cards: "%{count} karet" } },
+    });
+    expect(await run(["pull", "--min-state", "translated"], ctx())).toBe(0);
+    return [...read("config/locales/cs.yml").matchAll(/^ {4}(\w+):/gm)].map(
+      (m) => m[1],
+    );
+  };
+  // CLDR's for cs.
+  expect(await keys()).toEqual(["one", "few", "many", "other"]);
+  // rails-i18n's for cs, where Gemfile.lock lists the gem.
+  writeFileSync(
+    path.join(repo, "Gemfile.lock"),
+    "GEM\n  remote: https://rubygems.org/\n  specs:\n    i18n (1.15.2)\n    rails-i18n (8.1.0)\n      i18n (>= 0.7, < 2)\n\nDEPENDENCIES\n  rails-i18n (~> 8.0)\n",
+  );
+  expect(await keys()).toEqual(["one", "few", "other"]);
 });

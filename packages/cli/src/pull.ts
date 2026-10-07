@@ -31,6 +31,7 @@ import { option, options } from "./args";
 import {
   libraryOf,
   MIN_STATES,
+  pluralCategoriesOf,
   pullPayloadSchema,
   type CorpusConfig,
   type MinState,
@@ -47,6 +48,7 @@ import {
   isArb,
   lastWins,
   namespaced,
+  pluralFormsOf,
   readEntries,
   sourcePluralIds,
   readsPluralObjects,
@@ -205,6 +207,7 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
   // Translations a writer refused, which fail the pull (#1051).
   let notWritten = 0;
   const pending = new Map<string, string>();
+  const railsForms = new Map<FileSource, Record<string, string[]>>();
   const claimedTypes = new Set<string>();
   // Ids the server holds that no source-language file of their type does
   // any more: orphans, listed by validate, never appended to a target
@@ -316,6 +319,15 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
         ctx.err,
         () => siblingIndent(ctx.cwd, source, config, language),
         () => notWritten++,
+        () => {
+          // A Rails catalogue's own rule, where rails-i18n gives one.
+          let forms = railsForms.get(source);
+          if (!forms) {
+            forms = pluralFormsOf(ctx.cwd, source, config)?.forms ?? {};
+            railsForms.set(source, forms);
+          }
+          return forms[language] ?? pluralCategoriesOf(language);
+        },
       );
       if (next !== undefined) pending.set(file, next);
       if (next !== undefined && next !== existing) {
@@ -603,6 +615,7 @@ function writeTarget(
   siblings: () => string | undefined = () => undefined,
   // Each translation the writer refuses, counted for pull's exit (#1051).
   onRefused: () => void = () => {},
+  categories: () => readonly string[] = () => pluralCategoriesOf(language),
 ): string | undefined {
   const refused = (id: string, why: string) => {
     onRefused();
@@ -652,7 +665,7 @@ function writeTarget(
         (id) =>
           refused(
             id,
-            "is a plural and its translation is not one gettext can hold (a plain text, an =N branch the file has no form for, or two texts for one form)",
+            "is a plural and its translation is not one gettext can hold (an =N branch the file has no form for, two texts for one form, or text beside the plural)",
           ),
         (note) => err(`corpus: ${file}: ${note}`),
       );
@@ -667,7 +680,7 @@ function writeTarget(
         (id) =>
           refused(
             id,
-            "is a numerus message and its translation is not one plural Qt can hold (a plain text, or an =N branch)",
+            "is a numerus message and its translation is not one plural Qt can hold (an =N branch, or text beside the plural)",
           ),
       );
     case "yaml":
@@ -678,6 +691,7 @@ function writeTarget(
         {
           source: fileCodeOf(source, config.sourceLanguage),
           code: yamlRootOf(existing, fileCodeOf(source, language), language),
+          categories: categories(),
         },
         (id, _text, why) =>
           why === "plural"

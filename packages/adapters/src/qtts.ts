@@ -4,7 +4,7 @@
 // `unfinished`, `vanished` or `obsolete`.
 import type { StringEntry } from "@corpus/contract";
 import { pluralTable, poPluralText } from "./gettext";
-import { formOf, pluralBranches } from "./messages";
+import { formOf, plainForPlural, pluralBranches } from "./messages";
 import { qtPluralForms } from "./qtnumerus";
 import {
   applied,
@@ -541,7 +541,8 @@ function translationElement(
     if (m.state === undefined && m.translation === text) return undefined;
     return `<translation>${escape(text)}</translation>`;
   }
-  const branches = pluralBranches(text);
+  const plain = plainForPlural(text);
+  const branches = plain ? { other: text } : pluralBranches(text);
   if (!branches) {
     onRefused?.(m.id, text);
     return undefined;
@@ -559,11 +560,13 @@ function translationElement(
   // and a draft on it writes every form of the rule (#1004).
   const short = isShort && readable;
   const read = categories.map((c, i) =>
-    c === undefined
-      ? short
-        ? (pick(majority[i]) ?? m.forms[i] ?? "")
-        : (m.forms[i] ?? "")
-      : (pick(c) ?? ""),
+    plain
+      ? text
+      : c === undefined
+        ? short
+          ? (pick(majority[i]) ?? m.forms[i] ?? "")
+          : (m.forms[i] ?? "")
+        : (pick(c) ?? ""),
   );
   // Forms beyond the rule's, an older rule's or lupdate's own mapping,
   // stay while the rule's are unchanged (#798); so does a file short

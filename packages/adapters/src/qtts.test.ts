@@ -355,14 +355,14 @@ test("numerus forms read as one plural on count through Qt's rules, and write ba
       { tag: "ru", code: "ru" },
     ),
   ).toBe(numerus("ru", ["%n файл", "%n файла", "%n файлов"]));
-  // A plain text for a numerus message is refused.
+  // A plain text for a numerus message is written into every form (#1092).
   const refused: string[] = [];
   expect(
     entriesToQtTs(template, { "Main | %n file(s)": "plik" }, pl, PL, (id) =>
       refused.push(id),
     ),
-  ).toBe(pl);
-  expect(refused).toEqual(["Main | %n file(s)"]);
+  ).toBe(numerus("pl", ["plik", "plik", "plik"]));
+  expect(refused).toEqual([]);
   // A template's self-closing plural translation starts empty.
   const closed = template.replace(
     /<translation type="unfinished">[\s\S]*?<\/translation>/,
@@ -880,4 +880,59 @@ test("a draft on a short file that stays unread writes Qt's every form (#1004 re
     { tag: "ru", code: "ru" },
   );
   expect(out.match(/<numerusform>/g)).toHaveLength(3);
+});
+
+test("a plain text for a numerus message is written into every form of Qt's rule (#1092)", () => {
+  const ts = (language: string, forms: string) =>
+    `<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE TS>\n<TS version="2.1" language="${language}">\n<context>\n    <name>C</name>\n    <message numerus="yes">\n        <source>%n file(s)</source>\n        <translation${forms ? "" : ' type="unfinished"'}>${forms}</translation>\n    </message>\n</context>\n</TS>\n`;
+  const en = ts("en", "");
+  const refused: string[] = [];
+  const ja = entriesToQtTs(
+    en,
+    { "C | %n file(s)": "%n 個のファイル" },
+    ts("ja", ""),
+    { tag: "ja", code: "ja" },
+    (id) => refused.push(id),
+  );
+  expect(ja.match(/<numerusform>%n 個のファイル<\/numerusform>/g)).toHaveLength(
+    1,
+  );
+  const km = entriesToQtTs(
+    en,
+    { "C | %n file(s)": "%n ឯកសារ" },
+    ts("km", ""),
+    { tag: "km", code: "km" },
+    (id) => refused.push(id),
+  );
+  expect(km.match(/<numerusform>%n ឯកសារ<\/numerusform>/g)).toHaveLength(2);
+  expect(refused).toEqual([]);
+});
+
+test("a numerus message's plain text fills every form, one no category reads too, and an ICU plural on another argument is refused (#1092)", () => {
+  const ts = (language: string, forms: string[]) =>
+    `<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE TS>\n<TS version="2.1" language="${language}">\n<context>\n    <name>C</name>\n    <message numerus="yes">\n        <source>%n file(s)</source>\n        <translation>${forms.map((f) => `\n            <numerusform>${f}</numerusform>`).join("")}\n        </translation>\n    </message>\n</context>\n</TS>\n`;
+  const en = ts("en", ["", ""]);
+  const lv = entriesToQtTs(
+    en,
+    { "C | %n file(s)": "%n faili" },
+    ts("lv", ["%n fails", "%n faili", "0 failu (old)"]),
+    { tag: "lv", code: "lv" },
+  );
+  expect(lv.match(/<numerusform>[^<]*<\/numerusform>/g)).toEqual([
+    "<numerusform>%n faili</numerusform>",
+    "<numerusform>%n faili</numerusform>",
+    "<numerusform>%n faili</numerusform>",
+  ]);
+  const refused: string[] = [];
+  const ja = ts("ja", [""]);
+  expect(
+    entriesToQtTs(
+      en,
+      { "C | %n file(s)": "{n, plural, other {%n 個のファイル}}" },
+      ja,
+      { tag: "ja", code: "ja" },
+      (id) => refused.push(id),
+    ),
+  ).toBe(ja);
+  expect(refused).toEqual(["C | %n file(s)"]);
 });

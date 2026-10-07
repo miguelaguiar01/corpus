@@ -8,7 +8,7 @@ import {
   type StringEntry,
 } from "@corpus/contract";
 import { GETTEXT_PLURALS } from "./gettextplurals";
-import { formOf, pluralBranches } from "./messages";
+import { formOf, plainForPlural, pluralBranches } from "./messages";
 import {
   applied,
   eolOf,
@@ -874,6 +874,7 @@ function wantedForms(
   rules: Intl.PluralRules,
 ): (string | undefined)[] | undefined {
   if (entry.msgidPlural === undefined) return [text];
+  if (plainForPlural(text)) return categories.map(() => text);
   // `=N` is a branch only where the file is keyed so, and there only one
   // it has a form for: none is dropped unsaid (#982).
   const branches = pluralBranches(text, true, own);
@@ -1057,6 +1058,7 @@ export function entriesToGettext(
         : []),
     ];
     if (readings.includes(text)) return true;
+    if (plainForPlural(text)) return forms.every((form) => form === text);
     const wanted = pluralBranches(text, true, true);
     return readings.some((reading) => {
       const read = pluralBranches(reading, true, true);
