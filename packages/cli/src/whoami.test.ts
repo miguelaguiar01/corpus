@@ -1,4 +1,10 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { createServer, type Server } from "node:http";
 import os from "node:os";
 import path from "node:path";
@@ -140,5 +146,112 @@ test("whoami without a local workbench says the server, the project and the toke
   expect(await run(["whoami", "--server", other], elsewhere.context)).toBe(0);
   expect(elsewhere.out.join("\n")).toContain(
     `server     ${other} (Corpus v9.9.9)`,
+  );
+});
+
+test("whoami names the workbench's own url, and keeps its secret apart from another server it is asked about (#1078 review)", async () => {
+  const asked = await instance();
+  const local = await instance();
+  const { repo } = alibi(asked);
+  // The workbench recorded here runs on another port than the config's.
+  const record = path.join(repo, ".corpus", "workbench.json");
+  const written = JSON.parse(readFileSync(record, "utf8")) as Record<
+    string,
+    unknown
+  >;
+  writeFileSync(record, JSON.stringify({ ...written, url: local }));
+  const c = ctx(repo);
+  expect(await run(["whoami", "--show-secret"], c.context)).toBe(0);
+  const said = c.out.join("\n");
+  expect(said).toContain(`workbench  running at ${local} (pid ${process.pid})`);
+  expect(said).toContain(`not ${asked}, the server asked`);
+  expect(said).not.toContain("live-secret");
+  expect(said).toContain(
+    `secret     not shown: the workbench recorded here is at ${local}`,
+  );
+  // Asked about it, its secret is shown.
+  const there = ctx(repo);
+  expect(
+    await run(["whoami", "--server", local, "--show-secret"], there.context),
+  ).toBe(0);
+  expect(there.out.join("\n")).toContain("secret     live-secret");
+});
+
+test("whoami trusts a record only as a workbench's: a malformed one, or one that names another file or a pid nobody answers for, shows no secret (#1078 review)", async () => {
+  const url = await instance();
+  const { repo } = alibi(url);
+  const record = path.join(repo, ".corpus", "workbench.json");
+  for (const bad of [
+    { url, pid: process.pid, version: "1", startedAt: "x", db: "d" },
+    {
+      url,
+      pid: 1,
+      secretPath: "/etc/hostname",
+      version: "1",
+      startedAt: "x",
+      db: "d",
+    },
+    {
+      url,
+      pid: 0,
+      secretPath: path.join(repo, ".corpus", "secret"),
+      version: "1",
+      startedAt: "x",
+      db: "d",
+    },
+  ]) {
+    writeFileSync(record, JSON.stringify(bad));
+    const c = ctx(repo);
+    await run(["whoami", "--show-secret"], c.context);
+    const said = c.out.join("\n");
+    expect(said, JSON.stringify(bad)).not.toMatch(/running/);
+    expect(said, JSON.stringify(bad)).not.toContain("stale-secret");
+    expect(said, JSON.stringify(bad)).toContain(
+      ".corpus/workbench.json is no workbench's record",
+    );
+  }
+  // A pid alive that no workbench answers for at the url is stale too.
+  const dead = "http://127.0.0.1:9";
+  writeFileSync(
+    record,
+    JSON.stringify({
+      url: dead,
+      pid: process.pid,
+      secretPath: path.join(repo, ".corpus", "secret"),
+      version: "1",
+      startedAt: "x",
+      db: "d",
+    }),
+  );
+  const c = ctx(repo);
+  await run(["whoami"], c.context);
+  expect(c.out.join("\n")).toContain(
+    `workbench  .corpus/workbench.json is stale: nothing answers at ${dead}`,
+  );
+});
+
+test("whoami says a token taken for another project, and a server that answers but not as Corpus, and exits 1 for both (#1078 review)", async () => {
+  const url = await instance();
+  const { repo } = alibi(url);
+  writeFileSync(
+    path.join(repo, "corpus.config.mjs"),
+    `export default { project: "other", server: "${url}", sourceLanguage: "pt-PT", languages: ["pt-PT"], sources: [{ adapter: "messages", type: "ui", path: "i18n/{lang}.json" }] };\n`,
+  );
+  const c = ctx(repo);
+  expect(await run(["whoami"], c.context)).toBe(1);
+  expect(c.out.join("\n")).toContain(
+    "token      .corpus/token, accepted, but for the project alibi, not other",
+  );
+  const odd: Server = createServer((_req, res) => {
+    res.end("<html>hello</html>");
+  });
+  await new Promise<void>((resolve) => odd.listen(0, "127.0.0.1", resolve));
+  cleanup.push(() => odd.close());
+  const address = odd.address();
+  const other = `http://127.0.0.1:${typeof address === "object" && address ? address.port : 0}`;
+  const o = ctx(repo);
+  expect(await run(["whoami", "--server", other], o.context)).toBe(1);
+  expect(o.out.join("\n")).toContain(
+    `server     ${other} (answers, but not as Corpus)`,
   );
 });

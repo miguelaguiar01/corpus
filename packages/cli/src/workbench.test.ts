@@ -1,4 +1,5 @@
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -157,3 +158,87 @@ test("a running workbench says where it runs beside its database, and forgets it
   expect(await running).toBe(0);
   expect(existsSync(file)).toBe(false);
 }, 30_000);
+
+// The fake workbench: a server that answers health until stopped.
+function fakeServer(dir: string) {
+  writeFileSync(
+    path.join(
+      dir,
+      "node_modules/@corpus-tool/workbench/bin/corpus-workbench.cjs",
+    ),
+    `require("node:http").createServer((q, r) => { r.writeHead(200, { "content-type": "application/json" }); r.end('{"status":"ok"}'); }).listen(Number(process.env.PORT), "127.0.0.1");\n`,
+  );
+}
+
+async function until(test: () => boolean, ms = 15_000) {
+  const deadline = Date.now() + ms;
+  while (!test() && Date.now() < deadline)
+    await new Promise((r) => setTimeout(r, 50));
+}
+
+test("a record that cannot be written is a note, and the workbench runs on and stops with the command (#1078 review)", async () => {
+  const runner = repo();
+  fakeServer(runner);
+  const ro = mkdtempSync(path.join(os.tmpdir(), "corpus-ro-"));
+  dirs.push(ro);
+  mkdirSync(path.join(ro, CORPUS_DIR));
+  const db = path.join(ro, CORPUS_DIR, "corpus.db");
+  chmodSync(path.join(ro, CORPUS_DIR), 0o555);
+  const port = 49_100 + Math.floor(Math.random() * 500);
+  const { run } = await import("./cli");
+  const out: string[] = [];
+  const running = run(
+    ["workbench", "--port", String(port), "--db", db, "--no-provision"],
+    {
+      cwd: runner,
+      env: { ...process.env },
+      out: (l) => out.push(l),
+      err: (l) => out.push(l),
+    },
+  );
+  await until(() => out.some((l) => l.includes("stop      Ctrl-C")));
+  chmodSync(path.join(ro, CORPUS_DIR), 0o755);
+  expect(out.join("\n")).toMatch(
+    /corpus: could not record this workbench beside its database .*workbench\.json/,
+  );
+  // The command still owns its child: a SIGTERM to it stops the server.
+  process.emit("SIGTERM");
+  expect(await running).toBe(0);
+}, 30_000);
+
+test("a workbench that stops leaves the record of another that took its database (#1078 review)", async () => {
+  const runner = repo();
+  fakeServer(runner);
+  const shared = mkdtempSync(path.join(os.tmpdir(), "corpus-shared-"));
+  dirs.push(shared);
+  const db = path.join(shared, CORPUS_DIR, "corpus.db");
+  const file = path.join(shared, CORPUS_DIR, "workbench.json");
+  const { run } = await import("./cli");
+  const start = (port: number) =>
+    run(["workbench", "--port", String(port), "--db", db, "--no-provision"], {
+      cwd: runner,
+      env: { ...process.env },
+      out: () => {},
+      err: () => {},
+    });
+  const base = 49_700 + Math.floor(Math.random() * 200);
+  const a = start(base);
+  await until(() => existsSync(file));
+  const first = JSON.parse(readFileSync(file, "utf8")) as { pid: number };
+  const b = start(base + 1);
+  await until(
+    () =>
+      existsSync(file) &&
+      (JSON.parse(readFileSync(file, "utf8")) as { pid: number }).pid !==
+        first.pid,
+  );
+  const second = JSON.parse(readFileSync(file, "utf8")) as { pid: number };
+  process.kill(first.pid, "SIGTERM");
+  expect(await a).toBe(0);
+  expect((JSON.parse(readFileSync(file, "utf8")) as { pid: number }).pid).toBe(
+    second.pid,
+  );
+  process.kill(second.pid, "SIGTERM");
+  expect(await b).toBe(0);
+  expect(existsSync(file)).toBe(false);
+}, 40_000);
