@@ -4468,4 +4468,24 @@ test("under android a translation is checked as Java's Formatter reads it (#1145
       "android",
     ),
   ).toEqual({ ok: true });
+  // An attribute's %n takes no position in the tag's identity either.
+  expect(
+    validateTranslation(
+      '<a href="x%ny%s">%s</a>',
+      '<a href="x%ny%1$s">%2$s</a>',
+      "fr",
+      "android",
+    ),
+  ).toEqual({ ok: true });
+  expect(
+    validateTranslation(
+      '<a href="%1$s">%s</a>',
+      '<a href="%[1]s">%s</a>',
+      "fr",
+      "android",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "invalid-icu", where: "target" }],
+  });
 });

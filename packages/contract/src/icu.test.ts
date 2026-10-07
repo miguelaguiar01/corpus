@@ -1575,6 +1575,18 @@ test("under android, verbs are numbered as Java's Formatter numbers them; printf
   expect(names("Line%nnext %s")).toEqual(["1"]);
   // An attribute that does not parse still counts its verbs in place.
   expect(names('<a title="{" href="%s">%s</a>')).toEqual(["1", "2"]);
+  // A %n with an index takes no argument either.
+  expect(names("A%1$nB %s")).toEqual(["1"]);
+  // Go's index form, on which Java throws, is refused, in an attribute too.
+  for (const text of [
+    '<a href="%[1]s">%s</a>',
+    '<a title="{" href="%[1]s">%s</a>',
+  ]) {
+    const read = parseIcu(text, "android", { html: "markup" });
+    expect(read.ok ? "" : read.errors[0]?.message, text).toMatch(
+      /Go's index form/,
+    );
+  }
   // Go's index form, on which Java throws, is refused.
   const go = parseIcu("%[1]s", "android");
   expect(go.ok ? "" : go.errors[0]?.message).toMatch(
