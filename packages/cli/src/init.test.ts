@@ -3509,3 +3509,50 @@ test("init maps the source language to Pontoon's templates directory, where l10n
     "languageFiles",
   );
 });
+
+test("init names the source language's mapping only for a code that names no language, beside no source file it found (#1097)", async () => {
+  // A POSIX modifier is a language's file, not the source's.
+  const euro = project();
+  write(euro.dir, "locales/de.json", '{"a":"A"}');
+  write(euro.dir, "locales/fr.json", '{"a":"A"}');
+  write(euro.dir, "locales/de@euro.json", '{"a":"A"}');
+  await run(initFor("locales/{lang}.json"), euro.ctx);
+  expect(euro.err.join("\n")).toContain(
+    "locales/de@euro.json names no language tag; left out: name its language",
+  );
+  expect(euro.err.join("\n")).not.toContain("map it:");
+
+  // gettext's template is the source init found.
+  const pot = project();
+  write(pot.dir, "po/app.pot", 'msgid ""\nmsgstr ""\n\nmsgid "A"\nmsgstr ""\n');
+  for (const code of ["de", "fr", "en@quot"])
+    write(
+      pot.dir,
+      `po/${code}.po`,
+      'msgid ""\nmsgstr ""\n"Content-Type: text/plain; charset=UTF-8\\n"\n\nmsgid "A"\nmsgstr "A"\n',
+    );
+  expect(await run(initFor("po/{lang}.po"), pot.ctx)).toBe(0);
+  expect(pot.err.join("\n")).not.toContain("map it:");
+
+  // A reference that is a language's own directory maps nothing.
+  const relay = project();
+  write(relay.dir, "en/banner.ftl", "x = X\n");
+  write(relay.dir, "de/banner.ftl", "x = X\n");
+  write(
+    relay.dir,
+    "l10n.toml",
+    'basepath = "."\n[[paths]]\n    reference = "en/banner.ftl"\n    l10n = "{locale}/banner.ftl"\n',
+  );
+  expect(await run(initFor("{lang}/{ns}.ftl", "en-US"), relay.ctx)).toBe(1);
+  expect(relay.err.join("\n")).not.toContain("holds en-US's files");
+
+  // A {ns} pattern without l10n.toml names the mapping as well.
+  const ns = project();
+  write(ns.dir, "core/templates/a.ftl", "x = X\n");
+  write(ns.dir, "core/de/a.ftl", "x = X\n");
+  write(ns.dir, "core/fr/a.ftl", "x = X\n");
+  await run(initFor("core/{lang}/{ns}.ftl"), ns.ctx);
+  expect(ns.err.join("\n")).toContain(
+    'core/templates names no language tag; left out: if it is en\'s file, map it: languageFiles: { "en": "templates" }',
+  );
+});
