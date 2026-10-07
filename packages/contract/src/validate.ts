@@ -1735,12 +1735,6 @@ function pluralErrors(
       )
         continue;
       if (categories.required.length === 0) continue;
-      // `=01` is not `=1` to the runtimes, which match the key as written.
-      const exact = new Set(
-        [...keys]
-          .filter((k) => EXACT_KEY.test(k))
-          .map((k) => Number(k.slice(1))),
-      );
       const own = (ordinal ? sourceKeys?.ordinal : sourceKeys?.cardinal)?.get(
         arg,
       );
@@ -1761,11 +1755,35 @@ function pluralErrors(
             });
           named.add(category);
         }
+      // Each copy of the plural by itself, a category one lacks said
+      // once however many lack it (#1085).
+      const copies = actual.pluralCopies.filter(
+        (c) => c.arg === arg && c.ordinal === ordinal,
+      );
       for (const key of categories.required) {
         if (own && key !== "other" && !own.has(key)) continue;
+        const lacks = (copy: Set<string>) => {
+          // `=01` is not `=1` to the runtimes, which match the key as
+          // written.
+          const exactHere = new Set(
+            [...copy]
+              .filter((k) => EXACT_KEY.test(k))
+              .map((k) => Number(k.slice(1))),
+          );
+          const namedHere = new Set(copy);
+          if (genL10n)
+            for (const [exactKey, category] of GEN_L10N_EXACT)
+              if (copy.has(exactKey)) namedHere.add(category);
+          return (
+            !namedHere.has(key) &&
+            !(
+              language &&
+              pluralCategoryCovered(language, key, exactHere, ordinal)
+            )
+          );
+        };
         if (
-          !named.has(key) &&
-          !(language && pluralCategoryCovered(language, key, exact, ordinal))
+          (copies.length > 0 ? copies.map((c) => c.keys) : [named]).some(lacks)
         )
           out.push({ code: "missing-category", arg, key });
       }

@@ -1959,6 +1959,9 @@ export type Shape = {
   // one argument holding both apart (#995).
   cardinalPlurals: Map<string, Set<string>>;
   ordinalPlurals: Map<string, Set<string>>;
+  // Each plural's own keys, one entry per copy, so a copy that lacks a
+  // category is said even where another has it (#1085).
+  pluralCopies: { arg: string; ordinal: boolean; keys: Set<string> }[];
   tags: Set<string>;
   // The tags that wrap text, a pair and not closed on itself, and those
   // written as a pair, whatever they hold (#986).
@@ -1995,6 +1998,7 @@ export function shapeOf(
     plurals: new Map(),
     cardinalPlurals: new Map(),
     ordinalPlurals: new Map(),
+    pluralCopies: [],
     tags: new Set(),
     pairs: new Set(),
     opened: new Set(),
@@ -2067,6 +2071,11 @@ export function shapeOf(
         const own = byKind.get(node.arg) ?? new Set<string>();
         for (const key of Object.keys(node.branches)) own.add(key);
         byKind.set(node.arg, own);
+        shape.pluralCopies.push({
+          arg: node.arg,
+          ordinal: node.ordinal === true,
+          keys: new Set(Object.keys(node.branches)),
+        });
       }
       const keys = map.get(node.arg) ?? new Set<string>();
       for (const key of Object.keys(node.branches)) keys.add(key);
