@@ -1690,6 +1690,29 @@ const GEN_L10N_EXACT = [
   ["=2", "two"],
 ] as const;
 
+// Whether a plural's exact branches stand for a category the runtime
+// picks, so that no branch of its own is needed (#686): every integer the
+// language picks it for has its `=N`, or, under gen-l10n, its `=0`, `=1`
+// or `=2` is the category itself (#1039). Validation and the editor's
+// plural chip both read it.
+export function exactCovers(
+  language: string,
+  library: Library,
+  category: string,
+  exact: ReadonlySet<number>,
+  ordinal = false,
+): boolean {
+  if (
+    library === "gen_l10n" &&
+    !ordinal &&
+    GEN_L10N_EXACT.some(
+      ([key, c]) => c === category && exact.has(Number(key.slice(1))),
+    )
+  )
+    return true;
+  return pluralCategoryCovered(language, category, exact, ordinal);
+}
+
 function pluralErrors(
   actual: Shape,
   expectedValues: Set<string>,
@@ -1769,12 +1792,8 @@ function pluralErrors(
         arg,
       );
       const read = copies.map((copy, i) => {
-        const named = new Set(copy.keys);
-        if (genL10n)
-          for (const [exactKey, category] of GEN_L10N_EXACT)
-            if (copy.keys.has(exactKey)) named.add(category);
         return {
-          named,
+          named: copy.keys,
           // `=01` is not `=1` to the runtimes, which match the key as
           // written.
           exact: new Set(
@@ -1797,7 +1816,8 @@ function pluralErrors(
               !(own && key !== "other" && !own.has(key)) &&
               !named.has(key) &&
               !(
-                language && pluralCategoryCovered(language, key, exact, ordinal)
+                language &&
+                exactCovers(language, library ?? "icu", key, exact, ordinal)
               ),
           )
         )

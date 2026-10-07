@@ -5,6 +5,8 @@ import {
   branchingNodes,
   exampleValues,
   readIcu,
+  EXACT_KEY,
+  exactCovers,
   pluralCategoriesFor,
   renderPreviewSegments,
   hasVoidTags,
@@ -129,6 +131,27 @@ function branchingOf(
           ),
       );
     byId.set(idOf(node), entry);
+  }
+  // A category the source's own `=N` branches already stand for is not
+  // asked for (#686), as validation does not ask for it; one the source
+  // writes itself stays. Under gen-l10n the filter above has already
+  // kept the category over its `=N`, so this drops nothing there.
+  for (const entry of byId.values()) {
+    if (entry.kind !== "plural") continue;
+    const own = sourced.get(idOf(entry));
+    const exact = new Set(
+      entry.keys
+        // `=01` is not `=1` to the runtimes, as validation reads it.
+        .filter((key) => EXACT_KEY.test(key))
+        .map((key) => Number(key.slice(1))),
+    );
+    entry.keys = entry.keys.filter(
+      (key) =>
+        key === "other" ||
+        key.startsWith("=") ||
+        own?.has(key) ||
+        !exactCovers(language, syntax, key, exact, entry.ordinal === true),
+    );
   }
   // A plural's categories are the ones the runtime picks: a category the
   // source lacks holds what the source's `other` does.
