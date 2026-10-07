@@ -13,6 +13,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- `corpus init` on Pontoon's layout (`templates/` beside each language's directory, as Anki has) maps the source language to `templates`, as `l10n.toml` says, rather than writing a config that cannot build (#1097).
 - Under easy_localization, a Chinese or Japanese plural written as one text prints its count through `{}`, as `plural()` fills it, and a `{count}` the call does not name is reported (#1094).
 - A plural translated as one plain text (Japanese, or one form for every count) is written into every form of a gettext, Rails or Qt file, rather than refused at pull (#1092).
 - A Fluent translation that adds a format its source lacks (`{n, date}` for `{ $n }`) is refused, rather than written as `DATETIME($n)` (#1089).

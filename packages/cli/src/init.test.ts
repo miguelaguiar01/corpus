@@ -3435,3 +3435,127 @@ test("init reads a catalogue of 200,000 keys: no spread overflows the stack (#12
     /not read|not detected|call stack/,
   );
 }, 120_000);
+
+test("init maps the source language to Pontoon's templates directory, where l10n.toml's reference says its files sit (#1097)", async () => {
+  const anki = (p: ReturnType<typeof project>) => {
+    write(p.dir, "core/templates/a.ftl", "x = X\n");
+    write(p.dir, "core/templates/b.ftl", "y = Y\n");
+    for (const lang of ["de", "fr"]) {
+      write(p.dir, `core/${lang}/a.ftl`, "x = X\n");
+      write(p.dir, `core/${lang}/b.ftl`, "y = Y\n");
+    }
+  };
+  const p = project();
+  anki(p);
+  write(
+    p.dir,
+    "l10n.toml",
+    'basepath = "core"\n\n[[paths]]\n  reference = "templates/*.ftl"\n  l10n = "{locale}/*.ftl"\n',
+  );
+  expect(await run(initFor("core/{lang}/{ns}.ftl"), p.ctx)).toBe(0);
+  const config = await loadConfig(p.dir);
+  expect(config.languages).toEqual(["en", "de", "fr"]);
+  expect(config.sources[0]).toMatchObject({
+    adapter: "fluent",
+    languageFiles: { en: "templates" },
+  });
+  const said = p.err.join("\n");
+  expect(said).toContain(
+    'core/templates holds en\'s files, as l10n.toml\'s reference says: languageFiles: { "en": "templates" }',
+  );
+  expect(said).not.toMatch(/no core\/en\/\{ns\}\.ftl/);
+  expect(await run(["build", "--out", "s.json"], p.ctx)).toBe(0);
+
+  // A fixed name reads the same reference.
+  const fixed = project();
+  anki(fixed);
+  write(
+    fixed.dir,
+    "l10n.toml",
+    'basepath = "core"\n[[paths]]\nreference = "templates/*.ftl"\nl10n = "{locale}/*.ftl"\n',
+  );
+  expect(await run(initFor("core/{lang}/a.ftl"), fixed.ctx)).toBe(0);
+  expect((await loadConfig(fixed.dir)).sources[0]).toMatchObject({
+    languageFiles: { en: "templates" },
+  });
+  expect(fixed.err.join("\n")).not.toMatch(/names no language tag/);
+  expect(await run(["build", "--out", "s.json"], fixed.ctx)).toBe(0);
+
+  // Without l10n.toml the one code that names no language is said as the
+  // source's mapping, and nothing is written.
+  const bare = project();
+  anki(bare);
+  expect(await run(initFor("core/{lang}/a.ftl"), bare.ctx)).toBe(0);
+  expect((await loadConfig(bare.dir)).sources[0]).not.toHaveProperty(
+    "languageFiles",
+  );
+  const bareSaid = bare.err.join("\n");
+  expect(bareSaid).toContain(
+    'core/templates/a.ftl names no language tag; left out: if it is en\'s file, map it: languageFiles: { "en": "templates" }',
+  );
+  expect(bareSaid).not.toMatch(/languages: \["<tag>"\]/);
+
+  // A reference the source fills itself (Relay's en/banner.ftl) maps nothing.
+  const relay = project();
+  write(relay.dir, "en/banner.ftl", "x = X\n");
+  write(relay.dir, "de/banner.ftl", "x = X\n");
+  write(
+    relay.dir,
+    "l10n.toml",
+    'basepath = "."\n[[paths]]\n    reference = "en/banner.ftl"\n    l10n = "{locale}/banner.ftl"\n',
+  );
+  expect(await run(initFor("{lang}/banner.ftl"), relay.ctx)).toBe(0);
+  expect((await loadConfig(relay.dir)).sources[0]).not.toHaveProperty(
+    "languageFiles",
+  );
+});
+
+test("init names the source language's mapping only for a code that names no language, beside no source file it found (#1097)", async () => {
+  // A POSIX modifier is a language's file, not the source's.
+  const euro = project();
+  write(euro.dir, "locales/de.json", '{"a":"A"}');
+  write(euro.dir, "locales/fr.json", '{"a":"A"}');
+  write(euro.dir, "locales/de@euro.json", '{"a":"A"}');
+  await run(initFor("locales/{lang}.json"), euro.ctx);
+  expect(euro.err.join("\n")).toContain(
+    "locales/de@euro.json names no language tag; left out: name its language",
+  );
+  expect(euro.err.join("\n")).not.toContain("map it:");
+
+  // gettext's template is the source init found.
+  const pot = project();
+  write(pot.dir, "po/app.pot", 'msgid ""\nmsgstr ""\n\nmsgid "A"\nmsgstr ""\n');
+  for (const code of ["de", "fr", "en@quot"])
+    write(
+      pot.dir,
+      `po/${code}.po`,
+      'msgid ""\nmsgstr ""\n"Content-Type: text/plain; charset=UTF-8\\n"\n\nmsgid "A"\nmsgstr "A"\n',
+    );
+  expect(await run(initFor("po/{lang}.po"), pot.ctx)).toBe(0);
+  expect(pot.err.join("\n")).not.toContain("map it:");
+
+  // A reference that is a language's own directory maps nothing.
+  const relay = project();
+  write(relay.dir, "en/banner.ftl", "x = X\n");
+  write(relay.dir, "de/banner.ftl", "x = X\n");
+  write(
+    relay.dir,
+    "l10n.toml",
+    'basepath = "."\n[[paths]]\n    reference = "en/banner.ftl"\n    l10n = "{locale}/banner.ftl"\n',
+  );
+  expect(await run(initFor("{lang}/{ns}.ftl", "en-US"), relay.ctx)).toBe(1);
+  expect(relay.err.join("\n")).not.toContain("holds en-US's files");
+
+  // A {ns} pattern without l10n.toml names the mapping as well.
+  const ns = project();
+  write(ns.dir, "core/templates/a.ftl", "x = X\n");
+  write(ns.dir, "core/de/a.ftl", "x = X\n");
+  write(ns.dir, "core/fr/a.ftl", "x = X\n");
+  await run(initFor("core/{lang}/{ns}.ftl"), ns.ctx);
+  expect(
+    ns.err.filter((line) => line.includes("core/templates names no")),
+  ).toHaveLength(1);
+  expect(ns.err.join("\n")).toContain(
+    'core/templates names no language tag; left out: if it is en\'s file, map it: languageFiles: { "en": "templates" }',
+  );
+});
