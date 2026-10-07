@@ -649,6 +649,8 @@ export function describe(
       return `the ${error.key} branch of {${error.arg}} writes 1, but this language also picks it for ${error.values.join(", ")}${error.more ? " and more" : ""}: write ${written(error.arg)} in it`;
     case "exact-branch":
       return `{${error.arg}} has an ${error.key} branch, which this file cannot hold, as it holds a plural's categories only: write it in the ${error.category} branch, which this language picks for ${error.key.slice(1)}`;
+    case "missing-other":
+      return `plural on {${error.arg}} has no other form, which the runtime picks for every count no other form covers`;
     case "unsplittable-form":
       return `the ${error.key} form of {${error.arg}} leaves a brace unbalanced, so this file cannot hold it as one of its forms: balance the braces in it`;
     case "shared-form":

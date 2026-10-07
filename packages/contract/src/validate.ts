@@ -32,6 +32,7 @@ import {
   isHtmlElement,
   sameMessage,
   type ProseTag,
+  type IcuError,
   type IcuNode,
   type Shape,
   shapeOf,
@@ -103,6 +104,8 @@ export type ValidationError =
   // object, Rails hash, Qt numerus or String Catalog writer holds
   // (#1051): `category` is the branch the language picks for N.
   | { code: "exact-branch"; arg: string; key: string; category: string }
+  // A target plural without `other`, which every runtime needs (#975).
+  | { code: "missing-other"; arg: string }
   // A form of a plural held as forms whose braces do not balance, so the
   // file's writer cannot split it out (#704).
   | { code: "unsplittable-form"; arg: string; key: string }
@@ -674,7 +677,8 @@ export function validateTranslation(
       errors: parsedSource.errors.map((e) => ({
         code: "invalid-icu",
         where: "source",
-        ...e,
+        message: e.message,
+        position: e.position,
       })),
     };
   }
@@ -686,22 +690,19 @@ export function validateTranslation(
     parsedSource.nodes.some((node) => node.kind === "plural")
       ? printfPluralError(target, html, syntax, placeholders)
       : undefined;
-  if (brokenPlural)
-    return {
-      ok: false,
-      errors: [{ code: "invalid-icu", where: "target", ...brokenPlural }],
-    };
+  const targetError = (e: IcuError): ValidationError =>
+    e.missingOther !== undefined
+      ? { code: "missing-other", arg: e.missingOther }
+      : {
+          code: "invalid-icu",
+          where: "target",
+          message: e.message,
+          position: e.position,
+        };
+  if (brokenPlural) return { ok: false, errors: [targetError(brokenPlural)] };
   const parsedTarget = parseIcu(target, syntax, { html, placeholders });
-  if (!parsedTarget.ok) {
-    return {
-      ok: false,
-      errors: parsedTarget.errors.map((e) => ({
-        code: "invalid-icu",
-        where: "target",
-        ...e,
-      })),
-    };
-  }
+  if (!parsedTarget.ok)
+    return { ok: false, errors: parsedTarget.errors.map(targetError) };
   const positioned = (nodes: IcuNode[]) =>
     syntax === "printf" ? argPositions(nodes) : nodes;
   const sourceNodes = positioned(parsedSource.nodes);

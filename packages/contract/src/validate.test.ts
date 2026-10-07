@@ -889,13 +889,7 @@ test("under printf a text that is one ICU plural has its verbs checked per branc
     ),
   ).toMatchObject({
     ok: false,
-    errors: [
-      {
-        code: "invalid-icu",
-        where: "target",
-        message: "plural needs an other branch",
-      },
-    ],
+    errors: [{ code: "missing-other", arg: "count" }],
   });
   expect(
     validateTranslation(
@@ -1802,9 +1796,7 @@ test("a whole plural without other is named for it, under i18next too (#950)", (
       lib,
     ).toMatchObject({
       ok: false,
-      errors: [
-        { code: "invalid-icu", message: "plural needs an other branch" },
-      ],
+      errors: [{ code: "missing-other", arg: "count" }],
     });
 });
 
