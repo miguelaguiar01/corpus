@@ -52,7 +52,7 @@ export const STDIN_OPS: { op: string; example: string }[] = [
 export function stdinHelp(): string {
   const table = tools(apiOver("http://localhost:0", "t"));
   const lines = [
-    'corpus agent --stdin reads one JSON object per line, each with "op" and an optional "id" echoed back, and answers each with one line: {"id", "op", "ok", "result"} or {"id", "op", "ok": false, "error", "message"}.',
+    'corpus agent --stdin reads one JSON object per line, each with "op" and an optional "id" echoed back, and answers each with one line: {"id", "op", "ok", "result"} or {"id", "op", "ok": false, "error", "message"}, a line that is no JSON object with neither "id" nor "op".',
   ];
   for (const { op, example } of STDIN_OPS) {
     const tool = table.find((t) => t.op === op)!;
@@ -264,8 +264,12 @@ async function agentStdin(ctx: RunContext): Promise<number> {
     const echo = id === undefined ? {} : { id };
     // A queue is named in `queue`, or in `state`, which names a state
     // everywhere else (#1077); `queue` wins.
+    let named = "queue";
     if (op === "queue") {
-      if (args.queue === undefined) args.queue = args.state;
+      if (args.queue === undefined && args.state !== undefined) {
+        args.queue = args.state;
+        named = "state";
+      }
       delete args.state;
       if (args.queue === undefined) {
         answer({
@@ -291,7 +295,10 @@ async function agentStdin(ctx: RunContext): Promise<number> {
     }
     const problem = argumentProblem(tool, args);
     if (problem) {
-      answer({ ...echo, op, ok: false, error: "bad-line", message: problem });
+      // Said in the field the line wrote it in.
+      const message =
+        named === "state" ? problem.replace(/^queue\b/, "state") : problem;
+      answer({ ...echo, op, ok: false, error: "bad-line", message });
       continue;
     }
     let result: ToolResult;
