@@ -1825,9 +1825,11 @@ async function readSeeds(
     // only another file holds, another pattern's of the source or another
     // source's, would be pulled into that one's file, which lacks it
     // (#1071); validate calls it an orphan where it is.
-    const own = heldBy.get(
-      fileOf(source, config.sourceLanguage, config.sourceLanguage),
-    );
+    // A source file with no string holds none, as its absent entry says.
+    const own =
+      heldBy.get(
+        fileOf(source, config.sourceLanguage, config.sourceLanguage),
+      ) ?? new Set<string>();
     for (const lang of config.languages) {
       if (lang === config.sourceLanguage) continue;
       const file = fileOf(source, lang, config.sourceLanguage);
@@ -1863,7 +1865,7 @@ async function readSeeds(
           // A key the source no longer has, or an empty value an
           // extraction tool left, is not a translation.
           if (!ids.has(entry.id) || isBlank(entry.source)) continue;
-          if (own && !own.has(entry.id)) continue;
+          if (!own.has(entry.id)) continue;
           // A string two files of one source share has one translation:
           // two that differ could not both survive a pull (#661).
           const seeded = (seeds[lang] ??= {})[entry.id];
