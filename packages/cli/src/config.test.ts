@@ -7,7 +7,7 @@ import {
 } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, onTestFinished, test } from "vitest";
 import { spawnSync } from "node:child_process";
 import { run } from "./cli";
 import { CliError, generatedBy, ignoreUnchecked, loadConfig } from "./config";
@@ -213,6 +213,13 @@ test("where git cannot be asked, build says once that ignore detection did not r
 };
 `,
   );
+  // No repository above it, wherever the temporary directory lies.
+  const ceiling = process.env.GIT_CEILING_DIRECTORIES;
+  process.env.GIT_CEILING_DIRECTORIES = path.dirname(dir);
+  onTestFinished(() => {
+    if (ceiling === undefined) delete process.env.GIT_CEILING_DIRECTORIES;
+    else process.env.GIT_CEILING_DIRECTORIES = ceiling;
+  });
   expect(ignoreUnchecked(await loadConfig(dir))).toBe("not a git repository");
   const output: string[] = [];
   const code = await run(["build", "--out", path.join(dir, "s.json")], {
@@ -228,6 +235,46 @@ test("where git cannot be asked, build says once that ignore detection did not r
   expect(notes).toEqual([
     "corpus: git ignore detection did not run (not a git repository); a generated source git ignores is not detected: set generated: true on it",
   ]);
+});
+
+test("where git refuses the repository, the note says git's own reason, and a top level ending in a space is read as written (#1176 review)", async () => {
+  const config = (dir: string, generated = false) => {
+    writeFileSync(
+      path.join(dir, "corpus.config.mjs"),
+      `export default {
+  project: "p",
+  server: "http://localhost:3000",
+  sourceLanguage: "en",
+  languages: ["en", "de"],
+  sources: [{ adapter: "messages", type: "ui", path: "gen/{lang}.json"${generated ? ", generated: true" : ""} }],
+};
+`,
+    );
+  };
+  const outer = mkdtempSync(path.join(os.tmpdir(), "corpus-owner-"));
+  dirs.push(outer);
+  const dir = path.join(outer, "repo ");
+  mkdirSync(path.join(dir, "gen"), { recursive: true });
+  spawnSync("git", ["init", "-q"], { cwd: dir });
+  writeFileSync(path.join(dir, ".gitignore"), "/gen\n");
+  writeFileSync(path.join(dir, "gen", "en.json"), '{ "a": "A" }');
+  config(dir);
+  expect((await loadConfig(dir)).sources.map((s) => generatedBy(s))).toEqual([
+    "since git ignores it",
+  ]);
+  // A checkout another user owns, as a container job's is.
+  const owner = process.env.GIT_TEST_ASSUME_DIFFERENT_OWNER;
+  process.env.GIT_TEST_ASSUME_DIFFERENT_OWNER = "1";
+  onTestFinished(() => {
+    if (owner === undefined) delete process.env.GIT_TEST_ASSUME_DIFFERENT_OWNER;
+    else process.env.GIT_TEST_ASSUME_DIFFERENT_OWNER = owner;
+  });
+  expect(ignoreUnchecked(await loadConfig(dir))).toMatch(
+    /^detected dubious ownership in repository at /,
+  );
+  // Every source already generated: nothing to detect, nothing to say.
+  config(dir, true);
+  expect(ignoreUnchecked(await loadConfig(dir))).toBeUndefined();
 });
 
 test("a source file git ignores is generated, unless the config is ignored too (#1000)", async () => {
