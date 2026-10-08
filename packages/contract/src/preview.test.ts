@@ -8,6 +8,7 @@ import {
   renderPreview,
   renderPreviewSegments,
 } from "./preview";
+import { validateTranslation } from "./validate";
 
 const sighting = moonlightManor.strings[0]!;
 const [first, second] = sighting.examples!;
@@ -600,4 +601,42 @@ test("a printf plural whose branches print one Python key alone previews its cou
       "{count, plural, one {%(constructor)s user} other {%(constructor)s users}}",
     ),
   ).toEqual({ ok: true, text: "1 user" });
+});
+
+test("a translation's whole plural without other previews its branches; a count that would pick other shows nothing (#1151)", () => {
+  const counterpart =
+    "{count, plural, one {%(count)s pokój} few {%(count)s pokoje} many {%(count)s pokoi}}";
+  const i18next =
+    "{count, plural, one {{{count}} pokój} few {{{count}} pokoje} many {{{count}} pokoi}}";
+  expect(
+    renderPreview(i18next, { count: "3" }, "pl", { syntax: "i18next" }),
+  ).toEqual({
+    ok: true,
+    text: "3 pokoje",
+  });
+  expect(
+    renderPreview(counterpart, { count: "1" }, "pl", { syntax: "counterpart" }),
+  ).toEqual({ ok: true, text: "1 pokój" });
+  // counterpart's English rule picks other for 3, which the plural lacks.
+  expect(
+    renderPreview(counterpart, { count: "3" }, "pl", { syntax: "counterpart" }),
+  ).toEqual({ ok: true, text: "" });
+  // Validation still names the missing other.
+  expect(
+    validateTranslation(
+      "{count, plural, one {%(count)s room} other {%(count)s rooms}}",
+      counterpart,
+      "pl",
+      "counterpart",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-other", arg: "count" }],
+  });
+  // A text that only opens like a plural is still text.
+  expect(
+    renderPreview("{count, plural, one {x}} trailing", { count: "1" }, "en", {
+      syntax: "counterpart",
+    }),
+  ).toEqual({ ok: true, text: "{count, plural, one {x}} trailing" });
 });
