@@ -273,8 +273,12 @@ test("where git refuses the repository, the note says git's own reason, and a to
     /^detected dubious ownership in repository at /,
   );
   // Every source already generated: nothing to detect, nothing to say.
-  config(dir, true);
-  expect(ignoreUnchecked(await loadConfig(dir))).toBeUndefined();
+  const known = path.join(outer, "known");
+  mkdirSync(path.join(known, "gen"), { recursive: true });
+  spawnSync("git", ["init", "-q"], { cwd: known });
+  writeFileSync(path.join(known, "gen", "en.json"), '{ "a": "A" }');
+  config(known, true);
+  expect(ignoreUnchecked(await loadConfig(known))).toBeUndefined();
 });
 
 test("a source file git ignores is generated, unless the config is ignored too (#1000)", async () => {

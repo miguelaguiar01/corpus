@@ -440,8 +440,10 @@ function markGenerated(
   // A file git ignores is a build's output, unless the config is ignored
   // too, as a project inside another repository's ignored tree is.
   const configRel = path.relative(cwd, configPath);
-  const asked =
-    sources.length > 0 ? gitIgnored(cwd, [configRel, ...files]) : [];
+  // Asked only where a source's being generated is still unknown.
+  const asked = sources.some((source) => source.generated !== true)
+    ? gitIgnored(cwd, [configRel, ...files])
+    : [];
   if (typeof asked === "string") UNCHECKED.set(config, asked);
   const ignored = new Set(typeof asked === "string" ? [] : asked);
   sources.forEach((source, index) => {
@@ -474,8 +476,14 @@ function gitIgnored(cwd: string, paths: string[]): string[] | string {
     encoding: "utf8",
   });
   if (top.error) return "no git";
-  if (top.status !== 0) return "not a git repository";
-  const root = top.stdout.trim();
+  // git's own reason where it refuses the repository, as for a checkout
+  // another user owns, which safe.directory answers.
+  if (top.status !== 0)
+    return /not a git repository/.test(top.stderr)
+      ? "not a git repository"
+      : (top.stderr.split("\n")[0] ?? "").replace(/^fatal: /, "") ||
+          `git exited ${top.status}`;
+  const root = top.stdout.replace(/\n$/, "");
   const real = (file: string): string => {
     try {
       return realpathSync(file);
