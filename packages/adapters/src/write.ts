@@ -264,6 +264,13 @@ class Reached {
     for (let k = 1; k < path.length; k++)
       this.above.add(path.slice(0, k).join("\u0000"));
   }
+  // A family's keys, `base_one` and the rest, which its write reaches.
+  addFamily(path: string[]): void {
+    const parent = path.slice(0, -1);
+    const base = path[path.length - 1]!;
+    for (const form of PLURAL_CATEGORIES)
+      this.add([...parent, `${base}_${form}`]);
+  }
   near(path: string[]): boolean {
     if (this.above.has(path.join("\u0000"))) return true;
     for (let k = 1; k <= path.length; k++)
@@ -595,6 +602,7 @@ export function entriesToMessages(
       else doc.remove(path, plural !== false);
     }
     reached.add(path);
+    if (plural === "suffix") reached.addFamily(path);
   }
   if (fresh)
     for (const list of sourceLists) {
@@ -639,6 +647,7 @@ export function entriesToMessages(
       );
     else doc.add(path, next, style.indent, order);
     reached.add(path);
+    if (sourceSuffix.has(id)) reached.addFamily(path);
   }
   if (underLists.length > 0)
     doc.apply((text) =>
@@ -1277,6 +1286,7 @@ export function applyMessagesOps(
       const removed = suffixIds.has(op.id)
         ? deleteSuffix(doc, path)
         : doc.remove(path, pluralIds.has(op.id) || empty.has(op.id));
+      if (suffixIds.has(op.id)) reached.addFamily(path);
       if (!removed) doc.remove([op.id]);
     } else if (
       suffixIds.has(op.id) ||
@@ -1285,6 +1295,7 @@ export function applyMessagesOps(
       // A proposed plural, edited or new, is the source's whole plural:
       // a form it lacks goes (#985).
       writeSuffix(doc, path, op.text, indent, true, undefined, refuse, true);
+      reached.addFamily(path);
     } else if (pluralIds.has(op.id) || (suffix && asObjects && newPlural(op))) {
       // A proposal the object cannot hold fails the file loudly: it is
       // counted written otherwise, and never lands.
