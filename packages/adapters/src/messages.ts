@@ -519,8 +519,8 @@ function renderChrome(message: string, values: Record<string, string>): string {
       const dollars = "$".repeat(Math.max(run.length - 1, 0));
       if (name === undefined) return run.length > 1 ? dollars : written;
       const value = values[name.toLowerCase()];
-      if (value === undefined) return written;
-      return (run.length > 2 ? dollars.slice(1) : dollars) + value;
+      const shown = run.length > 2 ? dollars.slice(1) : dollars;
+      return shown + (value ?? written.slice(run.length - 1));
     },
   );
 }
