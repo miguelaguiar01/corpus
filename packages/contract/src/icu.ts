@@ -1708,7 +1708,7 @@ class Parser {
         if (Object.keys(branches).length === 0) {
           throw new ParseFailure(`${label} needs at least one branch`, start);
         }
-        if (type === "plural" && !("other" in branches)) {
+        if (type === "plural" && !("other" in branches) && !otherless) {
           throw new ParseFailure(`${label} needs an other branch`, start, name);
         }
         return { kind: type, arg: name, branches };
@@ -1786,10 +1786,16 @@ export function readIcu(
   source: string,
   syntax: Library = "icu",
   placeholders?: readonly Library[],
+  // A plural without `other`, which only the preview reads (#1151).
+  options: { otherless?: boolean } = {},
 ): IcuParseResult {
-  const read = parseIcu(source, syntax, { placeholders });
+  const read = parseIcu(source, syntax, { placeholders, ...options });
   if (read.ok) return read;
-  const markup = parseIcu(source, syntax, { html: "markup", placeholders });
+  const markup = parseIcu(source, syntax, {
+    html: "markup",
+    placeholders,
+    ...options,
+  });
   return markup.ok ? markup : read;
 }
 
@@ -1809,8 +1815,19 @@ export function parseIcu(
     placeholders?: readonly Library[];
     // Each mistyped rails `%{`'s position, read as text (#976).
     strays?: number[];
+    // A plural read without `other`, a translation's the preview shows
+    // all the same (#1151); everything else requires it.
+    otherless?: boolean;
   } = {},
 ): IcuParseResult {
+  if (options.otherless && !otherless) {
+    otherless = true;
+    try {
+      return parseIcu(source, syntax, { ...options, otherless: false });
+    } finally {
+      otherless = false;
+    }
+  }
   const layers = options.placeholders ?? [];
   const parse = (html: boolean | "markup", prose?: ProseTag[]) =>
     withStrays(
@@ -1830,6 +1847,8 @@ export function parseIcu(
 // The layered placeholder syntaxes of the parse in progress (#1049): a
 // parse is synchronous, and every Parser it makes reads them.
 let layering: readonly Library[] = [];
+// Whether the parse in progress reads a plural without `other` (#1151).
+let otherless = false;
 
 export const RAILS_STRAY =
   "%{ opens no placeholder here: one is a name without spaces and a closing }; write %%{ for the text itself";

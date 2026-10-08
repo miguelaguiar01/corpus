@@ -192,7 +192,10 @@ export function renderPreviewSegments(
   language?: string,
   options: RenderOptions = {},
 ): PreviewSegmentsResult {
-  const parsed = readIcu(message, options.syntax ?? "icu");
+  // A translation's plural without `other` previews its branches (#1151).
+  const parsed = readIcu(message, options.syntax ?? "icu", undefined, {
+    otherless: true,
+  });
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
   const segments: PreviewSegment[] = [];
   // A printf plural on `argN` takes the Nth argument's value (#735).
