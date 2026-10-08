@@ -510,7 +510,8 @@ function chromeExamples(placeholders: unknown): Record<string, string> {
 }
 
 // As Chrome reads the text (#631): a run of n dollars shows n - 1, and a
-// `$NAME$` its last dollar opens is the value, `@` allowed in the name.
+// `$NAME$` its last dollar opens is the value, `@` allowed in the name,
+// after n - 2 dollars where n is three or more (#1170).
 function renderChrome(message: string, values: Record<string, string>): string {
   return message.replace(
     /(\$+)(?:([A-Za-z0-9_@]+)\$)?/g,
@@ -518,7 +519,8 @@ function renderChrome(message: string, values: Record<string, string>): string {
       const dollars = "$".repeat(Math.max(run.length - 1, 0));
       if (name === undefined) return run.length > 1 ? dollars : written;
       const value = values[name.toLowerCase()];
-      return value === undefined ? written : dollars + value;
+      const shown = run.length > 2 ? dollars.slice(1) : dollars;
+      return shown + (value ?? written.slice(run.length - 1));
     },
   );
 }

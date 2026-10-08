@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { stringEntrySchema } from "@corpus/contract";
+import { renderPreview, stringEntrySchema } from "@corpus/contract";
 import {
   keyIsSentence,
   messagesToEntries,
@@ -518,6 +518,47 @@ test("a Chrome example renders as Chrome reads it: a name may hold @, $$NAME$ is
   expect(
     read("$$$ and $NAME$", { name: { content: "$1", example: "Ann" } }),
   ).toBe("$$ and Ann");
+});
+
+test("a Chrome example with three or more dollars before a placeholder renders two fewer, then the value (#1170)", () => {
+  const read = (message: string) =>
+    messagesToEntries(
+      {
+        k: {
+          message,
+          placeholders: { name: { content: "$1", example: "Bob" } },
+        },
+      },
+      { type: "ui", chrome: true },
+    )[0]!.examples?.[0]?.rendered;
+  expect(read("Hi $$$NAME$")).toBe("Hi $Bob");
+  expect(read("Hi $$$$NAME$")).toBe("Hi $$Bob");
+  expect(read("Hi $$NAME$")).toBe("Hi $Bob");
+  // A placeholder with no example shows as written, after the dollars
+  // shown before it, as the preview shows it.
+  const unknown = (message: string) =>
+    messagesToEntries(
+      {
+        k: {
+          message,
+          placeholders: {
+            name: { content: "$1" },
+            other: { content: "$2", example: "Ann" },
+          },
+        },
+      },
+      { type: "ui", chrome: true },
+    )[0]!.examples?.[0]?.rendered;
+  for (const [message, shown] of [
+    ["Hi $$NAME$ $OTHER$", "Hi $$NAME$ Ann"],
+    ["Hi $$$NAME$ $OTHER$", "Hi $$NAME$ Ann"],
+    ["Hi $$$$NAME$ $OTHER$", "Hi $$$NAME$ Ann"],
+  ]) {
+    expect(unknown(message!)).toBe(shown);
+    expect(
+      renderPreview(message!, { other: "Ann" }, "en", { syntax: "chrome" }),
+    ).toEqual({ ok: true, text: shown });
+  }
 });
 
 test("entry objects read their declared text field as the string and their note field as its note; a value that is no entry is skipped (#1001)", () => {

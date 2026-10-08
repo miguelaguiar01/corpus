@@ -95,7 +95,7 @@ export function validationMessage(
               digit: error.written[1] ?? "",
               rest: error.written.slice(2),
             })
-          : t("editor.chromeDollarNamed", { written: error.written });
+          : chromeNamed(error.written);
     case "form-count": {
       const read = (n: number) =>
         vueDefaultForms(n)
@@ -188,6 +188,18 @@ export function validationMessage(
         message: error.message,
       });
   }
+}
+
+// Chrome's dollars before a placeholder, said by the run (#1170).
+function chromeNamed(written: string): string {
+  const run = /^\$+/.exec(written)![0].length;
+  if (run === 2) return t("editor.chromeDollarNamed", { written });
+  return t("editor.chromeDollarRun", {
+    written,
+    before: run - 1,
+    shown: run - 2,
+    example: `${"$".repeat(run - 2)}Bob`,
+  });
 }
 
 // What is wrong with a translation, as the editor would say it; null

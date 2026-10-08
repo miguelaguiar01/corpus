@@ -957,7 +957,11 @@ function chromeDollarMessage({ at, kind, written }: ChromeDollar): string {
       : `Chrome drops the lone $ at ${at} with the character after it (${JSON.stringify(written)}): write $$ for the sign`;
   if (kind === "price")
     return `Chrome reads ${written} at ${at} as substitution ${written[1]} then ${JSON.stringify(written.slice(2))}: write $${written} for a price`;
-  return `Chrome reads ${written} at ${at} as a $ before the placeholder, then reads that $ with the start of its value, so Bob shows as ob and $1 as a literal $1: put a space between, or the $ in the placeholder's content`;
+  const run = /^\$+/.exec(written)![0].length;
+  if (run === 2)
+    return `Chrome reads ${written} at ${at} as a $ before the placeholder, then reads that $ with the start of its value, so a text value loses its first character (Bob shows as ob) and a $1 value shows as a literal $1: put a space between`;
+  const shown = run - 2;
+  return `Chrome reads ${written} at ${at} as ${run - 1} dollars before the placeholder, then reads them with the start of its value, so it shows ${shown} ${shown === 1 ? "dollar" : "dollars"} before a text value (${"$".repeat(shown)}Bob), and a $1 value joins the run and shows literally: put a space between`;
 }
 
 // A source's warnings, nested counts, Chrome's dollars and vue-i18n's

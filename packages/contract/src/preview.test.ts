@@ -640,3 +640,14 @@ test("a translation's whole plural without other previews its branches; a count 
     }),
   ).toEqual({ ok: true, text: "{count, plural, one {x}} trailing" });
 });
+
+test("under chrome three or more dollars before a placeholder preview two fewer, then the value, as Chrome's second pass reads them (#1170)", () => {
+  const show = (message: string) =>
+    renderPreview(message, { name: "Bob" }, "en", { syntax: "chrome" });
+  expect(show("Hi $$$NAME$")).toEqual({ ok: true, text: "Hi $Bob" });
+  expect(show("Hi $$$$NAME$")).toEqual({ ok: true, text: "Hi $$Bob" });
+  // Two show the value whole: the preview drops no character of it.
+  expect(show("Hi $$NAME$")).toEqual({ ok: true, text: "Hi $Bob" });
+  // A run before no placeholder still shows one fewer.
+  expect(show("$$$ and $NAME$")).toEqual({ ok: true, text: "$$ and Bob" });
+});
