@@ -48,6 +48,7 @@ import {
   namedPluralRules,
   lastWins,
   sourcePluralIds,
+  type SourcePlurals,
   readEntries,
   sourceWritesBack,
   runExporter,
@@ -626,7 +627,7 @@ async function texts(
   sourceFile = false,
   language?: string,
   onUnread?: (id: string, reason?: string) => void,
-  pluralIds?: ReadonlySet<string>,
+  pluralIds?: SourcePlurals,
   onUnsplit?: (id: string, key: string) => void,
 ): Promise<Map<string, StringEntry> | undefined> {
   if (!existsSync(path.join(cwd, rel))) return undefined;

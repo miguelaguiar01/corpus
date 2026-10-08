@@ -38,6 +38,9 @@ export type MessagesOptions = {
   // A null, number or boolean, skipped; and, in entry objects, a value
   // that is no entry.
   onSkipped?: (id: string) => void;
+  // The source's string ids shaped as a family's form (`rooms_other`
+  // beside an object `rooms`), which a target's are too (#1191).
+  ownIds?: ReadonlySet<string>;
   // A target's plural object whose form `key` splits the rebuilt text
   // otherwise than the file holds it (#1186).
   onUnsplit?: (id: string, key: string) => void;
@@ -71,12 +74,16 @@ export function suffixFamilies(
   path: string[],
   known?: ReadonlySet<string>,
   language?: string,
+  // The source's own string ids: in a target, one is never a family's
+  // form (#1191).
+  own?: ReadonlySet<string>,
 ): Map<string, Map<string, string>> {
   const picked = language ? pluralCategoriesOf(language) : [];
   const groups = new Map<string, Map<string, string>>();
   for (const [key, value] of Object.entries(node)) {
     const m = SUFFIX.exec(key);
     if (!m || typeof value !== "string" || m[1]!.endsWith("_ordinal")) continue;
+    if (own?.has([...path, key].join("."))) continue;
     const forms = groups.get(m[1]!) ?? new Map<string, string>();
     forms.set(m[2]!, key);
     groups.set(m[1]!, forms);
@@ -218,6 +225,31 @@ export function unsplitForms(forms: Record<string, string>): string[] {
   if (alone.length > 0) return alone;
   const whole = back(forms);
   return [keys.find((key) => whole?.[key] !== forms[key]) ?? keys[0]!];
+}
+
+// The ids of a source's strings shaped as a family's form that it reads
+// as strings of their own, not forms (#1191).
+export function ownFormIds(
+  node: unknown,
+  language?: string,
+  path: string[] = [],
+  out = new Set<string>(),
+): Set<string> {
+  if (node === null || typeof node !== "object") return out;
+  if (!Array.isArray(node)) {
+    const record = node as Record<string, unknown>;
+    const forms = new Set(
+      [...suffixFamilies(record, path, undefined, language).values()].flatMap(
+        (f) => [...f.values()],
+      ),
+    );
+    for (const [key, value] of Object.entries(record))
+      if (typeof value === "string" && SUFFIX.test(key) && !forms.has(key))
+        out.add([...path, key].join("."));
+  }
+  for (const [key, child] of Object.entries(node))
+    ownFormIds(child, language, [...path, key], out);
+  return out;
 }
 
 // The ids a source catalogue holds as plural objects, as the writer
@@ -613,7 +645,13 @@ function walk(
   }
   const record = node as Record<string, unknown>;
   const families = options.suffixPlurals
-    ? suffixFamilies(record, path, options.pluralIds, options.sourceLanguage)
+    ? suffixFamilies(
+        record,
+        path,
+        options.pluralIds,
+        options.sourceLanguage,
+        options.ownIds,
+      )
     : new Map<string, Map<string, string>>();
   const member = new Map<string, string>();
   for (const [base, forms] of families)

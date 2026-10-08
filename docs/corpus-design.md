@@ -124,7 +124,10 @@ export default defineCorpus({
     //    and a target's plural in
     //    either shape, an object or suffix keys, is the plural wherever
     //    the source has one in either, a pull writing it in the shape
-    //    the target file holds it (#1187).
+    //    the target file holds it (#1187); a key the source holds as a
+    //    string of its own (`rooms_other` beside a plural object
+    //    `rooms`) is no form of a family, in a target as in the source
+    //    (#1191).
     //    Under i18next and printf such a text is read whole as a
     //    plural, its forms in the library's own syntax (§5).
     //    Zero config beyond the path pattern;

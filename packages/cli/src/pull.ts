@@ -51,6 +51,7 @@ import {
   pluralFormsOf,
   readEntries,
   sourcePluralIds,
+  type SourcePlurals,
   readsPluralObjects,
   readsSuffixPlurals,
   sourceWritesBack,
@@ -747,7 +748,7 @@ function applyOps(
   ops: SourceOp[],
   code: string,
   sourceLanguage: string,
-  pluralIds?: ReadonlySet<string>,
+  pluralIds?: SourcePlurals,
   onSkipped?: (op: SourceOp, reason: string) => void,
 ): string {
   switch (source.adapter) {
@@ -763,6 +764,7 @@ function applyOps(
         suffixPlurals: readsSuffixPlurals(source),
         sourceLanguage,
         ...(pluralIds && { pluralIds }),
+        ...(pluralIds?.own && { ownIds: pluralIds.own }),
       });
     case "xliff":
       return applyXliffOps(existing, ops, onSkipped);
@@ -897,7 +899,7 @@ async function ownTexts(
   file: string,
   source: FileSource,
   language: string,
-  pluralIds?: ReadonlySet<string>,
+  pluralIds?: SourcePlurals,
 ): Promise<Map<string, string> | undefined> {
   if (!sourceWritesBack(source)) return undefined;
   try {
