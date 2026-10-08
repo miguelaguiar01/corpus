@@ -1264,6 +1264,22 @@ test("removing a plural id takes a target's object whole whatever its forms hold
     expect(remove(section, ["r"])).toBe(section);
     const empty = '{\n  "r": {},\n  "k": "v"\n}\n';
     expect(remove(empty, [])).toBe(empty);
+    // A key with a dot in it, Element's `m.poll`, and a flat dotted key.
+    const deleteAt = (text: string, id: string) =>
+      applyMessagesOps(text, [{ kind: "delete", id }], {
+        plurals: true,
+        pluralIds: new Set([id]),
+        sequential,
+      });
+    expect(
+      deleteAt(
+        '{\n  "timeline": {\n    "m.poll": { "count_of_votes": {}, "k": "v" }\n  }\n}\n',
+        "timeline.m.poll.count_of_votes",
+      ),
+    ).toBe('{\n  "timeline": {\n    "m.poll": { "k": "v" }\n  }\n}\n');
+    expect(deleteAt('{\n  "a.b": {},\n  "k": "v"\n}\n', "a.b")).toBe(
+      '{\n  "k": "v"\n}\n',
+    );
   }
 });
 
