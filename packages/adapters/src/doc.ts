@@ -166,8 +166,19 @@ class BatchDoc implements JsonDoc {
       if (!next) break;
       const inner = next.node ? valueOf(next.node) : undefined;
       if (inner?.type === "object") obj = this.objOf(inner, obj, next);
-      else if (inner?.type === "array") return aside();
-      else if (next.value !== undefined && typeof next.value !== "string")
+      else if (inner?.type === "array") {
+        // A list's object item by its index, as resolve walks it (#1290).
+        const index = path[depth + 1];
+        const item =
+          index !== undefined &&
+          /^\d+$/.test(index) &&
+          depth + 1 < path.length - 1
+            ? inner.children?.[Number(index)]
+            : undefined;
+        if (item?.type !== "object") return aside();
+        obj = this.objOf(item);
+        depth++;
+      } else if (next.value !== undefined && typeof next.value !== "string")
         obj = next.value;
       // A string on the way: a flat key at the root, as addLeaf does.
       else return this.add([path.join(".")], value, unit, order);
