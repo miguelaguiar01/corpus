@@ -804,8 +804,8 @@ function linear(
 test("hostile input is read in bounded time and fails cleanly, never with a thrown error (#861)", () => {
   // The markup retry, once quadratic, is linear by the step budget, and
   // its memo of tags found unclosed is what lets a real text parse under
-  // it (#1158). Timed under the depth limit, which 200 blocks reach
-  // before any retry runs.
+  // it (#1158). Timed under the depth limit, which about 200 blocks
+  // reach before any retry runs.
   const retried = (n: number) =>
     "<b>{g, select, a {</b>} other {x}} ".repeat(n);
   for (const n of [20, 160]) {
