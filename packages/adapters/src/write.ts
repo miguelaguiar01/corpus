@@ -191,9 +191,13 @@ export type Refusal = (id: string, text: string) => void;
 // The forms a translation of a plural object writes: its branches, or a
 // plain text as the other form; undefined for a plural the object cannot
 // hold, an `=0` branch or a brace a form leaves open, which would
-// otherwise land whole in `other`.
-function formsOf(text: string): Record<string, string> | undefined {
-  const forms = pluralBranches(text);
+// otherwise land whole in `other`. A target's needs no `other`, as its
+// object may lack it (#950, #1188); a source's proposal does (#975).
+function formsOf(
+  text: string,
+  needsOther = false,
+): Record<string, string> | undefined {
+  const forms = pluralBranches(text, needsOther);
   if (forms) return forms;
   return /^\s*\{\s*[\p{L}_][\p{L}\p{M}\p{N}_.-]*\s*,\s*plural\s*,/u.test(text)
     ? undefined
@@ -210,8 +214,9 @@ function writePlural(
   unit: string,
   order?: (objectPath: string[]) => string[] | undefined,
   onRefused?: Refusal,
+  needsOther = false,
 ): string {
-  const forms = formsOf(plural);
+  const forms = formsOf(plural, needsOther);
   if (!forms) {
     onRefused?.(path.join("."), plural);
     return text;
@@ -258,8 +263,9 @@ function writeSuffix(
   fresh: boolean,
   order?: (objectPath: string[]) => string[] | undefined,
   onRefused?: Refusal,
+  needsOther = false,
 ): void {
-  const forms = formsOf(plural);
+  const forms = formsOf(plural, needsOther);
   if (!forms) {
     onRefused?.(path.join("."), plural);
     return;
@@ -1176,12 +1182,12 @@ export function applyMessagesOps(
     ) {
       // A proposed plural, edited or new, is the source's whole plural:
       // a form it lacks goes (#985).
-      writeSuffix(doc, path, op.text, indent, true, undefined, refuse);
+      writeSuffix(doc, path, op.text, indent, true, undefined, refuse, true);
     } else if (pluralIds.has(op.id) || (suffix && asObjects && newPlural(op))) {
       // A proposal the object cannot hold fails the file loudly: it is
       // counted written otherwise, and never lands.
       doc.apply((text) =>
-        writePlural(text, path, op.text, indent, undefined, refuse),
+        writePlural(text, path, op.text, indent, undefined, refuse, true),
       );
     } else if (!doc.edit(path, op.text)) doc.add(path, op.text, indent);
   }

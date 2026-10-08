@@ -106,8 +106,9 @@ export default defineCorpus({
     //    object of categories is such a plural exactly where the source
     //    reads the id as one: there without `other` too (Element's
     //    Polish `{ one, few, many }`, a Japanese `{ other }`), which
-    //    validate names for the `other` it lacks and a pull leaves as it
-    //    is (#950), and whatever its forms hold, so a form with a stray
+    //    validate names for the `other` it lacks, and a pull leaves as it
+    //    is or writes a changed translation into, its forms as the text
+    //    has them (#950, #1188), and whatever its forms hold, so a form with a stray
     //    brace is named as the plural's, never as orphan keys (#960), by
     //    the form: one whose braces would split the plural's text
     //    otherwise than the file is `unsplittable-form`, named by its
