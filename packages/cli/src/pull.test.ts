@@ -1419,6 +1419,65 @@ export default defineCorpus({
   }
 });
 
+test("under i18next a key the source holds as a string beside its plural object is seeded, pulled and removed as that key, never a form (#1191)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de"],
+  sources: [{ adapter: "messages", type: "chrome", library: "i18next", path: "i18n/{lang}.json" }],
+});
+`,
+  );
+  const en = `{\n  "rooms": {\n    "one": "{{count}} room",\n    "other": "{{count}} rooms"\n  },\n  "rooms_other": "Other rooms"\n}\n`;
+  const de = `{\n  "rooms": {\n    "one": "{{count}} Raum",\n    "other": "{{count}} Räume"\n  },\n  "rooms_other": "Andere Räume"\n}\n`;
+  writeFileSync(path.join(repo, "i18n", "en.json"), en);
+  writeFileSync(path.join(repo, "i18n", "de.json"), de);
+  const { buildSnapshot } = await import("./build");
+  const { loadConfig } = await import("./config");
+  const snapshot = await buildSnapshot(await loadConfig(repo), repo);
+  expect(snapshot.seedTranslations?.de).toEqual({
+    rooms: "{count, plural, one {{{count}} Raum} other {{{count}} Räume}}",
+    rooms_other: "Andere Räume",
+  });
+  expect(await run(["validate"], ctx())).toBe(0);
+  await serve(200, {
+    ...PAYLOAD,
+    types: { rooms: "chrome", rooms_other: "chrome" },
+    translations: {
+      en: {},
+      de: {
+        rooms:
+          "{count, plural, one {{{count}} Raum!} other {{{count}} Räume!}}",
+        rooms_other: "Weitere Räume",
+      },
+    },
+  });
+  expect(await run(["pull"], ctx())).toBe(0);
+  expect(read("i18n/de.json")).toBe(
+    de
+      .replace("{{count}} Raum", "{{count}} Raum!")
+      .replace('"{{count}} Räume"', '"{{count}} Räume!"')
+      .replace("Andere Räume", "Weitere Räume"),
+  );
+  // Removing the plural takes the object and leaves the key.
+  writeFileSync(path.join(repo, "i18n", "de.json"), de);
+  await serve(200, {
+    ...PAYLOAD,
+    types: { rooms_other: "chrome" },
+    translations: {},
+    minState: "untranslated",
+    sourceChanges: [
+      { kind: "delete", id: "rooms", type: "chrome", file: "i18n/en.json" },
+    ],
+  });
+  expect(await run(["pull"], ctx())).toBe(0);
+  expect(read("i18n/de.json")).toBe(`{\n  "rooms_other": "Andere Räume"\n}\n`);
+});
+
 test("a source's arguments carry on its strings, so validate allows a value the code passes beside the source's; one naming no string stops the build (#1031)", async () => {
   const config = (args: string) =>
     `import { defineCorpus } from "@corpus/contract";
