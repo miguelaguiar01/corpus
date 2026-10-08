@@ -17,7 +17,7 @@ function rng(seed: number) {
   };
 }
 
-type Tree = { [key: string]: string | Tree | string[] };
+type Tree = { [key: string]: string | Tree | (string | Tree)[] };
 
 const KEYS = ["a", "b", "c", "d", "e", "404", "10", "x y", "é", "z"];
 
@@ -39,7 +39,17 @@ function generate(
     if (depth > 0 && roll < 0.3)
       out[key] = generate(r, depth - 1, plurals, suffix);
     else if (roll < 0.35) out[key] = {};
-    else if (roll < 0.4) out[key] = ["one", "two"];
+    else if (roll < 0.4)
+      // A list of strings, or of objects whose keys a target may lack
+      // (#1290).
+      out[key] =
+        r() < 0.5
+          ? ["one", "two"]
+          : Array.from({ length: 1 + Math.floor(r() * 3) }, (_, j) => ({
+              t: `${key} t${j}`,
+              d: `${key} d${j}`,
+              ...(r() < 0.3 && { s: { a: `${key} a${j}` } }),
+            }));
     else if (plurals && roll < 0.5)
       out[key] = { one: `${key} one`, other: `${key} other` };
     else if (suffix && roll < 0.55) {
@@ -57,9 +67,17 @@ function write(
   tree: Tree,
   style: { unit: string; eol: string; bom: boolean; inline: number },
 ): string {
-  const render = (value: Tree | string | string[], indent: string): string => {
+  const render = (
+    value: Tree | string | (string | Tree)[],
+    indent: string,
+  ): string => {
     if (typeof value === "string") return JSON.stringify(value);
-    if (Array.isArray(value)) return JSON.stringify(value);
+    if (Array.isArray(value)) {
+      if (value.length === 0 || r() < style.inline)
+        return JSON.stringify(value);
+      const inner = indent + style.unit;
+      return `[${style.eol}${value.map((v) => inner + render(v, inner)).join(`,${style.eol}`)}${style.eol}${indent}]`;
+    }
     const entries = Object.entries(value);
     if (entries.length === 0) return "{}";
     if (indent !== "" && r() < style.inline)
@@ -76,6 +94,11 @@ function leafIds(tree: Tree, path: string[] = [], out: string[] = []) {
   for (const [key, value] of Object.entries(tree)) {
     if (typeof value === "string") out.push([...path, key].join("."));
     else if (!Array.isArray(value)) leafIds(value, [...path, key], out);
+    else
+      value.forEach((item, i) => {
+        if (typeof item !== "string")
+          leafIds(item, [...path, key, String(i)], out);
+      });
   }
   return out;
 }
@@ -89,7 +112,10 @@ function derive(r: () => number, tree: Tree): Tree {
     if (roll < 0.25) continue;
     if (typeof value === "string")
       out[key] = roll < 0.5 ? `Alt ${value}` : value;
-    else if (Array.isArray(value)) out[key] = value;
+    else if (Array.isArray(value))
+      out[key] = value
+        .slice(0, r() < 0.3 ? Math.floor(r() * value.length) : value.length)
+        .map((item) => (typeof item === "string" ? item : derive(r, item)));
     else {
       out[key] = derive(r, value);
       // A target's plural object may hold a form its source lacks.
@@ -622,4 +648,26 @@ test("a list's missing items appended in one splice are the bytes appended one a
       oneAtATime,
     );
   }
+});
+
+test("a key added to an empty item whose line an earlier write changed is indented as the sequential pull indents it (#1290 review)", () => {
+  const sameBoth = (run: (sequential: boolean) => string) =>
+    expect(run(false)).toBe(run(true));
+  sameBoth((sequential) =>
+    entriesToMessages(
+      `{"list":[{"d":"D0"},{"d":"D1"}]}`,
+      { "list.0.d": "x", "list.1.d": "y" },
+      `{\n  "list": [{\n}, {\n}]\n}\n`,
+      { sequential },
+    ),
+  );
+  // An object on a line another object's close shares, as before.
+  sameBoth((sequential) =>
+    entriesToMessages(
+      `{"a":{"k":"K"},"b":{"k":"K"}}`,
+      { "a.k": "x", "b.k": "y" },
+      `{\n  "a": {\n        }, "b": {\n  }\n}\n`,
+      { sequential },
+    ),
+  );
 });
