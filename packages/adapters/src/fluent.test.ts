@@ -683,6 +683,28 @@ test("a string literal's {$y} is no variable of its message, so its reference is
   );
 });
 
+test("a select's branch text names no variable, and a variable an attribute uses still counts file-wide (#1193 review)", () => {
+  // An unchanged old view of a message whose branch text spells the
+  // name it refers to is left as the file writes it.
+  const files = `file = File\nfiles = { $n ->\n    [one] One { file }\n   *[other] file\n}\n`;
+  const view = fluentToEntries(files, { type: "ui" })[1]!.source;
+  expect(
+    entriesToFluent(files, { files: view.replace(/\{@/g, "{") }, files),
+  ).toBe(files);
+  // A branch's text keeps its word a message name, file-wide.
+  const source = `account = { $c ->\n   *[lower] account\n    [upper] Account\n}\nhi = Hi\n`;
+  const target = `account = { $c ->\n   *[lower] konto\n    [upper] Konto\n}\nhi = Hej { account }\n`;
+  expect(entriesToFluent(source, { hi: "Hej {account}!" }, target)).toContain(
+    "hi = Hej { account }!\n",
+  );
+  // A variable only an attribute uses is still the source's variable.
+  const login = `name = Name\nlogin = Log in\n    .title = Logged in as { $name }\ngreet = Hello\n`;
+  const pt = `name = Nome\nlogin = Entrar\n    .title = Sessão de { $name }\ngreet = Olá { $name }\n`;
+  expect(entriesToFluent(login, { greet: "Olá {name}!" }, pt)).toContain(
+    "greet = Olá { $name }!\n",
+  );
+});
+
 test("a file's terms with the variables their text reads and the attributes they define (#1033)", () => {
   const terms = fluentTerms(`-brand = { $capitalization ->
    *[lower] account
