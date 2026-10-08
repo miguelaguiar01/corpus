@@ -3430,6 +3430,56 @@ test("under gen_l10n a written zero, one or two is allowed in every language, as
   }
 });
 
+test("under gen_l10n a value only a source zero, one or two prints is needed in every language, as the runtime picks it where written, and such a branch that writes 1 is a fixed count (#1205)", () => {
+  const typing =
+    "{count, plural, one{{name} is typing…} other{{count} people are typing…}}";
+  // Japanese under gen_l10n shows a written one for exactly 1, as it
+  // shows =1: Alice is named only there.
+  expect(
+    validateTranslation(
+      typing,
+      "{count, plural, other{{count}人が入力中…}}",
+      "ja",
+      "gen_l10n",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "name" }],
+  });
+  expect(
+    validateTranslation(
+      typing,
+      "{count, plural, one{{name}が入力中…} other{{count}人が入力中…}}",
+      "ja",
+      "gen_l10n",
+    ),
+  ).toEqual({ ok: true });
+  // Under icu Japanese never picks one.
+  expect(
+    validateTranslation(
+      typing,
+      "{count, plural, other{{count}人が入力中…}}",
+      "ja",
+      "icu",
+    ),
+  ).toEqual({ ok: true });
+  // A written zero that writes 1 is printed for 0, in German too, whose
+  // CLDR rule has no zero.
+  expect(
+    validateTranslation(
+      "{count, plural, one{{count} week} other{{count} weeks}}",
+      "{count, plural, zero{1 Woche} one{{count} Woche} other{{count} Wochen}}",
+      "de",
+      "gen_l10n",
+    ),
+  ).toEqual({
+    ok: true,
+    incomplete: [
+      { code: "fixed-count", arg: "count", key: "zero", values: [0] },
+    ],
+  });
+});
+
 test("a category branch that writes the number 1 and no count, where the language's category holds more, is a warning (#1042)", () => {
   // wger's chartRangeWeeks: English's one is 1 alone.
   const weeks = "{count, plural, one{1 week} other{{count} weeks}}";
