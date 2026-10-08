@@ -345,7 +345,7 @@ A string literal stays as written, `{"{{c1::"}`, and is text, so a translation m
 
 ## Angular
 
-Angular's i18n extracts to XLIFF, which the `xliff` source reads with no converter (see [Sources and adapters](Sources-and-adapters#xliff)). The text inside a unit is ICU: `{VAR_PLURAL, plural, …}` and `{VAR_SELECT, select, …}` are checked as plurals and selects, and Angular's inline elements are placeholders and tags, `{INTERPOLATION}` and `<LINK>…</LINK>`, so the library stays `icu`. A source file `ng extract-i18n` wrote, as its `original="ng2.template"` says, or whose unit ids are mostly the ones Angular computes, is the extractor's output whatever custom `@@` ids sit beside them: Corpus reads it as generated, and refuses proposals into it, since the next extract would undo them.
+Angular's i18n extracts to XLIFF, which the `xliff` source reads with no converter (see [Sources and adapters](Sources-and-adapters#xliff)). The text inside a unit is ICU: `{VAR_PLURAL, plural, …}` and `{VAR_SELECT, select, …}` are checked as plurals and selects, and Angular's inline elements are placeholders and tags, `{INTERPOLATION}` and `<LINK>…</LINK>`, so the library stays `icu`. A source file `ng extract-i18n` wrote, as its `original="ng2.template"` says, or whose unit ids are mostly the ones Angular computes, is the extractor's output whatever custom `@@` ids sit beside them: Corpus reads it as generated, and refuses proposals into it, since the next extract would undo them. Where `angular.json` lists the locales it builds (`i18n.locales`), `corpus init` lists those languages, and names the target files beside them it leaves out, such as the ones a translation platform downloads but the app does not ship.
 
 ## gettext
 

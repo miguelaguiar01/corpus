@@ -14,6 +14,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- `corpus init` lists the languages `angular.json`'s `i18n.locales` builds, and names the target `.xlf` files it leaves out (#1172).
 - Under `library: "chrome"`, three or more dollars before a `$NAME$` preview as Chrome shows them, and the warning's advice works whatever the placeholder's content (#1170).
 - A target file that writes an id twice with different texts is a file that does not read, rather than stopping the build; a source's is named once (#1168).
 - A `pluralRules` table on an easy_localization source is refused, since the package never picks by one: `"cldr"` is its intl reading (#1163).

@@ -244,13 +244,32 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   if (present && listed.length === 0) {
     throw new CliError(`--languages needs a value\nusage: ${INIT_USAGE}`);
   }
+  // The languages angular.json builds, where its i18n.locales names the
+  // pattern's files: a target file it does not build is left out (#1172).
+  const angular =
+    adapter === "xliff" && !present && !catalog && !messages.includes("{ns}")
+      ? angularLocales(ctx.cwd, messages)
+      : undefined;
+  const fileFor = (tag: string) =>
+    messages.replaceAll("{lang}", files.languageFiles[tag] ?? tag);
+  const targets = files.languages.filter((tag) => tag !== sourceLanguage);
+  const unbuilt =
+    angular && targets.some((tag) => angular.builds(fileFor(tag)))
+      ? targets.filter((tag) => !angular.builds(fileFor(tag)))
+      : [];
+  if (angular && unbuilt.length > 0) {
+    const named = unbuilt.slice(0, 5).map(fileFor);
+    ctx.err(
+      `corpus: ${unbuilt.length} file(s) ${angular.file} does not build, left out: ${named.join(", ")}${unbuilt.length > 5 ? ", …" : ""}`,
+    );
+  }
   const languages = present
     ? listed
     : catalog
       ? catalog.languages
       : messages.includes("{ns}")
         ? namespacedLanguages(ctx.cwd, messages, sourceLanguage, sourceCode)
-        : files.languages;
+        : files.languages.filter((tag) => !unbuilt.includes(tag));
   if (languages.length === 0) {
     throw new CliError(
       `no ${messages} file to take the languages from; pass --languages`,
@@ -539,19 +558,18 @@ const DETECTED_BY: Partial<Record<Library, string>> = {
   vue: "a pipe or a quoted literal",
 };
 
-// Angular's source file away from its translations (#1045): where the
-// nearest angular.json's extract-i18n writes it, `outputPath` from that
-// directory and `outFile`, by default messages.xlf beside angular.json,
-// the output nearest the translations first; else the messages.xlf
-// nearest the translations' directory, up to the config's. `tried` is
-// the angular.json outputs that are missing, and `above` the directory
-// the walk started from.
-function angularSource(
+// The nearest angular.json above the pattern's files, up to the config
+// directory, and its projects; `local` puts a path in the config
+// directory's terms, whatever the pattern's.
+function angularWorkspace(
   cwd: string,
   messages: string,
-  bare: string | undefined,
-): { sourcePath?: string; why?: string; tried: string[]; above?: string } {
-  // In the config directory's terms, whatever the pattern's.
+): {
+  local: (file: string) => string;
+  start: string;
+  dirs: string[];
+  workspace?: { dir: string; file: string; projects: unknown[] };
+} {
   const local = (file: string) =>
     path.isAbsolute(file)
       ? path.relative(cwd, file).split(path.sep).join("/") || "."
@@ -568,6 +586,81 @@ function angularSource(
     if (dir === ".") break;
     dir = path.posix.dirname(dir);
   }
+  const dir = dirs.find((dir) =>
+    existsSync(path.resolve(cwd, path.posix.join(dir, "angular.json"))),
+  );
+  if (dir === undefined) return { local, start, dirs };
+  const file = path.posix.join(dir, "angular.json");
+  // Read as the Angular CLI reads it: comments, trailing commas and
+  // what jsonc-parser recovers from, so long as it is an object.
+  let text = "";
+  try {
+    text = readFileSync(path.resolve(cwd, file), "utf8");
+  } catch {
+    // No file to read, a directory say: it guesses nothing.
+  }
+  const workspaceJson: unknown = parseJsonc(text.replace(/^\uFEFF/, ""), [], {
+    allowTrailingComma: true,
+  });
+  const projects =
+    workspaceJson &&
+    typeof workspaceJson === "object" &&
+    "projects" in workspaceJson &&
+    workspaceJson.projects &&
+    typeof workspaceJson.projects === "object"
+      ? Object.values(workspaceJson.projects)
+      : [];
+  return { local, start, dirs, workspace: { dir, file, projects } };
+}
+
+// The translation files angular.json's i18n.locales builds, in the
+// config directory's terms (#1172): a locale's is a file, a list of
+// them or `{ translation }`, joined to the workspace's directory as the
+// Angular CLI joins it, a rooted path too.
+function angularLocales(
+  cwd: string,
+  messages: string,
+): { file: string; builds: (file: string) => boolean } | undefined {
+  const { local, workspace } = angularWorkspace(cwd, messages);
+  if (!workspace) return undefined;
+  const built = new Set<string>();
+  for (const project of workspace.projects) {
+    const locales = (project as { i18n?: { locales?: unknown } } | null)?.i18n
+      ?.locales;
+    if (!locales || typeof locales !== "object") continue;
+    for (const locale of Object.values(locales)) {
+      const translation =
+        locale && typeof locale === "object" && !Array.isArray(locale)
+          ? (locale as { translation?: unknown }).translation
+          : locale;
+      for (const file of [translation].flat())
+        if (typeof file === "string")
+          built.add(local(path.posix.join(workspace.dir, file)));
+    }
+  }
+  return built.size === 0
+    ? undefined
+    : { file: workspace.file, builds: (file) => built.has(local(file)) };
+}
+
+// Angular's source file away from its translations (#1045): where the
+// nearest angular.json's extract-i18n writes it, `outputPath` from that
+// directory and `outFile`, by default messages.xlf beside angular.json,
+// the output nearest the translations first; else the messages.xlf
+// nearest the translations' directory, up to the config's. `tried` is
+// the angular.json outputs that are missing, and `above` the directory
+// the walk started from.
+function angularSource(
+  cwd: string,
+  messages: string,
+  bare: string | undefined,
+): { sourcePath?: string; why?: string; tried: string[]; above?: string } {
+  const {
+    local,
+    start,
+    dirs,
+    workspace: found,
+  } = angularWorkspace(cwd, messages);
   const exists = (file: string) => existsSync(path.resolve(cwd, file));
   const bareHere = bare === undefined ? undefined : local(bare);
   const walked = dirs.filter(
@@ -575,30 +668,8 @@ function angularSource(
   );
   const walkedFiles = walked.map((dir) => path.posix.join(dir, "messages.xlf"));
   const tried: string[] = [];
-  const workspace = dirs.find((dir) =>
-    exists(path.posix.join(dir, "angular.json")),
-  );
-  if (workspace !== undefined) {
-    const file = path.posix.join(workspace, "angular.json");
-    // Read as the Angular CLI reads it: comments, trailing commas and
-    // what jsonc-parser recovers from, so long as it is an object.
-    let text = "";
-    try {
-      text = readFileSync(path.resolve(cwd, file), "utf8");
-    } catch {
-      // No file to read, a directory say: it guesses nothing.
-    }
-    const workspaceJson: unknown = parseJsonc(text.replace(/^\uFEFF/, ""), [], {
-      allowTrailingComma: true,
-    });
-    const projects =
-      workspaceJson &&
-      typeof workspaceJson === "object" &&
-      "projects" in workspaceJson &&
-      workspaceJson.projects &&
-      typeof workspaceJson.projects === "object"
-        ? Object.values(workspaceJson.projects)
-        : [];
+  if (found !== undefined) {
+    const { dir: workspace, file, projects } = found;
     const outputs: string[] = [];
     for (const project of projects) {
       if (!project || typeof project !== "object") continue;
