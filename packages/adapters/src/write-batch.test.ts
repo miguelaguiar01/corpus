@@ -399,6 +399,56 @@ test("a large pull's edits, additions and first fill each take one parse per pha
         { suffixPlurals: true, sourceLanguage: "en" },
       ),
   ]);
+  // Plural objects whose forms all change, beside as many strings; and
+  // a mix where a form goes beside one added (#1265).
+  const plurals = (n: number, one: string, other: string) =>
+    JSON.stringify(
+      Object.fromEntries(
+        Array.from({ length: n }, (_, i) => [
+          [`p${i}`, { one: `${one} ${i}`, other: `${other} ${i}` }],
+          [`s${i}`, `Text ${i}`],
+        ]).flat(),
+      ),
+      null,
+      2,
+    ) + "\n";
+  const pluralSource = plurals(1500, "{count} room", "{count} rooms");
+  const pluralTarget = plurals(1500, "{count} Raum", "{count} Räume");
+  cases.push(
+    [
+      "1500 plural objects' forms changed, and 1500 strings",
+      () =>
+        entriesToMessages(
+          pluralSource,
+          Object.fromEntries(
+            Array.from({ length: 1500 }, (_, i) => [
+              [
+                `p${i}`,
+                `{count, plural, one {{count} Raum! ${i}} other {{count} Räume! ${i}}}`,
+              ],
+              [`s${i}`, `Neu ${i}`],
+            ]).flat(),
+          ),
+          pluralTarget,
+          { plurals: true },
+        ),
+    ],
+    [
+      "1500 plural objects, a form removed beside one added",
+      () =>
+        entriesToMessages(
+          pluralSource,
+          Object.fromEntries(
+            Array.from({ length: 1500 }, (_, i) => [
+              `p${i}`,
+              `{count, plural, one {{count} Raum ${i}} few {{count} Räume ${i}}}`,
+            ]),
+          ),
+          pluralTarget,
+          { plurals: true },
+        ),
+    ],
+  );
   for (const [name, run] of cases) {
     const start = performance.now();
     run();
