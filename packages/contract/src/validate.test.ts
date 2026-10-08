@@ -3558,7 +3558,8 @@ test("fixed-count reads a 1 in any branch of a select within the plural's branch
       validateTranslation(weeks, target, language, "icu").incomplete ?? []
     ).filter((e) => e.code === "fixed-count");
   // Croatian's one holds 21, 31, 41: a select inside the branch, read
-  // branch by branch, through a tag too.
+  // branch by branch, through tags too (ICU nests no select in a
+  // select's branch).
   const hr = (one: string) =>
     `{count, plural, one{${one}} few{{count} tjedna} other{{count} tjedana}}`;
   const croatian = [
@@ -3581,9 +3582,7 @@ test("fixed-count reads a 1 in any branch of a select within the plural's branch
   ).toEqual(croatian);
   expect(
     fixed(
-      hr(
-        "{g, select, m {{h, select, x {1 tjedan} other {{count} tjedan}}} other {{count} nedjelja}}",
-      ),
+      hr("<b><i>{g, select, m {1 tjedan} other {{count} nedjelja}}</i></b>"),
       "hr",
     ),
   ).toEqual(croatian);
