@@ -498,6 +498,12 @@ export async function buildSnapshotReport(
       byId.set(entry.id, item);
       continue;
     }
+    if (prev.file === file) {
+      errors.push(
+        `duplicate id ${printable(entry.id)} in ${file}, written twice`,
+      );
+      continue;
+    }
     const group = groupOf.get(file);
     const oneSource = group !== undefined && group === groupOf.get(prev.file);
     if (oneSource && prev.entry.source === entry.source) {
@@ -516,9 +522,7 @@ export async function buildSnapshotReport(
     } else {
       if (oneSource) conflict(group, entry.id);
       errors.push(
-        prev.file === file
-          ? `duplicate id ${printable(entry.id)} in ${file}, written twice`
-          : `duplicate id ${printable(entry.id)} in ${prev.file} and ${file}${oneSource ? ", with different text" : unprefixed.has(file) || unprefixed.has(prev.file) ? '; give one source a namespace, such as namespace: "web", to keep their keys apart' : ""}`,
+        `duplicate id ${printable(entry.id)} in ${prev.file} and ${file}${oneSource ? ", with different text" : unprefixed.has(file) || unprefixed.has(prev.file) ? '; give one source a namespace, such as namespace: "web", to keep their keys apart' : ""}`,
       );
     }
   }
@@ -1117,38 +1121,12 @@ export function takesProposals(source: FileSource): boolean {
 // under a sentence key reads the key as the text (#589); a target's
 // empty value is an untranslated row.
 // A target file that writes an id twice with different texts does not
-// read (#1168), as aapt2 and msgfmt refuse it: neither copy is the one.
+// read (#1168): neither copy is the one.
 export async function readEntries(
-  jiti: ReturnType<typeof createJiti>,
-  cwd: string,
-  file: string,
-  source: FileSource,
-  sourceFile = false,
-  // The language a file is read for, where one file holds them all
-  // (xcstrings): a target's, or the source's, which the file must name.
-  language?: string,
-  // A translation the file holds that is not read, a Qt numerus form
-  // no plural holds (#751). A Fluent message, a messages list or an
-  // xliff unit Corpus cannot read, with why (#991, #1026).
-  onUnread?: (id: string, reason?: string) => void,
-  // The ids the source file holds as plural objects, as the file writes
-  // them, where a target's object of categories is the plural though it
-  // lacks `other` (#950): sourcePluralIds.
-  pluralIds?: ReadonlySet<string>,
-  // A messages value that is no string, a null, number or boolean.
-  onSkipped?: (id: string) => void,
+  ...args: Parameters<typeof readFileEntries>
 ): Promise<StringEntry[]> {
-  const entries = await readFileEntries(
-    jiti,
-    cwd,
-    file,
-    source,
-    sourceFile,
-    language,
-    onUnread,
-    pluralIds,
-    onSkipped,
-  );
+  const entries = await readFileEntries(...args);
+  const sourceFile = args[4];
   if (sourceFile) return entries;
   const texts = new Map<string, string>();
   const once: StringEntry[] = [];
@@ -1189,7 +1167,7 @@ async function readFileEntries(
   // (#999): its values are a translation, never the source.
   if (sourceFile && source.adapter === "messages" && source.keyIsText)
     return (
-      await readEntries(
+      await readFileEntries(
         jiti,
         cwd,
         file,
