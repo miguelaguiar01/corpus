@@ -2039,3 +2039,23 @@ describe("a list item written in place or appended keeps the file's line style (
     );
   });
 });
+
+test("a source list's empty list is copied into a short target as an empty list, its place kept (#1282 review)", () => {
+  const read = (
+    source: string,
+    translations: Record<string, string>,
+    existing: string,
+  ) => JSON.parse(entriesToMessages(source, translations, existing)) as unknown;
+  expect(
+    read(`{\n  "l": ["a", [], "c"]\n}\n`, { "l.2": "C" }, `{\n  "l": []\n}\n`),
+  ).toEqual({
+    l: ["a", [], "C"],
+  });
+  expect(
+    read(
+      `{\n  "l": [[], ["x"]]\n}\n`,
+      { "l.1.0": "X" },
+      `{\n  "l": [\n  ]\n}\n`,
+    ),
+  ).toEqual({ l: [[], ["X"]] });
+});

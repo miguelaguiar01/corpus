@@ -26,7 +26,7 @@ import {
 import { jsonDoc, type JsonDoc } from "./doc";
 import {
   addLeaf,
-  appendItem,
+  appendItems,
   nodeAt,
   replaceValue,
   truncateList,
@@ -782,7 +782,8 @@ function buildFrom(
             .map((p) => Number(p[path.length])),
         )
       : value.length - 1;
-    if (last < 0) return undefined;
+    // An empty list copied whole is itself, holding its place.
+    if (last < 0) return leading ? undefined : [];
     return value
       .slice(0, last + 1)
       .map((item, i) => buildFrom(item, [...path, String(i)], fill));
@@ -946,14 +947,12 @@ function completeLists(
       const list = valueAt(sourceTree, at);
       const heldItems = parent?.children?.length ?? 0;
       const last = highest(leading.map((p) => Number(p[at.length])));
-      if (Array.isArray(list))
+      if (Array.isArray(list)) {
+        const values: unknown[] = [];
         for (let i = heldItems; i <= last; i++)
-          text = appendItem(
-            text,
-            at,
-            buildFrom(list[i], [...at, String(i)], fill),
-            indent,
-          );
+          values.push(buildFrom(list[i], [...at, String(i)], fill));
+        text = appendItems(text, at, values, indent);
+      }
     } else {
       const value = buildFrom(valueAt(sourceTree, at), at, fill, leading);
       if (value !== undefined)

@@ -196,6 +196,72 @@ export function appendItem(
   return `${text.slice(0, at)}${inline ? ", " : `,${eol}${indent}`}${item}${text.slice(at)}`;
 }
 
+// Items appended to the list at `path` in one splice from one parse,
+// each as appendItem writes it after the one before (#1282).
+export function appendItems(
+  text: string,
+  path: string[],
+  values: unknown[],
+  unit: string,
+): string {
+  checkPath(path);
+  const list = nodeAt(root(text), path);
+  if (list?.type !== "array" || values.length === 0) return text;
+  const eol = eolOf(text);
+  const listIndent = lineIndent(text, list.offset);
+  const items = list.children ?? [];
+  const held = items[items.length - 1];
+  const inline = isInline(text, list);
+  // The last item as appendItem reads it: an object, empty or not, on
+  // one line or not.
+  let last = held && {
+    object: held.type === "object",
+    empty: (held.children?.length ?? 0) === 0,
+    oneLine: isInline(text, held),
+  };
+  const indent = held ? lineIndent(text, held.offset) : listIndent + unit;
+  const render = (value: unknown) => {
+    const object =
+      value !== null && typeof value === "object" && !Array.isArray(value);
+    const item = jsonText(
+      value,
+      inline || (object && !!last?.object && !last.empty && last.oneLine),
+      indent,
+      unit,
+      eol,
+    );
+    last = {
+      object,
+      empty: object && Object.keys(value as object).length === 0,
+      oneLine: !item.includes("\n"),
+    };
+    return item;
+  };
+  let head: string;
+  let tail: string;
+  let out = "";
+  let rest = values;
+  if (!held) {
+    head = text.slice(0, list.offset + 1);
+    tail = text.slice(list.offset + list.length - 1);
+    const first = render(values[0]);
+    if (inline) out = first;
+    else {
+      out = `${eol}${indent}${first}`;
+      tail = `${eol}${listIndent}${tail}`;
+    }
+    rest = values.slice(1);
+  } else {
+    head = text.slice(0, held.offset + held.length);
+    tail = text.slice(held.offset + held.length);
+  }
+  for (const value of rest) {
+    const separator = inline ? ", " : `,${eol}${indent}`;
+    out += separator + render(value);
+  }
+  return head + out + tail;
+}
+
 // The list at `path` cut to its first `keep` items, the rest and the
 // separators before them gone (#1053).
 export function truncateList(
