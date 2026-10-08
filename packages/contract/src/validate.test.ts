@@ -4524,3 +4524,15 @@ test("where tags are compared, a broken tag holding a placeholder in its attribu
     "moved-placeholder",
   );
 });
+
+test("under lingui a placeholder a closed quote takes is missing, said so; an apostrophe no quote closes is the character (#1154)", () => {
+  expect(
+    validateTranslation("Open {name}", "Ouvrir l'{name}", "fr", "lingui"),
+  ).toEqual({ ok: true });
+  expect(
+    validateTranslation("Open {name}", "Ouvrir '{name}'", "fr", "lingui"),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "missing-placeholder", name: "name", quoted: true }],
+  });
+});

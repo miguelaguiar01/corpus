@@ -1593,3 +1593,68 @@ test("under android, verbs are numbered as Java's Formatter numbers them; printf
     /%\[1\]s is Go's index form.*%1\$s/,
   );
 });
+
+test("under lingui an apostrophe quotes a brace or a plural's # only where a lone one closes it, as @lingui/core 6.9 renders them (#1154)", () => {
+  const nodes = (text: string) => {
+    const result = parseIcu(text, "lingui");
+    if (!result.ok) throw new Error(result.errors[0]!.message);
+    return result.nodes;
+  };
+  // @lingui/core renders: l'{name} → l'N, '{name}' → {name}, It''s {n} →
+  // It's 1, end '{x} → end 'X, '{'0'}' user → {0} user, Failed %'{file}' →
+  // Failed %{file}, ''''{c}'''' → ''C'', '''''{c}''''' → ''{c}''.
+  expect(nodes("l'{name}")).toEqual([
+    { kind: "literal", text: "l'" },
+    { kind: "placeholder", name: "name" },
+  ]);
+  expect(nodes("'{name}'")).toEqual([{ kind: "literal", text: "{name}" }]);
+  expect(nodes("It''s {n}")).toEqual([
+    { kind: "literal", text: "It's " },
+    { kind: "placeholder", name: "n" },
+  ]);
+  expect(nodes("end '{x}")).toEqual([
+    { kind: "literal", text: "end '" },
+    { kind: "placeholder", name: "x" },
+  ]);
+  expect(nodes("'{'0'}' user")).toEqual([
+    { kind: "literal", text: "{0} user" },
+  ]);
+  expect(nodes("Failed %'{file}'")).toEqual([
+    { kind: "literal", text: "Failed %{file}" },
+  ]);
+  expect(nodes("''''{c}''''")).toEqual([
+    { kind: "literal", text: "''" },
+    { kind: "placeholder", name: "c" },
+    { kind: "literal", text: "''" },
+  ]);
+  expect(nodes("'''''{c}'''''")).toEqual([
+    { kind: "literal", text: "''{c}''" },
+  ]);
+  // In a plural: '#' a → # a, d'# x → d'1 x.
+  expect(nodes("{n, plural, one {'#' a} other {# b}}")).toMatchObject([
+    { kind: "plural", branches: { one: [{ kind: "literal", text: "# a" }] } },
+  ]);
+  expect(nodes("{n, plural, one {d'# x} other {#}}")).toMatchObject([
+    {
+      kind: "plural",
+      branches: {
+        one: [
+          { kind: "literal", text: "d'" },
+          { kind: "count", arg: "n" },
+          { kind: "literal", text: " x" },
+        ],
+      },
+    },
+  ]);
+  // A tag is never quoted: l'<0>x</0> keeps its tag.
+  const tagged = parseIcu("l'<0>x</0>", "lingui", { html: "markup" });
+  expect(tagged.ok && tagged.nodes.some((n) => n.kind === "tag")).toBe(true);
+});
+
+test("lingui's apostrophe rule reads a long run of quotes in linear time (#1154)", () => {
+  linear(
+    (n) => "'{".repeat(n),
+    4000,
+    (text) => parseIcu(text, "lingui"),
+  );
+});
