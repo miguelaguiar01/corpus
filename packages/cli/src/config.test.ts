@@ -161,6 +161,11 @@ test("a path git cannot judge is not asked, so the others' ignores are still rea
   writeFileSync(path.join(outer, "outside", "en.json"), '{ "b": "B" }');
   // A source behind a symlink, which git will not judge either.
   symlinkSync(path.join(outer, "outside"), path.join(dir, "linked"));
+  // One inside the tree, which git refuses as beyond a symlink, failing
+  // a call that asks of it with the others.
+  mkdirSync(path.join(dir, "sub"));
+  writeFileSync(path.join(dir, "sub", "en.json"), '{ "c": "C" }');
+  symlinkSync(path.join(dir, "sub"), path.join(dir, "inner"));
   writeFileSync(
     path.join(dir, "corpus.config.mjs"),
     `export default {
@@ -172,6 +177,7 @@ test("a path git cannot judge is not asked, so the others' ignores are still rea
     { adapter: "messages", type: "ui", path: "gen/{lang}.json" },
     { adapter: "messages", type: "other", path: "../outside/{lang}.json", namespace: "out" },
     { adapter: "messages", type: "linked", path: "linked/{lang}.json", namespace: "ln" },
+    { adapter: "messages", type: "inner", path: "inner/{lang}.json", namespace: "in" },
   ],
 };
 `,
@@ -179,6 +185,7 @@ test("a path git cannot judge is not asked, so the others' ignores are still rea
   const config = await loadConfig(dir);
   expect(config.sources.map((s) => generatedBy(s))).toEqual([
     "since git ignores it",
+    undefined,
     undefined,
     undefined,
   ]);
