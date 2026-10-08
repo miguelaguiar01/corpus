@@ -895,6 +895,7 @@ async function validateServer(
   for (const source of config.sources)
     if (source.adapter !== "exec")
       fileSources.set(fileOf(source, sourceLanguage, sourceLanguage), source);
+  const terms = termsOf(ctx.cwd, config);
   const orphans = new Map<string, string[]>();
   const brokenSources = new Set<string>();
   const gaps: SourceGaps = new Map();
@@ -956,6 +957,16 @@ async function validateServer(
             : { ...f, sourceFile, where: "server" as const },
         ),
       );
+      if (source?.adapter === "fluent")
+        findings.push(
+          ...termWarnings(target, {
+            file,
+            key,
+            language,
+            own: terms(language),
+            source: terms(sourceLanguage),
+          }).map((f) => ({ ...f, sourceFile, where: "server" as const })),
+        );
     }
   }
   for (const [key, languages] of orphans)
