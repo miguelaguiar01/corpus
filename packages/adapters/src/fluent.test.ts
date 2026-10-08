@@ -652,7 +652,7 @@ test("the old view of a message that refers to a message only the target defines
 });
 
 test("a proposal's bare {name} is a variable and {@name} a reference, whatever the file names; one equal to a view writes nothing (#1193)", () => {
-  const file = `name = Name\ntrash = Trash\nempty = Empty { trash }\n`;
+  const file = `empty = Empty { trash }\nname = Name\ntrash = Trash\n`;
   const added = applyFluentOps(file, [
     { kind: "add", id: "hello", text: "Hello {name}" },
     { kind: "add", id: "hi", text: "Hi {@name}" },
