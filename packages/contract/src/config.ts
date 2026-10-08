@@ -717,10 +717,20 @@ export const corpusConfigSchema = z
             path: ["sources", index, "pluralRules"],
           });
       }
-      const table =
-        rules !== null && typeof rules === "object" && !Array.isArray(rules)
-          ? Object.keys(rules)
-          : [];
+      const isTable =
+        rules !== null && typeof rules === "object" && !Array.isArray(rules);
+      const table = isTable ? Object.keys(rules) : [];
+      if (
+        isTable &&
+        source.adapter !== "exec" &&
+        baseLibraryOf(source) === "easy_localization"
+      )
+        ctx.addIssue({
+          code: "custom",
+          message:
+            "pluralRules: a table is not easy_localization's: it picks by value, or by intl's own table with ignorePluralRules: false, which is pluralRules: \"cldr\"",
+          path: ["sources", index, "pluralRules"],
+        });
       for (const language of table)
         if (!c.languages.includes(language))
           ctx.addIssue({

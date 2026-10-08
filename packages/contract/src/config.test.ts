@@ -906,6 +906,33 @@ test('pluralRules: "cldr" is easy_localization\'s ignorePluralRules: false, refu
   expect(issues({ ...messages, pluralRules: ["default"] })).toHaveLength(1);
 });
 
+test("a pluralRules table is refused on an easy_localization source, which picks by value or by intl's own table (#1163)", () => {
+  const base = {
+    project: "p",
+    server: "http://localhost:3000",
+    sourceLanguage: "en",
+    languages: ["en", "pl"],
+  };
+  const issues = (source: object) => {
+    const parsed = corpusConfigSchema.safeParse({ ...base, sources: [source] });
+    return parsed.success
+      ? []
+      : parsed.error.issues.map((i) => [i.path.join("."), i.message]);
+  };
+  const messages = { adapter: "messages", type: "ui", path: "i/{lang}.json" };
+  const table = { pl: ["one", "few", "many", "other"] };
+  expect(
+    issues({ ...messages, library: "easy_localization", pluralRules: table }),
+  ).toEqual([
+    [
+      "sources.0.pluralRules",
+      "pluralRules: a table is not easy_localization's: it picks by value, or by intl's own table with ignorePluralRules: false, which is pluralRules: \"cldr\"",
+    ],
+  ]);
+  for (const library of ["icu", "counterpart"])
+    expect(issues({ ...messages, library, pluralRules: table })).toEqual([]);
+});
+
 test("a file source's namespace prefixes its ids; refused on exec and beside {ns}; an unknown source key is refused with the near miss (#998)", () => {
   const base = {
     project: "p",
