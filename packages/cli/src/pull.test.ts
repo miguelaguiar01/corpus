@@ -2455,37 +2455,55 @@ export default defineCorpus({
   }
 });
 
-test("a source file that writes an id twice names that file once, with no namespace advice (#1168)", async () => {
-  writeFileSync(
-    path.join(repo, "corpus.config.ts"),
-    `import { defineCorpus } from "@corpus/contract";
+test("a source file that writes an id twice names that file once, whatever its text, group or merge, with no other advice (#1168)", async () => {
+  const xml = (...strings: string[]) =>
+    `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n${strings.map((s) => `    ${s}\n`).join("")}</resources>\n`;
+  const build = async (source: string, file: string, strings: string[]) => {
+    writeFileSync(
+      path.join(repo, "corpus.config.ts"),
+      `import { defineCorpus } from "@corpus/contract";
 
 export default defineCorpus({
   project: "pull-fixture",
   server: process.env.CORPUS_SERVER ?? "https://corpus.example",
   sourceLanguage: "en",
   languages: ["en", "de"],
-  sources: [{ adapter: "android", type: "ui", path: "res" }],
+  sources: [${source}],
 });
 `,
-  );
-  mkdirSync(path.join(repo, "res", "values"), { recursive: true });
-  writeFileSync(
-    path.join(repo, "res", "values", "strings.xml"),
-    `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <string name="x">X</string>\n    <string name="x">X!</string>\n</resources>\n`,
-  );
-  const built = ctx();
-  expect(await run(["build", "--out", path.join(repo, "s.json")], built)).toBe(
-    1,
-  );
-  const said = built.output.join("\n");
-  expect(said).toContain(
-    "duplicate id x in res/values/strings.xml, written twice",
-  );
-  expect(said).not.toContain("namespace");
-  expect(said).not.toContain(
-    "res/values/strings.xml and res/values/strings.xml",
-  );
+    );
+    for (const dir of ["res", "a", "b"])
+      rmSync(path.join(repo, dir), { recursive: true, force: true });
+    mkdirSync(path.join(repo, path.dirname(file)), { recursive: true });
+    writeFileSync(path.join(repo, file), xml(...strings));
+    const built = ctx();
+    const code = await run(
+      ["build", "--out", path.join(repo, "s.json")],
+      built,
+    );
+    return [code, built.output.join("\n")] as const;
+  };
+  const twice = ['<string name="x">X</string>', '<string name="x">X!</string>'];
+  const same = ['<string name="x">X</string>', '<string name="x">X</string>'];
+  const one = '{ adapter: "android", type: "ui", path: "res" }';
+  const two = '{ adapter: "android", type: "ui", path: ["a", "b"] }';
+  const last =
+    '{ adapter: "android", type: "ui", path: ["a", "b"], merge: "last-wins" }';
+  const cases: [string, string, string[]][] = [
+    [one, "res/values/strings.xml", twice],
+    [one, "res/values/strings.xml", same],
+    [two, "a/values/strings.xml", twice],
+    [two, "a/values/strings.xml", same],
+    [last, "a/values/strings.xml", twice],
+  ];
+  for (const [source, file, strings] of cases) {
+    const [code, said] = await build(source, file, strings);
+    expect(code, `${source} ${strings.join("")}`).toBe(1);
+    expect(said).toContain(`duplicate id x in ${file}, written twice`);
+    expect(said.split(file)).toHaveLength(2);
+    expect(said).not.toContain("namespace");
+    expect(said).not.toContain("last-wins");
+  }
 });
 
 test("pull checks a target reads before it writes: a source that does not read fails it, an unreadable target is left whatever the writer would do, an empty one is filled (#1028)", async () => {
