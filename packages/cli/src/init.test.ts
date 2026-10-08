@@ -1318,6 +1318,7 @@ test("init lists the languages angular.json's i18n.locales builds and names the 
       "web/src/locale/messages.fr.xlf": unit,
       "web/src/locale/messages.it.xlf": unit,
       "web/src/locale/messages.pt_BR.xlf": unit,
+      "web/src/locale/messages.sr@latin.xlf": unit,
       ...(angular && { "web/angular.json": JSON.stringify(angular) }),
     };
     for (const [file, text] of Object.entries(files)) {
@@ -1351,6 +1352,8 @@ test("init lists the languages angular.json's i18n.locales builds and names the 
             de: "src/locale/messages.de.xlf",
             fr: { translation: ["src/locale/messages.fr.xlf"] },
             "pt-BR": { translation: "src/locale/messages.pt_BR.xlf" },
+            // Angular joins even a rooted path to the workspace's.
+            "sr-Latn": "/src/locale/messages.sr@latin.xlf",
           },
         },
       },
@@ -1358,14 +1361,27 @@ test("init lists the languages angular.json's i18n.locales builds and names the 
   });
   expect(built.code).toBe(0);
   const config = await loadConfig(built.p.dir);
-  expect(config.languages).toEqual(["en", "de", "fr", "pt_BR"]);
+  expect(config.languages).toEqual(["en", "de", "fr", "pt_BR", "sr-Latn"]);
+  expect(config.sources[0]).toMatchObject({
+    languageFiles: { "sr-Latn": "sr@latin" },
+  });
   expect(built.p.err).toContain(
     "corpus: 1 file(s) web/angular.json does not build, left out: web/src/locale/messages.it.xlf",
   );
   expect(await run(["build"], built.p.ctx)).toBe(0);
-  // No i18n.locales: every file, as before.
+  // No i18n.locales, or locales naming another catalogue's files:
+  // every file, as before.
+  const elsewhere = {
+    projects: {
+      ui: {
+        architect: extract,
+        i18n: { locales: { de: "src/other/messages.de.xlf" } },
+      },
+    },
+  };
   for (const angular of [
     { projects: { ui: { architect: extract } } },
+    elsewhere,
     undefined,
   ]) {
     const all = await initAt(angular);
@@ -1376,6 +1392,7 @@ test("init lists the languages angular.json's i18n.locales builds and names the 
       "fr",
       "it",
       "pt_BR",
+      "sr-Latn",
     ]);
     expect(all.p.err.join("\n")).not.toContain("does not build");
   }
