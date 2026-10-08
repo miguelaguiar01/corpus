@@ -1246,6 +1246,59 @@ test("removing a plural id takes a target's object of categories whole, other or
   expect(remove(plain, "r", [])).toBe(plain);
 });
 
+test("removing a plural id takes a target's object whole whatever its forms hold, an empty one too, batched and sequential alike (#1148)", () => {
+  for (const sequential of [false, true]) {
+    const remove = (text: string, pluralIds: string[]) =>
+      applyMessagesOps(text, [{ kind: "delete", id: "r" }], {
+        plurals: true,
+        pluralIds: new Set(pluralIds),
+        sequential,
+      });
+    for (const value of ['{ "one": "{count plik", "few": "b" }', "{}"])
+      expect(
+        remove(`{\n  "r": ${value},\n  "k": "v"\n}\n`, ["r"]),
+        `${sequential} ${value}`,
+      ).toBe('{\n  "k": "v"\n}\n');
+    // A section stays, and so does {} at an id no plural of the source's.
+    const section = '{\n  "r": { "one": "a", "label": "b" },\n  "k": "v"\n}\n';
+    expect(remove(section, ["r"])).toBe(section);
+    const empty = '{\n  "r": {},\n  "k": "v"\n}\n';
+    expect(remove(empty, [])).toBe(empty);
+    // Under i18next a suffix family's id is a plural too.
+    expect(
+      applyMessagesOps(
+        '{\n  "item": {},\n  "k": "v"\n}\n',
+        [{ kind: "delete", id: "item" }],
+        {
+          plurals: true,
+          suffixPlurals: true,
+          pluralIds: new Set(["item"]),
+          sequential,
+        },
+      ),
+    ).toBe('{\n  "k": "v"\n}\n');
+    // An empty list is no plural.
+    const list = '{\n  "r": [],\n  "k": "v"\n}\n';
+    expect(remove(list, ["r"])).toBe(list);
+    // A key with a dot in it, Element's `m.poll`, and a flat dotted key.
+    const deleteAt = (text: string, id: string) =>
+      applyMessagesOps(text, [{ kind: "delete", id }], {
+        plurals: true,
+        pluralIds: new Set([id]),
+        sequential,
+      });
+    expect(
+      deleteAt(
+        '{\n  "timeline": {\n    "m.poll": { "count_of_votes": {}, "k": "v" }\n  }\n}\n',
+        "timeline.m.poll.count_of_votes",
+      ),
+    ).toBe('{\n  "timeline": {\n    "m.poll": { "k": "v" }\n  }\n}\n');
+    expect(deleteAt('{\n  "a.b": {},\n  "k": "v"\n}\n', "a.b")).toBe(
+      '{\n  "k": "v"\n}\n',
+    );
+  }
+});
+
 test("an entry-object catalogue takes a translation into its text field only, every other byte kept (#1001)", () => {
   const template = `{
   "smartling": {
