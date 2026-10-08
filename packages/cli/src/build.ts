@@ -498,6 +498,12 @@ export async function buildSnapshotReport(
       byId.set(entry.id, item);
       continue;
     }
+    if (prev.file === file) {
+      errors.push(
+        `duplicate id ${printable(entry.id)} in ${file}, written twice`,
+      );
+      continue;
+    }
     const group = groupOf.get(file);
     const oneSource = group !== undefined && group === groupOf.get(prev.file);
     if (oneSource && prev.entry.source === entry.source) {
@@ -1114,7 +1120,30 @@ export function takesProposals(source: FileSource): boolean {
 // `sourceFile` is the source language's catalogue, where an empty value
 // under a sentence key reads the key as the text (#589); a target's
 // empty value is an untranslated row.
+// A target file that writes an id twice with different texts does not
+// read (#1168): neither copy is the one.
 export async function readEntries(
+  ...args: Parameters<typeof readFileEntries>
+): Promise<StringEntry[]> {
+  const entries = await readFileEntries(...args);
+  const sourceFile = args[4];
+  if (sourceFile) return entries;
+  const texts = new Map<string, string>();
+  const once: StringEntry[] = [];
+  for (const entry of entries) {
+    const text = texts.get(entry.id);
+    if (text === undefined) {
+      texts.set(entry.id, entry.source);
+      once.push(entry);
+    } else if (text !== entry.source)
+      throw new Error(
+        `${printable(entry.id)} is written twice in this file, with different texts`,
+      );
+  }
+  return once;
+}
+
+async function readFileEntries(
   jiti: ReturnType<typeof createJiti>,
   cwd: string,
   file: string,
@@ -1138,7 +1167,7 @@ export async function readEntries(
   // (#999): its values are a translation, never the source.
   if (sourceFile && source.adapter === "messages" && source.keyIsText)
     return (
-      await readEntries(
+      await readFileEntries(
         jiti,
         cwd,
         file,
