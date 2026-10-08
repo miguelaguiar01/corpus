@@ -1693,7 +1693,7 @@ const CLDR_PICKED = new Set<Library>([
 // `१`, #1212), and not part of a time, a number or a name: `u 1:30`,
 // `1.5`, `A1` (#1042). Chinese `一` is a word, no digit.
 const DIGIT_ONES = (() => {
-  const ones = new Set(["1", "\uFF11"]);
+  const ones = new Set(["1", "\u0661", "\u06F1", "\uFF11"]);
   try {
     for (const system of Intl.supportedValuesOf("numberingSystem"))
       try {
@@ -1703,7 +1703,7 @@ const DIGIT_ONES = (() => {
         // A system the formatter does not take.
       }
   } catch {
-    // A runtime that lists none keeps Latin's and full-width's.
+    // A runtime that lists none keeps the four always matched.
   }
   return [...ones]
     .map((one) => `\\u{${one.codePointAt(0)!.toString(16)}}`)
@@ -1911,11 +1911,15 @@ function fixedCounts(
         );
       return false;
     });
-  // Whether a branch shows a standalone 1 where it prints neither `#`
-  // nor the argument: a select within it, through tags, read branch by
-  // branch, since each is a text of its own (#1212).
-  const fixedOne = (branch: IcuNode[], arg: string): boolean => {
-    const selects: IcuNode[][] = [];
+  // Whether some reading of a branch shows a standalone 1 and prints
+  // neither `#` nor the argument: each select within it, through tags,
+  // read branch by branch, a reading that skips the count needing one
+  // of each select's branches to skip it (#1212).
+  const reading = (
+    branch: IcuNode[],
+    arg: string,
+  ): { skips: boolean; fixed: boolean } => {
+    const selects: { skips: boolean; fixed: boolean }[][] = [];
     let printed = false;
     const text = (list: IcuNode[]): string =>
       list
@@ -1923,15 +1927,23 @@ function fixedCounts(
           if (node.kind === "literal") return node.text;
           if (node.kind === "tag") return text(node.children);
           if (node.kind === "select" && node.arg !== arg)
-            selects.push(...Object.values(node.branches));
+            selects.push(
+              Object.values(node.branches).map((b) => reading(b, arg)),
+            );
           else if (prints([node], arg)) printed = true;
           return " ";
         })
         .join("");
     const own = text(branch);
-    return (
-      !printed && (FIXED_ONE.test(own) || selects.some((b) => fixedOne(b, arg)))
-    );
+    const skips =
+      !printed && selects.every((branches) => branches.some((b) => b.skips));
+    return {
+      skips,
+      fixed:
+        skips &&
+        (FIXED_ONE.test(own) ||
+          selects.some((branches) => branches.some((b) => b.fixed))),
+    };
   };
   const visit = (list: IcuNode[]): void => {
     for (const node of list) {
@@ -1941,7 +1953,7 @@ function fixedCounts(
       if (node.kind !== "plural" || node.ordinal) continue;
       for (const [key, branch] of Object.entries(node.branches)) {
         if (key.startsWith("=") || key === "other") continue;
-        if (!fixedOne(branch, node.arg)) continue;
+        if (!reading(branch, node.arg).fixed) continue;
         // The numbers the runtime picks this branch for: not one an `=N`
         // takes, nor i18next's written zero (#985), nor gen-l10n's written
         // zero or two, which take exactly 0 and 2 first (#1039, #1205),
