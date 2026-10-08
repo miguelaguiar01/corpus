@@ -3404,6 +3404,32 @@ test("under gen_l10n =0, =1 and =2 are its zero, one and two: a category they st
   });
 });
 
+test("under gen_l10n a written zero, one or two is allowed in every language, as Intl.pluralLogic takes it for exactly 0, 1 or 2 (#1205)", () => {
+  const weeks = "{count, plural, one{{count} week} other{{count} weeks}}";
+  const cases = [
+    [
+      "fr",
+      "{count, plural, zero{aucune} one{{count} semaine} other{{count} semaines}}",
+      "zero",
+    ],
+    ["ja", "{count, plural, one{1週} other{{count}週}}", "one"],
+    [
+      "de",
+      "{count, plural, one{{count} Woche} two{zwei Wochen} other{{count} Wochen}}",
+      "two",
+    ],
+  ] as const;
+  for (const [language, target, key] of cases) {
+    expect(validateTranslation(weeks, target, language, "gen_l10n")).toEqual({
+      ok: true,
+    });
+    // Under icu the runtime never picks it.
+    expect(validateTranslation(weeks, target, language, "icu")).toMatchObject({
+      incomplete: [{ code: "unexpected-category", key }],
+    });
+  }
+});
+
 test("a category branch that writes the number 1 and no count, where the language's category holds more, is a warning (#1042)", () => {
   // wger's chartRangeWeeks: English's one is 1 alone.
   const weeks = "{count, plural, one{1 week} other{{count} weeks}}";
