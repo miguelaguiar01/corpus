@@ -191,6 +191,7 @@ Flutter's own localisation, `gen-l10n` (`flutter gen-l10n`, or `generate: true` 
 - There is no `selectordinal` and no `offset:`.
 - A plural's keys are `=0`, `=1`, `=2`, `zero`, `one`, `two`, `few`, `many` and `other`.
 - An apostrophe is the character. A project whose `l10n.yaml` sets `use-escaping: true` quotes with it, which Corpus does not read: `init` says so.
+- Angle brackets are text, as gen-l10n has no tags: `Press <Enter>` is text, and a translation may drop or reword a `<b>`. A type read as HTML (`richText: "html"`), for an app that renders the text through an HTML widget, reads them as tags.
 
 ## easy_localization: Flutter
 
