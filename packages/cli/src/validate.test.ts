@@ -1888,7 +1888,7 @@ export default defineCorpus({
   }
 });
 
-test("--server writes an instance term two files of a source share where pull does, and keeps a file's terms where pull cannot render it (#1200)", async () => {
+test("--server writes an instance term two files of a source share where pull does, and keeps a file's terms where pull cannot render it or leaves it (#1200)", async () => {
   writeFileSync(
     path.join(repo, "corpus.config.ts"),
     `import { defineCorpus } from "@corpus/contract";
@@ -1900,6 +1900,7 @@ export default defineCorpus({
   sources: [
     { adapter: "fluent", type: "ui", path: ["l10n/{lang}/a.ftl", "l10n/{lang}/b.ftl"] },
     { adapter: "fluent", type: "ui", path: "l10n/{lang}/c.ftl" },
+    { adapter: "fluent", type: "brand", path: "l10n/{lang}/brands.ftl", languages: ["de"] },
   ],
 });
 `,
@@ -1917,8 +1918,9 @@ export default defineCorpus({
   ftl(
     "en",
     "c.ftl",
-    `-mail = { $case ->\n   *[nom] Mail\n    [gen] Mails\n  }\n-when = When\nm = { -mail(case: "gen") }\n`,
+    `-mail = { $case ->\n   *[nom] Mail\n    [gen] Mails\n  }\n-when = When\nm = { -mail(case: "gen") }\nn = { -ship.gender ->\n    [masculine] He\n   *[other] It\n  }\n`,
   );
+  ftl("en", "brands.ftl", `-ship = Ship\n    .gender = masculine\n`);
   // German: only b.ftl holds -relay, so a pull writes the instance's
   // term there and leaves a.ftl without one.
   ftl("de", "a.ftl", `z = nichts\n`);
@@ -1930,19 +1932,28 @@ export default defineCorpus({
     "c.ftl",
     `-mail = { $capitalization ->\n   *[lower] courriel\n    [upper] Courriel\n  }\n-when = { PLATFORM() ->\n    [macos] Mac\n   *[other] Autre\n  }\n`,
   );
+  // Brands are not shipped in French, but an old fr/brands.ftl is still
+  // there, the app still loads it and pull leaves it as it is.
+  ftl("fr", "brands.ftl", `-ship = Navire\n`);
   const server = await instance({
     de: {
       "-relay": "Relay2",
       x: "{-relay.gender, select, feminine {Sie} other {Es}}",
     },
-    fr: { "-when": "Quand", m: '{-mail(capitalization: "upper")}' },
+    fr: {
+      "-when": "Quand",
+      m: '{-mail(capitalization: "upper")}',
+      n: "{-ship.gender, select, masculine {Il} other {Ce}}",
+    },
   });
   try {
     const c = { ...ctx(), env: { CORPUS_TOKEN: "good" } };
     await run(["validate", "--server"], c);
     expect(
       c.stderr.filter((l) => /reads no argument|has no \./.test(l)),
-    ).toEqual([]);
+    ).toEqual([
+      "l10n/fr/c.ftl:n: -ship has no .gender in this language, so Fluent renders the default variant",
+    ]);
   } finally {
     server.close();
     delete process.env.CORPUS_SERVER;
