@@ -107,102 +107,12 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
   );
   if (payload === undefined) return 1;
 
-  // The files of one source are one catalogue (#661): the ids each
-  // source-language file holds, by source, and the members of each.
-  const groups = new Map<number, FileSource[]>();
-  const sourceIds = new Map<FileSource, Set<string>>();
-  for (const source of config.sources) {
-    if (source.adapter === "exec") continue;
-    const group = "group" in source ? source.group : undefined;
-    if (typeof group !== "number") continue;
-    groups.set(group, [...(groups.get(group) ?? []), source]);
-    sourceIds.set(
-      source,
-      (await ownIds(
-        jiti,
-        ctx.cwd,
-        fileOf(source, config.sourceLanguage, config.sourceLanguage),
-        source,
-        config.sourceLanguage,
-      )) ?? new Set<string>(),
-    );
-  }
-  const membersOf = (source: FileSource) => {
-    const group = "group" in source ? source.group : undefined;
-    return typeof group === "number" ? (groups.get(group) ?? []) : [];
-  };
-
-  // A string two files of one source share is written into each target
-  // file that holds it, and into the first file's when none does, so a
-  // push and a pull leave the files as they were (#661). An empty value
-  // is a key the file lacks, as build seeds it (#970).
-  const targetTexts = new Map<string, Map<string, string>>();
-  const textIn = (member: FileSource, language: string, id: string) =>
-    targetTexts.get(fileOf(member, language, config.sourceLanguage))?.get(id);
-  const holds = (member: FileSource, language: string, id: string) =>
-    !isBlank(textIn(member, language, id) ?? "");
-  const sharedFor = (
-    translations: Record<string, string>,
-    source: FileSource,
-    members: FileSource[],
-    language: string,
-  ): Record<string, string> => {
-    if (members.length < 2) return translations;
-    return Object.fromEntries(
-      Object.entries(translations).filter(([id]) => {
-        const holders = members.filter((m) => sourceIds.get(m)?.has(id));
-        if (holders.length < 2) return true;
-        // Under last-wins the app reads the later file's (#953): that one
-        // is written, and an earlier one only where it held the same
-        // text, so a file that disagrees keeps what the app never shows
-        // and a pull of what was pushed leaves every byte.
-        if (lastWins(source)) {
-          const inTarget = holders.filter((m) => holds(m, language, id));
-          const winner = inTarget.at(-1);
-          if (!winner) return holders.at(-1) === source;
-          return (
-            source === winner ||
-            (inTarget.includes(source) &&
-              textIn(source, language, id) === textIn(winner, language, id))
-          );
-        }
-        // Where none holds a translation, each file that has the key
-        // takes it, `""` left by an extraction tool included, since the
-        // app may read any of them; where none has it, the first.
-        const filled = holders.filter((m) => holds(m, language, id));
-        if (filled.length > 0) return filled.includes(source);
-        const keyed = holders.filter(
-          (m) => textIn(m, language, id) !== undefined,
-        );
-        if (keyed.length > 0) return keyed.includes(source);
-        return holders[0] === source;
-      }),
-    );
-  };
-
-  // Read before anything is written: what the files held when the pull
-  // began decides where a shared string goes.
-  // A target's plural object without `other` is read as build reads it
-  // (#950), or the file that holds it would seem not to.
-  for (const members of groups.values())
-    for (const member of members) {
-      const pluralIds = await sourcePluralIds(
-        jiti,
-        ctx.cwd,
-        member,
-        config.sourceLanguage,
-      ).catch(() => undefined);
-      for (const language of targets) {
-        if (!takesLanguage(member, config, language)) continue;
-        const file = fileOf(member, language, config.sourceLanguage);
-        if (targetTexts.has(file)) continue;
-        targetTexts.set(
-          file,
-          (await ownTexts(jiti, ctx.cwd, file, member, language, pluralIds)) ??
-            new Map<string, string>(),
-        );
-      }
-    }
+  const { membersOf, sharedFor, sourceIds } = await sharedRouting(
+    jiti,
+    ctx.cwd,
+    config,
+    targets,
+  );
 
   const changed: string[] = [];
   // Translations a writer refused, which fail the pull (#1051).
@@ -595,6 +505,125 @@ export async function pull(args: string[], ctx: RunContext): Promise<number> {
   }
   refusals();
   return notWritten === 0 ? 0 : 1;
+}
+
+// The files of one source are one catalogue (#661): which of a group's
+// files a translation of an id two of them share is written into, read
+// from the target files as they are before anything is written.
+// validate --server reads a pull's Fluent terms by the same rule (#1200).
+export async function sharedRouting(
+  jiti: ReturnType<typeof createJiti>,
+  cwd: string,
+  config: CorpusConfig,
+  targets: readonly string[],
+): Promise<{
+  membersOf: (source: FileSource) => FileSource[];
+  sourceIds: Map<FileSource, Set<string>>;
+  sharedFor: (
+    translations: Record<string, string>,
+    source: FileSource,
+    members: FileSource[],
+    language: string,
+  ) => Record<string, string>;
+}> {
+  // The ids each source-language file holds, by source, and the members
+  // of each.
+  const groups = new Map<number, FileSource[]>();
+  const sourceIds = new Map<FileSource, Set<string>>();
+  for (const source of config.sources) {
+    if (source.adapter === "exec") continue;
+    const group = "group" in source ? source.group : undefined;
+    if (typeof group !== "number") continue;
+    groups.set(group, [...(groups.get(group) ?? []), source]);
+    sourceIds.set(
+      source,
+      (await ownIds(
+        jiti,
+        cwd,
+        fileOf(source, config.sourceLanguage, config.sourceLanguage),
+        source,
+        config.sourceLanguage,
+      )) ?? new Set<string>(),
+    );
+  }
+  const membersOf = (source: FileSource) => {
+    const group = "group" in source ? source.group : undefined;
+    return typeof group === "number" ? (groups.get(group) ?? []) : [];
+  };
+
+  // A string two files of one source share is written into each target
+  // file that holds it, and into the first file's when none does, so a
+  // push and a pull leave the files as they were (#661). An empty value
+  // is a key the file lacks, as build seeds it (#970).
+  const targetTexts = new Map<string, Map<string, string>>();
+  const textIn = (member: FileSource, language: string, id: string) =>
+    targetTexts.get(fileOf(member, language, config.sourceLanguage))?.get(id);
+  const holds = (member: FileSource, language: string, id: string) =>
+    !isBlank(textIn(member, language, id) ?? "");
+  const sharedFor = (
+    translations: Record<string, string>,
+    source: FileSource,
+    members: FileSource[],
+    language: string,
+  ): Record<string, string> => {
+    if (members.length < 2) return translations;
+    return Object.fromEntries(
+      Object.entries(translations).filter(([id]) => {
+        const holders = members.filter((m) => sourceIds.get(m)?.has(id));
+        if (holders.length < 2) return true;
+        // Under last-wins the app reads the later file's (#953): that one
+        // is written, and an earlier one only where it held the same
+        // text, so a file that disagrees keeps what the app never shows
+        // and a pull of what was pushed leaves every byte.
+        if (lastWins(source)) {
+          const inTarget = holders.filter((m) => holds(m, language, id));
+          const winner = inTarget.at(-1);
+          if (!winner) return holders.at(-1) === source;
+          return (
+            source === winner ||
+            (inTarget.includes(source) &&
+              textIn(source, language, id) === textIn(winner, language, id))
+          );
+        }
+        // Where none holds a translation, each file that has the key
+        // takes it, `""` left by an extraction tool included, since the
+        // app may read any of them; where none has it, the first.
+        const filled = holders.filter((m) => holds(m, language, id));
+        if (filled.length > 0) return filled.includes(source);
+        const keyed = holders.filter(
+          (m) => textIn(m, language, id) !== undefined,
+        );
+        if (keyed.length > 0) return keyed.includes(source);
+        return holders[0] === source;
+      }),
+    );
+  };
+
+  // Read before anything is written: what the files held when the pull
+  // began decides where a shared string goes.
+  // A target's plural object without `other` is read as build reads it
+  // (#950), or the file that holds it would seem not to.
+  for (const members of groups.values())
+    for (const member of members) {
+      const pluralIds = await sourcePluralIds(
+        jiti,
+        cwd,
+        member,
+        config.sourceLanguage,
+      ).catch(() => undefined);
+      for (const language of targets) {
+        if (!takesLanguage(member, config, language)) continue;
+        const file = fileOf(member, language, config.sourceLanguage);
+        if (targetTexts.has(file)) continue;
+        targetTexts.set(
+          file,
+          (await ownTexts(jiti, cwd, file, member, language, pluralIds)) ??
+            new Map<string, string>(),
+        );
+      }
+    }
+
+  return { membersOf, sharedFor, sourceIds };
 }
 
 // The indent the source's other target files write, the first that has

@@ -1196,6 +1196,12 @@ test("a Rails _html key's translation writes its own tags, closed; a plain key's
 async function instance(
   translations: Record<string, Record<string, string>>,
   status = 200,
+  // A real payload types every id it holds.
+  types: Record<string, string> = Object.fromEntries(
+    Object.values(translations).flatMap((t) =>
+      Object.keys(t).map((id) => [id, "ui"]),
+    ),
+  ),
 ) {
   const calls: { url: string; auth?: string }[] = [];
   const server: Server = createServer((req, res) => {
@@ -1209,7 +1215,7 @@ async function instance(
               project: "pull-fixture",
               sourceLanguage: "en",
               minState: "translated",
-              types: {},
+              types,
               translations,
             }
           : { error: "unauthorized", message: "no" },
@@ -1756,6 +1762,264 @@ export default defineCorpus({
   const d = ctx();
   expect(await run(["validate"], d)).toBe(0);
   expect(d.stderr.filter((l) => /\.gender/.test(l))).toEqual([]);
+});
+
+test("--server warns of a Fluent term argument and attribute the instance's draft passes and the locale's term never reads (#1200)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "id"],
+  sources: [{ adapter: "fluent", type: "ui", path: "l10n/{lang}.ftl" }],
+});
+`,
+  );
+  mkdirSync(path.join(repo, "l10n"), { recursive: true });
+  writeFileSync(
+    path.join(repo, "l10n", "en.ftl"),
+    `-brand = { $capitalization ->\n   *[lower] account\n    [upper] Account\n  }\n-relay = Relay\n    .gender = feminine\na = Your { -brand(capitalization: "upper") }\nb = { -relay.gender ->\n    [feminine] She\n   *[other] It\n  }\n`,
+  );
+  // The locale defines its terms, Relay without .gender; the messages
+  // that use them are drafts on the instance only.
+  writeFileSync(
+    path.join(repo, "l10n", "id.ftl"),
+    `-brand = { $capitalization ->\n   *[lower] akun\n    [upper] Akun\n  }\n-relay = Relay\n`,
+  );
+  expect(await run(["validate"], ctx())).toBe(0);
+  const server = await instance({
+    id: {
+      a: '{-brand(kapitalisasi: "upper")} Anda',
+      b: "{-relay.gender, select, feminine {Dia} other {Itu}}",
+    },
+  });
+  try {
+    const c = { ...ctx(), env: { CORPUS_TOKEN: "good" } };
+    expect(await run(["validate", "--server"], c)).toBe(0);
+    expect(
+      c.stderr.filter((l) => /reads no argument|has no \./.test(l)),
+    ).toEqual([
+      "l10n/id.ftl:a: -brand reads no argument kapitalisasi in this language, so Fluent renders it as if none were passed",
+      "l10n/id.ftl:b: -relay has no .gender in this language, so Fluent renders the default variant",
+    ]);
+    const j = { ...ctx(), env: { CORPUS_TOKEN: "good" } };
+    expect(await run(["validate", "--server", "--json"], j)).toBe(0);
+    const findings = JSON.parse(j.stdout.join("\n"));
+    expect(findings).toContainEqual({
+      file: "l10n/id.ftl",
+      sourceFile: "l10n/en.ftl",
+      key: "a",
+      language: "id",
+      code: "unknown-term-argument",
+      severity: "warning",
+      message:
+        "-brand reads no argument kapitalisasi in this language, so Fluent renders it as if none were passed",
+      where: "server",
+    });
+    expect(findings).toContainEqual({
+      file: "l10n/id.ftl",
+      sourceFile: "l10n/en.ftl",
+      key: "b",
+      language: "id",
+      code: "unknown-term-attribute",
+      severity: "warning",
+      message:
+        "-relay has no .gender in this language, so Fluent renders the default variant",
+      where: "server",
+    });
+  } finally {
+    server.close();
+    delete process.env.CORPUS_SERVER;
+  }
+});
+
+test("--server reads a language's terms as pull would write them: the instance's term in place of the file's, a new file's without attributes (#1200)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de", "ru", "cs"],
+  sources: [{ adapter: "fluent", type: "ui", path: "l10n/{lang}.ftl" }],
+});
+`,
+  );
+  mkdirSync(path.join(repo, "l10n"), { recursive: true });
+  writeFileSync(
+    path.join(repo, "l10n", "en.ftl"),
+    `-brand = { $capitalization ->\n   *[lower] account\n    [upper] Account\n  }\n-relay = Relay\n    .gender = feminine\na = Your { -brand(capitalization: "upper") }\nb = { -relay.gender ->\n    [feminine] She\n   *[other] It\n  }\nc = { -brand(capitalization: "lower") } page\n`,
+  );
+  // German's file declines -brand by case; the instance's German term
+  // has gone back to capitalization, which is what a pull writes.
+  writeFileSync(
+    path.join(repo, "l10n", "de.ftl"),
+    `-brand = { $case ->\n   *[nom] Konto\n    [gen] Kontos\n  }\n`,
+  );
+  const server = await instance({
+    de: {
+      "-brand":
+        "{capitalization, select, lower {konto} upper {Konto} other {konto}}",
+      a: '{-brand(capitalization: "upper")}',
+      c: '{-brand(case: "gen")}',
+    },
+    // No Russian file: the instance's term, which reads case, is the
+    // one a pull writes.
+    ru: {
+      "-brand": "{case, select, nom {аккаунт} gen {аккаунта} other {аккаунт}}",
+      a: '{-brand(case: "gen")}',
+    },
+    // No Czech file: a pull writes the term's value alone, without the
+    // source's .gender.
+    cs: {
+      "-relay": "Relay",
+      b: "{-relay.gender, select, feminine {Ona} other {To}}",
+    },
+  });
+  try {
+    const c = { ...ctx(), env: { CORPUS_TOKEN: "good" } };
+    await run(["validate", "--server"], c);
+    expect(
+      c.stderr.filter((l) => /reads no argument|has no \./.test(l)),
+    ).toEqual([
+      "l10n/de.ftl:c: -brand reads no argument case in this language, so Fluent renders it as if none were passed",
+      "l10n/cs.ftl:b: -relay has no .gender in this language, so Fluent renders the default variant",
+    ]);
+  } finally {
+    server.close();
+    delete process.env.CORPUS_SERVER;
+  }
+});
+
+test("--server writes an instance term two files of a source share where pull does, and keeps a file's terms where pull cannot render it or leaves it (#1200)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de", "fr"],
+  sources: [
+    { adapter: "fluent", type: "ui", path: ["l10n/{lang}/a.ftl", "l10n/{lang}/b.ftl"] },
+    { adapter: "fluent", type: "ui", path: "l10n/{lang}/c.ftl" },
+    { adapter: "fluent", type: "brand", path: "l10n/{lang}/brands.ftl", languages: ["de"] },
+  ],
+});
+`,
+  );
+  const ftl = (lang: string, name: string, text: string) => {
+    mkdirSync(path.join(repo, "l10n", lang), { recursive: true });
+    writeFileSync(path.join(repo, "l10n", lang, name), text);
+  };
+  ftl(
+    "en",
+    "a.ftl",
+    `-relay = Relay\n    .gender = feminine\nx = { -relay.gender ->\n    [feminine] She\n   *[other] It\n  }\n`,
+  );
+  ftl("en", "b.ftl", `-relay = Relay\n    .gender = feminine\ny = Hello\n`);
+  ftl(
+    "en",
+    "c.ftl",
+    `-mail = { $case ->\n   *[nom] Mail\n    [gen] Mails\n  }\n-when = When\nm = { -mail(case: "gen") }\nn = { -ship.gender ->\n    [masculine] He\n   *[other] It\n  }\n`,
+  );
+  ftl("en", "brands.ftl", `-ship = Ship\n    .gender = masculine\n`);
+  // German: only b.ftl holds -relay, so a pull writes the instance's
+  // term there and leaves a.ftl without one.
+  ftl("de", "a.ftl", `z = nichts\n`);
+  ftl("de", "b.ftl", `-relay = Relai\n    .gender = feminine\ny = Hallo\n`);
+  // French: c.ftl's -when calls a function, which pull cannot write a
+  // draft into; the file's -mail, which reads capitalization, stays.
+  ftl(
+    "fr",
+    "c.ftl",
+    `-mail = { $capitalization ->\n   *[lower] courriel\n    [upper] Courriel\n  }\n-when = { PLATFORM() ->\n    [macos] Mac\n   *[other] Autre\n  }\n`,
+  );
+  // Brands are not shipped in French, but an old fr/brands.ftl is still
+  // there, the app still loads it and pull leaves it as it is.
+  ftl("fr", "brands.ftl", `-ship = Navire\n`);
+  const server = await instance({
+    de: {
+      "-relay": "Relay2",
+      x: "{-relay.gender, select, feminine {Sie} other {Es}}",
+    },
+    fr: {
+      "-when": "Quand",
+      m: '{-mail(capitalization: "upper")}',
+      n: "{-ship.gender, select, masculine {Il} other {Ce}}",
+    },
+  });
+  try {
+    const c = { ...ctx(), env: { CORPUS_TOKEN: "good" } };
+    await run(["validate", "--server"], c);
+    expect(
+      c.stderr.filter((l) => /reads no argument|has no \./.test(l)),
+    ).toEqual([
+      "l10n/fr/c.ftl:n: -ship has no .gender in this language, so Fluent renders the default variant",
+    ]);
+  } finally {
+    server.close();
+    delete process.env.CORPUS_SERVER;
+  }
+});
+
+test("--server renders an instance term only into a source of the type the instance holds it under, as pull writes it (#1200)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de"],
+  sources: [
+    { adapter: "fluent", type: "ui", path: "l10n/{lang}/main.ftl" },
+    { adapter: "fluent", type: "brand", path: "l10n/{lang}/brands.ftl" },
+  ],
+});
+`,
+  );
+  const ftl = (lang: string, name: string, text: string) => {
+    mkdirSync(path.join(repo, "l10n", lang), { recursive: true });
+    writeFileSync(path.join(repo, "l10n", lang, name), text);
+  };
+  ftl("en", "main.ftl", `y = { -relay(case: "gen") }\n`);
+  ftl(
+    "en",
+    "brands.ftl",
+    `-relay = { $case ->\n   *[nom] Relay\n    [gen] Relays\n  }\n`,
+  );
+  ftl(
+    "de",
+    "brands.ftl",
+    `-relay = { $case ->\n   *[nom] Relai\n    [gen] Relais\n  }\n`,
+  );
+  const translations = {
+    de: {
+      "-relay": "{capitalization, select, upper {Relai} other {relai}}",
+      y: '{-relay(case: "gen")}',
+    },
+  };
+  const warnings = async (types: Record<string, string>) => {
+    const server = await instance(translations, 200, types);
+    try {
+      const c = { ...ctx(), env: { CORPUS_TOKEN: "good" } };
+      await run(["validate", "--server"], c);
+      return c.stderr.filter((l) => /reads no argument|has no \./.test(l));
+    } finally {
+      server.close();
+      delete process.env.CORPUS_SERVER;
+    }
+  };
+  // Moved into brands.ftl and not pushed since: the instance still holds
+  // -relay as ui, so pull leaves brands.ftl's term as it is.
+  expect(await warnings({ "-relay": "ui", y: "ui" })).toEqual([]);
+  expect(await warnings({ "-relay": "brand", y: "ui" })).toEqual([
+    "l10n/de/main.ftl:y: -relay reads no argument case in this language, so Fluent renders it as if none were passed",
+  ]);
 });
 
 test("validate refuses a source whose path its adapter does not read, naming the file's format, once (#1035)", async () => {

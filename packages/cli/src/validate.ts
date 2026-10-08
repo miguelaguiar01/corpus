@@ -24,6 +24,7 @@ import {
   type StringEntry,
 } from "@corpus/contract";
 import {
+  entriesToFluent,
   fluentTerms,
   gettextPluralIds,
   isBlank,
@@ -61,7 +62,7 @@ import {
   unknownArguments,
   takesLanguage,
 } from "./build";
-import { download } from "./pull";
+import { download, sharedRouting } from "./pull";
 import { unreadableFile } from "./catalogue-format";
 import { CliError, loadConfig, requireToken } from "./config";
 import { listed } from "./status";
@@ -895,6 +896,26 @@ async function validateServer(
   for (const source of config.sources)
     if (source.adapter !== "exec")
       fileSources.set(fileOf(source, sourceLanguage, sourceLanguage), source);
+  // Only the languages that hold a term draft are routed, through the
+  // Fluent sources' files.
+  const drafting = config.languages.filter(
+    (l) =>
+      l !== sourceLanguage &&
+      Object.keys(payload.translations[l] ?? {}).some(isFluentTermId),
+  );
+  const routing =
+    drafting.length > 0 && config.sources.some((s) => s.adapter === "fluent")
+      ? await sharedRouting(
+          createJiti(import.meta.url),
+          ctx.cwd,
+          {
+            ...config,
+            sources: config.sources.filter((s) => s.adapter === "fluent"),
+          },
+          drafting,
+        )
+      : undefined;
+  const terms = pulledTermsOf(ctx.cwd, config, payload, routing);
   const orphans = new Map<string, string[]>();
   const brokenSources = new Set<string>();
   const gaps: SourceGaps = new Map();
@@ -956,6 +977,16 @@ async function validateServer(
             : { ...f, sourceFile, where: "server" as const },
         ),
       );
+      if (source?.adapter === "fluent")
+        findings.push(
+          ...termWarnings(target, {
+            file,
+            key,
+            language,
+            own: terms(language),
+            source: terms(sourceLanguage),
+          }).map((f) => ({ ...f, sourceFile, where: "server" as const })),
+        );
     }
   }
   for (const [key, languages] of orphans)
@@ -1132,6 +1163,100 @@ function termsOf(
       if (!existsSync(abs)) continue;
       try {
         for (const [name, term] of fluentTerms(readRepoText(abs)))
+          if (!merged.has(name)) merged.set(name, term);
+      } catch {
+        // A file that does not read is its own finding.
+      }
+    }
+    read.set(language, merged);
+    return merged;
+  };
+}
+
+// Per language, the terms of the files as a pull from the instance
+// would leave them (#1200): a term is a string the instance holds, its
+// draft taking the file's value's place, in the files pull writes it
+// into, the file's attributes kept and a new file's term written
+// without the source's. The source language's are its files', which
+// pull never writes.
+function pulledTermsOf(
+  cwd: string,
+  config: CorpusConfig,
+  payload: {
+    types: Record<string, string>;
+    translations: Record<string, Record<string, string>>;
+  },
+  routing: Awaited<ReturnType<typeof sharedRouting>> | undefined,
+): (language: string) => Terms {
+  const repository = termsOf(cwd, config);
+  const read = new Map<string, Terms>();
+  const templates = new Map<FileSource, { text: string; names: string[] }>();
+  const templateOf = (source: FileSource) => {
+    let known = templates.get(source);
+    if (!known) {
+      const text = readRepoText(
+        path.join(
+          cwd,
+          fileOf(source, config.sourceLanguage, config.sourceLanguage),
+        ),
+      );
+      known = { text, names: [...fluentTerms(text).keys()] };
+      templates.set(source, known);
+    }
+    return known;
+  };
+  return (language) => {
+    if (language === config.sourceLanguage) return repository(language);
+    const known = read.get(language);
+    if (known) return known;
+    const merged: Terms = new Map();
+    const held = payload.translations[language] ?? {};
+    for (const source of config.sources) {
+      if (source.adapter !== "fluent") continue;
+      // A file for a language the source does not take is left as it is.
+      const takes = takesLanguage(source, config, language);
+      const abs = path.join(
+        cwd,
+        fileOf(source, language, config.sourceLanguage),
+      );
+      try {
+        const { text: template, names } = templateOf(source);
+        const existing = existsSync(abs) ? readRepoText(abs) : undefined;
+        const drafted: Record<string, string> = {};
+        for (const name of names) {
+          const id = namespaced(source, name);
+          const draft = held[id];
+          // Pull writes a translation into a source of its type alone.
+          if (
+            draft !== undefined &&
+            !isBlank(draft) &&
+            payload.types[id] === source.type
+          )
+            drafted[id] = draft;
+        }
+        // A term two files of the source share goes where pull writes it.
+        const routed = routing
+          ? routing.sharedFor(
+              drafted,
+              source,
+              routing.membersOf(source),
+              language,
+            )
+          : drafted;
+        const drafts: Record<string, string> = {};
+        for (const name of names) {
+          const draft = routed[namespaced(source, name)];
+          if (draft !== undefined) drafts[name] = draft;
+        }
+        let text = existing;
+        if (takes && Object.keys(drafts).length > 0)
+          try {
+            text = entriesToFluent(template, drafts, existing);
+          } catch {
+            // A file pull refuses to write keeps its terms.
+          }
+        if (text === undefined) continue;
+        for (const [name, term] of fluentTerms(text))
           if (!merged.has(name)) merged.set(name, term);
       } catch {
         // A file that does not read is its own finding.
