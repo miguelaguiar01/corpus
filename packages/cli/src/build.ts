@@ -28,6 +28,7 @@ import {
   isBlank,
   messagesToEntries,
   pluralBranches,
+  ownFormIds,
   pluralObjectIds,
   suffixPluralIds,
   type PluralObjects,
@@ -1165,7 +1166,7 @@ async function readFileEntries(
   // The ids the source file holds as plural objects, as the file writes
   // them, where a target's object of categories is the plural though it
   // lacks `other` (#950): sourcePluralIds.
-  pluralIds?: ReadonlySet<string>,
+  pluralIds?: SourcePlurals,
   // A messages value that is no string, a null, number or boolean.
   onSkipped?: (id: string) => void,
   // A target's plural object or hash whose form `key` would split the
@@ -1317,6 +1318,7 @@ async function readFileEntries(
           ...(sourceFile &&
             language !== undefined && { sourceLanguage: language }),
           ...(pluralIds && { pluralIds }),
+          ...(pluralIds?.own && { ownIds: pluralIds.own }),
           onRefused: (id, reason) => onUnread?.(own(id), reason),
           ...(onSkipped && { onSkipped: (id: string) => onSkipped(own(id)) }),
           ...(onUnsplit &&
@@ -1665,12 +1667,19 @@ export async function formsHeld(
 
 // The ids a source's own file holds as a plural object or hash, which
 // the writers keep as one (#950); none where the file is absent.
+// The ids a source file holds as plurals, and, `own`, its strings
+// shaped as a family's form, which a target's family never takes
+// (#1191).
+export type SourcePlurals = ReadonlySet<string> & {
+  readonly own?: ReadonlySet<string>;
+};
+
 export async function sourcePluralIds(
   jiti: ReturnType<typeof createJiti>,
   cwd: string,
   source: FileSource,
   sourceLanguage: string,
-): Promise<ReadonlySet<string> | undefined> {
+): Promise<SourcePlurals | undefined> {
   const file = fileOf(source, sourceLanguage, sourceLanguage);
   const abs = path.join(cwd, file);
   if (!existsSync(abs)) return undefined;
@@ -1682,9 +1691,9 @@ export async function sourcePluralIds(
   if (source.adapter === "messages" && readsPluralObjects(source)) {
     const data = await readModule(jiti, abs);
     const ids = pluralObjectIds(data, readsPluralObjects(source));
-    if (readsSuffixPlurals(source))
-      for (const id of suffixPluralIds(data, sourceLanguage)) ids.add(id);
-    return ids;
+    if (!readsSuffixPlurals(source)) return ids;
+    for (const id of suffixPluralIds(data, sourceLanguage)) ids.add(id);
+    return Object.assign(ids, { own: ownFormIds(data, sourceLanguage) });
   }
   return undefined;
 }

@@ -14,6 +14,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- Under i18next, a key the source holds as a string beside a plural object of its base (`rooms_other` beside `rooms`) is read, pulled and removed as that key, not as the plural's form (#1191).
 - A pull adds a key missing from a JSON list's items in one pass: 8,000 items take 0.2 s, not 81 s (#1290).
 - A pull fills a JSON list the target holds short in one pass: 8,000 items take under 0.1 s, not 8 s (#1282).
 - A pull into a short JSON list keeps a source's empty list in its place, rather than writing invalid JSON or shifting the items after it (#1282).

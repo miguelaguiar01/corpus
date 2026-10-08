@@ -90,7 +90,15 @@ type Leaf = [
 
 // i18next's families: off, or on, a target's being `known`, the
 // source's, a source's of its `language`'s categories (#985).
-type Suffix = false | { known?: ReadonlySet<string>; language?: string };
+// `own`, the source's string ids, which a target's family never takes
+// as a form (#1191).
+type Suffix =
+  | false
+  | {
+      known?: ReadonlySet<string>;
+      language?: string;
+      own?: ReadonlySet<string>;
+    };
 
 // With `plurals`, a plural object is one leaf, its text the plural
 // string it reads as (#662); at an id of `known`, the source's plurals,
@@ -105,7 +113,7 @@ function leaves(
   out: Leaf[] = [],
 ): Leaf[] {
   const families = suffix
-    ? suffixFamilies(tree, path, suffix.known, suffix.language)
+    ? suffixFamilies(tree, path, suffix.known, suffix.language, suffix.own)
     : new Map<string, Map<string, string>>();
   const member = new Map<string, string>();
   for (const [base, forms] of families)
@@ -528,6 +536,8 @@ export function entriesToMessages(
   // written back in the target's own (#1187); a new file is the
   // source's, read as the source is.
   const known = new Set([...sourcePlurals, ...sourceSuffix]);
+  // The source's strings, none of which a target's family takes (#1191).
+  const own = new Set([...sourcePaths.keys()].filter((id) => !known.has(id)));
   // A list is one value whose items are numbered (#1053): in a new
   // file it runs to its last translated item, the source's text before
   // it, and goes where none is translated.
@@ -548,7 +558,7 @@ export function entriesToMessages(
     baseTree,
     plurals,
     fresh ? sourcePlurals : known,
-    suffix && { ...suffix, known: fresh ? sourceSuffix : known },
+    suffix && { ...suffix, known: fresh ? sourceSuffix : known, own },
   )) {
     const id = path.join(".");
     seen.add(id);
@@ -1246,6 +1256,9 @@ export function applyMessagesOps(
     // i18next's plural keys are one string (#985).
     suffixPlurals?: boolean;
     sourceLanguage?: string;
+    // A target file's: the source's strings shaped as a family's form,
+    // which are none of its families' (#1191).
+    ownIds?: ReadonlySet<string>;
     // The oracle the batched writes are tested against (#693).
     sequential?: boolean;
   } = {},
@@ -1266,6 +1279,7 @@ export function applyMessagesOps(
     suffix && {
       ...(options.pluralIds && { known: options.pluralIds }),
       ...(options.sourceLanguage && { language: options.sourceLanguage }),
+      ...(options.ownIds && { own: options.ownIds }),
     },
   );
   // A new plural is written as the file writes its others: as keys, or
