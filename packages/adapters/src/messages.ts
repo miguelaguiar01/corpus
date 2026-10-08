@@ -38,6 +38,9 @@ export type MessagesOptions = {
   // A null, number or boolean, skipped; and, in entry objects, a value
   // that is no entry.
   onSkipped?: (id: string) => void;
+  // A target's plural object whose form `key` splits the rebuilt text
+  // otherwise than the file holds it (#1186).
+  onUnsplit?: (id: string, key: string) => void;
   // Entry objects, each its text in one field and its note in another
   // (#1001): Signal's `{ messageformat, description }`, FormatJS's
   // extract formats.
@@ -192,6 +195,25 @@ export function isPluralObject(
     entries.every(([key, value]) => back[key] === value) &&
     Object.keys(back).length === entries.length
   );
+}
+
+// The forms of a plural object that its rebuilt text would not split
+// back to (#1186): each whose own braces do not balance, else the first
+// that comes back otherwise.
+export function unsplitForms(forms: Record<string, string>): string[] {
+  const balanced = (text: string) => {
+    let depth = 0;
+    for (const char of text) {
+      if (char === "{") depth++;
+      else if (char === "}" && --depth < 0) return false;
+    }
+    return depth === 0;
+  };
+  const unbalanced = Object.keys(forms).filter((key) => !balanced(forms[key]!));
+  if (unbalanced.length > 0) return unbalanced;
+  const back = pluralBranches(pluralText("count", forms, "written"), false);
+  const first = Object.keys(forms).find((key) => back?.[key] !== forms[key]);
+  return first === undefined ? [] : [first];
 }
 
 // The ids a source catalogue holds as plural objects, as the writer
@@ -540,8 +562,12 @@ function walk(
   if (
     path.length > 0 &&
     isPluralAt(node, path.join("."), options.plurals, options.pluralIds)
-  )
+  ) {
+    if (options.onUnsplit)
+      for (const key of unsplitForms(node))
+        options.onUnsplit(path.join("."), key);
     node = pluralText("count", node, "written");
+  }
   if (typeof node === "string") {
     const id = path.join(".");
     const first = paths.get(id);

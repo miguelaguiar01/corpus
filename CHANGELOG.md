@@ -14,6 +14,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- A target plural object's or Rails hash's form with a stray brace is named as that form, `unsplittable-form`, rather than as a missing `other` or not at all (#1186).
 - Under `library: "gen_l10n"`, angle brackets are text, as Flutter's gen-l10n has no tags: `<Enter>` is no unclosed tag (#1181).
 - A source outside the git work tree, or behind a symlink, no longer turns off detecting the git-ignored sources; where git cannot be asked, the build says so (#1176).
 - `corpus init` lists the languages `angular.json`'s `i18n.locales` builds, and names the target `.xlf` files it leaves out (#1172).

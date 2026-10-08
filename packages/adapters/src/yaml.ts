@@ -18,7 +18,12 @@ import {
   type Pair,
   type YAMLMap,
 } from "yaml";
-import { plainForPlural, pluralBranches, pluralText } from "./messages";
+import {
+  plainForPlural,
+  pluralBranches,
+  pluralText,
+  unsplitForms,
+} from "./messages";
 import { applied, eolOf, lineIndent, ownRecord, type Patch } from "./text";
 import type { SourceOp } from "./write";
 
@@ -190,14 +195,23 @@ export function yamlTranslations(
   text: string,
   root: string,
   pluralIds?: ReadonlySet<string>,
-  options: { ownFile?: (root: string) => string | undefined } = {},
+  options: {
+    ownFile?: (root: string) => string | undefined;
+    // A hash's form the rebuilt plural would not split back to (#1186).
+    onUnsplit?: (id: string, key: string) => void;
+  } = {},
 ): StringEntry[] {
-  return yamlStrings(text, root, { pluralIds, ...options }).flatMap((s) =>
-    s.text === "" ||
-    (s.plural && Object.values(s.plural).every((f) => f === ""))
-      ? []
-      : [{ id: s.id, type: "", source: s.text }],
-  );
+  const { onUnsplit, ...read } = options;
+  return yamlStrings(text, root, { pluralIds, ...read }).flatMap((s) => {
+    if (
+      s.text === "" ||
+      (s.plural && Object.values(s.plural).every((f) => f === ""))
+    )
+      return [];
+    if (s.plural && onUnsplit)
+      for (const key of unsplitForms(s.plural)) onUnsplit(s.id, key);
+    return [{ id: s.id, type: "", source: s.text }];
+  });
 }
 
 // YAML's own escapes for the line breaks libyaml reads in a quoted
