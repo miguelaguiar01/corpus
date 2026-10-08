@@ -1758,6 +1758,77 @@ export default defineCorpus({
   expect(d.stderr.filter((l) => /\.gender/.test(l))).toEqual([]);
 });
 
+test("--server warns of a Fluent term argument and attribute the instance's draft passes and the locale's term never reads (#1200)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "id"],
+  sources: [{ adapter: "fluent", type: "ui", path: "l10n/{lang}.ftl" }],
+});
+`,
+  );
+  mkdirSync(path.join(repo, "l10n"), { recursive: true });
+  writeFileSync(
+    path.join(repo, "l10n", "en.ftl"),
+    `-brand = { $capitalization ->\n   *[lower] account\n    [upper] Account\n  }\n-relay = Relay\n    .gender = feminine\na = Your { -brand(capitalization: "upper") }\nb = { -relay.gender ->\n    [feminine] She\n   *[other] It\n  }\n`,
+  );
+  // The locale defines its terms, Relay without .gender; the messages
+  // that use them are drafts on the instance only.
+  writeFileSync(
+    path.join(repo, "l10n", "id.ftl"),
+    `-brand = { $capitalization ->\n   *[lower] akun\n    [upper] Akun\n  }\n-relay = Relay\n`,
+  );
+  expect(await run(["validate"], ctx())).toBe(0);
+  const server = await instance({
+    id: {
+      a: '{-brand(kapitalisasi: "upper")} Anda',
+      b: "{-relay.gender, select, feminine {Dia} other {Itu}}",
+    },
+  });
+  try {
+    const c = { ...ctx(), env: { CORPUS_TOKEN: "good" } };
+    expect(await run(["validate", "--server"], c)).toBe(0);
+    expect(
+      c.stderr.filter((l) => /reads no argument|has no \./.test(l)),
+    ).toEqual([
+      "l10n/id.ftl:a: -brand reads no argument kapitalisasi in this language, so Fluent renders it as if none were passed",
+      "l10n/id.ftl:b: -relay has no .gender in this language, so Fluent renders the default variant",
+    ]);
+    const j = { ...ctx(), env: { CORPUS_TOKEN: "good" } };
+    expect(await run(["validate", "--server", "--json"], j)).toBe(0);
+    const findings = JSON.parse(j.stdout.join("\n"));
+    expect(findings).toContainEqual({
+      file: "l10n/id.ftl",
+      sourceFile: "l10n/en.ftl",
+      key: "a",
+      language: "id",
+      code: "unknown-term-argument",
+      severity: "warning",
+      message:
+        "-brand reads no argument kapitalisasi in this language, so Fluent renders it as if none were passed",
+      where: "server",
+    });
+    expect(findings).toContainEqual({
+      file: "l10n/id.ftl",
+      sourceFile: "l10n/en.ftl",
+      key: "b",
+      language: "id",
+      code: "unknown-term-attribute",
+      severity: "warning",
+      message:
+        "-relay has no .gender in this language, so Fluent renders the default variant",
+      where: "server",
+    });
+  } finally {
+    server.close();
+    delete process.env.CORPUS_SERVER;
+  }
+});
+
 test("validate refuses a source whose path its adapter does not read, naming the file's format, once (#1035)", async () => {
   writeFileSync(
     path.join(repo, "corpus.config.ts"),
