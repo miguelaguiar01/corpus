@@ -4694,6 +4694,66 @@ test("under pluralAsForms a target that holds the plural with text beside it is 
       { code: "unknown-select", arg: "g" },
     ],
   });
+  // A target that fails for another reason keeps that finding, its
+  // braces read as its library reads them (#1268 review).
+  const forms = (
+    library: "formatjs" | "fmt" | "icu",
+    source: string,
+    target: string,
+  ) =>
+    validateTranslation(source, target, "de", library, { pluralAsForms: true });
+  expect(
+    forms(
+      "formatjs",
+      "{count, plural, one {# room} other {# rooms}}",
+      "{count, plural, one {# Raum'}'} few {# Räume}}",
+    ),
+  ).toEqual({ ok: false, errors: [{ code: "missing-other", arg: "count" }] });
+  const fmt = "{count, plural, one {Type }} {count}} other {Type }} {count}s}}";
+  expect(
+    forms(
+      "fmt",
+      fmt,
+      "{count, plural, one {Tippe }} {count}} few {Tippe }} {count}}}",
+    ),
+  ).toEqual({ ok: false, errors: [{ code: "missing-other", arg: "count" }] });
+  expect(
+    forms(
+      "fmt",
+      fmt,
+      "{count, plural, one {Tippe }} {count}} other {Tippe }} {count!x}}}",
+    ),
+  ).toMatchObject({ ok: false, errors: [{ code: "invalid-icu" }] });
+  expect(
+    forms(
+      "icu",
+      "{count, plural, one {# room} other {# rooms}}",
+      "{count, plural, one {{n, plural, one {a} other {b}}} other {# Räume}}",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [
+      {
+        code: "invalid-icu",
+        message: "a plural cannot nest in a plural's branch",
+      },
+    ],
+  });
+  // A plural inside a tag is not the whole text either.
+  for (const target of [
+    "Frei: <b>{count, plural, one {# Raum} other {# Räume}}</b>",
+    "<b>{count, plural, one {# Raum} other {# Räume}}</b>",
+  ])
+    expect(
+      forms(
+        "formatjs",
+        "{count, plural, one {<b>#</b> room} other {<b>#</b> rooms}}",
+        target,
+      ),
+    ).toEqual({
+      ok: false,
+      errors: [{ code: "text-beside-plural", arg: "count" }],
+    });
   // Read as one ICU string, text beside a plural is fine.
   expect(
     validateTranslation(
