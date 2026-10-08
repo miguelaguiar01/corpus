@@ -1139,9 +1139,15 @@ export function applyMessagesOps(
     if (op.kind === "delete") {
       // Absent already (a second pull, a target file without the key):
       // nothing to do; the push that lands the removal marks it applied.
+      // A target's object at a plural of the source's is that plural,
+      // whatever it holds, an empty one too (#1148).
+      const node = options.pluralIds?.has(op.id)
+        ? nodeAt(parseTreeNode(text), path)
+        : undefined;
+      const empty = node?.type === "object" && !node.children?.length;
       const removed = suffixIds.has(op.id)
         ? deleteSuffix(doc, path)
-        : doc.remove(path, pluralIds.has(op.id));
+        : doc.remove(path, pluralIds.has(op.id) || empty);
       if (!removed) doc.remove([op.id]);
     } else if (
       suffixIds.has(op.id) ||

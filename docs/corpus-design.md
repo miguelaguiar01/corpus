@@ -109,7 +109,8 @@ export default defineCorpus({
     //    validate names for the `other` it lacks and a pull leaves as it
     //    is (#950), and whatever its forms hold, so a form with a stray
     //    brace is named as the plural's, never as orphan keys (#960), a
-    //    removal taking it whole, and elsewhere a section of keys
+    //    removal taking it whole, an empty object at the id too (#1148),
+    //    and elsewhere a section of keys
     //    (#984); in a source the forms must read back
     //    out of the plural, since i18next reads an object as its path.
     //    init counts
