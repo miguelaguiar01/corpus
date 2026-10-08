@@ -1224,11 +1224,13 @@ class Parser {
       const rest = this.source.slice(this.pos);
       // A run of n dollars shows n - 1, and what follows it is text, save
       // a `$NAME$` its last dollar opens, as Chrome's first pass reads
-      // `$$NAME$` (#631).
+      // `$$NAME$` (#631). Its second pass reads the n - 1 left with the
+      // value's start, so three or more show n - 2 (#1170).
       const run = /^\$+/.exec(rest)![0].length;
       if (run > 1) {
         const named = CHROME_PLACEHOLDER_RE.test(rest.slice(run - 1));
-        return this.text(seq, "$".repeat(run - 1), named ? run - 1 : run);
+        const shown = named && run > 2 ? run - 2 : run - 1;
+        return this.text(seq, "$".repeat(shown), named ? run - 1 : run);
       }
       const match = CHROME_PLACEHOLDER_RE.exec(rest);
       if (match)
