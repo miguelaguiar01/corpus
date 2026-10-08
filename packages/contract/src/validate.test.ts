@@ -4625,3 +4625,142 @@ test("under lingui a placeholder a closed quote takes is missing, said so; an ap
     errors: [{ code: "missing-placeholder", name: "name", quoted: true }],
   });
 });
+
+test("under pluralAsForms a target that holds the plural with text beside it is text-beside-plural alone, in every library (#1268)", () => {
+  const counts = {
+    icu: "#",
+    formatjs: "#",
+    i18next: "{{count}}",
+    counterpart: "%(count)s",
+  } as const;
+  for (const [library, n] of Object.entries(counts) as [
+    keyof typeof counts,
+    string,
+  ][]) {
+    const source = `{count, plural, one {${n} room} other {${n} rooms}}`;
+    const plural = `{count, plural, one {${n} Raum} other {${n} Räume}}`;
+    for (const target of [`${plural} frei`, `Frei: ${plural}`])
+      expect(
+        validateTranslation(source, target, "de", library, {
+          pluralAsForms: true,
+        }),
+        `${library} ${target}`,
+      ).toEqual({
+        ok: false,
+        errors: [{ code: "text-beside-plural", arg: "count" }],
+      });
+    expect(
+      validateTranslation(source, plural, "de", library, {
+        pluralAsForms: true,
+      }),
+    ).toEqual({ ok: true });
+  }
+  // A brace the library reads as text is no end of the plural: fmt's
+  // `}}`, formatjs's quoted `'}'`; and a plural nested in a select is
+  // not beside text (#1268 review).
+  expect(
+    validateTranslation(
+      "{count, plural, one {Type }} to close {count} block} other {Type }} to close {count} blocks}}",
+      "{count, plural, one {Tippe }} um {count} Block zu schließen} other {Tippe }} um {count} Blöcke zu schließen}}",
+      "de",
+      "fmt",
+      { pluralAsForms: true },
+    ),
+  ).toEqual({ ok: true });
+  expect(
+    validateTranslation(
+      "{count, plural, one {# room} other {# rooms}}",
+      "{count, plural, one {# Raum'}'} other {# Räume}}",
+      "de",
+      "formatjs",
+      { pluralAsForms: true },
+    ),
+  ).toEqual({
+    ok: false,
+    errors: [{ code: "unsplittable-form", arg: "count", key: "one" }],
+  });
+  expect(
+    validateTranslation(
+      "{count, plural, one {# room} other {# rooms}}",
+      "{g, select, a {{count, plural, one {# Raum} other {# Räume}}} other {x}}",
+      "de",
+      "icu",
+      { pluralAsForms: true },
+    ),
+  ).toEqual({
+    ok: false,
+    errors: [
+      { code: "changed-nesting", outer: "g", inner: "count" },
+      { code: "unknown-select", arg: "g" },
+    ],
+  });
+  // A target that fails for another reason keeps that finding, its
+  // braces read as its library reads them (#1268 review).
+  const forms = (
+    library: "formatjs" | "fmt" | "icu",
+    source: string,
+    target: string,
+  ) =>
+    validateTranslation(source, target, "de", library, { pluralAsForms: true });
+  expect(
+    forms(
+      "formatjs",
+      "{count, plural, one {# room} other {# rooms}}",
+      "{count, plural, one {# Raum'}'} few {# Räume}}",
+    ),
+  ).toEqual({ ok: false, errors: [{ code: "missing-other", arg: "count" }] });
+  const fmt = "{count, plural, one {Type }} {count}} other {Type }} {count}s}}";
+  expect(
+    forms(
+      "fmt",
+      fmt,
+      "{count, plural, one {Tippe }} {count}} few {Tippe }} {count}}}",
+    ),
+  ).toEqual({ ok: false, errors: [{ code: "missing-other", arg: "count" }] });
+  expect(
+    forms(
+      "fmt",
+      fmt,
+      "{count, plural, one {Tippe }} {count}} other {Tippe }} {count!x}}}",
+    ),
+  ).toMatchObject({ ok: false, errors: [{ code: "invalid-icu" }] });
+  expect(
+    forms(
+      "icu",
+      "{count, plural, one {# room} other {# rooms}}",
+      "{count, plural, one {{n, plural, one {a} other {b}}} other {# Räume}}",
+    ),
+  ).toMatchObject({
+    ok: false,
+    errors: [
+      {
+        code: "invalid-icu",
+        message: "a plural cannot nest in a plural's branch",
+      },
+    ],
+  });
+  // A plural inside a tag is not the whole text either.
+  for (const target of [
+    "Frei: <b>{count, plural, one {# Raum} other {# Räume}}</b>",
+    "<b>{count, plural, one {# Raum} other {# Räume}}</b>",
+  ])
+    expect(
+      forms(
+        "formatjs",
+        "{count, plural, one {<b>#</b> room} other {<b>#</b> rooms}}",
+        target,
+      ),
+    ).toEqual({
+      ok: false,
+      errors: [{ code: "text-beside-plural", arg: "count" }],
+    });
+  // Read as one ICU string, text beside a plural is fine.
+  expect(
+    validateTranslation(
+      "{count, plural, one {# room} other {# rooms}}",
+      "Frei: {count, plural, one {# Raum} other {# Räume}}",
+      "de",
+      "icu",
+    ),
+  ).toEqual({ ok: true });
+});

@@ -35,9 +35,11 @@ import {
   type ProseTag,
   type IcuError,
   type IcuNode,
+  type IcuParseResult,
   type Shape,
   shapeOf,
   pluralBranches,
+  pluralSpan,
 } from "./icu";
 import {
   EXACT_KEY,
@@ -114,6 +116,9 @@ export type ValidationError =
   // A form of a plural held as forms whose braces do not balance, so the
   // file's writer cannot split it out (#704).
   | { code: "unsplittable-form"; arg: string; key: string }
+  // A translation of a plural held as forms, end to end in the source,
+  // that writes text beside it, which the file has nowhere for (#1268).
+  | { code: "text-beside-plural"; arg: string }
   // Exact keys one form of a gettext file is read by, given two texts
   // the file cannot hold (#1060).
   | { code: "shared-form"; arg: string; keys: string[] }
@@ -720,6 +725,18 @@ export function validateTranslation(
       })),
     };
   }
+  // Said once, before any reading of the text trips on it (#1268).
+  const beside = options.pluralAsForms
+    ? textBesidePlural(
+        parsedSource.nodes,
+        target,
+        () => parseIcu(target, syntax, { html, placeholders }),
+        syntax,
+        html,
+      )
+    : undefined;
+  if (beside !== undefined)
+    return { ok: false, errors: [{ code: "text-beside-plural", arg: beside }] };
   // A translation of a printf plural that opens as one but is not one
   // is a broken plural, not text (#652), whatever reading it as text
   // then trips on (#950).
@@ -1715,6 +1732,57 @@ function exactBranches(
         }),
       }));
   });
+}
+
+// The argument of a source that is one plural end to end, where the
+// target holds that plural with text before or after it, a tag's markup
+// included: as its library reads the target, quoted or doubled braces
+// included, and where it reads no plural there, as it reads one whole.
+function textBesidePlural(
+  nodes: IcuNode[],
+  target: string,
+  read: () => IcuParseResult,
+  syntax: Library,
+  html: boolean | "markup",
+): string | undefined {
+  const significant = (within: IcuNode[]) =>
+    within.filter(
+      (node) => !(node.kind === "literal" && node.text.trim() === ""),
+    );
+  const kept = significant(nodes);
+  const plural = kept[0];
+  if (kept.length !== 1 || plural?.kind !== "plural") return undefined;
+  const arg = plural.arg;
+  // How the target reaches the plural: as its own node, through a tag,
+  // whose markup is text beside it, or through another argument.
+  const reach = (within: IcuNode[]): "own" | "tag" | "nested" | undefined => {
+    for (const node of within) {
+      if (node.kind === "plural" && node.arg === arg) return "own";
+      if (node.kind === "tag" && reach(node.children)) return "tag";
+      if (
+        (node.kind === "plural" || node.kind === "select") &&
+        Object.values(node.branches).some((branch) => reach(branch))
+      )
+        return "nested";
+    }
+    return undefined;
+  };
+  const parsed = read();
+  const how = parsed.ok ? reach(parsed.nodes) : undefined;
+  if (how === "nested") return undefined;
+  if (how === "tag") return arg;
+  if (how === "own")
+    return significant(parsed.ok ? parsed.nodes : []).length > 1
+      ? arg
+      : undefined;
+  // Read as text, or not at all, as a whole-read library reads a plural
+  // with text beside it: the plural as such a library reads one alone.
+  const span = pluralSpan(target, syntax, html, arg);
+  return span &&
+    (target.slice(0, span.start).trim() !== "" ||
+      target.slice(span.end).trim() !== "")
+    ? arg
+    : undefined;
 }
 
 // Each plural form whose literal braces do not balance, where the

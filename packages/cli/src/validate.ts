@@ -715,6 +715,8 @@ export function describe(
       return `{${error.arg}} has an ${error.key} branch, which this file cannot hold, as it holds a plural's categories only: write it in the ${error.category} branch, which this language picks for ${error.key.slice(1)}`;
     case "missing-other":
       return `plural on {${error.arg}} has no other form, which the runtime picks for every count no other form covers${quotedPast(error)}`;
+    case "text-beside-plural":
+      return `text beside the plural on {${error.arg}}, which this file holds as its forms alone: write the text into each form`;
     case "unsplittable-form":
       return `the ${error.key} form of {${error.arg}} leaves a brace unbalanced, so this file cannot hold it as one of its forms: balance the braces in it`;
     case "shared-form":

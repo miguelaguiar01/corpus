@@ -1861,6 +1861,15 @@ test("an entry held as plural forms keeps the flag on the row, reaches the detai
     true,
   );
   expect(translationOf(db, "rooms", "en")?.invalid).toBe(true);
+  // And one with text beside the plural (#1268).
+  const beside = structuredClone(snapshot);
+  beside.seedTranslations = {
+    en: {
+      rooms: "Free: {count, plural, one {{count} A} other {{count} B}}",
+    },
+  };
+  applySnapshot(db, project.id, beside);
+  expect(translationOf(db, "rooms", "en")?.invalid).toBe(true);
   // A push without the field clears it.
   const bare = structuredClone(snapshot);
   delete bare.strings[0]!.pluralAsForms;

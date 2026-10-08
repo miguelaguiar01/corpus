@@ -1199,6 +1199,24 @@ test("a refused plural in a new file's list item keeps the source's text, as an 
   });
 });
 
+test("a translation that holds a plural with text before it is refused, never written into other (#1268)", () => {
+  const source = `{\n  "rooms": {\n    "one": "{count} room",\n    "other": "{count} rooms"\n  }\n}\n`;
+  const target = `{\n  "rooms": {\n    "one": "{count} Raum",\n    "other": "{count} Räume"\n  }\n}\n`;
+  for (const text of [
+    "Frei: {count, plural, one {{count} Raum} other {{count} Räume}}",
+    "{count, plural, one {{count} Raum} other {{count} Räume}} frei",
+  ]) {
+    const refused: string[] = [];
+    expect(
+      entriesToMessages(source, { rooms: text }, target, {
+        plurals: true,
+        onRefused: (id) => refused.push(id),
+      }),
+    ).toBe(target);
+    expect(refused).toEqual(["rooms"]);
+  }
+});
+
 test("a pull writes a target's lone other where the source has a key there, never as a plural (#984)", () => {
   const source = `{\n  "cat": {\n    "other": "Other",\n    "more": "More"\n  }\n}\n`;
   const target = `{\n  "cat": {\n    "other": "Andere"\n  }\n}\n`;

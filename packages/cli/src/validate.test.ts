@@ -388,6 +388,9 @@ test("describe words every error code", () => {
       position: 4,
     }),
   ).toBe("invalid ICU in the target at 4: unclosed brace");
+  expect(describe({ code: "text-beside-plural", arg: "count" })).toBe(
+    "text beside the plural on {count}, which this file holds as its forms alone: write the text into each form",
+  );
   // Chrome's dollars before a placeholder, by the run's length (#1170).
   expect(
     describe({

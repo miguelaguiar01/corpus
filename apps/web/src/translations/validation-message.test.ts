@@ -220,3 +220,11 @@ test("Chrome's dollars before a placeholder are said by the run's length, with n
     "shows 2 dollars before a text value ($$Bob)",
   );
 });
+
+test("text beside a plural held as forms says to write it into each form (#1268)", () => {
+  expect(
+    validationMessage({ code: "text-beside-plural", arg: "count" }, "icu"),
+  ).toBe(
+    "Text beside the plural count, which this file holds as its forms alone: write the text into each form",
+  );
+});

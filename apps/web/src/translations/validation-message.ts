@@ -115,6 +115,8 @@ export function validationMessage(
         error.quoted ? "editor.missingOtherQuoted" : "editor.missingOther",
         { arg: error.arg },
       );
+    case "text-beside-plural":
+      return t("editor.textBesidePlural", { arg: error.arg });
     case "unsplittable-form":
       return t("editor.unsplittableForm", { arg: error.arg, key: error.key });
     case "exact-branch":
