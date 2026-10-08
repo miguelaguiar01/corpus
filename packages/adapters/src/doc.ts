@@ -119,6 +119,15 @@ class BatchDoc implements JsonDoc {
     this.current = write(this.text());
   }
 
+  private pending(): boolean {
+    return (
+      this.edits.size > 0 ||
+      this.touched.size > 0 ||
+      this.emptied.size > 0 ||
+      this.removed.size > 0
+    );
+  }
+
   edit(path: string[], value: string): boolean {
     checkPath(path);
     if (!this.ready()) return this.aside((d) => d.edit(path, value));
@@ -196,6 +205,18 @@ class BatchDoc implements JsonDoc {
       return;
     }
     if (obj.node && !this.placeable(obj)) return aside();
+    // The indent insert reads is a line's, which a pending write before
+    // it on that line, another object's close, would change: written
+    // first, as the sequential document reads it.
+    const last = lastOf(obj);
+    const reads = last ? last.node?.offset : obj.node?.offset;
+    if (reads !== undefined && this.pending()) {
+      const start = this.current.lastIndexOf("\n", reads - 1) + 1;
+      if (this.current.slice(start, reads).trim() !== "") {
+        this.text();
+        return this.add(path, value, unit, order);
+      }
+    }
     this.mode = "add";
     this.insert(
       obj,
