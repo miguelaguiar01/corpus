@@ -388,6 +388,37 @@ test("describe words every error code", () => {
       position: 4,
     }),
   ).toBe("invalid ICU in the target at 4: unclosed brace");
+  // Chrome's dollars before a placeholder, by the run's length (#1170).
+  expect(
+    describe({
+      code: "chrome-dollar",
+      at: 3,
+      kind: "doubled-name",
+      written: "$$NAME$",
+    }),
+  ).toBe(
+    "Chrome reads $$NAME$ at 3 as a $ before the placeholder, then reads that $ with the start of its value, so a text value loses its first character (Bob shows as ob) and a $1 value shows as a literal $1: put a space between",
+  );
+  expect(
+    describe({
+      code: "chrome-dollar",
+      at: 3,
+      kind: "doubled-name",
+      written: "$$$NAME$",
+    }),
+  ).toBe(
+    "Chrome reads $$$NAME$ at 3 as 2 dollars before the placeholder, then reads them with the start of its value, so it shows 1 dollar before a text value ($Bob), and a $1 value joins the run and shows literally: put a space between",
+  );
+  expect(
+    describe({
+      code: "chrome-dollar",
+      at: 0,
+      kind: "doubled-name",
+      written: "$$$$NAME$",
+    }),
+  ).toBe(
+    "Chrome reads $$$$NAME$ at 0 as 3 dollars before the placeholder, then reads them with the start of its value, so it shows 2 dollars before a text value ($$Bob), and a $1 value joins the run and shows literally: put a space between",
+  );
   // An apostrophe that quoted past a branch's end says so (#1155).
   expect(
     describe(

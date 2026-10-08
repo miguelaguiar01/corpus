@@ -520,6 +520,22 @@ test("a Chrome example renders as Chrome reads it: a name may hold @, $$NAME$ is
   ).toBe("$$ and Ann");
 });
 
+test("a Chrome example with three or more dollars before a placeholder renders two fewer, then the value (#1170)", () => {
+  const read = (message: string) =>
+    messagesToEntries(
+      {
+        k: {
+          message,
+          placeholders: { name: { content: "$1", example: "Bob" } },
+        },
+      },
+      { type: "ui", chrome: true },
+    )[0]!.examples?.[0]?.rendered;
+  expect(read("Hi $$$NAME$")).toBe("Hi $Bob");
+  expect(read("Hi $$$$NAME$")).toBe("Hi $$Bob");
+  expect(read("Hi $$NAME$")).toBe("Hi $Bob");
+});
+
 test("entry objects read their declared text field as the string and their note field as its note; a value that is no entry is skipped (#1001)", () => {
   const skipped: string[] = [];
   const entries = messagesToEntries(
