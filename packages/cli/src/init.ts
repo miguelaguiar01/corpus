@@ -615,7 +615,8 @@ function angularWorkspace(
 
 // The translation files angular.json's i18n.locales builds, in the
 // config directory's terms (#1172): a locale's is a file, a list of
-// them or `{ translation }`, from the workspace's directory.
+// them or `{ translation }`, joined to the workspace's directory as the
+// Angular CLI joins it, a rooted path too.
 function angularLocales(
   cwd: string,
   messages: string,
@@ -634,13 +635,7 @@ function angularLocales(
           : locale;
       for (const file of [translation].flat())
         if (typeof file === "string")
-          built.add(
-            local(
-              path.isAbsolute(file)
-                ? file
-                : path.posix.join(workspace.dir, file),
-            ),
-          );
+          built.add(local(path.posix.join(workspace.dir, file)));
     }
   }
   return built.size === 0
