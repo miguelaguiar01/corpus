@@ -14,6 +14,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- `validate` warns of a plural branch's fixed 1 inside a select's branch, and in any script's digits (`१ सप्ताह` for 0 in Hindi) (#1212).
 - Under gen_l10n, plurals in a select's branches are checked each by itself: an `=1` in one branch and a `one` in another are no overridden branch, and a branch's lone `=1` gets its `wide-exact` warning (#1207).
 - Under gen_l10n, the preview shows `few` for a value of `two` where a plural writes no `two`, as Flutter's intl does; validation still asks for `two` (#1206).
 - Under gen_l10n, a written `zero`, `one` or `two` is taken for exactly 0, 1 or 2 in every language, as Flutter's intl does, so it is no longer reported as never picked, and a value only the source's `zero`, `one` or `two` prints is needed in every language (#1205).

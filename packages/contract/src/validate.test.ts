@@ -3551,6 +3551,99 @@ test("under gen_l10n overridden-branch and wide-exact read each plural by itself
   }
 });
 
+test("fixed-count reads a 1 in any branch of a select within the plural's branch, and in any script's decimal digits (#1212)", () => {
+  const weeks = "{count, plural, one{1 week} other{{count} weeks}}";
+  const fixed = (target: string, language: string) =>
+    (
+      validateTranslation(weeks, target, language, "icu").incomplete ?? []
+    ).filter((e) => e.code === "fixed-count");
+  // Croatian's one holds 21, 31, 41: a select inside the branch, read
+  // branch by branch, through tags too (ICU nests no select in a
+  // select's branch).
+  const hr = (one: string) =>
+    `{count, plural, one{${one}} few{{count} tjedna} other{{count} tjedana}}`;
+  const croatian = [
+    {
+      code: "fixed-count",
+      arg: "count",
+      key: "one",
+      values: [21, 31, 41],
+      more: true,
+    },
+  ];
+  expect(
+    fixed(hr("{g, select, m {1 tjedan} other {1 nedjelja}}"), "hr"),
+  ).toEqual(croatian);
+  expect(
+    fixed(
+      hr("<b>{g, select, m {{count} tjedan} other {1 nedjelja}}</b>"),
+      "hr",
+    ),
+  ).toEqual(croatian);
+  expect(
+    fixed(
+      hr("<b><i>{g, select, m {1 tjedan} other {{count} nedjelja}}</i></b>"),
+      "hr",
+    ),
+  ).toEqual(croatian);
+  // Every path that writes 1 also prints the count, or the 1 is no count:
+  // a gendered verb's select printing the count in each branch beside
+  // an unrelated "in 1 day", or a sibling select that prints it in each.
+  expect(
+    fixed(
+      hr(
+        "{g, select, m {Dodao je {count} stavku} f {Dodala je {count} stavku} other {Dodano je {count} stavku}} u 1 danu",
+      ),
+      "hr",
+    ),
+  ).toEqual([]);
+  expect(
+    fixed(
+      hr(
+        "{g, select, m {1 x} other {y}} {h, select, a {{count}} other {{count}}}",
+      ),
+      "hr",
+    ),
+  ).toEqual([]);
+  // One branch that leaves the count out is a path with the 1 alone.
+  expect(
+    fixed(
+      hr(
+        "{g, select, m {Dodao je {count} stavku} other {Dodano je stavku}} u 1 danu",
+      ),
+      "hr",
+    ),
+  ).toEqual(croatian);
+  // Every path that writes 1 also prints the count, or the 1 is no count.
+  expect(
+    fixed(hr("{count} {g, select, m {1 tjedan} other {tjedan}}"), "hr"),
+  ).toEqual([]);
+  expect(
+    fixed(hr("{g, select, m {{count} tjedan} other {u 1:30}}"), "hr"),
+  ).toEqual([]);
+  // Hindi's, Bengali's and Gujarati's one holds 0.
+  const zero = [{ code: "fixed-count", arg: "count", key: "one", values: [0] }];
+  expect(
+    fixed("{count, plural, one{१ सप्ताह} other{{count} सप्ताह}}", "hi"),
+  ).toEqual(zero);
+  expect(
+    fixed("{count, plural, one{১ সপ্তাহ} other{{count} সপ্তাহ}}", "bn"),
+  ).toEqual(zero);
+  expect(
+    fixed("{count, plural, one{૧ અઠવાડિયું} other{{count} અઠવાડિયાં}}", "gu"),
+  ).toEqual(zero);
+  // Their times and numbers are no count, as Latin ones are not.
+  for (const one of ["१.५ सप्ताह", "१:३० बजे", "१० सप्ताह", "२१ सप्ताह"])
+    expect(
+      fixed(`{count, plural, one{${one}} other{{count} सप्ताह}}`, "hi"),
+    ).toEqual([]);
+  // Chinese 一 is a word, not a digit; zh has no one besides.
+  expect(fixed("{count, plural, other{一周}}", "zh")).toEqual([]);
+  expect(fixed("{count, plural, one{一周} other{{count}周}}", "hi")).toEqual(
+    [],
+  );
+});
+
 test("a category branch that writes the number 1 and no count, where the language's category holds more, is a warning (#1042)", () => {
   // wger's chartRangeWeeks: English's one is 1 alone.
   const weeks = "{count, plural, one{1 week} other{{count} weeks}}";
