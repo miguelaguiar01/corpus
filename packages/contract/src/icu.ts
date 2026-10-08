@@ -2491,9 +2491,12 @@ export function pluralCategoriesFor(
     return { required: ["one", "other"], allowed: ["zero", "one", "other"] };
   const cldr = pluralCategoriesOf(language);
   // Ruby's I18n and I18n.js pick `zero` for 0 wherever a plural writes
-  // it, in every language (#983), and so does i18next (#985).
+  // it, in every language (#983), and so does i18next (#985);
+  // Intl.pluralLogic, gen-l10n's, a written `zero`, `one` or `two` for
+  // exactly 0, 1 or 2 (#1205).
   const zero = (c: string) =>
-    (library === "rails" || library === "i18next") && c === "zero";
+    ((library === "rails" || library === "i18next") && c === "zero") ||
+    (library === "gen_l10n" && (c === "zero" || c === "one" || c === "two"));
   // A file's forms that are CLDR's are read as CLDR's, as they are where
   // no forms are recorded: a library with a rule of its own records them
   // only so that rule does not apply (#964).
@@ -2590,7 +2593,8 @@ export function pluralCategoryCovered(
 // the category the library's runtime picks (#963), then `other`, by the
 // rules pluralCategoriesFor checks: counterpart and easy_localization
 // read no `=N` (#964) and pick by their own rules; Rails and i18next
-// take `zero` for 0 where it is written; the rest CLDR's category, or
+// take `zero` for 0 where it is written, gen-l10n `zero`, `one` and
+// `two` for exactly 0, 1 and 2 (#1205); the rest CLDR's category, or
 // `other` where `picked`, the source's own forms (a gettext file's
 // `Plural-Forms`, rails-i18n's table), has none for it.
 export function pluralBranch(
@@ -2640,6 +2644,13 @@ export function pluralBranch(
       Object.hasOwn(branches, "zero")
     )
       return "zero";
+    const exactWord = ["zero", "one", "two"][n];
+    if (
+      library === "gen_l10n" &&
+      exactWord !== undefined &&
+      Object.hasOwn(branches, exactWord)
+    )
+      return exactWord;
   }
   if (Number.isFinite(n) && (language === undefined || known(language))) {
     const category = new Intl.PluralRules(

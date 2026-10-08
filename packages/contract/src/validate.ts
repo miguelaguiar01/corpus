@@ -1912,19 +1912,12 @@ function fixedCounts(
         if (!FIXED_ONE.test(text(branch)) || prints(branch, node.arg)) continue;
         // The numbers the runtime picks this branch for: not one an `=N`
         // takes, nor i18next's written zero (#985), nor gen-l10n's written
-        // zero or two, which take exactly 0 and 2 first (#1039).
+        // zero or two, which take exactly 0 and 2 first (#1039, #1205).
         const values = integersOf(language, key).filter(
           (n) =>
             n !== 1 &&
             pluralBranch(node.branches, String(n), language, { library }) ===
-              key &&
-            !(
-              library === "gen_l10n" &&
-              GEN_L10N_EXACT.some(
-                ([exact, category]) =>
-                  Number(exact.slice(1)) === n && category in node.branches,
-              )
-            ),
+              key,
         );
         if (values.length > 0)
           out.push({
