@@ -2878,6 +2878,15 @@ test("init's formatjs detection applies only where the catalogue would read as i
   expect((await loadConfig(lingui.dir)).sources[0]).toMatchObject({
     library: "lingui",
   });
+  // Named beside a FormatJS runtime, Lingui's reading wins.
+  const both = write(
+    { a: "Olá {name}" },
+    { "@lingui/core": "^5.0.0", "react-intl": "^7.0.0" },
+  );
+  expect(await run(FLAGS, both.ctx)).toBe(0);
+  expect((await loadConfig(both.dir)).sources[0]).toMatchObject({
+    library: "lingui",
+  });
   const svelte = write({ a: "Olá {name}" }, { "svelte-i18n": "^4.0.0" });
   expect(await run(FLAGS, svelte.ctx)).toBe(0);
   expect((await loadConfig(svelte.dir)).sources[0]).toMatchObject({

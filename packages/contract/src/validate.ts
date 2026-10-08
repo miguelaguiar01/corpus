@@ -56,8 +56,8 @@ export type ValidationError =
     }
   // `written` is the placeholder as the source or the target writes it
   // when that is not `{name}` (printf's `%s`), for the message.
-  // `quoted`: under formatjs the target's apostrophe quoted it into text
-  // (#1010), which the message says.
+  // `quoted`: under formatjs or lingui the target's apostrophe quoted it
+  // into text (#1010, #1154), which the message says.
   | {
       code: "missing-placeholder";
       name: string;

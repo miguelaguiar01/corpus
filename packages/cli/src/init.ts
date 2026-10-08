@@ -1144,16 +1144,16 @@ function componentDirs(cwd: string, rel: string, depth: number): string[] {
   return out;
 }
 
-// The ICU runtime a package.json names, nearest the catalogue first,
-// then the repository's: FormatJS's react-intl, next-intl and its
-// use-intl, svelte-i18n, ember-intl, intl-messageformat, @formatjs/intl,
-// its parser or its CLI, or Lingui's @lingui/core, which quotes
-// otherwise (#1154). FormatJS's `Intl` polyfills
-// (`@formatjs/intl-pluralrules`) read no messages, and i18next projects
-// load them too.
+// FormatJS's runtimes: react-intl, next-intl and its use-intl,
+// svelte-i18n, ember-intl, intl-messageformat, @formatjs/intl, its parser
+// or its CLI. Its `Intl` polyfills (`@formatjs/intl-pluralrules`) read
+// no messages, and i18next projects load them too.
 const FORMATJS_RE =
   /^(?:react-intl|next-intl|use-intl|svelte-i18n|ember-intl|intl-messageformat|@formatjs\/(?:intl|icu-messageformat-parser|cli))$/;
 
+// The ICU runtime a package.json names, nearest the catalogue first,
+// then the repository's: Lingui's @lingui/core, which quotes otherwise
+// and wins where FormatJS is named too (#1154), or a FormatJS runtime.
 function icuRuntime(
   cwd: string,
   messages: string,

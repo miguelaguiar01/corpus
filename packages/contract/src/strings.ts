@@ -108,8 +108,8 @@ function notALanguageTag(code: string): string {
 // is ICU as FormatJS reads it, react-intl, next-intl and svelte-i18n, an
 // apostrophe quoting a brace, a tag or a plural's `#` (#1010); `lingui`
 // is ICU as Lingui's parser reads it, a quote only where one closes it
-// (#1154); `i18next`
-// is its {{name}} interpolation, stored and written back as written.
+// (#1154); `i18next` is its {{name}} interpolation, stored and written
+// back as written.
 export const LIBRARIES = [
   "icu",
   "i18next",

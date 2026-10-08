@@ -522,6 +522,25 @@ function pluralEnd(
   return end + (/^\s*/.exec(source.slice(end))?.[0].length ?? 0);
 }
 
+// Lingui's runtime prints a plural branch's text that is `#` alone, a
+// quoted one included, as the count: alone between what is no text, a
+// tag's markup being text to it, as its parser reads tags (#1154).
+// `edged`: whether the list's ends meet a tag's markup.
+function soleHashes(nodes: IcuNode[], arg: string, edged: boolean): IcuNode[] {
+  const text = (node: IcuNode | undefined) =>
+    node === undefined ? edged : node.kind === "literal" || node.kind === "tag";
+  return nodes.map((node, i): IcuNode => {
+    if (node.kind === "tag")
+      return { ...node, children: soleHashes(node.children, arg, true) };
+    return node.kind === "literal" &&
+      node.text === "#" &&
+      !text(nodes[i - 1]) &&
+      !text(nodes[i + 1])
+      ? { kind: "count", arg }
+      : node;
+  });
+}
+
 function readPrintfPlural(
   source: string,
   html: boolean | "markup",
@@ -801,7 +820,7 @@ class Parser {
             : -1;
         // Outside a plural a quote of `#` keeps its text as written, and
         // one holding a brace does not parse.
-        if (close >= 0 && next === "#" && pluralArg === undefined) {
+        if (close >= 0 && next === "#" && !this.within.includes("plural")) {
           const raw = this.source.slice(this.pos, close + 1);
           if (raw.includes("{"))
             throw new ParseFailure(`unsupported escape ${raw}`, this.pos);
@@ -1043,7 +1062,7 @@ class Parser {
     }
   }
 
-  // Text at the cursor, `length` characters of the source read as `text`.
+  // Where a Lingui quote opened before `from` closes, or -1 (#1154).
   private quoteClose(from: number): number {
     if (!this.quoteCloses) {
       const s = this.source;
@@ -1062,6 +1081,7 @@ class Parser {
     return this.quoteCloses[from] ?? -1;
   }
 
+  // Text at the cursor, `length` characters of the source read as `text`.
   private text(seq: Sequence, text: string, length = text.length): true {
     seq.literal += text;
     this.pos += length;
@@ -1811,14 +1831,8 @@ class Parser {
           true,
           type === "plural" ? name : undefined,
         );
-        // Lingui's runtime prints a branch's text that is `#` alone, a
-        // quoted one included, as the count (#1154).
         if (this.syntax === "lingui" && type === "plural")
-          branches[key] = branches[key]!.map((node) =>
-            node.kind === "literal" && node.text === "#"
-              ? { kind: "count", arg: name }
-              : node,
-          );
+          branches[key] = soleHashes(branches[key]!, name, false);
       } finally {
         this.within.pop();
         this.branchPath.pop();
