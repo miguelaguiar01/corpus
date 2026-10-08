@@ -3314,6 +3314,36 @@ test("a value the source's arguments declare is one a translation may print or p
   expect(validateTranslation(mastodon, pl, "pl", "icu").ok).toBe(false);
 });
 
+test("under gen_l10n a dropped <b> is text dropped, not a missing tag, unless the type is read as HTML (#1181)", () => {
+  expect(
+    validateTranslation(
+      "Hello <b>{name}</b>",
+      "Hallo {name}",
+      "de",
+      "gen_l10n",
+    ),
+  ).toEqual({ ok: true });
+  expect(
+    validateTranslation(
+      "Press <Enter> to continue",
+      "Drücke <Enter>",
+      "de",
+      "gen_l10n",
+    ),
+  ).toEqual({ ok: true });
+  expect(
+    validateTranslation(
+      "Hello <b>{name}</b>",
+      "Hallo {name}",
+      "de",
+      "gen_l10n",
+      {
+        richText: "html",
+      },
+    ),
+  ).toMatchObject({ ok: false, errors: [{ code: "missing-tag", name: "b" }] });
+});
+
 test("under gen_l10n =0, =1 and =2 are its zero, one and two: a category they stand for is no missing one, both written is an overridden branch, and one wider than its number is a warning (#1039)", () => {
   // wger's relativeDaysAgo: fr's one holds 0 and 1, and =0 catches 0
   // before the category, as Intl.pluralLogic does.
