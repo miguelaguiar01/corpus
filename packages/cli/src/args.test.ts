@@ -7,6 +7,12 @@ test("option returns the first value or nothing", () => {
   expect(option(["--open"], "--port")).toBeUndefined();
 });
 
+test("option refuses a flag given without a value: last, empty, or before another flag (#1214)", () => {
+  for (const args of [["--out"], ["--out", ""], ["--out", "--check"]])
+    expect(() => option(args, "--out")).toThrow(/^--out needs a value$/);
+  expect(option(["--check"], "--out")).toBeUndefined();
+});
+
 test("options returns every value in order", () => {
   expect(options([], "--lang")).toEqual([]);
   expect(options(["--lang", "pt"], "--lang")).toEqual(["pt"]);
