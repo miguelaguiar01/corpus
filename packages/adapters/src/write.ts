@@ -305,11 +305,23 @@ function writePluralText(
       current && typeof current === "object"
         ? (current as Tree)[key]
         : undefined;
+  // A string the forms replace is replaced where it stands, in the
+  // line style of the object it is in (#1235).
+  if (typeof current === "string")
+    return replaceValue(
+      text,
+      path,
+      {
+        json: Object.fromEntries(
+          PLURAL_CATEGORIES.filter((c) => forms[c] !== undefined).map((c) => [
+            c,
+            forms[c]!,
+          ]),
+        ),
+      },
+      unit,
+    );
   let out = text;
-  if (typeof current === "string") {
-    out = deleteKey(out, path);
-    current = undefined;
-  }
   for (const form of PLURAL_CATEGORIES) {
     const value = forms[form];
     if (value === undefined) continue;
