@@ -715,37 +715,100 @@ function patch(text: string, changes: Change[], template: Template): string {
   return out + appended.join("");
 }
 
+// The variables a view's placeables name, and its message references:
+// a select's branches are walked as text, never read as placeables.
+function viewNames(icu: string): { variables: Set<string>; refs: Set<string> } {
+  const variables = new Set<string>();
+  const refs = new Set<string>();
+  const seq = (i: number): number => {
+    while (i < icu.length && icu[i] !== "}")
+      i = icu[i] === "{" ? arg(i + 1) : i + 1;
+    return i;
+  };
+  const arg = (i: number): number => {
+    const literal = /^\s*"(?:[^"\\\n]|\\.)*"\s*\}/.exec(icu.slice(i));
+    if (literal) return i + literal[0].length;
+    const head =
+      /^\s*(@?-?[A-Za-z][\w.-]*)(\((?:[^()"\n]|"(?:[^"\\\n]|\\.)*")*\))?\s*/.exec(
+        icu.slice(i),
+      );
+    if (!head) return icu.indexOf("}", i) + 1 || icu.length;
+    const name = head[1]!;
+    if (name.startsWith("@")) refs.add(name.slice(1));
+    else if (!name.startsWith("-")) variables.add(name);
+    let j = i + head[0].length;
+    const select = /^,\s*(?:plural|selectordinal|select)\s*,/.exec(
+      icu.slice(j),
+    );
+    if (!select) return icu.indexOf("}", j) + 1 || icu.length;
+    j += select[0].length;
+    for (;;) {
+      j = skipSpace(icu, j);
+      if (j >= icu.length) return j;
+      if (icu[j] === "}") return j + 1;
+      const key = /^=?[\w-]+/.exec(icu.slice(j))?.[0] ?? "";
+      j = skipSpace(icu, j + key.length) + 1;
+      j = seq(j) + 1;
+    }
+  };
+  seq(0);
+  return { variables, refs };
+}
+
+// The `$` names a Fluent text writes, string literals aside.
+function rawVariables(text: string): Set<string> {
+  return new Set(
+    [
+      ...text
+        .replace(/\{\s*"(?:[^"\\\n]|\\.)*"\s*\}/g, "")
+        .matchAll(/\{\s*\$([A-Za-z][\w-]*)/g),
+    ].map((m) => m[1]!),
+  );
+}
+
 // A bare name is a message reference where the source's own message
 // writes it without `$`, or where it names a message and the source
 // never uses it as a variable: cosmic-files has both `$items` and a
-// message `items`.
-function templateOf(template: string, added: string[] = []): Template {
+// message `items`. Each message's variables and references are read
+// from its view, so a string literal's `{$y}` is neither (#1193).
+function templateOf(template: string): Template {
   const found = messages(template);
   const byId = new Map(found.map((m) => [m.id, m]));
-  const variables = new Set(
-    [...template.matchAll(/\{\s*\$([A-Za-z][\w-]*)/g)].map((m) => m[1]!),
+  // Each message's names from its view; one Corpus cannot read keeps
+  // the raw reading, `$name` a variable and a bare `{ name }` a
+  // reference.
+  const names = new Map(
+    found.map((m) => {
+      try {
+        return [m.id, viewNames(toIcu(template, m))] as const;
+      } catch (error) {
+        if (!(error instanceof Refusal)) throw error;
+        const value = template.slice(m.valueStart, m.valueEnd);
+        const variables = rawVariables(value);
+        const refs = new Set(
+          [...value.matchAll(/\{\s*([A-Za-z][\w-]*)\s*\}/g)].map((x) => x[1]!),
+        );
+        return [m.id, { variables, refs }] as const;
+      }
+    }),
   );
-  const messageNames = [...byId.keys(), ...added].filter(
-    (id) => !variables.has(id),
-  );
-  const variablesOf = (id: string) => {
-    const own = byId.get(id);
-    const value = own ? template.slice(own.valueStart, own.valueEnd) : "";
-    return new Set(
-      [...value.matchAll(/\{\s*\$([A-Za-z][\w-]*)/g)].map((m) => m[1]!),
-    );
-  };
+  const variablesOf = (id: string) =>
+    names.get(id)?.variables ?? new Set<string>();
+  // An attribute's and a comment's variables count too.
+  const variables = new Set([
+    ...rawVariables(template),
+    ...[...byId.keys()].flatMap((id) => [...variablesOf(id)]),
+  ]);
+  const messageNames = [...byId.keys()].filter((id) => !variables.has(id));
   return {
     text: template,
     byId,
     variablesOf,
     refsFor: (id) => {
-      const own = byId.get(id);
-      const value = own ? template.slice(own.valueStart, own.valueEnd) : "";
-      const ownVariables = variablesOf(id);
-      const written = [...value.matchAll(/\{\s*([A-Za-z][\w-]*)\s*\}/g)]
-        .map((m) => m[1]!)
-        .filter((name) => !ownVariables.has(name));
+      const own = variablesOf(id);
+      const written = [...(names.get(id)?.refs ?? [])].filter(
+        (name) => !own.has(name),
+      );
       return new Set([...written, ...messageNames]);
     },
   };
@@ -782,14 +845,12 @@ export function entriesToFluent(
   return patch(base, changes, source);
 }
 
+// A proposal's text is read in the view alone: a bare `{name}` is a
+// variable and `{@name}` a reference (#1193).
 export function applyFluentOps(text: string, ops: SourceOp[]): string {
-  const source = templateOf(
-    text,
-    ops.filter((op) => op.kind !== "delete").map((op) => op.id),
-  );
   return patch(
     text,
     ops.map((op) => (op.kind === "delete" ? { id: op.id } : op)),
-    source,
+    { ...templateOf(text), refsFor: () => new Set<string>() },
   );
 }

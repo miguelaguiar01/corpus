@@ -651,6 +651,60 @@ test("the old view of a message that refers to a message only the target defines
   expect(entriesToFluent(source, { m2: "{trash} {z}" }, target)).toBe(target);
 });
 
+test("a proposal's bare {name} is a variable and {@name} a reference, whatever the file names; one equal to a view writes nothing (#1193)", () => {
+  const file = `empty = Empty { trash }\nname = Name\ntrash = Trash\n`;
+  const added = applyFluentOps(file, [
+    { kind: "add", id: "hello", text: "Hello {name}" },
+    { kind: "add", id: "hi", text: "Hi {@name}" },
+  ]);
+  expect(added).toContain("hello = Hello { $name }\n");
+  expect(added).toContain("hi = Hi { name }\n");
+  expect(
+    applyFluentOps(file, [
+      { kind: "edit", id: "empty", text: "Empty {trash} now" },
+    ]),
+  ).toContain("empty = Empty { $trash } now\n");
+  expect(
+    applyFluentOps(file, [
+      { kind: "edit", id: "empty", text: "Empty {@trash} now" },
+    ]),
+  ).toContain("empty = Empty { trash } now\n");
+  // The message's view, new or as read before #1083, is no change.
+  for (const text of ["Empty {@trash}", "Empty {trash}"])
+    expect(applyFluentOps(file, [{ kind: "edit", id: "empty", text }])).toBe(
+      file,
+    );
+});
+
+test("a string literal's {$y} is no variable of its message, so its reference is written back as one (#1193)", () => {
+  const source = `y = Y\nx = { "{$y}" } { y }\n`;
+  expect(entriesToFluent(source, { x: '{"{$y}"} {y} !' }, source)).toBe(
+    `y = Y\nx = { "{$y}" } { y } !\n`,
+  );
+});
+
+test("a select's branch text names no variable, and a variable an attribute uses still counts file-wide (#1193 review)", () => {
+  // An unchanged old view of a message whose branch text spells the
+  // name it refers to is left as the file writes it.
+  const files = `file = File\nfiles = { $n ->\n    [one] One { file }\n   *[other] file\n}\n`;
+  const view = fluentToEntries(files, { type: "ui" })[1]!.source;
+  expect(
+    entriesToFluent(files, { files: view.replace(/\{@/g, "{") }, files),
+  ).toBe(files);
+  // A branch's text keeps its word a message name, file-wide.
+  const source = `account = { $c ->\n   *[lower] account\n    [upper] Account\n}\nhi = Hi\n`;
+  const target = `account = { $c ->\n   *[lower] konto\n    [upper] Konto\n}\nhi = Hej { account }\n`;
+  expect(entriesToFluent(source, { hi: "Hej {account}!" }, target)).toContain(
+    "hi = Hej { account }!\n",
+  );
+  // A variable only an attribute uses is still the source's variable.
+  const login = `name = Name\nlogin = Log in\n    .title = Logged in as { $name }\ngreet = Hello\n`;
+  const pt = `name = Nome\nlogin = Entrar\n    .title = Sessão de { $name }\ngreet = Olá { $name }\n`;
+  expect(entriesToFluent(login, { greet: "Olá {name}!" }, pt)).toContain(
+    "greet = Olá {$name}!\n",
+  );
+});
+
 test("a file's terms with the variables their text reads and the attributes they define (#1033)", () => {
   const terms = fluentTerms(`-brand = { $capitalization ->
    *[lower] account
