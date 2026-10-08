@@ -14,6 +14,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- An apostrophe that quotes past a plural branch's end, as a French `d'# fichier` does under `formatjs`, is named in the error with the advice to write `’` (#1155).
 - A translated plural without `other` previews the branch for the count, rather than its raw `{count, plural, …}` text or nothing (#1151).
 - Removing a plural takes a target's empty object at its id too, rather than leaving `"key": {}` behind (#1148).
 - A broken tag holding a placeholder in its attribute is reported by the tag's finding alone, no longer also as a moved placeholder (#1146).

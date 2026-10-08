@@ -47,12 +47,15 @@ import {
   type RichText,
 } from "./strings";
 
+// `quoted` on a target's invalid-icu or missing-other: under formatjs
+// or lingui an apostrophe quoted past a branch's end (#1155).
 export type ValidationError =
   | {
       code: "invalid-icu";
       where: "source" | "target";
       message: string;
       position: number;
+      quoted?: true;
     }
   // `written` is the placeholder as the source or the target writes it
   // when that is not `{name}` (printf's `%s`), for the message.
@@ -106,7 +109,7 @@ export type ValidationError =
   // (#1051): `category` is the branch the language picks for N.
   | { code: "exact-branch"; arg: string; key: string; category: string }
   // A target plural without `other`, which every runtime needs (#975).
-  | { code: "missing-other"; arg: string }
+  | { code: "missing-other"; arg: string; quoted?: true }
   // A form of a plural held as forms whose braces do not balance, so the
   // file's writer cannot split it out (#704).
   | { code: "unsplittable-form"; arg: string; key: string }
@@ -725,14 +728,27 @@ export function validateTranslation(
   let brokenPlural = wholePlural
     ? printfPluralError(target, html, syntax, placeholders)
     : undefined;
+  // The target read as plain ICU, where an apostrophe quotes nothing:
+  // a failure it does not share is the apostrophe's.
+  let quotedRead: boolean | undefined;
+  const quoted = () =>
+    (quotedRead ??=
+      (syntax === "formatjs" || syntax === "lingui") &&
+      /'[{}#]/.test(target) &&
+      parseIcu(target, "icu", { html, placeholders }).ok);
   const targetError = (e: IcuError): ValidationError =>
     e.missingOther !== undefined
-      ? { code: "missing-other", arg: e.missingOther }
+      ? {
+          code: "missing-other",
+          arg: e.missingOther,
+          ...(quoted() && { quoted: true as const }),
+        }
       : {
           code: "invalid-icu",
           where: "target",
           message: e.message,
           position: e.position,
+          ...(quoted() && { quoted: true as const }),
         };
   let readTarget = brokenPlural
     ? undefined

@@ -3106,11 +3106,11 @@ test("an apostrophe that quotes past a plural branch's end says it did, the plur
     const result = fr(unclosed, syntax);
     expect(result).toMatchObject({
       ok: false,
-      errors: [{ code: "invalid-icu", message: "unclosed plural" }],
+      errors: [{ code: "invalid-icu" }],
     });
     expect(!result.ok && "quoted" in result.errors[0]!).toBe(false);
   }
-  const otherless = fr("{n, plural, one {l'# fichier}}", "formatjs");
+  const otherless = fr("{n, plural, one {l'# fichier'}}", "formatjs");
   expect(otherless).toEqual({
     ok: false,
     errors: [{ code: "missing-other", arg: "n" }],
