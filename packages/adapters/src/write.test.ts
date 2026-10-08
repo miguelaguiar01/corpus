@@ -1246,6 +1246,27 @@ test("removing a plural id takes a target's object of categories whole, other or
   expect(remove(plain, "r", [])).toBe(plain);
 });
 
+test("removing a plural id takes a target's object whole whatever its forms hold, an empty one too, batched and sequential alike (#1148)", () => {
+  for (const sequential of [false, true]) {
+    const remove = (text: string, pluralIds: string[]) =>
+      applyMessagesOps(text, [{ kind: "delete", id: "r" }], {
+        plurals: true,
+        pluralIds: new Set(pluralIds),
+        sequential,
+      });
+    for (const value of ['{ "one": "{count plik", "few": "b" }', "{}"])
+      expect(
+        remove(`{\n  "r": ${value},\n  "k": "v"\n}\n`, ["r"]),
+        `${sequential} ${value}`,
+      ).toBe('{\n  "k": "v"\n}\n');
+    // A section stays, and so does {} at an id no plural of the source's.
+    const section = '{\n  "r": { "one": "a", "label": "b" },\n  "k": "v"\n}\n';
+    expect(remove(section, ["r"])).toBe(section);
+    const empty = '{\n  "r": {},\n  "k": "v"\n}\n';
+    expect(remove(empty, [])).toBe(empty);
+  }
+});
+
 test("an entry-object catalogue takes a translation into its text field only, every other byte kept (#1001)", () => {
   const template = `{
   "smartling": {
