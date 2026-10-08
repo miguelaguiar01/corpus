@@ -3586,6 +3586,34 @@ test("fixed-count reads a 1 in any branch of a select within the plural's branch
       "hr",
     ),
   ).toEqual(croatian);
+  // Every path that writes 1 also prints the count, or the 1 is no count:
+  // a gendered verb's select printing the count in each branch beside
+  // an unrelated "in 1 day", or a sibling select that prints it in each.
+  expect(
+    fixed(
+      hr(
+        "{g, select, m {Dodao je {count} stavku} f {Dodala je {count} stavku} other {Dodano je {count} stavku}} u 1 danu",
+      ),
+      "hr",
+    ),
+  ).toEqual([]);
+  expect(
+    fixed(
+      hr(
+        "{g, select, m {1 x} other {y}} {h, select, a {{count}} other {{count}}}",
+      ),
+      "hr",
+    ),
+  ).toEqual([]);
+  // One branch that leaves the count out is a path with the 1 alone.
+  expect(
+    fixed(
+      hr(
+        "{g, select, m {Dodao je {count} stavku} other {Dodano je stavku}} u 1 danu",
+      ),
+      "hr",
+    ),
+  ).toEqual(croatian);
   // Every path that writes 1 also prints the count, or the 1 is no count.
   expect(
     fixed(hr("{count} {g, select, m {1 tjedan} other {tjedan}}"), "hr"),
