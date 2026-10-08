@@ -185,6 +185,16 @@ function keyPaths(
   };
 }
 
+// A plural's forms as an object in CLDR's order.
+function inCldrOrder(forms: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(
+    PLURAL_CATEGORIES.filter((c) => forms[c] !== undefined).map((c) => [
+      c,
+      forms[c]!,
+    ]),
+  );
+}
+
 // Why an id's text was not written, for the caller to say.
 export type Refusal = (id: string, text: string) => void;
 
@@ -305,11 +315,18 @@ function writePluralText(
       current && typeof current === "object"
         ? (current as Tree)[key]
         : undefined;
+  // A string the forms replace is replaced where it stands, in the
+  // line style of the object it is in (#1235).
+  if (typeof current === "string")
+    return replaceValue(
+      text,
+      path,
+      {
+        json: inCldrOrder(forms),
+      },
+      unit,
+    );
   let out = text;
-  if (typeof current === "string") {
-    out = deleteKey(out, path);
-    current = undefined;
-  }
   for (const form of PLURAL_CATEGORIES) {
     const value = forms[form];
     if (value === undefined) continue;
@@ -561,11 +578,7 @@ export function entriesToMessages(
               text,
               path,
               {
-                json: Object.fromEntries(
-                  PLURAL_CATEGORIES.filter((c) => forms[c] !== undefined).map(
-                    (c) => [c, forms[c]!],
-                  ),
-                ),
+                json: inCldrOrder(forms),
               },
               style.indent,
             ),
@@ -731,12 +744,7 @@ function formsFor(
     fill.onRefused?.(id, text);
     return undefined;
   }
-  return Object.fromEntries(
-    PLURAL_CATEGORIES.filter((c) => forms[c] !== undefined).map((c) => [
-      c,
-      forms[c]!,
-    ]),
-  );
+  return inCldrOrder(forms);
 }
 
 // The source's value at `path` as the target writes it: its strings the

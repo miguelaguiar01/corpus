@@ -142,7 +142,10 @@ export function replaceValue(
   checkPath(path);
   const node = nodeAt(root(text), path);
   if (!node) return text;
-  const inline = node.parent ? isInline(text, node.parent) : false;
+  // A property's value takes the line style of the object it is in.
+  const container =
+    node.parent?.type === "property" ? node.parent.parent : node.parent;
+  const inline = container ? isInline(text, container) : false;
   const json = jsonText(
     value.json,
     inline,
@@ -172,7 +175,16 @@ export function appendItem(
   const indent = last
     ? lineIndent(text, last.offset)
     : lineIndent(text, list.offset) + unit;
-  const item = jsonText(value, inline, indent, unit, eol);
+  // An object item takes the line style of the last one (#1235).
+  const oneLine =
+    inline ||
+    (value !== null &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      last?.type === "object" &&
+      (last.children?.length ?? 0) > 0 &&
+      isInline(text, last));
+  const item = jsonText(value, oneLine, indent, unit, eol);
   if (!last) {
     const open = list.offset + 1;
     const close = list.offset + list.length - 1;

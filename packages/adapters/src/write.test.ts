@@ -1978,3 +1978,64 @@ test("a list of 200,000 translated items is written into a target that lacks it:
   expect(out.dialogue).toHaveLength(200_000);
   expect(out.dialogue[199_999]).toBe("Linha 199999");
 }, 60_000);
+
+describe("a list item written in place or appended keeps the file's line style (#1235)", () => {
+  const forms = "{count, plural, one {A} other {B}}";
+  test("a plural replacing an expanded item's string is written in place, expanded", () => {
+    const source = `{\n  "list": [\n    {\n      "n": {\n        "one": "a",\n        "other": "b"\n      }\n    },\n    {\n      "m": "M"\n    }\n  ]\n}\n`;
+    const target = `{\n  "list": [\n    {\n      "n": "Alt"\n    },\n    {\n      "m": "Mm"\n    }\n  ]\n}\n`;
+    expect(
+      entriesToMessages(source, { "list.0.n": forms }, target, {
+        plurals: true,
+      }),
+    ).toBe(
+      `{\n  "list": [\n    {\n      "n": {\n        "one": "A",\n        "other": "B"\n      }\n    },\n    {\n      "m": "Mm"\n    }\n  ]\n}\n`,
+    );
+  });
+  test("an object item appended to a list of one-line objects is one line", () => {
+    const source = `{\n  "list": [\n    { "t": "a" },\n    { "t": "b" },\n    { "t": "c" }\n  ]\n}\n`;
+    expect(
+      entriesToMessages(
+        source,
+        { "list.1.t": "B", "list.2.t": "C" },
+        `{\n  "list": [\n    { "t": "A" }\n  ]\n}\n`,
+      ),
+    ).toBe(
+      `{\n  "list": [\n    { "t": "A" },\n    { "t": "B" },\n    { "t": "C" }\n  ]\n}\n`,
+    );
+  });
+  test("an empty last item gives no line style, and only an object takes a one-line object's (#1235 review)", () => {
+    const source = `{\n  "list": [\n    {\n      "t": "a"\n    },\n    {},\n    {\n      "t": "c"\n    }\n  ]\n}\n`;
+    expect(
+      entriesToMessages(
+        source,
+        { "list.2.t": "C" },
+        `{\n  "list": [\n    {\n      "t": "A"\n    },\n    {}\n  ]\n}\n`,
+      ),
+    ).toBe(
+      `{\n  "list": [\n    {\n      "t": "A"\n    },\n    {},\n    {\n      "t": "C"\n    }\n  ]\n}\n`,
+    );
+    const mixed = `{\n  "list": [\n    { "t": "a" },\n    [\n      "x",\n      "y"\n    ]\n  ]\n}\n`;
+    expect(
+      entriesToMessages(
+        mixed,
+        { "list.1.0": "X" },
+        `{\n  "list": [\n    { "t": "A" }\n  ]\n}\n`,
+      ),
+    ).toBe(
+      `{\n  "list": [\n    { "t": "A" },\n    [\n      "X",\n      "y"\n    ]\n  ]\n}\n`,
+    );
+  });
+  test("an expanded list of expanded items appends expanded ones", () => {
+    const source = `{\n  "list": [\n    {\n      "t": "a"\n    },\n    {\n      "t": "b"\n    }\n  ]\n}\n`;
+    expect(
+      entriesToMessages(
+        source,
+        { "list.1.t": "B" },
+        `{\n  "list": [\n    {\n      "t": "A"\n    }\n  ]\n}\n`,
+      ),
+    ).toBe(
+      `{\n  "list": [\n    {\n      "t": "A"\n    },\n    {\n      "t": "B"\n    }\n  ]\n}\n`,
+    );
+  });
+});

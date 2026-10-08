@@ -14,6 +14,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- A pull writes a plural that replaces a string where the string stood, and appends a list's object items in the line style of the items beside them (#1235).
 - A pull writes a JSON file's plural objects in one pass: 1,500 changed plurals take under 0.1 s, not 20 s (#1265).
 - Text beside a plural that the file holds as its forms is `text-beside-plural`, in every library, and a pull refuses it rather than writing it whole into `other` (#1268).
 - A pull that creates a target file leaves out a plural its writer refuses, rather than keeping the source language's forms there (#1189).
