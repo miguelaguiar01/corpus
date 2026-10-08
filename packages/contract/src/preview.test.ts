@@ -570,6 +570,30 @@ test("under gen_l10n a written zero, one or two takes exactly 0, 1 or 2 before t
   ).toBe("other");
 });
 
+test("under gen_l10n a value of two, where the plural writes no two, shows few, as two ?? few ?? other picks (#1206)", () => {
+  const gen = (
+    branches: Record<string, string>,
+    value: string,
+    language: string,
+  ) => pluralBranch(branches, value, language, { library: "gen_l10n" });
+  const ar = { one: "O", few: "F", many: "M", other: "X" };
+  expect(gen(ar, "2", "ar")).toBe("few");
+  expect(gen({ one: "O", few: "F", other: "X" }, "102", "sl")).toBe("few");
+  // A written two, or its =2, is shown.
+  expect(gen({ ...ar, two: "T" }, "2", "ar")).toBe("two");
+  expect(gen({ "=2": "E", few: "F", other: "X" }, "102", "sl")).toBe("=2");
+  // Without few, other; a value of few is unchanged.
+  expect(gen({ one: "O", other: "X" }, "2", "ar")).toBe("other");
+  expect(gen(ar, "3", "ar")).toBe("few");
+  // Under icu a value of two the plural lacks shows other.
+  expect(pluralBranch(ar, "2", "ar", { library: "icu" })).toBe("other");
+  expect(
+    pluralBranch({ one: "O", few: "F", other: "X" }, "102", "sl", {
+      library: "icu",
+    }),
+  ).toBe("other");
+});
+
 test("a printf plural whose branches print one Python key alone previews its count from that key (#1113)", () => {
   const users = "{count, plural, one {%(num)s user} other {%(num)s users}}";
   const preview = (values: Record<string, string>, message = users) =>

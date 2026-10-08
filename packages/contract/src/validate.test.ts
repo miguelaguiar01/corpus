@@ -3480,6 +3480,20 @@ test("under gen_l10n a value only a source zero, one or two prints is needed in 
   });
 });
 
+test("under gen_l10n an Arabic plural without two still lacks it, though the runtime shows few for 2, as few is the wrong form there (#1206)", () => {
+  expect(
+    validateTranslation(
+      "{count, plural, one{{count} day} other{{count} days}}",
+      "{count, plural, zero{لا أيام} one{يوم واحد} few{{count} أيام} many{{count} يومًا} other{{count} يوم}}",
+      "ar",
+      "gen_l10n",
+    ),
+  ).toMatchObject({
+    ok: true,
+    incomplete: [{ code: "missing-category", arg: "count", key: "two" }],
+  });
+});
+
 test("a category branch that writes the number 1 and no count, where the language's category holds more, is a warning (#1042)", () => {
   // wger's chartRangeWeeks: English's one is 1 alone.
   const weeks = "{count, plural, one{1 week} other{{count} weeks}}";

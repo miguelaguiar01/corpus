@@ -2670,6 +2670,14 @@ export function pluralBranch(
       Object.hasOwn(branches, exactOf)
     )
       return exactOf;
+    // Intl.pluralLogic's `two ?? few ?? other` (#1206).
+    if (
+      library === "gen_l10n" &&
+      !ordinal &&
+      category === "two" &&
+      Object.hasOwn(branches, "few")
+    )
+      return "few";
   }
   return "other";
 }
