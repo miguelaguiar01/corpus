@@ -1144,6 +1144,30 @@ test("under gen_l10n, Flutter's ICU subset: # is text, date and time only with a
   expect(libraryName("gen_l10n")).toBe("gen-l10n");
 });
 
+test("under gen_l10n angle brackets are text, as gen-l10n has no tags, unless the type is read as HTML (#1181)", () => {
+  expect(parseIcu("Press <Enter> to continue", "gen_l10n")).toEqual({
+    ok: true,
+    nodes: [{ kind: "literal", text: "Press <Enter> to continue" }],
+  });
+  expect(parseIcu("Hello <b>{name}</b>", "gen_l10n")).toEqual({
+    ok: true,
+    nodes: [
+      { kind: "literal", text: "Hello <b>" },
+      { kind: "placeholder", name: "name" },
+      { kind: "literal", text: "</b>" },
+    ],
+  });
+  expect(
+    parseIcu("Hello <b>{name}</b>", "gen_l10n", { html: "markup" }),
+  ).toMatchObject({
+    ok: true,
+    nodes: [
+      { kind: "literal", text: "Hello " },
+      { kind: "tag", name: "b" },
+    ],
+  });
+});
+
 test("under gen_l10n a # the source does not write is text gen-l10n prints as written, refused as such (#1038)", () => {
   const source = "{count, plural, one{{count} week} other{{count} weeks}}";
   const check = validateTranslation(

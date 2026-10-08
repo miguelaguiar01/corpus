@@ -1123,6 +1123,12 @@ class Parser {
         return this.lexQt(seq, ch, opensPlural);
       case "chrome":
         return this.lexChrome(seq, ch);
+      // gen-l10n has no tags: its parser lexes `<` as text, save in a
+      // type read as HTML (#1181).
+      case "gen_l10n":
+        return ch === "<" && this.html !== "markup"
+          ? this.text(seq, ch)
+          : false;
       case "printf":
       case "android":
         return this.lexPrintf(seq, ch, inBranch, opensPlural, pluralArg);

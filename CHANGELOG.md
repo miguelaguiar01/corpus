@@ -14,6 +14,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- Under `library: "gen_l10n"`, angle brackets are text, as Flutter's gen-l10n has no tags: `<Enter>` is no unclosed tag (#1181).
 - A source outside the git work tree, or behind a symlink, no longer turns off detecting the git-ignored sources; where git cannot be asked, the build says so (#1176).
 - `corpus init` lists the languages `angular.json`'s `i18n.locales` builds, and names the target `.xlf` files it leaves out (#1172).
 - Under `library: "chrome"`, three or more dollars before a `$NAME$` preview as Chrome shows them, and the warning's advice works whatever the placeholder's content (#1170).
