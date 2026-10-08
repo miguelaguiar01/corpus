@@ -69,8 +69,9 @@ export type StringResponse = {
   richText: RichText | null;
   // The i18n library the source and its translations are written for
   // (§5): "icu", "formatjs" for ICU with FormatJS's apostrophe quoting
-  // (#1010), "gen_l10n" for Flutter's gen-l10n subset (#1038), "fmt"
-  // for libfmt's and str.format's {name:spec} fields (#1002),
+  // (#1010), "lingui" for Lingui's (#1154), "gen_l10n" for Flutter's
+  // gen-l10n subset (#1038), "fmt" for libfmt's and str.format's
+  // {name:spec} fields (#1002),
   // "i18next" for {{name}} interpolation, "vue" for pipe plurals and
   // {'…'} literals, "printf" for %s and %[2]s verbs named
   // by position (#594), "chrome" for $NAME$ (#595), "counterpart" for

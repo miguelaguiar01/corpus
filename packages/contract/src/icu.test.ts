@@ -15,6 +15,7 @@ import {
   type IcuNode,
 } from "./icu";
 import { LIBRARIES, libraryName, type Library } from "./strings";
+import { renderPreview } from "./preview";
 
 const SIGHTING =
   "{person} foi {person_gender, select, m {visto} f {vista}} à janela {room_de} às {hour} — e não estava {person_gender, select, m {sozinho} f {sozinha}}.";
@@ -729,6 +730,7 @@ test("each library has a name for messages (#644)", () => {
     "Rails I18n",
     "Qt",
     "FormatJS",
+    "Lingui",
     "gen-l10n",
     "fmt",
     "Fluent",
@@ -1591,5 +1593,124 @@ test("under android, verbs are numbered as Java's Formatter numbers them; printf
   const go = parseIcu("%[1]s", "android");
   expect(go.ok ? "" : go.errors[0]?.message).toMatch(
     /%\[1\]s is Go's index form.*%1\$s/,
+  );
+});
+
+test("under lingui an apostrophe quotes a brace or a plural's # only where a lone one closes it, as @lingui/core 6.9 renders them (#1154)", () => {
+  const nodes = (text: string) => {
+    const result = parseIcu(text, "lingui");
+    if (!result.ok) throw new Error(result.errors[0]!.message);
+    return result.nodes;
+  };
+  // @lingui/core renders: l'{name} → l'N, '{name}' → {name}, It''s {n} →
+  // It's 1, end '{x} → end 'X, '{'0'}' user → {0} user, Failed %'{file}' →
+  // Failed %{file}, ''''{c}'''' → ''C'', '''''{c}''''' → ''{c}''.
+  expect(nodes("l'{name}")).toEqual([
+    { kind: "literal", text: "l'" },
+    { kind: "placeholder", name: "name" },
+  ]);
+  expect(nodes("'{name}'")).toEqual([{ kind: "literal", text: "{name}" }]);
+  expect(nodes("It''s {n}")).toEqual([
+    { kind: "literal", text: "It's " },
+    { kind: "placeholder", name: "n" },
+  ]);
+  expect(nodes("end '{x}")).toEqual([
+    { kind: "literal", text: "end '" },
+    { kind: "placeholder", name: "x" },
+  ]);
+  expect(nodes("'{'0'}' user")).toEqual([
+    { kind: "literal", text: "{0} user" },
+  ]);
+  expect(nodes("Failed %'{file}'")).toEqual([
+    { kind: "literal", text: "Failed %{file}" },
+  ]);
+  expect(nodes("''''{c}''''")).toEqual([
+    { kind: "literal", text: "''" },
+    { kind: "placeholder", name: "c" },
+    { kind: "literal", text: "''" },
+  ]);
+  expect(nodes("'''''{c}'''''")).toEqual([
+    { kind: "literal", text: "''{c}''" },
+  ]);
+  // In a plural: '#' a → # a, d'# x → d'1 x.
+  expect(nodes("{n, plural, one {'#' a} other {# b}}")).toMatchObject([
+    { kind: "plural", branches: { one: [{ kind: "literal", text: "# a" }] } },
+  ]);
+  expect(nodes("{n, plural, one {d'# x} other {#}}")).toMatchObject([
+    {
+      kind: "plural",
+      branches: {
+        one: [
+          { kind: "literal", text: "d'" },
+          { kind: "count", arg: "n" },
+          { kind: "literal", text: " x" },
+        ],
+      },
+    },
+  ]);
+  // Outside a plural a quote of # keeps its text as written: '#''#' →
+  // '#''#'; in a branch a run of text that is # alone is the count, as
+  // Lingui's runtime prints it: one {'#'#a } → 11a .
+  expect(nodes("a'#''#'")).toEqual([{ kind: "literal", text: "a'#''#'" }]);
+  expect(nodes("{n, plural, one {'#'#a } other {#}}")).toMatchObject([
+    {
+      kind: "plural",
+      branches: {
+        one: [
+          { kind: "count", arg: "n" },
+          { kind: "count", arg: "n" },
+          { kind: "literal", text: "a " },
+        ],
+      },
+    },
+  ]);
+  // A tag is never quoted: l'<0>x</0> keeps its tag.
+  const tagged = parseIcu("l'<0>x</0>", "lingui", { html: "markup" });
+  expect(tagged.ok && tagged.nodes.some((n) => n.kind === "tag")).toBe(true);
+});
+
+test("lingui's apostrophe rule reads a long run of quotes in linear time (#1154)", () => {
+  linear(
+    (n) => "'{".repeat(n),
+    4000,
+    (text) => parseIcu(text, "lingui"),
+  );
+});
+
+test("lingui: a quote of # in a select inside a plural is unquoted, and # alone counts only between non-text, a tag's markup being text, as @lingui/core renders (#1154 review)", () => {
+  // @lingui/core 6.9 with n = 3, g = "m", x = "X".
+  const render = (text: string) =>
+    renderPreview(text, { n: "3", g: "m", x: "X" }, "en", { syntax: "lingui" });
+  expect(render("{n, plural, other {{g, select, m {'#'} other {y}}}}")).toEqual(
+    {
+      ok: true,
+      text: "#",
+    },
+  );
+  expect(render("{n, plural, other {{g, select, m {#} other {y}}}}")).toEqual({
+    ok: true,
+    text: "#",
+  });
+  expect(render("{n, plural, other {<0>x</0>'#'}}")).toEqual({
+    ok: true,
+    text: "x#",
+  });
+  expect(render("{n, plural, other {'#'<0/>}}")).toEqual({
+    ok: true,
+    text: "#",
+  });
+  expect(render("{n, plural, other {<0>'#'</0>}}")).toEqual({
+    ok: true,
+    text: "#",
+  });
+  expect(render("{n, plural, other {<0>{x}'#'{x}</0>}}")).toEqual({
+    ok: true,
+    text: "X3X",
+  });
+  expect(render("{g, select, m {{n, plural, other {'#'}}} other {z}}")).toEqual(
+    {
+      ok: true,
+      text: "3",
+    },
   );
 });

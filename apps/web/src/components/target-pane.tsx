@@ -186,6 +186,7 @@ const COUNT_IN_BRANCH: Record<Library, (arg: string) => string> = {
   // Written back as `{ $count }` (#990).
   fluent: () => "#",
   formatjs: () => "#",
+  lingui: () => "#",
   // gen-l10n prints `#` as written (#1038).
   gen_l10n: (arg) => `{${arg}}`,
   // Its plural's argument is the reader's, which the program never

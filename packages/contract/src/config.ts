@@ -195,6 +195,7 @@ const POSITIONAL_LIBRARIES = new Set(["printf", "qt", "android", "chrome"]);
 const BRACE_READERS = new Set([
   "icu",
   "formatjs",
+  "lingui",
   "gen_l10n",
   "fluent",
   "vue",

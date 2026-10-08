@@ -9,6 +9,7 @@ contract (`corpus/1`) is the only one.
 
 ### Added
 
+- `library: "lingui"` reads ICU as Lingui does, a quote only where an apostrophe closes it, and `corpus init` writes it for a package depending on `@lingui/core` (#1154).
 - `corpus whoami` (or `creds`) says which server, token and join secret the running instance uses, a workbench started elsewhere with `--db` included (#1078).
 
 ### Fixed

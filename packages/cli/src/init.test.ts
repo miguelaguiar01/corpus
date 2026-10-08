@@ -2847,7 +2847,7 @@ test("init's formatjs detection skips FormatJS's Intl polyfills, which i18next p
   expect((await loadConfig(p.dir)).sources[0]).not.toHaveProperty("library");
 });
 
-test("init's formatjs detection applies only where the catalogue would read as icu, and Lingui, which quotes otherwise, stays icu (#1010)", async () => {
+test("init's formatjs detection applies only where the catalogue would read as icu, and Lingui, which quotes otherwise, is lingui (#1010, #1154)", async () => {
   const write = (values: object, deps: object) => {
     const p = project();
     stubCli(p.dir);
@@ -2872,11 +2872,21 @@ test("init's formatjs detection applies only where the catalogue would read as i
     expect(await run(FLAGS, p.ctx)).toBe(0);
     expect((await loadConfig(p.dir)).sources[0]).toMatchObject({ library });
   }
+  // Lingui quotes otherwise: its own reading (#1154).
   const lingui = write({ a: "Olá {name}" }, { "@lingui/core": "^5.0.0" });
   expect(await run(FLAGS, lingui.ctx)).toBe(0);
-  expect((await loadConfig(lingui.dir)).sources[0]).not.toHaveProperty(
-    "library",
+  expect((await loadConfig(lingui.dir)).sources[0]).toMatchObject({
+    library: "lingui",
+  });
+  // Named beside a FormatJS runtime, Lingui's reading wins.
+  const both = write(
+    { a: "Olá {name}" },
+    { "@lingui/core": "^5.0.0", "react-intl": "^7.0.0" },
   );
+  expect(await run(FLAGS, both.ctx)).toBe(0);
+  expect((await loadConfig(both.dir)).sources[0]).toMatchObject({
+    library: "lingui",
+  });
   const svelte = write({ a: "Olá {name}" }, { "svelte-i18n": "^4.0.0" });
   expect(await run(FLAGS, svelte.ctx)).toBe(0);
   expect((await loadConfig(svelte.dir)).sources[0]).toMatchObject({
