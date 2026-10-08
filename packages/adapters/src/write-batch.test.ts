@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
 import { applyMessagesOps, entriesToMessages, type SourceOp } from "./write";
+import { appendItem, appendItems } from "./splice";
 
 // A pull's edits, additions and removals are spliced from one parse per
 // phase (#693): the result is held, byte for byte, to the sequential
@@ -448,6 +449,17 @@ test("a large pull's edits, additions and first fill each take one parse per pha
         { plurals: true },
       ),
   ]);
+  // A list the target holds empty, every item translated (#1282).
+  const items = Array.from({ length: 8000 }, (_, i) => `Item ${i}`);
+  cases.push([
+    "8000 items into a list the target holds as []",
+    () =>
+      entriesToMessages(
+        JSON.stringify({ list: items }, null, 2) + "\n",
+        Object.fromEntries(items.map((_, i) => [`list.${i}`, `Punkt ${i}`])),
+        `{\n  "list": []\n}\n`,
+      ),
+  ]);
   for (const [name, run] of cases) {
     const start = performance.now();
     run();
@@ -520,4 +532,76 @@ test("a plural whose path an earlier write of the same pull reached is written a
       { plurals: true, sequential },
     ),
   );
+});
+
+test("a list's missing items appended in one splice are the bytes appended one at a time (#1282)", () => {
+  const value = (r: () => number, depth = 0): unknown => {
+    const roll = r();
+    if (roll < 0.35 || depth > 1) return `v${Math.floor(r() * 99)}`;
+    if (roll < 0.45) return {};
+    if (roll < 0.55) return [];
+    if (roll < 0.8)
+      return Object.fromEntries(
+        Array.from({ length: 1 + Math.floor(r() * 3) }, (_, i) => [
+          `k${i}`,
+          value(r, depth + 1),
+        ]),
+      );
+    return Array.from({ length: 1 + Math.floor(r() * 3) }, () =>
+      value(r, depth + 1),
+    );
+  };
+  const render = (
+    v: unknown,
+    one: boolean,
+    indent: string,
+    unit: string,
+    eol: string,
+  ): string => {
+    if (typeof v === "string") return JSON.stringify(v);
+    const entries = Array.isArray(v)
+      ? v.map((x) => [undefined, x] as const)
+      : Object.entries(v as object);
+    const [open, close] = Array.isArray(v) ? ["[", "]"] : ["{", "}"];
+    if (entries.length === 0) return open + close;
+    const inner = indent + unit;
+    const part = ([k, x]: readonly [string | undefined, unknown]) =>
+      `${k === undefined ? "" : `${JSON.stringify(k)}: `}${render(x, one, inner, unit, eol)}`;
+    return one
+      ? `${open} ${entries.map(part).join(", ")} ${close}`
+      : `${open}${eol}${entries.map((e) => inner + part(e)).join(`,${eol}`)}${eol}${indent}${close}`;
+  };
+  for (let seed = 1; seed <= 3000; seed++) {
+    const r = rng(seed * 31337);
+    const unit = pick(r, ["  ", "    ", "\t"]);
+    const eol = r() < 0.3 ? "\r\n" : "\n";
+    const held = Array.from({ length: Math.floor(r() * 3) }, () => value(r));
+    const listOne = r() < 0.3;
+    const list = (indent: string) => {
+      if (held.length === 0) return r() < 0.5 ? "[]" : `[${eol}${indent}]`;
+      const inner = indent + unit;
+      const item = (v: unknown) =>
+        render(v, listOne || r() < 0.4, inner, unit, eol);
+      return listOne
+        ? `[ ${held.map(item).join(", ")} ]`
+        : `[${eol}${held.map((v) => inner + item(v)).join(`,${eol}`)}${eol}${indent}]`;
+    };
+    const nested = r() < 0.5;
+    const text =
+      (r() < 0.15 ? "\uFEFF" : "") +
+      (nested
+        ? `{${eol}${unit}"a": {${eol}${unit}${unit}"l": ${list(unit + unit)}${eol}${unit}}${eol}}${eol}`
+        : `{${eol}${unit}"l": ${list(unit)}${eol}}${eol}`);
+    const path = nested ? ["a", "l"] : ["l"];
+    const values = Array.from({ length: 1 + Math.floor(r() * 5) }, () =>
+      value(r),
+    );
+    const oneAtATime = values.reduce<string>(
+      (out, v) => appendItem(out, path, v, unit),
+      text,
+    );
+    expect(appendItems(text, path, values, unit), `seed ${seed}`).toBe(
+      oneAtATime,
+    );
+  }
 });
