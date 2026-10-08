@@ -211,7 +211,7 @@ export function appendItems(
   const listIndent = lineIndent(text, list.offset);
   const items = list.children ?? [];
   const held = items[items.length - 1];
-  let inline = isInline(text, list);
+  const inline = isInline(text, list);
   // The last item as appendItem reads it: an object, empty or not, on
   // one line or not.
   let last = held && {
@@ -219,7 +219,7 @@ export function appendItems(
     empty: (held.children?.length ?? 0) === 0,
     oneLine: isInline(text, held),
   };
-  let indent = held ? lineIndent(text, held.offset) : listIndent + unit;
+  const indent = held ? lineIndent(text, held.offset) : listIndent + unit;
   const render = (value: unknown) => {
     const object =
       value !== null && typeof value === "object" && !Array.isArray(value);
@@ -245,11 +245,8 @@ export function appendItems(
     head = text.slice(0, list.offset + 1);
     tail = text.slice(list.offset + list.length - 1);
     const first = render(values[0]);
-    if (inline) {
-      out = first;
-      inline = !first.includes("\n");
-      indent = listIndent;
-    } else {
+    if (inline) out = first;
+    else {
       out = `${eol}${indent}${first}`;
       tail = `${eol}${listIndent}${tail}`;
     }

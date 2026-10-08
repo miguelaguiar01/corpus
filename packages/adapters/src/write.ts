@@ -782,7 +782,8 @@ function buildFrom(
             .map((p) => Number(p[path.length])),
         )
       : value.length - 1;
-    if (last < 0) return undefined;
+    // An empty list copied whole is itself, holding its place.
+    if (last < 0) return leading ? undefined : [];
     return value
       .slice(0, last + 1)
       .map((item, i) => buildFrom(item, [...path, String(i)], fill));
