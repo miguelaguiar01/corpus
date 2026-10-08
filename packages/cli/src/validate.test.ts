@@ -1963,6 +1963,43 @@ test.each(UNSPLIT)(
   },
 );
 
+test("under merge: last-wins an earlier copy's unsplittable form is a warning, as its other findings are (#1186 review)", async () => {
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8")
+      .replace(
+        /sources: \[[\s\S]*?\n {2}\],/,
+        'sources: [{ adapter: "messages", type: "ui", path: ["a/{lang}.json", "b/{lang}.json"], merge: "last-wins", library: "counterpart" }],',
+      )
+      .replace(/languages: \[[^\]]*\]/, 'languages: ["en", "pl"]'),
+  );
+  const rooms = { one: "%(count)s room", other: "%(count)s rooms" };
+  for (const dir of ["a", "b"]) {
+    mkdirSync(path.join(repo, dir), { recursive: true });
+    writeFileSync(path.join(repo, dir, "en.json"), JSON.stringify({ rooms }));
+  }
+  writeFileSync(
+    path.join(repo, "a", "pl.json"),
+    JSON.stringify({
+      rooms: { one: "%(count)s pokój }", other: "%(count)s pokoju" },
+    }),
+  );
+  writeFileSync(
+    path.join(repo, "b", "pl.json"),
+    JSON.stringify({
+      rooms: { one: "%(count)s pokój", other: "%(count)s pokoi" },
+    }),
+  );
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(0);
+  expect(c.stderr.join("\n")).toContain(
+    "a/pl.json:rooms: the one form of {count} leaves a brace unbalanced",
+  );
+});
+
 test("a Rails hash's form whose braces split it otherwise is unsplittable-form, said once (#1186)", async () => {
   const configFile = readdirSync(repo).find((f) =>
     f.startsWith("corpus.config"),

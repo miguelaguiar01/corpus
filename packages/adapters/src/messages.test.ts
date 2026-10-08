@@ -7,6 +7,7 @@ import {
   pluralObjectIds,
   pluralText,
   suffixPluralIds,
+  unsplitForms,
 } from "./messages";
 
 test("flat catalog maps key -> id with the configured type", () => {
@@ -382,6 +383,14 @@ test("a target's object of categories is a plural exactly where the source's is;
     );
     expect(kept).toEqual([]);
   }
+  // Forms the writer splits back as written are no finding, fmt's and
+  // i18next's doubled braces included (#1186 review), and where one
+  // form alone fails it is the one named.
+  expect(unsplitForms({ one: "{n} use }} to close", other: "{n} x" })).toEqual(
+    [],
+  );
+  expect(unsplitForms({ one: "{} {{ x", other: "{} y" })).toEqual([]);
+  expect(unsplitForms({ one: "fine", other: "{{a} b}" })).toEqual(["other"]);
   const fromSource: [string, string][] = [];
   messagesToEntries(
     { rooms: { one: "{count} pokój }", other: "{count} pokoju" } },
