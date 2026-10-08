@@ -47,9 +47,9 @@ import {
   type RichText,
 } from "./strings";
 
-// `quoted` on a target's invalid-icu or missing-other: under formatjs
-// or lingui an apostrophe quoted past a branch's end (#1155).
 export type ValidationError =
+  // `quoted` on a target's: under formatjs or lingui an apostrophe
+  // quoted what made it fail, as a branch's end (#1155).
   | {
       code: "invalid-icu";
       where: "source" | "target";
@@ -109,6 +109,7 @@ export type ValidationError =
   // (#1051): `category` is the branch the language picks for N.
   | { code: "exact-branch"; arg: string; key: string; category: string }
   // A target plural without `other`, which every runtime needs (#975).
+  // `quoted`: an apostrophe quoted the other branch away (#1155).
   | { code: "missing-other"; arg: string; quoted?: true }
   // A form of a plural held as forms whose braces do not balance, so the
   // file's writer cannot split it out (#704).
@@ -734,7 +735,7 @@ export function validateTranslation(
   const quoted = () =>
     (quotedRead ??=
       (syntax === "formatjs" || syntax === "lingui") &&
-      /'[{}#]/.test(target) &&
+      /'[{}#<>]/.test(target) &&
       parseIcu(target, "icu", { html, placeholders }).ok);
   const targetError = (e: IcuError): ValidationError =>
     e.missingOther !== undefined

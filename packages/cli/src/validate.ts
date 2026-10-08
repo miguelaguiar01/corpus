@@ -631,7 +631,7 @@ async function texts(
 
 function quotedPast(error: { quoted?: true }): string {
   return error.quoted
-    ? "; an apostrophe before a brace or a # quotes it: write ’ or ''"
+    ? "; an apostrophe before a brace, a tag or a # quotes it: write ’ or ''"
     : "";
 }
 
