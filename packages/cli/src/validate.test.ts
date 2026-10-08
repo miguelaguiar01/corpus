@@ -1888,6 +1888,67 @@ export default defineCorpus({
   }
 });
 
+test("--server writes an instance term two files of a source share where pull does, and keeps a file's terms where pull cannot render it (#1200)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de", "fr"],
+  sources: [
+    { adapter: "fluent", type: "ui", path: ["l10n/{lang}/a.ftl", "l10n/{lang}/b.ftl"] },
+    { adapter: "fluent", type: "ui", path: "l10n/{lang}/c.ftl" },
+  ],
+});
+`,
+  );
+  const ftl = (lang: string, name: string, text: string) => {
+    mkdirSync(path.join(repo, "l10n", lang), { recursive: true });
+    writeFileSync(path.join(repo, "l10n", lang, name), text);
+  };
+  ftl(
+    "en",
+    "a.ftl",
+    `-relay = Relay\n    .gender = feminine\nx = { -relay.gender ->\n    [feminine] She\n   *[other] It\n  }\n`,
+  );
+  ftl("en", "b.ftl", `-relay = Relay\n    .gender = feminine\ny = Hello\n`);
+  ftl(
+    "en",
+    "c.ftl",
+    `-mail = { $case ->\n   *[nom] Mail\n    [gen] Mails\n  }\n-when = When\nm = { -mail(case: "gen") }\n`,
+  );
+  // German: only b.ftl holds -relay, so a pull writes the instance's
+  // term there and leaves a.ftl without one.
+  ftl("de", "a.ftl", `z = nichts\n`);
+  ftl("de", "b.ftl", `-relay = Relai\n    .gender = feminine\ny = Hallo\n`);
+  // French: c.ftl's -when calls a function, which pull cannot write a
+  // draft into; the file's -mail, which reads capitalization, stays.
+  ftl(
+    "fr",
+    "c.ftl",
+    `-mail = { $capitalization ->\n   *[lower] courriel\n    [upper] Courriel\n  }\n-when = { PLATFORM() ->\n    [macos] Mac\n   *[other] Autre\n  }\n`,
+  );
+  const server = await instance({
+    de: {
+      "-relay": "Relay2",
+      x: "{-relay.gender, select, feminine {Sie} other {Es}}",
+    },
+    fr: { "-when": "Quand", m: '{-mail(capitalization: "upper")}' },
+  });
+  try {
+    const c = { ...ctx(), env: { CORPUS_TOKEN: "good" } };
+    await run(["validate", "--server"], c);
+    expect(
+      c.stderr.filter((l) => /reads no argument|has no \./.test(l)),
+    ).toEqual([]);
+  } finally {
+    server.close();
+    delete process.env.CORPUS_SERVER;
+  }
+});
+
 test("validate refuses a source whose path its adapter does not read, naming the file's format, once (#1035)", async () => {
   writeFileSync(
     path.join(repo, "corpus.config.ts"),
