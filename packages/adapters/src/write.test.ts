@@ -2059,3 +2059,61 @@ test("a source list's empty list is copied into a short target as an empty list,
     ),
   ).toEqual({ l: [[], ["X"]] });
 });
+
+describe("a key the source holds as a string of its own is no form of a family beside it (#1191)", () => {
+  const source = `{\n  "rooms": {\n    "one": "{{count}} room",\n    "other": "{{count}} rooms"\n  },\n  "rooms_other": "Other rooms"\n}\n`;
+  const target = `{\n  "rooms": {\n    "one": "{{count}} Raum",\n    "other": "{{count}} Räume"\n  },\n  "rooms_other": "Andere Räume"\n}\n`;
+  const read = {
+    type: "ui",
+    plurals: "several" as const,
+    suffixPlurals: true,
+    sourceLanguage: "de",
+    pluralIds: new Set(["rooms"]),
+    ownIds: new Set(["rooms_other"]),
+  };
+  test("the reader gives the object's plural and the key", () => {
+    expect(
+      messagesToEntries(JSON.parse(target), read).map((e) => [e.id, e.source]),
+    ).toEqual([
+      [
+        "rooms",
+        "{count, plural, one {{{count}} Raum} other {{{count}} Räume}}",
+      ],
+      ["rooms_other", "Andere Räume"],
+    ]);
+    // Alone, the key is still the key.
+    expect(
+      messagesToEntries({ rooms_other: "Andere Räume" }, read).map((e) => e.id),
+    ).toEqual(["rooms_other"]);
+  });
+  test("a pull edits the object's forms and the key in place, adding no family", () => {
+    expect(
+      entriesToMessages(
+        source,
+        {
+          rooms:
+            "{count, plural, one {{{count}} Raum!} other {{{count}} Räume!}}",
+          rooms_other: "Weitere Räume",
+        },
+        target,
+        { plurals: "several", suffixPlurals: true, sourceLanguage: "en" },
+      ),
+    ).toBe(
+      target
+        .replace("{{count}} Raum", "{{count}} Raum!")
+        .replace('"{{count}} Räume"', '"{{count}} Räume!"')
+        .replace("Andere Räume", "Weitere Räume"),
+    );
+  });
+  test("removing the plural takes the object and keeps the key", () => {
+    expect(
+      applyMessagesOps(target, [{ kind: "delete", id: "rooms" }], {
+        plurals: "several",
+        suffixPlurals: true,
+        sourceLanguage: "en",
+        pluralIds: new Set(["rooms"]),
+        ownIds: new Set(["rooms_other"]),
+      }),
+    ).toBe(`{\n  "rooms_other": "Andere Räume"\n}\n`);
+  });
+});
