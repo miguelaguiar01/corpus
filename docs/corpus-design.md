@@ -110,11 +110,10 @@ export default defineCorpus({
     //    is (#950), and whatever its forms hold, so a form with a stray
     //    brace is named as the plural's, never as orphan keys (#960), a
     //    removal taking it whole, an empty object at the id too (#1148),
-    //    and elsewhere a section of keys
-    //    (#984); in a source the forms must read back
-    //    out of the plural, since i18next reads an object as its path.
-    //    init counts
-    //    such an object's forms as the file writes them, never the
+    //    and elsewhere a section of keys (#984); in a source the forms
+    //    must read back out of the plural, since i18next reads an object
+    //    as its path. init counts such an object's forms as the file
+    //    writes them, never the
     //    plural it is read as, when it picks the library. Under i18next
     //    a family of suffix keys, `item_one` beside `item_other`, is one
     //    plural string `item` (#985, §5), a push that archives its old

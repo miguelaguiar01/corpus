@@ -138,6 +138,29 @@ function leaves(
 // Each id's key path as a file writes it, and the ids that are plural
 // objects: a segment may hold dots (`"m.room.topic": { … }`), so an id
 // is never split to find its place when a file already names it (#642).
+// The empty objects at ids the source holds as plurals, each by its key
+// path: a target's plural with no form left, which a removal takes
+// whole (#1148).
+function emptyObjects(
+  tree: Tree,
+  known: ReadonlySet<string> | undefined,
+): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  if (!known || known.size === 0) return out;
+  const walk = (node: Tree, path: string[]) => {
+    for (const [key, value] of Object.entries(node)) {
+      if (typeof value !== "object" || value === null || Array.isArray(value))
+        continue;
+      const at = [...path, key];
+      if (Object.keys(value).length === 0) {
+        if (known.has(at.join("."))) out.set(at.join("."), at);
+      } else walk(value, at);
+    }
+  };
+  walk(tree, []);
+  return out;
+}
+
 function keyPaths(
   tree: Tree,
   plurals: PluralObjects = false,
@@ -1125,8 +1148,12 @@ export function applyMessagesOps(
   };
   const doc = jsonDoc(text, sequential);
   const lists = listsOf(tree);
+  const empty = emptyObjects(tree, options.pluralIds);
   for (const op of ops) {
-    const path = paths.get(op.id) ?? (nested ? op.id.split(".") : [op.id]);
+    const path =
+      paths.get(op.id) ??
+      empty.get(op.id) ??
+      (nested ? op.id.split(".") : [op.id]);
     // A list's items are numbered: adding or removing one renumbers the
     // ids after it, so only an edit of one it holds is written (#1053).
     // A removal of an id the file does not hold is nothing to do.
@@ -1139,15 +1166,9 @@ export function applyMessagesOps(
     if (op.kind === "delete") {
       // Absent already (a second pull, a target file without the key):
       // nothing to do; the push that lands the removal marks it applied.
-      // A target's object at a plural of the source's is that plural,
-      // whatever it holds, an empty one too (#1148).
-      const node = options.pluralIds?.has(op.id)
-        ? nodeAt(parseTreeNode(text), path)
-        : undefined;
-      const empty = node?.type === "object" && !node.children?.length;
       const removed = suffixIds.has(op.id)
         ? deleteSuffix(doc, path)
-        : doc.remove(path, pluralIds.has(op.id) || empty);
+        : doc.remove(path, pluralIds.has(op.id) || empty.has(op.id));
       if (!removed) doc.remove([op.id]);
     } else if (
       suffixIds.has(op.id) ||

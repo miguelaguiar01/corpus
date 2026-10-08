@@ -1264,6 +1264,22 @@ test("removing a plural id takes a target's object whole whatever its forms hold
     expect(remove(section, ["r"])).toBe(section);
     const empty = '{\n  "r": {},\n  "k": "v"\n}\n';
     expect(remove(empty, [])).toBe(empty);
+    // Under i18next a suffix family's id is a plural too.
+    expect(
+      applyMessagesOps(
+        '{\n  "item": {},\n  "k": "v"\n}\n',
+        [{ kind: "delete", id: "item" }],
+        {
+          plurals: true,
+          suffixPlurals: true,
+          pluralIds: new Set(["item"]),
+          sequential,
+        },
+      ),
+    ).toBe('{\n  "k": "v"\n}\n');
+    // An empty list is no plural.
+    const list = '{\n  "r": [],\n  "k": "v"\n}\n';
+    expect(remove(list, ["r"])).toBe(list);
     // A key with a dot in it, Element's `m.poll`, and a flat dotted key.
     const deleteAt = (text: string, id: string) =>
       applyMessagesOps(text, [{ kind: "delete", id }], {
