@@ -106,18 +106,18 @@ export default defineCorpus({
     //    object of categories is such a plural exactly where the source
     //    reads the id as one: there without `other` too (Element's
     //    Polish `{ one, few, many }`, a Japanese `{ other }`), which
-    //    validate names for the `other` it lacks and a pull leaves as it
-    //    is (#950), and whatever its forms hold, so a form with a stray
-    //    brace is named as the plural's, never as orphan keys (#960), by
-    //    the form: one whose braces would split the plural's text
-    //    otherwise than the file is `unsplittable-form`, named by its
-    //    category (#1186), a
-    //    removal taking it whole, an empty object at the id too (#1148),
-    //    and elsewhere a section of keys (#984); in a source the forms
-    //    must read back out of the plural, since i18next reads an object
-    //    as its path. init counts such an object's forms as the file
-    //    writes them, never the plural it is read as, when it picks the
-    //    library. Under i18next
+    //    validate names for the `other` it lacks, and a pull leaves as it
+    //    is or writes a changed translation into, its forms as the text
+    //    has them (#950, #1188), and whatever its forms hold, so a form
+    //    with a stray brace is named as the plural's, never as orphan keys
+    //    (#960), by the form: one whose braces would split the plural's
+    //    text otherwise than the file is `unsplittable-form`, named by its
+    //    category (#1186), a removal taking it whole, an empty object at
+    //    the id too (#1148), and elsewhere a section of keys (#984); in a
+    //    source the forms must read back out of the plural, since i18next
+    //    reads an object as its path. init counts such an object's forms as
+    //    the file writes them, never the plural it is read as, when it
+    //    picks the library. Under i18next
     //    a family of suffix keys, `item_one` beside `item_other`, is one
     //    plural string `item` (#985, §5), a push that archives its old
     //    keys carrying their unpulled translations to it (§8, #1063),

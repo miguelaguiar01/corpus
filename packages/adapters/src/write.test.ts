@@ -1047,6 +1047,84 @@ describe("a target's plural object without other writes back as the file has it 
 }
 `);
   });
+
+  test("a changed form is written into it, other or not, its other bytes kept (#1188)", () => {
+    const refused: string[] = [];
+    expect(
+      entriesToMessages(
+        source,
+        {
+          rooms:
+            "{count, plural, one {%(count)s pokój} few {%(count)s pokoje!} many {%(count)s pokoi}}",
+        },
+        target,
+        { plurals: true, onRefused: (id) => refused.push(id) },
+      ),
+    ).toBe(target.replace('"%(count)s pokoje"', '"%(count)s pokoje!"'));
+    expect(refused).toEqual([]);
+    // An i18next family takes it as its suffix keys.
+    const family = `{\n  "rooms_one": "{{count}} room",\n  "rooms_other": "{{count}} rooms"\n}\n`;
+    const pl = `{\n  "rooms_one": "{{count}} pokój",\n  "rooms_few": "{{count}} pokoje",\n  "rooms_many": "{{count}} pokoi"\n}\n`;
+    expect(
+      entriesToMessages(
+        family,
+        {
+          rooms:
+            "{count, plural, one {{{count}} pokój} few {{{count}} pokoje!} many {{{count}} pokoi}}",
+        },
+        pl,
+        {
+          plurals: "several",
+          suffixPlurals: true,
+          onRefused: (id) => refused.push(id),
+        },
+      ),
+    ).toBe(pl.replace('"{{count}} pokoje"', '"{{count}} pokoje!"'));
+    expect(refused).toEqual([]);
+  });
+
+  test("an =N branch or a form left open is still refused, and a proposal into the source still needs other (#1188)", () => {
+    for (const text of [
+      "{count, plural, =0 {brak} one {%(count)s pokój} few {%(count)s pokoje}}",
+      "{count, plural, one {%(count)s pokój} few {%(count)s {pokoje}}",
+    ]) {
+      const refused: string[] = [];
+      expect(
+        entriesToMessages(source, { rooms: text }, target, {
+          plurals: true,
+          onRefused: (id) => refused.push(id),
+        }),
+      ).toBe(target);
+      expect(refused).toEqual(["rooms"]);
+    }
+    expect(() =>
+      applyMessagesOps(
+        source,
+        [
+          {
+            kind: "edit",
+            id: "rooms",
+            text: "{count, plural, one {%(count)s room} few {%(count)s rooms}}",
+          },
+        ],
+        { plurals: true },
+      ),
+    ).toThrow(/is a plural its object cannot hold/);
+    // An i18next family's too.
+    expect(() =>
+      applyMessagesOps(
+        `{\n  "rooms_one": "{{count}} room",\n  "rooms_other": "{{count}} rooms"\n}\n`,
+        [
+          {
+            kind: "edit",
+            id: "rooms",
+            text: "{count, plural, one {{{count}} room} few {{{count}} rooms}}",
+          },
+        ],
+        { plurals: "several", suffixPlurals: true },
+      ),
+    ).toThrow(/is a plural its object cannot hold/);
+  });
 });
 
 test("a pull writes a target's lone other where the source has a key there, never as a plural (#984)", () => {
