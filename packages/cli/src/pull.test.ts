@@ -2357,6 +2357,137 @@ export default defineCorpus({
   expect(read("l/fr.json")).not.toContain('"b"');
 });
 
+test("a target file that writes an id twice with different texts does not read: build seeds the rest, validate fails naming it, pull leaves it as it is (#1168)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de", "fr"],
+  sources: [
+    { adapter: "android", type: "ui", path: "res" },
+    { adapter: "gettext", type: "ui", path: "po/{lang}.po", sourcePath: "po/app.pot" },
+    { adapter: "fluent", type: "ui", path: "ftl/{lang}/main.ftl" },
+  ],
+});
+`,
+  );
+  const xml = (...strings: string[]) =>
+    `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n${strings.map((s) => `    ${s}\n`).join("")}</resources>\n`;
+  const po = (language: string, ...entries: [string, string][]) =>
+    `msgid ""\nmsgstr ""\n"Language: ${language}\\n"\n${entries.map(([id, text]) => `\nmsgid "${id}"\nmsgstr "${text}"\n`).join("")}`;
+  const files: Record<string, string> = {
+    "res/values/strings.xml": xml(
+      '<string name="x">X</string>',
+      '<string name="y">Y</string>',
+    ),
+    "res/values-de/strings.xml": xml(
+      '<string name="x">X-de</string>',
+      '<string name="y">Y-de</string>',
+      '<string name="x">X-de!</string>',
+    ),
+    // The same text twice reads as one.
+    "res/values-fr/strings.xml": xml(
+      '<string name="x">X-fr</string>',
+      '<string name="y">Y-fr</string>',
+      '<string name="y">Y-fr</string>',
+    ),
+    "po/app.pot": po("", ["Open", ""]),
+    "po/de.po": po("de", ["Open", "Öffnen"], ["Open", "Aufmachen"]),
+    "po/fr.po": po("fr", ["Open", "Ouvrir"]),
+    "ftl/en/main.ftl": "hello = Hello\n",
+    "ftl/de/main.ftl": "hello = Hallo\nhello = Servus\n",
+    "ftl/fr/main.ftl": "hello = Bonjour\n",
+  };
+  for (const [file, text] of Object.entries(files)) {
+    mkdirSync(path.dirname(path.join(repo, file)), { recursive: true });
+    writeFileSync(path.join(repo, file), text);
+  }
+  const unread = [
+    ["res/values-de/strings.xml", "x"],
+    ["po/de.po", "Open"],
+    ["ftl/de/main.ftl", "hello"],
+  ];
+  const out = path.join(repo, "snapshot.json");
+  const built = ctx();
+  expect(await run(["build", "--out", out], built)).toBe(0);
+  const notes = built.output.join("\n");
+  for (const [file, id] of unread) {
+    expect(notes).toContain(
+      `${file}: does not read, so none of its translations are seeded; corpus validate names it, and pull leaves it as it is (${id} is written twice in this file, with different texts)`,
+    );
+    expect(notes.split(file)).toHaveLength(2);
+  }
+  expect(notes).not.toContain("res/values-fr");
+  const snapshot = JSON.parse(readFileSync(out, "utf8")) as {
+    seedTranslations: Record<string, Record<string, string>>;
+  };
+  expect(snapshot.seedTranslations).toEqual({
+    fr: { x: "X-fr", y: "Y-fr", Open: "Ouvrir", hello: "Bonjour" },
+  });
+  const checked = ctx();
+  expect(await run(["validate"], checked)).toBe(1);
+  const said = checked.output.join("\n");
+  for (const [file, id] of unread)
+    expect(said).toContain(
+      `${file}: does not read: ${id} is written twice in this file, with different texts`,
+    );
+  expect(said).toContain("3 target file(s) that do not read");
+  await serve(200, {
+    ...PAYLOAD,
+    types: { x: "ui", y: "ui", Open: "ui", hello: "ui" },
+    translations: {
+      de: { x: "X!", y: "Y!", Open: "Öffnen!", hello: "Hallo!" },
+      fr: { x: "X-fr", y: "Y-fr", Open: "Ouvrir", hello: "Bonjour" },
+    },
+    minState: "untranslated",
+  });
+  const pulled = ctx();
+  expect(await run(["pull"], pulled)).toBe(0);
+  for (const [file] of unread) {
+    expect(read(file)).toBe(files[file]);
+    expect(pulled.output.join("\n")).toContain(
+      `${file}: does not read, so pull leaves it as it is (`,
+    );
+  }
+});
+
+test("a source file that writes an id twice names that file once, with no namespace advice (#1168)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de"],
+  sources: [{ adapter: "android", type: "ui", path: "res" }],
+});
+`,
+  );
+  mkdirSync(path.join(repo, "res", "values"), { recursive: true });
+  writeFileSync(
+    path.join(repo, "res", "values", "strings.xml"),
+    `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <string name="x">X</string>\n    <string name="x">X!</string>\n</resources>\n`,
+  );
+  const built = ctx();
+  expect(await run(["build", "--out", path.join(repo, "s.json")], built)).toBe(
+    1,
+  );
+  const said = built.output.join("\n");
+  expect(said).toContain(
+    "duplicate id x in res/values/strings.xml, written twice",
+  );
+  expect(said).not.toContain("namespace");
+  expect(said).not.toContain(
+    "res/values/strings.xml and res/values/strings.xml",
+  );
+});
+
 test("pull checks a target reads before it writes: a source that does not read fails it, an unreadable target is left whatever the writer would do, an empty one is filled (#1028)", async () => {
   writeFileSync(
     path.join(repo, "corpus.config.ts"),
