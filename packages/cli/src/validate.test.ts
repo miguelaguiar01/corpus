@@ -1196,6 +1196,12 @@ test("a Rails _html key's translation writes its own tags, closed; a plain key's
 async function instance(
   translations: Record<string, Record<string, string>>,
   status = 200,
+  // A real payload types every id it holds.
+  types: Record<string, string> = Object.fromEntries(
+    Object.values(translations).flatMap((t) =>
+      Object.keys(t).map((id) => [id, "ui"]),
+    ),
+  ),
 ) {
   const calls: { url: string; auth?: string }[] = [];
   const server: Server = createServer((req, res) => {
@@ -1209,7 +1215,7 @@ async function instance(
               project: "pull-fixture",
               sourceLanguage: "en",
               minState: "translated",
-              types: {},
+              types,
               translations,
             }
           : { error: "unauthorized", message: "no" },
@@ -1958,6 +1964,62 @@ export default defineCorpus({
     server.close();
     delete process.env.CORPUS_SERVER;
   }
+});
+
+test("--server renders an instance term only into a source of the type the instance holds it under, as pull writes it (#1200)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de"],
+  sources: [
+    { adapter: "fluent", type: "ui", path: "l10n/{lang}/main.ftl" },
+    { adapter: "fluent", type: "brand", path: "l10n/{lang}/brands.ftl" },
+  ],
+});
+`,
+  );
+  const ftl = (lang: string, name: string, text: string) => {
+    mkdirSync(path.join(repo, "l10n", lang), { recursive: true });
+    writeFileSync(path.join(repo, "l10n", lang, name), text);
+  };
+  ftl("en", "main.ftl", `y = { -relay(case: "gen") }\n`);
+  ftl(
+    "en",
+    "brands.ftl",
+    `-relay = { $case ->\n   *[nom] Relay\n    [gen] Relays\n  }\n`,
+  );
+  ftl(
+    "de",
+    "brands.ftl",
+    `-relay = { $case ->\n   *[nom] Relai\n    [gen] Relais\n  }\n`,
+  );
+  const translations = {
+    de: {
+      "-relay": "{capitalization, select, upper {Relai} other {relai}}",
+      y: '{-relay(case: "gen")}',
+    },
+  };
+  const warnings = async (types: Record<string, string>) => {
+    const server = await instance(translations, 200, types);
+    try {
+      const c = { ...ctx(), env: { CORPUS_TOKEN: "good" } };
+      await run(["validate", "--server"], c);
+      return c.stderr.filter((l) => /reads no argument|has no \./.test(l));
+    } finally {
+      server.close();
+      delete process.env.CORPUS_SERVER;
+    }
+  };
+  // Moved into brands.ftl and not pushed since: the instance still holds
+  // -relay as ui, so pull leaves brands.ftl's term as it is.
+  expect(await warnings({ "-relay": "ui", y: "ui" })).toEqual([]);
+  expect(await warnings({ "-relay": "brand", y: "ui" })).toEqual([
+    "l10n/de/main.ftl:y: -relay reads no argument case in this language, so Fluent renders it as if none were passed",
+  ]);
 });
 
 test("validate refuses a source whose path its adapter does not read, naming the file's format, once (#1035)", async () => {
