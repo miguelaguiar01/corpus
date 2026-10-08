@@ -47,6 +47,7 @@ afterEach(() => {
 function repo(): { dir: string; ctx: RunContext; out: string[] } {
   const dir = mkdtempSync(path.join(os.tmpdir(), "corpus-wiki-"));
   dirs.push(dir);
+  spawnSync("git", ["init", "-q"], { cwd: dir });
   const out: string[] = [];
   // The written config imports the CLI package; a stub in the repo's
   // own node_modules lets the loader find it here.

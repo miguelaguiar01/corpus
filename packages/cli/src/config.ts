@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { createJiti } from "jiti";
 import { androidDirOf, keyIsSentence, stripBom } from "@corpus/adapters";
@@ -440,16 +440,12 @@ function markGenerated(
   // A file git ignores is a build's output, unless the config is ignored
   // too, as a project inside another repository's ignored tree is.
   const configRel = path.relative(cwd, configPath);
-  // NUL-separated both ways, so a path outside ASCII comes back as
-  // written rather than quoted.
-  const check = spawnSync("git", ["check-ignore", "-z", "--stdin"], {
-    cwd,
-    encoding: "utf8",
-    input: [configRel, ...files].join("\0"),
-  });
-  const ignored = new Set(
-    check.status === 0 ? check.stdout.split("\0").filter(Boolean) : [],
-  );
+  // Asked only where a source's being generated is still unknown.
+  const asked = sources.some((source) => source.generated !== true)
+    ? gitIgnored(cwd, [configRel, ...files])
+    : [];
+  if (typeof asked === "string") UNCHECKED.set(config, asked);
+  const ignored = new Set(typeof asked === "string" ? [] : asked);
   sources.forEach((source, index) => {
     const file = files[index]!;
     const reason =
@@ -462,6 +458,61 @@ function markGenerated(
             : undefined;
     if (reason) GENERATED.set(source, reason);
   });
+}
+
+// Why git was not asked which source files it ignores, for a note.
+const UNCHECKED = new WeakMap<object, string>();
+
+export function ignoreUnchecked(config: CorpusConfig): string | undefined {
+  return UNCHECKED.get(config);
+}
+
+// The paths git ignores, or why git cannot be asked. A path outside the
+// work tree is not asked, and one git still refuses to judge, behind a
+// symlink say, is asked alone: one refusal fails the whole call (#1176).
+function gitIgnored(cwd: string, paths: string[]): string[] | string {
+  // In git's own words, whatever the user's locale, to tell its reason.
+  const top = spawnSync("git", ["rev-parse", "--show-toplevel"], {
+    cwd,
+    encoding: "utf8",
+    env: { ...process.env, LC_ALL: "C" },
+  });
+  if (top.error) return "no git";
+  // git's own reason where it refuses the repository, as for a checkout
+  // another user owns, which safe.directory answers.
+  if (top.status !== 0)
+    return /not a git repository/.test(top.stderr)
+      ? "not a git repository"
+      : (top.stderr.split("\n")[0] ?? "").replace(/^fatal: /, "") ||
+          `git exited ${top.status}`;
+  const root = top.stdout.replace(/\n$/, "");
+  const real = (file: string): string => {
+    try {
+      return realpathSync(file);
+    } catch {
+      const up = path.dirname(file);
+      return up === file ? file : path.join(real(up), path.basename(file));
+    }
+  };
+  const judged = paths.filter((file) => {
+    const rel = path.relative(root, real(path.resolve(cwd, file)));
+    return (
+      rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel)
+    );
+  });
+  // NUL-separated both ways, so a path outside ASCII comes back as
+  // written rather than quoted; exit 1 is none ignored.
+  const ask = (input: string[]) => {
+    const check = spawnSync("git", ["check-ignore", "-z", "--stdin"], {
+      cwd,
+      encoding: "utf8",
+      input: input.join("\0"),
+    });
+    return check.status === 0 || check.status === 1
+      ? check.stdout.split("\0").filter(Boolean)
+      : undefined;
+  };
+  return ask(judged) ?? judged.flatMap((file) => ask([file]) ?? []);
 }
 
 // Zulip's makemessages output: a flat file whose every value is its

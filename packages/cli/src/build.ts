@@ -78,6 +78,7 @@ import {
   fileCodeOf,
   fileOf,
   generatedBy,
+  ignoreUnchecked,
   withGenerated,
 } from "./config";
 
@@ -280,6 +281,11 @@ export async function buildSnapshotReport(
   const errors: string[] = [];
   const refused: Refused[] = [];
   const notes: string[] = [];
+  const unchecked = ignoreUnchecked(config);
+  if (unchecked)
+    notes.push(
+      `git ignore detection did not run (${unchecked}); a generated source git ignores is not detected: set generated: true on it`,
+    );
   const unreadable: Unreadable[] = [];
   // The ids each source's `arguments` names, and those its files hold:
   // the patterns of one source share the map (#1031).
