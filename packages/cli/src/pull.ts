@@ -899,7 +899,7 @@ async function ownTexts(
   file: string,
   source: FileSource,
   language: string,
-  pluralIds?: ReadonlySet<string>,
+  pluralIds?: SourcePlurals,
 ): Promise<Map<string, string> | undefined> {
   if (!sourceWritesBack(source)) return undefined;
   try {

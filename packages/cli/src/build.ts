@@ -1665,15 +1665,14 @@ export async function formsHeld(
   }
 }
 
-// The ids a source's own file holds as a plural object or hash, which
-// the writers keep as one (#950); none where the file is absent.
-// The ids a source file holds as plurals, and, `own`, its strings
-// shaped as a family's form, which a target's family never takes
-// (#1191).
+// `own`: a source's strings shaped as a family's form, which a target's
+// family never takes (#1191).
 export type SourcePlurals = ReadonlySet<string> & {
   readonly own?: ReadonlySet<string>;
 };
 
+// The ids a source's own file holds as a plural object or hash, which
+// the writers keep as one (#950); none where the file is absent.
 export async function sourcePluralIds(
   jiti: ReturnType<typeof createJiti>,
   cwd: string,
