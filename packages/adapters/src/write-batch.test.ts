@@ -89,10 +89,27 @@ function derive(r: () => number, tree: Tree): Tree {
     if (typeof value === "string")
       out[key] = roll < 0.5 ? `Alt ${value}` : value;
     else if (Array.isArray(value)) out[key] = value;
-    else out[key] = derive(r, value);
+    else {
+      out[key] = derive(r, value);
+      // A target's plural object may hold a form its source lacks.
+      if ("one" in value && "other" in value && r() < 0.3)
+        (out[key] as Tree).few = `${key} few`;
+    }
   }
   if (r() < 0.2) out[`extra${Math.floor(r() * 9)}`] = "Extra";
   return out;
+}
+
+// A plural of a random set of forms, so a pull adds and removes them
+// (#1265), sometimes one its object cannot hold.
+function pluralOf(r: () => number): string {
+  if (r() < 0.1)
+    return "{count, plural, =0 {nada} one {# um} other {# muitos}}";
+  const forms = ["zero", "one", "two", "few", "many", "other"].filter(
+    () => r() < 0.5,
+  );
+  if (forms.length === 0) forms.push("other");
+  return `{count, plural, ${forms.map((f) => `${f} {# ${f}}`).join(" ")}}`;
 }
 
 function translationsFor(r: () => number, ids: string[], nested: boolean) {
@@ -100,10 +117,7 @@ function translationsFor(r: () => number, ids: string[], nested: boolean) {
   for (const id of ids) {
     const roll = r();
     if (roll < 0.4) continue;
-    out[id] =
-      roll < 0.5
-        ? "{count, plural, one {# um} other {# muitos}}"
-        : `Tradução ${id}`;
+    out[id] = roll < 0.5 ? pluralOf(r) : `Tradução ${id}`;
   }
   // Ids the source lacks, flat and under groups that may not exist.
   const extra = Math.floor(r() * 4);
@@ -209,7 +223,9 @@ test("batched proposals write what sequential ones do, byte for byte, over gener
               text:
                 r() < 0.15
                   ? "{n, plural, one {# um} other {# muitos}}"
-                  : `Proposta ${i}`,
+                  : r() < 0.2
+                    ? pluralOf(r)
+                    : `Proposta ${i}`,
             },
       );
     }
@@ -399,6 +415,39 @@ test("a large pull's edits, additions and first fill each take one parse per pha
         { suffixPlurals: true, sourceLanguage: "en" },
       ),
   ]);
+  // Plural objects whose forms all change, beside as many strings
+  // (#1265).
+  const plurals = (n: number, one: string, other: string) =>
+    JSON.stringify(
+      Object.fromEntries(
+        Array.from({ length: n }, (_, i) => [
+          [`p${i}`, { one: `${one} ${i}`, other: `${other} ${i}` }],
+          [`s${i}`, `Text ${i}`],
+        ]).flat(),
+      ),
+      null,
+      2,
+    ) + "\n";
+  const pluralSource = plurals(1500, "{count} room", "{count} rooms");
+  const pluralTarget = plurals(1500, "{count} Raum", "{count} Räume");
+  cases.push([
+    "1500 plural objects' forms changed, and 1500 strings",
+    () =>
+      entriesToMessages(
+        pluralSource,
+        Object.fromEntries(
+          Array.from({ length: 1500 }, (_, i) => [
+            [
+              `p${i}`,
+              `{count, plural, one {{count} Raum! ${i}} other {{count} Räume! ${i}}}`,
+            ],
+            [`s${i}`, `Neu ${i}`],
+          ]).flat(),
+        ),
+        pluralTarget,
+        { plurals: true },
+      ),
+  ]);
   for (const [name, run] of cases) {
     const start = performance.now();
     run();
@@ -406,3 +455,69 @@ test("a large pull's edits, additions and first fill each take one parse per pha
     expect(performance.now() - start, name).toBeLessThan(3000);
   }
 }, 120_000);
+
+test("a plural whose path an earlier write of the same pull reached is written as the sequential pull writes it (#1265 review)", () => {
+  const P = (forms: string) => `{count, plural, ${forms}}`;
+  const sameBoth = (run: (sequential: boolean) => string) =>
+    expect(run(false)).toBe(run(true));
+  // A proposal under the plural, then the plural.
+  sameBoth((sequential) =>
+    applyMessagesOps(
+      `{\n  "a": {\n    "one": "1",\n    "other": "2"\n  }\n}\n`,
+      [
+        { kind: "add", id: "a.few", text: "f" },
+        { kind: "edit", id: "a", text: P("one {x} other {y}") },
+      ],
+      { plurals: true, sequential },
+    ),
+  );
+  // A family the pull wrote under a plural it then writes.
+  sameBoth((sequential) =>
+    entriesToMessages(
+      `{\n  "P.q_one": "a",\n  "P.q_other": "b",\n  "P": {\n    "one": "x",\n    "other": "y"\n  }\n}\n`,
+      {
+        "P.q": P("one {a} few {f} many {m} other {b}"),
+        P: P("one {x} other {y}"),
+      },
+      `{\n  "P": {\n    "q_one": "a",\n    "q_other": "b"\n  }\n}\n`,
+      {
+        plurals: true,
+        suffixPlurals: true,
+        sourceLanguage: "en",
+        sequential,
+      },
+    ),
+  );
+  // A plural object at one of a family's keys, which the family wrote.
+  for (const flat of [false, true]) {
+    const wrap = (inner: string) => (flat ? inner : `{"p": ${inner}}`);
+    const key = (k: string) => (flat ? k : `p.${k}`);
+    sameBoth((sequential) =>
+      entriesToMessages(
+        wrap(
+          `{"b_one": "o", "b_other": "t", "b_few": {"one": "1", "other": "2"}}`,
+        ),
+        {
+          [key("b")]: P("one {x} few {f} other {y}"),
+          [key("b_few")]: P("one {x} other {y}"),
+        },
+        wrap(`{"b_one": "o", "b_other": "t"}`),
+        {
+          plurals: true,
+          suffixPlurals: true,
+          sourceLanguage: "en",
+          sequential,
+        },
+      ),
+    );
+  }
+  // A removed form holding its object's only line break.
+  sameBoth((sequential) =>
+    entriesToMessages(
+      `{\n  "p": {\n    "a": {\n      "one": "1",\n      "other": "2"\n    },\n    "b": "str"\n  }\n}\n`,
+      { "p.a": P("one {x} other {y}"), "p.b": "neu" },
+      `{"p": { "a": { "one": "1", "other": "2",\n "few": "f" }, "b": "str" }}`,
+      { plurals: true, sequential },
+    ),
+  );
+});

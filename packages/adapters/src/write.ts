@@ -208,10 +208,79 @@ function formsOf(
     : { other: text };
 }
 
-// A plural written as the object its file keeps (#662): each form of
-// the text at `path.form`, in CLDR's order, and a form the text no
-// longer has removed; a text that is not a plural is the `other` form.
+// A plural written as the object its file keeps (#662), through the
+// document: each form of the text at `path.form`, in CLDR's order, and a
+// form the text no longer has removed; a text that is not a plural is
+// the `other` form. `current` is the value the file holds there, from
+// the tree the caller parsed once (#1265); a string it replaces is
+// rewritten on the text.
 function writePlural(
+  doc: JsonDoc,
+  path: string[],
+  plural: string,
+  unit: string,
+  current: unknown,
+  order?: (objectPath: string[]) => string[] | undefined,
+  onRefused?: Refusal,
+  needsOther = false,
+  // Read from the text, as the sequential oracle does, or where a write
+  // before it reached its path, which the parse no longer holds.
+  onText = false,
+): void {
+  if (onText || typeof current === "string") {
+    doc.apply((text) =>
+      writePluralText(text, path, plural, unit, order, onRefused, needsOther),
+    );
+    return;
+  }
+  const forms = formsOf(plural, needsOther);
+  if (!forms) {
+    onRefused?.(path.join("."), plural);
+    return;
+  }
+  const at = path.join("\u0000");
+  const inOrder = (objectPath: string[]) =>
+    objectPath.join("\u0000") === at
+      ? [...PLURAL_CATEGORIES]
+      : order?.(objectPath);
+  for (const form of PLURAL_CATEGORIES) {
+    const value = forms[form];
+    if (value === undefined) continue;
+    const leaf = [...path, form];
+    if (!doc.edit(leaf, value)) doc.add(leaf, value, unit, inOrder);
+  }
+  if (current && typeof current === "object")
+    for (const form of Object.keys(current))
+      if (!Object.hasOwn(forms, form)) doc.remove([...path, form]);
+}
+
+// The paths a run's writes reached, so a plural knows whether the parse
+// before them still holds its value: none at it, above it or under it.
+class Reached {
+  private at = new Set<string>();
+  private above = new Set<string>();
+  add(path: string[]): void {
+    this.at.add(path.join("\u0000"));
+    for (let k = 1; k < path.length; k++)
+      this.above.add(path.slice(0, k).join("\u0000"));
+  }
+  // A family's keys, `base_one` and the rest, which its write reaches.
+  addFamily(path: string[]): void {
+    const parent = path.slice(0, -1);
+    const base = path[path.length - 1]!;
+    for (const form of PLURAL_CATEGORIES)
+      this.add([...parent, `${base}_${form}`]);
+  }
+  near(path: string[]): boolean {
+    if (this.above.has(path.join("\u0000"))) return true;
+    for (let k = 1; k <= path.length; k++)
+      if (this.at.has(path.slice(0, k).join("\u0000"))) return true;
+    return false;
+  }
+}
+
+// The same, on the text, reading what it holds at `path` from it.
+function writePluralText(
   text: string,
   path: string[],
   plural: string,
@@ -457,6 +526,7 @@ export function entriesToMessages(
       Math.max(lastWritten.get(key) ?? -1, Number(path[list.length])),
     );
   }
+  const reached = new Reached();
   for (const [path, value, plural] of leaves(
     baseTree,
     plurals,
@@ -501,6 +571,7 @@ export function entriesToMessages(
             ),
           );
         else onRefused?.(id, next);
+        reached.add(path);
         continue;
       }
       // In a new file a plural it cannot hold goes, as an untranslated
@@ -514,14 +585,24 @@ export function entriesToMessages(
       } else if (plural === "suffix")
         writeSuffix(doc, path, next, style.indent, fresh, order, onRefused);
       else if (plural || sourcePlurals.has(id))
-        doc.apply((text) =>
-          writePlural(text, path, next, style.indent, order, onRefused),
+        writePlural(
+          doc,
+          path,
+          next,
+          style.indent,
+          valueAt(baseTree, path),
+          order,
+          onRefused,
+          false,
+          sequential || reached.near(path),
         );
       else doc.edit(path, next);
     } else if (fresh) {
       if (plural === "suffix") deleteSuffix(doc, path);
       else doc.remove(path, plural !== false);
     }
+    reached.add(path);
+    if (plural === "suffix") reached.addFamily(path);
   }
   if (fresh)
     for (const list of sourceLists) {
@@ -553,10 +634,20 @@ export function entriesToMessages(
     if (sourceSuffix.has(id))
       writeSuffix(doc, path, next, style.indent, fresh, order, onRefused);
     else if (sourcePlurals.has(id))
-      doc.apply((text) =>
-        writePlural(text, path, next, style.indent, order, onRefused),
+      writePlural(
+        doc,
+        path,
+        next,
+        style.indent,
+        valueAt(baseTree, path),
+        order,
+        onRefused,
+        false,
+        sequential || reached.near(path),
       );
     else doc.add(path, next, style.indent, order);
+    reached.add(path);
+    if (sourceSuffix.has(id)) reached.addFamily(path);
   }
   if (underLists.length > 0)
     doc.apply((text) =>
@@ -818,7 +909,14 @@ function completeLists(
           writeSuffix(doc, path, next, indent, false, order, fill.onRefused);
           text = doc.text();
         } else if (fill.pluralIds.has(id) && leaf?.type === "object")
-          text = writePlural(text, path, next, indent, order, fill.onRefused);
+          text = writePluralText(
+            text,
+            path,
+            next,
+            indent,
+            order,
+            fill.onRefused,
+          );
         // A string where the source has a plural becomes the plural, as
         // it does outside a list (#1187).
         else if (fill.pluralIds.has(id) && leaf?.type === "string") {
@@ -1167,6 +1265,7 @@ export function applyMessagesOps(
   const doc = jsonDoc(text, sequential);
   const lists = listsOf(tree);
   const empty = emptyObjects(tree, options.pluralIds);
+  const reached = new Reached();
   for (const op of ops) {
     const path =
       paths.get(op.id) ??
@@ -1187,6 +1286,7 @@ export function applyMessagesOps(
       const removed = suffixIds.has(op.id)
         ? deleteSuffix(doc, path)
         : doc.remove(path, pluralIds.has(op.id) || empty.has(op.id));
+      if (suffixIds.has(op.id)) reached.addFamily(path);
       if (!removed) doc.remove([op.id]);
     } else if (
       suffixIds.has(op.id) ||
@@ -1195,13 +1295,23 @@ export function applyMessagesOps(
       // A proposed plural, edited or new, is the source's whole plural:
       // a form it lacks goes (#985).
       writeSuffix(doc, path, op.text, indent, true, undefined, refuse, true);
+      reached.addFamily(path);
     } else if (pluralIds.has(op.id) || (suffix && asObjects && newPlural(op))) {
       // A proposal the object cannot hold fails the file loudly: it is
       // counted written otherwise, and never lands.
-      doc.apply((text) =>
-        writePlural(text, path, op.text, indent, undefined, refuse, true),
+      writePlural(
+        doc,
+        path,
+        op.text,
+        indent,
+        valueAt(tree, path),
+        undefined,
+        refuse,
+        true,
+        sequential || reached.near(path),
       );
     } else if (!doc.edit(path, op.text)) doc.add(path, op.text, indent);
+    reached.add(path);
   }
   return doc.text();
 }
