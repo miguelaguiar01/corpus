@@ -802,13 +802,21 @@ function linear(
 }
 
 test("hostile input is read in bounded time and fails cleanly, never with a thrown error (#861)", () => {
-  // The markup retry, once quadratic.
+  // The markup retry, once quadratic, is linear by the step budget, and
+  // its memo of tags found unclosed is what lets a real text parse under
+  // it (#1158). Timed under the depth limit, which 200 blocks reach
+  // before any retry runs.
   const retried = (n: number) =>
     "<b>{g, select, a {</b>} other {x}} ".repeat(n);
-  linear(retried, 750, (text) => parseIcu(text, "icu", { html: "markup" }));
-  linear(retried, 750, (text) =>
+  for (const n of [20, 160]) {
+    const read = parseIcu(retried(n), "icu", { html: "markup" });
+    expect(read.ok ? "" : read.errors[0]?.message).not.toMatch(/deep/);
+  }
+  linear(retried, 20, (text) => parseIcu(text, "icu", { html: "markup" }));
+  linear(retried, 20, (text) =>
     validateTranslation(text, text, "en", "icu", { richText: "html" }),
   );
+  expect(parseIcu(retried(20), "icu", { html: "markup" }).ok).toBe(true);
   // Nesting past any catalogue: a parse failure, not a stack overflow.
   const deep = `${"<b>".repeat(5000)}x${"</b>".repeat(5000)}`;
   const read = parseIcu(deep);
