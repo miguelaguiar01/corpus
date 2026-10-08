@@ -113,8 +113,8 @@ export default defineCorpus({
     //    and elsewhere a section of keys (#984); in a source the forms
     //    must read back out of the plural, since i18next reads an object
     //    as its path. init counts such an object's forms as the file
-    //    writes them, never the
-    //    plural it is read as, when it picks the library. Under i18next
+    //    writes them, never the plural it is read as, when it picks the
+    //    library. Under i18next
     //    a family of suffix keys, `item_one` beside `item_other`, is one
     //    plural string `item` (#985, §5), a push that archives its old
     //    keys carrying their unpulled translations to it (§8, #1063),

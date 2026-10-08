@@ -135,9 +135,6 @@ function leaves(
   return out;
 }
 
-// Each id's key path as a file writes it, and the ids that are plural
-// objects: a segment may hold dots (`"m.room.topic": { … }`), so an id
-// is never split to find its place when a file already names it (#642).
 // The empty objects at ids the source holds as plurals, each by its key
 // path: a target's plural with no form left, which a removal takes
 // whole (#1148).
@@ -161,6 +158,9 @@ function emptyObjects(
   return out;
 }
 
+// Each id's key path as a file writes it, and the ids that are plural
+// objects: a segment may hold dots (`"m.room.topic": { … }`), so an id
+// is never split to find its place when a file already names it (#642).
 function keyPaths(
   tree: Tree,
   plurals: PluralObjects = false,
@@ -1152,7 +1152,7 @@ export function applyMessagesOps(
   for (const op of ops) {
     const path =
       paths.get(op.id) ??
-      empty.get(op.id) ??
+      (op.kind === "delete" ? empty.get(op.id) : undefined) ??
       (nested ? op.id.split(".") : [op.id]);
     // A list's items are numbered: adding or removing one renumbers the
     // ids after it, so only an edit of one it holds is written (#1053).
