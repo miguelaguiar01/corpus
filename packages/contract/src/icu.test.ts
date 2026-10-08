@@ -729,6 +729,7 @@ test("each library has a name for messages (#644)", () => {
     "Rails I18n",
     "Qt",
     "FormatJS",
+    "Lingui",
     "gen-l10n",
     "fmt",
     "Fluent",
@@ -1642,6 +1643,22 @@ test("under lingui an apostrophe quotes a brace or a plural's # only where a lon
           { kind: "literal", text: "d'" },
           { kind: "count", arg: "n" },
           { kind: "literal", text: " x" },
+        ],
+      },
+    },
+  ]);
+  // Outside a plural a quote of # keeps its text as written: '#''#' →
+  // '#''#'; in a branch a run of text that is # alone is the count, as
+  // Lingui's runtime prints it: one {'#'#a } → 11a .
+  expect(nodes("a'#''#'")).toEqual([{ kind: "literal", text: "a'#''#'" }]);
+  expect(nodes("{n, plural, one {'#'#a } other {#}}")).toMatchObject([
+    {
+      kind: "plural",
+      branches: {
+        one: [
+          { kind: "count", arg: "n" },
+          { kind: "count", arg: "n" },
+          { kind: "literal", text: "a " },
         ],
       },
     },
