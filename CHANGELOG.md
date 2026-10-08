@@ -14,6 +14,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- A pull that creates a target file leaves out a plural its writer refuses, rather than keeping the source language's forms there (#1189).
 - A pull writes a changed translation into a target's plural object that lacks `other`, as Element's Polish ones do, rather than refusing it (#1188).
 - A target plural object's or Rails hash's form with a stray brace is named as that form, `unsplittable-form`, rather than as a missing `other` or not at all (#1186).
 - Under `library: "gen_l10n"`, angle brackets are text, as Flutter's gen-l10n has no tags: `<Enter>` is no unclosed tag (#1181).

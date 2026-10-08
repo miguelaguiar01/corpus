@@ -499,7 +499,15 @@ export function entriesToMessages(
         else onRefused?.(id, next);
         continue;
       }
-      if (plural === "suffix")
+      // In a new file a plural it cannot hold goes, as an untranslated
+      // one does, rather than keep the source's forms (#1189); in a
+      // list's item, as an untranslated one there, it keeps them.
+      const held = !(plural || sourcePlurals.has(id)) || formsOf(next);
+      if (fresh && !held && !list) {
+        onRefused?.(id, next);
+        if (plural === "suffix") deleteSuffix(doc, path);
+        else doc.remove(path, true);
+      } else if (plural === "suffix")
         writeSuffix(doc, path, next, style.indent, fresh, order, onRefused);
       else if (plural || sourcePlurals.has(id))
         doc.apply((text) =>
