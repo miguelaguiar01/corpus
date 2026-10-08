@@ -1786,7 +1786,6 @@ export function readIcu(
   source: string,
   syntax: Library = "icu",
   placeholders?: readonly Library[],
-  // A plural without `other`, which only the preview reads (#1151).
   options: { otherless?: boolean } = {},
 ): IcuParseResult {
   const read = parseIcu(source, syntax, { placeholders, ...options });
@@ -1815,8 +1814,8 @@ export function parseIcu(
     placeholders?: readonly Library[];
     // Each mistyped rails `%{`'s position, read as text (#976).
     strays?: number[];
-    // A plural read without `other`, a translation's the preview shows
-    // all the same (#1151); everything else requires it.
+    // A plural without `other` read all the same, as the preview shows a
+    // translation's (#1151); every other reader requires it.
     otherless?: boolean;
   } = {},
 ): IcuParseResult {

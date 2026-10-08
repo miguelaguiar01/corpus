@@ -192,7 +192,6 @@ export function renderPreviewSegments(
   language?: string,
   options: RenderOptions = {},
 ): PreviewSegmentsResult {
-  // A translation's plural without `other` previews its branches (#1151).
   const parsed = readIcu(message, options.syntax ?? "icu", undefined, {
     otherless: true,
   });

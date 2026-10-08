@@ -638,5 +638,5 @@ test("a translation's whole plural without other previews its branches; a count 
     renderPreview("{count, plural, one {x}} trailing", { count: "1" }, "en", {
       syntax: "counterpart",
     }),
-  ).toMatchObject({ ok: true });
+  ).toEqual({ ok: true, text: "{count, plural, one {x}} trailing" });
 });
