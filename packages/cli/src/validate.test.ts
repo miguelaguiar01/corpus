@@ -388,6 +388,24 @@ test("describe words every error code", () => {
       position: 4,
     }),
   ).toBe("invalid ICU in the target at 4: unclosed brace");
+  // An apostrophe that quoted past a branch's end says so (#1155).
+  expect(
+    describe(
+      {
+        code: "invalid-icu",
+        where: "target",
+        message: "unclosed branch '{'",
+        position: 17,
+        quoted: true,
+      },
+      "formatjs",
+    ),
+  ).toBe(
+    "invalid ICU in the target at 17: unclosed branch '{'; an apostrophe before a brace or a # quotes it: write ’ or ''",
+  );
+  expect(describe({ code: "missing-other", arg: "n", quoted: true })).toBe(
+    "plural on {n} has no other form, which the runtime picks for every count no other form covers; an apostrophe before a brace or a # quotes it: write ’ or ''",
+  );
   // Named after the library the text was read under (#644).
   expect(
     describe(
