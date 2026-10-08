@@ -1912,20 +1912,24 @@ function fixedCounts(
         if (!FIXED_ONE.test(text(branch)) || prints(branch, node.arg)) continue;
         // The numbers the runtime picks this branch for: not one an `=N`
         // takes, nor i18next's written zero (#985), nor gen-l10n's written
-        // zero or two, which take exactly 0 and 2 first (#1039).
-        const values = integersOf(language, key).filter(
-          (n) =>
-            n !== 1 &&
-            pluralBranch(node.branches, String(n), language, { library }) ===
-              key &&
-            !(
-              library === "gen_l10n" &&
-              GEN_L10N_EXACT.some(
-                ([exact, category]) =>
-                  Number(exact.slice(1)) === n && category in node.branches,
-              )
-            ),
-        );
+        // zero or two, which take exactly 0 and 2 first (#1039, #1205),
+        // as a written zero or two takes them in German too.
+        const exactly =
+          library === "gen_l10n" ? GEN_L10N_WORDS[key] : undefined;
+        const values = [
+          ...new Set([
+            ...(exactly === undefined ? [] : [exactly]),
+            ...integersOf(language, key),
+          ]),
+        ]
+          .sort((a, b) => a - b)
+          .filter(
+            (n) =>
+              n !== 1 &&
+              pluralBranch(node.branches, String(n), language, {
+                library,
+              }) === key,
+          );
         if (values.length > 0)
           out.push({
             code: "fixed-count",
@@ -1940,6 +1944,13 @@ function fixedCounts(
   visit(nodes);
   return out;
 }
+
+// The number a written category is taken for first under gen-l10n.
+const GEN_L10N_WORDS: Record<string, number | undefined> = {
+  zero: 0,
+  one: 1,
+  two: 2,
+};
 
 // gen-l10n's exact keys and the categories it reads them as.
 const GEN_L10N_EXACT = [

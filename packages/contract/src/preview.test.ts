@@ -547,6 +547,29 @@ test("under gen_l10n a value of the category =0, =1 or =2 stands for takes that 
   expect(pluralBranch(branches, "21", "hr", { library: "icu" })).toBe("other");
 });
 
+test("under gen_l10n a written zero, one or two takes exactly 0, 1 or 2 before the category, in every language (#1205)", () => {
+  const all = { zero: "Z", one: "O", two: "T", other: "X" };
+  const gen = (
+    branches: Record<string, string>,
+    value: string,
+    language: string,
+  ) => pluralBranch(branches, value, language, { library: "gen_l10n" });
+  expect(gen(all, "0", "de")).toBe("zero");
+  expect(gen(all, "1", "ja")).toBe("one");
+  expect(gen(all, "2", "de")).toBe("two");
+  expect(gen(all, "0", "fr")).toBe("zero");
+  expect(gen({ one: "O", two: "T", other: "X" }, "0", "fr")).toBe("one");
+  // Any other value by CLDR's category; icu takes them by CLDR alone.
+  expect(gen(all, "3", "de")).toBe("other");
+  expect(gen(all, "21", "ja")).toBe("other");
+  expect(pluralBranch(all, "0", "de", { library: "icu" })).toBe("other");
+  expect(pluralBranch(all, "1", "ja", { library: "icu" })).toBe("other");
+  // An ordinal is read by its own rule.
+  expect(
+    pluralBranch(all, "2", "de", { library: "gen_l10n", ordinal: true }),
+  ).toBe("other");
+});
+
 test("a printf plural whose branches print one Python key alone previews its count from that key (#1113)", () => {
   const users = "{count, plural, one {%(num)s user} other {%(num)s users}}";
   const preview = (values: Record<string, string>, message = users) =>
