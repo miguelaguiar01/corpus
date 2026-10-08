@@ -794,8 +794,7 @@ function templateOf(template: string): Template {
   );
   const variablesOf = (id: string) =>
     names.get(id)?.variables ?? new Set<string>();
-  // An attribute's and a comment's variables count too, as main read
-  // them.
+  // An attribute's and a comment's variables count too.
   const variables = new Set([
     ...rawVariables(template),
     ...[...byId.keys()].flatMap((id) => [...variablesOf(id)]),

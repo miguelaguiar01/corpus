@@ -701,7 +701,7 @@ test("a select's branch text names no variable, and a variable an attribute uses
   const login = `name = Name\nlogin = Log in\n    .title = Logged in as { $name }\ngreet = Hello\n`;
   const pt = `name = Nome\nlogin = Entrar\n    .title = Sessão de { $name }\ngreet = Olá { $name }\n`;
   expect(entriesToFluent(login, { greet: "Olá {name}!" }, pt)).toContain(
-    "greet = Olá { $name }!\n",
+    "greet = Olá {$name}!\n",
   );
 });
 
