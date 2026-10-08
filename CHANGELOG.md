@@ -14,6 +14,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- A flag that takes a value and is given none, as `build --out` or `whoami --server`, is refused rather than read as absent (#1214).
 - `validate` warns of a plural branch's fixed 1 inside a select's branch, and in any script's digits (`१ सप्ताह` for 0 in Hindi) (#1212).
 - Under gen_l10n, plurals in a select's branches are checked each by itself: an `=1` in one branch and a `one` in another are no overridden branch, and a branch's lone `=1` gets its `wide-exact` warning (#1207).
 - Under gen_l10n, the preview shows `few` for a value of `two` where a plural writes no `two`, as Flutter's intl does; validation still asks for `two` (#1206).

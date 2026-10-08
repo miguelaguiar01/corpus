@@ -1,8 +1,15 @@
 import { CliError } from "./config";
 
+// A flag's value; the flag given without one, last, empty or followed
+// by another flag, is an error rather than absent (#1214): `build --out`
+// would otherwise write nothing and exit 0.
 export function option(args: string[], name: string): string | undefined {
   const index = args.indexOf(name);
-  return index >= 0 ? args[index + 1] : undefined;
+  if (index < 0) return undefined;
+  const value = args[index + 1];
+  if (value === undefined || value === "" || value.startsWith("--"))
+    throw new CliError(`${name} needs a value`);
+  return value;
 }
 
 // Every value of a repeatable option, in order; the option without a
