@@ -60,6 +60,17 @@ import { ignoreCorpusDir } from "./corpus-dir";
 export const INIT_USAGE =
   "corpus init --project <slug> --source <lang> --messages <path with {lang}, a .xcstrings or an Android res directory> [--languages <a,b>] [--server <url>] [--type <name>] [--library <icu|formatjs|lingui|gen_l10n|fmt|i18next|vue|printf|chrome|counterpart|easy_localization|rails|qt>]";
 
+// A flag's value, a refusal carrying init's usage.
+function optionOf(args: string[], flag: string): string | undefined {
+  try {
+    return option(args, flag);
+  } catch (error) {
+    if (error instanceof CliError)
+      throw new CliError(`${error.message}\nusage: ${INIT_USAGE}`);
+    throw error;
+  }
+}
+
 // `corpus init` writes the config from flags alone, so it scripts;
 // it validates the config before writing and never overwrites one.
 export async function init(args: string[], ctx: RunContext): Promise<number> {
@@ -72,30 +83,24 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     );
   }
   const required = (flag: string): string => {
-    const value = option(args, flag);
-    if (!value || value.startsWith("--")) {
+    const value = optionOf(args, flag);
+    if (value === undefined)
       throw new CliError(`${flag} is required\nusage: ${INIT_USAGE}`);
-    }
     return value;
   };
   const project = required("--project");
   // A String Catalog holds every language in one file (#729): its path
   // has no {lang}, and it names its own source language, so --source
   // is optional for it alone.
-  const named = option(args, "--messages");
+  const named = optionOf(args, "--messages");
   const catalogued = named !== undefined && /\.xcstrings$/i.test(named);
   if (catalogued && named.includes("{lang}"))
     throw new CliError(
       `--messages ${named}: a String Catalog holds every language in one file, so its path has no {lang}`,
     );
   const sourceFlag = catalogued
-    ? option(args, "--source")
+    ? optionOf(args, "--source")
     : required("--source");
-  if (
-    sourceFlag?.startsWith("--") ||
-    (catalogued && sourceFlag === undefined && args.includes("--source"))
-  )
-    throw new CliError(`--source needs a value\nusage: ${INIT_USAGE}`);
   const messages = required("--messages");
   const catalog = catalogued ? readCatalog(ctx.cwd, messages) : undefined;
   const sourceLanguage = sourceFlag ?? catalog!.sourceLanguage;
@@ -103,8 +108,8 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
     throw new CliError(
       `--source ${sourceLanguage}: ${messages} names ${catalog.sourceLanguage} as its source language`,
     );
-  const server = option(args, "--server") ?? "http://localhost:3000";
-  const type = option(args, "--type") ?? "ui";
+  const server = optionOf(args, "--server") ?? "http://localhost:3000";
+  const type = optionOf(args, "--type") ?? "ui";
   // An Android res directory, or its `values-{lang}/strings.xml`, is
   // one source whose languages its `values-*` directories name (#993).
   const res = catalog ? undefined : androidResOf(ctx.cwd, messages);
@@ -220,12 +225,12 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   // The flag given without a value is an error, as for every option
   // (args.ts); only its absence means "read the files".
   const present = args.includes("--languages");
-  const given = option(args, "--languages");
+  const given = optionOf(args, "--languages");
   // A POSIX code listed is written as its tag, its files mapped to it,
   // as a file read from the pattern is (#1119).
   const listedFiles: Record<string, string> = {};
   const listed =
-    given === undefined || given.startsWith("--")
+    given === undefined
       ? []
       : given
           .split(",")
@@ -440,7 +445,7 @@ export async function init(args: string[], ctx: RunContext): Promise<number> {
   }
   const ignored = ignoreCorpusDir(ctx.cwd);
   if (ignored) ctx.out(ignored);
-  nextSteps(ctx, project, server, option(args, "--server") === undefined);
+  nextSteps(ctx, project, server, !args.includes("--server"));
   return 0;
 }
 
@@ -1428,7 +1433,7 @@ async function libraryFor(
     if (flag === "--syntax") {
       ctx.err("corpus: --syntax is the old name for --library; it goes at 1.0");
     }
-    const given = option(args, flag);
+    const given = optionOf(args, flag);
     if (!(CONFIG_LIBRARIES as readonly string[]).includes(given ?? "")) {
       throw new CliError(
         `${flag} takes ${CONFIG_LIBRARIES.join(", ")}\nusage: ${INIT_USAGE}`,

@@ -110,12 +110,14 @@ export async function requestProject(
 // `corpus project create` (§3): the config's project, provisioned with
 // the instance secret; the token alone on stdout's last line.
 async function create(args: string[], ctx: RunContext): Promise<number> {
+  const given = option(args, "--server");
+  const name = option(args, "--name");
   const config = await loadConfig(ctx.cwd);
-  const server = serverOf(args, config.server);
+  const server = serverOf(given, config.server);
   const secret = requireSecret(ctx.env, ctx.cwd, server);
   const result = await requestProject(server, secret, {
     slug: config.project,
-    name: option(args, "--name") ?? config.project,
+    name: name ?? config.project,
     sourceLanguage: config.sourceLanguage,
     languages: config.languages,
   });
@@ -140,8 +142,9 @@ async function create(args: string[], ctx: RunContext): Promise<number> {
 // `corpus project rotate-token` (§3): the current token replaces itself;
 // .corpus/token follows when it is where the old one came from.
 async function rotateToken(args: string[], ctx: RunContext): Promise<number> {
+  const given = option(args, "--server");
   const config = await loadConfig(ctx.cwd);
-  const server = serverOf(args, config.server);
+  const server = serverOf(given, config.server);
   const current = readToken(ctx.env, ctx.cwd);
   const response = await request(
     `${server}/api/projects/${config.project}/token`,
@@ -172,6 +175,6 @@ async function rotateToken(args: string[], ctx: RunContext): Promise<number> {
   return 0;
 }
 
-function serverOf(args: string[], fallback: string): string {
-  return (option(args, "--server") ?? fallback).replace(/\/$/, "");
+function serverOf(given: string | undefined, fallback: string): string {
+  return (given ?? fallback).replace(/\/$/, "");
 }

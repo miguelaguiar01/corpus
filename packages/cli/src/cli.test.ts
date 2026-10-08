@@ -78,6 +78,20 @@ const PUSH_ONLY = fileURLToPath(
   new URL("../test/fixtures/push-only", import.meta.url),
 );
 
+test("a flag that takes a value and is given none is refused, never read as absent (#1214)", async () => {
+  for (const args of [
+    ["build", "--out"],
+    ["build", "--out", ""],
+    ["whoami", "--server"],
+    ["pull", "--min-state"],
+    ["pull", "--min-state", "--check"],
+  ]) {
+    const c = ctx();
+    expect(await run(args, c)).toBe(1);
+    expect(c.output).toEqual([`corpus: ${args[1]} needs a value`]);
+  }
+});
+
 test("corpus build lists a refused entry, builds the rest and exits 1", async () => {
   const bad = fileURLToPath(
     new URL("../test/fixtures/push-bad", import.meta.url),

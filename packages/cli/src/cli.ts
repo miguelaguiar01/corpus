@@ -422,6 +422,7 @@ function writeOut(file: string, out: string, snapshot: unknown): void {
 
 // `corpus build`: the snapshot without a server, for authoring the config.
 async function build(args: string[], ctx: RunContext): Promise<number> {
+  const out = option(args, "--out");
   const config = await loadConfig(ctx.cwd);
   const { snapshot, refused, notes } = await buildSnapshotReport(
     config,
@@ -431,7 +432,6 @@ async function build(args: string[], ctx: RunContext): Promise<number> {
   for (const note of notes) ctx.err(`corpus: ${note}`);
   for (const note of deprecations(config)) ctx.err(`corpus: ${note}`);
   for (const note of pushOnlyNotes(config)) ctx.err(`corpus: ${note}`);
-  const out = option(args, "--out");
   if (out) writeOut(path.resolve(ctx.cwd, out), out, snapshot);
   const byType = (items: { type: string }[]) => {
     const counts = new Map<string, number>();

@@ -50,8 +50,9 @@ const RECORD = `${CORPUS_DIR}/workbench.json`;
 // where it was started here. Exits 1 when the server cannot be reached,
 // is no Corpus, or refuses the token or takes it for another project.
 export async function whoami(args: string[], ctx: RunContext): Promise<number> {
+  const given = option(args, "--server");
   const config = await loadConfig(ctx.cwd);
-  const server = (option(args, "--server") ?? config.server).replace(/\/$/, "");
+  const server = (given ?? config.server).replace(/\/$/, "");
   const health = await healthOf(server);
   let token: Whoami["token"] = null;
   try {
