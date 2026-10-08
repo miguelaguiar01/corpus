@@ -15,6 +15,7 @@ import {
   type IcuNode,
 } from "./icu";
 import { LIBRARIES, libraryName, type Library } from "./strings";
+import { renderPreview } from "./preview";
 
 const SIGHTING =
   "{person} foi {person_gender, select, m {visto} f {vista}} à janela {room_de} às {hour} — e não estava {person_gender, select, m {sozinho} f {sozinha}}.";
@@ -1673,5 +1674,43 @@ test("lingui's apostrophe rule reads a long run of quotes in linear time (#1154)
     (n) => "'{".repeat(n),
     4000,
     (text) => parseIcu(text, "lingui"),
+  );
+});
+
+test("lingui: a quote of # in a select inside a plural is unquoted, and # alone counts only between non-text, a tag's markup being text, as @lingui/core renders (#1154 review)", () => {
+  // @lingui/core 6.9 with n = 3, g = "m", x = "X".
+  const render = (text: string) =>
+    renderPreview(text, { n: "3", g: "m", x: "X" }, "en", { syntax: "lingui" });
+  expect(render("{n, plural, other {{g, select, m {'#'} other {y}}}}")).toEqual(
+    {
+      ok: true,
+      text: "#",
+    },
+  );
+  expect(render("{n, plural, other {{g, select, m {#} other {y}}}}")).toEqual({
+    ok: true,
+    text: "#",
+  });
+  expect(render("{n, plural, other {<0>x</0>'#'}}")).toEqual({
+    ok: true,
+    text: "x#",
+  });
+  expect(render("{n, plural, other {'#'<0/>}}")).toEqual({
+    ok: true,
+    text: "#",
+  });
+  expect(render("{n, plural, other {<0>'#'</0>}}")).toEqual({
+    ok: true,
+    text: "#",
+  });
+  expect(render("{n, plural, other {<0>{x}'#'{x}</0>}}")).toEqual({
+    ok: true,
+    text: "X3X",
+  });
+  expect(render("{g, select, m {{n, plural, other {'#'}}} other {z}}")).toEqual(
+    {
+      ok: true,
+      text: "3",
+    },
   );
 });
