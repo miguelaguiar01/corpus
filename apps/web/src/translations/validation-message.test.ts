@@ -178,3 +178,28 @@ test("a format a Fluent translation adds is said in the editor (#1089)", () => {
     ),
   ).toBe("n has no format in the source; write it without one");
 });
+
+test("an apostrophe that quoted past a branch's end says so (#1155)", () => {
+  expect(
+    validationMessage(
+      {
+        code: "invalid-icu",
+        where: "target",
+        message: "unclosed branch '{'",
+        position: 17,
+        quoted: true,
+      },
+      "formatjs",
+    ),
+  ).toBe(
+    "Malformed message: unclosed branch '{'. An apostrophe before a brace, a tag or a # quotes it, so write ’ in its place",
+  );
+  expect(
+    validationMessage(
+      { code: "missing-other", arg: "n", quoted: true },
+      "formatjs",
+    ),
+  ).toBe(
+    "Plural n is missing the other branch: an apostrophe before a brace, a tag or a # quotes it, so write ’ in its place",
+  );
+});

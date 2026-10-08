@@ -111,7 +111,10 @@ export function validationMessage(
     case "missing-category":
       return t("editor.missingCategory", { arg: error.arg, key: error.key });
     case "missing-other":
-      return t("editor.missingOther", { arg: error.arg });
+      return t(
+        error.quoted ? "editor.missingOtherQuoted" : "editor.missingOther",
+        { arg: error.arg },
+      );
     case "unsplittable-form":
       return t("editor.unsplittableForm", { arg: error.arg, key: error.key });
     case "exact-branch":
@@ -181,7 +184,9 @@ export function validationMessage(
     case "unexpected-tag":
       return t("editor.unexpectedTag", { name: error.name });
     case "invalid-icu":
-      return t("editor.invalidIcu", { message: error.message });
+      return t(error.quoted ? "editor.invalidIcuQuoted" : "editor.invalidIcu", {
+        message: error.message,
+      });
   }
 }
 

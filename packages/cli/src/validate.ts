@@ -629,6 +629,12 @@ async function texts(
   }
 }
 
+function quotedPast(error: { quoted?: true }): string {
+  return error.quoted
+    ? "; an apostrophe before a brace, a tag or a # quotes it: write ’ or ''"
+    : "";
+}
+
 export function describe(
   error: ValidationError,
   syntax: Library = "icu",
@@ -637,7 +643,7 @@ export function describe(
     syntax === "i18next" ? `{{${name}}}` : `{${name}}`;
   switch (error.code) {
     case "invalid-icu":
-      return `invalid ${messageKind(syntax)} in the ${error.where} at ${error.position}: ${error.message}`;
+      return `invalid ${messageKind(syntax)} in the ${error.where} at ${error.position}: ${error.message}${quotedPast(error)}`;
     case "missing-placeholder":
       // Under android a value that is not a verb is the plural's count:
       // the translation is a <string> where the source is a <plurals>.
@@ -688,7 +694,7 @@ export function describe(
     case "exact-branch":
       return `{${error.arg}} has an ${error.key} branch, which this file cannot hold, as it holds a plural's categories only: write it in the ${error.category} branch, which this language picks for ${error.key.slice(1)}`;
     case "missing-other":
-      return `plural on {${error.arg}} has no other form, which the runtime picks for every count no other form covers`;
+      return `plural on {${error.arg}} has no other form, which the runtime picks for every count no other form covers${quotedPast(error)}`;
     case "unsplittable-form":
       return `the ${error.key} form of {${error.arg}} leaves a brace unbalanced, so this file cannot hold it as one of its forms: balance the braces in it`;
     case "shared-form":

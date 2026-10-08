@@ -3064,6 +3064,76 @@ test("a placeholder an apostrophe quotes is missing, and the error says the apos
   expect(!other.ok && "quoted" in other.errors[1]!).toBe(false);
 });
 
+test("an apostrophe that quotes past a plural branch's end says it did, the plural failing to parse or losing its other (#1155)", () => {
+  const source = "{n, plural, one {# file} other {# files}}";
+  const fr = (target: string, syntax: "formatjs" | "lingui" | "icu") =>
+    validateTranslation(source, target, "fr", syntax);
+  for (const target of [
+    "{n, plural, one {d'# fichier} other {# fichiers}}",
+    "{n, plural, one {d'{n} fichier} other {# fichiers}}",
+  ])
+    expect(fr(target, "formatjs")).toEqual({
+      ok: false,
+      errors: [
+        {
+          code: "invalid-icu",
+          where: "target",
+          message: "unclosed branch '{'",
+          position: 17,
+          quoted: true,
+        },
+      ],
+    });
+  // A quote the next branch's apostrophe closes takes the other away.
+  for (const syntax of ["formatjs", "lingui"] as const)
+    expect(
+      fr("{n, plural, one {d'# fichier} other {l'# fichiers}}", syntax),
+    ).toEqual({
+      ok: false,
+      errors: [{ code: "missing-other", arg: "n", quoted: true }],
+    });
+  // Lingui keeps a quote of # outside a plural as written, and refuses
+  // one holding a brace.
+  expect(
+    validateTranslation("Open {name}", "Ouvrir '#{name}' ici", "fr", "lingui"),
+  ).toMatchObject({
+    ok: false,
+    errors: [{ code: "invalid-icu", where: "target", quoted: true }],
+  });
+  // A failure that is not the apostrophe's says nothing of it.
+  const unclosed = "{n, plural, one {l'# fichier} other {# fichiers}";
+  for (const syntax of ["formatjs", "lingui", "icu"] as const) {
+    const result = fr(unclosed, syntax);
+    expect(result).toMatchObject({
+      ok: false,
+      errors: [{ code: "invalid-icu" }],
+    });
+    expect(!result.ok && "quoted" in result.errors[0]!).toBe(false);
+  }
+  const otherless = fr("{n, plural, one {l'# fichier'}}", "formatjs");
+  expect(otherless).toEqual({
+    ok: false,
+    errors: [{ code: "missing-other", arg: "n" }],
+  });
+  // An apostrophe before neither a brace nor a # quotes nothing.
+  const plain = fr("{n, plural, one {l'avion} other {# fichiers}", "formatjs");
+  expect(!plain.ok && "quoted" in plain.errors[0]!).toBe(false);
+  // FormatJS quotes from before a tag as well, which Lingui does not.
+  const tagged = (syntax: "formatjs" | "lingui") =>
+    validateTranslation(
+      "{n, plural, one {See <b>the item</b>} other {See <b>the items</b>}}",
+      "{n, plural, one {Voir l'<b>élément</b>} other {Voir les <b>éléments</b>}}",
+      "fr",
+      syntax,
+      { richText: "html" },
+    );
+  expect(tagged("formatjs")).toMatchObject({
+    ok: false,
+    errors: [{ code: "invalid-icu", position: 17, quoted: true }],
+  });
+  expect(tagged("lingui")).toEqual({ ok: true });
+});
+
 test("under vue-i18n's default rule a translation's number of forms is the source's, each index read as the rule reads it (#1018)", () => {
   const source = "{n} day | {n} days";
   const pl = "{n} minuta | {n} minuty | {n} minut";

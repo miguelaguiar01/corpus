@@ -6,6 +6,7 @@
   "editor.formatChanged": "{name} é um {type} no original, não um {actual}",
   "editor.formatDropped": "{name} é um {type} no original; escreva-o com o seu formato",
   "editor.missingOther": "Ao plural {arg} falta o ramo other, que o runtime escolhe para cada contagem que nenhum outro ramo cobre",
+  "editor.missingOtherQuoted": "Ao plural {arg} falta o ramo other: um apóstrofo antes de uma chaveta, de uma etiqueta ou de um # cita-o, por isso escreva ’ no seu lugar",
   "editor.warningSourceChanged": "O original mudou desde que abriu este texto. O seu rascunho fica em baixo; compare-o com o novo original antes de guardar.",
   "entities.heading": "Entidades",
   "invite.signIn": "Iniciar sessão",
