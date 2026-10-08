@@ -105,6 +105,9 @@ class BatchDoc implements JsonDoc {
   private emptied = new Set<Obj>();
   private mode: "none" | "remove" | "add" = "none";
   private positions = new WeakMap<string[], Map<string, number> | null>();
+  // The lines a pending fill of an empty object rewrites, by where they
+  // start.
+  private closes = new Set<number>();
 
   constructor(private current: string) {}
 
@@ -119,13 +122,9 @@ class BatchDoc implements JsonDoc {
     this.current = write(this.text());
   }
 
-  private pending(): boolean {
-    return (
-      this.edits.size > 0 ||
-      this.touched.size > 0 ||
-      this.emptied.size > 0 ||
-      this.removed.size > 0
-    );
+  // Where a line starts: the offset after the newline before `at`.
+  private lineOf(at: number): number {
+    return this.current.lastIndexOf("\n", at - 1) + 1;
   }
 
   edit(path: string[], value: string): boolean {
@@ -205,17 +204,18 @@ class BatchDoc implements JsonDoc {
       return;
     }
     if (obj.node && !this.placeable(obj)) return aside();
-    // The indent insert reads is a line's, which a pending write before
-    // it on that line, another object's close, would change: written
-    // first, as the sequential document reads it.
-    const last = lastOf(obj);
-    const reads = last ? last.node?.offset : obj.node?.offset;
-    if (reads !== undefined && this.pending()) {
-      const start = this.current.lastIndexOf("\n", reads - 1) + 1;
-      if (this.current.slice(start, reads).trim() !== "") {
-        this.text();
-        return this.add(path, value, unit, order);
-      }
+    // An empty object on more than one line takes its indents from its
+    // brace's line, which a pending fill of another such object whose
+    // close shares that line would change: written first, as the
+    // sequential document reads it.
+    if (
+      obj.node &&
+      !lastOf(obj) &&
+      !this.inlineOf(obj) &&
+      this.closes.has(this.lineOf(obj.node.offset))
+    ) {
+      this.text();
+      return this.add(path, value, unit, order);
     }
     this.mode = "add";
     this.insert(
@@ -257,6 +257,7 @@ class BatchDoc implements JsonDoc {
     this.touched.clear();
     this.removed.clear();
     this.emptied.clear();
+    this.closes.clear();
     this.mode = "none";
   }
 
@@ -402,6 +403,9 @@ class BatchDoc implements JsonDoc {
       value: virtual(rest, value, inline, indent, unit),
     };
     if (!last) {
+      // Its fill rewrites the line its close is on.
+      if (obj.node && !inline)
+        this.closes.add(this.lineOf(obj.node.offset + obj.node.length - 1));
       obj.itemIndent = indent;
       obj.closeIndent = inline
         ? ""
