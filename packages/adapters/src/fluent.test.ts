@@ -651,6 +651,38 @@ test("the old view of a message that refers to a message only the target defines
   expect(entriesToFluent(source, { m2: "{trash} {z}" }, target)).toBe(target);
 });
 
+test("a proposal's bare {name} is a variable and {@name} a reference, whatever the file names; one equal to a view writes nothing (#1193)", () => {
+  const file = `name = Name\ntrash = Trash\nempty = Empty { trash }\n`;
+  const added = applyFluentOps(file, [
+    { kind: "add", id: "hello", text: "Hello {name}" },
+    { kind: "add", id: "hi", text: "Hi {@name}" },
+  ]);
+  expect(added).toContain("hello = Hello { $name }\n");
+  expect(added).toContain("hi = Hi { name }\n");
+  expect(
+    applyFluentOps(file, [
+      { kind: "edit", id: "empty", text: "Empty {trash} now" },
+    ]),
+  ).toContain("empty = Empty { $trash } now\n");
+  expect(
+    applyFluentOps(file, [
+      { kind: "edit", id: "empty", text: "Empty {@trash} now" },
+    ]),
+  ).toContain("empty = Empty { trash } now\n");
+  // The message's view, new or as read before #1083, is no change.
+  for (const text of ["Empty {@trash}", "Empty {trash}"])
+    expect(applyFluentOps(file, [{ kind: "edit", id: "empty", text }])).toBe(
+      file,
+    );
+});
+
+test("a string literal's {$y} is no variable of its message, so its reference is written back as one (#1193)", () => {
+  const source = `y = Y\nx = { "{$y}" } { y }\n`;
+  expect(entriesToFluent(source, { x: '{"{$y}"} {y} !' }, source)).toBe(
+    `y = Y\nx = { "{$y}" } { y } !\n`,
+  );
+});
+
 test("a file's terms with the variables their text reads and the attributes they define (#1033)", () => {
   const terms = fluentTerms(`-brand = { $capitalization ->
    *[lower] account
