@@ -1110,6 +1110,20 @@ describe("a target's plural object without other writes back as the file has it 
         { plurals: true },
       ),
     ).toThrow(/is a plural its object cannot hold/);
+    // An i18next family's too.
+    expect(() =>
+      applyMessagesOps(
+        `{\n  "rooms_one": "{{count}} room",\n  "rooms_other": "{{count}} rooms"\n}\n`,
+        [
+          {
+            kind: "edit",
+            id: "rooms",
+            text: "{count, plural, one {{{count}} room} few {{{count}} rooms}}",
+          },
+        ],
+        { plurals: "several", suffixPlurals: true },
+      ),
+    ).toThrow(/is a plural its object cannot hold/);
   });
 });
 
