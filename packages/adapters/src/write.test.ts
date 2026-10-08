@@ -2067,7 +2067,6 @@ describe("a key the source holds as a string of its own is no form of a family b
     type: "ui",
     plurals: "several" as const,
     suffixPlurals: true,
-    sourceLanguage: "de",
     pluralIds: new Set(["rooms"]),
     ownIds: new Set(["rooms_other"]),
   };
@@ -2103,6 +2102,43 @@ describe("a key the source holds as a string of its own is no form of a family b
         .replace("{{count}} Raum", "{{count}} Raum!")
         .replace('"{{count}} Räume"', '"{{count}} Räume!"')
         .replace("Andere Räume", "Weitere Räume"),
+    );
+  });
+  test("a target holding the plural as keys keeps the source's own key beside them, removed or pulled (#1191 review)", () => {
+    const en = `{\n  "files": {\n    "one": "{{count}} file",\n    "other": "{{count}} files"\n  },\n  "files_zero": "No files"\n}\n`;
+    const de = `{\n  "files_one": "{{count}} Datei",\n  "files_other": "{{count}} Dateien",\n  "files_zero": "Keine Dateien"\n}\n`;
+    const options = {
+      plurals: "several" as const,
+      suffixPlurals: true,
+      sourceLanguage: "en",
+    };
+    expect(
+      applyMessagesOps(de, [{ kind: "delete", id: "files" }], {
+        ...options,
+        pluralIds: new Set(["files"]),
+        ownIds: new Set(["files_zero"]),
+      }),
+    ).toBe(`{\n  "files_zero": "Keine Dateien"\n}\n`);
+    // A form that would land on the key is refused, the file as it is.
+    const refused: string[] = [];
+    expect(
+      entriesToMessages(
+        en,
+        { files: "{count, plural, zero {Null} one {R1} other {R2}}" },
+        de,
+        { ...options, onRefused: (id) => refused.push(id) },
+      ),
+    ).toBe(de);
+    expect(refused).toEqual(["files"]);
+    expect(
+      entriesToMessages(
+        en,
+        { files: "{count, plural, one {R1} other {R2}}" },
+        de,
+        options,
+      ),
+    ).toBe(
+      de.replace("{{count}} Datei", "R1").replace("{{count}} Dateien", "R2"),
     );
   });
   test("removing the plural takes the object and keeps the key", () => {
