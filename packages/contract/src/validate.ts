@@ -48,8 +48,8 @@ import {
 } from "./strings";
 
 export type ValidationError =
-  // `quoted` on a target's: under formatjs or lingui an apostrophe
-  // quoted what made it fail, as a branch's end (#1155).
+  // `quoted`: a target that fails because, under formatjs or lingui,
+  // an apostrophe quoted past a branch's end or the like (#1155).
   | {
       code: "invalid-icu";
       where: "source" | "target";
