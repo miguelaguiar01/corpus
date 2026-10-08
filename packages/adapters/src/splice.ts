@@ -176,7 +176,14 @@ export function appendItem(
     ? lineIndent(text, last.offset)
     : lineIndent(text, list.offset) + unit;
   // An object item takes the line style of the last one (#1235).
-  const oneLine = inline || (last?.type === "object" && isInline(text, last));
+  const oneLine =
+    inline ||
+    (value !== null &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      last?.type === "object" &&
+      (last.children?.length ?? 0) > 0 &&
+      isInline(text, last));
   const item = jsonText(value, oneLine, indent, unit, eol);
   if (!last) {
     const open = list.offset + 1;

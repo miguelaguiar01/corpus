@@ -185,6 +185,16 @@ function keyPaths(
   };
 }
 
+// A plural's forms as an object in CLDR's order.
+function inCldrOrder(forms: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(
+    PLURAL_CATEGORIES.filter((c) => forms[c] !== undefined).map((c) => [
+      c,
+      forms[c]!,
+    ]),
+  );
+}
+
 // Why an id's text was not written, for the caller to say.
 export type Refusal = (id: string, text: string) => void;
 
@@ -312,12 +322,7 @@ function writePluralText(
       text,
       path,
       {
-        json: Object.fromEntries(
-          PLURAL_CATEGORIES.filter((c) => forms[c] !== undefined).map((c) => [
-            c,
-            forms[c]!,
-          ]),
-        ),
+        json: inCldrOrder(forms),
       },
       unit,
     );
@@ -573,11 +578,7 @@ export function entriesToMessages(
               text,
               path,
               {
-                json: Object.fromEntries(
-                  PLURAL_CATEGORIES.filter((c) => forms[c] !== undefined).map(
-                    (c) => [c, forms[c]!],
-                  ),
-                ),
+                json: inCldrOrder(forms),
               },
               style.indent,
             ),
@@ -743,12 +744,7 @@ function formsFor(
     fill.onRefused?.(id, text);
     return undefined;
   }
-  return Object.fromEntries(
-    PLURAL_CATEGORIES.filter((c) => forms[c] !== undefined).map((c) => [
-      c,
-      forms[c]!,
-    ]),
-  );
+  return inCldrOrder(forms);
 }
 
 // The source's value at `path` as the target writes it: its strings the
