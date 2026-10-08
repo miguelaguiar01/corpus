@@ -663,23 +663,21 @@ export function entriesToMessages(
     if (sourceSuffix.has(id)) reached.addFamily(path);
   }
   if (underLists.length > 0)
-    doc.apply((text) =>
-      completeLists(
-        text,
-        underLists,
-        sourceTree,
-        sourcePaths,
-        sourceSuffix,
-        {
-          translations,
-          pluralIds: sourcePlurals,
-          ...(options.sourceLanguage && { language: options.sourceLanguage }),
-          ...(onRefused && { onRefused }),
-        },
-        style.indent,
-        order,
-        (id) => options.onList?.(id),
-      ),
+    completeLists(
+      doc,
+      underLists,
+      sourceTree,
+      sourcePaths,
+      sourceSuffix,
+      {
+        translations,
+        pluralIds: sourcePlurals,
+        ...(options.sourceLanguage && { language: options.sourceLanguage }),
+        ...(onRefused && { onRefused }),
+      },
+      style.indent,
+      order,
+      (id) => options.onList?.(id),
     );
   return doc.text();
 }
@@ -827,7 +825,7 @@ function buildFrom(
 // the source's is named and left, as is one no write could place
 // (#1053).
 function completeLists(
-  text: string,
+  doc: JsonDoc,
   ids: string[],
   sourceTree: Tree,
   sourcePaths: Map<string, string[]>,
@@ -836,7 +834,7 @@ function completeLists(
   indent: string,
   order: ReturnType<typeof keyOrder>,
   onList: (id: string) => void,
-): string {
+): void {
   // What a write refused is said once, by the refusal.
   const refused = new Set<string>();
   const said = fill.onRefused;
@@ -854,7 +852,7 @@ function completeLists(
   // written once for every id it holds: a list's missing items by the
   // list, whatever order their translations come in.
   const groups = new Map<string, { at: string[]; ids: string[] }>();
-  const tree = parseTreeNode(text);
+  const tree = parseTreeNode(doc.text());
   for (const id of ids) {
     const path = sourcePaths.get(id)!;
     // A family's base is no key of its own: its parent is the leaf's.
@@ -906,61 +904,73 @@ function completeLists(
     groups.set(key, group);
   }
   for (const [key, { at, ids: held }] of groups) {
-    const before = text;
     if (key.startsWith("leaf\u0000")) {
-      for (const id of held) {
-        const path = sourcePaths.get(id)!;
-        const next = fill.translations[id]!;
-        const was = text;
-        const leaf = nodeAt(parseTreeNode(text), path);
-        if (suffixIds.has(id)) {
-          const doc = jsonDoc(text, true);
-          writeSuffix(doc, path, next, indent, false, order, fill.onRefused);
-          text = doc.text();
-        } else if (fill.pluralIds.has(id) && leaf?.type === "object")
-          text = writePluralText(
-            text,
-            path,
-            next,
-            indent,
-            order,
-            fill.onRefused,
-          );
-        // A string where the source has a plural becomes the plural, as
-        // it does outside a list (#1187).
-        else if (fill.pluralIds.has(id) && leaf?.type === "string") {
-          const forms = formsFor(fill, id, next);
-          if (forms) text = replaceValue(text, path, { json: forms }, indent);
+      doc.apply((original) => {
+        let text = original;
+        for (const id of held) {
+          const path = sourcePaths.get(id)!;
+          const next = fill.translations[id]!;
+          const was = text;
+          const leaf = nodeAt(parseTreeNode(text), path);
+          if (suffixIds.has(id)) {
+            const doc = jsonDoc(text, true);
+            writeSuffix(doc, path, next, indent, false, order, fill.onRefused);
+            text = doc.text();
+          } else if (fill.pluralIds.has(id) && leaf?.type === "object")
+            text = writePluralText(
+              text,
+              path,
+              next,
+              indent,
+              order,
+              fill.onRefused,
+            );
+          // A string where the source has a plural becomes the plural, as
+          // it does outside a list (#1187).
+          else if (fill.pluralIds.has(id) && leaf?.type === "string") {
+            const forms = formsFor(fill, id, next);
+            if (forms) text = replaceValue(text, path, { json: forms }, indent);
+          }
+          // A plain string the target holds every part of, the leaf too,
+          // and did not read, or a list where the source has a plural: a
+          // shape the source does not have there.
+          if (text === was) name(id);
         }
-        // A plain string the target holds every part of, the leaf too,
-        // and did not read, or a list where the source has a plural: a
-        // shape the source does not have there.
-        if (text === was) name(id);
-      }
+        return text;
+      });
       continue;
     }
     const leading = held.map((id) => sourcePaths.get(id)!);
+    // What a write leaves as it was is named, each id it held.
+    const written = (write: (text: string) => string) =>
+      doc.apply((text) => {
+        const out = write(text);
+        if (out === text) for (const id of held) name(id);
+        return out;
+      });
     if (key.startsWith("append\u0000")) {
       // Items the target's list lacks, from its length to the last one
       // these ids reach, appended whole.
-      const parent = nodeAt(parseTreeNode(text), at);
       const list = valueAt(sourceTree, at);
-      const heldItems = parent?.children?.length ?? 0;
+      const heldItems = nodeAt(tree, at)?.children?.length ?? 0;
       const last = highest(leading.map((p) => Number(p[at.length])));
-      if (Array.isArray(list)) {
-        const values: unknown[] = [];
+      const values: unknown[] = [];
+      if (Array.isArray(list))
         for (let i = heldItems; i <= last; i++)
           values.push(buildFrom(list[i], [...at, String(i)], fill));
-        text = appendItems(text, at, values, indent);
-      }
-    } else {
-      const value = buildFrom(valueAt(sourceTree, at), at, fill, leading);
-      if (value !== undefined)
-        text = addLeaf(text, at, { json: value }, indent, order);
+      written((text) => appendItems(text, at, values, indent));
+      continue;
     }
-    if (text === before) for (const id of held) name(id);
+    const value = buildFrom(valueAt(sourceTree, at), at, fill, leading);
+    if (value === undefined) for (const id of held) name(id);
+    // A string into an object goes through the document, batched (#1290).
+    else if (
+      typeof value === "string" &&
+      nodeAt(tree, at.slice(0, -1))?.type === "object"
+    )
+      doc.add(at, value, indent, order);
+    else written((text) => addLeaf(text, at, { json: value }, indent, order));
   }
-  return text;
 }
 
 function listIds(

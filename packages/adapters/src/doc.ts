@@ -105,6 +105,9 @@ class BatchDoc implements JsonDoc {
   private emptied = new Set<Obj>();
   private mode: "none" | "remove" | "add" = "none";
   private positions = new WeakMap<string[], Map<string, number> | null>();
+  // The lines a pending fill of an empty object rewrites, by where they
+  // start.
+  private closes = new Set<number>();
 
   constructor(private current: string) {}
 
@@ -117,6 +120,11 @@ class BatchDoc implements JsonDoc {
 
   apply(write: (text: string) => string): void {
     this.current = write(this.text());
+  }
+
+  // Where a line starts: the offset after the newline before `at`.
+  private lineOf(at: number): number {
+    return this.current.lastIndexOf("\n", at - 1) + 1;
   }
 
   edit(path: string[], value: string): boolean {
@@ -166,8 +174,19 @@ class BatchDoc implements JsonDoc {
       if (!next) break;
       const inner = next.node ? valueOf(next.node) : undefined;
       if (inner?.type === "object") obj = this.objOf(inner, obj, next);
-      else if (inner?.type === "array") return aside();
-      else if (next.value !== undefined && typeof next.value !== "string")
+      else if (inner?.type === "array") {
+        // A list's object item by its index, as resolve walks it (#1290).
+        const index = path[depth + 1];
+        const item =
+          index !== undefined &&
+          /^\d+$/.test(index) &&
+          depth + 1 < path.length - 1
+            ? inner.children?.[Number(index)]
+            : undefined;
+        if (item?.type !== "object") return aside();
+        obj = this.objOf(item);
+        depth++;
+      } else if (next.value !== undefined && typeof next.value !== "string")
         obj = next.value;
       // A string on the way: a flat key at the root, as addLeaf does.
       else return this.add([path.join(".")], value, unit, order);
@@ -185,6 +204,19 @@ class BatchDoc implements JsonDoc {
       return;
     }
     if (obj.node && !this.placeable(obj)) return aside();
+    // An empty object on more than one line takes its indents from its
+    // brace's line, which a pending fill of another such object whose
+    // close shares that line would change: written first, as the
+    // sequential document reads it.
+    if (
+      obj.node &&
+      !lastOf(obj) &&
+      !this.inlineOf(obj) &&
+      this.closes.has(this.lineOf(obj.node.offset))
+    ) {
+      this.text();
+      return this.add(path, value, unit, order);
+    }
     this.mode = "add";
     this.insert(
       obj,
@@ -225,6 +257,7 @@ class BatchDoc implements JsonDoc {
     this.touched.clear();
     this.removed.clear();
     this.emptied.clear();
+    this.closes.clear();
     this.mode = "none";
   }
 
@@ -370,6 +403,9 @@ class BatchDoc implements JsonDoc {
       value: virtual(rest, value, inline, indent, unit),
     };
     if (!last) {
+      // Its fill rewrites the line its close is on.
+      if (obj.node && !inline)
+        this.closes.add(this.lineOf(obj.node.offset + obj.node.length - 1));
       obj.itemIndent = indent;
       obj.closeIndent = inline
         ? ""

@@ -17,7 +17,7 @@ function rng(seed: number) {
   };
 }
 
-type Tree = { [key: string]: string | Tree | string[] };
+type Tree = { [key: string]: string | Tree | (string | Tree)[] };
 
 const KEYS = ["a", "b", "c", "d", "e", "404", "10", "x y", "é", "z"];
 
@@ -39,7 +39,17 @@ function generate(
     if (depth > 0 && roll < 0.3)
       out[key] = generate(r, depth - 1, plurals, suffix);
     else if (roll < 0.35) out[key] = {};
-    else if (roll < 0.4) out[key] = ["one", "two"];
+    else if (roll < 0.4)
+      // A list of strings, or of objects whose keys a target may lack
+      // (#1290).
+      out[key] =
+        r() < 0.5
+          ? ["one", "two"]
+          : Array.from({ length: 1 + Math.floor(r() * 3) }, (_, j) => ({
+              t: `${key} t${j}`,
+              d: `${key} d${j}`,
+              ...(r() < 0.3 && { s: { a: `${key} a${j}` } }),
+            }));
     else if (plurals && roll < 0.5)
       out[key] = { one: `${key} one`, other: `${key} other` };
     else if (suffix && roll < 0.55) {
@@ -57,9 +67,17 @@ function write(
   tree: Tree,
   style: { unit: string; eol: string; bom: boolean; inline: number },
 ): string {
-  const render = (value: Tree | string | string[], indent: string): string => {
+  const render = (
+    value: Tree | string | (string | Tree)[],
+    indent: string,
+  ): string => {
     if (typeof value === "string") return JSON.stringify(value);
-    if (Array.isArray(value)) return JSON.stringify(value);
+    if (Array.isArray(value)) {
+      if (value.length === 0 || r() < style.inline)
+        return JSON.stringify(value);
+      const inner = indent + style.unit;
+      return `[${style.eol}${value.map((v) => inner + render(v, inner)).join(`,${style.eol}`)}${style.eol}${indent}]`;
+    }
     const entries = Object.entries(value);
     if (entries.length === 0) return "{}";
     if (indent !== "" && r() < style.inline)
@@ -76,6 +94,11 @@ function leafIds(tree: Tree, path: string[] = [], out: string[] = []) {
   for (const [key, value] of Object.entries(tree)) {
     if (typeof value === "string") out.push([...path, key].join("."));
     else if (!Array.isArray(value)) leafIds(value, [...path, key], out);
+    else
+      value.forEach((item, i) => {
+        if (typeof item !== "string")
+          leafIds(item, [...path, key, String(i)], out);
+      });
   }
   return out;
 }
@@ -89,7 +112,10 @@ function derive(r: () => number, tree: Tree): Tree {
     if (roll < 0.25) continue;
     if (typeof value === "string")
       out[key] = roll < 0.5 ? `Alt ${value}` : value;
-    else if (Array.isArray(value)) out[key] = value;
+    else if (Array.isArray(value))
+      out[key] = value
+        .slice(0, r() < 0.3 ? Math.floor(r() * value.length) : value.length)
+        .map((item) => (typeof item === "string" ? item : derive(r, item)));
     else {
       out[key] = derive(r, value);
       // A target's plural object may hold a form its source lacks.
@@ -460,6 +486,96 @@ test("a large pull's edits, additions and first fill each take one parse per pha
         `{\n  "list": []\n}\n`,
       ),
   ]);
+  // A key every item of a list lacks (#1290).
+  cases.push([
+    "a key added to each of 8000 list items",
+    () =>
+      entriesToMessages(
+        JSON.stringify(
+          { list: items.map((_, i) => ({ t: `T ${i}`, d: `D ${i}` })) },
+          null,
+          2,
+        ) + "\n",
+        Object.fromEntries(items.map((_, i) => [`list.${i}.d`, `Dd ${i}`])),
+        JSON.stringify(
+          { list: items.map((_, i) => ({ t: `T ${i}` })) },
+          null,
+          2,
+        ) + "\n",
+      ),
+  ]);
+  // Objects on one line, empty or not, and lists of them, each gaining a
+  // key (#1290 review).
+  const groups = (n: number, value: (i: number) => string) =>
+    `{\n${Array.from({ length: n }, (_, i) => `  "g${i}": ${value(i)}`).join(",\n")}\n}\n`;
+  const groupSource = JSON.stringify(
+    Object.fromEntries(
+      Array.from({ length: 4000 }, (_, i) => [
+        `g${i}`,
+        { a: `A${i}`, b: `B${i}` },
+      ]),
+    ),
+    null,
+    2,
+  );
+  const keyed = (key: string) =>
+    Object.fromEntries(
+      Array.from({ length: 4000 }, (_, i) => [`g${i}.${key}`, `x${i}`]),
+    );
+  const itemSource =
+    JSON.stringify(
+      {
+        list: Array.from({ length: 4000 }, (_, i) => ({
+          t: `T${i}`,
+          d: `D${i}`,
+        })),
+      },
+      null,
+      2,
+    ) + "\n";
+  const itemKeys = Object.fromEntries(
+    Array.from({ length: 4000 }, (_, i) => [`list.${i}.d`, `x${i}`]),
+  );
+  cases.push(
+    [
+      "4000 empty groups each gain a key",
+      () =>
+        entriesToMessages(
+          groupSource,
+          keyed("a"),
+          groups(4000, () => "{}"),
+        ),
+    ],
+    [
+      "4000 one-line groups each gain a key",
+      () =>
+        entriesToMessages(
+          groupSource,
+          keyed("b"),
+          groups(4000, (i) => `{ "a": "A${i}" }`),
+        ),
+    ],
+    [
+      "4000 one-line list items each gain a key",
+      () =>
+        entriesToMessages(
+          itemSource,
+          itemKeys,
+          `{\n  "list": [\n${Array.from({ length: 4000 }, (_, i) => `    { "t": "T${i}" }`).join(",\n")}\n  ]\n}\n`,
+        ),
+    ],
+    [
+      "4000 items of a minified list each gain a key",
+      () =>
+        entriesToMessages(
+          itemSource,
+          itemKeys,
+          JSON.stringify({
+            list: Array.from({ length: 4000 }, (_, i) => ({ t: `T${i}` })),
+          }),
+        ),
+    ],
+  );
   for (const [name, run] of cases) {
     const start = performance.now();
     run();
@@ -604,4 +720,26 @@ test("a list's missing items appended in one splice are the bytes appended one a
       oneAtATime,
     );
   }
+});
+
+test("a key added to an empty item whose line an earlier write changed is indented as the sequential pull indents it (#1290 review)", () => {
+  const sameBoth = (run: (sequential: boolean) => string) =>
+    expect(run(false)).toBe(run(true));
+  sameBoth((sequential) =>
+    entriesToMessages(
+      `{"list":[{"d":"D0"},{"d":"D1"}]}`,
+      { "list.0.d": "x", "list.1.d": "y" },
+      `{\n  "list": [{\n}, {\n}]\n}\n`,
+      { sequential },
+    ),
+  );
+  // An object on a line another object's close shares, as before.
+  sameBoth((sequential) =>
+    entriesToMessages(
+      `{"a":{"k":"K"},"b":{"k":"K"}}`,
+      { "a.k": "x", "b.k": "y" },
+      `{\n  "a": {\n        }, "b": {\n  }\n}\n`,
+      { sequential },
+    ),
+  );
 });

@@ -152,3 +152,56 @@ test("a batched document's changes give the sequential one's bytes, on any layou
     ).toEqual(run(true));
   }
 });
+
+test("keys added to a list's object items give the sequential bytes, however the items are written (#1290)", () => {
+  for (let seed = 1; seed <= 4000; seed++) {
+    const r = rng(seed * 7717);
+    const eol = r() < 0.3 ? "\r\n" : "\n";
+    const n = Math.floor(r() * 5);
+    const items: Value[] = Array.from({ length: n }, () => {
+      const roll = r();
+      if (roll < 0.15) return `s${Math.floor(r() * 9)}`;
+      if (roll < 0.25) return [];
+      const out: { [key: string]: Value } = {};
+      for (let i = Math.floor(r() * 3); i > 0; i--)
+        out[pick(r, KEYS)] = value(r, 1);
+      return out;
+    });
+    const tree: { [key: string]: Value } = { l: items, z: "Z" };
+    if (r() < 0.5) tree.g = { l: items };
+    const text = (r() < 0.1 ? "\uFEFF" : "") + layout(r, tree, "", eol) + eol;
+    const order = keyOrder(JSON.stringify({ a: 1, b: 2, c: 3, z: 4 }));
+    const plan: [string, Step][] = [];
+    for (let i = Math.floor(r() * 10); i >= 0; i--) {
+      const base = r() < 0.7 ? ["l"] : ["g", "l"];
+      const index = String(Math.floor(r() * (n + 1)));
+      const key = pick(r, [...KEYS, "new"]);
+      const deeper = r() < 0.2 ? [pick(r, KEYS)] : [];
+      const p = [...base, index, key, ...deeper];
+      const unit = pick(r, ["  ", "\t"]);
+      const roll = r();
+      if (roll < 0.65)
+        plan.push([
+          `add ${p}`,
+          (d) => d.add(p, `t${i}`, unit, r() < 0.5 ? order : undefined),
+        ]);
+      else if (roll < 0.85) plan.push([`edit ${p}`, (d) => d.edit(p, `e${i}`)]);
+      else if (roll < 0.93) plan.push([`remove ${p}`, (d) => d.remove(p)]);
+      else plan.push(["read", (d) => d.text()]);
+    }
+    const run = (sequential: boolean) => {
+      const doc = jsonDoc(text, sequential);
+      const answers: unknown[] = [];
+      try {
+        for (const [, step] of plan) answers.push(step(doc));
+        return [doc.text(), answers];
+      } catch (error) {
+        return [`throws: ${(error as Error).message}`, answers];
+      }
+    };
+    expect(
+      run(false),
+      `seed ${seed}: ${plan.map(([name]) => name).join("; ")}`,
+    ).toEqual(run(true));
+  }
+});
