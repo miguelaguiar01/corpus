@@ -114,6 +114,9 @@ export type ValidationError =
   // A form of a plural held as forms whose braces do not balance, so the
   // file's writer cannot split it out (#704).
   | { code: "unsplittable-form"; arg: string; key: string }
+  // A translation of a plural held as forms, end to end in the source,
+  // that writes text beside it, which the file has nowhere for (#1268).
+  | { code: "text-beside-plural"; arg: string }
   // Exact keys one form of a gettext file is read by, given two texts
   // the file cannot hold (#1060).
   | { code: "shared-form"; arg: string; keys: string[] }
@@ -720,6 +723,12 @@ export function validateTranslation(
       })),
     };
   }
+  // Said once, before any reading of the text trips on it (#1268).
+  const beside = options.pluralAsForms
+    ? textBesidePlural(parsedSource.nodes, target)
+    : undefined;
+  if (beside !== undefined)
+    return { ok: false, errors: [{ code: "text-beside-plural", arg: beside }] };
   // A translation of a printf plural that opens as one but is not one
   // is a broken plural, not text (#652), whatever reading it as text
   // then trips on (#950).
@@ -1715,6 +1724,33 @@ function exactBranches(
         }),
       }));
   });
+}
+
+// The argument of a source that is one plural end to end, where the
+// target holds that plural with text before or after it.
+function textBesidePlural(
+  nodes: IcuNode[],
+  target: string,
+): string | undefined {
+  const kept = nodes.filter(
+    (node) => !(node.kind === "literal" && node.text.trim() === ""),
+  );
+  const plural = kept[0];
+  if (kept.length !== 1 || plural?.kind !== "plural") return undefined;
+  const open = new RegExp(
+    `\\{\\s*${escapeRegExp(plural.arg)}\\s*,\\s*(?:plural|selectordinal)\\s*,`,
+  ).exec(target);
+  if (!open) return undefined;
+  let depth = 0;
+  for (let at = open.index; at < target.length; at++) {
+    if (target[at] === "{") depth++;
+    else if (target[at] === "}" && --depth === 0)
+      return target.slice(0, open.index).trim() !== "" ||
+        target.slice(at + 1).trim() !== ""
+        ? plural.arg
+        : undefined;
+  }
+  return undefined;
 }
 
 // Each plural form whose literal braces do not balance, where the
