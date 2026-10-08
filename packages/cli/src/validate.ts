@@ -915,7 +915,7 @@ async function validateServer(
           drafting,
         )
       : undefined;
-  const terms = pulledTermsOf(ctx.cwd, config, payload.translations, routing);
+  const terms = pulledTermsOf(ctx.cwd, config, payload, routing);
   const orphans = new Map<string, string[]>();
   const brokenSources = new Set<string>();
   const gaps: SourceGaps = new Map();
@@ -1182,7 +1182,10 @@ function termsOf(
 function pulledTermsOf(
   cwd: string,
   config: CorpusConfig,
-  translations: Record<string, Record<string, string>>,
+  payload: {
+    types: Record<string, string>;
+    translations: Record<string, Record<string, string>>;
+  },
   routing: Awaited<ReturnType<typeof sharedRouting>> | undefined,
 ): (language: string) => Terms {
   const repository = termsOf(cwd, config);
@@ -1207,7 +1210,7 @@ function pulledTermsOf(
     const known = read.get(language);
     if (known) return known;
     const merged: Terms = new Map();
-    const held = translations[language] ?? {};
+    const held = payload.translations[language] ?? {};
     for (const source of config.sources) {
       if (source.adapter !== "fluent") continue;
       // A file for a language the source does not take is left as it is.
@@ -1221,9 +1224,15 @@ function pulledTermsOf(
         const existing = existsSync(abs) ? readRepoText(abs) : undefined;
         const drafted: Record<string, string> = {};
         for (const name of names) {
-          const draft = held[namespaced(source, name)];
-          if (draft !== undefined && !isBlank(draft))
-            drafted[namespaced(source, name)] = draft;
+          const id = namespaced(source, name);
+          const draft = held[id];
+          // Pull writes a translation into a source of its type alone.
+          if (
+            draft !== undefined &&
+            !isBlank(draft) &&
+            payload.types[id] === source.type
+          )
+            drafted[id] = draft;
         }
         // A term two files of the source share goes where pull writes it.
         const routed = routing
