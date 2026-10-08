@@ -13,6 +13,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- A broken tag holding a placeholder in its attribute is reported by the tag's finding alone, no longer also as a moved placeholder (#1146).
 - Under `library: "android"`, verbs are numbered as Java's Formatter numbers them: `%1$s %s` is argument 1 twice, `%n` is a line break, and Go's `%[1]s`, on which Java throws, is refused (#1145).
 - `corpus pull` names a proposal on an xliff unit Corpus cannot read, and leaves it out of the proposals-written count, rather than skipping it without a word (#1142).
 - `corpus check` reads a regex literal in a Svelte expression as part of it, so a quote or `/*` in one no longer hides the rest of the file (#1140).

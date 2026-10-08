@@ -1275,8 +1275,7 @@ export function validateTranslation(
       }
     }
     // A value a real tag's attribute writes in one and a prose tag's
-    // in the other is a tag broken, said above, not a value moved; one
-    // moved into the text is said once, where it went.
+    // in the other is a tag broken, said above, not a value moved.
     const inAttrs = (shape: Shape, name: string) =>
       shape.attrPlaceholders.has(name);
     if (!isHtml(options.richText))
@@ -1326,6 +1325,16 @@ export function validateTranslation(
             message: `<${tag.name} ${tag.attrs}> opens a quote it never closes`,
             position: Math.max(0, target.indexOf(`<${tag.name} ${tag.attrs}`)),
           });
+  }
+  // Where tags are compared, a tag missing with the value its attribute
+  // holds is the tag's finding alone, not a value moved (#1146).
+  if (!isHtml(options.richText)) {
+    const missingTags = new Set(
+      errors.flatMap((e) => (e.code === "missing-tag" ? [e.name] : [])),
+    );
+    errors = errors.filter(
+      (e) => !(e.code === "moved-placeholder" && missingTags.has(e.tag)),
+    );
   }
   // Fluent selects asymmetrically (#1032): a translation may select on
   // whatever it is passed, a key it lacks falls back to its `*` default,
