@@ -401,10 +401,10 @@ test("describe words every error code", () => {
       "formatjs",
     ),
   ).toBe(
-    "invalid ICU in the target at 17: unclosed branch '{'; an apostrophe before a brace or a # quotes it: write ’ or ''",
+    "invalid ICU in the target at 17: unclosed branch '{'; an apostrophe before a brace, a tag or a # quotes it: write ’ or ''",
   );
   expect(describe({ code: "missing-other", arg: "n", quoted: true })).toBe(
-    "plural on {n} has no other form, which the runtime picks for every count no other form covers; an apostrophe before a brace or a # quotes it: write ’ or ''",
+    "plural on {n} has no other form, which the runtime picks for every count no other form covers; an apostrophe before a brace, a tag or a # quotes it: write ’ or ''",
   );
   // Named after the library the text was read under (#644).
   expect(

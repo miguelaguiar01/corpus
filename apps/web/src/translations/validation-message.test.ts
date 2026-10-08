@@ -192,7 +192,7 @@ test("an apostrophe that quoted past a branch's end says so (#1155)", () => {
       "formatjs",
     ),
   ).toBe(
-    "Malformed message: unclosed branch '{'. An apostrophe before a brace or a # quotes it, so write ’ in its place",
+    "Malformed message: unclosed branch '{'. An apostrophe before a brace, a tag or a # quotes it, so write ’ in its place",
   );
   expect(
     validationMessage(
@@ -200,6 +200,6 @@ test("an apostrophe that quoted past a branch's end says so (#1155)", () => {
       "formatjs",
     ),
   ).toBe(
-    "Plural n is missing the other branch: an apostrophe before a brace or a # quotes it, so write ’ in its place",
+    "Plural n is missing the other branch: an apostrophe before a brace, a tag or a # quotes it, so write ’ in its place",
   );
 });

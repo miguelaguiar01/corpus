@@ -3118,6 +3118,20 @@ test("an apostrophe that quotes past a plural branch's end says it did, the plur
   // An apostrophe before neither a brace nor a # quotes nothing.
   const plain = fr("{n, plural, one {l'avion} other {# fichiers}", "formatjs");
   expect(!plain.ok && "quoted" in plain.errors[0]!).toBe(false);
+  // FormatJS quotes from before a tag as well, which Lingui does not.
+  const tagged = (syntax: "formatjs" | "lingui") =>
+    validateTranslation(
+      "{n, plural, one {See <b>the item</b>} other {See <b>the items</b>}}",
+      "{n, plural, one {Voir l'<b>élément</b>} other {Voir les <b>éléments</b>}}",
+      "fr",
+      syntax,
+      { richText: "html" },
+    );
+  expect(tagged("formatjs")).toMatchObject({
+    ok: false,
+    errors: [{ code: "invalid-icu", position: 17, quoted: true }],
+  });
+  expect(tagged("lingui")).toEqual({ ok: true });
 });
 
 test("under vue-i18n's default rule a translation's number of forms is the source's, each index read as the rule reads it (#1018)", () => {
