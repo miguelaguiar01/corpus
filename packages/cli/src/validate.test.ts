@@ -1845,7 +1845,7 @@ export default defineCorpus({
   mkdirSync(path.join(repo, "l10n"), { recursive: true });
   writeFileSync(
     path.join(repo, "l10n", "en.ftl"),
-    `-brand = { $capitalization ->\n   *[lower] account\n    [upper] Account\n  }\n-relay = Relay\n    .gender = feminine\na = Your { -brand(capitalization: "upper") }\nb = { -relay.gender ->\n    [feminine] She\n   *[other] It\n  }\n`,
+    `-brand = { $capitalization ->\n   *[lower] account\n    [upper] Account\n  }\n-relay = Relay\n    .gender = feminine\na = Your { -brand(capitalization: "upper") }\nb = { -relay.gender ->\n    [feminine] She\n   *[other] It\n  }\nc = { -brand(capitalization: "lower") } page\n`,
   );
   // German's file declines -brand by case; the instance's German term
   // has gone back to capitalization, which is what a pull writes.
