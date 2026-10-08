@@ -24,6 +24,7 @@ import {
   type StringEntry,
 } from "@corpus/contract";
 import {
+  entriesToFluent,
   fluentTerms,
   gettextPluralIds,
   isBlank,
@@ -895,7 +896,7 @@ async function validateServer(
   for (const source of config.sources)
     if (source.adapter !== "exec")
       fileSources.set(fileOf(source, sourceLanguage, sourceLanguage), source);
-  const terms = termsOf(ctx.cwd, config);
+  const terms = pulledTermsOf(ctx.cwd, config, payload.translations);
   const orphans = new Map<string, string[]>();
   const brokenSources = new Set<string>();
   const gaps: SourceGaps = new Map();
@@ -1143,6 +1144,59 @@ function termsOf(
       if (!existsSync(abs)) continue;
       try {
         for (const [name, term] of fluentTerms(readRepoText(abs)))
+          if (!merged.has(name)) merged.set(name, term);
+      } catch {
+        // A file that does not read is its own finding.
+      }
+    }
+    read.set(language, merged);
+    return merged;
+  };
+}
+
+// Per language, the terms of the files a pull would write from the
+// instance's translations (#1200): a term is a string the instance
+// holds, its draft taking the file's value's place, the file's
+// attributes kept and a new file's term written without the source's.
+// The source language's are its files', which pull never writes.
+function pulledTermsOf(
+  cwd: string,
+  config: CorpusConfig,
+  translations: Record<string, Record<string, string>>,
+): (language: string) => Terms {
+  const repository = termsOf(cwd, config);
+  const read = new Map<string, Terms>();
+  return (language) => {
+    if (language === config.sourceLanguage) return repository(language);
+    const known = read.get(language);
+    if (known) return known;
+    const merged: Terms = new Map();
+    const held = translations[language] ?? {};
+    for (const source of config.sources) {
+      if (source.adapter !== "fluent") continue;
+      if (!takesLanguage(source, config, language)) continue;
+      const templatePath = path.join(
+        cwd,
+        fileOf(source, config.sourceLanguage, config.sourceLanguage),
+      );
+      const abs = path.join(
+        cwd,
+        fileOf(source, language, config.sourceLanguage),
+      );
+      try {
+        const template = readRepoText(templatePath);
+        const existing = existsSync(abs) ? readRepoText(abs) : undefined;
+        const drafts: Record<string, string> = {};
+        for (const [name] of fluentTerms(template)) {
+          const draft = held[namespaced(source, name)];
+          if (draft !== undefined && !isBlank(draft)) drafts[name] = draft;
+        }
+        const text =
+          Object.keys(drafts).length === 0
+            ? existing
+            : entriesToFluent(template, drafts, existing);
+        if (text === undefined) continue;
+        for (const [name, term] of fluentTerms(text))
           if (!merged.has(name)) merged.set(name, term);
       } catch {
         // A file that does not read is its own finding.
