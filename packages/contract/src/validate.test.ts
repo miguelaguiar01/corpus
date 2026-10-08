@@ -4655,6 +4655,39 @@ test("under pluralAsForms a target that holds the plural with text beside it is 
       }),
     ).toEqual({ ok: true });
   }
+  // A brace the library reads as text is no end of the plural: fmt's
+  // `}}`, formatjs's quoted `'}'`; and a plural nested in a select is
+  // not beside text (#1268 review).
+  expect(
+    validateTranslation(
+      "{count, plural, one {Type }} to close {count} block} other {Type }} to close {count} blocks}}",
+      "{count, plural, one {Tippe }} um {count} Block zu schließen} other {Tippe }} um {count} Blöcke zu schließen}}",
+      "de",
+      "fmt",
+      { pluralAsForms: true },
+    ),
+  ).toEqual({ ok: true });
+  expect(
+    validateTranslation(
+      "{count, plural, one {# room} other {# rooms}}",
+      "{count, plural, one {# Raum'}'} other {# Räume}}",
+      "de",
+      "formatjs",
+      { pluralAsForms: true },
+    ),
+  ).toEqual({
+    ok: false,
+    errors: [{ code: "unsplittable-form", arg: "count", key: "one" }],
+  });
+  expect(
+    validateTranslation(
+      "{count, plural, one {# room} other {# rooms}}",
+      "{g, select, a {{count, plural, one {# Raum} other {# Räume}}} other {x}}",
+      "de",
+      "icu",
+      { pluralAsForms: true },
+    ),
+  ).toMatchObject({ ok: false, errors: [{ code: "changed-nesting" }] });
   // Read as one ICU string, text beside a plural is fine.
   expect(
     validateTranslation(
