@@ -4687,7 +4687,13 @@ test("under pluralAsForms a target that holds the plural with text beside it is 
       "icu",
       { pluralAsForms: true },
     ),
-  ).toMatchObject({ ok: false, errors: [{ code: "changed-nesting" }] });
+  ).toEqual({
+    ok: false,
+    errors: [
+      { code: "changed-nesting", outer: "g", inner: "count" },
+      { code: "unknown-select", arg: "g" },
+    ],
+  });
   // Read as one ICU string, text beside a plural is fine.
   expect(
     validateTranslation(

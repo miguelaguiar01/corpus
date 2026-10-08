@@ -201,7 +201,9 @@ function formsOf(
   if (forms) return forms;
   // A plural with text beside it has nowhere to go but whole into
   // `other`, removing the rest (#1268).
-  return /\{\s*[\p{L}_][\p{L}\p{M}\p{N}_.-]*\s*,\s*plural\s*,/u.test(text)
+  return /\{\s*[\p{L}_][\p{L}\p{M}\p{N}_.-]*\s*,\s*(?:plural|selectordinal)\s*,/u.test(
+    text,
+  )
     ? undefined
     : { other: text };
 }

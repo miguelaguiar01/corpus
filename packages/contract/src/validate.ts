@@ -35,6 +35,7 @@ import {
   type ProseTag,
   type IcuError,
   type IcuNode,
+  type IcuParseResult,
   type Shape,
   shapeOf,
   pluralBranches,
@@ -725,7 +726,9 @@ export function validateTranslation(
   }
   // Said once, before any reading of the text trips on it (#1268).
   const beside = options.pluralAsForms
-    ? textBesidePlural(parsedSource.nodes, target)
+    ? textBesidePlural(parsedSource.nodes, target, () =>
+        parseIcu(target, syntax, { html, placeholders }),
+      )
     : undefined;
   if (beside !== undefined)
     return { ok: false, errors: [{ code: "text-beside-plural", arg: beside }] };
@@ -1727,16 +1730,37 @@ function exactBranches(
 }
 
 // The argument of a source that is one plural end to end, where the
-// target holds that plural with text before or after it.
+// target holds that plural with text before or after it: as the library
+// reads the target, its braces quoted or doubled included, or, where it
+// cannot read it, the text beside the plural that stopped it.
 function textBesidePlural(
   nodes: IcuNode[],
   target: string,
+  read: () => IcuParseResult,
 ): string | undefined {
-  const kept = nodes.filter(
-    (node) => !(node.kind === "literal" && node.text.trim() === ""),
-  );
+  const significant = (within: IcuNode[]) =>
+    within.filter(
+      (node) => !(node.kind === "literal" && node.text.trim() === ""),
+    );
+  const kept = significant(nodes);
   const plural = kept[0];
   if (kept.length !== 1 || plural?.kind !== "plural") return undefined;
+  const parsed = read();
+  const holds = (within: IcuNode[]): boolean =>
+    within.some(
+      (node) =>
+        (node.kind === "plural" && node.arg === plural.arg) ||
+        ((node.kind === "plural" || node.kind === "select") &&
+          Object.values(node.branches).some(holds)) ||
+        (node.kind === "tag" && holds(node.children)),
+    );
+  if (parsed.ok && holds(parsed.nodes)) {
+    const top = significant(parsed.nodes);
+    return top.length > 1 &&
+      top.some((node) => node.kind === "plural" && node.arg === plural.arg)
+      ? plural.arg
+      : undefined;
+  }
   const open = new RegExp(
     `\\{\\s*${escapeRegExp(plural.arg)}\\s*,\\s*(?:plural|selectordinal)\\s*,`,
   ).exec(target);
