@@ -1161,6 +1161,44 @@ test("a pull into a new file leaves out a plural it refuses, as an untranslated 
   }
 });
 
+test("a refused plural in a new file's list item keeps the source's text, as an untranslated one there does (#1189 review)", () => {
+  const refusing = "{count, plural, =0 {x} one {# a} other {# b}}";
+  const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
+  const forms = { one: "{count} a", other: "{count} b" };
+  const cases: [unknown, Record<string, string>, object][] = [
+    [
+      { list: [{ p: forms, q: "Q" }, "b"] },
+      { "list.0.p": refusing, "list.1": "B" },
+      { plurals: true },
+    ],
+    [
+      { list: [{ x_one: "{{count}} a", x_other: "{{count}} b" }, "b"] },
+      { "list.0.x": refusing, "list.1": "B" },
+      { plurals: "several", suffixPlurals: true, sourceLanguage: "en" },
+    ],
+    [
+      { list: [{ title: forms }], t: "T" },
+      { "list.0.title": refusing, t: "x" },
+      { plurals: true },
+    ],
+  ];
+  const kept = [
+    json({ list: [{ p: forms, q: "Q" }, "B"] }),
+    json({ list: [{ x_one: "{{count}} a", x_other: "{{count}} b" }, "B"] }),
+    json({ list: [{ title: forms }], t: "x" }),
+  ];
+  cases.forEach(([source, translations, options], index) => {
+    const named: string[] = [];
+    expect(
+      entriesToMessages(json(source), translations, undefined, {
+        ...options,
+        onRefused: (id) => named.push(id),
+      }),
+    ).toBe(kept[index]);
+    expect(named).toEqual([Object.keys(translations)[0]]);
+  });
+});
+
 test("a pull writes a target's lone other where the source has a key there, never as a plural (#984)", () => {
   const source = `{\n  "cat": {\n    "other": "Other",\n    "more": "More"\n  }\n}\n`;
   const target = `{\n  "cat": {\n    "other": "Andere"\n  }\n}\n`;
