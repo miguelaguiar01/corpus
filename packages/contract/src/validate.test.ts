@@ -3494,6 +3494,63 @@ test("under gen_l10n an Arabic plural without two still lacks it, though the run
   });
 });
 
+test("under gen_l10n overridden-branch and wide-exact read each plural by itself, a select's branches each holding their own, said once per key (#1207)", () => {
+  const source =
+    "{g, select, a {{count, plural, one {one item} other {{count} items}}} other {{count, plural, one {one thing} other {{count} things}}}}";
+  const target = (a: string, other: string) =>
+    `{g, select, a {{count, plural, ${a} other {{count} articles}}} other {{count, plural, ${other} other {{count} choses}}}}`;
+  const wide = {
+    code: "wide-exact",
+    arg: "count",
+    key: "=1",
+    category: "one",
+    values: [0],
+  };
+  // Neither plural writes both: branch a's lone =1 leaves 0 to other.
+  expect(
+    validateTranslation(
+      source,
+      target("=1 {un article}", "one {une chose}"),
+      "fr",
+      "gen_l10n",
+    ),
+  ).toEqual({ ok: true, incomplete: [wide] });
+  // =1 in both branches is one finding.
+  expect(
+    validateTranslation(
+      source,
+      target("=1 {un article}", "=1 {une chose}"),
+      "fr",
+      "gen_l10n",
+    ),
+  ).toEqual({ ok: true, incomplete: [wide] });
+  // A branch whose own plural writes both is overridden, said once.
+  const both = "=1 {un} one {{count} un}";
+  const overridden = {
+    code: "overridden-branch",
+    arg: "count",
+    key: "=1",
+    category: "one",
+  };
+  for (const other of ["one {une chose}", both]) {
+    const result = validateTranslation(
+      source,
+      target(both, other),
+      "fr",
+      "gen_l10n",
+    );
+    expect(result).toMatchObject({ ok: false });
+    expect(
+      (result.ok ? [] : result.errors).filter(
+        (e) => e.code === "overridden-branch",
+      ),
+    ).toEqual([overridden]);
+    expect(
+      (result.incomplete ?? []).filter((e) => e.code === "wide-exact"),
+    ).toEqual([]);
+  }
+});
+
 test("a category branch that writes the number 1 and no count, where the language's category holds more, is a warning (#1042)", () => {
   // wger's chartRangeWeeks: English's one is 1 alone.
   const weeks = "{count, plural, one{1 week} other{{count} weeks}}";

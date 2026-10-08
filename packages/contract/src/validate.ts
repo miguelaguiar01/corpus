@@ -2042,19 +2042,7 @@ function pluralErrors(
       )
         continue;
       if (categories.required.length === 0) continue;
-      // gen-l10n's `=0`, `=1`, `=2` are its zero, one and two, which
-      // Intl.pluralLogic takes for exactly that number, then for every
-      // value of the category (#1039).
       const genL10n = library === "gen_l10n" && !ordinal;
-      if (genL10n)
-        for (const [exactKey, category] of GEN_L10N_EXACT)
-          if (keys.has(exactKey) && keys.has(category))
-            out.push({
-              code: "overridden-branch",
-              arg,
-              key: exactKey,
-              category,
-            });
       // Each copy of the plural by itself, a category one lacks said
       // once however many lack it (#1085). For a language of the
       // source's base, each copy asks what the source's copy in its
@@ -2088,6 +2076,21 @@ function pluralErrors(
                 : union,
         };
       });
+      // gen-l10n's `=0`, `=1`, `=2` are its zero, one and two, which
+      // Intl.pluralLogic takes for exactly that number, then for every
+      // value of the category (#1039): a plural that writes both, read
+      // by itself, a select's branches each holding their own (#1207).
+      if (genL10n)
+        for (const [exactKey, category] of GEN_L10N_EXACT)
+          if (
+            read.some(({ named }) => named.has(exactKey) && named.has(category))
+          )
+            out.push({
+              code: "overridden-branch",
+              arg,
+              key: exactKey,
+              category,
+            });
       for (const key of categories.required)
         if (
           read.some(
@@ -2108,26 +2111,31 @@ function pluralErrors(
           )
         )
           out.push({ code: "missing-category", arg, key });
+      // An `=N` whose category holds other numbers, each plural by
+      // itself, said once per key (#1207).
       if (genL10n && language)
         for (const [exactKey, category] of GEN_L10N_EXACT) {
-          if (!keys.has(exactKey) || keys.has(category)) continue;
-          // The numbers taken first, by their own `=N` or category.
-          const first = new Set(
-            GEN_L10N_EXACT.filter(([k, c]) => keys.has(k) || keys.has(c)).map(
-              ([k]) => Number(k.slice(1)),
-            ),
-          );
-          const values = integersOf(language, category).filter(
-            (n) => !first.has(n),
-          );
-          if (values.length > 0)
+          const values = new Set<number>();
+          for (const { named } of read) {
+            if (!named.has(exactKey) || named.has(category)) continue;
+            // The numbers taken first, by their own `=N` or category.
+            const first = new Set(
+              GEN_L10N_EXACT.filter(
+                ([k, c]) => named.has(k) || named.has(c),
+              ).map(([k]) => Number(k.slice(1))),
+            );
+            for (const n of integersOf(language, category))
+              if (!first.has(n)) values.add(n);
+          }
+          const sorted = [...values].sort((a, b) => a - b);
+          if (sorted.length > 0)
             out.push({
               code: "wide-exact",
               arg,
               key: exactKey,
               category,
-              values: values.slice(0, 3),
-              ...(values.length > 3 && { more: true as const }),
+              values: sorted.slice(0, 3),
+              ...(sorted.length > 3 && { more: true as const }),
             });
         }
       for (const key of keys) {
