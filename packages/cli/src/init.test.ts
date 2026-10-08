@@ -1304,6 +1304,97 @@ test("init finds Angular's messages.xlf where angular.json's extract-i18n writes
   );
 });
 
+test("init lists the languages angular.json's i18n.locales builds and names the target files it leaves out (#1172)", async () => {
+  const unit = `<xliff version="1.2"><file source-language="en"><body><trans-unit id="a"><source>Hello</source></trans-unit></body></file></xliff>\n`;
+  const initAt = async (
+    angular: object | undefined,
+    flags: string[] = [],
+  ): Promise<{ p: ReturnType<typeof project>; code: number }> => {
+    const p = project();
+    stubCli(p.dir);
+    const files: Record<string, string> = {
+      "web/messages.xlf": unit,
+      "web/src/locale/messages.de.xlf": unit,
+      "web/src/locale/messages.fr.xlf": unit,
+      "web/src/locale/messages.it.xlf": unit,
+      "web/src/locale/messages.pt_BR.xlf": unit,
+      ...(angular && { "web/angular.json": JSON.stringify(angular) }),
+    };
+    for (const [file, text] of Object.entries(files)) {
+      mkdirSync(path.dirname(path.join(p.dir, file)), { recursive: true });
+      writeFileSync(path.join(p.dir, file), text);
+    }
+    const code = await run(
+      [
+        "init",
+        "--project",
+        "app",
+        "--source",
+        "en",
+        "--messages",
+        "web/src/locale/messages.{lang}.xlf",
+        ...flags,
+      ],
+      p.ctx,
+    );
+    return { p, code };
+  };
+  const extract = { "extract-i18n": { options: { buildTarget: "ui:build" } } };
+  // A locale is a file, a list of them, or an object naming them.
+  const built = await initAt({
+    projects: {
+      ui: {
+        architect: extract,
+        i18n: {
+          sourceLocale: "en-US",
+          locales: {
+            de: "src/locale/messages.de.xlf",
+            fr: { translation: ["src/locale/messages.fr.xlf"] },
+            "pt-BR": { translation: "src/locale/messages.pt_BR.xlf" },
+          },
+        },
+      },
+    },
+  });
+  expect(built.code).toBe(0);
+  const config = await loadConfig(built.p.dir);
+  expect(config.languages).toEqual(["en", "de", "fr", "pt_BR"]);
+  expect(built.p.err).toContain(
+    "corpus: 1 file(s) web/angular.json does not build, left out: web/src/locale/messages.it.xlf",
+  );
+  expect(await run(["build"], built.p.ctx)).toBe(0);
+  // No i18n.locales: every file, as before.
+  for (const angular of [
+    { projects: { ui: { architect: extract } } },
+    undefined,
+  ]) {
+    const all = await initAt(angular);
+    expect(all.code).toBe(0);
+    expect((await loadConfig(all.p.dir)).languages).toEqual([
+      "en",
+      "de",
+      "fr",
+      "it",
+      "pt_BR",
+    ]);
+    expect(all.p.err.join("\n")).not.toContain("does not build");
+  }
+  // --languages still decides.
+  const given = await initAt(
+    {
+      projects: {
+        ui: {
+          architect: extract,
+          i18n: { locales: { de: "src/locale/messages.de.xlf" } },
+        },
+      },
+    },
+    ["--languages", "en,it"],
+  );
+  expect((await loadConfig(given.p.dir)).languages).toEqual(["en", "it"]);
+  expect(given.p.err.join("\n")).not.toContain("does not build");
+});
+
 test("init's search for Angular's messages.xlf: an absolute pattern, several projects, a non-XLIFF output, a commented angular.json and a git-ignored find (#1045)", async () => {
   const { spawnSync } = await import("node:child_process");
   const unit = `<xliff version="1.2"><file source-language="en"><body><trans-unit id="a"><source>Hello</source></trans-unit></body></file></xliff>\n`;
