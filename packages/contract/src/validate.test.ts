@@ -4625,3 +4625,43 @@ test("under lingui a placeholder a closed quote takes is missing, said so; an ap
     errors: [{ code: "missing-placeholder", name: "name", quoted: true }],
   });
 });
+
+test("under pluralAsForms a target that holds the plural with text beside it is text-beside-plural alone, in every library (#1268)", () => {
+  const counts = {
+    icu: "#",
+    formatjs: "#",
+    i18next: "{{count}}",
+    counterpart: "%(count)s",
+  } as const;
+  for (const [library, n] of Object.entries(counts) as [
+    keyof typeof counts,
+    string,
+  ][]) {
+    const source = `{count, plural, one {${n} room} other {${n} rooms}}`;
+    const plural = `{count, plural, one {${n} Raum} other {${n} Räume}}`;
+    for (const target of [`${plural} frei`, `Frei: ${plural}`])
+      expect(
+        validateTranslation(source, target, "de", library, {
+          pluralAsForms: true,
+        }),
+        `${library} ${target}`,
+      ).toEqual({
+        ok: false,
+        errors: [{ code: "text-beside-plural", arg: "count" }],
+      });
+    expect(
+      validateTranslation(source, plural, "de", library, {
+        pluralAsForms: true,
+      }),
+    ).toEqual({ ok: true });
+  }
+  // Read as one ICU string, text beside a plural is fine.
+  expect(
+    validateTranslation(
+      "{count, plural, one {# room} other {# rooms}}",
+      "Frei: {count, plural, one {# Raum} other {# Räume}}",
+      "de",
+      "icu",
+    ),
+  ).toEqual({ ok: true });
+});
