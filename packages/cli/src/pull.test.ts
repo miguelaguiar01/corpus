@@ -2476,6 +2476,14 @@ export default defineCorpus({
       rmSync(path.join(repo, dir), { recursive: true, force: true });
     mkdirSync(path.join(repo, path.dirname(file)), { recursive: true });
     writeFileSync(path.join(repo, file), xml(...strings));
+    // The other path's source file, so the duplicate alone fails it.
+    if (source.includes('"b"')) {
+      mkdirSync(path.join(repo, "b", "values"), { recursive: true });
+      writeFileSync(
+        path.join(repo, "b", "values", "strings.xml"),
+        xml('<string name="y">Y</string>'),
+      );
+    }
     const built = ctx();
     const code = await run(
       ["build", "--out", path.join(repo, "s.json")],
@@ -2503,6 +2511,7 @@ export default defineCorpus({
     expect(said.split(file)).toHaveLength(2);
     expect(said).not.toContain("namespace");
     expect(said).not.toContain("last-wins");
+    expect(said).not.toContain("does not exist");
   }
 });
 
