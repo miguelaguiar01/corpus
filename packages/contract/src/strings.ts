@@ -106,7 +106,9 @@ function notALanguageTag(code: string): string {
 // escaped: `icu` is plain ICU MessageFormat, an apostrophe the
 // character, as Angular, Flutter and most exporters read it; `formatjs`
 // is ICU as FormatJS reads it, react-intl, next-intl and svelte-i18n, an
-// apostrophe quoting a brace, a tag or a plural's `#` (#1010); `i18next`
+// apostrophe quoting a brace, a tag or a plural's `#` (#1010); `lingui`
+// is ICU as Lingui's parser reads it, a quote only where one closes it
+// (#1154); `i18next`
 // is its {{name}} interpolation, stored and written back as written.
 export const LIBRARIES = [
   "icu",
@@ -120,6 +122,7 @@ export const LIBRARIES = [
   "rails",
   "qt",
   "formatjs",
+  "lingui",
   // Flutter's gen-l10n (#1038): an ICU subset, `#` text, date and time
   // only with a skeleton, no number, selectordinal or offset.
   "gen_l10n",
@@ -174,6 +177,7 @@ const LIBRARY_NAMES: Record<Library, string> = {
   qt: "Qt",
   fluent: "Fluent",
   formatjs: "FormatJS",
+  lingui: "Lingui",
   gen_l10n: "gen-l10n",
   fmt: "fmt",
 };
@@ -185,7 +189,7 @@ export function libraryName(library: Library): string {
 // What a text that does not parse is called in a message (#644):
 // "invalid ICU", "invalid vue-i18n message".
 export function messageKind(library: Library): string {
-  return library === "icu" || library === "formatjs"
+  return library === "icu" || library === "formatjs" || library === "lingui"
     ? "ICU"
     : `${libraryName(library)} message`;
 }
@@ -196,14 +200,16 @@ export function isFluentTermId(id: string): boolean {
   return id.split(":").at(-1)!.startsWith("-");
 }
 
-// ICU MessageFormat's own semantics: plain ICU, FormatJS's, whose
-// difference is apostrophe quoting (#1010), Fluent read as ICU, whose
+// ICU MessageFormat's own semantics: plain ICU, FormatJS's and Lingui's,
+// whose difference is apostrophe quoting (#1010, #1154), Fluent read as
+// ICU, whose
 // differences are names and nesting (#990), and gen-l10n's subset
 // (#1038).
 export function readsAsIcu(library: Library): boolean {
   return (
     library === "icu" ||
     library === "formatjs" ||
+    library === "lingui" ||
     library === "fluent" ||
     library === "gen_l10n"
   );

@@ -1022,6 +1022,7 @@ export function readsPluralObjects(source: FileSource): PluralObjects {
   return (
     library === "icu" ||
     library === "formatjs" ||
+    library === "lingui" ||
     WHOLE_PLURAL_LIBRARIES.has(library)
   );
 }

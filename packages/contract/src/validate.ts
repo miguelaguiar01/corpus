@@ -591,11 +591,13 @@ export function isDroppedPlural(
   );
 }
 
-// Whether a FormatJS target's apostrophe quoted what `written` matches
-// into text: the placeholder or the tag is in its literal text (#1010).
+// Whether a FormatJS or Lingui target's apostrophe quoted what `written`
+// matches into text: the placeholder or the tag is in its literal text
+// (#1010, #1154).
 function quotedAway(target: string, syntax: Library, written: RegExp): boolean {
-  if (syntax !== "formatjs" || !target.includes("'")) return false;
-  const read = parseIcu(target, "formatjs");
+  if ((syntax !== "formatjs" && syntax !== "lingui") || !target.includes("'"))
+    return false;
+  const read = parseIcu(target, syntax);
   if (!read.ok) return false;
   const literals: string[] = [];
   const walk = (nodes: IcuNode[]) => {
@@ -1643,6 +1645,7 @@ function verbErrors(
 const CLDR_PICKED = new Set<Library>([
   "icu",
   "formatjs",
+  "lingui",
   "gen_l10n",
   "i18next",
   "fluent",

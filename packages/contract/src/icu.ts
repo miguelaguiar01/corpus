@@ -99,7 +99,12 @@ export function proseTagsOf(text: string, syntax: Library): ProseTag[] {
 // same bytes.
 export function sameMessage(a: string, b: string, library: Library): boolean {
   if (a === b) return true;
-  if (library !== "icu" && library !== "formatjs" && library !== "gen_l10n")
+  if (
+    library !== "icu" &&
+    library !== "formatjs" &&
+    library !== "lingui" &&
+    library !== "gen_l10n"
+  )
     return false;
   const left = parseIcu(a, library);
   const right = parseIcu(b, library);
@@ -257,6 +262,7 @@ const NS_TAG_RE =
 const ATTR_PLACEHOLDER_LIBRARIES: ReadonlySet<Library> = new Set([
   "icu",
   "formatjs",
+  "lingui",
   "android",
   "fluent",
   "i18next",
@@ -618,6 +624,9 @@ class Parser {
   private pos = 0;
   // The next verb's position when none is written (#594).
   private printfNext = 1;
+  // Per position, the apostrophe that closes a Lingui quote opened
+  // before it, or -1: the last of the next run of odd length (#1154).
+  private quoteCloses?: Int32Array;
   // The position the next `{}` takes under fmt, from 0, and whether the
   // format string numbers its fields itself, which libfmt and Python
   // refuse to mix with `{}` (#1002).
@@ -775,6 +784,36 @@ class Parser {
           this.pos,
         );
       const ch = this.source[this.pos]!;
+      // Lingui's apostrophe, as @messageformat/parser reads it (#1154):
+      // `''` is one, and one before a brace or a plural's `#` quotes the
+      // text up to the lone one that closes it, `''` within it one; one
+      // nothing closes, or before anything else, a tag included, is the
+      // character.
+      if (ch === "'" && this.syntax === "lingui") {
+        const next = this.source[this.pos + 1];
+        if (next === "'") {
+          this.text(seq, "'", 2);
+          continue;
+        }
+        const close =
+          next === "{" || next === "}" || next === "#"
+            ? this.quoteClose(this.pos + 2)
+            : -1;
+        // Outside a plural a quote of `#` keeps its text as written, and
+        // one holding a brace does not parse.
+        if (close >= 0 && next === "#" && pluralArg === undefined) {
+          const raw = this.source.slice(this.pos, close + 1);
+          if (raw.includes("{"))
+            throw new ParseFailure(`unsupported escape ${raw}`, this.pos);
+          this.text(seq, raw);
+          continue;
+        }
+        if (close >= 0) {
+          const quoted = this.source.slice(this.pos + 1, close);
+          this.text(seq, quoted.replaceAll("''", "'"), close + 1 - this.pos);
+          continue;
+        }
+      }
       // FormatJS's apostrophe (#1010): `''` is one, and one before a
       // brace, a tag or a plural's `#` quotes the text to the next lone
       // one, or to the end; any other is the character.
@@ -1005,6 +1044,24 @@ class Parser {
   }
 
   // Text at the cursor, `length` characters of the source read as `text`.
+  private quoteClose(from: number): number {
+    if (!this.quoteCloses) {
+      const s = this.source;
+      const closes = new Int32Array(s.length + 1).fill(-1);
+      let next = -1;
+      for (let i = s.length - 1; i >= 0; i--) {
+        if (s[i] === "'" && s[i - 1] !== "'") {
+          let end = i;
+          while (s[end + 1] === "'") end++;
+          if ((end - i + 1) % 2 === 1) next = end;
+        }
+        closes[i] = next;
+      }
+      this.quoteCloses = closes;
+    }
+    return this.quoteCloses[from] ?? -1;
+  }
+
   private text(seq: Sequence, text: string, length = text.length): true {
     seq.literal += text;
     this.pos += length;
@@ -1754,6 +1811,14 @@ class Parser {
           true,
           type === "plural" ? name : undefined,
         );
+        // Lingui's runtime prints a branch's text that is `#` alone, a
+        // quoted one included, as the count (#1154).
+        if (this.syntax === "lingui" && type === "plural")
+          branches[key] = branches[key]!.map((node) =>
+            node.kind === "literal" && node.text === "#"
+              ? { kind: "count", arg: name }
+              : node,
+          );
       } finally {
         this.within.pop();
         this.branchPath.pop();

@@ -58,7 +58,7 @@ import {
 import { ignoreCorpusDir } from "./corpus-dir";
 
 export const INIT_USAGE =
-  "corpus init --project <slug> --source <lang> --messages <path with {lang}, a .xcstrings or an Android res directory> [--languages <a,b>] [--server <url>] [--type <name>] [--library <icu|formatjs|gen_l10n|fmt|i18next|vue|printf|chrome|counterpart|easy_localization|rails|qt>]";
+  "corpus init --project <slug> --source <lang> --messages <path with {lang}, a .xcstrings or an Android res directory> [--languages <a,b>] [--server <url>] [--type <name>] [--library <icu|formatjs|lingui|gen_l10n|fmt|i18next|vue|printf|chrome|counterpart|easy_localization|rails|qt>]";
 
 // `corpus init` writes the config from flags alone, so it scripts;
 // it validates the config before writing and never overwrites one.
@@ -1144,20 +1144,20 @@ function componentDirs(cwd: string, rel: string, depth: number): string[] {
   return out;
 }
 
-// The FormatJS runtime a package.json names, nearest the catalogue
-// first, then the repository's: react-intl, next-intl and its use-intl,
-// svelte-i18n, ember-intl, intl-messageformat, @formatjs/intl, its
-// parser or its CLI. FormatJS's `Intl` polyfills
+// The ICU runtime a package.json names, nearest the catalogue first,
+// then the repository's: FormatJS's react-intl, next-intl and its
+// use-intl, svelte-i18n, ember-intl, intl-messageformat, @formatjs/intl,
+// its parser or its CLI, or Lingui's @lingui/core, which quotes
+// otherwise (#1154). FormatJS's `Intl` polyfills
 // (`@formatjs/intl-pluralrules`) read no messages, and i18next projects
-// load them too; Lingui's parser quotes otherwise (`l'{name}` keeps its
-// apostrophe), so it stays icu.
+// load them too.
 const FORMATJS_RE =
   /^(?:react-intl|next-intl|use-intl|svelte-i18n|ember-intl|intl-messageformat|@formatjs\/(?:intl|icu-messageformat-parser|cli))$/;
 
-function formatjsRuntime(
+function icuRuntime(
   cwd: string,
   messages: string,
-): { detected: string; why: string } | undefined {
+): { value: "formatjs" | "lingui"; detected: string; why: string } | undefined {
   const pkg = packageOf(cwd, messages);
   for (const dir of [...(pkg ? [pkg] : []), "."]) {
     const file = path.join(cwd, dir, "package.json");
@@ -1178,9 +1178,11 @@ function formatjsRuntime(
           {},
       ),
     );
+    const detected = path.posix.join(dir, "package.json");
+    if (names.includes("@lingui/core"))
+      return { value: "lingui", detected, why: "@lingui/core" };
     const found = names.find((name) => FORMATJS_RE.test(name));
-    if (found)
-      return { detected: path.posix.join(dir, "package.json"), why: found };
+    if (found) return { value: "formatjs", detected, why: found };
   }
   return undefined;
 }
@@ -1531,9 +1533,9 @@ function libraryOf({
       ...(printf >= 2 && { placeholders: ["printf" as const] }),
     };
   const noted = (note: string) => `${note} in ${file}`;
-  // Where the catalogue reads as icu, ICU as FormatJS reads it, its
-  // apostrophe quoting (#1010), if its package runs on FormatJS.
-  const runtime = formatjsRuntime(cwd, pattern);
+  // Where the catalogue reads as icu, ICU as FormatJS or Lingui reads it,
+  // its apostrophe quoting (#1010, #1154), if its package runs on one.
+  const runtime = icuRuntime(cwd, pattern);
   // An .arb catalogue read as ICU is Flutter's gen-l10n's (#1038), whose
   // subset the library reads; another shape counted above names its own.
   const flutter = isArb(file)
@@ -1552,7 +1554,7 @@ function libraryOf({
     flutter
       ? { ...flutter, ...(note && !flutter.note && { note }) }
       : runtime
-        ? { library: { value: "formatjs" as const, ...runtime } }
+        ? { library: runtime }
         : note
           ? { note }
           : {};
