@@ -262,13 +262,24 @@ test("where git refuses the repository, the note says git's own reason, and a to
   expect((await loadConfig(dir)).sources.map((s) => generatedBy(s))).toEqual([
     "since git ignores it",
   ]);
-  // A checkout another user owns, as a container job's is.
-  const owner = process.env.GIT_TEST_ASSUME_DIFFERENT_OWNER;
-  process.env.GIT_TEST_ASSUME_DIFFERENT_OWNER = "1";
-  onTestFinished(() => {
-    if (owner === undefined) delete process.env.GIT_TEST_ASSUME_DIFFERENT_OWNER;
-    else process.env.GIT_TEST_ASSUME_DIFFERENT_OWNER = owner;
-  });
+  // A checkout another user owns, as a container job's is, with no
+  // safe.directory from the machine's git config to excuse it.
+  const env = {
+    GIT_TEST_ASSUME_DIFFERENT_OWNER: "1",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+  };
+  for (const [name, value] of Object.entries(env)) {
+    const was = process.env[name];
+    process.env[name] = value;
+    onTestFinished(() => {
+      if (was === undefined) delete process.env[name];
+      else process.env[name] = was;
+    });
+  }
+  expect(
+    spawnSync("git", ["rev-parse", "--show-toplevel"], { cwd: dir }).status,
+  ).not.toBe(0);
   expect(ignoreUnchecked(await loadConfig(dir))).toMatch(
     /^detected dubious ownership in repository at /,
   );

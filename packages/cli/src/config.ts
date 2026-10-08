@@ -471,9 +471,11 @@ export function ignoreUnchecked(config: CorpusConfig): string | undefined {
 // work tree is not asked, and one git still refuses to judge, behind a
 // symlink say, is asked alone: one refusal fails the whole call (#1176).
 function gitIgnored(cwd: string, paths: string[]): string[] | string {
+  // In git's own words, whatever the user's locale, to tell its reason.
   const top = spawnSync("git", ["rev-parse", "--show-toplevel"], {
     cwd,
     encoding: "utf8",
+    env: { ...process.env, LC_ALL: "C" },
   });
   if (top.error) return "no git";
   // git's own reason where it refuses the repository, as for a checkout
