@@ -522,6 +522,32 @@ function pluralEnd(
   return end + (/^\s*/.exec(source.slice(end))?.[0].length ?? 0);
 }
 
+// Where a plural on `arg` lies in a text, as the library reads a whole
+// plural, braces it quotes or doubles included: undefined where none
+// opens or the one that does will not read (#1268).
+export function pluralSpan(
+  text: string,
+  syntax: Library,
+  html: boolean | "markup",
+  arg: string,
+): { start: number; end: number } | undefined {
+  const open = new RegExp(
+    `\\{\\s*${arg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*,\\s*(?:plural|selectordinal)\\s*,`,
+  ).exec(text);
+  if (!open) return undefined;
+  try {
+    return {
+      start: open.index,
+      end: new Parser(text, syntax, html, "wholePlural").argumentEnd(
+        open.index,
+      ),
+    };
+  } catch (error) {
+    if (error instanceof ParseFailure) return undefined;
+    throw error;
+  }
+}
+
 // Lingui's runtime prints a plural branch's text that is `#` alone, a
 // quoted one included, as the count: alone between what is no text, a
 // tag's markup being text to it, as its parser reads tags (#1154).
