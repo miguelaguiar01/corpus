@@ -504,6 +504,78 @@ test("a large pull's edits, additions and first fill each take one parse per pha
         ) + "\n",
       ),
   ]);
+  // Objects on one line, empty or not, and lists of them, each gaining a
+  // key (#1290 review).
+  const groups = (n: number, value: (i: number) => string) =>
+    `{\n${Array.from({ length: n }, (_, i) => `  "g${i}": ${value(i)}`).join(",\n")}\n}\n`;
+  const groupSource = JSON.stringify(
+    Object.fromEntries(
+      Array.from({ length: 4000 }, (_, i) => [
+        `g${i}`,
+        { a: `A${i}`, b: `B${i}` },
+      ]),
+    ),
+    null,
+    2,
+  );
+  const keyed = (key: string) =>
+    Object.fromEntries(
+      Array.from({ length: 4000 }, (_, i) => [`g${i}.${key}`, `x${i}`]),
+    );
+  const itemSource =
+    JSON.stringify(
+      {
+        list: Array.from({ length: 4000 }, (_, i) => ({
+          t: `T${i}`,
+          d: `D${i}`,
+        })),
+      },
+      null,
+      2,
+    ) + "\n";
+  const itemKeys = Object.fromEntries(
+    Array.from({ length: 4000 }, (_, i) => [`list.${i}.d`, `x${i}`]),
+  );
+  cases.push(
+    [
+      "4000 empty groups each gain a key",
+      () =>
+        entriesToMessages(
+          groupSource,
+          keyed("a"),
+          groups(4000, () => "{}"),
+        ),
+    ],
+    [
+      "4000 one-line groups each gain a key",
+      () =>
+        entriesToMessages(
+          groupSource,
+          keyed("b"),
+          groups(4000, (i) => `{ "a": "A${i}" }`),
+        ),
+    ],
+    [
+      "4000 one-line list items each gain a key",
+      () =>
+        entriesToMessages(
+          itemSource,
+          itemKeys,
+          `{\n  "list": [\n${Array.from({ length: 4000 }, (_, i) => `    { "t": "T${i}" }`).join(",\n")}\n  ]\n}\n`,
+        ),
+    ],
+    [
+      "4000 items of a minified list each gain a key",
+      () =>
+        entriesToMessages(
+          itemSource,
+          itemKeys,
+          JSON.stringify({
+            list: Array.from({ length: 4000 }, (_, i) => ({ t: `T${i}` })),
+          }),
+        ),
+    ],
+  );
   for (const [name, run] of cases) {
     const start = performance.now();
     run();
