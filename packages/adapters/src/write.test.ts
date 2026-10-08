@@ -1127,6 +1127,40 @@ describe("a target's plural object without other writes back as the file has it 
   });
 });
 
+test("a pull into a new file leaves out a plural it refuses, as an untranslated string, and still names it (#1189)", () => {
+  const refusing = "{count, plural, =0 {keine} one {# Raum} other {# Räume}}";
+  for (const [source, plural, opts] of [
+    [
+      `{\n  "rooms": {\n    "one": "{count} room",\n    "other": "{count} rooms"\n  },\n  "title": "Title"\n}\n`,
+      "rooms",
+      { plurals: true as const },
+    ],
+    [
+      `{\n  "rooms_one": "{{count}} room",\n  "rooms_other": "{{count}} rooms",\n  "title": "Title"\n}\n`,
+      "rooms",
+      { plurals: "several" as const, suffixPlurals: true },
+    ],
+  ] as const) {
+    const named: string[] = [];
+    const created = entriesToMessages(
+      source,
+      { [plural]: refusing, title: "Titel" },
+      undefined,
+      { ...opts, onRefused: (id) => named.push(id) },
+    );
+    expect(named).toEqual(["rooms"]);
+    expect(JSON.parse(created)).toEqual({ title: "Titel" });
+    expect(created).toBe(
+      entriesToMessages(
+        source,
+        { [plural]: refusing, title: "Titel" },
+        "",
+        opts,
+      ),
+    );
+  }
+});
+
 test("a pull writes a target's lone other where the source has a key there, never as a plural (#984)", () => {
   const source = `{\n  "cat": {\n    "other": "Other",\n    "more": "More"\n  }\n}\n`;
   const target = `{\n  "cat": {\n    "other": "Andere"\n  }\n}\n`;
