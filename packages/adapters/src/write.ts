@@ -223,11 +223,11 @@ function writePlural(
   order?: (objectPath: string[]) => string[] | undefined,
   onRefused?: Refusal,
   needsOther = false,
-  // Where a form's removal waits, so a pull's removals follow all its
-  // additions rather than flush the document at each plural.
-  later?: string[][],
+  // Read from the text, as the sequential oracle does, or where a write
+  // before it reached its path, which the parse no longer holds.
+  onText = false,
 ): void {
-  if (typeof current === "string") {
+  if (onText || typeof current === "string") {
     doc.apply((text) =>
       writePluralText(text, path, plural, unit, order, onRefused, needsOther),
     );
@@ -251,9 +251,25 @@ function writePlural(
   }
   if (current && typeof current === "object")
     for (const form of Object.keys(current))
-      if (!Object.hasOwn(forms, form))
-        if (later) later.push([...path, form]);
-        else doc.remove([...path, form]);
+      if (!Object.hasOwn(forms, form)) doc.remove([...path, form]);
+}
+
+// The paths a run's writes reached, so a plural knows whether the parse
+// before them still holds its value: none at it, above it or under it.
+class Reached {
+  private at = new Set<string>();
+  private above = new Set<string>();
+  add(path: string[]): void {
+    this.at.add(path.join("\u0000"));
+    for (let k = 1; k < path.length; k++)
+      this.above.add(path.slice(0, k).join("\u0000"));
+  }
+  near(path: string[]): boolean {
+    if (this.above.has(path.join("\u0000"))) return true;
+    for (let k = 1; k <= path.length; k++)
+      if (this.at.has(path.slice(0, k).join("\u0000"))) return true;
+    return false;
+  }
 }
 
 // The same, on the text, reading what it holds at `path` from it.
@@ -503,7 +519,7 @@ export function entriesToMessages(
       Math.max(lastWritten.get(key) ?? -1, Number(path[list.length])),
     );
   }
-  const later: string[][] = [];
+  const reached = new Reached();
   for (const [path, value, plural] of leaves(
     baseTree,
     plurals,
@@ -548,6 +564,7 @@ export function entriesToMessages(
             ),
           );
         else onRefused?.(id, next);
+        reached.add(path);
         continue;
       }
       // In a new file a plural it cannot hold goes, as an untranslated
@@ -570,15 +587,15 @@ export function entriesToMessages(
           order,
           onRefused,
           false,
-          later,
+          sequential || reached.near(path),
         );
       else doc.edit(path, next);
     } else if (fresh) {
       if (plural === "suffix") deleteSuffix(doc, path);
       else doc.remove(path, plural !== false);
     }
+    reached.add(path);
   }
-  for (const path of later) doc.remove(path);
   if (fresh)
     for (const list of sourceLists) {
       const last = lastWritten.get(list.join("\u0000"));
@@ -592,7 +609,6 @@ export function entriesToMessages(
   // The source's lists a target lacks, or holds short, by their items
   // to write (#1053).
   const underLists: string[] = [];
-  const added: string[][] = [];
   for (const id of Object.keys(translations)) {
     if (seen.has(id)) continue;
     const inSource = sourcePaths.get(id);
@@ -607,18 +623,8 @@ export function entriesToMessages(
     }
     const path = sourcePaths.get(id) ?? (nested ? id.split(".") : [id]);
     const next = translations[id]!;
-    const under = added.some(
-      (at) => at.length > path.length && path.every((key, i) => at[i] === key),
-    );
-    added.push(path);
     if (sourceSuffix.has(id))
       writeSuffix(doc, path, next, style.indent, fresh, order, onRefused);
-    // A plural over a key this loop added is read from the text, which
-    // the parse before it does not hold.
-    else if (sourcePlurals.has(id) && under)
-      doc.apply((text) =>
-        writePluralText(text, path, next, style.indent, order, onRefused),
-      );
     else if (sourcePlurals.has(id))
       writePlural(
         doc,
@@ -628,8 +634,11 @@ export function entriesToMessages(
         valueAt(baseTree, path),
         order,
         onRefused,
+        false,
+        sequential || reached.near(path),
       );
     else doc.add(path, next, style.indent, order);
+    reached.add(path);
   }
   if (underLists.length > 0)
     doc.apply((text) =>
@@ -1247,12 +1256,8 @@ export function applyMessagesOps(
   const doc = jsonDoc(text, sequential);
   const lists = listsOf(tree);
   const empty = emptyObjects(tree, options.pluralIds);
-  // The ids the batch wrote so far, whose values the tree no longer
-  // holds.
-  const written = new Set<string>();
+  const reached = new Reached();
   for (const op of ops) {
-    const again = written.has(op.id);
-    written.add(op.id);
     const path =
       paths.get(op.id) ??
       (op.kind === "delete" ? empty.get(op.id) : undefined) ??
@@ -1283,23 +1288,19 @@ export function applyMessagesOps(
     } else if (pluralIds.has(op.id) || (suffix && asObjects && newPlural(op))) {
       // A proposal the object cannot hold fails the file loudly: it is
       // counted written otherwise, and never lands.
-      // An id an earlier op of the batch wrote is read from the text.
-      if (again)
-        doc.apply((text) =>
-          writePluralText(text, path, op.text, indent, undefined, refuse, true),
-        );
-      else
-        writePlural(
-          doc,
-          path,
-          op.text,
-          indent,
-          valueAt(tree, path),
-          undefined,
-          refuse,
-          true,
-        );
+      writePlural(
+        doc,
+        path,
+        op.text,
+        indent,
+        valueAt(tree, path),
+        undefined,
+        refuse,
+        true,
+        sequential || reached.near(path),
+      );
     } else if (!doc.edit(path, op.text)) doc.add(path, op.text, indent);
+    reached.add(path);
   }
   return doc.text();
 }
