@@ -1897,6 +1897,147 @@ test("validate refuses a form a plural object's file cannot split back, as push 
   );
 });
 
+// A target's plural object whose forms would split the rebuilt text
+// otherwise than the file: a stray } in `one`, or `one` swallowing a
+// branch (#1186).
+const UNSPLIT: [string, string, string][] = [
+  ["icu", "{count}", ""],
+  ["formatjs", "{count}", ', library: "formatjs"'],
+  ["i18next", "{{count}}", ', library: "i18next"'],
+  ["counterpart", "%(count)s", ', library: "counterpart"'],
+  ["easy_localization", "{}", ', library: "easy_localization"'],
+];
+test.each(UNSPLIT)(
+  "under %s a target plural object's form whose braces split it otherwise is unsplittable-form, said once (#1186)",
+  async (_, count, library) => {
+    const configFile = readdirSync(repo).find((f) =>
+      f.startsWith("corpus.config"),
+    )!;
+    writeFileSync(
+      path.join(repo, configFile),
+      readFileSync(path.join(repo, configFile), "utf8")
+        .replace(
+          /sources: \[[\s\S]*?\n {2}\],/,
+          `sources: [{ adapter: "messages", type: "ui", path: "l/{lang}.json"${library} }],`,
+        )
+        .replace(/languages: \[[^\]]*\]/, 'languages: ["en", "pl", "cs"]'),
+    );
+    mkdirSync(path.join(repo, "l"), { recursive: true });
+    writeFileSync(
+      path.join(repo, "l", "en.json"),
+      JSON.stringify({
+        rooms: { one: `${count} room`, other: `${count} rooms` },
+      }),
+    );
+    writeFileSync(
+      path.join(repo, "l", "pl.json"),
+      JSON.stringify({
+        rooms: {
+          one: `${count} pokój }`,
+          few: `${count} pokoje`,
+          many: `${count} pokoi`,
+          other: `${count} pokoju`,
+        },
+      }),
+    );
+    writeFileSync(
+      path.join(repo, "l", "cs.json"),
+      JSON.stringify({
+        rooms: {
+          one: `${count} x} many {XX`,
+          few: `${count} pokoje`,
+          other: `${count} pokoju`,
+        },
+      }),
+    );
+    const c = ctx();
+    expect(await run(["validate"], c)).toBe(1);
+    const said = c.stderr.join("\n");
+    for (const file of ["l/pl.json", "l/cs.json"]) {
+      const lines = said.split("\n").filter((l) => l.startsWith(`${file}:`));
+      expect(lines).toEqual([
+        `${file}:rooms: the one form of {count} leaves a brace unbalanced, so this file cannot hold it as one of its forms: balance the braces in it`,
+      ]);
+    }
+    expect(said).not.toContain("has no other form");
+  },
+);
+
+test("under merge: last-wins an earlier copy's unsplittable form is a warning, as its other findings are (#1186 review)", async () => {
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8")
+      .replace(
+        /sources: \[[\s\S]*?\n {2}\],/,
+        'sources: [{ adapter: "messages", type: "ui", path: ["a/{lang}.json", "b/{lang}.json"], merge: "last-wins", library: "counterpart" }],',
+      )
+      .replace(/languages: \[[^\]]*\]/, 'languages: ["en", "pl"]'),
+  );
+  const rooms = { one: "%(count)s room", other: "%(count)s rooms" };
+  for (const dir of ["a", "b"]) {
+    mkdirSync(path.join(repo, dir), { recursive: true });
+    writeFileSync(path.join(repo, dir, "en.json"), JSON.stringify({ rooms }));
+  }
+  writeFileSync(
+    path.join(repo, "a", "pl.json"),
+    JSON.stringify({
+      rooms: { one: "%(count)s pokój }", other: "%(count)s pokoju" },
+    }),
+  );
+  writeFileSync(
+    path.join(repo, "b", "pl.json"),
+    JSON.stringify({
+      rooms: { one: "%(count)s pokój", other: "%(count)s pokoi" },
+    }),
+  );
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(0);
+  expect(c.stderr.join("\n")).toContain(
+    "a/pl.json:rooms: the one form of {count} leaves a brace unbalanced",
+  );
+});
+
+test("a Rails hash's form whose braces split it otherwise is unsplittable-form, said once (#1186)", async () => {
+  const configFile = readdirSync(repo).find((f) =>
+    f.startsWith("corpus.config"),
+  )!;
+  writeFileSync(
+    path.join(repo, configFile),
+    readFileSync(path.join(repo, configFile), "utf8")
+      .replace(
+        /sources: \[[\s\S]*?\n {2}\],/,
+        'sources: [{ adapter: "yaml", type: "server", path: "config/locales/{lang}.yml" }],',
+      )
+      .replace(/languages: \[[^\]]*\]/, 'languages: ["en", "pl", "cs"]'),
+  );
+  mkdirSync(path.join(repo, "config", "locales"), { recursive: true });
+  writeFileSync(
+    path.join(repo, "config", "locales", "en.yml"),
+    'en:\n  rooms:\n    one: "%{count} room"\n    other: "%{count} rooms"\n',
+  );
+  writeFileSync(
+    path.join(repo, "config", "locales", "pl.yml"),
+    'pl:\n  rooms:\n    one: "%{count} pokój }"\n    few: "%{count} pokoje"\n    many: "%{count} pokoi"\n    other: "%{count} pokoju"\n',
+  );
+  writeFileSync(
+    path.join(repo, "config", "locales", "cs.yml"),
+    'cs:\n  rooms:\n    one: "%{count} x} many {XX"\n    few: "%{count} pokoje"\n    other: "%{count} pokoju"\n',
+  );
+  const c = ctx();
+  expect(await run(["validate"], c)).toBe(1);
+  const said = c.stderr.join("\n");
+  for (const file of ["config/locales/pl.yml", "config/locales/cs.yml"]) {
+    const lines = said.split("\n").filter((l) => l.startsWith(`${file}:`));
+    expect(lines).toEqual([
+      `${file}:rooms: the one form of {count} leaves a brace unbalanced, so this file cannot hold it as one of its forms: balance the braces in it`,
+    ]);
+  }
+  expect(said).not.toContain("has no other form");
+});
+
 test("--server advises an =0 in a counterpart gettext plural into the branch the file's Plural-Forms read, not counterpart's zero (#964)", async () => {
   const configFile = readdirSync(repo).find((f) =>
     f.startsWith("corpus.config"),

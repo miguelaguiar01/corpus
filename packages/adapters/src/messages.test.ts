@@ -7,6 +7,7 @@ import {
   pluralObjectIds,
   pluralText,
   suffixPluralIds,
+  unsplitForms,
 } from "./messages";
 
 test("flat catalog maps key -> id with the configured type", () => {
@@ -356,6 +357,50 @@ test("a target's object of categories is a plural exactly where the source's is;
       pluralIds: new Set(["rooms"]),
     }).map((e) => e.id),
   ).toEqual(["edit_profile.other", "rooms"]);
+  // A form whose braces split the rebuilt text otherwise is said, by
+  // its key, for a target alone (#1186).
+  for (const one of ["{count} pokój }", "{count} x} many {XX"]) {
+    const unsplit: [string, string][] = [];
+    const forms = {
+      rooms: { one, few: "{count} pokoje", other: "{count} pokoju" },
+    };
+    messagesToEntries(forms, {
+      type: "ui",
+      plurals: true,
+      pluralIds: new Set(["rooms"]),
+      onUnsplit: (id, key) => unsplit.push([id, key]),
+    });
+    expect(unsplit).toEqual([["rooms", "one"]]);
+    const kept: [string, string][] = [];
+    messagesToEntries(
+      { rooms: { one: "{count} room", other: "{count} rooms" } },
+      {
+        type: "ui",
+        plurals: true,
+        pluralIds: new Set(["rooms"]),
+        onUnsplit: (id, key) => kept.push([id, key]),
+      },
+    );
+    expect(kept).toEqual([]);
+  }
+  // Forms the writer splits back as written are no finding, fmt's and
+  // i18next's doubled braces included (#1186 review), and where one
+  // form alone fails it is the one named.
+  expect(unsplitForms({ one: "{n} use }} to close", other: "{n} x" })).toEqual(
+    [],
+  );
+  expect(unsplitForms({ one: "{} {{ x", other: "{} y" })).toEqual([]);
+  expect(unsplitForms({ one: "fine", other: "{{a} b}" })).toEqual(["other"]);
+  const fromSource: [string, string][] = [];
+  messagesToEntries(
+    { rooms: { one: "{count} pokój }", other: "{count} pokoju" } },
+    {
+      type: "ui",
+      plurals: true,
+      onUnsplit: (id, key) => fromSource.push([id, key]),
+    },
+  );
+  expect(fromSource).toEqual([]);
   // Grafana's `attribute-category: { other: "Other" }`, called as a key.
   const source = {
     "attribute-category": { other: "Other" },

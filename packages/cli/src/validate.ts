@@ -416,6 +416,7 @@ export async function validateRepo(
       const file = fileOf(source, language, config.sourceLanguage);
       // A target file that does not read is its own finding (#1028), and
       // the others are still checked.
+      const unsplit = new Map<string, string[]>();
       const translations = await texts(
         jiti,
         cwd,
@@ -451,6 +452,7 @@ export async function validateRepo(
                 },
           ),
         pluralIds,
+        (key, form) => unsplit.set(key, [...(unsplit.get(key) ?? []), form]),
       ).catch((error: unknown) => {
         findings.push({
           file,
@@ -531,22 +533,37 @@ export async function validateRepo(
           });
           continue;
         }
-        const checked = checkTranslation(augment(entry), target, {
-          gaps,
-          file,
-          sourceFile,
-          key,
-          language,
-          sourceLanguage: config.sourceLanguage,
-          library: entry.library ?? library,
-          richText: richTextFor(
-            source.type,
-            key,
-            entry.library ?? library,
-            config.richText,
-          ),
-          brokenSources,
-        });
+        // A plural object's form the rebuilt text splits otherwise is the
+        // finding; the rebuilt text's own would mislead (#1186).
+        const forms = unsplit.get(key);
+        const checked = forms
+          ? forms.map((form): Finding => ({
+              file,
+              key,
+              language,
+              code: "unsplittable-form",
+              severity: "invalid",
+              message: describe(
+                { code: "unsplittable-form", arg: "count", key: form },
+                entry.library ?? library,
+              ),
+            }))
+          : checkTranslation(augment(entry), target, {
+              gaps,
+              file,
+              sourceFile,
+              key,
+              language,
+              sourceLanguage: config.sourceLanguage,
+              library: entry.library ?? library,
+              richText: richTextFor(
+                source.type,
+                key,
+                entry.library ?? library,
+                config.richText,
+              ),
+              brokenSources,
+            });
         findings.push(...checked);
         earlier
           ?.get(key)
@@ -610,6 +627,7 @@ async function texts(
   language?: string,
   onUnread?: (id: string, reason?: string) => void,
   pluralIds?: ReadonlySet<string>,
+  onUnsplit?: (id: string, key: string) => void,
 ): Promise<Map<string, StringEntry> | undefined> {
   if (!existsSync(path.join(cwd, rel))) return undefined;
   try {
@@ -622,6 +640,8 @@ async function texts(
       language,
       onUnread,
       pluralIds,
+      undefined,
+      onUnsplit,
     );
     return new Map(entries.map((e) => [e.id, e]));
   } catch (error) {

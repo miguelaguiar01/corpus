@@ -38,6 +38,9 @@ export type MessagesOptions = {
   // A null, number or boolean, skipped; and, in entry objects, a value
   // that is no entry.
   onSkipped?: (id: string) => void;
+  // A target's plural object whose form `key` splits the rebuilt text
+  // otherwise than the file holds it (#1186).
+  onUnsplit?: (id: string, key: string) => void;
   // Entry objects, each its text in one field and its note in another
   // (#1001): Signal's `{ messageformat, description }`, FormatJS's
   // extract formats.
@@ -192,6 +195,29 @@ export function isPluralObject(
     entries.every(([key, value]) => back[key] === value) &&
     Object.keys(back).length === entries.length
   );
+}
+
+// The forms of a plural object that its rebuilt text would not split
+// back to (#1186), read as the writer splits them: none where it splits
+// back whole, else each that fails alone, else the first that comes back
+// otherwise.
+export function unsplitForms(forms: Record<string, string>): string[] {
+  const back = (some: Record<string, string>) =>
+    pluralBranches(pluralText("count", some, "written"), false);
+  const readsBack = (some: Record<string, string>) => {
+    const read = back(some);
+    return (
+      read !== undefined &&
+      Object.keys(read).length === Object.keys(some).length &&
+      Object.entries(some).every(([key, value]) => read[key] === value)
+    );
+  };
+  if (readsBack(forms)) return [];
+  const keys = Object.keys(forms);
+  const alone = keys.filter((key) => !readsBack({ [key]: forms[key]! }));
+  if (alone.length > 0) return alone;
+  const whole = back(forms);
+  return [keys.find((key) => whole?.[key] !== forms[key]) ?? keys[0]!];
 }
 
 // The ids a source catalogue holds as plural objects, as the writer
@@ -540,8 +566,12 @@ function walk(
   if (
     path.length > 0 &&
     isPluralAt(node, path.join("."), options.plurals, options.pluralIds)
-  )
+  ) {
+    if (options.onUnsplit)
+      for (const key of unsplitForms(node))
+        options.onUnsplit(path.join("."), key);
     node = pluralText("count", node, "written");
+  }
   if (typeof node === "string") {
     const id = path.join(".");
     const first = paths.get(id);

@@ -1168,6 +1168,9 @@ async function readFileEntries(
   pluralIds?: ReadonlySet<string>,
   // A messages value that is no string, a null, number or boolean.
   onSkipped?: (id: string) => void,
+  // A target's plural object or hash whose form `key` would split the
+  // rebuilt text otherwise than the file (#1186).
+  onUnsplit?: (id: string, key: string) => void,
 ): Promise<StringEntry[]> {
   // A committed target named as the source, whose keys are the text
   // (#999): its values are a translation, never the source.
@@ -1240,6 +1243,10 @@ async function readFileEntries(
           ? yamlToEntries(text(), { type: source.type, root })
           : typed(
               yamlTranslations(text(), root, pluralIds, {
+                ...(onUnsplit && {
+                  onUnsplit: (id: string, key: string) =>
+                    onUnsplit(own(id), key),
+                }),
                 // The file of the language a root names, if it has one:
                 // a tag languageFiles maps, or a file's code (#1048).
                 ownFile: (root) =>
@@ -1312,6 +1319,10 @@ async function readFileEntries(
           ...(pluralIds && { pluralIds }),
           onRefused: (id, reason) => onUnread?.(own(id), reason),
           ...(onSkipped && { onSkipped: (id: string) => onSkipped(own(id)) }),
+          ...(onUnsplit &&
+            !sourceFile && {
+              onUnsplit: (id: string, key: string) => onUnsplit(own(id), key),
+            }),
         })
       : tableToEntries(data, { type: source.type, map: source.map });
   // A namespaced file's ids are `ns:key` (#513), i18next's own separator.
