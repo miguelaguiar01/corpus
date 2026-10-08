@@ -2406,7 +2406,7 @@ export default defineCorpus({
     mkdirSync(path.dirname(path.join(repo, file)), { recursive: true });
     writeFileSync(path.join(repo, file), text);
   }
-  const unread = [
+  const unread: [string, string][] = [
     ["res/values-de/strings.xml", "x"],
     ["po/de.po", "Open"],
     ["ftl/de/main.ftl", "hello"],

@@ -14,6 +14,7 @@ contract (`corpus/1`) is the only one.
 
 ### Fixed
 
+- A target file that writes an id twice with different texts is a file that does not read, rather than stopping the build; a source's is named once (#1168).
 - A `pluralRules` table on an easy_localization source is refused, since the package never picks by one: `"cldr"` is its intl reading (#1163).
 - An apostrophe that quotes past a plural branch's end, as a French `d'# fichier` does under `formatjs`, is named in the error with the advice to write `’` (#1155).
 - A translated plural without `other` previews the branch for the count, rather than its raw `{count, plural, …}` text or nothing (#1151).
