@@ -2004,6 +2004,28 @@ describe("a list item written in place or appended keeps the file's line style (
       `{\n  "list": [\n    { "t": "A" },\n    { "t": "B" },\n    { "t": "C" }\n  ]\n}\n`,
     );
   });
+  test("an empty last item gives no line style, and only an object takes a one-line object's (#1235 review)", () => {
+    const source = `{\n  "list": [\n    {\n      "t": "a"\n    },\n    {},\n    {\n      "t": "c"\n    }\n  ]\n}\n`;
+    expect(
+      entriesToMessages(
+        source,
+        { "list.2.t": "C" },
+        `{\n  "list": [\n    {\n      "t": "A"\n    },\n    {}\n  ]\n}\n`,
+      ),
+    ).toBe(
+      `{\n  "list": [\n    {\n      "t": "A"\n    },\n    {},\n    {\n      "t": "C"\n    }\n  ]\n}\n`,
+    );
+    const mixed = `{\n  "list": [\n    { "t": "a" },\n    [\n      "x",\n      "y"\n    ]\n  ]\n}\n`;
+    expect(
+      entriesToMessages(
+        mixed,
+        { "list.1.0": "X" },
+        `{\n  "list": [\n    { "t": "A" }\n  ]\n}\n`,
+      ),
+    ).toBe(
+      `{\n  "list": [\n    { "t": "A" },\n    [\n      "X",\n      "y"\n    ]\n  ]\n}\n`,
+    );
+  });
   test("an expanded list of expanded items appends expanded ones", () => {
     const source = `{\n  "list": [\n    {\n      "t": "a"\n    },\n    {\n      "t": "b"\n    }\n  ]\n}\n`;
     expect(
