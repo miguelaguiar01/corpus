@@ -452,8 +452,7 @@ export async function validateRepo(
                 },
           ),
         pluralIds,
-        (key, form) =>
-          (unsplit.get(key) ?? unsplit.set(key, []).get(key)!).push(form),
+        (key, form) => unsplit.set(key, [...(unsplit.get(key) ?? []), form]),
       ).catch((error: unknown) => {
         findings.push({
           file,
@@ -537,9 +536,8 @@ export async function validateRepo(
         // A plural object's form the rebuilt text splits otherwise is the
         // finding; the rebuilt text's own would mislead (#1186).
         const forms = unsplit.get(key);
-        if (forms) {
-          for (const form of forms)
-            findings.push({
+        const checked = forms
+          ? forms.map((form): Finding => ({
               file,
               key,
               language,
@@ -549,25 +547,23 @@ export async function validateRepo(
                 { code: "unsplittable-form", arg: "count", key: form },
                 entry.library ?? library,
               ),
+            }))
+          : checkTranslation(augment(entry), target, {
+              gaps,
+              file,
+              sourceFile,
+              key,
+              language,
+              sourceLanguage: config.sourceLanguage,
+              library: entry.library ?? library,
+              richText: richTextFor(
+                source.type,
+                key,
+                entry.library ?? library,
+                config.richText,
+              ),
+              brokenSources,
             });
-          continue;
-        }
-        const checked = checkTranslation(augment(entry), target, {
-          gaps,
-          file,
-          sourceFile,
-          key,
-          language,
-          sourceLanguage: config.sourceLanguage,
-          library: entry.library ?? library,
-          richText: richTextFor(
-            source.type,
-            key,
-            entry.library ?? library,
-            config.richText,
-          ),
-          brokenSources,
-        });
         findings.push(...checked);
         earlier
           ?.get(key)

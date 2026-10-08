@@ -198,22 +198,26 @@ export function isPluralObject(
 }
 
 // The forms of a plural object that its rebuilt text would not split
-// back to (#1186): each whose own braces do not balance, else the first
-// that comes back otherwise.
+// back to (#1186), read as the writer splits them: none where it splits
+// back whole, else each that fails alone, else the first that comes back
+// otherwise.
 export function unsplitForms(forms: Record<string, string>): string[] {
-  const balanced = (text: string) => {
-    let depth = 0;
-    for (const char of text) {
-      if (char === "{") depth++;
-      else if (char === "}" && --depth < 0) return false;
-    }
-    return depth === 0;
+  const back = (some: Record<string, string>) =>
+    pluralBranches(pluralText("count", some, "written"), false);
+  const readsBack = (some: Record<string, string>) => {
+    const read = back(some);
+    return (
+      read !== undefined &&
+      Object.keys(read).length === Object.keys(some).length &&
+      Object.entries(some).every(([key, value]) => read[key] === value)
+    );
   };
-  const unbalanced = Object.keys(forms).filter((key) => !balanced(forms[key]!));
-  if (unbalanced.length > 0) return unbalanced;
-  const back = pluralBranches(pluralText("count", forms, "written"), false);
-  const first = Object.keys(forms).find((key) => back?.[key] !== forms[key]);
-  return first === undefined ? [] : [first];
+  if (readsBack(forms)) return [];
+  const keys = Object.keys(forms);
+  const alone = keys.filter((key) => !readsBack({ [key]: forms[key]! }));
+  if (alone.length > 0) return alone;
+  const whole = back(forms);
+  return [keys.find((key) => whole?.[key] !== forms[key]) ?? keys[0]!];
 }
 
 // The ids a source catalogue holds as plural objects, as the writer
