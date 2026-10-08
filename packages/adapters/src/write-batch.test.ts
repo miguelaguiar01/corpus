@@ -460,6 +460,24 @@ test("a large pull's edits, additions and first fill each take one parse per pha
         `{\n  "list": []\n}\n`,
       ),
   ]);
+  // A key every item of a list lacks (#1290).
+  cases.push([
+    "a key added to each of 8000 list items",
+    () =>
+      entriesToMessages(
+        JSON.stringify(
+          { list: items.map((_, i) => ({ t: `T ${i}`, d: `D ${i}` })) },
+          null,
+          2,
+        ) + "\n",
+        Object.fromEntries(items.map((_, i) => [`list.${i}.d`, `Dd ${i}`])),
+        JSON.stringify(
+          { list: items.map((_, i) => ({ t: `T ${i}` })) },
+          null,
+          2,
+        ) + "\n",
+      ),
+  ]);
   for (const [name, run] of cases) {
     const start = performance.now();
     run();
