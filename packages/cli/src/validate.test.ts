@@ -1829,6 +1829,65 @@ export default defineCorpus({
   }
 });
 
+test("--server reads a language's terms as pull would write them: the instance's term in place of the file's, a new file's without attributes (#1200)", async () => {
+  writeFileSync(
+    path.join(repo, "corpus.config.ts"),
+    `import { defineCorpus } from "@corpus/contract";
+export default defineCorpus({
+  project: "pull-fixture",
+  server: process.env.CORPUS_SERVER ?? "https://corpus.example",
+  sourceLanguage: "en",
+  languages: ["en", "de", "ru", "cs"],
+  sources: [{ adapter: "fluent", type: "ui", path: "l10n/{lang}.ftl" }],
+});
+`,
+  );
+  mkdirSync(path.join(repo, "l10n"), { recursive: true });
+  writeFileSync(
+    path.join(repo, "l10n", "en.ftl"),
+    `-brand = { $capitalization ->\n   *[lower] account\n    [upper] Account\n  }\n-relay = Relay\n    .gender = feminine\na = Your { -brand(capitalization: "upper") }\nb = { -relay.gender ->\n    [feminine] She\n   *[other] It\n  }\n`,
+  );
+  // German's file declines -brand by case; the instance's German term
+  // has gone back to capitalization, which is what a pull writes.
+  writeFileSync(
+    path.join(repo, "l10n", "de.ftl"),
+    `-brand = { $case ->\n   *[nom] Konto\n    [gen] Kontos\n  }\n`,
+  );
+  const server = await instance({
+    de: {
+      "-brand":
+        "{capitalization, select, lower {konto} upper {Konto} other {konto}}",
+      a: '{-brand(capitalization: "upper")}',
+      c: '{-brand(case: "gen")}',
+    },
+    // No Russian file: the instance's term, which reads case, is the
+    // one a pull writes.
+    ru: {
+      "-brand": "{case, select, nom {аккаунт} gen {аккаунта} other {аккаунт}}",
+      a: '{-brand(case: "gen")}',
+    },
+    // No Czech file: a pull writes the term's value alone, without the
+    // source's .gender.
+    cs: {
+      "-relay": "Relay",
+      b: "{-relay.gender, select, feminine {Ona} other {To}}",
+    },
+  });
+  try {
+    const c = { ...ctx(), env: { CORPUS_TOKEN: "good" } };
+    await run(["validate", "--server"], c);
+    expect(
+      c.stderr.filter((l) => /reads no argument|has no \./.test(l)),
+    ).toEqual([
+      "l10n/de.ftl:c: -brand reads no argument case in this language, so Fluent renders it as if none were passed",
+      "l10n/cs.ftl:b: -relay has no .gender in this language, so Fluent renders the default variant",
+    ]);
+  } finally {
+    server.close();
+    delete process.env.CORPUS_SERVER;
+  }
+});
+
 test("validate refuses a source whose path its adapter does not read, naming the file's format, once (#1035)", async () => {
   writeFileSync(
     path.join(repo, "corpus.config.ts"),
