@@ -89,7 +89,12 @@ function derive(r: () => number, tree: Tree): Tree {
     if (typeof value === "string")
       out[key] = roll < 0.5 ? `Alt ${value}` : value;
     else if (Array.isArray(value)) out[key] = value;
-    else out[key] = derive(r, value);
+    else {
+      out[key] = derive(r, value);
+      // A target's plural object may hold a form its source lacks.
+      if ("one" in value && "other" in value && r() < 0.3)
+        (out[key] as Tree).few = `${key} few`;
+    }
   }
   if (r() < 0.2) out[`extra${Math.floor(r() * 9)}`] = "Extra";
   return out;
@@ -483,6 +488,29 @@ test("a plural whose path an earlier write of the same pull reached is written a
       },
     ),
   );
+  // A plural object at one of a family's keys, which the family wrote.
+  for (const flat of [false, true]) {
+    const wrap = (inner: string) => (flat ? inner : `{"p": ${inner}}`);
+    const key = (k: string) => (flat ? k : `p.${k}`);
+    sameBoth((sequential) =>
+      entriesToMessages(
+        wrap(
+          `{"b_one": "o", "b_other": "t", "b_few": {"one": "1", "other": "2"}}`,
+        ),
+        {
+          [key("b")]: P("one {x} few {f} other {y}"),
+          [key("b_few")]: P("one {x} other {y}"),
+        },
+        wrap(`{"b_one": "o", "b_other": "t"}`),
+        {
+          plurals: true,
+          suffixPlurals: true,
+          sourceLanguage: "en",
+          sequential,
+        },
+      ),
+    );
+  }
   // A removed form holding its object's only line break.
   sameBoth((sequential) =>
     entriesToMessages(
